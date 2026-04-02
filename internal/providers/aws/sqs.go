@@ -1,0 +1,57 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+
+	"codeburg.org/icearp/disco/internal/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+)
+
+// scanSQS discovers SQS queues in one region. SQS has no paginator type;
+// we iterate manually using NextToken.
+func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+	client := sqs.NewFromConfig(acct.cfg, func(o *sqs.Options) { o.Region = region })
+
+	var nextToken *string
+	for {
+		out, err := client.ListQueues(ctx, &sqs.ListQueuesInput{
+			MaxResults: sdkaws.Int32(1000),
+			NextToken:  nextToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return skipIfAccessDenied("sqs:ListQueues", acct.ID, region, err)
+			}
+			return fmt.Errorf("sqs:ListQueues: %w", err)
+		}
+		var batch []*store.Resource
+		for _, url := range out.QueueUrls {
+			url := url
+			// Use the queue URL as NativeID; it uniquely identifies the queue.
+			r := &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           "aws:sqs:queue",
+				NativeID:       url,
+				Name:           &url,
+				Region:         &region,
+				AttributesJSON: mustJSON(map[string]string{"url": url}),
+				ScanID:         scanID,
+			}
+			batch = append(batch, r)
+		}
+		if len(batch) > 0 {
+			if err := st.UpsertResources(batch); err != nil {
+				return fmt.Errorf("upsert SQS queues: %w", err)
+			}
+		}
+		if out.NextToken == nil {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return nil
+}
