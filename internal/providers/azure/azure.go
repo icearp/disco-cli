@@ -5,7 +5,6 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -14,6 +13,7 @@ import (
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
+	"codeburg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/sync/errgroup"
@@ -50,17 +50,44 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 
 	// Scan all resource types in parallel.
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanCompute(ctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanNetwork(ctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanStorage(ctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanSQL(ctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanAKS(ctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanKeyVault(ctx, sub, cred, st, scanID) })
+	services := []struct {
+		name string
+		fn   func() error
+	}{
+		{"azure:compute", func() error { return scanCompute(ctx, sub, cred, st, scanID) }},
+		{"azure:network", func() error { return scanNetwork(ctx, sub, cred, st, scanID) }},
+		{"azure:storage", func() error { return scanStorage(ctx, sub, cred, st, scanID) }},
+		{"azure:sql", func() error { return scanSQL(ctx, sub, cred, st, scanID) }},
+		{"azure:aks", func() error { return scanAKS(ctx, sub, cred, st, scanID) }},
+		{"azure:keyvault", func() error { return scanKeyVault(ctx, sub, cred, st, scanID) }},
+	}
+	for _, svc := range services {
+		svc := svc
+		g.Go(func() error {
+			if err := svc.fn(); err != nil {
+				return err
+			}
+			st.ReportService(svc.name)
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return err
 	}
 
 	return resolveRelationships(ctx, sub, st)
+}
+
+// resolveRelationships is phase 2 for Azure: derive edges between resources
+// that have already been written to the DB.
+func resolveRelationships(_ context.Context, sub *subscription, st *store.Store) error {
+	if err := resolveVMRelationships(sub, st); err != nil {
+		return err
+	}
+	if err := resolveSubnetVNetRelationships(sub, st); err != nil {
+		return err
+	}
+	return resolveAKSRelationships(sub, st)
 }
 
 // — shared helpers —
@@ -71,14 +98,7 @@ type subscription struct {
 	Name string
 }
 
-// mustJSON marshals v to JSON, returning "{}" on error.
-func mustJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
-}
+func mustJSON(v any) string { return util.MustJSON(v) }
 
 // isAccessDenied reports whether err is an Azure 403/401 response error.
 func isAccessDenied(err error) bool {
@@ -96,13 +116,7 @@ func skipIfAccessDenied(service, subID string, err error) error {
 	return nil
 }
 
-// sv dereferences a string pointer, returning "" for nil.
-func sv(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
-}
+func sv(p *string) string { return util.Sv(p) }
 
 // rgFromID extracts the resource group name from an Azure resource ID.
 // e.g. /subscriptions/xxx/resourceGroups/myRG/... → "myRG"

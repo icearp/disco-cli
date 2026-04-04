@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
@@ -18,9 +20,23 @@ var scanCmd = &cobra.Command{
 Examples:
   disco scan aws
   disco scan gcp
-  disco scan       # scans all configured providers`,
+  disco scan                          # scans all configured providers
+  disco scan --providers aws,gcp`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runScan(cmd, providers.All())
+		names, _ := cmd.Flags().GetStringSlice("providers")
+		if len(names) == 0 {
+			return runScan(cmd, providers.All())
+		}
+		// Resolve the named providers, erroring on any unknown name.
+		scanners := make([]providers.Scanner, 0, len(names))
+		for _, name := range names {
+			s, ok := providers.Get(name)
+			if !ok {
+				return fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(providers.Names(), ", "))
+			}
+			scanners = append(scanners, s)
+		}
+		return runScan(cmd, scanners)
 	},
 }
 
@@ -49,7 +65,14 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if err != nil {
 		return fmt.Errorf("create scan record: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, names)
+	start := time.Now()
+	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
+
+	// Print a status line each time a provider completes scanning one service.
+	db.OnServiceComplete = func(service string) {
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s done\n",
+			time.Since(start).Round(time.Second), service)
+	}
 
 	// Run all providers in parallel; cancel siblings on the first error.
 	ctx := context.Background()
@@ -73,11 +96,14 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if err := db.CompleteScan(scanID, count); err != nil {
 		return fmt.Errorf("complete scan: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s complete.\n", scanID)
+	fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources in %s\n",
+		count, time.Since(start).Round(time.Second))
 	return nil
 }
 
 func init() {
+	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
+
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,
 	// which are guaranteed to run before this init().

@@ -48,7 +48,7 @@ func scanInstances(ctx context.Context, client *ec2.Client, acct *account, regio
 					Name:           ec2TagName(inst.Tags),
 					Region:         &region,
 					Status:         &status,
-					TagsJSON:       ec2TagsJSON(inst.Tags),
+					TagsJSON:       awsTagsJSON(inst.Tags),
 					AttributesJSON: mustJSON(inst),
 					ScanID:         scanID,
 				}
@@ -86,7 +86,7 @@ func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region str
 				Name:           ec2TagName(vpc.Tags),
 				Region:         &region,
 				Status:         &status,
-				TagsJSON:       ec2TagsJSON(vpc.Tags),
+				TagsJSON:       awsTagsJSON(vpc.Tags),
 				AttributesJSON: mustJSON(vpc),
 				ScanID:         scanID,
 			}
@@ -123,7 +123,7 @@ func scanSubnets(ctx context.Context, client *ec2.Client, acct *account, region 
 				Name:           ec2TagName(sn.Tags),
 				Region:         &region,
 				Status:         &status,
-				TagsJSON:       ec2TagsJSON(sn.Tags),
+				TagsJSON:       awsTagsJSON(sn.Tags),
 				AttributesJSON: mustJSON(sn),
 				ScanID:         scanID,
 			}
@@ -159,7 +159,7 @@ func scanSecurityGroups(ctx context.Context, client *ec2.Client, acct *account, 
 				NativeID:       ec2ARN(region, acct.ID, "security-group", sv(sg.GroupId)),
 				Name:           &name,
 				Region:         &region,
-				TagsJSON:       ec2TagsJSON(sg.Tags),
+				TagsJSON:       awsTagsJSON(sg.Tags),
 				AttributesJSON: mustJSON(sg),
 				ScanID:         scanID,
 			}
@@ -196,7 +196,7 @@ func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region 
 				Name:           ec2TagName(vol.Tags),
 				Region:         &region,
 				Status:         &status,
-				TagsJSON:       ec2TagsJSON(vol.Tags),
+				TagsJSON:       awsTagsJSON(vol.Tags),
 				AttributesJSON: mustJSON(vol),
 				ScanID:         scanID,
 			}
@@ -231,7 +231,7 @@ func scanInternetGateways(ctx context.Context, client *ec2.Client, acct *account
 				NativeID:       ec2ARN(region, acct.ID, "internet-gateway", sv(igw.InternetGatewayId)),
 				Name:           ec2TagName(igw.Tags),
 				Region:         &region,
-				TagsJSON:       ec2TagsJSON(igw.Tags),
+				TagsJSON:       awsTagsJSON(igw.Tags),
 				AttributesJSON: mustJSON(igw),
 				ScanID:         scanID,
 			}
@@ -254,19 +254,4 @@ func ec2TagName(tags []ec2types.Tag) *string {
 		}
 	}
 	return nil
-}
-
-// ec2TagsJSON converts EC2 tag slices to a JSON-encoded map string pointer.
-func ec2TagsJSON(tags []ec2types.Tag) *string {
-	if len(tags) == 0 {
-		return nil
-	}
-	m := make(map[string]string, len(tags))
-	for _, t := range tags {
-		if t.Key != nil && t.Value != nil {
-			m[*t.Key] = *t.Value
-		}
-	}
-	s := mustJSON(m)
-	return &s
 }

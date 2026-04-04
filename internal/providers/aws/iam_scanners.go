@@ -6,21 +6,18 @@ import (
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"golang.org/x/sync/errgroup"
 )
 
-// scanIAM discovers IAM roles, users, and groups. IAM is a global service
-// scanned once per account regardless of region.
+// scanIAM discovers IAM roles, users, and groups in parallel. IAM is a global
+// service scanned once per account regardless of region.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) error {
 	client := iam.NewFromConfig(acct.cfg)
-
-	if err := scanIAMRoles(ctx, client, acct, st, scanID); err != nil {
-		return err
-	}
-	if err := scanIAMUsers(ctx, client, acct, st, scanID); err != nil {
-		return err
-	}
-	return scanIAMGroups(ctx, client, acct, st, scanID)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return scanIAMRoles(ctx, client, acct, st, scanID) })
+	g.Go(func() error { return scanIAMUsers(ctx, client, acct, st, scanID) })
+	g.Go(func() error { return scanIAMGroups(ctx, client, acct, st, scanID) })
+	return g.Wait()
 }
 
 func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) error {
@@ -43,7 +40,7 @@ func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *st
 				Type:           "aws:iam:role",
 				NativeID:       sv(role.Arn),
 				Name:           &name,
-				TagsJSON:       iamTagsJSON(role.Tags),
+				TagsJSON:       awsTagsJSON(role.Tags),
 				AttributesJSON: mustJSON(role),
 				ScanID:         scanID,
 			}
@@ -124,19 +121,4 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 		}
 	}
 	return nil
-}
-
-// iamTagsJSON converts IAM tag slices to a JSON-encoded map string pointer.
-func iamTagsJSON(tags []iamtypes.Tag) *string {
-	if len(tags) == 0 {
-		return nil
-	}
-	m := make(map[string]string, len(tags))
-	for _, t := range tags {
-		if t.Key != nil && t.Value != nil {
-			m[*t.Key] = *t.Value
-		}
-	}
-	s := mustJSON(m)
-	return &s
 }

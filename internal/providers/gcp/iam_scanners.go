@@ -20,7 +20,7 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	req := svc.Projects.ServiceAccounts.List(parent)
-	return req.Pages(ctx, func(page *iam.ListServiceAccountsResponse) error {
+	if err := req.Pages(ctx, func(page *iam.ListServiceAccountsResponse) error {
 		var batch []*store.Resource
 		for _, sa := range page.Accounts {
 			name := sa.DisplayName
@@ -47,5 +47,11 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 			return fmt.Errorf("upsert IAM service accounts: %w", err)
 		}
 		return nil
-	})
+	}); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("iam:serviceAccounts.list", p.ID, err)
+		}
+		return err
+	}
+	return nil
 }

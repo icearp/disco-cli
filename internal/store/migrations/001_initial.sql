@@ -16,11 +16,12 @@ CREATE TABLE IF NOT EXISTS scans (
 );
 
 CREATE TABLE IF NOT EXISTS resources (
-    id            TEXT PRIMARY KEY,   -- sha256(provider+account_id+type+native_id)
+    id            TEXT PRIMARY KEY,   -- sha256(provider+account_id+service+native_id)
     provider      TEXT NOT NULL,      -- 'aws' | 'azure' | 'gcp'
     account_id    TEXT NOT NULL,      -- AWS account ID, Azure subscription GUID, GCP project ID
     account_name  TEXT,
-    type          TEXT NOT NULL,      -- 'aws:ec2:instance', 'azure:compute:virtual-machine', 'gcp:compute:instance'
+    service       TEXT NOT NULL,      -- 'ec2', 'Microsoft.Compute', 'gke'
+    type          TEXT NOT NULL,      -- 'instance', 'virtualMachines', 'cluster'
     native_id     TEXT NOT NULL,      -- ARN / Azure resource ID / GCP self-link
     name          TEXT,
     region        TEXT,
@@ -31,9 +32,12 @@ CREATE TABLE IF NOT EXISTS resources (
     parent_id     TEXT,               -- immediate parent resource ID
     created_at    TEXT,
     discovered_at TEXT NOT NULL,
+    verified_at   TEXT,
+    verified_by   TEXT,
     scan_id       TEXT NOT NULL,
-    FOREIGN KEY (parent_id) REFERENCES resources(id),
-    FOREIGN KEY (scan_id)   REFERENCES scans(id)
+    FOREIGN KEY (parent_id)   REFERENCES resources(id),
+    FOREIGN KEY (scan_id)     REFERENCES scans(id)
+    FOREIGN KEY (verified_by) REFERENCES scans(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_resources_provider     ON resources(provider);

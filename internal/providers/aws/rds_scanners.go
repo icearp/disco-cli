@@ -6,7 +6,6 @@ import (
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 // scanRDS discovers RDS DB instances in one region.
@@ -34,7 +33,7 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 				Name:           &name,
 				Region:         &region,
 				Status:         db.DBInstanceStatus,
-				TagsJSON:       rdsTagsJSON(db.TagList),
+				TagsJSON:       awsTagsJSON(db.TagList),
 				AttributesJSON: mustJSON(db),
 				ScanID:         scanID,
 			}
@@ -47,18 +46,4 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 		}
 	}
 	return nil
-}
-
-func rdsTagsJSON(tags []rdstypes.Tag) *string {
-	if len(tags) == 0 {
-		return nil
-	}
-	m := make(map[string]string, len(tags))
-	for _, t := range tags {
-		if t.Key != nil && t.Value != nil {
-			m[*t.Key] = *t.Value
-		}
-	}
-	s := mustJSON(m)
-	return &s
 }

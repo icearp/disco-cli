@@ -37,7 +37,7 @@ The storage engine is `modernc.org/sqlite` — a pure-Go transpilation of SQLite
 cmd/scan.go  →  internal/providers/<provider>/  →  internal/store/
 ```
 
-Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, and `store.AddToHierarchyClosure()` to persist discovered resources.
+Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, and `store.BatchAddToHierarchyClosure()` to persist discovered resources. Errors from all three must be propagated — never silenced with `_ =`.
 
 ### Per-service API mandate
 
@@ -47,6 +47,7 @@ Providers make **individual per-service API calls** using each cloud's native Go
 
 - `disco scan` — runs all registered providers in parallel
 - `disco scan <provider>` — runs a single provider (e.g. `disco scan aws`)
+- `disco scan --providers aws,gcp` — scans only the named providers (comma-separated `StringSlice`)
 - `disco list` — queries the local database with optional filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json`)
 
 ### Provider registry (`internal/providers/registry.go`)
@@ -75,9 +76,9 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
-- **`resources`**: One row per discovered cloud entity. `attributes` (JSON blob) holds the full provider-specific API response. `tags` (JSON) is denormalized for efficient `json_extract()` queries. `parent_id` is the immediate parent in the provider hierarchy (e.g. GCP folder → project).
+- **`resources`**: One row per discovered cloud entity. `attributes` (JSON blob) holds the full provider-specific API response. `tags` (JSON) is denormalized for efficient `json_extract()` queries. `parent_id` is the immediate parent in the provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) and `verified_by` (scan ID FK) are set automatically by `UpsertResources` — callers must not set them.
 - **`relationships`**: Directed edges between resources. `kind` values: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
-- **`hierarchy_closure`**: Closure table enabling O(1) "all descendants of node X" queries without recursive CTEs. Must be populated via `AddToHierarchyClosure(childID, parentID)` whenever a resource with a `parent_id` is upserted.
+- **`hierarchy_closure`**: Closure table enabling O(1) "all descendants of node X" queries without recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single transaction) after upserting resources that have a `parent_id`.
 - **`scans`**: Lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries are built with `squirrel` (`sq.Select(...).Where(...)`) to avoid string interpolation. `sqlx` handles struct scanning. Raw SQL is used for CTEs and anything squirrel doesn't express cleanly.
@@ -91,6 +92,18 @@ Scan IDs are generated with `crypto/rand` + `encoding/hex` (same 32-char hex for
 ### Resource type naming
 
 Namespaced lowercase strings: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`.
+
+### Shared utilities (`internal/util`)
+
+`util.MustJSON(v any) string`, `util.Sv(p *string) string`, and `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider package keeps unexported one-liner wrappers (`mustJSON`, `sv`) that delegate to `util` — call sites stay clean, logic stays centralized.
+
+### Provider file naming
+
+Within each provider package, scanners live in `<service>_scanners.go` and relationship resolvers in `<service>_resolvers.go`. The `resolveRelationships` orchestrator lives in the provider's top-level file (`aws.go`, `azure.go`, `gcp.go`).
+
+### List-then-describe pattern (N+1 avoidance)
+
+When an AWS service returns only names from its List API (EKS, DynamoDB), describe each resource concurrently using `errgroup` + `sync.Mutex` to collect results, then upsert the batch. Do not call Describe sequentially in a loop.
 
 ### Migrations
 
@@ -107,5 +120,5 @@ Viper reads `~/.disco/config.yaml` with env prefix `DISCO_`. The `--db` flag (or
 3. Comment everything.
 4. Write code that is easy for humans to read.
 5. Do not write redundant code.
-6. Optimize first for speed, then for minimum memory and CPU consumption.
+6. Optimize first for scanning speed, then for minimum memory and CPU consumption.
 7. Keep dependencies minimal.

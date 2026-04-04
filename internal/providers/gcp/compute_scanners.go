@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"google.golang.org/api/compute/v1"
@@ -19,15 +20,30 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 	}
 
 	if err := scanComputeInstances(ctx, svc, p, st, scanID); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("compute:instances.aggregatedList", p.ID, err)
+		}
 		return err
 	}
 	if err := scanComputeNetworks(ctx, svc, p, st, scanID); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("compute:networks.list", p.ID, err)
+		}
 		return err
 	}
 	if err := scanComputeSubnetworks(ctx, svc, p, st, scanID); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("compute:subnetworks.aggregatedList", p.ID, err)
+		}
 		return err
 	}
-	return scanComputeFirewalls(ctx, svc, p, st, scanID)
+	if err := scanComputeFirewalls(ctx, svc, p, st, scanID); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("compute:firewalls.list", p.ID, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
@@ -69,11 +85,15 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 			return fmt.Errorf("upsert compute instances: %w", err)
 		}
 		// Populate closure table for each instance → project.
+		var pairs [][2]string
 		for _, r := range batch {
 			if r.ParentID != nil {
 				instanceID := store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
-				_ = st.AddToHierarchyClosure(instanceID, *r.ParentID)
+				pairs = append(pairs, [2]string{instanceID, *r.ParentID})
 			}
+		}
+		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			return fmt.Errorf("closure compute instances: %w", err)
 		}
 		return nil
 	})
@@ -167,21 +187,17 @@ func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project,
 // lastSegment returns the last path component of a GCP resource URL/name.
 // e.g. ".../zones/us-central1-a" → "us-central1-a"
 func lastSegment(s string) string {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == '/' {
-			return s[i+1:]
-		}
+	if i := strings.LastIndexByte(s, '/'); i >= 0 {
+		return s[i+1:]
 	}
 	return s
 }
 
-// zoneToRegion trims the trailing zone letter from a zone name.
+// zoneToRegion trims the trailing zone suffix from a zone name.
 // e.g. "us-central1-a" → "us-central1"
 func zoneToRegion(zone string) string {
-	for i := len(zone) - 1; i >= 0; i-- {
-		if zone[i] == '-' {
-			return zone[:i]
-		}
+	if i := strings.LastIndexByte(zone, '-'); i >= 0 {
+		return zone[:i]
 	}
 	return zone
 }

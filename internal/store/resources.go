@@ -11,22 +11,24 @@ import (
 
 // Resource represents a discovered cloud resource.
 type Resource struct {
-	ID           string  `db:"id"`
-	Provider     string  `db:"provider"`
-	AccountID    string  `db:"account_id"`
-	AccountName  *string `db:"account_name"`
-	Type         string  `db:"type"`
-	NativeID     string  `db:"native_id"`
-	Name         *string `db:"name"`
-	Region       *string `db:"region"`
-	Zone         *string `db:"zone"`
-	Status       *string `db:"status"`
+	ID             string  `db:"id"`
+	Provider       string  `db:"provider"`
+	AccountID      string  `db:"account_id"`
+	AccountName    *string `db:"account_name"`
+	Type           string  `db:"type"`
+	NativeID       string  `db:"native_id"`
+	Name           *string `db:"name"`
+	Region         *string `db:"region"`
+	Zone           *string `db:"zone"`
+	Status         *string `db:"status"`
 	TagsJSON       *string `db:"tags"`
 	AttributesJSON string  `db:"attributes"` // JSON blob
-	ParentID     *string `db:"parent_id"`
-	CreatedAt    *string `db:"created_at"`
-	DiscoveredAt string  `db:"discovered_at"`
-	ScanID       string  `db:"scan_id"`
+	ParentID       *string `db:"parent_id"`
+	CreatedAt      *string `db:"created_at"`
+	DiscoveredAt   string  `db:"discovered_at"`
+	VerifiedAt     *string `db:"verified_at"` // updated each time the resource is seen in a scan
+	VerifiedBy     *string `db:"verified_by"` // scan ID that last verified this resource
+	ScanID         string  `db:"scan_id"`
 }
 
 // ResourceID computes a stable deterministic ID for a resource.
@@ -47,27 +49,26 @@ func (s *Store) UpsertResources(resources []*Resource) error {
 		return err
 	}
 	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339)
 	for _, r := range resources {
 		if r.ID == "" {
 			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
 		}
 		if r.DiscoveredAt == "" {
-			r.DiscoveredAt = time.Now().UTC().Format(time.RFC3339)
+			r.DiscoveredAt = now
 		}
+		r.VerifiedAt = &now
+		r.VerifiedBy = &r.ScanID
 		if _, err := tx.NamedExec(`
 			INSERT INTO resources
 				(id, provider, account_id, account_name, type, native_id, name,
-				 region, zone, status, tags, attributes, parent_id, created_at, discovered_at, scan_id)
+				 region, zone, status, tags, attributes, parent_id, created_at, discovered_at, verified_at, verified_by, scan_id)
 			VALUES
 				(:id, :provider, :account_id, :account_name, :type, :native_id, :name,
-				 :region, :zone, :status, :tags, :attributes, :parent_id, :created_at, :discovered_at, :scan_id)
-			ON CONFLICT(id) DO UPDATE SET
-				name          = excluded.name,
-				status        = excluded.status,
-				tags          = excluded.tags,
-				attributes    = excluded.attributes,
-				discovered_at = excluded.discovered_at,
-				scan_id       = excluded.scan_id`, r); err != nil {
+				 :region, :zone, :status, :tags, :attributes, :parent_id, :created_at, :discovered_at, :verified_at, :verified_by, :scan_id)
+			ON CONFLICT(provider, account_id, native_id, tags, attributes) DO UPDATE SET
+				verified_at = excluded.verified_at,
+				verified_by = excluded.verified_by`, r); err != nil {
 			return fmt.Errorf("upsert resource %s: %w", r.ID, err)
 		}
 	}
@@ -189,4 +190,3 @@ func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, er
 	var results []Resource
 	return results, s.db.Select(&results, query, args...)
 }
-

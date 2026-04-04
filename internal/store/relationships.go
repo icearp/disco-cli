@@ -137,6 +137,36 @@ func (s *Store) AddToHierarchyClosure(childID, parentID string) error {
 	return tx.Commit()
 }
 
+// BatchAddToHierarchyClosure inserts closure entries for multiple child→parent
+// pairs in a single transaction. Prefer this over repeated AddToHierarchyClosure
+// calls when processing a batch of resources.
+func (s *Store) BatchAddToHierarchyClosure(pairs [][2]string) error {
+	if len(pairs) == 0 {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, p := range pairs {
+		childID, parentID := p[0], p[1]
+		if _, err := tx.Exec(`
+			INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
+			VALUES (?, ?, 0)`, childID, childID); err != nil {
+			return fmt.Errorf("closure self-entry %s: %w", childID, err)
+		}
+		if _, err := tx.Exec(`
+			INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
+			SELECT hc.ancestor_id, ?, hc.depth + 1
+			FROM hierarchy_closure hc
+			WHERE hc.descendant_id = ?`, childID, parentID); err != nil {
+			return fmt.Errorf("closure ancestor entries %s: %w", childID, err)
+		}
+	}
+	return tx.Commit()
+}
+
 // sqlxIn expands slice args for IN clauses using sqlx.In and rebinds for SQLite.
 func sqlxIn(query string, args ...any) (string, []any, error) {
 	q, a, err := sqlx.In(query, args...)

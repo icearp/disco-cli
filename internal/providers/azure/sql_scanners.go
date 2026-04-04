@@ -105,9 +105,12 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 					if err := st.UpsertResources(dbBatch); err != nil {
 						return fmt.Errorf("upsert SQL databases: %w", err)
 					}
-					for _, r := range dbBatch {
-						dbID := store.ResourceID("azure", sub.ID, "azure:sql:database", r.NativeID)
-						_ = st.AddToHierarchyClosure(dbID, srvResourceID)
+					pairs := make([][2]string, len(dbBatch))
+					for i, r := range dbBatch {
+						pairs[i] = [2]string{store.ResourceID("azure", sub.ID, "azure:sql:database", r.NativeID), srvResourceID}
+					}
+					if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+						return fmt.Errorf("closure SQL databases: %w", err)
 					}
 				}
 			}

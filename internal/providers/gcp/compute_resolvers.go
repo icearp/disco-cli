@@ -1,28 +1,17 @@
 package gcp
 
 import (
-	"context"
 	"encoding/json"
-	"math"
+	"fmt"
 
 	"codeburg.org/icearp/disco/internal/store"
+	"codeburg.org/icearp/disco/internal/util"
 )
-
-const allResources = uint64(math.MaxUint32)
-
-// resolveRelationships is phase 2 for GCP: derive edges between resources that
-// have already been written to the DB.
-func resolveRelationships(_ context.Context, p *project, st *store.Store) error {
-	if err := resolveComputeInstanceRelationships(p, st); err != nil {
-		return err
-	}
-	return resolveSubnetworkRelationships(p, st)
-}
 
 func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
 		Provider: "gcp", AccountID: p.ID, Types: []string{"gcp:compute:instance"},
-		Limit: allResources,
+		Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -40,11 +29,15 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 		for _, nic := range attrs.NetworkInterfaces {
 			if nic.Network != "" {
 				netID := store.ResourceID("gcp", p.ID, "gcp:compute:network", nic.Network)
-				_ = st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil)
+				if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert instance→network relationship: %w", err)
+				}
 			}
 			if nic.Subnetwork != "" {
 				snID := store.ResourceID("gcp", p.ID, "gcp:compute:subnetwork", nic.Subnetwork)
-				_ = st.UpsertRelationship(r.ID, snID, store.RelAttachedTo, "directed", nil)
+				if err := st.UpsertRelationship(r.ID, snID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert instance→subnetwork relationship: %w", err)
+				}
 			}
 		}
 	}
@@ -54,7 +47,7 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 func resolveSubnetworkRelationships(p *project, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
 		Provider: "gcp", AccountID: p.ID, Types: []string{"gcp:compute:subnetwork"},
-		Limit: allResources,
+		Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -68,7 +61,9 @@ func resolveSubnetworkRelationships(p *project, st *store.Store) error {
 		}
 		if attrs.Network != "" {
 			netID := store.ResourceID("gcp", p.ID, "gcp:compute:network", attrs.Network)
-			_ = st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil)
+			if err := st.UpsertRelationship(r.ID, netID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert subnetwork→network relationship: %w", err)
+			}
 		}
 	}
 	return nil

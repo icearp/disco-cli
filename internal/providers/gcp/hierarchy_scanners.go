@@ -19,7 +19,9 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		return fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 
-	// Collect all distinct parent references from the project list.
+	// Fetch each project once and cache; the cached data is reused below when
+	// upserting project resources, avoiding a second round of API calls.
+	projCache := make(map[string]*cloudresourcemanager.Project, len(projects))
 	seen := map[string]bool{}
 	var orgs, folders []string
 	for _, p := range projects {
@@ -30,6 +32,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			}
 			return fmt.Errorf("cloudresourcemanager:GetProject %s: %w", p.ID, err)
 		}
+		projCache[p.ID] = proj
 		parent := proj.Parent // e.g. "folders/123" or "organizations/456"
 		if parent != "" && !seen[parent] {
 			seen[parent] = true
@@ -104,14 +107,12 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 	}
 
 	// Upsert projects and link them into the hierarchy.
+	// proj data comes from projCache populated above — no second API call needed.
 	for i := range projects {
 		p := &projects[i]
-		proj, err := crmSvc.Projects.Get(fmt.Sprintf("projects/%s", p.ID)).Context(ctx).Do()
-		if err != nil {
-			if isPermissionDenied(err) {
-				continue
-			}
-			return fmt.Errorf("cloudresourcemanager:GetProject %s: %w", p.ID, err)
+		proj, ok := projCache[p.ID]
+		if !ok {
+			continue // was permission-denied during fetch; skip
 		}
 		p.Name = proj.DisplayName
 		p.Number = projectNumber(proj.Name)
@@ -121,7 +122,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			Provider:       "gcp",
 			AccountID:      p.ID,
 			Type:           "gcp:cloudresourcemanager:project",
-			NativeID:       proj.Name,
+			NativeID:       p.ID, // project ID (e.g. "my-project-123"); proj.Name is in attributes
 			Name:           &p.Name,
 			AttributesJSON: mustJSON(proj),
 			ScanID:         scanID,

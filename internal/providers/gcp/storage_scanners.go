@@ -19,7 +19,7 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
 
 	req := svc.Buckets.List(p.ID)
-	return req.Pages(ctx, func(page *storage.Buckets) error {
+	if err := req.Pages(ctx, func(page *storage.Buckets) error {
 		var batch []*store.Resource
 		for _, b := range page.Items {
 			name := b.Name
@@ -49,5 +49,11 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 			return fmt.Errorf("upsert GCS buckets: %w", err)
 		}
 		return nil
-	})
+	}); err != nil {
+		if isPermissionDenied(err) {
+			return skipIfDenied("storage:buckets.list", p.ID, err)
+		}
+		return err
+	}
+	return nil
 }

@@ -64,11 +64,15 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			if err := st.UpsertResources(batch); err != nil {
 				return fmt.Errorf("upsert Azure VMs: %w", err)
 			}
+			var pairs [][2]string
 			for _, r := range batch {
-				vmID := store.ResourceID("azure", sub.ID, "azure:compute:virtual-machine", r.NativeID)
 				if r.ParentID != nil {
-					_ = st.AddToHierarchyClosure(vmID, *r.ParentID)
+					vmID := store.ResourceID("azure", sub.ID, "azure:compute:virtual-machine", r.NativeID)
+					pairs = append(pairs, [2]string{vmID, *r.ParentID})
 				}
+			}
+			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+				return fmt.Errorf("closure Azure VMs: %w", err)
 			}
 		}
 	}

@@ -58,9 +58,13 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 			// Populate hierarchy closure: each RG belongs to the subscription.
 			// We don't model the subscription as a resource here, so we just
 			// add self-entries for resource groups.
-			for _, r := range batch {
+			pairs := make([][2]string, len(batch))
+			for i, r := range batch {
 				rgID := store.ResourceID("azure", sub.ID, "azure:resources:resource-group", r.NativeID)
-				_ = st.AddToHierarchyClosure(rgID, rgID)
+				pairs[i] = [2]string{rgID, rgID}
+			}
+			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+				return fmt.Errorf("closure resource groups: %w", err)
 			}
 		}
 	}

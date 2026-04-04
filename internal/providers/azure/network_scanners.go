@@ -96,11 +96,15 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			if err := st.UpsertResources(subnetBatch); err != nil {
 				return fmt.Errorf("upsert subnets: %w", err)
 			}
+			var pairs [][2]string
 			for _, r := range subnetBatch {
-				snID := store.ResourceID("azure", sub.ID, "azure:network:subnet", r.NativeID)
 				if r.ParentID != nil {
-					_ = st.AddToHierarchyClosure(snID, *r.ParentID)
+					snID := store.ResourceID("azure", sub.ID, "azure:network:subnet", r.NativeID)
+					pairs = append(pairs, [2]string{snID, *r.ParentID})
 				}
+			}
+			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+				return fmt.Errorf("closure subnets: %w", err)
 			}
 		}
 	}

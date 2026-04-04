@@ -49,9 +49,11 @@ func loadProjects(ctx context.Context) ([]project, error) {
 		return nil, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 
+	// Projects.Search() enumerates all projects the caller can access without
+	// requiring a parent (org/folder). Projects.List() in v3 requires a parent.
 	var projects []project
-	req := crmSvc.Projects.List()
-	if err := req.Pages(ctx, func(page *cloudresourcemanager.ListProjectsResponse) error {
+	req := crmSvc.Projects.Search()
+	if err := req.Pages(ctx, func(page *cloudresourcemanager.SearchProjectsResponse) error {
 		for _, p := range page.Projects {
 			if p.State != "ACTIVE" {
 				continue

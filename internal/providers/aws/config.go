@@ -66,12 +66,10 @@ func loadAccounts(ctx context.Context) ([]account, error) {
 
 		regions := a.Regions
 		if len(regions) == 0 {
-			// Enumerate all opted-in regions for this account.
-			regions, err = enabledRegions(ctx, acctCfg)
-			if err != nil {
-				// Permission errors are common; fall back to the configured default.
-				regions = cfg.DefaultRegions
-			}
+			// No per-account regions configured: use the default region list.
+			// To scan all opted-in regions, list them explicitly under accounts[].regions
+			// or set aws.default_regions in config.
+			regions = cfg.DefaultRegions
 		}
 
 		accounts = append(accounts, account{

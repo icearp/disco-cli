@@ -12,7 +12,16 @@ import (
 
 // Store is the primary access point for the disco database.
 type Store struct {
-	db *sqlx.DB
+	db                *sqlx.DB
+	OnServiceComplete func(service string) // optional; called by providers after each service scan
+}
+
+// ReportService invokes OnServiceComplete if set. Providers call this after each
+// service scan function returns successfully.
+func (s *Store) ReportService(service string) {
+	if s.OnServiceComplete != nil {
+		s.OnServiceComplete(service)
+	}
 }
 
 // Open opens (or creates) the SQLite database at path and applies any pending migrations.

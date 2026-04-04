@@ -6,7 +6,6 @@ package gcp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -14,6 +13,7 @@ import (
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
+	"codeburg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/googleapi"
 )
@@ -57,14 +57,38 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	return nil
 }
 
+// resolveRelationships is phase 2 for GCP: derive edges between resources that
+// have already been written to the DB.
+func resolveRelationships(_ context.Context, p *project, st *store.Store) error {
+	if err := resolveComputeInstanceRelationships(p, st); err != nil {
+		return err
+	}
+	return resolveSubnetworkRelationships(p, st)
+}
+
 // scanProject runs all per-project service scanners in parallel.
 func scanProject(ctx context.Context, p *project, st *store.Store, scanID string) error {
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanCompute(ctx, p, st, scanID) })
-	g.Go(func() error { return scanStorage(ctx, p, st, scanID) })
-	g.Go(func() error { return scanCloudSQL(ctx, p, st, scanID) })
-	g.Go(func() error { return scanGKE(ctx, p, st, scanID) })
-	g.Go(func() error { return scanIAMServiceAccounts(ctx, p, st, scanID) })
+	services := []struct {
+		name string
+		fn   func() error
+	}{
+		{"gcp:compute", func() error { return scanCompute(ctx, p, st, scanID) }},
+		{"gcp:storage", func() error { return scanStorage(ctx, p, st, scanID) }},
+		{"gcp:sql", func() error { return scanCloudSQL(ctx, p, st, scanID) }},
+		{"gcp:gke", func() error { return scanGKE(ctx, p, st, scanID) }},
+		{"gcp:iam", func() error { return scanIAMServiceAccounts(ctx, p, st, scanID) }},
+	}
+	for _, svc := range services {
+		svc := svc
+		g.Go(func() error {
+			if err := svc.fn(); err != nil {
+				return err
+			}
+			st.ReportService(svc.name)
+			return nil
+		})
+	}
 	return g.Wait()
 }
 
@@ -78,14 +102,7 @@ type project struct {
 	ParentID string // disco resource ID of the immediate parent (folder or org)
 }
 
-// mustJSON marshals v to JSON, returning "{}" on error.
-func mustJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
-}
+func mustJSON(v any) string { return util.MustJSON(v) }
 
 // isPermissionDenied reports whether err is a GCP 403 / permission denied error.
 func isPermissionDenied(err error) bool {
@@ -96,8 +113,21 @@ func isPermissionDenied(err error) bool {
 	return false
 }
 
-// skipIfDenied logs the error and returns nil, allowing the caller to continue.
+// skipIfDenied logs a concise error message (no Details JSON) and returns nil.
 func skipIfDenied(service, projectID string, err error) error {
+	var gerr *googleapi.Error
+	if errors.As(err, &gerr) {
+		reason := ""
+		if len(gerr.Errors) > 0 {
+			reason = gerr.Errors[0].Reason
+		}
+		if reason != "" {
+			log.Printf("warn: gcp %s %s: %d %s (%s) (skipping)", service, projectID, gerr.Code, gerr.Message, reason)
+		} else {
+			log.Printf("warn: gcp %s %s: %d %s (skipping)", service, projectID, gerr.Code, gerr.Message)
+		}
+		return nil
+	}
 	log.Printf("warn: gcp %s %s: %v (skipping)", service, projectID, err)
 	return nil
 }
