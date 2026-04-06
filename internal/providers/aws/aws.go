@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
@@ -18,14 +19,30 @@ import (
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
+)
+
+const (
+	// maxConcurrentServices caps the number of service scanners running in parallel
+	// per region to avoid hitting AWS API rate limits.
+	maxConcurrentServices = 10
+	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
+	// won't stall the entire scan beyond this duration.
+	serviceTimeout = 5 * time.Minute
 )
 
 func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for AWS.
-type Scanner struct{}
+type Scanner struct {
+	serviceFilter []string // nil = scan all registered services
+}
 
 func (s *Scanner) Name() string { return "aws" }
+
+// SetServiceFilter restricts the scan to the named services (e.g. "aws:ec2", "aws:iam").
+// An empty or nil slice scans all registered services.
+func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
 // Scan discovers all AWS resources across all configured accounts and regions.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
@@ -34,7 +51,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return fmt.Errorf("aws: load accounts: %w", err)
 	}
 	for i := range accounts {
-		if err := scanAccount(ctx, &accounts[i], st, scanID); err != nil {
+		if err := scanAccount(ctx, &accounts[i], s.serviceFilter, st, scanID); err != nil {
 			return fmt.Errorf("aws account %s: %w", accounts[i].ID, err)
 		}
 	}
@@ -42,30 +59,36 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 }
 
 // scanAccount runs phase 1 (resources) then phase 2 (relationships) for one account.
-func scanAccount(ctx context.Context, acct *account, st *store.Store, scanID string) error {
-	// IAM and S3 are global — scanned once per account, not per region.
+func scanAccount(ctx context.Context, acct *account, services []string, st *store.Store, scanID string) error {
+	// Phase 1a: global services (once per account, region is irrelevant).
+	sem := semaphore.NewWeighted(maxConcurrentServices)
 	g0, ctx0 := errgroup.WithContext(ctx)
-	g0.Go(func() error {
-		if err := scanIAM(ctx0, acct, st, scanID); err != nil {
-			return err
+	for _, svc := range filteredServices(services) {
+		if !svc.global {
+			continue
 		}
-		st.ReportService("aws:iam")
-		return nil
-	})
-	g0.Go(func() error {
-		if err := scanS3(ctx0, acct, st, scanID); err != nil {
-			return err
-		}
-		st.ReportService("aws:s3")
-		return nil
-	})
+		svc := svc
+		g0.Go(func() error {
+			if err := sem.Acquire(ctx0, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			svcCtx, cancel := context.WithTimeout(ctx0, serviceTimeout)
+			defer cancel()
+			if err := svc.fn(svcCtx, acct, "", st, scanID); err != nil {
+				return err
+			}
+			st.ReportService(svc.name)
+			return nil
+		})
+	}
 	if err := g0.Wait(); err != nil {
 		return err
 	}
 
-	// Regional services: run all regions sequentially (parallel within each region).
+	// Phase 1b: regional services — all regions sequentially, parallel within each.
 	for _, region := range acct.Regions {
-		if err := scanRegion(ctx, acct, region, st, scanID); err != nil {
+		if err := scanRegion(ctx, acct, region, services, st, scanID); err != nil {
 			return fmt.Errorf("region %s: %w", region, err)
 		}
 	}
@@ -79,47 +102,32 @@ func scanAccount(ctx context.Context, acct *account, st *store.Store, scanID str
 // Using ResourceID to compute stable IDs means we never need to read back
 // resources just to get their primary keys.
 func resolveRelationships(_ context.Context, acct *account, st *store.Store) error {
-	if err := resolveInstanceRelationships(acct, st); err != nil {
-		return err
+	for _, r := range registeredResolvers {
+		if err := r.fn(acct, st); err != nil {
+			return err
+		}
 	}
-	if err := resolveSubnetVPCRelationships(acct, st); err != nil {
-		return err
-	}
-	if err := resolveIGWRelationships(acct, st); err != nil {
-		return err
-	}
-	if err := resolveRDSRelationships(acct, st); err != nil {
-		return err
-	}
-	if err := resolveLambdaRelationships(acct, st); err != nil {
-		return err
-	}
-	if err := resolveEKSRelationships(acct, st); err != nil {
-		return err
-	}
-	return resolveELBRelationships(acct, st)
+	return nil
 }
 
-// scanRegion runs all regional service scanners in parallel.
-func scanRegion(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
-	g, ctx := errgroup.WithContext(ctx)
-	services := []struct {
-		name string
-		fn   func() error
-	}{
-		{"aws:ec2", func() error { return scanEC2(ctx, acct, region, st, scanID) }},
-		{"aws:rds", func() error { return scanRDS(ctx, acct, region, st, scanID) }},
-		{"aws:lambda", func() error { return scanLambda(ctx, acct, region, st, scanID) }},
-		{"aws:elb", func() error { return scanELB(ctx, acct, region, st, scanID) }},
-		{"aws:eks", func() error { return scanEKS(ctx, acct, region, st, scanID) }},
-		{"aws:dynamodb", func() error { return scanDynamoDB(ctx, acct, region, st, scanID) }},
-		{"aws:sqs", func() error { return scanSQS(ctx, acct, region, st, scanID) }},
-		{"aws:sns", func() error { return scanSNS(ctx, acct, region, st, scanID) }},
-	}
-	for _, svc := range services {
+// scanRegion runs all regional service scanners in parallel, bounded by
+// maxConcurrentServices to avoid API rate limits.
+func scanRegion(ctx context.Context, acct *account, region string, services []string, st *store.Store, scanID string) error {
+	sem := semaphore.NewWeighted(maxConcurrentServices)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, svc := range filteredServices(services) {
+		if svc.global {
+			continue
+		}
 		svc := svc
 		g.Go(func() error {
-			if err := svc.fn(); err != nil {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			defer cancel()
+			if err := svc.fn(svcCtx, acct, region, st, scanID); err != nil {
 				return err
 			}
 			st.ReportService(svc.name)
@@ -127,6 +135,25 @@ func scanRegion(ctx context.Context, acct *account, region string, st *store.Sto
 		})
 	}
 	return g.Wait()
+}
+
+// filteredServices returns the services to run. When filter is non-empty, only
+// services whose name appears in filter are returned.
+func filteredServices(filter []string) []serviceEntry {
+	if len(filter) == 0 {
+		return registeredServices
+	}
+	allowed := make(map[string]bool, len(filter))
+	for _, name := range filter {
+		allowed[name] = true
+	}
+	var out []serviceEntry
+	for _, svc := range registeredServices {
+		if allowed[svc.name] {
+			out = append(out, svc)
+		}
+	}
+	return out
 }
 
 // — shared helpers used across all service files in this package —
@@ -139,8 +166,9 @@ type account struct {
 	cfg     sdkaws.Config // credentials + endpoint config; region is set per client
 }
 
-func mustJSON(v any) string  { return util.MustJSON(v) }
-func sv(p *string) string    { return util.Sv(p) }
+func mustJSON(v any) string    { return util.MustJSON(v) }
+func sv(p *string) string      { return util.Sv(p) }
+func tp(t *time.Time) *string  { return util.TimeRFC3339(t) }
 
 // sp returns a pointer to s.
 func sp(s string) *string { return &s }

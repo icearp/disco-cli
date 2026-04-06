@@ -9,6 +9,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func init() {
+	registerService(serviceEntry{
+		name:   "aws:iam",
+		global: true,
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) error {
+			return scanIAM(ctx, acct, st, scanID)
+		},
+	})
+}
+
 // scanIAM discovers IAM roles, users, and groups in parallel. IAM is a global
 // service scanned once per account regardless of region.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) error {
@@ -37,12 +47,13 @@ func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *st
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:iam:role",
+				Type:           TypeIAMRole,
 				NativeID:       sv(role.Arn),
 				Name:           &name,
+				CreatedAt:      tp(role.CreateDate),
 				TagsJSON:       awsTagsJSON(role.Tags),
 				AttributesJSON: mustJSON(role),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -72,11 +83,12 @@ func scanIAMUsers(ctx context.Context, client *iam.Client, acct *account, st *st
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:iam:user",
+				Type:           TypeIAMUser,
 				NativeID:       sv(user.Arn),
 				Name:           &name,
+				CreatedAt:      tp(user.CreateDate),
 				AttributesJSON: mustJSON(user),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -106,11 +118,12 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:iam:group",
+				Type:           TypeIAMGroup,
 				NativeID:       sv(group.Arn),
 				Name:           &name,
+				CreatedAt:      tp(group.CreateDate),
 				AttributesJSON: mustJSON(group),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

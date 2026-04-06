@@ -10,6 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func init() { registerService(serviceEntry{name: "aws:ec2", fn: scanEC2}) }
+
 // scanEC2 discovers instances, VPCs, subnets, security groups, EBS volumes,
 // and internet gateways in one region, running all sub-scanners in parallel.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
@@ -43,14 +45,16 @@ func scanInstances(ctx context.Context, client *ec2.Client, acct *account, regio
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
-					Type:           "aws:ec2:instance",
+					Type:           TypeEC2Instance,
 					NativeID:       ec2ARN(region, acct.ID, "instance", sv(inst.InstanceId)),
 					Name:           ec2TagName(inst.Tags),
 					Region:         &region,
+					Zone:           inst.Placement.AvailabilityZoneId,
+					CreatedAt:      tp(inst.LaunchTime),
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(inst.Tags),
 					AttributesJSON: mustJSON(inst),
-					ScanID:         scanID,
+					DiscoveredBy:         scanID,
 				}
 				batch = append(batch, r)
 			}
@@ -81,14 +85,14 @@ func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region str
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:ec2:vpc",
+				Type:           TypeEC2VPC,
 				NativeID:       ec2ARN(region, acct.ID, "vpc", sv(vpc.VpcId)),
 				Name:           ec2TagName(vpc.Tags),
 				Region:         &region,
 				Status:         &status,
 				TagsJSON:       awsTagsJSON(vpc.Tags),
 				AttributesJSON: mustJSON(vpc),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -118,14 +122,15 @@ func scanSubnets(ctx context.Context, client *ec2.Client, acct *account, region 
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:ec2:subnet",
+				Type:           TypeEC2Subnet,
 				NativeID:       ec2ARN(region, acct.ID, "subnet", sv(sn.SubnetId)),
 				Name:           ec2TagName(sn.Tags),
 				Region:         &region,
+				Zone:           sn.AvailabilityZoneId,
 				Status:         &status,
 				TagsJSON:       awsTagsJSON(sn.Tags),
 				AttributesJSON: mustJSON(sn),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -155,13 +160,13 @@ func scanSecurityGroups(ctx context.Context, client *ec2.Client, acct *account, 
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:ec2:security-group",
+				Type:           TypeEC2SecurityGroup,
 				NativeID:       ec2ARN(region, acct.ID, "security-group", sv(sg.GroupId)),
 				Name:           &name,
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(sg.Tags),
 				AttributesJSON: mustJSON(sg),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -191,14 +196,15 @@ func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region 
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:ec2:volume",
+				Type:           TypeEC2Volume,
 				NativeID:       ec2ARN(region, acct.ID, "volume", sv(vol.VolumeId)),
 				Name:           ec2TagName(vol.Tags),
 				Region:         &region,
+				Zone:           vol.AvailabilityZoneId,
 				Status:         &status,
 				TagsJSON:       awsTagsJSON(vol.Tags),
 				AttributesJSON: mustJSON(vol),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -227,13 +233,13 @@ func scanInternetGateways(ctx context.Context, client *ec2.Client, acct *account
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:ec2:internet-gateway",
+				Type:           TypeEC2InternetGateway,
 				NativeID:       ec2ARN(region, acct.ID, "internet-gateway", sv(igw.InternetGatewayId)),
 				Name:           ec2TagName(igw.Tags),
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(igw.Tags),
 				AttributesJSON: mustJSON(igw),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

@@ -23,12 +23,11 @@ type Resource struct {
 	Status         *string `db:"status"`
 	TagsJSON       *string `db:"tags"`
 	AttributesJSON string  `db:"attributes"` // JSON blob
-	ParentID       *string `db:"parent_id"`
 	CreatedAt      *string `db:"created_at"`
 	DiscoveredAt   string  `db:"discovered_at"`
+	DiscoveredBy   string  `db:"discovered_by"`
 	VerifiedAt     *string `db:"verified_at"` // updated each time the resource is seen in a scan
 	VerifiedBy     *string `db:"verified_by"` // scan ID that last verified this resource
-	ScanID         string  `db:"scan_id"`
 }
 
 // ResourceID computes a stable deterministic ID for a resource.
@@ -58,15 +57,19 @@ func (s *Store) UpsertResources(resources []*Resource) error {
 			r.DiscoveredAt = now
 		}
 		r.VerifiedAt = &now
-		r.VerifiedBy = &r.ScanID
+		r.VerifiedBy = &r.DiscoveredBy
 		if _, err := tx.NamedExec(`
 			INSERT INTO resources
 				(id, provider, account_id, account_name, type, native_id, name,
-				 region, zone, status, tags, attributes, parent_id, created_at, discovered_at, verified_at, verified_by, scan_id)
+				 region, zone, status, tags, attributes, created_at, discovered_at, discovered_by, verified_at, verified_by)
 			VALUES
 				(:id, :provider, :account_id, :account_name, :type, :native_id, :name,
-				 :region, :zone, :status, :tags, :attributes, :parent_id, :created_at, :discovered_at, :verified_at, :verified_by, :scan_id)
-			ON CONFLICT(provider, account_id, native_id, tags, attributes) DO UPDATE SET
+				 :region, :zone, :status, :tags, :attributes, :created_at, :discovered_at, :discovered_by, :verified_at, :verified_by)
+			ON CONFLICT(id) DO UPDATE SET
+				name        = excluded.name,
+				status      = excluded.status,
+				tags        = excluded.tags,
+				attributes  = excluded.attributes,	
 				verified_at = excluded.verified_at,
 				verified_by = excluded.verified_by`, r); err != nil {
 			return fmt.Errorf("upsert resource %s: %w", r.ID, err)
@@ -77,16 +80,16 @@ func (s *Store) UpsertResources(resources []*Resource) error {
 
 // ResourceFilter defines optional filters for ListResources.
 type ResourceFilter struct {
-	Provider  string
-	AccountID string
-	Types     []string
-	Regions   []string
-	Status    string
-	ScanID    string
-	TagKey    string
-	TagValue  string
-	Limit     uint64
-	Offset    uint64
+	Provider     string
+	AccountID    string
+	Types        []string
+	Regions      []string
+	Status       string
+	DiscoveredBy string
+	TagKey       string
+	TagValue     string
+	Limit        uint64
+	Offset       uint64
 }
 
 // ListResources returns resources matching the given filters.
@@ -108,8 +111,8 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	if f.Status != "" {
 		q = q.Where(sq.Eq{"status": f.Status})
 	}
-	if f.ScanID != "" {
-		q = q.Where(sq.Eq{"scan_id": f.ScanID})
+	if f.DiscoveredBy != "" {
+		q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
 	}
 	if f.TagKey != "" && f.TagValue != "" {
 		q = q.Where("json_extract(tags, ?) = ?", "$."+f.TagKey, f.TagValue)
@@ -152,7 +155,7 @@ func (r *Resource) UnmarshalAttributes(v any) error {
 // CountResourcesByScan returns the number of resources recorded under a scan ID.
 func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 	var n int
-	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE scan_id = ?", scanID)
+	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE discovered_by = ?", scanID)
 	return n, err
 }
 

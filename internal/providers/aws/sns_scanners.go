@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
+func init() { registerService(serviceEntry{name: "aws:sns", fn: scanSNS}) }
+
 // scanSNS discovers SNS topics in one region.
 func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
 	client := sns.NewFromConfig(acct.cfg, func(o *sns.Options) { o.Region = region })
@@ -28,12 +30,12 @@ func scanSNS(ctx context.Context, acct *account, region string, st *store.Store,
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:sns:topic",
+				Type:           TypeSNSTopic,
 				NativeID:       arn,
 				Name:           &arn,
 				Region:         &region,
 				AttributesJSON: mustJSON(topic),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

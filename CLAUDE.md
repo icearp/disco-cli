@@ -113,7 +113,7 @@ SQL files in `internal/store/migrations/` are embedded at compile time via `//go
 
 Viper reads `~/.disco/config.yaml` with env prefix `DISCO_`. The `--db` flag (or `$DISCO_DB`) overrides the database path; default is `~/.disco/disco.db`. `defaultDBPath()` is a pure getter — directory creation is `store.Open()`'s responsibility.
 
-## Final Notes
+## Solution Rules
 
 1. **KEEP THINGS SIMPLE**
 2. Do not "reinvent the wheel."

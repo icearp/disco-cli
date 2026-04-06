@@ -8,6 +8,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+func init() {
+	registerService(serviceEntry{
+		name:   "aws:s3",
+		global: true,
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) error {
+			return scanS3(ctx, acct, st, scanID)
+		},
+	})
+}
+
 // scanS3 discovers S3 buckets. S3 is a global service; buckets are returned
 // without region info from ListBuckets, but each bucket has a region that can
 // be fetched separately. We store the bucket-level region in attributes.
@@ -31,11 +41,12 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 			Provider:       "aws",
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
-			Type:           "aws:s3:bucket",
+			Type:           TypeS3Bucket,
 			NativeID:       arn,
 			Name:           &name,
+			CreatedAt:      tp(b.CreationDate),
 			AttributesJSON: mustJSON(b),
-			ScanID:         scanID,
+			DiscoveredBy:         scanID,
 		}
 		batch = append(batch, r)
 	}

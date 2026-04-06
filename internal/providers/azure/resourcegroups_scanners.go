@@ -38,12 +38,12 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:resources:resource-group",
+				Type:           TypeResourceGroup,
 				NativeID:       sv(rg.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(rg),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if rg.Tags != nil {
 				s := mustJSON(rg.Tags)
@@ -60,7 +60,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 			// add self-entries for resource groups.
 			pairs := make([][2]string, len(batch))
 			for i, r := range batch {
-				rgID := store.ResourceID("azure", sub.ID, "azure:resources:resource-group", r.NativeID)
+				rgID := store.ResourceID("azure", sub.ID, TypeResourceGroup, r.NativeID)
 				pairs[i] = [2]string{rgID, rgID}
 			}
 			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {

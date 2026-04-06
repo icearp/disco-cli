@@ -4,6 +4,7 @@ package util
 import (
 	"encoding/json"
 	"math"
+	"time"
 )
 
 // AllResources is a query limit large enough to fetch every resource of a type
@@ -26,4 +27,14 @@ func Sv(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// TimeRFC3339 formats a *time.Time as an RFC3339 string pointer.
+// Returns nil when t is nil.
+func TimeRFC3339(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.UTC().Format(time.RFC3339)
+	return &s
 }

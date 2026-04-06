@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/iam/v1"
 )
 
+func init() { registerService(serviceEntry{name: "gcp:iam", fn: scanIAMServiceAccounts}) }
+
 // scanIAMServiceAccounts discovers IAM service accounts for a project.
 func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, scanID string) error {
 	opts := clientOptions(ctx, providerCfg{})
@@ -15,8 +17,6 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 	if err != nil {
 		return fmt.Errorf("iam client: %w", err)
 	}
-
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
 
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	req := svc.Projects.ServiceAccounts.List(parent)
@@ -31,12 +31,11 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 				Provider:       "gcp",
 				AccountID:      p.ID,
 				AccountName:    &p.Name,
-				Type:           "gcp:iam:service-account",
+				Type:           TypeIAMServiceAccount,
 				NativeID:       sa.Name,
 				Name:           &name,
 				AttributesJSON: mustJSON(sa),
-				ScanID:         scanID,
-				ParentID:       &projParentID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

@@ -8,10 +8,12 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() { registerResolver(resolveELBRelationships) }
+
 func resolveELBRelationships(acct *account, st *store.Store) error {
 	lbs, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID,
-		Types: []string{"aws:elasticloadbalancing:load-balancer"},
+		Types: []string{TypeELBLoadBalancer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -27,7 +29,7 @@ func resolveELBRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.Lb != nil && attrs.Lb.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *attrs.Lb.VpcId)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert elb→vpc relationship: %w", err)
 			}

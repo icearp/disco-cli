@@ -9,6 +9,8 @@ import (
 	"google.golang.org/api/compute/v1"
 )
 
+func init() { registerService(serviceEntry{name: "gcp:compute", fn: scanCompute}) }
+
 // scanCompute discovers Compute Engine instances, VPC networks, subnetworks,
 // and firewalls. Uses AggregatedList for instances/subnetworks so all zones
 // are covered in a single API call.
@@ -47,7 +49,7 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 }
 
 func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
+	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
 
 	req := svc.Instances.AggregatedList(p.ID)
 	return req.Pages(ctx, func(page *compute.InstanceAggregatedList) error {
@@ -59,13 +61,13 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 					Provider:       "gcp",
 					AccountID:      p.ID,
 					AccountName:    &p.Name,
-					Type:           "gcp:compute:instance",
+					Type:           TypeComputeInstance,
 					NativeID:       inst.SelfLink,
 					Name:           &inst.Name,
+					CreatedAt:      strp(inst.CreationTimestamp),
 					Status:         &status,
 					AttributesJSON: mustJSON(inst),
-					ScanID:         scanID,
-					ParentID:       &projParentID,
+					DiscoveredBy:         scanID,
 				}
 				// Zone is embedded in the self-link; extract for the region field.
 				if inst.Zone != "" {
@@ -87,10 +89,8 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 		// Populate closure table for each instance → project.
 		var pairs [][2]string
 		for _, r := range batch {
-			if r.ParentID != nil {
-				instanceID := store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
-				pairs = append(pairs, [2]string{instanceID, *r.ParentID})
-			}
+			instanceID := store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
+			pairs = append(pairs, [2]string{instanceID, projParentID})
 		}
 		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
 			return fmt.Errorf("closure compute instances: %w", err)
@@ -100,8 +100,6 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 }
 
 func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
-
 	req := svc.Networks.List(p.ID)
 	return req.Pages(ctx, func(page *compute.NetworkList) error {
 		var batch []*store.Resource
@@ -110,12 +108,12 @@ func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, 
 				Provider:       "gcp",
 				AccountID:      p.ID,
 				AccountName:    &p.Name,
-				Type:           "gcp:compute:network",
+				Type:           TypeComputeNetwork,
 				NativeID:       net.SelfLink,
 				Name:           &net.Name,
+				CreatedAt:      strp(net.CreationTimestamp),
 				AttributesJSON: mustJSON(net),
-				ScanID:         scanID,
-				ParentID:       &projParentID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}
@@ -127,8 +125,6 @@ func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, 
 }
 
 func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
-
 	req := svc.Subnetworks.AggregatedList(p.ID)
 	return req.Pages(ctx, func(page *compute.SubnetworkAggregatedList) error {
 		var batch []*store.Resource
@@ -139,13 +135,13 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 					Provider:       "gcp",
 					AccountID:      p.ID,
 					AccountName:    &p.Name,
-					Type:           "gcp:compute:subnetwork",
+					Type:           TypeComputeSubnet,
 					NativeID:       sn.SelfLink,
 					Name:           &sn.Name,
 					Region:         &region,
+					CreatedAt:      strp(sn.CreationTimestamp),
 					AttributesJSON: mustJSON(sn),
-					ScanID:         scanID,
-					ParentID:       &projParentID,
+					DiscoveredBy:         scanID,
 				}
 				batch = append(batch, r)
 			}
@@ -158,8 +154,6 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 }
 
 func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
-
 	req := svc.Firewalls.List(p.ID)
 	return req.Pages(ctx, func(page *compute.FirewallList) error {
 		var batch []*store.Resource
@@ -168,12 +162,12 @@ func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project,
 				Provider:       "gcp",
 				AccountID:      p.ID,
 				AccountName:    &p.Name,
-				Type:           "gcp:compute:firewall",
+				Type:           TypeComputeFirewall,
 				NativeID:       fw.SelfLink,
 				Name:           &fw.Name,
+				CreatedAt:      strp(fw.CreationTimestamp),
 				AttributesJSON: mustJSON(fw),
-				ScanID:         scanID,
-				ParentID:       &projParentID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

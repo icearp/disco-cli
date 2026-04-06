@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
+func init() { registerService(serviceEntry{name: "azure:sql", fn: scanSQL}) }
+
 // scanSQL discovers Azure SQL servers and their databases.
 func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	serversClient, err := armsql.NewServersClient(sub.ID, cred, nil)
@@ -40,12 +42,12 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:sql:server",
+				Type:           TypeSQLServer,
 				NativeID:       sv(srv.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(srv),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if srv.Tags != nil {
 				s := mustJSON(srv.Tags)
@@ -65,7 +67,7 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				continue
 			}
 			rgName := rgFromID(sv(srv.ID))
-			srvResourceID := store.ResourceID("azure", sub.ID, "azure:sql:server", sv(srv.ID))
+			srvResourceID := store.ResourceID("azure", sub.ID, TypeSQLServer, sv(srv.ID))
 
 			dbPager := dbsClient.NewListByServerPager(rgName, sv(srv.Name), nil)
 			for dbPager.More() {
@@ -87,13 +89,12 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 						Provider:       "azure",
 						AccountID:      sub.ID,
 						AccountName:    &sub.Name,
-						Type:           "azure:sql:database",
+						Type:           TypeSQLDatabase,
 						NativeID:       sv(db.ID),
 						Name:           &dbName,
 						Region:         &dbLocation,
 						AttributesJSON: mustJSON(db),
-						ScanID:         scanID,
-						ParentID:       &srvResourceID,
+						DiscoveredBy:         scanID,
 					}
 					if db.Tags != nil {
 						s := mustJSON(db.Tags)
@@ -107,7 +108,7 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 					}
 					pairs := make([][2]string, len(dbBatch))
 					for i, r := range dbBatch {
-						pairs[i] = [2]string{store.ResourceID("azure", sub.ID, "azure:sql:database", r.NativeID), srvResourceID}
+						pairs[i] = [2]string{store.ResourceID("azure", sub.ID, TypeSQLDatabase, r.NativeID), srvResourceID}
 					}
 					if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
 						return fmt.Errorf("closure SQL databases: %w", err)

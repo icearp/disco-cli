@@ -17,6 +17,13 @@ type Scanner interface {
 	Scan(ctx context.Context, st *store.Store, scanID string) error
 }
 
+// ServiceFilterer is an optional interface that providers may implement to
+// support scanning a subset of their registered services.
+// The --services flag on "disco scan <provider>" uses this when present.
+type ServiceFilterer interface {
+	SetServiceFilter(services []string)
+}
+
 // registry maps provider name → Scanner. Populated by provider init() calls.
 var registry = map[string]Scanner{}
 

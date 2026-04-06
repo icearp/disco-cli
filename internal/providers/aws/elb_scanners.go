@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 
+func init() { registerService(serviceEntry{name: "aws:elb", fn: scanELB}) }
+
 // scanELB discovers Application, Network, and Gateway load balancers (ELBv2)
 // in one region.
 func scanELB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
@@ -31,13 +33,14 @@ func scanELB(ctx context.Context, acct *account, region string, st *store.Store,
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:elasticloadbalancing:load-balancer",
+				Type:           TypeELBLoadBalancer,
 				NativeID:       sv(lb.LoadBalancerArn),
 				Name:           &name,
 				Region:         &region,
+				CreatedAt:      tp(lb.CreatedTime),
 				Status:         &status,
 				AttributesJSON: mustJSON(map[string]any{"lb": lb, "type": lbType}),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

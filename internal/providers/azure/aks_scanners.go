@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 )
 
+func init() { registerService(serviceEntry{name: "azure:aks", fn: scanAKS}) }
+
 // scanAKS discovers Azure Kubernetes Service managed clusters.
 func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, nil)
@@ -40,13 +42,16 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:containerservice:managed-cluster",
+				Type:           TypeAKSManagedCluster,
 				NativeID:       sv(cluster.ID),
 				Name:           &name,
 				Region:         &location,
 				Status:         &status,
 				AttributesJSON: mustJSON(cluster),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
+			}
+			if cluster.SystemData != nil {
+				r.CreatedAt = tp(cluster.SystemData.CreatedAt)
 			}
 			if cluster.Tags != nil {
 				s := mustJSON(cluster.Tags)

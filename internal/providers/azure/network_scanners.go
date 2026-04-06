@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
+func init() { registerService(serviceEntry{name: "azure:network", fn: scanNetwork}) }
+
 // scanNetwork discovers VNets, subnets, NSGs, and public IP addresses.
 func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	if err := scanVNets(ctx, sub, cred, st, scanID); err != nil {
@@ -37,6 +39,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 		}
 		var batch []*store.Resource
 		var subnetBatch []*store.Resource
+		var subnetPairs [][2]string
 		for _, vnet := range page.Value {
 			if vnet.ID == nil {
 				continue
@@ -44,18 +47,18 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			name := sv(vnet.Name)
 			location := sv(vnet.Location)
 			vnetID := sv(vnet.ID)
-			vnetResourceID := store.ResourceID("azure", sub.ID, "azure:network:virtual-network", vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, TypeVirtualNetwork, vnetID)
 
 			r := &store.Resource{
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:network:virtual-network",
+				Type:           TypeVirtualNetwork,
 				NativeID:       vnetID,
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vnet),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if vnet.Tags != nil {
 				s := mustJSON(vnet.Tags)
@@ -75,15 +78,16 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 						Provider:       "azure",
 						AccountID:      sub.ID,
 						AccountName:    &sub.Name,
-						Type:           "azure:network:subnet",
+						Type:           TypeSubnet,
 						NativeID:       snID,
 						Name:           &snName,
 						Region:         &location,
 						AttributesJSON: mustJSON(sn),
-						ScanID:         scanID,
-						ParentID:       &vnetResourceID,
+						DiscoveredBy:         scanID,
 					}
 					subnetBatch = append(subnetBatch, snResource)
+					snResourceID := store.ResourceID("azure", sub.ID, TypeSubnet, snID)
+					subnetPairs = append(subnetPairs, [2]string{snResourceID, vnetResourceID})
 				}
 			}
 		}
@@ -96,14 +100,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			if err := st.UpsertResources(subnetBatch); err != nil {
 				return fmt.Errorf("upsert subnets: %w", err)
 			}
-			var pairs [][2]string
-			for _, r := range subnetBatch {
-				if r.ParentID != nil {
-					snID := store.ResourceID("azure", sub.ID, "azure:network:subnet", r.NativeID)
-					pairs = append(pairs, [2]string{snID, *r.ParentID})
-				}
-			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.BatchAddToHierarchyClosure(subnetPairs); err != nil {
 				return fmt.Errorf("closure subnets: %w", err)
 			}
 		}
@@ -137,12 +134,12 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:network:network-security-group",
+				Type:           TypeNetworkSecurityGroup,
 				NativeID:       sv(nsg.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(nsg),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if nsg.Tags != nil {
 				s := mustJSON(nsg.Tags)
@@ -185,12 +182,12 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:network:public-ip-address",
+				Type:           TypePublicIPAddress,
 				NativeID:       sv(ip.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(ip),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if ip.Tags != nil {
 				s := mustJSON(ip.Tags)

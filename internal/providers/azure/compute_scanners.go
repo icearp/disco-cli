@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
+func init() { registerService(serviceEntry{name: "azure:compute", fn: scanCompute}) }
+
 // scanCompute discovers Azure VMs and managed disks.
 func scanCompute(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	if err := scanVMs(ctx, sub, cred, st, scanID); err != nil {
@@ -33,6 +35,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			return fmt.Errorf("armcompute:VMs.ListAll: %w", err)
 		}
 		var batch []*store.Resource
+		var pairs [][2]string
 		for _, vm := range page.Value {
 			if vm.ID == nil {
 				continue
@@ -40,36 +43,37 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			name := sv(vm.Name)
 			location := sv(vm.Location)
 			rgName := rgFromID(sv(vm.ID))
-			rgID := store.ResourceID("azure", sub.ID, "azure:resources:resource-group",
+			rgID := store.ResourceID("azure", sub.ID, TypeResourceGroup,
 				fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", sub.ID, rgName))
 			r := &store.Resource{
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:compute:virtual-machine",
+				Type:           TypeVirtualMachine,
 				NativeID:       sv(vm.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vm),
-				ScanID:         scanID,
-				ParentID:       &rgID,
+				DiscoveredBy:         scanID,
+			}
+			if len(vm.Zones) > 0 {
+				z := sv(vm.Zones[0])
+				r.Zone = &z
+			}
+			if vm.Properties != nil {
+				r.CreatedAt = tp(vm.Properties.TimeCreated)
 			}
 			if vm.Tags != nil {
 				s := mustJSON(vm.Tags)
 				r.TagsJSON = &s
 			}
 			batch = append(batch, r)
+			vmID := store.ResourceID("azure", sub.ID, TypeVirtualMachine, sv(vm.ID))
+			pairs = append(pairs, [2]string{vmID, rgID})
 		}
 		if len(batch) > 0 {
 			if err := st.UpsertResources(batch); err != nil {
 				return fmt.Errorf("upsert Azure VMs: %w", err)
-			}
-			var pairs [][2]string
-			for _, r := range batch {
-				if r.ParentID != nil {
-					vmID := store.ResourceID("azure", sub.ID, "azure:compute:virtual-machine", r.NativeID)
-					pairs = append(pairs, [2]string{vmID, *r.ParentID})
-				}
 			}
 			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
 				return fmt.Errorf("closure Azure VMs: %w", err)
@@ -105,12 +109,12 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:compute:disk",
+				Type:           TypeManagedDisk,
 				NativeID:       sv(d.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(d),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if d.Tags != nil {
 				s := mustJSON(d.Tags)

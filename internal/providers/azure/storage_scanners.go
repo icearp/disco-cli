@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 )
 
+func init() { registerService(serviceEntry{name: "azure:storage", fn: scanStorage}) }
+
 // scanStorage discovers Azure storage accounts.
 func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	client, err := armstorage.NewAccountsClient(sub.ID, cred, nil)
@@ -36,12 +38,12 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:storage:storage-account",
+				Type:           TypeStorageAccount,
 				NativeID:       sv(acct.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(acct),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if acct.Tags != nil {
 				s := mustJSON(acct.Tags)

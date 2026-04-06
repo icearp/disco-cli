@@ -58,17 +58,17 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		r := &store.Resource{
 			Provider:       "gcp",
 			AccountID:      id,
-			Type:           "gcp:cloudresourcemanager:organization",
+			Type:           TypeOrganization,
 			NativeID:       id,
 			Name:           &name,
 			AttributesJSON: mustJSON(org),
-			ScanID:         scanID,
+			DiscoveredBy:         scanID,
 		}
 		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
 		}
 		// Organizations are roots; add self-entry to closure table.
-		orgResourceID := store.ResourceID("gcp", id, "gcp:cloudresourcemanager:organization", id)
+		orgResourceID := store.ResourceID("gcp", id, TypeOrganization, id)
 		if err := st.AddToHierarchyClosure(orgResourceID, orgResourceID); err != nil {
 			return err
 		}
@@ -88,16 +88,16 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		r := &store.Resource{
 			Provider:       "gcp",
 			AccountID:      id,
-			Type:           "gcp:cloudresourcemanager:folder",
+			Type:           TypeFolder,
 			NativeID:       id,
 			Name:           &displayName,
 			AttributesJSON: mustJSON(folder),
-			ScanID:         scanID,
+			DiscoveredBy:         scanID,
 		}
 		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
 		}
-		folderResourceID := store.ResourceID("gcp", id, "gcp:cloudresourcemanager:folder", id)
+		folderResourceID := store.ResourceID("gcp", id, TypeFolder, id)
 		if folder.Parent != "" {
 			parentResourceID := gcpParentResourceID(folder.Parent)
 			if err := st.AddToHierarchyClosure(folderResourceID, parentResourceID); err != nil {
@@ -117,20 +117,18 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		p.Name = proj.DisplayName
 		p.Number = projectNumber(proj.Name)
 
-		projResourceID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
+		projResourceID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
 		r := &store.Resource{
 			Provider:       "gcp",
 			AccountID:      p.ID,
-			Type:           "gcp:cloudresourcemanager:project",
+			Type:           TypeProject,
 			NativeID:       p.ID, // project ID (e.g. "my-project-123"); proj.Name is in attributes
 			Name:           &p.Name,
 			AttributesJSON: mustJSON(proj),
-			ScanID:         scanID,
+			DiscoveredBy:         scanID,
 		}
 		if proj.Parent != "" {
-			parentResourceID := gcpParentResourceID(proj.Parent)
-			r.ParentID = &parentResourceID
-			p.ParentID = parentResourceID
+			p.ParentID = gcpParentResourceID(proj.Parent)
 		}
 		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
@@ -148,10 +146,10 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 // "organizations/456") to a disco resource ID.
 func gcpParentResourceID(parent string) string {
 	if strings.HasPrefix(parent, "organizations/") {
-		return store.ResourceID("gcp", parent, "gcp:cloudresourcemanager:organization", parent)
+		return store.ResourceID("gcp", parent, TypeOrganization, parent)
 	}
 	if strings.HasPrefix(parent, "folders/") {
-		return store.ResourceID("gcp", parent, "gcp:cloudresourcemanager:folder", parent)
+		return store.ResourceID("gcp", parent, TypeFolder, parent)
 	}
 	return ""
 }

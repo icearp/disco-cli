@@ -8,10 +8,12 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() { registerResolver(resolveAKSRelationships) }
+
 func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
-		Types: []string{"azure:containerservice:managed-cluster"},
+		Types: []string{TypeAKSManagedCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -42,7 +44,7 @@ func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 				continue
 			}
 			seen[vnetID] = true
-			vnetResourceID := store.ResourceID("azure", sub.ID, "azure:network:virtual-network", vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, TypeVirtualNetwork, vnetID)
 			if err := st.UpsertRelationship(r.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert aks→vnet relationship: %w", err)
 			}

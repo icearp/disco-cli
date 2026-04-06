@@ -5,10 +5,12 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() { registerResolver(resolveVMRelationships) }
+
 func resolveVMRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
-		Types: []string{"azure:compute:virtual-machine"},
+		Types: []string{TypeVirtualMachine},
 		Limit: util.AllResources,
 	})
 	if err != nil {

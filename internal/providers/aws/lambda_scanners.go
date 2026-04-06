@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
 
+func init() { registerService(serviceEntry{name: "aws:lambda", fn: scanLambda}) }
+
 // scanLambda discovers Lambda functions in one region.
 func scanLambda(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
 	client := lambda.NewFromConfig(acct.cfg, func(o *lambda.Options) { o.Region = region })
@@ -29,12 +31,12 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:lambda:function",
+				Type:           TypeLambdaFunction,
 				NativeID:       sv(fn.FunctionArn),
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(fn),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

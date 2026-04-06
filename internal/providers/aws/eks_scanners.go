@@ -10,6 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func init() { registerService(serviceEntry{name: "aws:eks", fn: scanEKS}) }
+
 // scanEKS discovers EKS clusters in one region. ListClusters returns names
 // only; we describe each cluster in parallel to avoid N+1 sequential API calls.
 func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
@@ -45,13 +47,14 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
-					Type:           "aws:eks:cluster",
+					Type:           TypeEKSCluster,
 					NativeID:       sv(c.Arn),
 					Name:           c.Name,
 					Region:         &region,
+					CreatedAt:      tp(c.CreatedAt),
 					Status:         sp(string(c.Status)),
 					AttributesJSON: mustJSON(c),
-					ScanID:         scanID,
+					DiscoveredBy:         scanID,
 				}
 				if len(c.Tags) > 0 {
 					s := mustJSON(c.Tags)

@@ -10,6 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func init() { registerService(serviceEntry{name: "aws:dynamodb", fn: scanDynamoDB}) }
+
 // scanDynamoDB discovers DynamoDB tables in one region. ListTables returns
 // names only; we describe each table in parallel to avoid N+1 sequential API calls.
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
@@ -45,13 +47,14 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
-					Type:           "aws:dynamodb:table",
+					Type:           TypeDynamoDBTable,
 					NativeID:       sv(t.TableArn),
 					Name:           t.TableName,
 					Region:         &region,
+					CreatedAt:      tp(t.CreationDateTime),
 					Status:         sp(string(t.TableStatus)),
 					AttributesJSON: mustJSON(t),
-					ScanID:         scanID,
+					DiscoveredBy:         scanID,
 				}
 				mu.Lock()
 				batch = append(batch, r)

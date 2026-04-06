@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/sqladmin/v1"
 )
 
+func init() { registerService(serviceEntry{name: "gcp:sql", fn: scanCloudSQL}) }
+
 // scanCloudSQL discovers Cloud SQL instances for a project. Uses Pages() so
 // that projects with many instances are not silently truncated at the default
 // page size.
@@ -17,8 +19,6 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 	if err != nil {
 		return fmt.Errorf("sqladmin client: %w", err)
 	}
-
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
 
 	err = svc.Instances.List(p.ID).Pages(ctx, func(page *sqladmin.InstancesListResponse) error {
 		var batch []*store.Resource
@@ -30,14 +30,14 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 				Provider:       "gcp",
 				AccountID:      p.ID,
 				AccountName:    &p.Name,
-				Type:           "gcp:sqladmin:instance",
+				Type:           TypeSQLInstance,
 				NativeID:       fmt.Sprintf("projects/%s/instances/%s", p.ID, name),
 				Name:           &name,
 				Region:         &region,
+				CreatedAt:      strp(inst.CreateTime),
 				Status:         &status,
 				AttributesJSON: mustJSON(inst),
-				ScanID:         scanID,
-				ParentID:       &projParentID,
+				DiscoveredBy:   scanID,
 			}
 			if len(inst.Settings.UserLabels) > 0 {
 				s := mustJSON(inst.Settings.UserLabels)

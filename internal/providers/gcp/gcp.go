@@ -10,20 +10,37 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
 	"codeburg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/googleapi"
+)
+
+const (
+	// maxConcurrentServices caps the number of service scanners running in parallel
+	// per project to avoid hitting GCP API rate limits.
+	maxConcurrentServices = 10
+	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
+	// won't stall the entire scan beyond this duration.
+	serviceTimeout = 5 * time.Minute
 )
 
 func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for GCP.
-type Scanner struct{}
+type Scanner struct {
+	serviceFilter []string // nil = scan all registered services
+}
 
 func (s *Scanner) Name() string { return "gcp" }
+
+// SetServiceFilter restricts the scan to the named services (e.g. "gcp:compute", "gcp:gke").
+// An empty or nil slice scans all registered services.
+func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
 // Scan discovers all GCP resources across all accessible projects.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
@@ -39,10 +56,11 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	}
 
 	// Phase 1b: scan all project-scoped resources in parallel across projects.
+	filter := s.serviceFilter
 	g, ctx := errgroup.WithContext(ctx)
 	for i := range projects {
 		p := &projects[i]
-		g.Go(func() error { return scanProject(ctx, p, st, scanID) })
+		g.Go(func() error { return scanProject(ctx, p, filter, st, scanID) })
 	}
 	if err := g.Wait(); err != nil {
 		return err
@@ -60,29 +78,29 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // resolveRelationships is phase 2 for GCP: derive edges between resources that
 // have already been written to the DB.
 func resolveRelationships(_ context.Context, p *project, st *store.Store) error {
-	if err := resolveComputeInstanceRelationships(p, st); err != nil {
-		return err
+	for _, r := range registeredResolvers {
+		if err := r.fn(p, st); err != nil {
+			return err
+		}
 	}
-	return resolveSubnetworkRelationships(p, st)
+	return nil
 }
 
-// scanProject runs all per-project service scanners in parallel.
-func scanProject(ctx context.Context, p *project, st *store.Store, scanID string) error {
-	g, ctx := errgroup.WithContext(ctx)
-	services := []struct {
-		name string
-		fn   func() error
-	}{
-		{"gcp:compute", func() error { return scanCompute(ctx, p, st, scanID) }},
-		{"gcp:storage", func() error { return scanStorage(ctx, p, st, scanID) }},
-		{"gcp:sql", func() error { return scanCloudSQL(ctx, p, st, scanID) }},
-		{"gcp:gke", func() error { return scanGKE(ctx, p, st, scanID) }},
-		{"gcp:iam", func() error { return scanIAMServiceAccounts(ctx, p, st, scanID) }},
-	}
-	for _, svc := range services {
+// scanProject runs all per-project service scanners in parallel, bounded by
+// maxConcurrentServices to avoid API rate limits.
+func scanProject(ctx context.Context, p *project, services []string, st *store.Store, scanID string) error {
+	sem := semaphore.NewWeighted(maxConcurrentServices)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, svc := range filteredServices(services) {
 		svc := svc
 		g.Go(func() error {
-			if err := svc.fn(); err != nil {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			defer cancel()
+			if err := svc.fn(svcCtx, p, st, scanID); err != nil {
 				return err
 			}
 			st.ReportService(svc.name)
@@ -90,6 +108,25 @@ func scanProject(ctx context.Context, p *project, st *store.Store, scanID string
 		})
 	}
 	return g.Wait()
+}
+
+// filteredServices returns the services to run. When filter is non-empty, only
+// services whose name appears in filter are returned.
+func filteredServices(filter []string) []serviceEntry {
+	if len(filter) == 0 {
+		return registeredServices
+	}
+	allowed := make(map[string]bool, len(filter))
+	for _, name := range filter {
+		allowed[name] = true
+	}
+	var out []serviceEntry
+	for _, svc := range registeredServices {
+		if allowed[svc.name] {
+			out = append(out, svc)
+		}
+	}
+	return out
 }
 
 // — shared helpers —
@@ -103,6 +140,14 @@ type project struct {
 }
 
 func mustJSON(v any) string { return util.MustJSON(v) }
+
+// strp returns a pointer to s, or nil if s is empty.
+func strp(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
 
 // isPermissionDenied reports whether err is a GCP 403 / permission denied error.
 func isPermissionDenied(err error) bool {

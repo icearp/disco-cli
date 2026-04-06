@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/storage/v1"
 )
 
+func init() { registerService(serviceEntry{name: "gcp:storage", fn: scanStorage}) }
+
 // scanStorage discovers Cloud Storage buckets for a project.
 func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) error {
 	opts := clientOptions(ctx, providerCfg{})
@@ -15,8 +17,6 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 	if err != nil {
 		return fmt.Errorf("storage client: %w", err)
 	}
-
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
 
 	req := svc.Buckets.List(p.ID)
 	if err := req.Pages(ctx, func(page *storage.Buckets) error {
@@ -28,13 +28,12 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 				Provider:       "gcp",
 				AccountID:      p.ID,
 				AccountName:    &p.Name,
-				Type:           "gcp:storage:bucket",
+				Type:           TypeStorageBucket,
 				NativeID:       b.SelfLink,
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(b),
-				ScanID:         scanID,
-				ParentID:       &projParentID,
+				DiscoveredBy:         scanID,
 			}
 			if len(b.Labels) > 0 {
 				s := mustJSON(b.Labels)

@@ -8,9 +8,11 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() { registerResolver(resolveEKSRelationships) }
+
 func resolveEKSRelationships(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{"aws:eks:cluster"},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEKSCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -26,7 +28,7 @@ func resolveEKSRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.ResourcesVpcConfig != nil && attrs.ResourcesVpcConfig.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *attrs.ResourcesVpcConfig.VpcId)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourcesVpcConfig.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eks→vpc relationship: %w", err)
 			}

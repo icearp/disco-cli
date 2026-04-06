@@ -16,12 +16,11 @@ CREATE TABLE IF NOT EXISTS scans (
 );
 
 CREATE TABLE IF NOT EXISTS resources (
-    id            TEXT PRIMARY KEY,   -- sha256(provider+account_id+service+native_id)
+    id            TEXT PRIMARY KEY,   -- sha256(provider+accountID+resourceType+nativeID))
     provider      TEXT NOT NULL,      -- 'aws' | 'azure' | 'gcp'
     account_id    TEXT NOT NULL,      -- AWS account ID, Azure subscription GUID, GCP project ID
     account_name  TEXT,
-    service       TEXT NOT NULL,      -- 'ec2', 'Microsoft.Compute', 'gke'
-    type          TEXT NOT NULL,      -- 'instance', 'virtualMachines', 'cluster'
+    type          TEXT NOT NULL,      -- namespaced type: 'aws:ec2:instance', 'azure:compute:virtual-machine'
     native_id     TEXT NOT NULL,      -- ARN / Azure resource ID / GCP self-link
     name          TEXT,
     region        TEXT,
@@ -29,25 +28,22 @@ CREATE TABLE IF NOT EXISTS resources (
     status        TEXT,
     tags          TEXT,               -- JSON: {"key": "value"}
     attributes    TEXT NOT NULL,      -- JSON: full provider-specific response blob
-    parent_id     TEXT,               -- immediate parent resource ID
     created_at    TEXT,
     discovered_at TEXT NOT NULL,
+    discovered_by TEXT NOT NULL,
     verified_at   TEXT,
     verified_by   TEXT,
-    scan_id       TEXT NOT NULL,
-    FOREIGN KEY (parent_id)   REFERENCES resources(id),
-    FOREIGN KEY (scan_id)     REFERENCES scans(id)
+    FOREIGN KEY (discovered_by)     REFERENCES scans(id),
     FOREIGN KEY (verified_by) REFERENCES scans(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_resources_provider     ON resources(provider);
-CREATE INDEX IF NOT EXISTS idx_resources_type         ON resources(provider, type);
-CREATE INDEX IF NOT EXISTS idx_resources_account      ON resources(provider, account_id);
-CREATE INDEX IF NOT EXISTS idx_resources_region       ON resources(provider, account_id, region);
-CREATE INDEX IF NOT EXISTS idx_resources_parent       ON resources(parent_id);
-CREATE INDEX IF NOT EXISTS idx_resources_native_id    ON resources(native_id);
-CREATE INDEX IF NOT EXISTS idx_resources_status       ON resources(status);
-CREATE INDEX IF NOT EXISTS idx_resources_scan         ON resources(scan_id);
+CREATE INDEX IF NOT EXISTS idx_resources_provider  ON resources(provider);
+CREATE INDEX IF NOT EXISTS idx_resources_type      ON resources(provider, type);
+CREATE INDEX IF NOT EXISTS idx_resources_account   ON resources(provider, account_id);
+CREATE INDEX IF NOT EXISTS idx_resources_region    ON resources(provider, account_id, region);
+CREATE INDEX IF NOT EXISTS idx_resources_native_id ON resources(native_id);
+CREATE INDEX IF NOT EXISTS idx_resources_status    ON resources(status);
+CREATE INDEX IF NOT EXISTS idx_resources_scan      ON resources(discovered_by);
 
 CREATE TABLE IF NOT EXISTS relationships (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,

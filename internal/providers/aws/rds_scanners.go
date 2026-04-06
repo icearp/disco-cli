@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 )
 
+func init() { registerService(serviceEntry{name: "aws:rds", fn: scanRDS}) }
+
 // scanRDS discovers RDS DB instances in one region.
 func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
@@ -28,14 +30,16 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:rds:db-instance",
+				Type:           TypeRDSDBInstance,
 				NativeID:       sv(db.DBInstanceArn),
 				Name:           &name,
 				Region:         &region,
+				Zone:           db.AvailabilityZone,
+				CreatedAt:      tp(db.InstanceCreateTime),
 				Status:         db.DBInstanceStatus,
 				TagsJSON:       awsTagsJSON(db.TagList),
 				AttributesJSON: mustJSON(db),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

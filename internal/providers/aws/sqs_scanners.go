@@ -9,6 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
+func init() { registerService(serviceEntry{name: "aws:sqs", fn: scanSQS}) }
+
 // scanSQS discovers SQS queues in one region. SQS has no paginator type;
 // we iterate manually using NextToken.
 func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
@@ -34,12 +36,12 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           "aws:sqs:queue",
+				Type:           TypeSQSQueue,
 				NativeID:       url,
 				Name:           &url,
 				Region:         &region,
 				AttributesJSON: mustJSON(map[string]string{"url": url}),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			batch = append(batch, r)
 		}

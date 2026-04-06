@@ -8,6 +8,8 @@ import (
 	"google.golang.org/api/container/v1"
 )
 
+func init() { registerService(serviceEntry{name: "gcp:gke", fn: scanGKE}) }
+
 // scanGKE discovers GKE clusters for a project across all locations.
 func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) error {
 	opts := clientOptions(ctx, providerCfg{})
@@ -15,8 +17,6 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) er
 	if err != nil {
 		return fmt.Errorf("container client: %w", err)
 	}
-
-	projParentID := store.ResourceID("gcp", p.ID, "gcp:cloudresourcemanager:project", p.ID)
 
 	// "-" as location returns clusters across all locations.
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
@@ -36,14 +36,14 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) er
 			Provider:       "gcp",
 			AccountID:      p.ID,
 			AccountName:    &p.Name,
-			Type:           "gcp:container:cluster",
+			Type:           TypeGKECluster,
 			NativeID:       c.SelfLink,
 			Name:           &name,
 			Region:         &region,
+			CreatedAt:      strp(c.CreateTime),
 			Status:         &status,
 			AttributesJSON: mustJSON(c),
-			ScanID:         scanID,
-			ParentID:       &projParentID,
+			DiscoveredBy:         scanID,
 		}
 		if len(c.ResourceLabels) > 0 {
 			s := mustJSON(c.ResourceLabels)

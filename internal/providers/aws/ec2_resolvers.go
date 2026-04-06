@@ -8,6 +8,12 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() {
+	registerResolver(resolveInstanceRelationships)
+	registerResolver(resolveSubnetVPCRelationships)
+	registerResolver(resolveIGWRelationships)
+}
+
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.
 type instanceAttrs struct {
 	InstanceId         *string `json:"InstanceId"`
@@ -28,7 +34,7 @@ type instanceAttrs struct {
 
 func resolveInstanceRelationships(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{"aws:ec2:instance"},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Instance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -39,16 +45,17 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
+		region := sv(r.Region)
 		// Instance → VPC
 		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *attrs.VpcId)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→vpc relationship: %w", err)
 			}
 		}
 		// Instance → Subnet
 		if attrs.SubnetId != nil {
-			subnetID := store.ResourceID("aws", acct.ID, "aws:ec2:subnet", *attrs.SubnetId)
+			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetId))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→subnet relationship: %w", err)
 			}
@@ -56,7 +63,7 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		// Instance → Security Groups
 		for _, sg := range attrs.SecurityGroups {
 			if sg.GroupId != nil {
-				sgID := store.ResourceID("aws", acct.ID, "aws:ec2:security-group", *sg.GroupId)
+				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", *sg.GroupId))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→security-group relationship: %w", err)
 				}
@@ -65,7 +72,7 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		// Instance → EBS Volumes (from block device mappings)
 		for _, bdm := range attrs.BlockDeviceMappings {
 			if bdm.Ebs != nil && bdm.Ebs.VolumeId != nil {
-				volID := store.ResourceID("aws", acct.ID, "aws:ec2:volume", *bdm.Ebs.VolumeId)
+				volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeId))
 				if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→volume relationship: %w", err)
 				}
@@ -81,7 +88,7 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 
 func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{"aws:ec2:subnet"},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Subnet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -95,7 +102,7 @@ func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *attrs.VpcId)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert subnet→vpc relationship: %w", err)
 			}
@@ -106,7 +113,7 @@ func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 
 func resolveIGWRelationships(acct *account, st *store.Store) error {
 	igws, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{"aws:ec2:internet-gateway"},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2InternetGateway},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -123,7 +130,7 @@ func resolveIGWRelationships(acct *account, st *store.Store) error {
 		}
 		for _, att := range attrs.Attachments {
 			if att.VpcId != nil {
-				vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *att.VpcId)
+				vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *att.VpcId))
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert igw→vpc relationship: %w", err)
 				}

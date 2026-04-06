@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/keyvault/armkeyvault"
 )
 
+func init() { registerService(serviceEntry{name: "azure:keyvault", fn: scanKeyVault}) }
+
 // scanKeyVault discovers Azure Key Vault vaults.
 func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
 	client, err := armkeyvault.NewVaultsClient(sub.ID, cred, nil)
@@ -36,12 +38,12 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           "azure:keyvault:vault",
+				Type:           TypeKeyVaultVault,
 				NativeID:       sv(vault.ID),
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vault),
-				ScanID:         scanID,
+				DiscoveredBy:         scanID,
 			}
 			if vault.Tags != nil {
 				s := mustJSON(vault.Tags)

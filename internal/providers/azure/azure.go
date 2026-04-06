@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
@@ -17,14 +18,30 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
+)
+
+const (
+	// maxConcurrentServices caps the number of service scanners running in parallel
+	// per subscription to avoid hitting Azure API rate limits.
+	maxConcurrentServices = 10
+	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
+	// won't stall the entire scan beyond this duration.
+	serviceTimeout = 5 * time.Minute
 )
 
 func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for Azure.
-type Scanner struct{}
+type Scanner struct {
+	serviceFilter []string // nil = scan all registered services
+}
 
 func (s *Scanner) Name() string { return "azure" }
+
+// SetServiceFilter restricts the scan to the named services (e.g. "azure:compute", "azure:network").
+// An empty or nil slice scans all registered services.
+func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
 // Scan discovers all Azure resources across all configured subscriptions.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
@@ -33,7 +50,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
 	for i := range subs {
-		if err := scanSubscription(ctx, &subs[i], cred, st, scanID); err != nil {
+		if err := scanSubscription(ctx, &subs[i], cred, s.serviceFilter, st, scanID); err != nil {
 			return fmt.Errorf("azure subscription %s: %w", subs[i].ID, err)
 		}
 	}
@@ -42,29 +59,25 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
 // (relationships) for one subscription.
-func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, services []string, st *store.Store, scanID string) error {
 	// Scan resource groups first (they are parents of all resources).
 	if err := scanResourceGroups(ctx, sub, cred, st, scanID); err != nil {
 		return err
 	}
 
-	// Scan all resource types in parallel.
-	g, ctx := errgroup.WithContext(ctx)
-	services := []struct {
-		name string
-		fn   func() error
-	}{
-		{"azure:compute", func() error { return scanCompute(ctx, sub, cred, st, scanID) }},
-		{"azure:network", func() error { return scanNetwork(ctx, sub, cred, st, scanID) }},
-		{"azure:storage", func() error { return scanStorage(ctx, sub, cred, st, scanID) }},
-		{"azure:sql", func() error { return scanSQL(ctx, sub, cred, st, scanID) }},
-		{"azure:aks", func() error { return scanAKS(ctx, sub, cred, st, scanID) }},
-		{"azure:keyvault", func() error { return scanKeyVault(ctx, sub, cred, st, scanID) }},
-	}
-	for _, svc := range services {
+	// Scan all registered service types in parallel, bounded by maxConcurrentServices.
+	sem := semaphore.NewWeighted(maxConcurrentServices)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, svc := range filteredServices(services) {
 		svc := svc
 		g.Go(func() error {
-			if err := svc.fn(); err != nil {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			defer cancel()
+			if err := svc.fn(svcCtx, sub, cred, st, scanID); err != nil {
 				return err
 			}
 			st.ReportService(svc.name)
@@ -81,13 +94,31 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 // resolveRelationships is phase 2 for Azure: derive edges between resources
 // that have already been written to the DB.
 func resolveRelationships(_ context.Context, sub *subscription, st *store.Store) error {
-	if err := resolveVMRelationships(sub, st); err != nil {
-		return err
+	for _, r := range registeredResolvers {
+		if err := r.fn(sub, st); err != nil {
+			return err
+		}
 	}
-	if err := resolveSubnetVNetRelationships(sub, st); err != nil {
-		return err
+	return nil
+}
+
+// filteredServices returns the services to run. When filter is non-empty, only
+// services whose name appears in filter are returned.
+func filteredServices(filter []string) []serviceEntry {
+	if len(filter) == 0 {
+		return registeredServices
 	}
-	return resolveAKSRelationships(sub, st)
+	allowed := make(map[string]bool, len(filter))
+	for _, name := range filter {
+		allowed[name] = true
+	}
+	var out []serviceEntry
+	for _, svc := range registeredServices {
+		if allowed[svc.name] {
+			out = append(out, svc)
+		}
+	}
+	return out
 }
 
 // — shared helpers —
@@ -116,7 +147,8 @@ func skipIfAccessDenied(service, subID string, err error) error {
 	return nil
 }
 
-func sv(p *string) string { return util.Sv(p) }
+func sv(p *string) string     { return util.Sv(p) }
+func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
 
 // rgFromID extracts the resource group name from an Azure resource ID.
 // e.g. /subscriptions/xxx/resourceGroups/myRG/... → "myRG"

@@ -8,9 +8,11 @@ import (
 	"codeburg.org/icearp/disco/internal/util"
 )
 
+func init() { registerResolver(resolveRDSRelationships) }
+
 func resolveRDSRelationships(acct *account, st *store.Store) error {
 	dbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{"aws:rds:db-instance"},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -26,7 +28,7 @@ func resolveRDSRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.DBSubnetGroup != nil && attrs.DBSubnetGroup.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, "aws:ec2:vpc", *attrs.DBSubnetGroup.VpcId)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.DBSubnetGroup.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds→vpc relationship: %w", err)
 			}

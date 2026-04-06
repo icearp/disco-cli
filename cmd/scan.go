@@ -108,13 +108,24 @@ func init() {
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,
 	// which are guaranteed to run before this init().
 	for _, s := range providers.All() {
-		scanCmd.AddCommand(&cobra.Command{
+		s := s
+		subcmd := &cobra.Command{
 			Use:   s.Name(),
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				return runScan(cmd, []providers.Scanner{s})
-			},
-		})
+		}
+		subcmd.Flags().StringSlice("services", nil,
+			fmt.Sprintf("comma-separated services to scan (e.g. %s:ec2,%s:iam); omit to scan all", s.Name(), s.Name()))
+		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
+			svcs, _ := cmd.Flags().GetStringSlice("services")
+			if len(svcs) > 0 {
+				// Apply filter if the provider supports it.
+				if sf, ok := s.(providers.ServiceFilterer); ok {
+					sf.SetServiceFilter(svcs)
+				}
+			}
+			return runScan(cmd, []providers.Scanner{s})
+		}
+		scanCmd.AddCommand(subcmd)
 	}
 	rootCmd.AddCommand(scanCmd)
 }
