@@ -113,6 +113,33 @@ SQL files in `internal/store/migrations/` are embedded at compile time via `//go
 
 Viper reads `~/.disco/config.yaml` with env prefix `DISCO_`. The `--db` flag (or `$DISCO_DB`) overrides the database path; default is `~/.disco/disco.db`. `defaultDBPath()` is a pure getter — directory creation is `store.Open()`'s responsibility.
 
+### Testing
+
+**Test files exist** for: `internal/store/`, `internal/util/`, and all three provider packages.
+
+#### Writing tests for new services
+
+Every new `<service>_resolvers.go` file must have a matching `<service>_resolvers_test.go`. The pattern:
+
+1. Call `newTestStore(t)` — opens a temp-file SQLite DB and inserts a required test scan record.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass the region** if the resolver uses `sv(r.Region)` to build ARNs — omitting it causes the computed relationship IDs to point to phantom resources, producing a FK error with no obvious diagnosis.
+3. Call the resolver function directly (tests live in the same package, e.g. `package aws`).
+4. Assert via `st.RelationshipsFrom(id)`.
+
+Always add a "no attrs / empty case" test alongside the happy-path test — it guards against nil-pointer panics on missing JSON fields.
+
+#### FK constraint: resources require a scan record
+
+`resources.discovered_by` and `resources.verified_by` are FKs to `scans(id)`. Any test that inserts resources must first have a scan record in the DB. `newTestStore` handles this automatically by inserting a scan with the fixed ID `"00000000000000000000000000000000"`.
+
+#### UpsertResources ON CONFLICT scope
+
+`UpsertResources` ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`. It does **not** update `region`, `zone`, `account_name`, or `discovered_at`. Set all fields on the initial insert — a second upsert cannot patch them.
+
+#### Registration tests
+
+`internal/providers/<provider>/registration_test.go` contains `expectedAWSServices` / `expectedAzureServices` / `expectedGCPServices` — the authoritative list of registered service names. **Update this list when adding a new service scanner.** The test fails if a service is registered but not listed, or listed but not registered.
+
 ## Solution Rules
 
 1. **KEEP THINGS SIMPLE**
