@@ -7,16 +7,17 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"golang.org/x/sync/errgroup"
 )
 
 func init() { registerService(serviceEntry{name: "azure:compute", fn: scanCompute}) }
 
-// scanCompute discovers Azure VMs and managed disks.
+// scanCompute discovers Azure VMs and managed disks in parallel.
 func scanCompute(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
-	if err := scanVMs(ctx, sub, cred, st, scanID); err != nil {
-		return err
-	}
-	return scanDisks(ctx, sub, cred, st, scanID)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return scanVMs(gctx, sub, cred, st, scanID) })
+	g.Go(func() error { return scanDisks(gctx, sub, cred, st, scanID) })
+	return g.Wait()
 }
 
 func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {

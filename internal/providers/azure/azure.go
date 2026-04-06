@@ -44,17 +44,28 @@ func (s *Scanner) Name() string { return "azure" }
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
 // Scan discovers all Azure resources across all configured subscriptions.
+// Subscriptions are scanned in parallel, bounded by maxConcurrentServices.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
 	subs, cred, err := loadSubscriptions(ctx)
 	if err != nil {
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
+	sem := semaphore.NewWeighted(maxConcurrentServices)
+	g, gctx := errgroup.WithContext(ctx)
 	for i := range subs {
-		if err := scanSubscription(ctx, &subs[i], cred, s.serviceFilter, st, scanID); err != nil {
-			return fmt.Errorf("azure subscription %s: %w", subs[i].ID, err)
-		}
+		sub := &subs[i]
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			if err := scanSubscription(gctx, sub, cred, s.serviceFilter, st, scanID); err != nil {
+				return fmt.Errorf("azure subscription %s: %w", sub.ID, err)
+			}
+			return nil
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
@@ -69,7 +80,6 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 	sem := semaphore.NewWeighted(maxConcurrentServices)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, svc := range filteredServices(services) {
-		svc := svc
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err

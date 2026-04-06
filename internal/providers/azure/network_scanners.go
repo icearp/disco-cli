@@ -7,19 +7,18 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
+	"golang.org/x/sync/errgroup"
 )
 
 func init() { registerService(serviceEntry{name: "azure:network", fn: scanNetwork}) }
 
-// scanNetwork discovers VNets, subnets, NSGs, and public IP addresses.
+// scanNetwork discovers VNets, subnets, NSGs, and public IP addresses in parallel.
 func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
-	if err := scanVNets(ctx, sub, cred, st, scanID); err != nil {
-		return err
-	}
-	if err := scanNSGs(ctx, sub, cred, st, scanID); err != nil {
-		return err
-	}
-	return scanPublicIPs(ctx, sub, cred, st, scanID)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return scanVNets(gctx, sub, cred, st, scanID) })
+	g.Go(func() error { return scanNSGs(gctx, sub, cred, st, scanID) })
+	g.Go(func() error { return scanPublicIPs(gctx, sub, cred, st, scanID) })
+	return g.Wait()
 }
 
 func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
