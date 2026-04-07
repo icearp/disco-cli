@@ -50,11 +50,19 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
+	github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.61.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.56.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.76.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.62.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect

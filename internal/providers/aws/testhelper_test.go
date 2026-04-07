@@ -7,8 +7,13 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 )
 
-// testScanID is the fixed scan ID inserted into every test database.
-const testScanID = "00000000000000000000000000000000"
+const (
+	// testScanID is the fixed scan ID inserted into every test database.
+	testScanID = "00000000000000000000000000000000"
+	// testAccountID and testRegion are canonical values shared across resolver tests.
+	testAccountID = "123456789012"
+	testRegion    = "us-east-1"
+)
 
 // newTestStore opens a temporary SQLite database for use in provider tests
 // and inserts a scan record so resources can satisfy the discovered_by FK.

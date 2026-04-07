@@ -14,9 +14,14 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"codeburg.org/icearp/disco/internal/util"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
-	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	cloudfronttypes  "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	route53types     "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	ec2types          "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ecrtypes          "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	ecstypes          "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	elasticachetypes  "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	iamtypes          "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	rdstypes          "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -180,7 +185,7 @@ func ec2ARN(region, accountID, resourceType, id string) string {
 
 // awsTag is the set of AWS SDK tag types that carry Key and Value string pointers.
 type awsTag interface {
-	ec2types.Tag | iamtypes.Tag | rdstypes.Tag
+	cloudfronttypes.Tag | ec2types.Tag | ecrtypes.Tag | ecstypes.Tag | elasticachetypes.Tag | iamtypes.Tag | rdstypes.Tag | route53types.Tag
 }
 
 // awsTagsJSON converts any AWS SDK tag slice to a JSON-encoded {key:value} map.
@@ -193,11 +198,21 @@ func awsTagsJSON[T awsTag](tags []T) *string {
 	for _, t := range tags {
 		var k, v *string
 		switch tt := any(t).(type) {
+		case cloudfronttypes.Tag:
+			k, v = tt.Key, tt.Value
 		case ec2types.Tag:
+			k, v = tt.Key, tt.Value
+		case ecrtypes.Tag:
+			k, v = tt.Key, tt.Value
+		case ecstypes.Tag:
+			k, v = tt.Key, tt.Value
+		case elasticachetypes.Tag:
 			k, v = tt.Key, tt.Value
 		case iamtypes.Tag:
 			k, v = tt.Key, tt.Value
 		case rdstypes.Tag:
+			k, v = tt.Key, tt.Value
+		case route53types.Tag:
 			k, v = tt.Key, tt.Value
 		}
 		if k != nil && v != nil {
@@ -205,6 +220,17 @@ func awsTagsJSON[T awsTag](tags []T) *string {
 		}
 	}
 	s := mustJSON(m)
+	return &s
+}
+
+// mapTagsJSON converts a map[string]string tag map to a JSON-encoded {key:value}
+// string pointer. Used by services whose SDK returns tags as a plain map rather
+// than a slice of typed Tag structs. Returns nil when the map is empty.
+func mapTagsJSON(tags map[string]string) *string {
+	if len(tags) == 0 {
+		return nil
+	}
+	s := mustJSON(tags)
 	return &s
 }
 

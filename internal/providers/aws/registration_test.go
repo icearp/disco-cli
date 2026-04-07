@@ -8,10 +8,17 @@ import (
 // expectedAWSServices is the authoritative list of service names that must be
 // registered. Update this list when adding a new service scanner.
 var expectedAWSServices = []string{
+	"aws:apigateway",
+	"aws:apigatewayv2",
+	"aws:cloudfront",
 	"aws:dynamodb",
 	"aws:ec2",
+	"aws:ecr",
+	"aws:ecs",
 	"aws:eks",
+	"aws:elasticache",
 	"aws:elb",
+	"aws:route53",
 	"aws:iam",
 	"aws:lambda",
 	"aws:rds",
