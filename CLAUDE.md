@@ -149,3 +149,4 @@ Always add a "no attrs / empty case" test alongside the happy-path test — it g
 5. Do not write redundant code.
 6. Optimize first for scanning speed, then for minimum memory and CPU consumption.
 7. Keep dependencies minimal.
+8. Minimize token use. Do not re-read source code that is already in context. Use tools like sed, grep, head, and tail to reduce lines produced by commands.
