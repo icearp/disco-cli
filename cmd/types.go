@@ -13,7 +13,9 @@ indicate which ones are currently covered by disco's scanners.
 Examples:
   disco types aws
   disco types aws --filter uncovered
-  disco types aws --output json`,
+  disco types aws --output json
+  disco types azure
+  disco types azure --filter uncovered`,
 }
 
 func init() { rootCmd.AddCommand(typesCmd) }

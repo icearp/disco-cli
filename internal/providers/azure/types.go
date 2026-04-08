@@ -7,8 +7,8 @@ const (
 	// Resource Manager
 	TypeResourceGroup = "azure:resources:resource-group"
 	// Compute
-	TypeVirtualMachine = "azure:compute:virtual-machine"
-	TypeManagedDisk    = "azure:compute:disk"
+	TypeVirtualMachine = "azure:microsoft.compute:virtual-machine"
+	TypeManagedDisk    = "azure:microsoft.compute:disk"
 	// Network
 	TypeVirtualNetwork       = "azure:network:virtual-network"
 	TypeSubnet               = "azure:network:subnet"
@@ -24,3 +24,39 @@ const (
 	TypeSQLServer   = "azure:sql:server"
 	TypeSQLDatabase = "azure:sql:database"
 )
+
+// azureAPITypeMap maps the lowercase Azure provider resource-type string
+// (e.g. "microsoft.compute/virtualmachines") to the disco type constant.
+// Update this map whenever a new service scanner is added.
+var azureAPITypeMap = map[string]string{
+	"microsoft.resources/resourcegroups":         TypeResourceGroup,
+	"microsoft.compute/virtualmachines":          TypeVirtualMachine,
+	"microsoft.compute/disks":                    TypeManagedDisk,
+	"microsoft.network/virtualnetworks":          TypeVirtualNetwork,
+	"microsoft.network/virtualnetworks/subnets":  TypeSubnet,
+	"microsoft.network/networksecuritygroups":    TypeNetworkSecurityGroup,
+	"microsoft.network/publicipaddresses":        TypePublicIPAddress,
+	"microsoft.containerservice/managedclusters": TypeAKSManagedCluster,
+	"microsoft.keyvault/vaults":                  TypeKeyVaultVault,
+	"microsoft.storage/storageaccounts":          TypeStorageAccount,
+	"microsoft.sql/servers":                      TypeSQLServer,
+	"microsoft.sql/servers/databases":            TypeSQLDatabase,
+}
+
+// KnownTypes returns all disco type strings currently covered by this provider.
+// Used by the types command for gap-analysis against the Azure provider registry.
+func KnownTypes() []string {
+	types := make([]string, 0, len(azureAPITypeMap))
+	for _, v := range azureAPITypeMap {
+		types = append(types, v)
+	}
+	return types
+}
+
+// LookupAzureType returns the disco type string for a given lowercase Azure
+// provider resource-type key (e.g. "microsoft.compute/virtualmachines") and
+// whether it is covered by disco.
+func LookupAzureType(key string) (string, bool) {
+	v, ok := azureAPITypeMap[key]
+	return v, ok
+}
