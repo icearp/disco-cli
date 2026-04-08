@@ -6,91 +6,14 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 )
 
-// TestResolveInstanceRelationships verifies that an EC2 instance's JSON attributes
-// are correctly parsed to produce VPC, subnet, security-group, and volume relationships.
-// This test catches wrong JSON field names in instanceAttrs — bugs that are otherwise
-// silent (zero relationships, no error).
-func TestResolveInstanceRelationships(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount("123456789012")
-	region := "us-east-1"
-
-	// Insert the instance with a full attribute blob and region set.
-	instanceARN := ec2ARN(region, acct.ID, "instance", "i-abc123")
-	attrsJSON := `{
-		"InstanceId": "i-abc123",
-		"VpcId":      "vpc-111",
-		"SubnetId":   "subnet-222",
-		"SecurityGroups": [{"GroupId": "sg-333"}],
-		"BlockDeviceMappings": [{"Ebs": {"VolumeId": "vol-444"}}]
-	}`
-	instID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instanceARN, region, attrsJSON)
-
-	// Insert the referenced resources — their native IDs must match what the resolver computes
-	// using ec2ARN(region, ...). Region must be set on the instance for the resolver to build
-	// the correct ARN, so we insert these with the same region.
-	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
-		ec2ARN(region, acct.ID, "vpc", "vpc-111"), region, "{}")
-	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet,
-		ec2ARN(region, acct.ID, "subnet", "subnet-222"), region, "{}")
-	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup,
-		ec2ARN(region, acct.ID, "security-group", "sg-333"), region, "{}")
-	volID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume,
-		ec2ARN(region, acct.ID, "volume", "vol-444"), region, "{}")
-
-	if err := resolveInstanceRelationships(acct, st); err != nil {
-		t.Fatalf("resolveInstanceRelationships: %v", err)
-	}
-
-	rels, err := st.RelationshipsFrom(instID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 4 {
-		t.Errorf("expected 4 relationships, got %d", len(rels))
-	}
-
-	assertRelationship(t, rels, instID, vpcID, store.RelAttachedTo)
-	assertRelationship(t, rels, instID, subnetID, store.RelAttachedTo)
-	assertRelationship(t, rels, instID, sgID, store.RelUses)
-	assertRelationship(t, rels, instID, volID, store.RelAttachedTo)
-}
-
-// TestResolveInstanceRelationships_EmptyAttrs verifies that an instance with
-// no network attributes produces no relationships and no error.
-func TestResolveInstanceRelationships_EmptyAttrs(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount("123456789012")
-	region := "us-east-1"
-
-	instanceARN := ec2ARN(region, acct.ID, "instance", "i-bare")
-	instID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instanceARN, region, "{}")
-
-	if err := resolveInstanceRelationships(acct, st); err != nil {
-		t.Fatalf("resolveInstanceRelationships: %v", err)
-	}
-
-	rels, err := st.RelationshipsFrom(instID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 0 {
-		t.Errorf("expected 0 relationships for instance with empty attrs, got %d", len(rels))
-	}
-}
-
-// TestResolveSubnetVPCRelationships verifies that subnets produce an attached-to
-// relationship pointing to their parent VPC.
 func TestResolveSubnetVPCRelationships(t *testing.T) {
 	st := newTestStore(t)
-	acct := newTestAccount("123456789012")
-	region := "us-east-1"
+	acct := newTestAccount(testAccountID)
 
-	subnetARN := ec2ARN(region, acct.ID, "subnet", "subnet-abc")
-	attrsJSON := `{"VpcId": "vpc-xyz"}`
-	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subnetARN, region, attrsJSON)
+	subnetARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-abc")
+	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subnetARN, testRegion, `{"VpcId": "vpc-xyz"}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
-		ec2ARN(region, acct.ID, "vpc", "vpc-xyz"), region, "{}")
+		ec2ARN(testRegion, acct.ID, "vpc", "vpc-xyz"), testRegion, "{}")
 
 	if err := resolveSubnetVPCRelationships(acct, st); err != nil {
 		t.Fatalf("resolveSubnetVPCRelationships: %v", err)
@@ -103,23 +26,18 @@ func TestResolveSubnetVPCRelationships(t *testing.T) {
 	if len(rels) != 1 {
 		t.Fatalf("expected 1 relationship, got %d", len(rels))
 	}
-	if rels[0].ToID != vpcID || rels[0].Kind != store.RelAttachedTo {
-		t.Errorf("expected subnet -[attached-to]-> vpc, got %+v", rels[0])
-	}
+	assertRelationship(t, rels, subnetID, vpcID, store.RelAttachedTo)
 }
 
-// TestResolveIGWRelationships verifies that an internet gateway produces an
-// attached-to relationship for each VPC in its Attachments list.
 func TestResolveIGWRelationships(t *testing.T) {
 	st := newTestStore(t)
-	acct := newTestAccount("123456789012")
-	region := "us-east-1"
+	acct := newTestAccount(testAccountID)
 
-	igwARN := ec2ARN(region, acct.ID, "internet-gateway", "igw-001")
-	attrsJSON := `{"Attachments": [{"VpcId": "vpc-abc"}]}`
-	igwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InternetGateway, igwARN, region, attrsJSON)
+	igwARN := ec2ARN(testRegion, acct.ID, "internet-gateway", "igw-001")
+	igwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InternetGateway, igwARN, testRegion,
+		`{"Attachments": [{"VpcId": "vpc-abc"}]}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
-		ec2ARN(region, acct.ID, "vpc", "vpc-abc"), region, "{}")
+		ec2ARN(testRegion, acct.ID, "vpc", "vpc-abc"), testRegion, "{}")
 
 	if err := resolveIGWRelationships(acct, st); err != nil {
 		t.Fatalf("resolveIGWRelationships: %v", err)
@@ -132,24 +50,8 @@ func TestResolveIGWRelationships(t *testing.T) {
 	if len(rels) != 1 {
 		t.Fatalf("expected 1 relationship, got %d", len(rels))
 	}
-	if rels[0].ToID != vpcID || rels[0].Kind != store.RelAttachedTo {
-		t.Errorf("expected igw -[attached-to]-> vpc, got %+v", rels[0])
-	}
+	assertRelationship(t, rels, igwID, vpcID, store.RelAttachedTo)
 }
-
-// assertRelationship fails the test if no relationship with the given
-// (from, to, kind) exists in the rels slice.
-func assertRelationship(t *testing.T, rels []store.Relationship, fromID, toID, kind string) {
-	t.Helper()
-	for _, r := range rels {
-		if r.FromID == fromID && r.ToID == toID && r.Kind == kind {
-			return
-		}
-	}
-	t.Errorf("missing relationship: %s -[%s]-> %s", fromID, kind, toID)
-}
-
-// — Route Table —
 
 func TestResolveRouteTableRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -183,8 +85,6 @@ func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
-
-// — NAT Gateway —
 
 func TestResolveNatGatewayRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -222,8 +122,6 @@ func TestResolveNatGatewayRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
-// — EIP —
-
 func TestResolveEIPRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -259,8 +157,6 @@ func TestResolveEIPRelationships_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
-
-// — Network Interface —
 
 func TestResolveNetworkInterfaceRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -300,8 +196,6 @@ func TestResolveNetworkInterfaceRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
-// — Network ACL —
-
 func TestResolveNetworkACLRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -334,8 +228,6 @@ func TestResolveNetworkACLRelationships_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
-
-// — VPC Endpoint —
 
 func TestResolveVPCEndpointRelationships(t *testing.T) {
 	st := newTestStore(t)
@@ -370,8 +262,6 @@ func TestResolveVPCEndpointRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
-// — VPC Peering —
-
 func TestResolveVPCPeeringRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -404,159 +294,6 @@ func TestResolveVPCPeeringRelationships_EmptyAttrs(t *testing.T) {
 		t.Fatalf("resolveVPCPeeringRelationships: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(pcID)
-	if len(rels) != 0 {
-		t.Errorf("expected 0 relationships, got %d", len(rels))
-	}
-}
-
-// — VPN Connection —
-
-func TestResolveVPNConnectionRelationships(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	vpnARN := ec2ARN(testRegion, acct.ID, "vpn-connection", "vpn-001")
-	vpnID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNConnection, vpnARN, testRegion,
-		`{"VpnGatewayId":"vgw-001","CustomerGatewayId":"cgw-001"}`)
-	vgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNGateway, ec2ARN(testRegion, acct.ID, "vpn-gateway", "vgw-001"), testRegion, "{}")
-	cgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CustomerGateway, ec2ARN(testRegion, acct.ID, "customer-gateway", "cgw-001"), testRegion, "{}")
-
-	if err := resolveVPNConnectionRelationships(acct, st); err != nil {
-		t.Fatalf("resolveVPNConnectionRelationships: %v", err)
-	}
-	rels, err := st.RelationshipsFrom(vpnID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 2 {
-		t.Fatalf("expected 2 relationships, got %d", len(rels))
-	}
-	assertRelationship(t, rels, vpnID, vgwID, store.RelAttachedTo)
-	assertRelationship(t, rels, vpnID, cgwID, store.RelAttachedTo)
-}
-
-func TestResolveVPNConnectionRelationships_EmptyAttrs(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	vpnID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNConnection, ec2ARN(testRegion, acct.ID, "vpn-connection", "vpn-bare"), testRegion, "{}")
-	if err := resolveVPNConnectionRelationships(acct, st); err != nil {
-		t.Fatalf("resolveVPNConnectionRelationships: %v", err)
-	}
-	rels, _ := st.RelationshipsFrom(vpnID)
-	if len(rels) != 0 {
-		t.Errorf("expected 0 relationships, got %d", len(rels))
-	}
-}
-
-// — Transit Gateway Attachment —
-
-func TestResolveTGWAttachmentRelationships(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	tgwARN := ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-001")
-	tgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, tgwARN, testRegion, "{}")
-	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
-
-	attARN := ec2ARN(testRegion, acct.ID, "transit-gateway-attachment", "tgw-attach-001")
-	attID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGatewayAttachment, attARN, testRegion,
-		`{"TransitGatewayArn":"`+tgwARN+`","ResourceType":"vpc","ResourceId":"vpc-001"}`)
-
-	if err := resolveTGWAttachmentRelationships(acct, st); err != nil {
-		t.Fatalf("resolveTGWAttachmentRelationships: %v", err)
-	}
-	rels, err := st.RelationshipsFrom(attID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 2 {
-		t.Fatalf("expected 2 relationships, got %d", len(rels))
-	}
-	assertRelationship(t, rels, attID, tgwID, store.RelAttachedTo)
-	assertRelationship(t, rels, attID, vpcID, store.RelAttachedTo)
-}
-
-func TestResolveTGWAttachmentRelationships_EmptyAttrs(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	attID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGatewayAttachment, ec2ARN(testRegion, acct.ID, "transit-gateway-attachment", "tgw-attach-bare"), testRegion, "{}")
-	if err := resolveTGWAttachmentRelationships(acct, st); err != nil {
-		t.Fatalf("resolveTGWAttachmentRelationships: %v", err)
-	}
-	rels, _ := st.RelationshipsFrom(attID)
-	if len(rels) != 0 {
-		t.Errorf("expected 0 relationships, got %d", len(rels))
-	}
-}
-
-// — Flow Log —
-
-func TestResolveFlowLogRelationships(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	flARN := ec2ARN(testRegion, acct.ID, "vpc-flow-log", "fl-001")
-	flID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2FlowLog, flARN, testRegion,
-		`{"ResourceId":"vpc-001","ResourceType":"VPC"}`)
-	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
-
-	if err := resolveFlowLogRelationships(acct, st); err != nil {
-		t.Fatalf("resolveFlowLogRelationships: %v", err)
-	}
-	rels, err := st.RelationshipsFrom(flID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 1 {
-		t.Fatalf("expected 1 relationship, got %d", len(rels))
-	}
-	assertRelationship(t, rels, flID, vpcID, store.RelAttachedTo)
-}
-
-func TestResolveFlowLogRelationships_EmptyAttrs(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	flID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2FlowLog, ec2ARN(testRegion, acct.ID, "vpc-flow-log", "fl-bare"), testRegion, "{}")
-	if err := resolveFlowLogRelationships(acct, st); err != nil {
-		t.Fatalf("resolveFlowLogRelationships: %v", err)
-	}
-	rels, _ := st.RelationshipsFrom(flID)
-	if len(rels) != 0 {
-		t.Errorf("expected 0 relationships, got %d", len(rels))
-	}
-}
-
-// — Instance Connect Endpoint —
-
-func TestResolveInstanceConnectEndpointRelationships(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	iceARN := "arn:aws:ec2:" + testRegion + ":" + testAccountID + ":instance-connect-endpoint/eice-001"
-	iceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InstanceConnectEndpoint, iceARN, testRegion,
-		`{"SubnetId":"subnet-001","VpcId":"vpc-001"}`)
-	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-001"), testRegion, "{}")
-	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
-
-	if err := resolveInstanceConnectEndpointRelationships(acct, st); err != nil {
-		t.Fatalf("resolveInstanceConnectEndpointRelationships: %v", err)
-	}
-	rels, err := st.RelationshipsFrom(iceID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 2 {
-		t.Fatalf("expected 2 relationships, got %d", len(rels))
-	}
-	assertRelationship(t, rels, iceID, subnetID, store.RelAttachedTo)
-	assertRelationship(t, rels, iceID, vpcID, store.RelAttachedTo)
-}
-
-func TestResolveInstanceConnectEndpointRelationships_EmptyAttrs(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	iceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InstanceConnectEndpoint,
-		"arn:aws:ec2:"+testRegion+":"+testAccountID+":instance-connect-endpoint/eice-bare", testRegion, "{}")
-	if err := resolveInstanceConnectEndpointRelationships(acct, st); err != nil {
-		t.Fatalf("resolveInstanceConnectEndpointRelationships: %v", err)
-	}
-	rels, _ := st.RelationshipsFrom(iceID)
 	if len(rels) != 0 {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}

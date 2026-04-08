@@ -55,3 +55,15 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 func newTestAccount(id string) *account {
 	return &account{ID: id, Name: "Test Account", Regions: []string{"us-east-1"}}
 }
+
+// assertRelationship fails the test if no relationship with the given
+// (from, to, kind) exists in the rels slice.
+func assertRelationship(t *testing.T, rels []store.Relationship, fromID, toID, kind string) {
+	t.Helper()
+	for _, r := range rels {
+		if r.FromID == fromID && r.ToID == toID && r.Kind == kind {
+			return
+		}
+	}
+	t.Errorf("missing relationship: %s -[%s]-> %s", fromID, kind, toID)
+}
