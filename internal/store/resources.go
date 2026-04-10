@@ -37,18 +37,17 @@ func ResourceID(provider, accountID, resourceType, nativeID string) string {
 }
 
 // UpsertResource inserts or replaces a single resource. Delegates to UpsertResources.
-func (s *Store) UpsertResource(r *Resource) error {
+// Returns the number of newly inserted resources (0 or 1).
+func (s *Store) UpsertResource(r *Resource) (int, error) {
 	return s.UpsertResources([]*Resource{r})
 }
 
 // UpsertResources bulk-upserts resources in a single transaction.
-func (s *Store) UpsertResources(resources []*Resource) error {
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+// Returns the number of resources that were newly inserted (not previously in the DB).
+func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Assign IDs before the pre-query so we know which keys to check.
 	for _, r := range resources {
 		if r.ID == "" {
 			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
@@ -58,6 +57,28 @@ func (s *Store) UpsertResources(resources []*Resource) error {
 		}
 		r.VerifiedAt = &now
 		r.VerifiedBy = &r.DiscoveredBy
+	}
+
+	// Count how many of these IDs already exist in the DB.
+	// inserted = len(resources) - existing.
+	ids := make([]string, len(resources))
+	for i, r := range resources {
+		ids[i] = r.ID
+	}
+	q, args, _ := sq.Select("COUNT(*)").From("resources").
+		Where(sq.Eq{"id": ids}).PlaceholderFormat(sq.Question).ToSql()
+	var existing int
+	if err := s.db.Get(&existing, q, args...); err != nil {
+		return 0, fmt.Errorf("count existing resources: %w", err)
+	}
+	inserted = len(resources) - existing
+
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	for _, r := range resources {
 		if _, err := tx.NamedExec(`
 			INSERT INTO resources
 				(id, provider, account_id, account_name, type, native_id, name,
@@ -69,13 +90,13 @@ func (s *Store) UpsertResources(resources []*Resource) error {
 				name        = excluded.name,
 				status      = excluded.status,
 				tags        = excluded.tags,
-				attributes  = excluded.attributes,	
+				attributes  = excluded.attributes,
 				verified_at = excluded.verified_at,
 				verified_by = excluded.verified_by`, r); err != nil {
-			return fmt.Errorf("upsert resource %s: %w", r.ID, err)
+			return 0, fmt.Errorf("upsert resource %s: %w", r.ID, err)
 		}
 	}
-	return tx.Commit()
+	return inserted, tx.Commit()
 }
 
 // ResourceFilter defines optional filters for ListResources.

@@ -3,33 +3,47 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"golang.org/x/sync/errgroup"
 )
 
-// scanEC2Networking discovers core VPC types and networking extension types: VPCs,
-// subnets, internet gateways, NAT gateways, route tables, EIPs, ENIs, NACLs,
-// VPC endpoints, VPC peering, DHCP options, and egress-only IGWs.
-func scanEC2Networking(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+// scanEC2Networking discovers all networking resources: VPCs, subnets, internet
+// gateways, NAT gateways, route tables, EIPs, ENIs, NACLs, VPC endpoints, VPC
+// peering, DHCP options, egress-only IGWs, carrier gateways, VPC features,
+// VPC endpoint services, and network interface permissions.
+func scanEC2Networking(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanVPCs(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanSubnets(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanInternetGateways(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNatGateways(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanRouteTables(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEIPs(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkInterfaces(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkACLs(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanVPCEndpoints(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanVPCPeeringConnections(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanDHCPOptions(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEgressOnlyIGWs(ctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanVPCs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanSubnets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanInternetGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNatGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanRouteTables(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEIPs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInterfaces(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkACLs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCEndpoints(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCPeeringConnections(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanDHCPOptions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEgressOnlyIGWs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanCarrierGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCBlockPublicAccessOptions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCBlockPublicAccessExclusions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCEndpointConnectionNotifications(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCEndpointServices(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPCEndpointServicePermissions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInterfacePermissions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
-func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeVpcs", acct, region, st,
 		ec2.NewDescribeVpcsPaginator(client, &ec2.DescribeVpcsInput{}),
 		func(page *ec2.DescribeVpcsOutput) []*store.Resource {
@@ -55,7 +69,7 @@ func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region str
 	)
 }
 
-func scanSubnets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanSubnets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeSubnets", acct, region, st,
 		ec2.NewDescribeSubnetsPaginator(client, &ec2.DescribeSubnetsInput{}),
 		func(page *ec2.DescribeSubnetsOutput) []*store.Resource {
@@ -82,7 +96,7 @@ func scanSubnets(ctx context.Context, client *ec2.Client, acct *account, region 
 	)
 }
 
-func scanInternetGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanInternetGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeInternetGateways", acct, region, st,
 		ec2.NewDescribeInternetGatewaysPaginator(client, &ec2.DescribeInternetGatewaysInput{}),
 		func(page *ec2.DescribeInternetGatewaysOutput) []*store.Resource {
@@ -106,7 +120,7 @@ func scanInternetGateways(ctx context.Context, client *ec2.Client, acct *account
 	)
 }
 
-func scanNatGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNatGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNatGateways", acct, region, st,
 		ec2.NewDescribeNatGatewaysPaginator(client, &ec2.DescribeNatGatewaysInput{}),
 		func(page *ec2.DescribeNatGatewaysOutput) []*store.Resource {
@@ -133,7 +147,7 @@ func scanNatGateways(ctx context.Context, client *ec2.Client, acct *account, reg
 	)
 }
 
-func scanRouteTables(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanRouteTables(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeRouteTables", acct, region, st,
 		ec2.NewDescribeRouteTablesPaginator(client, &ec2.DescribeRouteTablesInput{}),
 		func(page *ec2.DescribeRouteTablesOutput) []*store.Resource {
@@ -157,14 +171,14 @@ func scanRouteTables(ctx context.Context, client *ec2.Client, acct *account, reg
 	)
 }
 
-func scanEIPs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanEIPs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeAddresses has no paginator; all results returned in one call.
 	out, err := client.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeAddresses", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeAddresses", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeAddresses: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeAddresses: %w", err)
 	}
 	var batch []*store.Resource
 	for _, addr := range out.Addresses {
@@ -182,14 +196,17 @@ func scanEIPs(ctx context.Context, client *ec2.Client, acct *account, region str
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert EIPs: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert EIPs: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanNetworkInterfaces(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkInterfaces(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInterfaces", acct, region, st,
 		ec2.NewDescribeNetworkInterfacesPaginator(client, &ec2.DescribeNetworkInterfacesInput{}),
 		func(page *ec2.DescribeNetworkInterfacesOutput) []*store.Resource {
@@ -215,7 +232,7 @@ func scanNetworkInterfaces(ctx context.Context, client *ec2.Client, acct *accoun
 	)
 }
 
-func scanNetworkACLs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkACLs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkAcls", acct, region, st,
 		ec2.NewDescribeNetworkAclsPaginator(client, &ec2.DescribeNetworkAclsInput{}),
 		func(page *ec2.DescribeNetworkAclsOutput) []*store.Resource {
@@ -239,7 +256,7 @@ func scanNetworkACLs(ctx context.Context, client *ec2.Client, acct *account, reg
 	)
 }
 
-func scanVPCEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVPCEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeVpcEndpoints", acct, region, st,
 		ec2.NewDescribeVpcEndpointsPaginator(client, &ec2.DescribeVpcEndpointsInput{}),
 		func(page *ec2.DescribeVpcEndpointsOutput) []*store.Resource {
@@ -266,7 +283,7 @@ func scanVPCEndpoints(ctx context.Context, client *ec2.Client, acct *account, re
 	)
 }
 
-func scanVPCPeeringConnections(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVPCPeeringConnections(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeVpcPeeringConnections", acct, region, st,
 		ec2.NewDescribeVpcPeeringConnectionsPaginator(client, &ec2.DescribeVpcPeeringConnectionsInput{}),
 		func(page *ec2.DescribeVpcPeeringConnectionsOutput) []*store.Resource {
@@ -292,7 +309,7 @@ func scanVPCPeeringConnections(ctx context.Context, client *ec2.Client, acct *ac
 	)
 }
 
-func scanDHCPOptions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanDHCPOptions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeDhcpOptions", acct, region, st,
 		ec2.NewDescribeDhcpOptionsPaginator(client, &ec2.DescribeDhcpOptionsInput{}),
 		func(page *ec2.DescribeDhcpOptionsOutput) []*store.Resource {
@@ -316,7 +333,7 @@ func scanDHCPOptions(ctx context.Context, client *ec2.Client, acct *account, reg
 	)
 }
 
-func scanEgressOnlyIGWs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanEgressOnlyIGWs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeEgressOnlyInternetGateways", acct, region, st,
 		ec2.NewDescribeEgressOnlyInternetGatewaysPaginator(client, &ec2.DescribeEgressOnlyInternetGatewaysInput{}),
 		func(page *ec2.DescribeEgressOnlyInternetGatewaysOutput) []*store.Resource {
@@ -332,6 +349,286 @@ func scanEgressOnlyIGWs(ctx context.Context, client *ec2.Client, acct *account, 
 					Region:         &region,
 					TagsJSON:       awsTagsJSON(eigw.Tags),
 					AttributesJSON: mustJSON(eigw),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanCarrierGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeCarrierGateways", acct, region, st,
+		ec2.NewDescribeCarrierGatewaysPaginator(client, &ec2.DescribeCarrierGatewaysInput{}),
+		func(page *ec2.DescribeCarrierGatewaysOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, cgw := range page.CarrierGateways {
+				status := string(cgw.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2CarrierGateway,
+					NativeID:       ec2ARN(region, acct.ID, "carrier-gateway", sv(cgw.CarrierGatewayId)),
+					Region:         &region,
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(cgw.Tags),
+					AttributesJSON: mustJSON(cgw),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanVPCBlockPublicAccessOptions retrieves the account-level VPC block public access
+// setting. There is one per account; NativeID omits region for stability across scans.
+func scanVPCBlockPublicAccessOptions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	out, err := client.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied("ec2:DescribeVpcBlockPublicAccessOptions", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessOptions: %w", err)
+	}
+	if out.VpcBlockPublicAccessOptions == nil {
+		return
+	}
+	opt := out.VpcBlockPublicAccessOptions
+	// Use account-level NativeID (no region) so the same resource is upserted each region.
+	nativeID := ec2ARN("", acct.ID, "vpc-block-public-access-options", acct.ID)
+	n, err := st.UpsertResource(&store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeEC2VPCBlockPublicAccessOptions,
+		NativeID:       nativeID,
+		Region:         &region,
+		AttributesJSON: mustJSON(opt),
+		DiscoveredBy:   scanID,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert vpc-block-public-access-options: %w", err)
+	}
+	return 1, n, nil
+}
+
+// scanVPCBlockPublicAccessExclusions has no paginator; uses manual NextToken pagination.
+func scanVPCBlockPublicAccessExclusions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var nextToken *string
+	for {
+		maxResults := int32(1000)
+		out, err := client.DescribeVpcBlockPublicAccessExclusions(ctx, &ec2.DescribeVpcBlockPublicAccessExclusionsInput{
+			MaxResults: &maxResults,
+			NextToken:  nextToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied("ec2:DescribeVpcBlockPublicAccessExclusions", acct.ID, region, err)
+			}
+			return total, inserted, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessExclusions: %w", err)
+		}
+		var batch []*store.Resource
+		for _, excl := range out.VpcBlockPublicAccessExclusions {
+			status := string(excl.State)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2VPCBlockPublicAccessExclusion,
+				NativeID:       ec2ARN(region, acct.ID, "vpc-block-public-access-exclusion", sv(excl.ExclusionId)),
+				Region:         &region,
+				Status:         &status,
+				TagsJSON:       awsTagsJSON(excl.Tags),
+				AttributesJSON: mustJSON(excl),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert vpc-block-public-access-exclusions: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+		if out.NextToken == nil {
+			return total, inserted, nil
+		}
+		nextToken = out.NextToken
+	}
+}
+
+func scanVPCEndpointConnectionNotifications(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeVpcEndpointConnectionNotifications", acct, region, st,
+		ec2.NewDescribeVpcEndpointConnectionNotificationsPaginator(client, &ec2.DescribeVpcEndpointConnectionNotificationsInput{}),
+		func(page *ec2.DescribeVpcEndpointConnectionNotificationsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, n := range page.ConnectionNotificationSet {
+				status := string(n.ConnectionNotificationState)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2VPCEndpointConnectionNotification,
+					NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-connection-notification", sv(n.ConnectionNotificationId)),
+					Region:         &region,
+					Status:         &status,
+					AttributesJSON: mustJSON(n),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanVPCEndpointServices scans services owned by this account.
+// DescribeVpcEndpointServices has no paginator; uses manual NextToken pagination.
+// The owner filter restricts results to account-owned services; without it the
+// API returns AWS-managed services as well.
+func scanVPCEndpointServices(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
+	var nextToken *string
+	for {
+		out, err := client.DescribeVpcEndpointServices(ctx, &ec2.DescribeVpcEndpointServicesInput{
+			Filters:   []ec2types.Filter{ownerFilter},
+			NextToken: nextToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied("ec2:DescribeVpcEndpointServices", acct.ID, region, err)
+			}
+			return total, inserted, fmt.Errorf("ec2:DescribeVpcEndpointServices: %w", err)
+		}
+		var batch []*store.Resource
+		for _, svc := range out.ServiceDetails {
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2VPCEndpointService,
+				NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-service", sv(svc.ServiceId)),
+				Name:           svc.ServiceName,
+				Region:         &region,
+				TagsJSON:       awsTagsJSON(svc.Tags),
+				AttributesJSON: mustJSON(svc),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert vpc-endpoint-services: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+		if out.NextToken == nil {
+			return total, inserted, nil
+		}
+		nextToken = out.NextToken
+	}
+}
+
+// scanVPCEndpointServicePermissions fans out per VPC endpoint service.
+func scanVPCEndpointServicePermissions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	svcIDs, err := listVPCEndpointServiceIDs(ctx, client, acct, region)
+	if err != nil {
+		return
+	}
+	if len(svcIDs) == 0 {
+		return
+	}
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
+	g, ctx := errgroup.WithContext(ctx)
+	for _, svcID := range svcIDs {
+		svcID := svcID
+		g.Go(func() error {
+			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeVpcEndpointServicePermissions", acct, region, st,
+				ec2.NewDescribeVpcEndpointServicePermissionsPaginator(client, &ec2.DescribeVpcEndpointServicePermissionsInput{
+					ServiceId: &svcID,
+				}),
+				func(page *ec2.DescribeVpcEndpointServicePermissionsOutput) []*store.Resource {
+					var out []*store.Resource
+					for _, perm := range page.AllowedPrincipals {
+						nativeID := ec2ARN(region, acct.ID, "vpc-endpoint-service-permission",
+							svcID+"/"+sv(perm.Principal))
+						out = append(out, &store.Resource{
+							Provider:       "aws",
+							AccountID:      acct.ID,
+							AccountName:    &acct.Name,
+							Type:           TypeEC2VPCEndpointServicePermissions,
+							NativeID:       nativeID,
+							Region:         &region,
+							AttributesJSON: mustJSON(perm),
+							DiscoveredBy:   scanID,
+						})
+					}
+					return out
+				},
+			)
+			add(tt, nn)
+			return e
+		})
+	}
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
+}
+
+// listVPCEndpointServiceIDs returns all VPC endpoint service IDs owned by this account.
+// Uses manual NextToken pagination (no paginator available in SDK).
+// The owner filter is required; without it the API returns AWS-managed services
+// which cannot be queried for permissions.
+func listVPCEndpointServiceIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
+	var ids []string
+	var nextToken *string
+	for {
+		page, err := client.DescribeVpcEndpointServices(ctx, &ec2.DescribeVpcEndpointServicesInput{
+			Filters:   []ec2types.Filter{ownerFilter},
+			NextToken: nextToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied("ec2:DescribeVpcEndpointServices", acct.ID, region, err)
+				return nil, nil
+			}
+			return nil, fmt.Errorf("ec2:DescribeVpcEndpointServices (list IDs): %w", err)
+		}
+		for _, svc := range page.ServiceDetails {
+			if svc.ServiceId != nil {
+				ids = append(ids, *svc.ServiceId)
+			}
+		}
+		if page.NextToken == nil {
+			return ids, nil
+		}
+		nextToken = page.NextToken
+	}
+}
+
+func scanNetworkInterfacePermissions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeNetworkInterfacePermissions", acct, region, st,
+		ec2.NewDescribeNetworkInterfacePermissionsPaginator(client, &ec2.DescribeNetworkInterfacePermissionsInput{}),
+		func(page *ec2.DescribeNetworkInterfacePermissionsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, perm := range page.NetworkInterfacePermissions {
+				var status string
+				if perm.PermissionState != nil {
+					status = string(perm.PermissionState.State)
+				}
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2NetworkInterfacePermission,
+					NativeID:       ec2ARN(region, acct.ID, "network-interface-permission", sv(perm.NetworkInterfacePermissionId)),
+					Region:         &region,
+					Status:         &status,
+					AttributesJSON: mustJSON(perm),
 					DiscoveredBy:   scanID,
 				})
 			}

@@ -12,10 +12,10 @@ import (
 func init() { registerService(serviceEntry{name: "azure:aks", fn: scanAKS}) }
 
 // scanAKS discovers Azure Kubernetes Service managed clusters.
-func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
+		return 0, 0, fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
 	}
 
 	pager := client.NewListPager(nil)
@@ -23,9 +23,9 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armcontainerservice:ManagedClusters.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armcontainerservice:ManagedClusters.List", sub.ID, err)
 			}
-			return fmt.Errorf("armcontainerservice:ManagedClusters.List: %w", err)
+			return 0, 0, fmt.Errorf("armcontainerservice:ManagedClusters.List: %w", err)
 		}
 		var batch []*store.Resource
 		for _, cluster := range page.Value {
@@ -48,7 +48,7 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				Region:         &location,
 				Status:         &status,
 				AttributesJSON: mustJSON(cluster),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if cluster.SystemData != nil {
 				r.CreatedAt = tp(cluster.SystemData.CreatedAt)
@@ -60,10 +60,13 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert AKS clusters: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert AKS clusters: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

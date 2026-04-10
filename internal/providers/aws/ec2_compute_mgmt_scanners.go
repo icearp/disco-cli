@@ -3,32 +3,41 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"golang.org/x/sync/errgroup"
 )
 
-// scanEC2ComputeMgmt discovers core compute types and compute management types:
-// instances, security groups, volumes, launch templates, key pairs, placement
-// groups, spot fleets, dedicated hosts, capacity reservations, and instance
-// connect endpoints.
-func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+// scanEC2ComputeMgmt discovers all compute resources: instances, security groups,
+// volumes, launch templates, key pairs, placement groups, spot fleets, dedicated
+// hosts, capacity reservations, instance connect endpoints, capacity reservation
+// fleets, EC2 fleets, security group VPC associations, and snapshot block public
+// access settings.
+func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanInstances(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanSecurityGroups(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanVolumes(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanLaunchTemplates(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanKeyPairs(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanPlacementGroups(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanSpotFleets(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanHosts(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanCapacityReservations(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanInstances(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanSecurityGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVolumes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanLaunchTemplates(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanKeyPairs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanPlacementGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanSpotFleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanHosts(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanCapacityReservations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanCapacityReservationFleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2Fleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanSnapshotBlockPublicAccess(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
-func scanInstances(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanInstances(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeInstances", acct, region, st,
 		ec2.NewDescribeInstancesPaginator(client, &ec2.DescribeInstancesInput{}),
 		func(page *ec2.DescribeInstancesOutput) []*store.Resource {
@@ -58,7 +67,7 @@ func scanInstances(ctx context.Context, client *ec2.Client, acct *account, regio
 	)
 }
 
-func scanSecurityGroups(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanSecurityGroups(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeSecurityGroups", acct, region, st,
 		ec2.NewDescribeSecurityGroupsPaginator(client, &ec2.DescribeSecurityGroupsInput{}),
 		func(page *ec2.DescribeSecurityGroupsOutput) []*store.Resource {
@@ -83,7 +92,7 @@ func scanSecurityGroups(ctx context.Context, client *ec2.Client, acct *account, 
 	)
 }
 
-func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeVolumes", acct, region, st,
 		ec2.NewDescribeVolumesPaginator(client, &ec2.DescribeVolumesInput{}),
 		func(page *ec2.DescribeVolumesOutput) []*store.Resource {
@@ -110,7 +119,7 @@ func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region 
 	)
 }
 
-func scanLaunchTemplates(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanLaunchTemplates(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeLaunchTemplates", acct, region, st,
 		ec2.NewDescribeLaunchTemplatesPaginator(client, &ec2.DescribeLaunchTemplatesInput{}),
 		func(page *ec2.DescribeLaunchTemplatesOutput) []*store.Resource {
@@ -136,14 +145,14 @@ func scanLaunchTemplates(ctx context.Context, client *ec2.Client, acct *account,
 	)
 }
 
-func scanKeyPairs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanKeyPairs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeKeyPairs has no paginator; all results returned in one call.
 	out, err := client.DescribeKeyPairs(ctx, &ec2.DescribeKeyPairsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeKeyPairs", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeKeyPairs", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeKeyPairs: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeKeyPairs: %w", err)
 	}
 	var batch []*store.Resource
 	for _, kp := range out.KeyPairs {
@@ -163,21 +172,24 @@ func scanKeyPairs(ctx context.Context, client *ec2.Client, acct *account, region
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert key pairs: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert key pairs: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanPlacementGroups(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanPlacementGroups(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribePlacementGroups has no paginator; all results returned in one call.
 	out, err := client.DescribePlacementGroups(ctx, &ec2.DescribePlacementGroupsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribePlacementGroups", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribePlacementGroups", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribePlacementGroups: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribePlacementGroups: %w", err)
 	}
 	var batch []*store.Resource
 	for _, pg := range out.PlacementGroups {
@@ -198,14 +210,17 @@ func scanPlacementGroups(ctx context.Context, client *ec2.Client, acct *account,
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert placement groups: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert placement groups: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanSpotFleets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanSpotFleets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeSpotFleetRequests", acct, region, st,
 		ec2.NewDescribeSpotFleetRequestsPaginator(client, &ec2.DescribeSpotFleetRequestsInput{}),
 		func(page *ec2.DescribeSpotFleetRequestsOutput) []*store.Resource {
@@ -231,7 +246,7 @@ func scanSpotFleets(ctx context.Context, client *ec2.Client, acct *account, regi
 	)
 }
 
-func scanHosts(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanHosts(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeHosts", acct, region, st,
 		ec2.NewDescribeHostsPaginator(client, &ec2.DescribeHostsInput{}),
 		func(page *ec2.DescribeHostsOutput) []*store.Resource {
@@ -258,7 +273,7 @@ func scanHosts(ctx context.Context, client *ec2.Client, acct *account, region st
 	)
 }
 
-func scanCapacityReservations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanCapacityReservations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeCapacityReservations", acct, region, st,
 		ec2.NewDescribeCapacityReservationsPaginator(client, &ec2.DescribeCapacityReservationsInput{}),
 		func(page *ec2.DescribeCapacityReservationsOutput) []*store.Resource {
@@ -286,7 +301,7 @@ func scanCapacityReservations(ctx context.Context, client *ec2.Client, acct *acc
 	)
 }
 
-func scanInstanceConnectEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanInstanceConnectEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeInstanceConnectEndpoints", acct, region, st,
 		ec2.NewDescribeInstanceConnectEndpointsPaginator(client, &ec2.DescribeInstanceConnectEndpointsInput{}),
 		func(page *ec2.DescribeInstanceConnectEndpointsOutput) []*store.Resource {
@@ -311,4 +326,111 @@ func scanInstanceConnectEndpoints(ctx context.Context, client *ec2.Client, acct 
 			return out
 		},
 	)
+}
+
+func scanCapacityReservationFleets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeCapacityReservationFleets", acct, region, st,
+		ec2.NewDescribeCapacityReservationFleetsPaginator(client, &ec2.DescribeCapacityReservationFleetsInput{}),
+		func(page *ec2.DescribeCapacityReservationFleetsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, fleet := range page.CapacityReservationFleets {
+				status := string(fleet.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2CapacityReservationFleet,
+					NativeID:       sv(fleet.CapacityReservationFleetArn),
+					Region:         &region,
+					CreatedAt:      tp(fleet.CreateTime),
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(fleet.Tags),
+					AttributesJSON: mustJSON(fleet),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanEC2Fleets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeFleets", acct, region, st,
+		ec2.NewDescribeFleetsPaginator(client, &ec2.DescribeFleetsInput{}),
+		func(page *ec2.DescribeFleetsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, fleet := range page.Fleets {
+				status := string(fleet.FleetState)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2Fleet,
+					NativeID:       ec2ARN(region, acct.ID, "fleet", sv(fleet.FleetId)),
+					Region:         &region,
+					CreatedAt:      tp(fleet.CreateTime),
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(fleet.Tags),
+					AttributesJSON: mustJSON(fleet),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanSecurityGroupVPCAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeSecurityGroupVpcAssociations", acct, region, st,
+		ec2.NewDescribeSecurityGroupVpcAssociationsPaginator(client, &ec2.DescribeSecurityGroupVpcAssociationsInput{}),
+		func(page *ec2.DescribeSecurityGroupVpcAssociationsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, assoc := range page.SecurityGroupVpcAssociations {
+				status := string(assoc.State)
+				nativeID := ec2ARN(region, acct.ID, "security-group-vpc-assoc",
+					sv(assoc.GroupId)+"/"+sv(assoc.VpcId))
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2SecurityGroupVPCAssociation,
+					NativeID:       nativeID,
+					Region:         &region,
+					Status:         &status,
+					AttributesJSON: mustJSON(assoc),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanSnapshotBlockPublicAccess retrieves the account-level snapshot block public access
+// setting. There is one per account; NativeID omits region for stability.
+func scanSnapshotBlockPublicAccess(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	out, err := client.GetSnapshotBlockPublicAccessState(ctx, &ec2.GetSnapshotBlockPublicAccessStateInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied("ec2:GetSnapshotBlockPublicAccessState", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("ec2:GetSnapshotBlockPublicAccessState: %w", err)
+	}
+	state := string(out.State)
+	nativeID := ec2ARN("", acct.ID, "snapshot-block-public-access", acct.ID)
+	n, err := st.UpsertResource(&store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeEC2SnapshotBlockPublicAccess,
+		NativeID:       nativeID,
+		Region:         &region,
+		Status:         &state,
+		AttributesJSON: mustJSON(map[string]string{"state": state}),
+		DiscoveredBy:   scanID,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert snapshot-block-public-access: %w", err)
+	}
+	return 1, n, nil
 }

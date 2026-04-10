@@ -13,18 +13,38 @@ import (
 func init() { registerService(serviceEntry{name: "azure:network", fn: scanNetwork}) }
 
 // scanNetwork discovers VNets, subnets, NSGs, and public IP addresses in parallel.
-func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	var (
+		vnetTotal, vnetInserted   int
+		nsgTotal, nsgInserted     int
+		ipTotal, ipInserted       int
+	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanVNets(gctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanNSGs(gctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanPublicIPs(gctx, sub, cred, st, scanID) })
-	return g.Wait()
+	g.Go(func() error {
+		t, n, e := scanVNets(gctx, sub, cred, st, scanID)
+		vnetTotal, vnetInserted = t, n
+		return e
+	})
+	g.Go(func() error {
+		t, n, e := scanNSGs(gctx, sub, cred, st, scanID)
+		nsgTotal, nsgInserted = t, n
+		return e
+	})
+	g.Go(func() error {
+		t, n, e := scanPublicIPs(gctx, sub, cred, st, scanID)
+		ipTotal, ipInserted = t, n
+		return e
+	})
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	return vnetTotal + nsgTotal + ipTotal, vnetInserted + nsgInserted + ipInserted, nil
 }
 
-func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armnetwork.NewVirtualNetworksClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armnetwork:NewVirtualNetworksClient: %w", err)
+		return 0, 0, fmt.Errorf("armnetwork:NewVirtualNetworksClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -32,9 +52,9 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armnetwork:VirtualNetworks.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armnetwork:VirtualNetworks.ListAll", sub.ID, err)
 			}
-			return fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		var subnetBatch []*store.Resource
@@ -57,7 +77,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vnet),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if vnet.Tags != nil {
 				s := mustJSON(vnet.Tags)
@@ -82,7 +102,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 						Name:           &snName,
 						Region:         &location,
 						AttributesJSON: mustJSON(sn),
-						DiscoveredBy:         scanID,
+						DiscoveredBy:   scanID,
 					}
 					subnetBatch = append(subnetBatch, snResource)
 					snResourceID := store.ResourceID("azure", sub.ID, TypeSubnet, snID)
@@ -91,26 +111,32 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			}
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert VNets: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert VNets: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 		if len(subnetBatch) > 0 {
-			if err := st.UpsertResources(subnetBatch); err != nil {
-				return fmt.Errorf("upsert subnets: %w", err)
+			n, err := st.UpsertResources(subnetBatch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert subnets: %w", err)
 			}
+			total += len(subnetBatch)
+			inserted += n
 			if err := st.BatchAddToHierarchyClosure(subnetPairs); err != nil {
-				return fmt.Errorf("closure subnets: %w", err)
+				return 0, 0, fmt.Errorf("closure subnets: %w", err)
 			}
 		}
 	}
-	return nil
+	return total, inserted, nil
 }
 
-func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armnetwork.NewSecurityGroupsClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
+		return 0, 0, fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -118,9 +144,9 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armnetwork:SecurityGroups.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armnetwork:SecurityGroups.ListAll", sub.ID, err)
 			}
-			return fmt.Errorf("armnetwork:SecurityGroups.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armnetwork:SecurityGroups.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		for _, nsg := range page.Value {
@@ -138,7 +164,7 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(nsg),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if nsg.Tags != nil {
 				s := mustJSON(nsg.Tags)
@@ -147,18 +173,21 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert NSGs: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert NSGs: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }
 
-func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armnetwork.NewPublicIPAddressesClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
+		return 0, 0, fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -166,9 +195,9 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armnetwork:PublicIPAddresses.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armnetwork:PublicIPAddresses.ListAll", sub.ID, err)
 			}
-			return fmt.Errorf("armnetwork:PublicIPAddresses.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armnetwork:PublicIPAddresses.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		for _, ip := range page.Value {
@@ -186,7 +215,7 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(ip),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if ip.Tags != nil {
 				s := mustJSON(ip.Tags)
@@ -195,10 +224,13 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert public IPs: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert public IPs: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

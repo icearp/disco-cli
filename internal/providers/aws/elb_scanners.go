@@ -12,7 +12,7 @@ func init() { registerService(serviceEntry{name: "aws:elb", fn: scanELB}) }
 
 // scanELB discovers Application, Network, and Gateway load balancers (ELBv2)
 // in one region.
-func scanELB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanELB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticloadbalancingv2.NewFromConfig(acct.cfg, func(o *elasticloadbalancingv2.Options) { o.Region = region })
 
 	pager := elasticloadbalancingv2.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
@@ -20,9 +20,9 @@ func scanELB(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
 			}
-			return fmt.Errorf("elasticloadbalancing:DescribeLoadBalancers: %w", err)
+			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeLoadBalancers: %w", err)
 		}
 		var batch []*store.Resource
 		for _, lb := range page.LoadBalancers {
@@ -40,15 +40,18 @@ func scanELB(ctx context.Context, acct *account, region string, st *store.Store,
 				CreatedAt:      tp(lb.CreatedTime),
 				Status:         &status,
 				AttributesJSON: mustJSON(map[string]any{"lb": lb, "type": lbType}),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert load balancers: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert load balancers: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

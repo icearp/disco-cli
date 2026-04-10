@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -11,24 +12,27 @@ import (
 
 // scanEC2VPN discovers VPN and Transit Gateway types: customer gateways, VPN
 // gateways, VPN connections, transit gateways, and transit gateway attachments.
-func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanCustomerGateways(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanVPNGateways(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanVPNConnections(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanTransitGateways(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanCustomerGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPNGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanVPNConnections(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTransitGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
-func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeCustomerGateways has no paginator; all results returned in one call.
 	out, err := client.DescribeCustomerGateways(ctx, &ec2.DescribeCustomerGatewaysInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeCustomerGateways", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeCustomerGateways", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeCustomerGateways: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeCustomerGateways: %w", err)
 	}
 	var batch []*store.Resource
 	for _, cgw := range out.CustomerGateways {
@@ -48,21 +52,24 @@ func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert customer gateways: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert customer gateways: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeVpnGateways has no paginator; all results returned in one call.
 	out, err := client.DescribeVpnGateways(ctx, &ec2.DescribeVpnGatewaysInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeVpnGateways", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeVpnGateways", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeVpnGateways: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeVpnGateways: %w", err)
 	}
 	var batch []*store.Resource
 	for _, vgw := range out.VpnGateways {
@@ -82,21 +89,24 @@ func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, reg
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert VPN gateways: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert VPN gateways: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanVPNConnections(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanVPNConnections(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeVpnConnections has no paginator; all results returned in one call.
 	out, err := client.DescribeVpnConnections(ctx, &ec2.DescribeVpnConnectionsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeVpnConnections", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeVpnConnections", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeVpnConnections: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeVpnConnections: %w", err)
 	}
 	var batch []*store.Resource
 	for _, vpn := range out.VpnConnections {
@@ -116,14 +126,17 @@ func scanVPNConnections(ctx context.Context, client *ec2.Client, acct *account, 
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert VPN connections: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert VPN connections: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanTransitGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTransitGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeTransitGateways", acct, region, st,
 		ec2.NewDescribeTransitGatewaysPaginator(client, &ec2.DescribeTransitGatewaysInput{}),
 		func(page *ec2.DescribeTransitGatewaysOutput) []*store.Resource {
@@ -150,7 +163,7 @@ func scanTransitGateways(ctx context.Context, client *ec2.Client, acct *account,
 	)
 }
 
-func scanTransitGatewayAttachments(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTransitGatewayAttachments(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeTransitGatewayAttachments", acct, region, st,
 		ec2.NewDescribeTransitGatewayAttachmentsPaginator(client, &ec2.DescribeTransitGatewayAttachmentsInput{}),
 		func(page *ec2.DescribeTransitGatewayAttachmentsOutput) []*store.Resource {

@@ -11,11 +11,11 @@ import (
 func init() { registerService(serviceEntry{name: "gcp:gke", fn: scanGKE}) }
 
 // scanGKE discovers GKE clusters for a project across all locations.
-func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) error {
+func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := container.NewService(ctx, opts...)
 	if err != nil {
-		return fmt.Errorf("container client: %w", err)
+		return 0, 0, fmt.Errorf("container client: %w", err)
 	}
 
 	// "-" as location returns clusters across all locations.
@@ -23,9 +23,9 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) er
 	out, err := svc.Projects.Locations.Clusters.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return skipIfDenied("container:clusters.list", p.ID, err)
+			return 0, 0, skipIfDenied("container:clusters.list", p.ID, err)
 		}
-		return fmt.Errorf("container:clusters.list %s: %w", p.ID, err)
+		return 0, 0, fmt.Errorf("container:clusters.list %s: %w", p.ID, err)
 	}
 	var batch []*store.Resource
 	for _, c := range out.Clusters {
@@ -43,7 +43,7 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) er
 			CreatedAt:      strp(c.CreateTime),
 			Status:         &status,
 			AttributesJSON: mustJSON(c),
-			DiscoveredBy:         scanID,
+			DiscoveredBy:   scanID,
 		}
 		if len(c.ResourceLabels) > 0 {
 			s := mustJSON(c.ResourceLabels)
@@ -52,9 +52,12 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) er
 		batch = append(batch, r)
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert GKE clusters: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert GKE clusters: %w", err)
 		}
+		total += len(batch)
+		inserted += n
 	}
-	return nil
+	return total, inserted, nil
 }

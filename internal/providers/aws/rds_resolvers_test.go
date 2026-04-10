@@ -6,51 +6,415 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 )
 
-// TestResolveRDSRelationships verifies that an RDS DB instance's VPC ID is
-// correctly extracted from the nested DBSubnetGroup.VpcId JSON path.
-// The nested struct is a common source of typos — a flat VpcId would silently
-// produce zero relationships.
-func TestResolveRDSRelationships(t *testing.T) {
+// --- DB Instance ---
+
+// TestResolveRDSInstanceRelationships verifies that a DB instance's VPC, cluster,
+// and subnet group are all linked from the nested JSON structure.
+func TestResolveRDSInstanceRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
 
 	dbARN := "arn:aws:rds:us-east-1:123456789012:db:my-db"
-	attrsJSON := `{"DBSubnetGroup": {"VpcId": "vpc-rds-111"}}`
+	attrsJSON := `{
+		"DBClusterIdentifier": "my-cluster",
+		"DBSubnetGroup": {
+			"VpcId": "vpc-111",
+			"DBSubnetGroupArn": "arn:aws:rds:us-east-1:123456789012:subgrp:my-sg"
+		}
+	}`
 	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, dbARN, region, attrsJSON)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
-		ec2ARN(region, acct.ID, "vpc", "vpc-rds-111"), region, "{}")
+		ec2ARN(region, acct.ID, "vpc", "vpc-111"), region, "{}")
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		rdsARN(region, acct.ID, "cluster", "my-cluster"), region, "{}")
+	sngID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBSubnetGroup,
+		"arn:aws:rds:us-east-1:123456789012:subgrp:my-sg", region, "{}")
 
-	if err := resolveRDSRelationships(acct, st); err != nil {
-		t.Fatalf("resolveRDSRelationships: %v", err)
+	if err := resolveRDSInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRDSInstanceRelationships: %v", err)
 	}
 
 	rels, err := st.RelationshipsFrom(dbID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	if len(rels) != 1 {
-		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	if len(rels) != 3 {
+		t.Fatalf("expected 3 relationships, got %d", len(rels))
 	}
-	if rels[0].ToID != vpcID || rels[0].Kind != store.RelAttachedTo {
-		t.Errorf("expected db -[attached-to]-> vpc, got %+v", rels[0])
-	}
+	assertRelationship(t, rels, dbID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, rels, dbID, clusterID, store.RelAttachedTo)
+	assertRelationship(t, rels, dbID, sngID, store.RelAttachedTo)
 }
 
-// TestResolveRDSRelationships_NoSubnetGroup verifies graceful handling when
-// DBSubnetGroup is absent from the attributes.
-func TestResolveRDSRelationships_NoSubnetGroup(t *testing.T) {
+// TestResolveRDSInstanceRelationships_Empty verifies graceful handling when
+// DBSubnetGroup and DBClusterIdentifier are absent.
+func TestResolveRDSInstanceRelationships_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
-	dbARN := "arn:aws:rds:us-east-1:123456789012:db:bare-db"
-	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, dbARN, "", "{}")
+	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance,
+		"arn:aws:rds:us-east-1:123456789012:db:bare-db", "", "{}")
 
-	if err := resolveRDSRelationships(acct, st); err != nil {
-		t.Fatalf("resolveRDSRelationships: %v", err)
+	if err := resolveRDSInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRDSInstanceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(dbID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Cluster ---
+
+// TestResolveDBClusterRelationships verifies that a DB cluster is linked to its
+// subnet group by constructing the subnet group ARN from the name field.
+func TestResolveDBClusterRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	clusterARN := rdsARN(region, acct.ID, "cluster", "my-cluster")
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		clusterARN, region, `{"DBSubnetGroup": "my-sg"}`)
+	sngID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBSubnetGroup,
+		rdsARN(region, acct.ID, "subgrp", "my-sg"), region, "{}")
+
+	if err := resolveDBClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBClusterRelationships: %v", err)
 	}
 
-	rels, err := st.RelationshipsFrom(dbID)
+	rels, err := st.RelationshipsFrom(clusterID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, clusterID, sngID, store.RelAttachedTo)
+}
+
+// TestResolveDBClusterRelationships_NoSubnetGroup verifies graceful handling
+// when the DBSubnetGroup field is absent.
+func TestResolveDBClusterRelationships_NoSubnetGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		rdsARN("us-east-1", acct.ID, "cluster", "bare-cluster"), "", "{}")
+
+	if err := resolveDBClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBClusterRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(clusterID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Subnet Group ---
+
+// TestResolveDBSubnetGroupRelationships verifies that a DB subnet group is
+// linked to its VPC.
+func TestResolveDBSubnetGroupRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	sngID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBSubnetGroup,
+		rdsARN(region, acct.ID, "subgrp", "my-sg"), region, `{"VpcId": "vpc-222"}`)
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
+		ec2ARN(region, acct.ID, "vpc", "vpc-222"), region, "{}")
+
+	if err := resolveDBSubnetGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBSubnetGroupRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(sngID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, sngID, vpcID, store.RelAttachedTo)
+}
+
+// TestResolveDBSubnetGroupRelationships_NoVPC verifies graceful handling when
+// VpcId is absent.
+func TestResolveDBSubnetGroupRelationships_NoVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	sngID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBSubnetGroup,
+		rdsARN("us-east-1", acct.ID, "subgrp", "bare-sg"), "", "{}")
+
+	if err := resolveDBSubnetGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBSubnetGroupRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(sngID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Proxy ---
+
+// TestResolveDBProxyRelationships verifies that a DB proxy is linked to its VPC.
+func TestResolveDBProxyRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	proxyARN := "arn:aws:rds:us-east-1:123456789012:db-proxy:prx-abc123"
+	proxyID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxy,
+		proxyARN, region, `{"VpcId": "vpc-333"}`)
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
+		ec2ARN(region, acct.ID, "vpc", "vpc-333"), region, "{}")
+
+	if err := resolveDBProxyRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(proxyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, proxyID, vpcID, store.RelAttachedTo)
+}
+
+// TestResolveDBProxyRelationships_NoVPC verifies graceful handling when VpcId
+// is absent.
+func TestResolveDBProxyRelationships_NoVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	proxyID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxy,
+		"arn:aws:rds:us-east-1:123456789012:db-proxy:prx-bare", "", "{}")
+
+	if err := resolveDBProxyRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(proxyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Proxy Endpoint ---
+
+// TestResolveDBProxyEndpointRelationships verifies that a DB proxy endpoint is
+// linked to its parent proxy by name lookup.
+func TestResolveDBProxyEndpointRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	proxyARN := "arn:aws:rds:us-east-1:123456789012:db-proxy:prx-ep-test"
+	proxyID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxy,
+		proxyARN, region, `{"DBProxyName": "my-proxy"}`)
+	epARN := "arn:aws:rds:us-east-1:123456789012:db-proxy-endpoint:prx-ep-abc"
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxyEndpoint,
+		epARN, region, `{"DBProxyName": "my-proxy"}`)
+
+	if err := resolveDBProxyEndpointRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyEndpointRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(epID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, epID, proxyID, store.RelAttachedTo)
+}
+
+// TestResolveDBProxyEndpointRelationships_NoProxy verifies graceful handling
+// when no matching proxy exists.
+func TestResolveDBProxyEndpointRelationships_NoProxy(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxyEndpoint,
+		"arn:aws:rds:us-east-1:123456789012:db-proxy-endpoint:prx-ep-bare",
+		"", `{"DBProxyName": "nonexistent-proxy"}`)
+
+	if err := resolveDBProxyEndpointRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyEndpointRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(epID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Proxy Target Group ---
+
+// TestResolveDBProxyTargetGroupRelationships verifies that a DB proxy target
+// group is linked to its parent proxy by name lookup.
+func TestResolveDBProxyTargetGroupRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	proxyARN := "arn:aws:rds:us-east-1:123456789012:db-proxy:prx-tg-test"
+	proxyID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxy,
+		proxyARN, region, `{"DBProxyName": "my-proxy-tg"}`)
+	tgARN := "arn:aws:rds:us-east-1:123456789012:target-group:prx-tg-abc"
+	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxyTargetGroup,
+		tgARN, region, `{"DBProxyName": "my-proxy-tg"}`)
+
+	if err := resolveDBProxyTargetGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyTargetGroupRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(tgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, tgID, proxyID, store.RelAttachedTo)
+}
+
+// TestResolveDBProxyTargetGroupRelationships_NoProxy verifies graceful handling
+// when no matching proxy exists.
+func TestResolveDBProxyTargetGroupRelationships_NoProxy(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBProxyTargetGroup,
+		"arn:aws:rds:us-east-1:123456789012:target-group:prx-tg-bare",
+		"", `{"DBProxyName": "nonexistent"}`)
+
+	if err := resolveDBProxyTargetGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBProxyTargetGroupRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- DB Shard Group ---
+
+// TestResolveDBShardGroupRelationships verifies that a DB shard group is linked
+// to its DB cluster.
+func TestResolveDBShardGroupRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	sgARN := "arn:aws:rds:us-east-1:123456789012:shard-group:sg-abc"
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBShardGroup,
+		sgARN, region, `{"DBClusterIdentifier": "my-limitless-cluster"}`)
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		rdsARN(region, acct.ID, "cluster", "my-limitless-cluster"), region, "{}")
+
+	if err := resolveDBShardGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBShardGroupRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(sgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, sgID, clusterID, store.RelAttachedTo)
+}
+
+// TestResolveDBShardGroupRelationships_NoCluster verifies graceful handling
+// when DBClusterIdentifier is absent.
+func TestResolveDBShardGroupRelationships_NoCluster(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBShardGroup,
+		"arn:aws:rds:us-east-1:123456789012:shard-group:sg-bare", "", "{}")
+
+	if err := resolveDBShardGroupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBShardGroupRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(sgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// --- Global Cluster ---
+
+// TestResolveGlobalClusterRelationships verifies that a global cluster is linked
+// to its member DB clusters, with account extracted from the member ARN.
+func TestResolveGlobalClusterRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	memberARN := "arn:aws:rds:us-east-1:123456789012:cluster:regional-cluster"
+	gcARN := "arn:aws:rds::123456789012:global-cluster:my-global"
+	gcID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSGlobalCluster, gcARN, "", `{
+		"GlobalClusterMembers": [{"DBClusterArn": "arn:aws:rds:us-east-1:123456789012:cluster:regional-cluster"}]
+	}`)
+	memberID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		memberARN, region, "{}")
+
+	if err := resolveGlobalClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveGlobalClusterRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(gcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, gcID, memberID, store.RelContains)
+}
+
+// TestResolveGlobalClusterRelationships_NoMembers verifies graceful handling
+// when GlobalClusterMembers is empty.
+func TestResolveGlobalClusterRelationships_NoMembers(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+
+	gcID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSGlobalCluster,
+		"arn:aws:rds::123456789012:global-cluster:bare-global", "",
+		`{"GlobalClusterMembers": []}`)
+
+	if err := resolveGlobalClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveGlobalClusterRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(gcID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}

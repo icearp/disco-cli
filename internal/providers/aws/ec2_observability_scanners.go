@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -10,18 +11,21 @@ import (
 
 // scanEC2Observability discovers observability and policy types: flow logs,
 // managed prefix lists, and all Network Insights resources.
-func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanFlowLogs(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanPrefixLists(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkInsightsPaths(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkInsightsAnalyses(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkInsightsAccessScopes(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanNetworkInsightsAccessScopeAnalyses(ctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanFlowLogs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanPrefixLists(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInsightsPaths(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInsightsAnalyses(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInsightsAccessScopes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanNetworkInsightsAccessScopeAnalyses(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
-func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsPaths", acct, region, st,
 		ec2.NewDescribeNetworkInsightsPathsPaginator(client, &ec2.DescribeNetworkInsightsPathsInput{}),
 		func(page *ec2.DescribeNetworkInsightsPathsOutput) []*store.Resource {
@@ -45,7 +49,7 @@ func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *acc
 	)
 }
 
-func scanNetworkInsightsAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkInsightsAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAnalyses", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAnalysesPaginator(client, &ec2.DescribeNetworkInsightsAnalysesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAnalysesOutput) []*store.Resource {
@@ -69,7 +73,7 @@ func scanNetworkInsightsAnalyses(ctx context.Context, client *ec2.Client, acct *
 	)
 }
 
-func scanNetworkInsightsAccessScopes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkInsightsAccessScopes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAccessScopes", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAccessScopesPaginator(client, &ec2.DescribeNetworkInsightsAccessScopesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAccessScopesOutput) []*store.Resource {
@@ -93,7 +97,7 @@ func scanNetworkInsightsAccessScopes(ctx context.Context, client *ec2.Client, ac
 	)
 }
 
-func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAccessScopeAnalyses", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAccessScopeAnalysesPaginator(client, &ec2.DescribeNetworkInsightsAccessScopeAnalysesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAccessScopeAnalysesOutput) []*store.Resource {
@@ -117,7 +121,7 @@ func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client *ec2.Cli
 	)
 }
 
-func scanFlowLogs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanFlowLogs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeFlowLogs", acct, region, st,
 		ec2.NewDescribeFlowLogsPaginator(client, &ec2.DescribeFlowLogsInput{}),
 		func(page *ec2.DescribeFlowLogsOutput) []*store.Resource {
@@ -143,7 +147,7 @@ func scanFlowLogs(ctx context.Context, client *ec2.Client, acct *account, region
 	)
 }
 
-func scanPrefixLists(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanPrefixLists(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeManagedPrefixLists", acct, region, st,
 		ec2.NewDescribeManagedPrefixListsPaginator(client, &ec2.DescribeManagedPrefixListsInput{}),
 		func(page *ec2.DescribeManagedPrefixListsOutput) []*store.Resource {

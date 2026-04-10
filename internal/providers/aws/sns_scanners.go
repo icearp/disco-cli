@@ -11,7 +11,7 @@ import (
 func init() { registerService(serviceEntry{name: "aws:sns", fn: scanSNS}) }
 
 // scanSNS discovers SNS topics in one region.
-func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sns.NewFromConfig(acct.cfg, func(o *sns.Options) { o.Region = region })
 
 	pager := sns.NewListTopicsPaginator(client, &sns.ListTopicsInput{})
@@ -19,9 +19,9 @@ func scanSNS(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("sns:ListTopics", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("sns:ListTopics", acct.ID, region, err)
 			}
-			return fmt.Errorf("sns:ListTopics: %w", err)
+			return 0, 0, fmt.Errorf("sns:ListTopics: %w", err)
 		}
 		var batch []*store.Resource
 		for _, topic := range page.Topics {
@@ -35,15 +35,18 @@ func scanSNS(ctx context.Context, acct *account, region string, st *store.Store,
 				Name:           &arn,
 				Region:         &region,
 				AttributesJSON: mustJSON(topic),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert SNS topics: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert SNS topics: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

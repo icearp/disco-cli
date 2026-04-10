@@ -14,7 +14,7 @@ func init() { registerService(serviceEntry{name: "aws:eks", fn: scanEKS}) }
 
 // scanEKS discovers EKS clusters in one region. ListClusters returns names
 // only; we describe each cluster in parallel to avoid N+1 sequential API calls.
-func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
 
 	pager := eks.NewListClustersPaginator(client, &eks.ListClustersInput{})
@@ -22,9 +22,9 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("eks:ListClusters", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("eks:ListClusters", acct.ID, region, err)
 			}
-			return fmt.Errorf("eks:ListClusters: %w", err)
+			return 0, 0, fmt.Errorf("eks:ListClusters: %w", err)
 		}
 
 		// Describe all clusters in the page concurrently.
@@ -54,7 +54,7 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 					CreatedAt:      tp(c.CreatedAt),
 					Status:         sp(string(c.Status)),
 					AttributesJSON: mustJSON(c),
-					DiscoveredBy:         scanID,
+					DiscoveredBy:   scanID,
 				}
 				if len(c.Tags) > 0 {
 					s := mustJSON(c.Tags)
@@ -67,13 +67,16 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return err
+			return 0, 0, err
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert EKS clusters: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert EKS clusters: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

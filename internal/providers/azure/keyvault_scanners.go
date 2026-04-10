@@ -12,10 +12,10 @@ import (
 func init() { registerService(serviceEntry{name: "azure:keyvault", fn: scanKeyVault}) }
 
 // scanKeyVault discovers Azure Key Vault vaults.
-func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armkeyvault.NewVaultsClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
+		return 0, 0, fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
 	}
 
 	pager := client.NewListBySubscriptionPager(nil)
@@ -23,9 +23,9 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armkeyvault:Vaults.ListBySubscription", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armkeyvault:Vaults.ListBySubscription", sub.ID, err)
 			}
-			return fmt.Errorf("armkeyvault:Vaults.ListBySubscription: %w", err)
+			return 0, 0, fmt.Errorf("armkeyvault:Vaults.ListBySubscription: %w", err)
 		}
 		var batch []*store.Resource
 		for _, vault := range page.Value {
@@ -43,7 +43,7 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vault),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if vault.Tags != nil {
 				s := mustJSON(vault.Tags)
@@ -52,10 +52,13 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert Key Vaults: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert Key Vaults: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

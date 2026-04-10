@@ -9,7 +9,7 @@ import (
 // serviceEntry describes a scannable GCP service (scoped to one project).
 type serviceEntry struct {
 	name string
-	fn   func(ctx context.Context, p *project, st *store.Store, scanID string) error
+	fn   func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
 }
 
 // registeredServices is populated by each *_scanners.go file's init().

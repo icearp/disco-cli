@@ -10,7 +10,7 @@ import (
 // serviceEntry describes a scannable Azure service (scoped to one subscription).
 type serviceEntry struct {
 	name string
-	fn   func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error
+	fn   func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
 }
 
 // registeredServices is populated by each *_scanners.go file's init().

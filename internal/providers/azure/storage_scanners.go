@@ -12,10 +12,10 @@ import (
 func init() { registerService(serviceEntry{name: "azure:storage", fn: scanStorage}) }
 
 // scanStorage discovers Azure storage accounts.
-func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armstorage.NewAccountsClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armstorage:NewAccountsClient: %w", err)
+		return 0, 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
 	}
 
 	pager := client.NewListPager(nil)
@@ -23,9 +23,9 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armstorage:Accounts.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armstorage:Accounts.List", sub.ID, err)
 			}
-			return fmt.Errorf("armstorage:Accounts.List: %w", err)
+			return 0, 0, fmt.Errorf("armstorage:Accounts.List: %w", err)
 		}
 		var batch []*store.Resource
 		for _, acct := range page.Value {
@@ -43,7 +43,7 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(acct),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if acct.Tags != nil {
 				s := mustJSON(acct.Tags)
@@ -52,10 +52,13 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert storage accounts: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert storage accounts: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

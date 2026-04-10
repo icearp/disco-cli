@@ -13,17 +13,32 @@ import (
 func init() { registerService(serviceEntry{name: "azure:compute", fn: scanCompute}) }
 
 // scanCompute discovers Azure VMs and managed disks in parallel.
-func scanCompute(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanCompute(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	var (
+		vmTotal, vmInserted     int
+		diskTotal, diskInserted int
+	)
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanVMs(gctx, sub, cred, st, scanID) })
-	g.Go(func() error { return scanDisks(gctx, sub, cred, st, scanID) })
-	return g.Wait()
+	g.Go(func() error {
+		t, n, e := scanVMs(gctx, sub, cred, st, scanID)
+		vmTotal, vmInserted = t, n
+		return e
+	})
+	g.Go(func() error {
+		t, n, e := scanDisks(gctx, sub, cred, st, scanID)
+		diskTotal, diskInserted = t, n
+		return e
+	})
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	return vmTotal + diskTotal, vmInserted + diskInserted, nil
 }
 
-func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachinesClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armcompute:NewVirtualMachinesClient: %w", err)
+		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachinesClient: %w", err)
 	}
 
 	pager := client.NewListAllPager(nil)
@@ -31,9 +46,9 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armcompute:VMs.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armcompute:VMs.ListAll", sub.ID, err)
 			}
-			return fmt.Errorf("armcompute:VMs.ListAll: %w", err)
+			return 0, 0, fmt.Errorf("armcompute:VMs.ListAll: %w", err)
 		}
 		var batch []*store.Resource
 		var pairs [][2]string
@@ -73,21 +88,24 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			pairs = append(pairs, [2]string{vmID, rgID})
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert Azure VMs: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert Azure VMs: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-				return fmt.Errorf("closure Azure VMs: %w", err)
+				return 0, 0, fmt.Errorf("closure Azure VMs: %w", err)
 			}
 		}
 	}
-	return nil
+	return total, inserted, nil
 }
 
-func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewDisksClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armcompute:NewDisksClient: %w", err)
+		return 0, 0, fmt.Errorf("armcompute:NewDisksClient: %w", err)
 	}
 
 	pager := client.NewListPager(nil)
@@ -95,9 +113,9 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armcompute:Disks.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armcompute:Disks.List", sub.ID, err)
 			}
-			return fmt.Errorf("armcompute:Disks.List: %w", err)
+			return 0, 0, fmt.Errorf("armcompute:Disks.List: %w", err)
 		}
 		var batch []*store.Resource
 		for _, d := range page.Value {
@@ -115,7 +133,7 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(d),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if d.Tags != nil {
 				s := mustJSON(d.Tags)
@@ -124,10 +142,13 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert Azure disks: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert Azure disks: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

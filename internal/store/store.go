@@ -13,14 +13,15 @@ import (
 // Store is the primary access point for the disco database.
 type Store struct {
 	db                *sqlx.DB
-	OnServiceComplete func(service string) // optional; called by providers after each service scan
+	OnServiceComplete func(service string, total, inserted int) // optional; called by providers after each service scan
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
-// service scan function returns successfully.
-func (s *Store) ReportService(service string) {
+// service scan function returns successfully. total = resources seen this scan,
+// inserted = resources newly added (not previously in the DB).
+func (s *Store) ReportService(service string, total, inserted int) {
 	if s.OnServiceComplete != nil {
-		s.OnServiceComplete(service)
+		s.OnServiceComplete(service, total, inserted)
 	}
 }
 

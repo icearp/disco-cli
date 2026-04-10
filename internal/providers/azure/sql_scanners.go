@@ -22,14 +22,14 @@ type sqlServer struct {
 
 // scanSQL discovers Azure SQL servers and their databases.
 // Servers are listed first, then all per-server database lists run concurrently.
-func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	serversClient, err := armsql.NewServersClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armsql:NewServersClient: %w", err)
+		return 0, 0, fmt.Errorf("armsql:NewServersClient: %w", err)
 	}
 	dbsClient, err := armsql.NewDatabasesClient(sub.ID, cred, nil)
 	if err != nil {
-		return fmt.Errorf("armsql:NewDatabasesClient: %w", err)
+		return 0, 0, fmt.Errorf("armsql:NewDatabasesClient: %w", err)
 	}
 
 	// Phase 1: list all servers and upsert them.
@@ -39,9 +39,9 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armsql:Servers.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied("armsql:Servers.List", sub.ID, err)
 			}
-			return fmt.Errorf("armsql:Servers.List: %w", err)
+			return 0, 0, fmt.Errorf("armsql:Servers.List: %w", err)
 		}
 		var serverBatch []*store.Resource
 		for _, srv := range page.Value {
@@ -73,16 +73,19 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			})
 		}
 		if len(serverBatch) > 0 {
-			if err := st.UpsertResources(serverBatch); err != nil {
-				return fmt.Errorf("upsert SQL servers: %w", err)
+			n, err := st.UpsertResources(serverBatch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert SQL servers: %w", err)
 			}
+			total += len(serverBatch)
+			inserted += n
 		}
 	}
 
 	// Phase 2: fetch databases for all servers concurrently.
 	var (
-		mu      sync.Mutex
-		allDBs  []*store.Resource
+		mu       sync.Mutex
+		allDBs   []*store.Resource
 		allPairs [][2]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
@@ -137,16 +140,19 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	if len(allDBs) > 0 {
-		if err := st.UpsertResources(allDBs); err != nil {
-			return fmt.Errorf("upsert SQL databases: %w", err)
+		n, err := st.UpsertResources(allDBs)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert SQL databases: %w", err)
 		}
+		total += len(allDBs)
+		inserted += n
 		if err := st.BatchAddToHierarchyClosure(allPairs); err != nil {
-			return fmt.Errorf("closure SQL databases: %w", err)
+			return 0, 0, fmt.Errorf("closure SQL databases: %w", err)
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

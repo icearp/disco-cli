@@ -52,7 +52,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
+			if _, err := st.UpsertResources(batch); err != nil {
 				return fmt.Errorf("upsert resource groups: %w", err)
 			}
 			// Populate hierarchy closure: each RG belongs to the subscription.

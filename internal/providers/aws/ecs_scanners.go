@@ -15,53 +15,62 @@ func init() { registerService(serviceEntry{name: "aws:ecs", fn: scanECS}) }
 
 // scanECS discovers ECS clusters, services, and task definitions in one region.
 // Clusters are described first so their ARNs can be used for service listing.
-func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecs.NewFromConfig(acct.cfg, func(o *ecs.Options) { o.Region = region })
 
-	clusterARNs, err := scanECSClusters(ctx, client, acct, region, st, scanID)
+	clusterARNs, tt, nn, err := scanECSClusters(ctx, client, acct, region, st, scanID)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
-	if err := scanECSServices(ctx, client, acct, region, clusterARNs, st, scanID); err != nil {
-		return err
+	total += tt
+	inserted += nn
+
+	tt, nn, err = scanECSServices(ctx, client, acct, region, clusterARNs, st, scanID)
+	if err != nil {
+		return total, inserted, err
 	}
-	return scanECSTaskDefinitions(ctx, client, acct, region, st, scanID)
+	total += tt
+	inserted += nn
+
+	tt, nn, err = scanECSTaskDefinitions(ctx, client, acct, region, st, scanID)
+	total += tt
+	inserted += nn
+	return total, inserted, err
 }
 
 // scanECSClusters pages through ListClusters, batch-describes each page via
 // DescribeClusters (max 100 per call), and returns all cluster ARNs for use
 // by scanECSServices.
-func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) ([]string, error) {
-	var allARNs []string
+func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total, inserted int, err error) {
 	pager := ecs.NewListClustersPaginator(client, &ecs.ListClustersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, skipIfAccessDenied("ecs:ListClusters", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied("ecs:ListClusters", acct.ID, region, err)
 			}
-			return nil, fmt.Errorf("ecs:ListClusters: %w", err)
+			return nil, 0, 0, fmt.Errorf("ecs:ListClusters: %w", err)
 		}
-		allARNs = append(allARNs, page.ClusterArns...)
+		clusterARNs = append(clusterARNs, page.ClusterArns...)
 	}
 
 	// DescribeClusters accepts up to 100 ARNs per call.
 	const batchSize = 100
-	for i := 0; i < len(allARNs); i += batchSize {
-		end := min(i+batchSize, len(allARNs))
+	for i := 0; i < len(clusterARNs); i += batchSize {
+		end := min(i+batchSize, len(clusterARNs))
 		resp, err := client.DescribeClusters(ctx, &ecs.DescribeClustersInput{
-			Clusters: allARNs[i:end],
+			Clusters: clusterARNs[i:end],
 			Include:  []ecstypes.ClusterField{ecstypes.ClusterFieldTags},
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return allARNs, nil // proceed with services even if describe is denied
+				return clusterARNs, total, inserted, nil // proceed with services even if describe is denied
 			}
-			return nil, fmt.Errorf("ecs:DescribeClusters: %w", err)
+			return nil, 0, 0, fmt.Errorf("ecs:DescribeClusters: %w", err)
 		}
 		var batch []*store.Resource
 		for _, c := range resp.Clusters {
-			r := &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -73,21 +82,23 @@ func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, reg
 				AttributesJSON: mustJSON(c),
 				TagsJSON:       awsTagsJSON(c.Tags),
 				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
+			})
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return nil, fmt.Errorf("upsert ECS clusters: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return nil, 0, 0, fmt.Errorf("upsert ECS clusters: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return allARNs, nil
+	return clusterARNs, total, inserted, nil
 }
 
 // scanECSServices iterates each cluster ARN, pages through ListServices, and
 // batch-describes services via DescribeServices (max 10 per call).
-func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) error {
+func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, clusterARN := range clusterARNs {
 		var serviceARNs []string
 		pager := ecs.NewListServicesPaginator(client, &ecs.ListServicesInput{Cluster: &clusterARN})
@@ -97,7 +108,7 @@ func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, reg
 				if isAccessDenied(err) {
 					continue
 				}
-				return fmt.Errorf("ecs:ListServices (cluster %s): %w", clusterARN, err)
+				return total, inserted, fmt.Errorf("ecs:ListServices (cluster %s): %w", clusterARN, err)
 			}
 			serviceARNs = append(serviceARNs, page.ServiceArns...)
 		}
@@ -115,11 +126,11 @@ func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, reg
 				if isAccessDenied(err) {
 					break
 				}
-				return fmt.Errorf("ecs:DescribeServices (cluster %s): %w", clusterARN, err)
+				return total, inserted, fmt.Errorf("ecs:DescribeServices (cluster %s): %w", clusterARN, err)
 			}
 			var batch []*store.Resource
 			for _, svc := range resp.Services {
-				r := &store.Resource{
+				batch = append(batch, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
@@ -132,22 +143,24 @@ func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, reg
 					AttributesJSON: mustJSON(svc),
 					TagsJSON:       awsTagsJSON(svc.Tags),
 					DiscoveredBy:   scanID,
-				}
-				batch = append(batch, r)
+				})
 			}
 			if len(batch) > 0 {
-				if err := st.UpsertResources(batch); err != nil {
-					return fmt.Errorf("upsert ECS services: %w", err)
+				n, err := st.UpsertResources(batch)
+				if err != nil {
+					return total, inserted, fmt.Errorf("upsert ECS services: %w", err)
 				}
+				total += len(batch)
+				inserted += n
 			}
 		}
 	}
-	return nil
+	return
 }
 
 // scanECSTaskDefinitions lists all ACTIVE task definition ARNs and describes
 // each concurrently (DescribeTaskDefinition has no batch API).
-func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var allARNs []string
 	pager := ecs.NewListTaskDefinitionsPaginator(client, &ecs.ListTaskDefinitionsInput{
 		Status: ecstypes.TaskDefinitionStatusActive,
@@ -156,9 +169,9 @@ func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *accou
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("ecs:ListTaskDefinitions", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("ecs:ListTaskDefinitions", acct.ID, region, err)
 			}
-			return fmt.Errorf("ecs:ListTaskDefinitions: %w", err)
+			return 0, 0, fmt.Errorf("ecs:ListTaskDefinitions: %w", err)
 		}
 		allARNs = append(allARNs, page.TaskDefinitionArns...)
 	}
@@ -182,7 +195,6 @@ func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *accou
 				return fmt.Errorf("ecs:DescribeTaskDefinition %s: %w", arn, err)
 			}
 			td := resp.TaskDefinition
-			// Use family:revision as the human-readable name.
 			name := fmt.Sprintf("%s:%d", sv(td.Family), td.Revision)
 			r := &store.Resource{
 				Provider:       "aws",
@@ -204,12 +216,15 @@ func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *accou
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return err
+		return 0, 0, err
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert ECS task definitions: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert ECS task definitions: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }

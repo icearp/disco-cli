@@ -14,45 +14,40 @@ func init() { registerService(serviceEntry{name: "gcp:compute", fn: scanCompute}
 // scanCompute discovers Compute Engine instances, VPC networks, subnetworks,
 // and firewalls. Uses AggregatedList for instances/subnetworks so all zones
 // are covered in a single API call.
-func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string) error {
+func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
 	if err != nil {
-		return fmt.Errorf("compute client: %w", err)
+		return 0, 0, fmt.Errorf("compute client: %w", err)
 	}
 
-	if err := scanComputeInstances(ctx, svc, p, st, scanID); err != nil {
-		if isPermissionDenied(err) {
-			return skipIfDenied("compute:instances.aggregatedList", p.ID, err)
+	for _, sub := range []struct {
+		action string
+		fn     func() (int, int, error)
+	}{
+		{"compute:instances.aggregatedList", func() (int, int, error) { return scanComputeInstances(ctx, svc, p, st, scanID) }},
+		{"compute:networks.list", func() (int, int, error) { return scanComputeNetworks(ctx, svc, p, st, scanID) }},
+		{"compute:subnetworks.aggregatedList", func() (int, int, error) { return scanComputeSubnetworks(ctx, svc, p, st, scanID) }},
+		{"compute:firewalls.list", func() (int, int, error) { return scanComputeFirewalls(ctx, svc, p, st, scanID) }},
+	} {
+		t, n, err := sub.fn()
+		if err != nil {
+			if isPermissionDenied(err) {
+				return total, inserted, skipIfDenied(sub.action, p.ID, err)
+			}
+			return total, inserted, err
 		}
-		return err
+		total += t
+		inserted += n
 	}
-	if err := scanComputeNetworks(ctx, svc, p, st, scanID); err != nil {
-		if isPermissionDenied(err) {
-			return skipIfDenied("compute:networks.list", p.ID, err)
-		}
-		return err
-	}
-	if err := scanComputeSubnetworks(ctx, svc, p, st, scanID); err != nil {
-		if isPermissionDenied(err) {
-			return skipIfDenied("compute:subnetworks.aggregatedList", p.ID, err)
-		}
-		return err
-	}
-	if err := scanComputeFirewalls(ctx, svc, p, st, scanID); err != nil {
-		if isPermissionDenied(err) {
-			return skipIfDenied("compute:firewalls.list", p.ID, err)
-		}
-		return err
-	}
-	return nil
+	return total, inserted, nil
 }
 
-func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
+func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
 
 	req := svc.Instances.AggregatedList(p.ID)
-	return req.Pages(ctx, func(page *compute.InstanceAggregatedList) error {
+	err = req.Pages(ctx, func(page *compute.InstanceAggregatedList) error {
 		var batch []*store.Resource
 		for _, items := range page.Items {
 			for _, inst := range items.Instances {
@@ -67,7 +62,7 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 					CreatedAt:      strp(inst.CreationTimestamp),
 					Status:         &status,
 					AttributesJSON: mustJSON(inst),
-					DiscoveredBy:         scanID,
+					DiscoveredBy:   scanID,
 				}
 				// Zone is embedded in the self-link; extract for the region field.
 				if inst.Zone != "" {
@@ -83,9 +78,12 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := st.UpsertResources(batch); err != nil {
+		n, err := st.UpsertResources(batch)
+		if err != nil {
 			return fmt.Errorf("upsert compute instances: %w", err)
 		}
+		total += len(batch)
+		inserted += n
 		// Populate closure table for each instance → project.
 		var pairs [][2]string
 		for _, r := range batch {
@@ -97,11 +95,12 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 		}
 		return nil
 	})
+	return
 }
 
-func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
+func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	req := svc.Networks.List(p.ID)
-	return req.Pages(ctx, func(page *compute.NetworkList) error {
+	err = req.Pages(ctx, func(page *compute.NetworkList) error {
 		var batch []*store.Resource
 		for _, net := range page.Items {
 			r := &store.Resource{
@@ -113,20 +112,27 @@ func scanComputeNetworks(ctx context.Context, svc *compute.Service, p *project, 
 				Name:           &net.Name,
 				CreatedAt:      strp(net.CreationTimestamp),
 				AttributesJSON: mustJSON(net),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
 		}
 		if len(batch) == 0 {
 			return nil
 		}
-		return st.UpsertResources(batch)
+		n, e := st.UpsertResources(batch)
+		if e != nil {
+			return fmt.Errorf("upsert compute networks: %w", e)
+		}
+		total += len(batch)
+		inserted += n
+		return nil
 	})
+	return
 }
 
-func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
+func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	req := svc.Subnetworks.AggregatedList(p.ID)
-	return req.Pages(ctx, func(page *compute.SubnetworkAggregatedList) error {
+	err = req.Pages(ctx, func(page *compute.SubnetworkAggregatedList) error {
 		var batch []*store.Resource
 		for _, items := range page.Items {
 			for _, sn := range items.Subnetworks {
@@ -141,7 +147,7 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 					Region:         &region,
 					CreatedAt:      strp(sn.CreationTimestamp),
 					AttributesJSON: mustJSON(sn),
-					DiscoveredBy:         scanID,
+					DiscoveredBy:   scanID,
 				}
 				batch = append(batch, r)
 			}
@@ -149,13 +155,20 @@ func scanComputeSubnetworks(ctx context.Context, svc *compute.Service, p *projec
 		if len(batch) == 0 {
 			return nil
 		}
-		return st.UpsertResources(batch)
+		n, e := st.UpsertResources(batch)
+		if e != nil {
+			return fmt.Errorf("upsert compute subnetworks: %w", e)
+		}
+		total += len(batch)
+		inserted += n
+		return nil
 	})
+	return
 }
 
-func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) error {
+func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	req := svc.Firewalls.List(p.ID)
-	return req.Pages(ctx, func(page *compute.FirewallList) error {
+	err = req.Pages(ctx, func(page *compute.FirewallList) error {
 		var batch []*store.Resource
 		for _, fw := range page.Items {
 			r := &store.Resource{
@@ -167,15 +180,22 @@ func scanComputeFirewalls(ctx context.Context, svc *compute.Service, p *project,
 				Name:           &fw.Name,
 				CreatedAt:      strp(fw.CreationTimestamp),
 				AttributesJSON: mustJSON(fw),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
 		}
 		if len(batch) == 0 {
 			return nil
 		}
-		return st.UpsertResources(batch)
+		n, e := st.UpsertResources(batch)
+		if e != nil {
+			return fmt.Errorf("upsert compute firewalls: %w", e)
+		}
+		total += len(batch)
+		inserted += n
+		return nil
 	})
+	return
 }
 
 // lastSegment returns the last path component of a GCP resource URL/name.

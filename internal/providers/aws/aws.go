@@ -80,10 +80,11 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx0, serviceTimeout)
 			defer cancel()
-			if err := svc.fn(svcCtx, acct, "", st, scanID); err != nil {
+			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
+			if err != nil {
 				return err
 			}
-			st.ReportService(svc.name)
+			st.ReportService(svc.name, total, inserted)
 			return nil
 		})
 	}
@@ -132,10 +133,11 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
 			defer cancel()
-			if err := svc.fn(svcCtx, acct, region, st, scanID); err != nil {
+			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
+			if err != nil {
 				return err
 			}
-			st.ReportService(svc.name)
+			st.ReportService(svc.name, total, inserted)
 			return nil
 		})
 	}

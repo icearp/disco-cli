@@ -13,7 +13,7 @@ func init() { registerService(serviceEntry{name: "aws:sqs", fn: scanSQS}) }
 
 // scanSQS discovers SQS queues in one region. SQS has no paginator type;
 // we iterate manually using NextToken.
-func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sqs.NewFromConfig(acct.cfg, func(o *sqs.Options) { o.Region = region })
 
 	var nextToken *string
@@ -24,9 +24,9 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("sqs:ListQueues", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("sqs:ListQueues", acct.ID, region, err)
 			}
-			return fmt.Errorf("sqs:ListQueues: %w", err)
+			return 0, 0, fmt.Errorf("sqs:ListQueues: %w", err)
 		}
 		var batch []*store.Resource
 		for _, url := range out.QueueUrls {
@@ -41,19 +41,22 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 				Name:           &url,
 				Region:         &region,
 				AttributesJSON: mustJSON(map[string]string{"url": url}),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert SQS queues: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert SQS queues: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 		if out.NextToken == nil {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	return nil
+	return total, inserted, nil
 }

@@ -15,7 +15,7 @@ func init() { registerService(serviceEntry{name: "aws:ecr", fn: scanECR}) }
 // scanECR discovers ECR repositories in one region. DescribeRepositories returns
 // full repository details in a single paginated call — no separate describe step needed.
 // Tags are fetched concurrently via ListTagsForResource (one call per repository).
-func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
 
 	pager := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
@@ -23,9 +23,9 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("ecr:DescribeRepositories", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied("ecr:DescribeRepositories", acct.ID, region, err)
 			}
-			return fmt.Errorf("ecr:DescribeRepositories: %w", err)
+			return 0, 0, fmt.Errorf("ecr:DescribeRepositories: %w", err)
 		}
 
 		// ECR does not return tags from DescribeRepositories; fetch them via
@@ -49,7 +49,7 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 			})
 		}
 		if err := g.Wait(); err != nil {
-			return err
+			return 0, 0, err
 		}
 
 		var batch []*store.Resource
@@ -71,10 +71,13 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert ECR repositories: %w", err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert ECR repositories: %w", err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return total, inserted, nil
 }

@@ -18,6 +18,8 @@ func init() {
 	registerResolver(resolveNetworkACLRelationships)
 	registerResolver(resolveVPCEndpointRelationships)
 	registerResolver(resolveVPCPeeringRelationships)
+	registerResolver(resolveCarrierGatewayRelationships)
+	registerResolver(resolveVPCEndpointServicePermissionsRelationships)
 }
 
 func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
@@ -253,6 +255,60 @@ func resolveVPCEndpointRelationships(acct *account, st *store.Store) error {
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert vpc-endpoint→vpc relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveCarrierGatewayRelationships links each carrier gateway to its VPC.
+func resolveCarrierGatewayRelationships(acct *account, st *store.Store) error {
+	cgws, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2CarrierGateway},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range cgws {
+		var attrs struct {
+			VpcId *string `json:"VpcId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.VpcId != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+				ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
+			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert carrier-gateway→vpc relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveVPCEndpointServicePermissionsRelationships links each permission to its service.
+func resolveVPCEndpointServicePermissionsRelationships(acct *account, st *store.Store) error {
+	perms, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointServicePermissions},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range perms {
+		var attrs struct {
+			ServiceId *string `json:"ServiceId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.ServiceId != nil {
+			svcID := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpointService,
+				ec2ARN(sv(r.Region), acct.ID, "vpc-endpoint-service", *attrs.ServiceId))
+			if err := st.UpsertRelationship(r.ID, svcID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert vpc-endpoint-service-permission→service relationship: %w", err)
 			}
 		}
 	}

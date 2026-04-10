@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -15,21 +16,22 @@ func init() { registerService(serviceEntry{name: "aws:ec2", fn: scanEC2}) }
 // scanEC2 discovers all EC2 resource types in one region by running all
 // category scanners in parallel. Each category scanner fans out to its own
 // sub-scanners via an internal errgroup.
-func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error {
+func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanEC2Networking(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2VPN(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2ComputeMgmt(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2Observability(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2IPAM(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2TGWExt(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2TrafficMirror(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2VerifiedAccess(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2LocalGateway(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2ClientVPN(gctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanEC2Ext(gctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanEC2Networking(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2VPN(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2ComputeMgmt(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2Observability(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2IPAM(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2TGWExt(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2TrafficMirror(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2VerifiedAccess(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2LocalGateway(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2ClientVPN(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	return int(t.Load()), int(n.Load()), g.Wait()
 }
 
 // ec2Pager is satisfied by every AWS SDK v2 EC2 paginator.
@@ -40,7 +42,8 @@ type ec2Pager[P any] interface {
 
 // ec2PageScan runs a paginated EC2 Describe call, converts each full page to
 // a batch of resources via toResources, and upserts the batch. Access-denied
-// errors are handled via skipIfAccessDenied.
+// errors are handled via skipIfAccessDenied. Returns total resources seen and
+// count of newly inserted resources.
 func ec2PageScan[P any](
 	ctx context.Context,
 	iamAction string,
@@ -49,22 +52,25 @@ func ec2PageScan[P any](
 	st *store.Store,
 	pager ec2Pager[P],
 	toResources func(P) []*store.Resource,
-) error {
+) (total, inserted int, err error) {
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied(iamAction, acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(iamAction, acct.ID, region, err)
 			}
-			return fmt.Errorf("%s: %w", iamAction, err)
+			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		if batch := toResources(page); len(batch) > 0 {
-			if err := st.UpsertResources(batch); err != nil {
-				return fmt.Errorf("upsert %s: %w", iamAction, err)
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert %s: %w", iamAction, err)
 			}
+			total += len(batch)
+			inserted += n
 		}
 	}
-	return nil
+	return
 }
 
 // ec2TagName extracts the "Name" tag value, returning nil if absent.

@@ -11,11 +11,11 @@ import (
 func init() { registerService(serviceEntry{name: "gcp:storage", fn: scanStorage}) }
 
 // scanStorage discovers Cloud Storage buckets for a project.
-func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) error {
+func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := storage.NewService(ctx, opts...)
 	if err != nil {
-		return fmt.Errorf("storage client: %w", err)
+		return 0, 0, fmt.Errorf("storage client: %w", err)
 	}
 
 	req := svc.Buckets.List(p.ID)
@@ -33,7 +33,7 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(b),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if len(b.Labels) > 0 {
 				s := mustJSON(b.Labels)
@@ -44,15 +44,18 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 		if len(batch) == 0 {
 			return nil
 		}
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert GCS buckets: %w", err)
+		n, e := st.UpsertResources(batch)
+		if e != nil {
+			return fmt.Errorf("upsert GCS buckets: %w", e)
 		}
+		total += len(batch)
+		inserted += n
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return skipIfDenied("storage:buckets.list", p.ID, err)
+			return 0, 0, skipIfDenied("storage:buckets.list", p.ID, err)
 		}
-		return err
+		return 0, 0, err
 	}
-	return nil
+	return total, inserted, nil
 }

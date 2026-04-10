@@ -11,6 +11,7 @@ import (
 func init() {
 	registerResolver(resolveInstanceRelationships)
 	registerResolver(resolveInstanceConnectEndpointRelationships)
+	registerResolver(resolveSecurityGroupVPCAssociationRelationships)
 }
 
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.
@@ -75,6 +76,42 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 				if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→volume relationship: %w", err)
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveSecurityGroupVPCAssociationRelationships links each SG VPC association to its SG and VPC.
+func resolveSecurityGroupVPCAssociationRelationships(acct *account, st *store.Store) error {
+	assocs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2SecurityGroupVPCAssociation},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range assocs {
+		var attrs struct {
+			GroupId *string `json:"GroupId"`
+			VpcId   *string `json:"VpcId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if attrs.GroupId != nil {
+			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup,
+				ec2ARN(region, acct.ID, "security-group", *attrs.GroupId))
+			if err := st.UpsertRelationship(r.ID, sgID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert sg-vpc-assoc→sg relationship: %w", err)
+			}
+		}
+		if attrs.VpcId != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+				ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert sg-vpc-assoc→vpc relationship: %w", err)
 			}
 		}
 	}

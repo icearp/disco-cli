@@ -298,3 +298,45 @@ func TestResolveVPCPeeringRelationships_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveCarrierGatewayRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-aaa")
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+
+	cgwARN := ec2ARN(testRegion, acct.ID, "carrier-gateway", "cagw-bbb")
+	cgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CarrierGateway, cgwARN, testRegion,
+		`{"VpcId": "vpc-aaa"}`)
+
+	if err := resolveCarrierGatewayRelationships(acct, st); err != nil {
+		t.Fatalf("resolveCarrierGatewayRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(cgwID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Errorf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, cgwID, vpcID, store.RelAttachedTo)
+}
+
+func TestResolveCarrierGatewayRelationships_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	id := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CarrierGateway,
+		ec2ARN(testRegion, acct.ID, "carrier-gateway", "bare"), testRegion, "{}")
+
+	if err := resolveCarrierGatewayRelationships(acct, st); err != nil {
+		t.Fatalf("resolveCarrierGatewayRelationships: %v", err)
+	}
+
+	rels, _ := st.RelationshipsFrom(id)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}

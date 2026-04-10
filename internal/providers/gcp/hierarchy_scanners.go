@@ -64,7 +64,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			AttributesJSON: mustJSON(org),
 			DiscoveredBy:         scanID,
 		}
-		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
+		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
 		}
 		// Organizations are roots; add self-entry to closure table.
@@ -94,7 +94,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			AttributesJSON: mustJSON(folder),
 			DiscoveredBy:         scanID,
 		}
-		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
+		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
 		}
 		folderResourceID := store.ResourceID("gcp", id, TypeFolder, id)
@@ -130,7 +130,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		if proj.Parent != "" {
 			p.ParentID = gcpParentResourceID(proj.Parent)
 		}
-		if err := st.UpsertResources([]*store.Resource{r}); err != nil {
+		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
 		}
 		if proj.Parent != "" {

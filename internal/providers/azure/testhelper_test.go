@@ -40,7 +40,7 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 	if region != "" {
 		r.Region = &region
 	}
-	if err := st.UpsertResource(r); err != nil {
+	if _, err := st.UpsertResource(r); err != nil {
 		t.Fatalf("upsertTestResource %s/%s: %v", rtype, nativeID, err)
 	}
 	return store.ResourceID(provider, accountID, rtype, nativeID)

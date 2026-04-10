@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -10,16 +11,19 @@ import (
 )
 
 // scanEC2TrafficMirror discovers all Traffic Mirror resources in parallel.
-func scanEC2TrafficMirror(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanEC2TrafficMirror(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var t, n atomic.Int64
+	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return scanTrafficMirrorFilters(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanTrafficMirrorFilterRules(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanTrafficMirrorSessions(ctx, client, acct, region, st, scanID) })
-	g.Go(func() error { return scanTrafficMirrorTargets(ctx, client, acct, region, st, scanID) })
-	return g.Wait()
+	g.Go(func() error { tt, nn, e := scanTrafficMirrorFilters(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTrafficMirrorFilterRules(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTrafficMirrorSessions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTrafficMirrorTargets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	err = g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
-func scanTrafficMirrorFilters(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTrafficMirrorFilters(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorFilters", acct, region, st,
 		ec2.NewDescribeTrafficMirrorFiltersPaginator(client, &ec2.DescribeTrafficMirrorFiltersInput{}),
 		func(page *ec2.DescribeTrafficMirrorFiltersOutput) []*store.Resource {
@@ -43,13 +47,13 @@ func scanTrafficMirrorFilters(ctx context.Context, client *ec2.Client, acct *acc
 }
 
 // scanTrafficMirrorFilterRules has no paginator in the SDK; use a direct call.
-func scanTrafficMirrorFilterRules(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTrafficMirrorFilterRules(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.DescribeTrafficMirrorFilterRules(ctx, &ec2.DescribeTrafficMirrorFilterRulesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return skipIfAccessDenied("ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied("ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
 		}
-		return fmt.Errorf("ec2:DescribeTrafficMirrorFilterRules: %w", err)
+		return 0, 0, fmt.Errorf("ec2:DescribeTrafficMirrorFilterRules: %w", err)
 	}
 	var batch []*store.Resource
 	for _, rule := range out.TrafficMirrorFilterRules {
@@ -66,14 +70,17 @@ func scanTrafficMirrorFilterRules(ctx context.Context, client *ec2.Client, acct 
 		})
 	}
 	if len(batch) > 0 {
-		if err := st.UpsertResources(batch); err != nil {
-			return fmt.Errorf("upsert traffic-mirror-filter-rules: %w", err)
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert traffic-mirror-filter-rules: %w", err)
 		}
+		total = len(batch)
+		inserted = n
 	}
-	return nil
+	return
 }
 
-func scanTrafficMirrorSessions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTrafficMirrorSessions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorSessions", acct, region, st,
 		ec2.NewDescribeTrafficMirrorSessionsPaginator(client, &ec2.DescribeTrafficMirrorSessionsInput{}),
 		func(page *ec2.DescribeTrafficMirrorSessionsOutput) []*store.Resource {
@@ -96,7 +103,7 @@ func scanTrafficMirrorSessions(ctx context.Context, client *ec2.Client, acct *ac
 	)
 }
 
-func scanTrafficMirrorTargets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) error {
+func scanTrafficMirrorTargets(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorTargets", acct, region, st,
 		ec2.NewDescribeTrafficMirrorTargetsPaginator(client, &ec2.DescribeTrafficMirrorTargetsInput{}),
 		func(page *ec2.DescribeTrafficMirrorTargetsOutput) []*store.Resource {

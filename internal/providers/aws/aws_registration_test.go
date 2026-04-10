@@ -23,6 +23,7 @@ var expectedAWSServices = []string{
 	"aws:lambda",
 	"aws:rds",
 	"aws:s3",
+	"aws:s3control",
 	"aws:sns",
 	"aws:sqs",
 }

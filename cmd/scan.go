@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
@@ -69,9 +70,13 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
 
 	// Print a status line each time a provider completes scanning one service.
-	db.OnServiceComplete = func(service string) {
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s done\n",
-			time.Since(start).Round(time.Second), service)
+	// Accumulate totals here — these are the source of truth for the summary counts.
+	var totalSeen, totalNew int64
+	db.OnServiceComplete = func(service string, total, inserted int) {
+		atomic.AddInt64(&totalSeen, int64(total))
+		atomic.AddInt64(&totalNew, int64(inserted))
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s done  (%d total, %d new)\n",
+			time.Since(start).Round(time.Second), service, total, inserted)
 	}
 
 	// Run all providers in parallel; cancel siblings on the first error.
@@ -89,15 +94,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return err
 	}
 
-	count, err := db.CountResourcesByScan(scanID)
-	if err != nil {
-		return fmt.Errorf("count resources: %w", err)
-	}
+	count := int(totalSeen)
 	if err := db.CompleteScan(scanID, count); err != nil {
 		return fmt.Errorf("complete scan: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources in %s\n",
-		count, time.Since(start).Round(time.Second))
+	fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s\n",
+		count, int(totalNew), time.Since(start).Round(time.Second))
 	return nil
 }
 

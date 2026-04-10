@@ -10,7 +10,7 @@ import (
 type serviceEntry struct {
 	name   string
 	global bool // global = once per account (region ignored); regional = once per region
-	fn     func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) error
+	fn     func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)
 }
 
 // registeredServices is populated by each *_scanners.go file's init().
