@@ -24,6 +24,13 @@ type ServiceFilterer interface {
 	SetServiceFilter(services []string)
 }
 
+// ServiceNamer is an optional interface that providers may implement to
+// expose the list of service names they will report via ReportService.
+// cmd/scan.go uses this to compute column widths for aligned output.
+type ServiceNamer interface {
+	ServiceNames() []string
+}
+
 // registry maps provider name → Scanner. Populated by provider init() calls.
 var registry = map[string]Scanner{}
 

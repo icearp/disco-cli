@@ -26,7 +26,7 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 	g.Go(func() error { tt, nn, e := scanEC2ComputeMgmt(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanEC2Observability(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanEC2IPAM(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanEC2TGWExt(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanEC2TGW(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanEC2TrafficMirror(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanEC2VerifiedAccess(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanEC2LocalGateway(gctx, client, acct, region, st, scanID); add(tt, nn); return e })

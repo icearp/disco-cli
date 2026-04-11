@@ -43,6 +43,16 @@ func (s *Scanner) Name() string { return "azure" }
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
+// ServiceNames returns the names of all services this scanner will report.
+func (s *Scanner) ServiceNames() []string {
+	svcs := filteredServices(s.serviceFilter)
+	names := make([]string, len(svcs))
+	for i, svc := range svcs {
+		names[i] = svc.name
+	}
+	return names
+}
+
 // Scan discovers all Azure resources across all configured subscriptions.
 // Subscriptions are scanned in parallel, bounded by maxConcurrentServices.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {

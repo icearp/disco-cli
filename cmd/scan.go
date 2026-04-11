@@ -69,14 +69,26 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	start := time.Now()
 	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
 
+	// Compute the longest service name across all in-scope scanners for column alignment.
+	nameWidth := 0
+	for _, s := range scanners {
+		if sn, ok := s.(providers.ServiceNamer); ok {
+			for _, name := range sn.ServiceNames() {
+				if len(name) > nameWidth {
+					nameWidth = len(name)
+				}
+			}
+		}
+	}
+
 	// Print a status line each time a provider completes scanning one service.
 	// Accumulate totals here — these are the source of truth for the summary counts.
 	var totalSeen, totalNew int64
 	db.OnServiceComplete = func(service string, total, inserted int) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s done  (%d total, %d new)\n",
-			time.Since(start).Round(time.Second), service, total, inserted)
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-*s  (%d total, %d new)\n",
+			time.Since(start).Round(time.Second), nameWidth, service, total, inserted)
 	}
 
 	// Run all providers in parallel; cancel siblings on the first error.

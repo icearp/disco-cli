@@ -84,19 +84,18 @@ const (
 	TypeEC2ClientVPNAuthorizationRule        = "aws:ec2:client-vpn-authorization-rule"
 	TypeEC2ClientVPNRoute                    = "aws:ec2:client-vpn-route"
 	TypeEC2ClientVPNTargetNetworkAssociation = "aws:ec2:client-vpn-target-network-association"
-	// EC2 — extended resources (ec2_ext_scanners.go)
-	TypeEC2CapacityReservationFleet             = "aws:ec2:capacity-reservation-fleet"
-	TypeEC2Fleet                                = "aws:ec2:ec2-fleet"
-	TypeEC2CarrierGateway                       = "aws:ec2:carrier-gateway"
-	TypeEC2VPCBlockPublicAccessOptions          = "aws:ec2:vpc-block-public-access-options"
-	TypeEC2VPCBlockPublicAccessExclusion        = "aws:ec2:vpc-block-public-access-exclusion"
-	TypeEC2VPCEndpointConnectionNotification    = "aws:ec2:vpc-endpoint-connection-notification"
-	TypeEC2VPCEndpointService                   = "aws:ec2:vpc-endpoint-service"
-	TypeEC2VPCEndpointServicePermissions        = "aws:ec2:vpc-endpoint-service-permissions"
-	TypeEC2SecurityGroupVPCAssociation          = "aws:ec2:security-group-vpc-association"
-	TypeEC2NetworkInterfacePermission           = "aws:ec2:network-interface-permission"
-	TypeEC2NetworkPerformanceMetricSubscription = "aws:ec2:network-performance-metric-subscription"
-	TypeEC2SnapshotBlockPublicAccess            = "aws:ec2:snapshot-block-public-access"
+	// EC2 — extended resources (ec2_compute_mgmt_scanners.go, ec2_networking_scanners.go)
+	TypeEC2CapacityReservationFleet          = "aws:ec2:capacity-reservation-fleet"
+	TypeEC2Fleet                             = "aws:ec2:ec2-fleet"
+	TypeEC2CarrierGateway                    = "aws:ec2:carrier-gateway"
+	TypeEC2VPCBlockPublicAccessOptions       = "aws:ec2:vpc-block-public-access-options"
+	TypeEC2VPCBlockPublicAccessExclusion     = "aws:ec2:vpc-block-public-access-exclusion"
+	TypeEC2VPCEndpointConnectionNotification = "aws:ec2:vpc-endpoint-connection-notification"
+	TypeEC2VPCEndpointService                = "aws:ec2:vpc-endpoint-service"
+	TypeEC2VPCEndpointServicePermissions     = "aws:ec2:vpc-endpoint-service-permissions"
+	TypeEC2SecurityGroupVPCAssociation       = "aws:ec2:security-group-vpc-association"
+	TypeEC2NetworkInterfacePermission        = "aws:ec2:network-interface-permission"
+	TypeEC2SnapshotBlockPublicAccess         = "aws:ec2:snapshot-block-public-access"
 	// IAM
 	TypeIAMRole  = "aws:iam:role"
 	TypeIAMUser  = "aws:iam:user"
@@ -217,8 +216,8 @@ const (
 	TypeAPIGatewayVpcLink              = "aws:apigateway:vpc-link"
 	// API Gateway v2 (apigateway_scanners.go)
 	TypeAPIGatewayV2API              = "aws:apigatewayv2:api"
-	TypeAPIGatewayBasePathMappingV2  = "aws:apigateway:base-path-mapping-v2"
-	TypeAPIGatewayDomainNameV2       = "aws:apigateway:domain-name-v2"
+	TypeAPIGatewayBasePathMappingV2  = "aws:apigatewayv2:base-path-mapping"
+	TypeAPIGatewayDomainNameV2       = "aws:apigatewayv2:domain-name"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -273,7 +272,7 @@ func KnownTypes() []string {
 		TypeEC2VPCEndpointConnectionNotification,
 		TypeEC2VPCEndpointService, TypeEC2VPCEndpointServicePermissions,
 		TypeEC2SecurityGroupVPCAssociation,
-		TypeEC2NetworkInterfacePermission, TypeEC2NetworkPerformanceMetricSubscription,
+		TypeEC2NetworkInterfacePermission,
 		TypeEC2SnapshotBlockPublicAccess,
 		// IAM
 		TypeIAMRole, TypeIAMUser, TypeIAMGroup,

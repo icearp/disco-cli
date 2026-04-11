@@ -49,6 +49,16 @@ func (s *Scanner) Name() string { return "aws" }
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
+// ServiceNames returns the names of all services this scanner will report.
+func (s *Scanner) ServiceNames() []string {
+	svcs := filteredServices(s.serviceFilter)
+	names := make([]string, len(svcs))
+	for i, svc := range svcs {
+		names[i] = svc.name
+	}
+	return names
+}
+
 // Scan discovers all AWS resources across all configured accounts and regions.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
 	accounts, err := loadAccounts(ctx)

@@ -11,11 +11,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// scanEC2TGWExt discovers all Transit Gateway extension resources in parallel.
-func scanEC2TGWExt(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanEC2TGW discovers all Transit Gateway resource types in parallel: core
+// gateways and attachments, plus extended sub-resources.
+func scanEC2TGW(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error { tt, nn, e := scanTransitGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error { tt, nn, e := scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanTGWConnects(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanTGWConnectPeers(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	g.Go(func() error { tt, nn, e := scanTGWMulticastDomains(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
@@ -30,6 +33,60 @@ func scanEC2TGWExt(ctx context.Context, client *ec2.Client, acct *account, regio
 	g.Go(func() error { tt, nn, e := scanTGWRoutes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
+}
+
+func scanTransitGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeTransitGateways", acct, region, st,
+		ec2.NewDescribeTransitGatewaysPaginator(client, &ec2.DescribeTransitGatewaysInput{}),
+		func(page *ec2.DescribeTransitGatewaysOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, tgw := range page.TransitGateways {
+				status := string(tgw.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2TransitGateway,
+					NativeID:       sv(tgw.TransitGatewayArn),
+					Name:           ec2TagName(tgw.Tags),
+					Region:         &region,
+					CreatedAt:      tp(tgw.CreationTime),
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(tgw.Tags),
+					AttributesJSON: mustJSON(tgw),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanTransitGatewayAttachments(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeTransitGatewayAttachments", acct, region, st,
+		ec2.NewDescribeTransitGatewayAttachmentsPaginator(client, &ec2.DescribeTransitGatewayAttachmentsInput{}),
+		func(page *ec2.DescribeTransitGatewayAttachmentsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, att := range page.TransitGatewayAttachments {
+				status := string(att.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2TransitGatewayAttachment,
+					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-attachment", sv(att.TransitGatewayAttachmentId)),
+					Name:           ec2TagName(att.Tags),
+					Region:         &region,
+					CreatedAt:      tp(att.CreationTime),
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(att.Tags),
+					AttributesJSON: mustJSON(att),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
 }
 
 func scanTGWConnects(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
