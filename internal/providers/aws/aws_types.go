@@ -239,6 +239,22 @@ const (
 	TypeCloudWatchDashboard       = "aws:cloudwatch:dashboard"
 	TypeCloudWatchInsightRule     = "aws:cloudwatch:insight-rule"
 	TypeCloudWatchMetricStream    = "aws:cloudwatch:metric-stream"
+	// CloudWatch Logs (logs_scanners.go)
+	TypeLogsAccountPolicy      = "aws:logs:account-policy"
+	TypeLogsDelivery           = "aws:logs:delivery"
+	TypeLogsDeliveryDest       = "aws:logs:delivery-destination"
+	TypeLogsDeliverySource     = "aws:logs:delivery-source"
+	TypeLogsDestination        = "aws:logs:destination"
+	TypeLogsIntegration        = "aws:logs:integration"
+	TypeLogsLogAnomalyDetector = "aws:logs:log-anomaly-detector"
+	TypeLogsLogGroup           = "aws:logs:log-group"
+	TypeLogsLogStream          = "aws:logs:log-stream"
+	TypeLogsMetricFilter       = "aws:logs:metric-filter"
+	TypeLogsQueryDefinition    = "aws:logs:query-definition"
+	TypeLogsResourcePolicy     = "aws:logs:resource-policy"
+	TypeLogsScheduledQuery     = "aws:logs:scheduled-query"
+	TypeLogsSubscriptionFilter = "aws:logs:subscription-filter"
+	TypeLogsTransformer        = "aws:logs:transformer"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -351,5 +367,11 @@ func KnownTypes() []string {
 		TypeCloudWatchAlarm, TypeCloudWatchAlarmMuteRule, TypeCloudWatchAnomalyDetector,
 		TypeCloudWatchCompositeAlarm, TypeCloudWatchDashboard,
 		TypeCloudWatchInsightRule, TypeCloudWatchMetricStream,
+		// CloudWatch Logs
+		TypeLogsAccountPolicy, TypeLogsDelivery, TypeLogsDeliveryDest,
+		TypeLogsDeliverySource, TypeLogsDestination, TypeLogsIntegration,
+		TypeLogsLogAnomalyDetector, TypeLogsLogGroup, TypeLogsLogStream,
+		TypeLogsMetricFilter, TypeLogsQueryDefinition, TypeLogsResourcePolicy,
+		TypeLogsScheduledQuery, TypeLogsSubscriptionFilter, TypeLogsTransformer,
 	}
 }
