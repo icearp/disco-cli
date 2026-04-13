@@ -178,7 +178,10 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 
 // scanIAMPolicies lists all IAM managed policies — both AWS-managed and customer-managed.
 func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{Scope: iamtypes.PolicyScopeTypeAll})
+	// PolicyScopeTypeLocal returns only customer-managed policies. PolicyScopeTypeAll
+	// also returns ~1,500+ AWS-managed policies, which are public/static and not
+	// useful for per-account discovery — and make IAM scanning ~15x slower.
+	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{Scope: iamtypes.PolicyScopeTypeLocal})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"codeburg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -173,50 +176,67 @@ func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 		return err
 	}
 
+	// Fan out across all policies concurrently; collect relationship edges and
+	// write them under a mutex to avoid concurrent SQLite writes.
+	const maxConcurrent = 10
 	client := iam.NewFromConfig(acct.cfg)
+	sem := semaphore.NewWeighted(maxConcurrent)
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(context.Background())
 	for _, r := range policies {
-		policyARN := r.NativeID
-		pager := iam.NewListEntitiesForPolicyPaginator(client, &iam.ListEntitiesForPolicyInput{
-			PolicyArn: &policyARN,
-		})
-		for pager.HasMorePages() {
-			page, err := pager.NextPage(context.Background())
-			if err != nil {
-				if isAccessDenied(err) {
-					break
-				}
-				return fmt.Errorf("iam:ListEntitiesForPolicy %s: %w", policyARN, err)
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
 			}
-			for _, role := range page.PolicyRoles {
-				name := sv(role.RoleName)
-				// Check both role maps; only upsert if the resource was actually discovered.
-				for _, nameMap := range []map[string]string{rolesByName, slrByName} {
-					if tID, ok := nameMap[name]; ok {
-						if err := st.UpsertRelationship(r.ID, tID, store.RelAttachedTo, "directed", nil); err != nil {
-							return fmt.Errorf("upsert managed-policy→role: %w", err)
+			defer sem.Release(1)
+			pager := iam.NewListEntitiesForPolicyPaginator(client, &iam.ListEntitiesForPolicyInput{
+				PolicyArn: &r.NativeID,
+			})
+			for pager.HasMorePages() {
+				page, err := pager.NextPage(gctx)
+				if err != nil {
+					if isAccessDenied(err) {
+						return nil
+					}
+					return fmt.Errorf("iam:ListEntitiesForPolicy %s: %w", r.NativeID, err)
+				}
+				mu.Lock()
+				for _, role := range page.PolicyRoles {
+					name := sv(role.RoleName)
+					// Check both role maps; only upsert if the resource was actually discovered.
+					for _, nameMap := range []map[string]string{rolesByName, slrByName} {
+						if tID, ok := nameMap[name]; ok {
+							if err := st.UpsertRelationship(r.ID, tID, store.RelAttachedTo, "directed", nil); err != nil {
+								mu.Unlock()
+								return fmt.Errorf("upsert managed-policy→role: %w", err)
+							}
 						}
 					}
 				}
-			}
-			for _, user := range page.PolicyUsers {
-				name := sv(user.UserName)
-				if userID, ok := usersByName[name]; ok {
-					if err := st.UpsertRelationship(r.ID, userID, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert managed-policy→user: %w", err)
+				for _, user := range page.PolicyUsers {
+					name := sv(user.UserName)
+					if userID, ok := usersByName[name]; ok {
+						if err := st.UpsertRelationship(r.ID, userID, store.RelAttachedTo, "directed", nil); err != nil {
+							mu.Unlock()
+							return fmt.Errorf("upsert managed-policy→user: %w", err)
+						}
 					}
 				}
-			}
-			for _, group := range page.PolicyGroups {
-				name := sv(group.GroupName)
-				if groupID, ok := groupsByName[name]; ok {
-					if err := st.UpsertRelationship(r.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert managed-policy→group: %w", err)
+				for _, group := range page.PolicyGroups {
+					name := sv(group.GroupName)
+					if groupID, ok := groupsByName[name]; ok {
+						if err := st.UpsertRelationship(r.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
+							mu.Unlock()
+							return fmt.Errorf("upsert managed-policy→group: %w", err)
+						}
 					}
 				}
+				mu.Unlock()
 			}
-		}
+			return nil
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 // resourceIDsByName loads all resources of rtype for the account and returns a
@@ -255,30 +275,43 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	if len(users) == 0 {
 		return nil
 	}
+	const maxConcurrent = 20
 	client := iam.NewFromConfig(acct.cfg)
+	sem := semaphore.NewWeighted(maxConcurrent)
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(context.Background())
 	for _, u := range users {
-		userName := sv(u.Name)
-		pager := iam.NewListGroupsForUserPaginator(client, &iam.ListGroupsForUserInput{
-			UserName: &userName,
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			pager := iam.NewListGroupsForUserPaginator(client, &iam.ListGroupsForUserInput{
+				UserName: u.Name,
+			})
+			for pager.HasMorePages() {
+				page, err := pager.NextPage(gctx)
+				if err != nil {
+					if isAccessDenied(err) {
+						return nil
+					}
+					return fmt.Errorf("iam:ListGroupsForUser %s: %w", sv(u.Name), err)
+				}
+				mu.Lock()
+				for _, group := range page.Groups {
+					if group.Arn == nil {
+						continue
+					}
+					groupID := store.ResourceID("aws", acct.ID, TypeIAMGroup, *group.Arn)
+					if err := st.UpsertRelationship(groupID, u.ID, store.RelContains, "directed", nil); err != nil {
+						mu.Unlock()
+						return fmt.Errorf("upsert group→user membership: %w", err)
+					}
+				}
+				mu.Unlock()
+			}
+			return nil
 		})
-		for pager.HasMorePages() {
-			page, err := pager.NextPage(context.Background())
-			if err != nil {
-				if isAccessDenied(err) {
-					break
-				}
-				return fmt.Errorf("iam:ListGroupsForUser %s: %w", userName, err)
-			}
-			for _, group := range page.Groups {
-				if group.Arn == nil {
-					continue
-				}
-				groupID := store.ResourceID("aws", acct.ID, TypeIAMGroup, *group.Arn)
-				if err := st.UpsertRelationship(groupID, u.ID, store.RelContains, "directed", nil); err != nil {
-					return fmt.Errorf("upsert group→user membership: %w", err)
-				}
-			}
-		}
 	}
-	return nil
+	return g.Wait()
 }
