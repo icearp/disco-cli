@@ -96,10 +96,23 @@ const (
 	TypeEC2SecurityGroupVPCAssociation       = "aws:ec2:security-group-vpc-association"
 	TypeEC2NetworkInterfacePermission        = "aws:ec2:network-interface-permission"
 	TypeEC2SnapshotBlockPublicAccess         = "aws:ec2:snapshot-block-public-access"
-	// IAM
-	TypeIAMRole  = "aws:iam:role"
-	TypeIAMUser  = "aws:iam:user"
-	TypeIAMGroup = "aws:iam:group"
+	// IAM — principals
+	TypeIAMRole              = "aws:iam:role"
+	TypeIAMUser              = "aws:iam:user"
+	TypeIAMGroup             = "aws:iam:group"
+	TypeIAMServiceLinkedRole = "aws:iam:service-linked-role"
+	// IAM — policies and credentials
+	TypeIAMPolicy     = "aws:iam:policy"
+	TypeIAMRolePolicy = "aws:iam:role-policy"
+	TypeIAMUserPolicy    = "aws:iam:user-policy"
+	TypeIAMGroupPolicy   = "aws:iam:group-policy"
+	TypeIAMAccessKey     = "aws:iam:access-key"
+	// IAM — identity provider and certificate resources
+	TypeIAMInstanceProfile   = "aws:iam:instance-profile"
+	TypeIAMOIDCProvider      = "aws:iam:oidc-provider"
+	TypeIAMSAMLProvider      = "aws:iam:saml-provider"
+	TypeIAMServerCertificate = "aws:iam:server-certificate"
+	TypeIAMVirtualMFADevice  = "aws:iam:virtual-mfa-device"
 	// Lambda
 	TypeLambdaFunction          = "aws:lambda:function"
 	TypeLambdaAlias             = "aws:lambda:alias"
@@ -218,6 +231,14 @@ const (
 	TypeAPIGatewayV2API              = "aws:apigatewayv2:api"
 	TypeAPIGatewayBasePathMappingV2  = "aws:apigatewayv2:base-path-mapping"
 	TypeAPIGatewayDomainNameV2       = "aws:apigatewayv2:domain-name"
+	// CloudWatch (cloudwatch_scanners.go)
+	TypeCloudWatchAlarm           = "aws:cloudwatch:alarm"
+	TypeCloudWatchAlarmMuteRule   = "aws:cloudwatch:alarm-mute-rule"
+	TypeCloudWatchAnomalyDetector = "aws:cloudwatch:anomaly-detector"
+	TypeCloudWatchCompositeAlarm  = "aws:cloudwatch:composite-alarm"
+	TypeCloudWatchDashboard       = "aws:cloudwatch:dashboard"
+	TypeCloudWatchInsightRule     = "aws:cloudwatch:insight-rule"
+	TypeCloudWatchMetricStream    = "aws:cloudwatch:metric-stream"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -275,7 +296,9 @@ func KnownTypes() []string {
 		TypeEC2NetworkInterfacePermission,
 		TypeEC2SnapshotBlockPublicAccess,
 		// IAM
-		TypeIAMRole, TypeIAMUser, TypeIAMGroup,
+		TypeIAMRole, TypeIAMUser, TypeIAMGroup, TypeIAMServiceLinkedRole,
+		TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy, TypeIAMAccessKey,
+		TypeIAMInstanceProfile, TypeIAMOIDCProvider, TypeIAMSAMLProvider, TypeIAMServerCertificate, TypeIAMVirtualMFADevice,
 		TypeLambdaFunction,
 		TypeLambdaAlias, TypeLambdaCapacityProvider, TypeLambdaCodeSigningConfig,
 		TypeLambdaEventInvokeConfig, TypeLambdaESM, TypeLambdaLayerVersion,
@@ -324,5 +347,9 @@ func KnownTypes() []string {
 		TypeAPIGatewayRequestValidator, TypeAPIGatewayResource, TypeAPIGatewayStage,
 		TypeAPIGatewayUsagePlan, TypeAPIGatewayUsagePlanKey, TypeAPIGatewayVpcLink,
 		TypeAPIGatewayV2API, TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayDomainNameV2,
+		// CloudWatch
+		TypeCloudWatchAlarm, TypeCloudWatchAlarmMuteRule, TypeCloudWatchAnomalyDetector,
+		TypeCloudWatchCompositeAlarm, TypeCloudWatchDashboard,
+		TypeCloudWatchInsightRule, TypeCloudWatchMetricStream,
 	}
 }
