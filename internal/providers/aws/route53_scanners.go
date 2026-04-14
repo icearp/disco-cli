@@ -201,6 +201,10 @@ func scanRoute53DNSSEC(
 	}
 
 	for _, zs := range zones {
+		// GetDNSSEC is unsupported for private hosted zones; skip them.
+		if zs.zone.Config != nil && zs.zone.Config.PrivateZone {
+			continue
+		}
 		out, err := client.GetDNSSEC(ctx, &route53.GetDNSSECInput{HostedZoneId: &zs.id})
 		if err != nil {
 			if isAccessDenied(err) {
