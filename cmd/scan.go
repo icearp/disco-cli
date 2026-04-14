@@ -90,6 +90,15 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-*s  (%d total, %d new)\n",
 			time.Since(start).Round(time.Second), nameWidth, service, total, inserted)
 	}
+	// Print a message when the resolver phase starts and a summary when it finishes.
+	db.OnResolveStart = func(provider string) {
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: resolving relationships...\n",
+			time.Since(start).Round(time.Second), provider)
+	}
+	db.OnResolveComplete = func(provider string, edges int) {
+		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: relationships resolved (%d edges)\n",
+			time.Since(start).Round(time.Second), provider, edges)
+	}
 
 	// Run all providers in parallel; cancel siblings on the first error.
 	ctx := context.Background()

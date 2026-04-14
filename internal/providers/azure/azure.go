@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
@@ -109,7 +110,11 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 		return err
 	}
 
-	return resolveRelationships(ctx, sub, st)
+	st.ReportResolveStart("azure")
+	var counter atomic.Int64
+	err := resolveRelationships(ctx, sub, st.WithRelCounter(&counter))
+	st.ReportResolveComplete("azure", int(counter.Load()))
+	return err
 }
 
 // resolveRelationships is phase 2 for Azure: derive edges between resources

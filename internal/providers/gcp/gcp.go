@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
@@ -77,11 +78,15 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	}
 
 	// Phase 2: resolve relationships now that all resources are in the DB.
+	st.ReportResolveStart("gcp")
+	var counter atomic.Int64
+	st2 := st.WithRelCounter(&counter)
 	for i := range projects {
-		if err := resolveRelationships(ctx, &projects[i], st); err != nil {
+		if err := resolveRelationships(ctx, &projects[i], st2); err != nil {
 			return fmt.Errorf("gcp relationships %s: %w", projects[i].ID, err)
 		}
 	}
+	st.ReportResolveComplete("gcp", int(counter.Load()))
 	return nil
 }
 

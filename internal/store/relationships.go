@@ -45,6 +45,9 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 	if err != nil {
 		return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", fromID, kind, toID, err)
 	}
+	if s.activeCounter != nil {
+		s.activeCounter.Add(1)
+	}
 	return nil
 }
 

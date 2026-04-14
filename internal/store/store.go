@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
@@ -14,6 +15,9 @@ import (
 type Store struct {
 	db                *sqlx.DB
 	OnServiceComplete func(service string, total, inserted int) // optional; called by providers after each service scan
+	OnResolveStart    func(provider string)                     // optional; called just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)          // optional; called after all resolvers finish
+	activeCounter     *atomic.Int64                             // non-nil only in scoped copies returned by WithRelCounter
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
@@ -22,6 +26,32 @@ type Store struct {
 func (s *Store) ReportService(service string, total, inserted int) {
 	if s.OnServiceComplete != nil {
 		s.OnServiceComplete(service, total, inserted)
+	}
+}
+
+// WithRelCounter returns a shallow copy of the Store with activeCounter set.
+// UpsertRelationship increments the counter on each call. Providers create a
+// local atomic.Int64, pass it here, then read it for ReportResolveComplete.
+// Safe to shallow-copy because the struct contains no embedded sync/atomic values.
+func (s *Store) WithRelCounter(c *atomic.Int64) *Store {
+	s2 := *s
+	s2.activeCounter = c
+	return &s2
+}
+
+// ReportResolveStart fires OnResolveStart (if set).
+// Call this immediately before the phase-2 resolver loop begins.
+func (s *Store) ReportResolveStart(provider string) {
+	if s.OnResolveStart != nil {
+		s.OnResolveStart(provider)
+	}
+}
+
+// ReportResolveComplete fires OnResolveComplete with the supplied edge count.
+// Call this immediately after all resolvers finish.
+func (s *Store) ReportResolveComplete(provider string, edges int) {
+	if s.OnResolveComplete != nil {
+		s.OnResolveComplete(provider, edges)
 	}
 }
 

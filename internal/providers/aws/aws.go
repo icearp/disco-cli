@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
@@ -110,7 +111,11 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 	}
 
 	// Phase 2: derive relationships now that all resources exist in the DB.
-	return resolveRelationships(ctx, acct, st)
+	st.ReportResolveStart("aws")
+	var counter atomic.Int64
+	err := resolveRelationships(ctx, acct, st.WithRelCounter(&counter))
+	st.ReportResolveComplete("aws", int(counter.Load()))
+	return err
 }
 
 // resolveRelationships is phase 2: after all resources are written to the DB,
