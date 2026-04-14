@@ -24,6 +24,11 @@ Examples:
   disco scan                          # scans all configured providers
   disco scan --providers aws,gcp`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Positional args are not supported; catch "disco scan aws,gcp" mistakes.
+		if len(args) > 0 {
+			return fmt.Errorf("unexpected argument %q — use 'disco scan <provider>' for a single provider or 'disco scan --providers %s' for a subset",
+				args[0], strings.Join(args, ","))
+		}
 		names, _ := cmd.Flags().GetStringSlice("providers")
 		if len(names) == 0 {
 			return runScan(cmd, providers.All())
