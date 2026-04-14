@@ -7,7 +7,6 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spf13/viper"
 )
@@ -80,23 +79,4 @@ func loadAccounts(ctx context.Context) ([]account, error) {
 		})
 	}
 	return accounts, nil
-}
-
-// enabledRegions calls EC2 DescribeRegions (opt-in-status=opted-in) to return
-// the regions enabled for this account.
-func enabledRegions(ctx context.Context, cfg sdkaws.Config) ([]string, error) {
-	client := ec2.NewFromConfig(cfg, func(o *ec2.Options) { o.Region = "us-east-1" })
-	out, err := client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
-		AllRegions: sdkaws.Bool(false), // only opted-in regions
-	})
-	if err != nil {
-		return nil, err
-	}
-	regions := make([]string, 0, len(out.Regions))
-	for _, r := range out.Regions {
-		if r.RegionName != nil {
-			regions = append(regions, *r.RegionName)
-		}
-	}
-	return regions, nil
 }

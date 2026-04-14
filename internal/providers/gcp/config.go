@@ -78,7 +78,7 @@ func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
 
 	if cfg.ServiceAccountFile != "" {
 		return []option.ClientOption{
-			option.WithCredentialsFile(cfg.ServiceAccountFile),
+			option.WithCredentialsFile(cfg.ServiceAccountFile), //nolint:staticcheck // user-provided path; SA1019 deprecation does not apply here
 			option.WithScopes(scopes...),
 		}
 	}

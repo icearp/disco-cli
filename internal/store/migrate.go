@@ -25,7 +25,7 @@ func (s *Store) migrate() error {
 	if err != nil {
 		return fmt.Errorf("query migrations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var v int
 		if err := rows.Scan(&v); err != nil {
@@ -65,7 +65,7 @@ func (s *Store) migrate() error {
 		}
 		for _, stmt := range splitStatements(string(data)) {
 			if _, err := tx.Exec(stmt); err != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				return fmt.Errorf("apply migration %d (%q): %w", version, stmt[:min(len(stmt), 60)], err)
 			}
 		}
@@ -73,7 +73,7 @@ func (s *Store) migrate() error {
 			"INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))",
 			version,
 		); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %d: %w", version, err)
 		}
 		if err := tx.Commit(); err != nil {

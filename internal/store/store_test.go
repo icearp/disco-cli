@@ -19,7 +19,7 @@ func openTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("openTestStore: %v", err)
 	}
-	t.Cleanup(func() { st.Close() })
+	t.Cleanup(func() { _ = st.Close() })
 	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("openTestStore: insert test scan: %v", err)
 	}

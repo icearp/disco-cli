@@ -34,7 +34,7 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.disco/config.yaml)")
 	rootCmd.PersistentFlags().String("db", "", "database path (default: $HOME/.disco/disco.db)")
-	viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db"))
+	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 
 func initConfig() {

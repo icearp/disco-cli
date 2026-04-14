@@ -76,13 +76,13 @@ func Open(path string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 
 	if err := applyPragmas(db.DB); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return s, nil

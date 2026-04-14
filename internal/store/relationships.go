@@ -119,7 +119,7 @@ func (s *Store) AddToHierarchyClosure(childID, parentID string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Every node is its own ancestor at depth 0.
 	if _, err := tx.Exec(`
@@ -151,7 +151,7 @@ func (s *Store) BatchAddToHierarchyClosure(pairs [][2]string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, p := range pairs {
 		childID, parentID := p[0], p[1]
 		if _, err := tx.Exec(`

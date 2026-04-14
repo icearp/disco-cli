@@ -36,7 +36,7 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		var types []string
 		if listType != "" {
@@ -69,7 +69,7 @@ Examples:
 			return enc.Encode(resources)
 		default:
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
+			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
 			for _, r := range resources {
 				name := "-"
 				if r.Name != nil {
@@ -83,7 +83,7 @@ Examples:
 				if r.Status != nil {
 					status = *r.Status
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 					r.Provider, r.AccountID, r.Type, name, region, status)
 			}
 			return w.Flush()

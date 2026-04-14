@@ -164,13 +164,13 @@ func buildRows(cfnNames []string, knownSet map[string]bool, filter string, servi
 
 func printTypesTable(cmd *cobra.Command, rows []TypeRow) error {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "CFN TYPE\tDISCO TYPE\tCOVERED")
+	_, _ = fmt.Fprintln(w, "CFN TYPE\tDISCO TYPE\tCOVERED")
 	for _, r := range rows {
 		covered := "no"
 		if r.Covered {
 			covered = "yes"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", r.CFNName, r.DiscoName, covered)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", r.CFNName, r.DiscoName, covered)
 	}
 	return w.Flush()
 }

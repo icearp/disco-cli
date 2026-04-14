@@ -77,7 +77,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, r := range resources {
 		if _, err := tx.NamedExec(`
 			INSERT INTO resources

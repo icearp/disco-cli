@@ -51,7 +51,7 @@ Examples:
 // complete or failed.
 func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if len(scanners) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No providers registered — nothing to scan.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No providers registered — nothing to scan.")
 		return nil
 	}
 
@@ -59,7 +59,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Collect names for the scan record.
 	names := make([]string, len(scanners))
@@ -72,7 +72,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return fmt.Errorf("create scan record: %w", err)
 	}
 	start := time.Now()
-	fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
 
 	// Compute the longest service name across all in-scope scanners for column alignment.
 	nameWidth := 0
@@ -92,16 +92,16 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	db.OnServiceComplete = func(service string, total, inserted int) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-*s  (%d total, %d new)\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-*s  (%d total, %d new)\n",
 			time.Since(start).Round(time.Second), nameWidth, service, total, inserted)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: resolving relationships...\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: resolving relationships...\n",
 			time.Since(start).Round(time.Second), provider)
 	}
 	db.OnResolveComplete = func(provider string, edges int) {
-		fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: relationships resolved (%d edges)\n",
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: relationships resolved (%d edges)\n",
 			time.Since(start).Round(time.Second), provider, edges)
 	}
 
@@ -115,7 +115,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if err := g.Wait(); err != nil {
 		// Best-effort: mark the scan as failed before returning the error.
 		if ferr := db.FailScan(scanID, err.Error()); ferr != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not record scan failure: %v\n", ferr)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not record scan failure: %v\n", ferr)
 		}
 		return err
 	}
@@ -124,7 +124,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	if err := db.CompleteScan(scanID, count); err != nil {
 		return fmt.Errorf("complete scan: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s\n",
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s\n",
 		count, int(totalNew), time.Since(start).Round(time.Second))
 	return nil
 }

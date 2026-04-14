@@ -215,13 +215,13 @@ func azureNativeToDiscoName(azureType string) string {
 
 func printAzureTypesTable(cmd *cobra.Command, rows []AzureTypeRow) error {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "AZURE TYPE\tDISCO TYPE\tCOVERED")
+	_, _ = fmt.Fprintln(w, "AZURE TYPE\tDISCO TYPE\tCOVERED")
 	for _, r := range rows {
 		covered := "no"
 		if r.Covered {
 			covered = "yes"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", r.AzureType, r.DiscoName, covered)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", r.AzureType, r.DiscoName, covered)
 	}
 	return w.Flush()
 }
