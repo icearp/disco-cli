@@ -13,9 +13,6 @@ test:
 	$(GO) test ./...
 
 build:
-	$(GO) build -o $(BINARY) .
-
-dist:
 	mkdir -p $(DIST_DIR)
 	GOOS=linux   GOARCH=amd64  $(GO) build -o $(DIST_DIR)/$(BINARY)-linux-amd64 .
 	GOOS=darwin  GOARCH=arm64  $(GO) build -o $(DIST_DIR)/$(BINARY)-darwin-arm64 .
