@@ -66,21 +66,77 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanDBInstances(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBClusters(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBParameterGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanDBInstances(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBClusters(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBParameterGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanDBProxies(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBProxyEndpoints(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBProxyTargetGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBSecurityGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBShardGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDBSubnetGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanEventSubscriptions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanGlobalClusters(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIntegrations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanOptionGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanDBProxyEndpoints(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBProxyTargetGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBSecurityGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBShardGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanDBSubnetGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanEventSubscriptions(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanGlobalClusters(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanIntegrations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanOptionGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

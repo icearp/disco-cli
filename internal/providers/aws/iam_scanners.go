@@ -39,11 +39,23 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	g1.Go(func() error { tt, nn, e := scanIAMUsers(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error { tt, nn, e := scanIAMGroups(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error { tt, nn, e := scanIAMPolicies(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMInstanceProfiles(ctx1, client, acct, st, scanID); add(tt, nn); return e })
+	g1.Go(func() error {
+		tt, nn, e := scanIAMInstanceProfiles(ctx1, client, acct, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g1.Go(func() error { tt, nn, e := scanIAMOIDCProviders(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error { tt, nn, e := scanIAMSAMLProviders(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMServerCertificates(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMVirtualMFADevices(ctx1, client, acct, st, scanID); add(tt, nn); return e })
+	g1.Go(func() error {
+		tt, nn, e := scanIAMServerCertificates(ctx1, client, acct, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g1.Go(func() error {
+		tt, nn, e := scanIAMVirtualMFADevices(ctx1, client, acct, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	if err = g1.Wait(); err != nil {
 		return int(t.Load()), int(n.Load()), err
 	}

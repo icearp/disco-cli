@@ -70,7 +70,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(vm),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if len(vm.Zones) > 0 {
 				z := sv(vm.Zones[0])

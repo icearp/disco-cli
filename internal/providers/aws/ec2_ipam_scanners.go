@@ -16,12 +16,32 @@ func scanEC2IPAM(ctx context.Context, client *ec2.Client, acct *account, region 
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { tt, nn, e := scanIPAMs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIPAMScopes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanIPAMScopes(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanIPAMPools(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIPAMAllocations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIPAMResourceDiscoveries(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanIPAMResourceDiscoveryAssociations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanIPAMAllocations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanIPAMResourceDiscoveries(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanIPAMResourceDiscoveryAssociations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

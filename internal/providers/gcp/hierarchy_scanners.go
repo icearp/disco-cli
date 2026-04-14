@@ -62,7 +62,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			NativeID:       id,
 			Name:           &name,
 			AttributesJSON: mustJSON(org),
-			DiscoveredBy:         scanID,
+			DiscoveredBy:   scanID,
 		}
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
@@ -92,7 +92,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			NativeID:       id,
 			Name:           &displayName,
 			AttributesJSON: mustJSON(folder),
-			DiscoveredBy:         scanID,
+			DiscoveredBy:   scanID,
 		}
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
 			return err
@@ -125,7 +125,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			NativeID:       p.ID, // project ID (e.g. "my-project-123"); proj.Name is in attributes
 			Name:           &p.Name,
 			AttributesJSON: mustJSON(proj),
-			DiscoveredBy:         scanID,
+			DiscoveredBy:   scanID,
 		}
 		if proj.Parent != "" {
 			p.ParentID = gcpParentResourceID(proj.Parent)

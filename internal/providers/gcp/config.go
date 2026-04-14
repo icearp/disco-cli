@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudresourcemanager/v3"
 	"google.golang.org/api/option"
-	"golang.org/x/oauth2/google"
 )
 
 // providerCfg mirrors the gcp: section of ~/.disco/config.yaml.

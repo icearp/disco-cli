@@ -42,11 +42,11 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 
 	// Minimal shape of a DistributionSummary covering only the fields we need.
 	type behavior struct {
-		CachePolicyId          *string `json:"CachePolicyId"`
-		OriginRequestPolicyId  *string `json:"OriginRequestPolicyId"`
+		CachePolicyId           *string `json:"CachePolicyId"`
+		OriginRequestPolicyId   *string `json:"OriginRequestPolicyId"`
 		ResponseHeadersPolicyId *string `json:"ResponseHeadersPolicyId"`
-		RealtimeLogConfigArn   *string `json:"RealtimeLogConfigArn"`
-		TrustedKeyGroups *struct {
+		RealtimeLogConfigArn    *string `json:"RealtimeLogConfigArn"`
+		TrustedKeyGroups        *struct {
 			Items []string `json:"Items"`
 		} `json:"TrustedKeyGroups"`
 		FunctionAssociations *struct {

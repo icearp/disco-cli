@@ -196,7 +196,7 @@ func scanRoute53DNSSEC(
 ) (total, inserted int, err error) {
 	// dnssecAttrs is the shape stored in AttributesJSON for the dnssec resource.
 	type dnssecAttrs struct {
-		Status         *route53types.DNSSECStatus  `json:"Status"`
+		Status         *route53types.DNSSECStatus   `json:"Status"`
 		KeySigningKeys []route53types.KeySigningKey `json:"KeySigningKeys"`
 	}
 

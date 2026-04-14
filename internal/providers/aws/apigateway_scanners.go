@@ -23,12 +23,36 @@ func scanAPIGateway(ctx context.Context, acct *account, region string, st *store
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { tt, nn, e := scanAPIGatewayREST(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayAccount(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayAPIKeys(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayClientCertificates(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayDomainNames(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayUsagePlans(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayVPCLinks(gctx, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayAccount(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayAPIKeys(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayClientCertificates(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayDomainNames(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayUsagePlans(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayVPCLinks(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }
@@ -38,8 +62,16 @@ func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *sto
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanAPIGatewayHTTPAPIs(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanAPIGatewayV2DomainNames(gctx, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayHTTPAPIs(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanAPIGatewayV2DomainNames(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }
@@ -118,15 +150,51 @@ func scanAPIGatewayPerAPI(ctx context.Context, client *apigateway.Client, acct *
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	eg, egCtx := errgroup.WithContext(ctx)
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayAuthorizers(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayDeployments(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayStages(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayResources(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayModels(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayRequestValidators(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayGatewayResponses(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayDocumentationParts(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
-	eg.Go(func() error { tt, nn, e := scanAPIGatewayDocumentationVersions(egCtx, client, acct, region, apiID, st, scanID); add(tt, nn); return e })
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayAuthorizers(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayDeployments(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayStages(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayResources(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayModels(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayRequestValidators(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayGatewayResponses(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayDocumentationParts(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	eg.Go(func() error {
+		tt, nn, e := scanAPIGatewayDocumentationVersions(egCtx, client, acct, region, apiID, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = eg.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

@@ -34,8 +34,8 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		var attrs struct {
 			DBClusterIdentifier *string `json:"DBClusterIdentifier"`
 			DBSubnetGroup       *struct {
-				VpcId              *string `json:"VpcId"`
-				DBSubnetGroupArn   *string `json:"DBSubnetGroupArn"`
+				VpcId            *string `json:"VpcId"`
+				DBSubnetGroupArn *string `json:"DBSubnetGroupArn"`
 			} `json:"DBSubnetGroup"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {

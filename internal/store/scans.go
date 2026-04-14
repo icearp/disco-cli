@@ -9,16 +9,16 @@ import (
 
 // Scan represents a single discovery run.
 type Scan struct {
-	ID            string    `db:"id"`
-	StartedAt     string    `db:"started_at"`
-	FinishedAt    *string   `db:"finished_at"`
-	Status        string    `db:"status"`
-	Providers     []string  `db:"-"` // stored as JSON
-	ProvidersJSON string    `db:"providers"`
-	ScopeJSON     string    `db:"scope"`
-	Error         *string   `db:"error"`
-	ResourceCount *int      `db:"resource_count"`
-	MetaJSON      *string   `db:"meta"`
+	ID            string   `db:"id"`
+	StartedAt     string   `db:"started_at"`
+	FinishedAt    *string  `db:"finished_at"`
+	Status        string   `db:"status"`
+	Providers     []string `db:"-"` // stored as JSON
+	ProvidersJSON string   `db:"providers"`
+	ScopeJSON     string   `db:"scope"`
+	Error         *string  `db:"error"`
+	ResourceCount *int     `db:"resource_count"`
+	MetaJSON      *string  `db:"meta"`
 }
 
 // CreateScan inserts a new scan record with status "running" and returns its ID.

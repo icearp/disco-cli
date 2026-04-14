@@ -69,7 +69,7 @@ Examples:
 			return enc.Encode(resources)
 		default:
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "PROVIDER\tTYPE\tNAME\tREGION\tSTATUS\tID")
+			fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
 			for _, r := range resources {
 				name := "-"
 				if r.Name != nil {
@@ -84,7 +84,7 @@ Examples:
 					status = *r.Status
 				}
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					r.Provider, r.Type, name, region, status, r.ID)
+					r.Provider, r.AccountID, r.Type, name, region, status)
 			}
 			return w.Flush()
 		}

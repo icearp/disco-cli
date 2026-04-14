@@ -44,4 +44,3 @@ func resolveVPNConnectionRelationships(acct *account, st *store.Store) error {
 	}
 	return nil
 }
-

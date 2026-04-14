@@ -79,7 +79,7 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 
 	for _, d := range deliveries {
 		var attrs struct {
-			DeliverySourceName  *string `json:"DeliverySourceName"`
+			DeliverySourceName     *string `json:"DeliverySourceName"`
 			DeliveryDestinationArn *string `json:"DeliveryDestinationArn"`
 		}
 		if err := json.Unmarshal([]byte(d.AttributesJSON), &attrs); err != nil {

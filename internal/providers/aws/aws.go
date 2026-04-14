@@ -15,14 +15,14 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"codeburg.org/icearp/disco/internal/util"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
-	cloudfronttypes  "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
-	route53types     "github.com/aws/aws-sdk-go-v2/service/route53/types"
-	ec2types          "github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	ecrtypes          "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	ecstypes          "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	elasticachetypes  "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
-	iamtypes          "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	rdstypes          "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	cloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	elasticachetypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -188,9 +188,9 @@ type account struct {
 	cfg     sdkaws.Config // credentials + endpoint config; region is set per client
 }
 
-func mustJSON(v any) string    { return util.MustJSON(v) }
-func sv(p *string) string      { return util.Sv(p) }
-func tp(t *time.Time) *string  { return util.TimeRFC3339(t) }
+func mustJSON(v any) string   { return util.MustJSON(v) }
+func sv(p *string) string     { return util.Sv(p) }
+func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
 
 // sp returns a pointer to s.
 func sp(s string) *string { return &s }

@@ -63,9 +63,9 @@ func TestPascalToKebab(t *testing.T) {
 
 func TestBuildRows(t *testing.T) {
 	cfnNames := []string{
-		"AWS::EC2::Instance",       // → aws:ec2:instance  (covered)
-		"AWS::EC2::SecurityGroup",  // → aws:ec2:security-group  (covered)
-		"AWS::ACM::Certificate",    // → aws:acm:certificate  (not covered)
+		"AWS::EC2::Instance",      // → aws:ec2:instance  (covered)
+		"AWS::EC2::SecurityGroup", // → aws:ec2:security-group  (covered)
+		"AWS::ACM::Certificate",   // → aws:acm:certificate  (not covered)
 	}
 	knownSet := map[string]bool{
 		"aws:ec2:instance":       true,

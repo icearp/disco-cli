@@ -19,7 +19,11 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { tt, nn, e := scanDynamoDBTables(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanDynamoDBGlobalTables(gctx, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanDynamoDBGlobalTables(gctx, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

@@ -43,7 +43,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 				Name:           &name,
 				Region:         &location,
 				AttributesJSON: mustJSON(rg),
-				DiscoveredBy:         scanID,
+				DiscoveredBy:   scanID,
 			}
 			if rg.Tags != nil {
 				s := mustJSON(rg.Tags)

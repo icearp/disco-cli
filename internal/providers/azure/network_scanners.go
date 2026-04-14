@@ -15,9 +15,9 @@ func init() { registerService(serviceEntry{name: "azure:network", fn: scanNetwor
 // scanNetwork discovers VNets, subnets, NSGs, and public IP addresses in parallel.
 func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
-		vnetTotal, vnetInserted   int
-		nsgTotal, nsgInserted     int
-		ipTotal, ipInserted       int
+		vnetTotal, vnetInserted int
+		nsgTotal, nsgInserted   int
+		ipTotal, ipInserted     int
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

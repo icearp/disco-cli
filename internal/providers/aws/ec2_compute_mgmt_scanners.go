@@ -20,19 +20,55 @@ func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, 
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { tt, nn, e := scanInstances(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanSecurityGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanSecurityGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanVolumes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanLaunchTemplates(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanLaunchTemplates(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanKeyPairs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanPlacementGroups(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanSpotFleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanPlacementGroups(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanSpotFleets(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanHosts(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCapacityReservations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCapacityReservationFleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanCapacityReservations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCapacityReservationFleets(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanEC2Fleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanSnapshotBlockPublicAccess(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanSnapshotBlockPublicAccess(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

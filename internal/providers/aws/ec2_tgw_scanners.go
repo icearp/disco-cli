@@ -17,19 +17,71 @@ func scanEC2TGW(ctx context.Context, client *ec2.Client, acct *account, region s
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanTransitGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWConnects(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWConnectPeers(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWMulticastDomains(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWMulticastDomainAssociations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWMulticastGroupMembers(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWMulticastGroupSources(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWPeeringAttachments(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWRouteTables(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWRouteTableAssociations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWRouteTablePropagations(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanTGWVPCAttachments(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanTransitGateways(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWConnects(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWConnectPeers(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWMulticastDomains(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWMulticastDomainAssociations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWMulticastGroupMembers(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWMulticastGroupSources(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWPeeringAttachments(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWRouteTables(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWRouteTableAssociations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWRouteTablePropagations(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanTGWVPCAttachments(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanTGWRoutes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err

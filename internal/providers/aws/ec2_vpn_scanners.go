@@ -15,9 +15,21 @@ func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region s
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanCustomerGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanVPNGateways(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanVPNConnections(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanCustomerGateways(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanVPNGateways(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanVPNConnections(ctx, client, acct, region, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }

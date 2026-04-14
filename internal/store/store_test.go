@@ -57,7 +57,7 @@ func TestResourceID_Uniqueness(t *testing.T) {
 	base := ResourceID("aws", "acct", "aws:ec2:instance", "i-1")
 
 	cases := []struct {
-		name                         string
+		name                           string
 		provider, account, typ, native string
 	}{
 		{"different provider", "gcp", "acct", "aws:ec2:instance", "i-1"},
@@ -422,9 +422,9 @@ func TestBatchAddToHierarchyClosure(t *testing.T) {
 
 	// Build the hierarchy: org is the root (self-reference), folder under org, project under folder.
 	pairs := [][2]string{
-		{orgID, orgID},      // root self-entry
-		{folderID, orgID},   // folder → org
-		{projID, folderID},  // project → folder
+		{orgID, orgID},     // root self-entry
+		{folderID, orgID},  // folder → org
+		{projID, folderID}, // project → folder
 	}
 	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
 		t.Fatalf("BatchAddToHierarchyClosure: %v", err)

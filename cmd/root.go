@@ -12,10 +12,10 @@ import (
 var cfgFile string
 
 var rootCmd = &cobra.Command{
-	Use:          "disco",
-	SilenceUsage: true, // don't dump --help on runtime errors
+	Use:           "disco",
+	SilenceUsage:  true, // don't dump --help on runtime errors
 	SilenceErrors: true, // Execute() prints the error; suppress Cobra's duplicate print
-	Short: "Cloud resource discovery tool for AWS, Azure, and GCP",
+	Short:         "Cloud resource discovery tool for AWS, Azure, and GCP",
 	Long: `disco scans cloud accounts and resolves relationships between discovered resources.
 
 Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders).`,

@@ -61,7 +61,7 @@ func resolveLocalGatewayRouteTableVIGAssociationRelationships(acct *account, st 
 	}
 	for _, r := range assocs {
 		var attrs struct {
-			LocalGatewayRouteTableArn          *string `json:"LocalGatewayRouteTableArn"`
+			LocalGatewayRouteTableArn           *string `json:"LocalGatewayRouteTableArn"`
 			LocalGatewayVirtualInterfaceGroupId *string `json:"LocalGatewayVirtualInterfaceGroupId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {

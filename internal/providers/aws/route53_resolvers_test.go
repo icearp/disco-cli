@@ -97,7 +97,7 @@ func TestDNSSECZoneARN(t *testing.T) {
 			"arn:aws:route53:::hostedzone/Z1234567890",
 		},
 		{"not-an-arn", ""},
-		{"arn:aws:route53:::hostedzone/Z1234567890", ""},         // no /dnssec suffix
+		{"arn:aws:route53:::hostedzone/Z1234567890", ""},          // no /dnssec suffix
 		{"arn:aws:route53:::hostedzone/Z1234/ksk/key/dnssec", ""}, // extra slash in zone portion
 	}
 	for _, tt := range tests {
@@ -157,7 +157,7 @@ func TestKSKDNSSECNativeID(t *testing.T) {
 			"arn:aws:route53:::hostedzone/Z1234567890/dnssec",
 		},
 		{"not-an-arn", ""},
-		{"arn:aws:route53:::hostedzone/Z1234567890", ""},       // no /ksk/ segment
+		{"arn:aws:route53:::hostedzone/Z1234567890", ""},         // no /ksk/ segment
 		{"arn:aws:route53:::hostedzone/Z1234567890/other/x", ""}, // wrong segment prefix
 	}
 	for _, tt := range tests {

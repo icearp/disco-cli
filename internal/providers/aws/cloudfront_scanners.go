@@ -28,26 +28,102 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanCloudFrontDistributions(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontMonitoringSubscriptions(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontStreamingDistributions(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontDistributionTenants(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontCachePolicies(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontOriginRequestPolicies(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontResponseHeadersPolicies(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontContinuousDeploymentPolicies(gctx, acct, client, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontDistributions(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontMonitoringSubscriptions(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontStreamingDistributions(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontDistributionTenants(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontCachePolicies(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontOriginRequestPolicies(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontResponseHeadersPolicies(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontContinuousDeploymentPolicies(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	g.Go(func() error { tt, nn, e := scanCloudFrontOAIs(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontOriginAccessControls(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontFunctions(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontConnectionFunctions(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontKeyGroups(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontKeyValueStores(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontPublicKeys(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontRealtimeLogConfigs(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontTrustStores(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontConnectionGroups(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontAnycastIpLists(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanCloudFrontVpcOrigins(gctx, acct, client, st, scanID); add(tt, nn); return e })
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontOriginAccessControls(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontFunctions(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontConnectionFunctions(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontKeyGroups(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontKeyValueStores(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontPublicKeys(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontRealtimeLogConfigs(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontTrustStores(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontConnectionGroups(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontAnycastIpLists(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
+	g.Go(func() error {
+		tt, nn, e := scanCloudFrontVpcOrigins(gctx, acct, client, st, scanID)
+		add(tt, nn)
+		return e
+	})
 	err = g.Wait()
 	return int(t.Load()), int(n.Load()), err
 }
