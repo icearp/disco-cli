@@ -1,10 +1,13 @@
 BINARY   := disco
 DIST_DIR := dist
-CGO      := CGO_ENABLED=0
+GO       := CGO_ENABLED=0
 
-.PHONY: all fmt lint vet test build clean dist
+.PHONY: all deps fmt lint vet test build clean dist
 
 all: fmt vet test build
+
+deps:
+	go mod tidy
 
 fmt:
 	gofmt -w .
@@ -16,15 +19,15 @@ vet:
 	go vet ./...
 
 test:
-	$(CGO) go test ./...
+	$(GO) go test ./...
 
 build:
-	$(CGO) go build -o $(BINARY) .
+	$(GO) go build -o $(BINARY) .
 
 dist:
-	$(CGO) GOOS=linux   GOARCH=amd64  go build -o $(DIST_DIR)/disco-linux-amd64 .
-	$(CGO) GOOS=darwin  GOARCH=arm64  go build -o $(DIST_DIR)/disco-darwin-arm64 .
-	$(CGO) GOOS=windows GOARCH=amd64  go build -o $(DIST_DIR)/disco-windows-amd64.exe .
+	$(GO) GOOS=linux   GOARCH=amd64  go build -o $(DIST_DIR)/disco-linux-amd64 .
+	$(GO) GOOS=darwin  GOARCH=arm64  go build -o $(DIST_DIR)/disco-darwin-arm64 .
+	$(GO) GOOS=windows GOARCH=amd64  go build -o $(DIST_DIR)/disco-windows-amd64.exe .
 
 clean:
 	rm -f $(BINARY)
