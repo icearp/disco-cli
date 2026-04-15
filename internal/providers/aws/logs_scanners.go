@@ -350,7 +350,7 @@ func scanLogsIntegrations(ctx context.Context, client *cwlogs.Client, acct *acco
 		batch []*store.Resource
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(2)
 	for _, s := range out.IntegrationSummaries {
 		name := sv(s.IntegrationName)
 		g.Go(func() error {
@@ -651,7 +651,7 @@ func scanLogsLogStreams(ctx context.Context, client *cwlogs.Client, acct *accoun
 
 	var t, n atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
 		grp := grp // capture
@@ -739,7 +739,7 @@ func scanLogsSubscriptionFilters(ctx context.Context, client *cwlogs.Client, acc
 
 	var t, n atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
 		grp := grp
@@ -833,7 +833,7 @@ func scanLogsTransformers(ctx context.Context, client *cwlogs.Client, acct *acco
 		pairs [][2]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
 		grp := grp

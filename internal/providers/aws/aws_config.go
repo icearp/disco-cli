@@ -39,8 +39,13 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string) 
 	}
 
 	// Build SDK load options; optionally select a named credential profile.
+	// Adaptive retry mode uses a client-side token bucket that learns from
+	// throttling responses and proactively slows down requests. 10 max attempts
+	// gives the backoff enough headroom for low-rate-limit services like IAM.
 	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion("us-east-1"),
+		awsconfig.WithRetryMaxAttempts(10),
+		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
 	}
 	if profile != "" {
 		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
