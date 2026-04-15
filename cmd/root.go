@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+
 var cfgFile string
 
 var rootCmd = &cobra.Command{
@@ -32,8 +33,10 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.disco/config.yaml)")
-	rootCmd.PersistentFlags().String("db", "", "database path (default: $HOME/.disco/disco.db)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
+		fmt.Sprintf("config file (default: %s)", filepath.Join(discoDir(), "config.yaml")))
+	rootCmd.PersistentFlags().String("db", "",
+		fmt.Sprintf("database path (default: %s)", filepath.Join(discoDir(), "disco.db")))
 	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 
@@ -41,12 +44,7 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		viper.AddConfigPath(filepath.Join(home, ".disco"))
+		viper.AddConfigPath(discoDir())
 		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
 	}
@@ -65,9 +63,5 @@ func defaultDBPath() string {
 	if p := viper.GetString("db"); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "disco.db"
-	}
-	return filepath.Join(home, ".disco", "disco.db")
+	return filepath.Join(discoDir(), "disco.db")
 }

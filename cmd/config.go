@@ -12,7 +12,7 @@ import (
 // boilerplateConfig is the template written by `disco config init`.
 // All sections are optional; omitting a provider causes disco to auto-detect
 // accounts/projects/subscriptions via ambient cloud credentials.
-const boilerplateConfig = `# ~/.disco/config.yaml
+const boilerplateConfig = `# disco configuration file
 # All sections are optional. Omitting a provider section causes disco to
 # auto-detect accounts/projects/subscriptions using ambient credentials.
 # Credentials are never stored here; use each cloud's standard auth chain.
@@ -87,7 +87,7 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 
 // configFilePath returns the path where the config file should be written.
 // Priority: viper already loaded a file → use that path; --config flag set → use that;
-// fallback → default location $HOME/.disco/config.yaml.
+// fallback → platform default (discoDir()/config.yaml).
 func configFilePath() string {
 	if p := viper.ConfigFileUsed(); p != "" {
 		return p
@@ -95,9 +95,5 @@ func configFilePath() string {
 	if cfgFile != "" {
 		return cfgFile
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "config.yaml"
-	}
-	return filepath.Join(home, ".disco", "config.yaml")
+	return filepath.Join(discoDir(), "config.yaml")
 }
