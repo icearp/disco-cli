@@ -25,9 +25,9 @@ build:
 	$(GO) go build -o $(BINARY) .
 
 dist:
-	$(GO) GOOS=linux   GOARCH=amd64  go build -o $(DIST_DIR)/disco-linux-amd64 .
-	$(GO) GOOS=darwin  GOARCH=arm64  go build -o $(DIST_DIR)/disco-darwin-arm64 .
-	$(GO) GOOS=windows GOARCH=amd64  go build -o $(DIST_DIR)/disco-windows-amd64.exe .
+	$(GO) GOOS=linux   GOARCH=amd64  go build -o $(DIST_DIR)/$(BINARY)-linux-amd64 .
+	$(GO) GOOS=darwin  GOARCH=arm64  go build -o $(DIST_DIR)/$(BINARY)-darwin-arm64 .
+	$(GO) GOOS=windows GOARCH=amd64  go build -o $(DIST_DIR)/$(BINARY)-windows-amd64.exe .
 
 clean:
 	rm -f $(BINARY)
