@@ -36,8 +36,15 @@ func loadAccounts(ctx context.Context) ([]account, error) {
 		cfg.DefaultRegions = []string{"us-east-1"}
 	}
 
-	// Load the base SDK config once (uses default credential chain: env → ~/.aws → IAM role).
-	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion("us-east-1"))
+	// Load the base SDK config once (uses default credential chain: env -> ~/.aws -> IAM role).
+	// Adaptive retry mode uses a client-side token bucket that learns from
+	// throttling responses and proactively slows down requests. 10 max attempts
+	// gives the backoff enough headroom for low-rate-limit services like IAM.
+	baseCfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithRegion("us-east-1"),
+		awsconfig.WithRetryMaxAttempts(10),
+		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("load aws sdk config: %w", err)
 	}
