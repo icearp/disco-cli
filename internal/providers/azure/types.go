@@ -5,42 +5,100 @@ package azure
 // string would create orphan resources with an undeclared type.
 const (
 	// Resource Manager
-	TypeResourceGroup = "azure:resources:resource-group"
-	// Compute
-	TypeVirtualMachine = "azure:microsoft.compute:virtual-machine"
-	TypeManagedDisk    = "azure:microsoft.compute:disk"
+	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-group"
+	// Compute — core
+	TypeComputeVirtualMachine = "azure:microsoft.compute:virtual-machine"
+	TypeComputeManagedDisk    = "azure:microsoft.compute:disk"
+	// Compute — extended (azure:compute service)
+	TypeComputeAvailabilitySet         = "azure:microsoft.compute:availability-sets"
+	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
+	TypeComputeSSHPublicKey            = "azure:microsoft.compute:ssh-public-keys"
+	TypeComputeProximityPlacementGroup = "azure:microsoft.compute:proximity-placement-groups"
+	TypeComputeSnapshot                = "azure:microsoft.compute:snapshots"
+	TypeComputeDiskEncryptionSet       = "azure:microsoft.compute:disk-encryption-sets"
+	TypeComputeDiskAccess              = "azure:microsoft.compute:disk-accesses"
+	TypeComputeRestorePointCollection  = "azure:microsoft.compute:restore-point-collections"
+	TypeComputeImage            = "azure:microsoft.compute:images"
+	// Compute — VMSS (azure:vmss service)
+	TypeComputeVMSS            = "azure:microsoft.compute:virtual-machine-scale-sets"
+	TypeComputeVMSSExtension   = "azure:microsoft.compute:virtual-machine-scale-sets/extensions"
+	TypeComputeVMSSVM          = "azure:microsoft.compute:virtual-machine-scale-sets/virtual-machines"
+	TypeComputeVMSSVMExtension = "azure:microsoft.compute:virtual-machine-scale-sets/virtual-machines/extensions"
+	// Compute — galleries (azure:galleries service)
+	TypeComputeGallery                   = "azure:microsoft.compute:galleries"
+	TypeComputeGalleryImage              = "azure:microsoft.compute:galleries/images"
+	TypeComputeGalleryImageVersion       = "azure:microsoft.compute:galleries/images/versions"
+	TypeComputeGalleryApplication        = "azure:microsoft.compute:galleries/applications"
+	TypeComputeGalleryApplicationVersion = "azure:microsoft.compute:galleries/applications/versions"
+	TypeComputeGalleryInVMACP            = "azure:microsoft.compute:galleries/in-vm-access-control-profiles"
+	TypeComputeGalleryInVMACPVersion     = "azure:microsoft.compute:galleries/in-vm-access-control-profiles/versions"
+	// Compute — hosting (azure:hosting service)
+	TypeComputeHostGroup                = "azure:microsoft.compute:host-groups"
+	TypeComputeDedicatedHost            = "azure:microsoft.compute:host-groups/hosts"
+	TypeComputeCapacityReservationGroup = "azure:microsoft.compute:capacity-reservation-groups"
+	TypeComputeCapacityReservation      = "azure:microsoft.compute:capacity-reservation-groups/capacity-reservations"
+	TypeComputeCloudService             = "azure:microsoft.compute:cloud-services"
+	TypeComputeCloudServiceRole         = "azure:microsoft.compute:cloud-services/roles"
+	TypeComputeCloudServiceRoleInstance = "azure:microsoft.compute:cloud-services/role-instances"
 	// Network
-	TypeVirtualNetwork       = "azure:network:virtual-network"
-	TypeSubnet               = "azure:network:subnet"
-	TypeNetworkSecurityGroup = "azure:network:network-security-group"
-	TypePublicIPAddress      = "azure:network:public-ip-address"
+	TypeNetworkVirtualNetwork       = "azure:microsoft.network:virtual-network"
+	TypeNetworkSubnet               = "azure:microsoft.network:subnet"
+	TypeNetworkSecurityGroup = "azure:microsoft.network:network-security-group"
+	TypeNetworkPublicIPAddress      = "azure:microsoft.network:public-ip-address"
 	// Container Service (AKS)
-	TypeAKSManagedCluster = "azure:containerservice:managed-cluster"
+	TypeContainerServiceManagedCluster = "azure:microsoft.containerservice:managed-cluster"
 	// Key Vault
-	TypeKeyVaultVault = "azure:keyvault:vault"
+	TypeKeyVaultVault = "azure:microsoft.keyvault:vault"
 	// Storage
-	TypeStorageAccount = "azure:storage:storage-account"
+	TypeStorageStorageAccount = "azure:microsoft.storage:storage-account"
 	// SQL
-	TypeSQLServer   = "azure:sql:server"
-	TypeSQLDatabase = "azure:sql:database"
+	TypeSQLServer   = "azure:microsoft.sql:server"
+	TypeSQLDatabase = "azure:microsoft.sql:database"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
 // (e.g. "microsoft.compute/virtualmachines") to the disco type constant.
 // Update this map whenever a new service scanner is added.
 var azureAPITypeMap = map[string]string{
-	"microsoft.resources/resourcegroups":         TypeResourceGroup,
-	"microsoft.compute/virtualmachines":          TypeVirtualMachine,
-	"microsoft.compute/disks":                    TypeManagedDisk,
-	"microsoft.network/virtualnetworks":          TypeVirtualNetwork,
-	"microsoft.network/virtualnetworks/subnets":  TypeSubnet,
-	"microsoft.network/networksecuritygroups":    TypeNetworkSecurityGroup,
-	"microsoft.network/publicipaddresses":        TypePublicIPAddress,
-	"microsoft.containerservice/managedclusters": TypeAKSManagedCluster,
-	"microsoft.keyvault/vaults":                  TypeKeyVaultVault,
-	"microsoft.storage/storageaccounts":          TypeStorageAccount,
-	"microsoft.sql/servers":                      TypeSQLServer,
-	"microsoft.sql/servers/databases":            TypeSQLDatabase,
+	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
+	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
+	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
+	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
+	"microsoft.compute/virtualmachines/extensions":                         TypeComputeVMExtension,
+	"microsoft.compute/sshpublickeys":                                      TypeComputeSSHPublicKey,
+	"microsoft.compute/proximityplacementgroups":                           TypeComputeProximityPlacementGroup,
+	"microsoft.compute/snapshots":                                          TypeComputeSnapshot,
+	"microsoft.compute/diskencryptionsets":                                 TypeComputeDiskEncryptionSet,
+	"microsoft.compute/diskaccesses":                                       TypeComputeDiskAccess,
+	"microsoft.compute/restorepointcollections":                            TypeComputeRestorePointCollection,
+	"microsoft.compute/images":                                             TypeComputeImage,
+	"microsoft.compute/virtualmachinescalesets":                            TypeComputeVMSS,
+	"microsoft.compute/virtualmachinescalesets/extensions":                 TypeComputeVMSSExtension,
+	"microsoft.compute/virtualmachinescalesets/virtualmachines":            TypeComputeVMSSVM,
+	"microsoft.compute/virtualmachinescalesets/virtualmachines/extensions": TypeComputeVMSSVMExtension,
+	"microsoft.compute/galleries":                                          TypeComputeGallery,
+	"microsoft.compute/galleries/images":                                   TypeComputeGalleryImage,
+	"microsoft.compute/galleries/images/versions":                          TypeComputeGalleryImageVersion,
+	"microsoft.compute/galleries/applications":                             TypeComputeGalleryApplication,
+	"microsoft.compute/galleries/applications/versions":                    TypeComputeGalleryApplicationVersion,
+	"microsoft.compute/galleries/invmaccesscontrolprofiles":                TypeComputeGalleryInVMACP,
+	"microsoft.compute/galleries/invmaccesscontrolprofiles/versions":       TypeComputeGalleryInVMACPVersion,
+	"microsoft.compute/hostgroups":                                         TypeComputeHostGroup,
+	"microsoft.compute/hostgroups/hosts":                                   TypeComputeDedicatedHost,
+	"microsoft.compute/capacityreservationgroups":                          TypeComputeCapacityReservationGroup,
+	"microsoft.compute/capacityreservationgroups/capacityreservations":     TypeComputeCapacityReservation,
+	"microsoft.compute/cloudservices":                                      TypeComputeCloudService,
+	"microsoft.compute/cloudservices/roles":                                TypeComputeCloudServiceRole,
+	"microsoft.compute/cloudservices/roleinstances":                        TypeComputeCloudServiceRoleInstance,
+	"microsoft.network/virtualnetworks":                                    TypeNetworkVirtualNetwork,
+	"microsoft.network/virtualnetworks/subnets":                            TypeNetworkSubnet,
+	"microsoft.network/networksecuritygroups":                              TypeNetworkSecurityGroup,
+	"microsoft.network/publicipaddresses":                                  TypeNetworkPublicIPAddress,
+	"microsoft.containerservice/managedclusters":                           TypeContainerServiceManagedCluster,
+	"microsoft.keyvault/vaults":                                            TypeKeyVaultVault,
+	"microsoft.storage/storageaccounts":                                    TypeStorageStorageAccount,
+	"microsoft.sql/servers":                                                TypeSQLServer,
+	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 }
 
 // KnownTypes returns all disco type strings currently covered by this provider.

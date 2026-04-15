@@ -66,13 +66,13 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			name := sv(vnet.Name)
 			location := sv(vnet.Location)
 			vnetID := sv(vnet.ID)
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
 
 			r := &store.Resource{
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           TypeVirtualNetwork,
+				Type:           TypeNetworkVirtualNetwork,
 				NativeID:       vnetID,
 				Name:           &name,
 				Region:         &location,
@@ -97,7 +97,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 						Provider:       "azure",
 						AccountID:      sub.ID,
 						AccountName:    &sub.Name,
-						Type:           TypeSubnet,
+						Type:           TypeNetworkSubnet,
 						NativeID:       snID,
 						Name:           &snName,
 						Region:         &location,
@@ -105,7 +105,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 						DiscoveredBy:   scanID,
 					}
 					subnetBatch = append(subnetBatch, snResource)
-					snResourceID := store.ResourceID("azure", sub.ID, TypeSubnet, snID)
+					snResourceID := store.ResourceID("azure", sub.ID, TypeNetworkSubnet, snID)
 					subnetPairs = append(subnetPairs, [2]string{snResourceID, vnetResourceID})
 				}
 			}
@@ -210,7 +210,7 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           TypePublicIPAddress,
+				Type:           TypeNetworkPublicIPAddress,
 				NativeID:       sv(ip.ID),
 				Name:           &name,
 				Region:         &location,

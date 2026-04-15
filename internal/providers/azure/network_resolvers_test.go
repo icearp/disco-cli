@@ -16,8 +16,8 @@ func TestResolveSubnetVNetRelationships(t *testing.T) {
 	vnetNativeID := "/subscriptions/sub-123/resourceGroups/NetRG/providers/Microsoft.Network/virtualNetworks/my-vnet"
 	subnetNativeID := vnetNativeID + "/subnets/my-subnet"
 
-	subnetID := upsertTestResource(t, st, "azure", sub.ID, TypeSubnet, subnetNativeID, "", "{}")
-	vnetResourceID := upsertTestResource(t, st, "azure", sub.ID, TypeVirtualNetwork, vnetNativeID, "", "{}")
+	subnetID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkSubnet, subnetNativeID, "", "{}")
+	vnetResourceID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkVirtualNetwork, vnetNativeID, "", "{}")
 
 	if err := resolveSubnetVNetRelationships(sub, st); err != nil {
 		t.Fatalf("resolveSubnetVNetRelationships: %v", err)

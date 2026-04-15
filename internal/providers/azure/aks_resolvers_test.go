@@ -25,8 +25,8 @@ func TestResolveAKSRelationships(t *testing.T) {
 		}
 	}`
 	clusterNativeID := "/subscriptions/sub-123/resourceGroups/NetRG/providers/Microsoft.ContainerService/managedClusters/my-cluster"
-	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeAKSManagedCluster, clusterNativeID, "", attrsJSON)
-	vnetResourceID := upsertTestResource(t, st, "azure", sub.ID, TypeVirtualNetwork, vnetNativeID, "", "{}")
+	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeContainerServiceManagedCluster, clusterNativeID, "", attrsJSON)
+	vnetResourceID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkVirtualNetwork, vnetNativeID, "", "{}")
 
 	if err := resolveAKSRelationships(sub, st); err != nil {
 		t.Fatalf("resolveAKSRelationships: %v", err)
@@ -64,8 +64,8 @@ func TestResolveAKSRelationships_MultiplePoolsSameVNet(t *testing.T) {
 		}
 	}`
 	clusterNativeID := "/subscriptions/sub-123/resourceGroups/NetRG/providers/Microsoft.ContainerService/managedClusters/multi-pool"
-	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeAKSManagedCluster, clusterNativeID, "", attrsJSON)
-	upsertTestResource(t, st, "azure", sub.ID, TypeVirtualNetwork, vnetNativeID, "", "{}")
+	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeContainerServiceManagedCluster, clusterNativeID, "", attrsJSON)
+	upsertTestResource(t, st, "azure", sub.ID, TypeNetworkVirtualNetwork, vnetNativeID, "", "{}")
 
 	if err := resolveAKSRelationships(sub, st); err != nil {
 		t.Fatalf("resolveAKSRelationships: %v", err)
@@ -88,7 +88,7 @@ func TestResolveAKSRelationships_EmptyAttrs(t *testing.T) {
 	sub := newTestSubscription("sub-123")
 
 	clusterNativeID := "/subscriptions/sub-123/resourceGroups/RG/providers/Microsoft.ContainerService/managedClusters/bare"
-	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeAKSManagedCluster, clusterNativeID, "", "{}")
+	clusterID := upsertTestResource(t, st, "azure", sub.ID, TypeContainerServiceManagedCluster, clusterNativeID, "", "{}")
 
 	if err := resolveAKSRelationships(sub, st); err != nil {
 		t.Fatalf("resolveAKSRelationships (empty): %v", err)

@@ -38,7 +38,7 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           TypeStorageAccount,
+				Type:           TypeStorageStorageAccount,
 				NativeID:       sv(acct.ID),
 				Name:           &name,
 				Region:         &location,

@@ -23,12 +23,18 @@ import (
 )
 
 const (
-	// maxConcurrentServices caps the number of service scanners running in parallel
-	// per subscription to avoid hitting Azure API rate limits.
+	// maxConcurrentSubscriptions caps parallel subscription scans.
+	maxConcurrentSubscriptions = 10
+	// maxConcurrentServices caps parallel service scanners per subscription.
 	maxConcurrentServices = 10
-	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
-	// won't stall the entire scan beyond this duration.
-	serviceTimeout = 5 * time.Minute
+	// maxConcurrentFanout caps concurrent child API calls within a single service
+	// (e.g. VM extension calls per VM, gallery image scans per gallery).
+	// Higher than services because these are leaf-level calls with lower rate-limit risk.
+	maxConcurrentFanout = 20
+	// serviceTimeout is the per-service hard deadline. azure:compute now covers VMSS,
+	// galleries, and hosting fan-outs in addition to core compute types, so this must
+	// be generous enough for large subscriptions.
+	serviceTimeout = 30 * time.Minute
 )
 
 func init() { providers.Register(&Scanner{}) }
@@ -61,7 +67,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	if err != nil {
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
-	sem := semaphore.NewWeighted(maxConcurrentServices)
+	sem := semaphore.NewWeighted(maxConcurrentSubscriptions)
 	g, gctx := errgroup.WithContext(ctx)
 	for i := range subs {
 		sub := &subs[i]
@@ -118,14 +124,15 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 }
 
 // resolveRelationships is phase 2 for Azure: derive edges between resources
-// that have already been written to the DB.
-func resolveRelationships(_ context.Context, sub *subscription, st *store.Store) error {
+// that have already been written to the DB. Resolvers run in parallel since
+// they operate on disjoint resource types.
+func resolveRelationships(ctx context.Context, sub *subscription, st *store.Store) error {
+	g, _ := errgroup.WithContext(ctx)
 	for _, r := range registeredResolvers {
-		if err := r.fn(sub, st); err != nil {
-			return err
-		}
+		fn := r.fn
+		g.Go(func() error { return fn(sub, st) })
 	}
-	return nil
+	return g.Wait()
 }
 
 // filteredServices returns the services to run. When filter is non-empty, only
@@ -176,8 +183,9 @@ func skipIfAccessDenied(service, subID string, err error) error {
 func sv(p *string) string     { return util.Sv(p) }
 func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
 
-// rgFromID extracts the resource group name from an Azure resource ID.
-// e.g. /subscriptions/xxx/resourceGroups/myRG/... → "myRG"
+// rgFromID extracts the resource group name from an Azure resource ID,
+// lowercased for use in computing stable hierarchy IDs.
+// e.g. /subscriptions/xxx/resourceGroups/myRG/... → "myrg"
 func rgFromID(id string) string {
 	parts := strings.Split(strings.ToLower(id), "/")
 	for i, p := range parts {
@@ -186,4 +194,43 @@ func rgFromID(id string) string {
 		}
 	}
 	return ""
+}
+
+// rgNameFromID extracts the resource group name from an Azure resource ID,
+// preserving original casing for use in API calls.
+// e.g. /subscriptions/xxx/resourceGroups/MyRG/... → "MyRG"
+func rgNameFromID(id string) string {
+	lower := strings.ToLower(id)
+	const sep = "/resourcegroups/"
+	start := strings.Index(lower, sep)
+	if start < 0 {
+		return ""
+	}
+	rest := id[start+len(sep):]
+	if i := strings.IndexByte(rest, '/'); i >= 0 {
+		return rest[:i]
+	}
+	return rest
+}
+
+// nameFromID returns the last path segment of an Azure resource ID,
+// preserving original casing. Used to extract resource names for API calls.
+// e.g. /subscriptions/xxx/.../virtualMachines/myVM → "myVM"
+func nameFromID(id string) string {
+	idx := strings.LastIndex(id, "/")
+	if idx < 0 || idx == len(id)-1 {
+		return id
+	}
+	return id[idx+1:]
+}
+
+// truncateAtSegment returns the portion of id before the first occurrence of
+// the case-insensitive separator. Used by resolvers to derive parent resource IDs
+// from child NativeIDs (e.g. strip "/extensions/" suffix to get VM ID).
+func truncateAtSegment(id, separator string) string {
+	idx := strings.Index(strings.ToLower(id), strings.ToLower(separator))
+	if idx < 0 {
+		return ""
+	}
+	return id[:idx]
 }

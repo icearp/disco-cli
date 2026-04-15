@@ -13,7 +13,7 @@ func init() { registerResolver(resolveAKSRelationships) }
 func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
-		Types: []string{TypeAKSManagedCluster},
+		Types: []string{TypeContainerServiceManagedCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -44,7 +44,10 @@ func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 				continue
 			}
 			seen[vnetID] = true
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+			if _, err := st.GetResource(vnetResourceID); err != nil {
+				continue // VNet not in store (network service not yet scanned)
+			}
 			if err := st.UpsertRelationship(r.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert aks→vnet relationship: %w", err)
 			}

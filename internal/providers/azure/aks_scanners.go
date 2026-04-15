@@ -42,7 +42,7 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				Provider:       "azure",
 				AccountID:      sub.ID,
 				AccountName:    &sub.Name,
-				Type:           TypeAKSManagedCluster,
+				Type:           TypeContainerServiceManagedCluster,
 				NativeID:       sv(cluster.ID),
 				Name:           &name,
 				Region:         &location,

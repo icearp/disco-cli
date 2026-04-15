@@ -13,7 +13,7 @@ func init() { registerResolver(resolveSubnetVNetRelationships) }
 func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
-		Types: []string{TypeSubnet},
+		Types: []string{TypeNetworkSubnet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -25,7 +25,7 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 		// The VNet ID is the parent path up to /subnets/.
 		vnetID := vnetIDFromSubnetID(r.NativeID)
 		if vnetID != "" {
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeVirtualNetwork, vnetID)
+			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
 			if err := st.UpsertRelationship(r.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert subnet→vnet relationship: %w", err)
 			}
