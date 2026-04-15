@@ -31,6 +31,18 @@ type ServiceNamer interface {
 	ServiceNames() []string
 }
 
+// RegionOverrider is an optional interface for providers that support
+// overriding scan regions via the --region CLI flag.
+type RegionOverrider interface {
+	SetRegionOverride(regions []string)
+}
+
+// ProfileOverrider is an optional interface for providers that support
+// selecting a named credential profile via the --profile CLI flag.
+type ProfileOverrider interface {
+	SetProfile(profile string)
+}
+
 // registry maps provider name → Scanner. Populated by provider init() calls.
 var registry = map[string]Scanner{}
 

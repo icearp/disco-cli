@@ -27,7 +27,9 @@ type accountCfg struct {
 
 // loadAccounts parses the viper config and returns a resolved account slice.
 // When no accounts are configured, the current account is detected via STS.
-func loadAccounts(ctx context.Context) ([]account, error) {
+// profile selects a named entry from ~/.aws/config ("" = default chain).
+// regionOverride, when non-empty, replaces all per-account and default regions.
+func loadAccounts(ctx context.Context, profile string, regionOverride []string) ([]account, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("aws", &cfg); err != nil {
 		return nil, fmt.Errorf("parse aws config: %w", err)
@@ -36,8 +38,16 @@ func loadAccounts(ctx context.Context) ([]account, error) {
 		cfg.DefaultRegions = []string{"us-east-1"}
 	}
 
+	// Build SDK load options; optionally select a named credential profile.
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion("us-east-1"),
+	}
+	if profile != "" {
+		opts = append(opts, awsconfig.WithSharedConfigProfile(profile))
+	}
+
 	// Load the base SDK config once (uses default credential chain: env → ~/.aws → IAM role).
-	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion("us-east-1"))
+	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("load aws sdk config: %w", err)
 	}
@@ -69,6 +79,10 @@ func loadAccounts(ctx context.Context) ([]account, error) {
 			// To scan all opted-in regions, list them explicitly under accounts[].regions
 			// or set aws.default_regions in config.
 			regions = cfg.DefaultRegions
+		}
+		// CLI --region flag overrides both per-account and default regions.
+		if len(regionOverride) > 0 {
+			regions = regionOverride
 		}
 
 		accounts = append(accounts, account{

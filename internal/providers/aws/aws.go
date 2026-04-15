@@ -41,7 +41,9 @@ func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for AWS.
 type Scanner struct {
-	serviceFilter []string // nil = scan all registered services
+	serviceFilter  []string // nil = scan all registered services
+	regionOverride []string // non-nil overrides all per-account and default regions
+	profile        string   // "" = default AWS credential chain
 }
 
 func (s *Scanner) Name() string { return "aws" }
@@ -49,6 +51,14 @@ func (s *Scanner) Name() string { return "aws" }
 // SetServiceFilter restricts the scan to the named services (e.g. "aws:ec2", "aws:iam").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
+
+// SetRegionOverride forces all accounts to scan only the given regions,
+// ignoring both per-account and default_regions config values.
+func (s *Scanner) SetRegionOverride(regions []string) { s.regionOverride = regions }
+
+// SetProfile selects a named credential profile from ~/.aws/config.
+// An empty string uses the default credential chain.
+func (s *Scanner) SetProfile(profile string) { s.profile = profile }
 
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
@@ -62,7 +72,7 @@ func (s *Scanner) ServiceNames() []string {
 
 // Scan discovers all AWS resources across all configured accounts and regions.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	accounts, err := loadAccounts(ctx)
+	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride)
 	if err != nil {
 		return fmt.Errorf("aws: load accounts: %w", err)
 	}

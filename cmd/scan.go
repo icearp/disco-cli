@@ -155,6 +155,18 @@ func init() {
 					sf.SetServiceFilter(svcs)
 				}
 			}
+			regions, _ := cmd.Flags().GetStringSlice("region")
+			if len(regions) > 0 {
+				if ro, ok := s.(providers.RegionOverrider); ok {
+					ro.SetRegionOverride(regions)
+				}
+			}
+			profile, _ := cmd.Flags().GetString("profile")
+			if profile != "" {
+				if po, ok := s.(providers.ProfileOverrider); ok {
+					po.SetProfile(profile)
+				}
+			}
 			return runScan(cmd, []providers.Scanner{s})
 		}
 		scanCmd.AddCommand(subcmd)
