@@ -6,25 +6,26 @@ package azure
 const (
 	// Resource Manager
 	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-group"
-	// Compute — core
-	TypeComputeVirtualMachine = "azure:microsoft.compute:virtual-machine"
-	TypeComputeManagedDisk    = "azure:microsoft.compute:disk"
-	// Compute — extended (azure:compute service)
-	TypeComputeAvailabilitySet         = "azure:microsoft.compute:availability-sets"
+	// Compute — vms
+	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
-	TypeComputeSSHPublicKey            = "azure:microsoft.compute:ssh-public-keys"
+	TypeComputeAvailabilitySet         = "azure:microsoft.compute:availability-sets"
 	TypeComputeProximityPlacementGroup = "azure:microsoft.compute:proximity-placement-groups"
-	TypeComputeSnapshot                = "azure:microsoft.compute:snapshots"
-	TypeComputeDiskEncryptionSet       = "azure:microsoft.compute:disk-encryption-sets"
-	TypeComputeDiskAccess              = "azure:microsoft.compute:disk-accesses"
+	TypeComputeSSHPublicKey            = "azure:microsoft.compute:ssh-public-keys"
 	TypeComputeRestorePointCollection  = "azure:microsoft.compute:restore-point-collections"
-	TypeComputeImage            = "azure:microsoft.compute:images"
-	// Compute — VMSS (azure:vmss service)
+	// Compute — disks
+	TypeComputeManagedDisk       = "azure:microsoft.compute:disk"
+	TypeComputeSnapshot          = "azure:microsoft.compute:snapshots"
+	TypeComputeDiskEncryptionSet = "azure:microsoft.compute:disk-encryption-sets"
+	TypeComputeDiskAccess        = "azure:microsoft.compute:disk-accesses"
+	// Compute — images
+	TypeComputeImage = "azure:microsoft.compute:images"
+	// Compute — vmss
 	TypeComputeVMSS            = "azure:microsoft.compute:virtual-machine-scale-sets"
 	TypeComputeVMSSExtension   = "azure:microsoft.compute:virtual-machine-scale-sets/extensions"
 	TypeComputeVMSSVM          = "azure:microsoft.compute:virtual-machine-scale-sets/virtual-machines"
 	TypeComputeVMSSVMExtension = "azure:microsoft.compute:virtual-machine-scale-sets/virtual-machines/extensions"
-	// Compute — galleries (azure:galleries service)
+	// Compute — galleries
 	TypeComputeGallery                   = "azure:microsoft.compute:galleries"
 	TypeComputeGalleryImage              = "azure:microsoft.compute:galleries/images"
 	TypeComputeGalleryImageVersion       = "azure:microsoft.compute:galleries/images/versions"
@@ -32,11 +33,12 @@ const (
 	TypeComputeGalleryApplicationVersion = "azure:microsoft.compute:galleries/applications/versions"
 	TypeComputeGalleryInVMACP            = "azure:microsoft.compute:galleries/in-vm-access-control-profiles"
 	TypeComputeGalleryInVMACPVersion     = "azure:microsoft.compute:galleries/in-vm-access-control-profiles/versions"
-	// Compute — hosting (azure:hosting service)
+	// Compute — dedicated
 	TypeComputeHostGroup                = "azure:microsoft.compute:host-groups"
 	TypeComputeDedicatedHost            = "azure:microsoft.compute:host-groups/hosts"
 	TypeComputeCapacityReservationGroup = "azure:microsoft.compute:capacity-reservation-groups"
 	TypeComputeCapacityReservation      = "azure:microsoft.compute:capacity-reservation-groups/capacity-reservations"
+	// Compute — cloud-services
 	TypeComputeCloudService             = "azure:microsoft.compute:cloud-services"
 	TypeComputeCloudServiceRole         = "azure:microsoft.compute:cloud-services/roles"
 	TypeComputeCloudServiceRoleInstance = "azure:microsoft.compute:cloud-services/role-instances"

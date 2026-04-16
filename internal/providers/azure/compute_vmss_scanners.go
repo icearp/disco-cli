@@ -28,7 +28,7 @@ type vmssVMEntry struct {
 //  3. VMSS VM extensions (per VMSS VM instance, fanned out concurrently)
 func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase A: list all VMSS in the subscription.
-	vmssClient, err := armcompute.NewVirtualMachineScaleSetsClient(sub.ID, cred, nil)
+	vmssClient, err := armcompute.NewVirtualMachineScaleSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetsClient: %w", err)
 	}
@@ -174,7 +174,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 }
 
 func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, err error) {
-	client, err := armcompute.NewVirtualMachineScaleSetExtensionsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewVirtualMachineScaleSetExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetExtensionsClient: %w", err)
 	}
@@ -226,7 +226,7 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity
 }
 
 func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, vms []vmssVMEntry, err error) {
-	client, err := armcompute.NewVirtualMachineScaleSetVMsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewVirtualMachineScaleSetVMsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMsClient: %w", err)
 	}
@@ -291,7 +291,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 }
 
 func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, vm vmssVMEntry) (total, inserted int, err error) {
-	client, err := armcompute.NewVirtualMachineScaleSetVMExtensionsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewVirtualMachineScaleSetVMExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMExtensionsClient: %w", err)
 	}

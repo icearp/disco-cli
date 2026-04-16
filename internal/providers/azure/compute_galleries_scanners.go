@@ -34,7 +34,7 @@ type galleryProfileEntry struct {
 //  3. Gallery image versions, application versions, and inVMACP versions (per child, fanned out)
 func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase A: list all galleries in the subscription.
-	galleriesClient, err := armcompute.NewGalleriesClient(sub.ID, cred, nil)
+	galleriesClient, err := armcompute.NewGalleriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleriesClient: %w", err)
 	}
@@ -220,7 +220,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.Defa
 }
 
 func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
-	client, err := armcompute.NewGalleryImagesClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryImagesClient: %w", err)
 	}
@@ -285,7 +285,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.
 }
 
 func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
-	client, err := armcompute.NewGalleryApplicationsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryApplicationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryApplicationsClient: %w", err)
 	}
@@ -350,7 +350,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azide
 }
 
 func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryProfileEntry, err error) {
-	client, err := armcompute.NewGalleryInVMAccessControlProfilesClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryInVMAccessControlProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfilesClient: %w", err)
 	}
@@ -415,7 +415,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentit
 }
 
 func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, img galleryChildEntry) (total, inserted int, err error) {
-	client, err := armcompute.NewGalleryImageVersionsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryImageVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryImageVersionsClient: %w", err)
 	}
@@ -473,7 +473,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azid
 }
 
 func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, app galleryChildEntry) (total, inserted int, err error) {
-	client, err := armcompute.NewGalleryApplicationVersionsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryApplicationVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryApplicationVersionsClient: %w", err)
 	}
@@ -531,7 +531,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 }
 
 func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, prof galleryProfileEntry) (total, inserted int, err error) {
-	client, err := armcompute.NewGalleryInVMAccessControlProfileVersionsClient(sub.ID, cred, nil)
+	client, err := armcompute.NewGalleryInVMAccessControlProfileVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfileVersionsClient: %w", err)
 	}
