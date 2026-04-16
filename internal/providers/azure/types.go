@@ -54,6 +54,17 @@ const (
 	// SQL
 	TypeSQLServer   = "azure:microsoft.sql:server"
 	TypeSQLDatabase = "azure:microsoft.sql:database"
+	// App Service / Microsoft.Web
+	TypeAppServiceServerFarm              = "azure:microsoft.web:server-farms"
+	TypeAppServiceSite                    = "azure:microsoft.web:sites"
+	TypeAppServiceSiteSlot                = "azure:microsoft.web:sites/slots"
+	TypeAppServiceEnvironment             = "azure:microsoft.web:hosting-environments"
+	TypeAppServiceEnvironmentWorkerPool   = "azure:microsoft.web:hosting-environments/worker-pools"
+	TypeAppServiceEnvironmentMultiRolePool = "azure:microsoft.web:hosting-environments/multi-role-pools"
+	TypeAppServiceKubeEnvironment         = "azure:microsoft.web:kube-environments"
+	TypeAppServiceStaticSite              = "azure:microsoft.web:static-sites"
+	TypeAppServiceStaticSiteBuild         = "azure:microsoft.web:static-sites/builds"
+	TypeAppServiceCertificate             = "azure:microsoft.web:certificates"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -99,6 +110,17 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.storage/storageaccounts":                                    TypeStorageStorageAccount,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
+	// App Service / Microsoft.Web
+	"microsoft.web/serverfarms":                                            TypeAppServiceServerFarm,
+	"microsoft.web/sites":                                                  TypeAppServiceSite,
+	"microsoft.web/sites/slots":                                            TypeAppServiceSiteSlot,
+	"microsoft.web/hostingenvironments":                                    TypeAppServiceEnvironment,
+	"microsoft.web/hostingenvironments/workerpools":                        TypeAppServiceEnvironmentWorkerPool,
+	"microsoft.web/hostingenvironments/multirolepools":                     TypeAppServiceEnvironmentMultiRolePool,
+	"microsoft.web/kubeenvironments":                                       TypeAppServiceKubeEnvironment,
+	"microsoft.web/staticsites":                                            TypeAppServiceStaticSite,
+	"microsoft.web/staticsites/builds":                                     TypeAppServiceStaticSiteBuild,
+	"microsoft.web/certificates":                                           TypeAppServiceCertificate,
 }
 
 // KnownTypes returns all disco type strings currently covered by this provider.

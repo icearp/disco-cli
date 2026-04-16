@@ -9,6 +9,7 @@ import (
 // registered. Update this list when adding a new service scanner.
 var expectedAzureServices = []string{
 	"azure:aks",
+	"azure:appservice",
 	"azure:compute",
 	"azure:keyvault",
 	"azure:network",
