@@ -13,7 +13,7 @@ func init() { registerService(serviceEntry{name: "azure:aks", fn: scanAKS}) }
 
 // scanAKS discovers Azure Kubernetes Service managed clusters.
 func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, nil)
+	client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
 	}

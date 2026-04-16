@@ -13,7 +13,7 @@ func init() { registerService(serviceEntry{name: "azure:storage", fn: scanStorag
 
 // scanStorage discovers Azure storage accounts.
 func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armstorage.NewAccountsClient(sub.ID, cred, nil)
+	client, err := armstorage.NewAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
 	}

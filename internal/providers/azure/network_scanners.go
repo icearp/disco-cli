@@ -42,7 +42,7 @@ func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 }
 
 func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armnetwork.NewVirtualNetworksClient(sub.ID, cred, nil)
+	client, err := armnetwork.NewVirtualNetworksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewVirtualNetworksClient: %w", err)
 	}
@@ -134,7 +134,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 }
 
 func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armnetwork.NewSecurityGroupsClient(sub.ID, cred, nil)
+	client, err := armnetwork.NewSecurityGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
 	}
@@ -185,7 +185,7 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 }
 
 func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armnetwork.NewPublicIPAddressesClient(sub.ID, cred, nil)
+	client, err := armnetwork.NewPublicIPAddressesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
 	}

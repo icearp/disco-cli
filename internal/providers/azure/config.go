@@ -44,7 +44,7 @@ func loadSubscriptions(ctx context.Context) ([]subscription, *azidentity.Default
 	}
 
 	// Auto-enumerate all accessible subscriptions.
-	client, err := armsubscription.NewSubscriptionsClient(cred, nil)
+	client, err := armsubscription.NewSubscriptionsClient(cred, azClientOptions)
 	if err != nil {
 		return nil, nil, fmt.Errorf("armsubscription client: %w", err)
 	}

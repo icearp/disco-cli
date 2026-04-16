@@ -17,6 +17,8 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"codeburg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -29,13 +31,28 @@ const (
 	maxConcurrentServices = 10
 	// maxConcurrentFanout caps concurrent child API calls within a single service
 	// (e.g. VM extension calls per VM, gallery image scans per gallery).
-	// Higher than services because these are leaf-level calls with lower rate-limit risk.
-	maxConcurrentFanout = 20
+	// 50 keeps us well under Azure ARM rate limits (1200 req/min per subscription)
+	// while cutting the number of sequential fanout rounds compared to 20.
+	maxConcurrentFanout = 50
 	// serviceTimeout is the per-service hard deadline. azure:compute now covers VMSS,
 	// galleries, and hosting fan-outs in addition to core compute types, so this must
 	// be generous enough for large subscriptions.
 	serviceTimeout = 30 * time.Minute
 )
+
+// azClientOptions is shared by all arm* SDK client constructors. The retry
+// policy reduces the base delay from the SDK default (800ms) to 500ms and
+// allows up to 4 attempts — enough headroom for transient ARM errors without
+// stalling the fanout critical path.
+var azClientOptions = &arm.ClientOptions{
+	ClientOptions: azcore.ClientOptions{
+		Retry: policy.RetryOptions{
+			MaxRetries:    4,
+			RetryDelay:    500 * time.Millisecond,
+			MaxRetryDelay: 30 * time.Second,
+		},
+	},
+}
 
 func init() { providers.Register(&Scanner{}) }
 

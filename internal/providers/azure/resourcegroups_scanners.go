@@ -13,7 +13,7 @@ import (
 // upserts them as parent resources. All other Azure resources use the resource
 // group disco ID as their parent_id.
 func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
-	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, nil)
+	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return fmt.Errorf("armresources:NewResourceGroupsClient: %w", err)
 	}

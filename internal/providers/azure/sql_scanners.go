@@ -23,11 +23,11 @@ type sqlServer struct {
 // scanSQL discovers Azure SQL servers and their databases.
 // Servers are listed first, then all per-server database lists run concurrently.
 func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	serversClient, err := armsql.NewServersClient(sub.ID, cred, nil)
+	serversClient, err := armsql.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServersClient: %w", err)
 	}
-	dbsClient, err := armsql.NewDatabasesClient(sub.ID, cred, nil)
+	dbsClient, err := armsql.NewDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewDatabasesClient: %w", err)
 	}
