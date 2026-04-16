@@ -43,10 +43,10 @@ const (
 	TypeComputeCloudServiceRole         = "azure:microsoft.compute:cloud-services/roles"
 	TypeComputeCloudServiceRoleInstance = "azure:microsoft.compute:cloud-services/role-instances"
 	// Network
-	TypeNetworkVirtualNetwork       = "azure:microsoft.network:virtual-network"
-	TypeNetworkSubnet               = "azure:microsoft.network:subnet"
-	TypeNetworkSecurityGroup = "azure:microsoft.network:network-security-group"
-	TypeNetworkPublicIPAddress      = "azure:microsoft.network:public-ip-address"
+	TypeNetworkVirtualNetwork  = "azure:microsoft.network:virtual-network"
+	TypeNetworkSubnet          = "azure:microsoft.network:subnet"
+	TypeNetworkSecurityGroup   = "azure:microsoft.network:network-security-group"
+	TypeNetworkPublicIPAddress = "azure:microsoft.network:public-ip-address"
 	// Container Service (AKS)
 	TypeContainerServiceManagedCluster = "azure:microsoft.containerservice:managed-cluster"
 	// Key Vault
@@ -57,16 +57,16 @@ const (
 	TypeSQLServer   = "azure:microsoft.sql:server"
 	TypeSQLDatabase = "azure:microsoft.sql:database"
 	// App Service / Microsoft.Web
-	TypeAppServiceServerFarm              = "azure:microsoft.web:server-farms"
-	TypeAppServiceSite                    = "azure:microsoft.web:sites"
-	TypeAppServiceSiteSlot                = "azure:microsoft.web:sites/slots"
-	TypeAppServiceEnvironment             = "azure:microsoft.web:hosting-environments"
-	TypeAppServiceEnvironmentWorkerPool   = "azure:microsoft.web:hosting-environments/worker-pools"
+	TypeAppServiceServerFarm               = "azure:microsoft.web:server-farms"
+	TypeAppServiceSite                     = "azure:microsoft.web:sites"
+	TypeAppServiceSiteSlot                 = "azure:microsoft.web:sites/slots"
+	TypeAppServiceEnvironment              = "azure:microsoft.web:hosting-environments"
+	TypeAppServiceEnvironmentWorkerPool    = "azure:microsoft.web:hosting-environments/worker-pools"
 	TypeAppServiceEnvironmentMultiRolePool = "azure:microsoft.web:hosting-environments/multi-role-pools"
-	TypeAppServiceKubeEnvironment         = "azure:microsoft.web:kube-environments"
-	TypeAppServiceStaticSite              = "azure:microsoft.web:static-sites"
-	TypeAppServiceStaticSiteBuild         = "azure:microsoft.web:static-sites/builds"
-	TypeAppServiceCertificate             = "azure:microsoft.web:certificates"
+	TypeAppServiceKubeEnvironment          = "azure:microsoft.web:kube-environments"
+	TypeAppServiceStaticSite               = "azure:microsoft.web:static-sites"
+	TypeAppServiceStaticSiteBuild          = "azure:microsoft.web:static-sites/builds"
+	TypeAppServiceCertificate              = "azure:microsoft.web:certificates"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -113,16 +113,16 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	// App Service / Microsoft.Web
-	"microsoft.web/serverfarms":                                            TypeAppServiceServerFarm,
-	"microsoft.web/sites":                                                  TypeAppServiceSite,
-	"microsoft.web/sites/slots":                                            TypeAppServiceSiteSlot,
-	"microsoft.web/hostingenvironments":                                    TypeAppServiceEnvironment,
-	"microsoft.web/hostingenvironments/workerpools":                        TypeAppServiceEnvironmentWorkerPool,
-	"microsoft.web/hostingenvironments/multirolepools":                     TypeAppServiceEnvironmentMultiRolePool,
-	"microsoft.web/kubeenvironments":                                       TypeAppServiceKubeEnvironment,
-	"microsoft.web/staticsites":                                            TypeAppServiceStaticSite,
-	"microsoft.web/staticsites/builds":                                     TypeAppServiceStaticSiteBuild,
-	"microsoft.web/certificates":                                           TypeAppServiceCertificate,
+	"microsoft.web/serverfarms":                        TypeAppServiceServerFarm,
+	"microsoft.web/sites":                              TypeAppServiceSite,
+	"microsoft.web/sites/slots":                        TypeAppServiceSiteSlot,
+	"microsoft.web/hostingenvironments":                TypeAppServiceEnvironment,
+	"microsoft.web/hostingenvironments/workerpools":    TypeAppServiceEnvironmentWorkerPool,
+	"microsoft.web/hostingenvironments/multirolepools": TypeAppServiceEnvironmentMultiRolePool,
+	"microsoft.web/kubeenvironments":                   TypeAppServiceKubeEnvironment,
+	"microsoft.web/staticsites":                        TypeAppServiceStaticSite,
+	"microsoft.web/staticsites/builds":                 TypeAppServiceStaticSiteBuild,
+	"microsoft.web/certificates":                       TypeAppServiceCertificate,
 }
 
 // KnownTypes returns all disco type strings currently covered by this provider.
