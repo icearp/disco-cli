@@ -3,11 +3,14 @@ jobs:
   test:
     runs-on: ubuntu-go-latest
     steps:
-      - name: checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
-      - run: |
+      - name: Test for tidy, fmt, vet
+        run: |
           go mod tidy -diff
           gofmt -l .
-          golangci-lint run ./...
           go vet ./...
-          CGO_ENABLED=0 go test ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+      - name: Unit Tests
+        run: CGO_ENABLED=0 go test ./...
