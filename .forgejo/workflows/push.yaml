@@ -7,10 +7,19 @@ jobs:
         uses: actions/checkout@v4
       - name: Test for tidy, fmt, vet
         run: |
+          echo '--- Begin "go mod tidy" ---'
           go mod tidy -diff
+          if [[ $? == 0 ]]; then echo '\033[32m--- 'go.mod' is tidy. ---\033[0m'; else echo '\033[31m--- 'go.mod' is not tidy! ---\033[0m'; fi
+          echo '--- Begin "gofmt -l" ---'
           gofmt -l .
+          if [[ $? == 0 ]]; then echo '\033[32m--- Source files are formatted. ---\033[0m'; else echo '\033[31m--- Source is unformatted! ---\033[0m'; fi
+          echo '--- Begin "go vet ./..." ---'
           go vet ./...
+          if [[ $? == 0 ]]; then echo '\033[32m--- No suspicious constructs found. ---\033[0m'; else echo '\033[31m--- Suspicious constructs found! ---\033[0m'; fi
       - name: Lint
         uses: golangci/golangci-lint-action@v9
       - name: Unit Tests
-        run: CGO_ENABLED=0 go test ./...
+        run: |
+          echo '--- Begin unit testing ---'
+          CGO_ENABLED=0 go test ./...
+          if [[ $? == 0 ]]; then echo '\033[32m--- Unit tests passed. ---\033[0m'; else echo '\033[31m--- Unit tests failed! ---\033[0m'; fi
