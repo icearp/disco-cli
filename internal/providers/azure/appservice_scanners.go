@@ -121,57 +121,27 @@ func scanAppServicePlans(ctx context.Context, sub *subscription, cred *azidentit
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewPlansClient: %w", err)
 	}
-
-	var batch []*store.Resource
-	var pairs [][2]string
-
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:Plans.List", sub.ID, err)
+	return azPageScan(ctx, "armappservice:Plans.List", sub, st,
+		client.NewListPager(nil),
+		func(page armappservice.PlansClientListResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			var pairs [][2]string
+			for _, p := range page.Value {
+				if p.ID == nil {
+					continue
+				}
+				name, loc, nativeID := sv(p.Name), sv(p.Location), sv(p.ID)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeAppServiceServerFarm, NativeID: nativeID,
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(p.Tags), AttributesJSON: mustJSON(p),
+					DiscoveredBy: scanID,
+				})
+				pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceServerFarm, nativeID))
 			}
-			return 0, 0, fmt.Errorf("armappservice:Plans.List: %w", err)
-		}
-		for _, p := range page.Value {
-			if p.ID == nil {
-				continue
-			}
-			name := sv(p.Name)
-			location := sv(p.Location)
-			nativeID := sv(p.ID)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeAppServiceServerFarm,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
-			}
-			if p.Tags != nil {
-				s := mustJSON(p.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceServerFarm, nativeID))
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure App Service Plans: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure App Service Plans: %w", err)
-		}
-	}
-	return total, inserted, nil
+			return batch, pairs
+		})
 }
 
 // scanWebAppsChain discovers web apps (Microsoft.Web/sites) then fans out to
@@ -524,57 +494,27 @@ func scanKubeEnvironments(ctx context.Context, sub *subscription, cred *azidenti
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewKubeEnvironmentsClient: %w", err)
 	}
-
-	var batch []*store.Resource
-	var pairs [][2]string
-
-	pager := client.NewListBySubscriptionPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:KubeEnvironments.ListBySubscription", sub.ID, err)
+	return azPageScan(ctx, "armappservice:KubeEnvironments.ListBySubscription", sub, st,
+		client.NewListBySubscriptionPager(nil),
+		func(page armappservice.KubeEnvironmentsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			var pairs [][2]string
+			for _, ke := range page.Value {
+				if ke.ID == nil {
+					continue
+				}
+				name, loc, nativeID := sv(ke.Name), sv(ke.Location), sv(ke.ID)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeAppServiceKubeEnvironment, NativeID: nativeID,
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(ke.Tags), AttributesJSON: mustJSON(ke),
+					DiscoveredBy: scanID,
+				})
+				pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceKubeEnvironment, nativeID))
 			}
-			return 0, 0, fmt.Errorf("armappservice:KubeEnvironments.ListBySubscription: %w", err)
-		}
-		for _, ke := range page.Value {
-			if ke.ID == nil {
-				continue
-			}
-			name := sv(ke.Name)
-			location := sv(ke.Location)
-			nativeID := sv(ke.ID)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeAppServiceKubeEnvironment,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(ke),
-				DiscoveredBy:   scanID,
-			}
-			if ke.Tags != nil {
-				s := mustJSON(ke.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceKubeEnvironment, nativeID))
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure Kube Environments: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure Kube Environments: %w", err)
-		}
-	}
-	return total, inserted, nil
+			return batch, pairs
+		})
 }
 
 // scanStaticSitesChain discovers Static Web Apps (Microsoft.Web/staticSites) then
@@ -735,55 +675,25 @@ func scanCertificates(ctx context.Context, sub *subscription, cred *azidentity.D
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewCertificatesClient: %w", err)
 	}
-
-	var batch []*store.Resource
-	var pairs [][2]string
-
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:Certificates.List", sub.ID, err)
+	return azPageScan(ctx, "armappservice:Certificates.List", sub, st,
+		client.NewListPager(nil),
+		func(page armappservice.CertificatesClientListResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			var pairs [][2]string
+			for _, c := range page.Value {
+				if c.ID == nil {
+					continue
+				}
+				name, loc, nativeID := sv(c.Name), sv(c.Location), sv(c.ID)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeAppServiceCertificate, NativeID: nativeID,
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(c.Tags), AttributesJSON: mustJSON(c),
+					DiscoveredBy: scanID,
+				})
+				pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceCertificate, nativeID))
 			}
-			return 0, 0, fmt.Errorf("armappservice:Certificates.List: %w", err)
-		}
-		for _, c := range page.Value {
-			if c.ID == nil {
-				continue
-			}
-			name := sv(c.Name)
-			location := sv(c.Location)
-			nativeID := sv(c.ID)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeAppServiceCertificate,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			}
-			if c.Tags != nil {
-				s := mustJSON(c.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceCertificate, nativeID))
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Azure App Service Certificates: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-			return 0, 0, fmt.Errorf("closure Azure App Service Certificates: %w", err)
-		}
-	}
-	return total, inserted, nil
+			return batch, pairs
+		})
 }

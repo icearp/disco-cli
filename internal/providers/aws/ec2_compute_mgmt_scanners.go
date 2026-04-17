@@ -3,11 +3,9 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"golang.org/x/sync/errgroup"
 )
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,
@@ -16,61 +14,32 @@ import (
 // fleets, EC2 fleets, security group VPC associations, and snapshot block public
 // access settings.
 func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanInstances(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanSecurityGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanVolumes(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanLaunchTemplates(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanKeyPairs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanPlacementGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanSpotFleets(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanHosts(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanCapacityReservations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCapacityReservationFleets(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanEC2Fleets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanSnapshotBlockPublicAccess(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanInstances(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanSecurityGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanVolumes(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanLaunchTemplates(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanKeyPairs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanPlacementGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanSpotFleets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanHosts(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCapacityReservations(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanInstanceConnectEndpoints(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCapacityReservationFleets(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanEC2Fleets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSnapshotBlockPublicAccess(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanInstances(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

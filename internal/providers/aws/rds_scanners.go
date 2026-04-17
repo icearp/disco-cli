@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -63,82 +62,39 @@ func rdsPageScan[P any](
 // scanRDS discovers all RDS resources in one region concurrently.
 func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanDBInstances(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBClusters(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBParameterGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanDBProxies(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanDBProxyEndpoints(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBProxyTargetGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBSecurityGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBShardGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDBSubnetGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEventSubscriptions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanGlobalClusters(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanIntegrations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanOptionGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanDBInstances(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanDBClusters(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBParameterGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanDBProxies(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBProxyEndpoints(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBProxyTargetGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBSecurityGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanDBShardGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBSubnetGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEventSubscriptions(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanGlobalClusters(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanIntegrations(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanOptionGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanDBInstances(ctx context.Context, client *rds.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

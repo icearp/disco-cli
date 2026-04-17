@@ -17,48 +17,23 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	if err != nil {
 		return 0, 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
 	}
-
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armstorage:Accounts.List", sub.ID, err)
+	return azPageScan(ctx, "armstorage:Accounts.List", sub, st,
+		client.NewListPager(nil),
+		func(page armstorage.AccountsClientListResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			for _, acct := range page.Value {
+				if acct.ID == nil {
+					continue
+				}
+				name, loc := sv(acct.Name), sv(acct.Location)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeStorageStorageAccount, NativeID: sv(acct.ID),
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(acct.Tags), AttributesJSON: mustJSON(acct),
+					DiscoveredBy: scanID,
+				})
 			}
-			return 0, 0, fmt.Errorf("armstorage:Accounts.List: %w", err)
-		}
-		var batch []*store.Resource
-		for _, acct := range page.Value {
-			if acct.ID == nil {
-				continue
-			}
-			name := sv(acct.Name)
-			location := sv(acct.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeStorageStorageAccount,
-				NativeID:       sv(acct.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(acct),
-				DiscoveredBy:   scanID,
-			}
-			if acct.Tags != nil {
-				s := mustJSON(acct.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert storage accounts: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return batch, nil
+		})
 }

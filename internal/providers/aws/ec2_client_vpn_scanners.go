@@ -12,31 +12,18 @@ import (
 
 // scanEC2ClientVPN discovers all Client VPN resources in parallel.
 func scanEC2ClientVPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanClientVPNEndpoints(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanClientVPNAuthorizationRules(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanClientVPNRoutes(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanClientVPNTargetNetworkAssociations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) {
+			return scanClientVPNEndpoints(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanClientVPNAuthorizationRules(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanClientVPNRoutes(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanClientVPNTargetNetworkAssociations(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanClientVPNEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -80,7 +67,6 @@ func scanClientVPNAuthorizationRules(ctx context.Context, client *ec2.Client, ac
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
-		epID := epID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnAuthorizationRules", acct, region, st,
 				ec2.NewDescribeClientVpnAuthorizationRulesPaginator(client, &ec2.DescribeClientVpnAuthorizationRulesInput{
@@ -131,7 +117,6 @@ func scanClientVPNRoutes(ctx context.Context, client *ec2.Client, acct *account,
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
-		epID := epID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnRoutes", acct, region, st,
 				ec2.NewDescribeClientVpnRoutesPaginator(client, &ec2.DescribeClientVpnRoutesInput{
@@ -182,7 +167,6 @@ func scanClientVPNTargetNetworkAssociations(ctx context.Context, client *ec2.Cli
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
-		epID := epID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnTargetNetworks", acct, region, st,
 				ec2.NewDescribeClientVpnTargetNetworksPaginator(client, &ec2.DescribeClientVpnTargetNetworksInput{

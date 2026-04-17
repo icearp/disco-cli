@@ -2,47 +2,30 @@ package aws
 
 import (
 	"context"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"golang.org/x/sync/errgroup"
 )
 
 // scanEC2Observability discovers observability and policy types: flow logs,
 // managed prefix lists, and all Network Insights resources.
 func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanFlowLogs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanPrefixLists(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInsightsPaths(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInsightsAnalyses(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInsightsAccessScopes(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInsightsAccessScopeAnalyses(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanFlowLogs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanPrefixLists(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanNetworkInsightsPaths(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanNetworkInsightsAnalyses(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanNetworkInsightsAccessScopes(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanNetworkInsightsAccessScopeAnalyses(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

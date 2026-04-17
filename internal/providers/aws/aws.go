@@ -93,7 +93,6 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 		if !svc.global {
 			continue
 		}
-		svc := svc
 		g0.Go(func() error {
 			if err := sem.Acquire(ctx0, 1); err != nil {
 				return err
@@ -150,7 +149,6 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 		if svc.global {
 			continue
 		}
-		svc := svc
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err

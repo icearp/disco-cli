@@ -191,6 +191,21 @@ func isAccessDenied(err error) bool {
 	return false
 }
 
+// isFeatureNotAvailable reports whether err is a 400 FeatureDisabledOnSelectedEdition
+// or similar "not supported on this edition/tier" error. These are expected when
+// scanning databases on editions that don't support certain features (e.g.
+// workload groups require Business Critical or Premium; ledger requires certain tiers).
+func isFeatureNotAvailable(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == http.StatusBadRequest &&
+			(respErr.ErrorCode == "FeatureDisabledOnSelectedEdition" ||
+				respErr.ErrorCode == "FeatureNotSupported" ||
+				respErr.ErrorCode == "UnsupportedEdition")
+	}
+	return false
+}
+
 // skipIfAccessDenied logs the error and returns nil.
 func skipIfAccessDenied(service, subID string, err error) error {
 	log.Printf("warn: azure %s %s: %v (skipping)", service, subID, err)
@@ -250,4 +265,64 @@ func truncateAtSegment(id, separator string) string {
 		return ""
 	}
 	return id[:idx]
+}
+
+// azTagsJSON converts an Azure SDK tag map to a JSON-encoded {key:value} string pointer.
+// Returns nil when tags is nil or empty.
+func azTagsJSON(tags map[string]*string) *string {
+	if len(tags) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(tags))
+	for k, v := range tags {
+		if v != nil {
+			m[k] = *v
+		}
+	}
+	s := mustJSON(m)
+	return &s
+}
+
+// azPager is satisfied by every Azure SDK paginator (More/NextPage pair).
+type azPager[P any] interface {
+	More() bool
+	NextPage(context.Context) (P, error)
+}
+
+// azPageScan runs a paginated Azure list call, converting each page to resources
+// and hierarchy pairs via toResources, then upserts both. Handles access-denied
+// by logging and returning nil.
+func azPageScan[P any](
+	ctx context.Context,
+	action string,
+	sub *subscription,
+	st *store.Store,
+	pager azPager[P],
+	toResources func(P) ([]*store.Resource, [][2]string),
+) (total, inserted int, err error) {
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied(action, sub.ID, err)
+			}
+			return total, inserted, fmt.Errorf("%s: %w", action, err)
+		}
+		batch, pairs := toResources(page)
+		if len(batch) == 0 {
+			continue
+		}
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return total, inserted, fmt.Errorf("upsert %s: %w", action, err)
+		}
+		total += len(batch)
+		inserted += n
+		if len(pairs) > 0 {
+			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+				return total, inserted, fmt.Errorf("closure %s: %w", action, err)
+			}
+		}
+	}
+	return
 }

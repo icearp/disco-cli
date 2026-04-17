@@ -654,7 +654,6 @@ func scanLogsLogStreams(ctx context.Context, client *cwlogs.Client, acct *accoun
 	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
-		grp := grp // capture
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
@@ -742,7 +741,6 @@ func scanLogsSubscriptionFilters(ctx context.Context, client *cwlogs.Client, acc
 	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
-		grp := grp
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
@@ -836,7 +834,6 @@ func scanLogsTransformers(ctx context.Context, client *cwlogs.Client, acct *acco
 	sem := semaphore.NewWeighted(2)
 
 	for _, grp := range groups {
-		grp := grp
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err

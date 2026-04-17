@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
@@ -25,107 +24,56 @@ func init() {
 // All CloudFront resources are global; the client is always created against us-east-1.
 func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = "us-east-1" })
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontDistributions(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontMonitoringSubscriptions(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontStreamingDistributions(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontDistributionTenants(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontCachePolicies(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontOriginRequestPolicies(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontResponseHeadersPolicies(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontContinuousDeploymentPolicies(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanCloudFrontOAIs(gctx, acct, client, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontOriginAccessControls(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontFunctions(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontConnectionFunctions(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontKeyGroups(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontKeyValueStores(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontPublicKeys(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontRealtimeLogConfigs(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontTrustStores(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontConnectionGroups(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontAnycastIpLists(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCloudFrontVpcOrigins(gctx, acct, client, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontDistributions(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontMonitoringSubscriptions(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontStreamingDistributions(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontDistributionTenants(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontCachePolicies(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontOriginRequestPolicies(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontResponseHeadersPolicies(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontContinuousDeploymentPolicies(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontOAIs(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontOriginAccessControls(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontFunctions(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontConnectionFunctions(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontKeyValueStores(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontRealtimeLogConfigs(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontTrustStores(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontConnectionGroups(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontAnycastIpLists(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID) },
+	)
 }
 
 // cfMarkerScan abstracts Marker-based pagination for CloudFront list APIs that

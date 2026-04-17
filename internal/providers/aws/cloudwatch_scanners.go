@@ -230,7 +230,6 @@ func scanCWDashboards(ctx context.Context, acct *account, region string, st *sto
 		)
 		g, gctx := errgroup.WithContext(ctx)
 		for _, entry := range page.DashboardEntries {
-			entry := entry
 			g.Go(func() error {
 				out, err := client.GetDashboard(gctx, &cloudwatch.GetDashboardInput{
 					DashboardName: entry.DashboardName,
@@ -339,7 +338,6 @@ func scanCWMetricStreams(ctx context.Context, acct *account, region string, st *
 		)
 		g, gctx := errgroup.WithContext(ctx)
 		for _, entry := range page.Entries {
-			entry := entry
 			g.Go(func() error {
 				out, err := client.GetMetricStream(gctx, &cloudwatch.GetMetricStreamInput{
 					Name: entry.Name,

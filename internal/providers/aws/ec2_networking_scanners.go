@@ -17,94 +17,41 @@ import (
 // peering, DHCP options, egress-only IGWs, carrier gateways, VPC features,
 // VPC endpoint services, and network interface permissions.
 func scanEC2Networking(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanVPCs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanSubnets(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanInternetGateways(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNatGateways(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanRouteTables(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanEIPs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInterfaces(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkACLs(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCEndpoints(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCPeeringConnections(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanDHCPOptions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEgressOnlyIGWs(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanCarrierGateways(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCBlockPublicAccessOptions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCBlockPublicAccessExclusions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCEndpointConnectionNotifications(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCEndpointServices(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPCEndpointServicePermissions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanNetworkInterfacePermissions(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanVPCs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanSubnets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanInternetGateways(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanNatGateways(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanRouteTables(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEIPs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanNetworkInterfaces(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanNetworkACLs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanVPCEndpoints(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCPeeringConnections(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanDHCPOptions(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEgressOnlyIGWs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanCarrierGateways(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCBlockPublicAccessOptions(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCBlockPublicAccessExclusions(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCEndpointConnectionNotifications(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCEndpointServices(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanVPCEndpointServicePermissions(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanNetworkInterfacePermissions(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanVPCs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -609,7 +556,6 @@ func scanVPCEndpointServicePermissions(ctx context.Context, client *ec2.Client, 
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, svcID := range svcIDs {
-		svcID := svcID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeVpcEndpointServicePermissions", acct, region, st,
 				ec2.NewDescribeVpcEndpointServicePermissionsPaginator(client, &ec2.DescribeVpcEndpointServicePermissionsInput{

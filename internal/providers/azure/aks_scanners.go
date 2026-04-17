@@ -17,56 +17,31 @@ func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcontainerservice:NewManagedClustersClient: %w", err)
 	}
-
-	pager := client.NewListPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcontainerservice:ManagedClusters.List", sub.ID, err)
+	return azPageScan(ctx, "armcontainerservice:ManagedClusters.List", sub, st,
+		client.NewListPager(nil),
+		func(page armcontainerservice.ManagedClustersClientListResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			for _, cluster := range page.Value {
+				if cluster.ID == nil {
+					continue
+				}
+				name, loc := sv(cluster.Name), sv(cluster.Location)
+				var status string
+				if cluster.Properties != nil && cluster.Properties.ProvisioningState != nil {
+					status = *cluster.Properties.ProvisioningState
+				}
+				r := &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeContainerServiceManagedCluster, NativeID: sv(cluster.ID),
+					Name: &name, Region: &loc, Status: &status,
+					TagsJSON: azTagsJSON(cluster.Tags), AttributesJSON: mustJSON(cluster),
+					DiscoveredBy: scanID,
+				}
+				if cluster.SystemData != nil {
+					r.CreatedAt = tp(cluster.SystemData.CreatedAt)
+				}
+				batch = append(batch, r)
 			}
-			return 0, 0, fmt.Errorf("armcontainerservice:ManagedClusters.List: %w", err)
-		}
-		var batch []*store.Resource
-		for _, cluster := range page.Value {
-			if cluster.ID == nil {
-				continue
-			}
-			name := sv(cluster.Name)
-			location := sv(cluster.Location)
-			var status string
-			if cluster.Properties != nil && cluster.Properties.ProvisioningState != nil {
-				status = *cluster.Properties.ProvisioningState
-			}
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeContainerServiceManagedCluster,
-				NativeID:       sv(cluster.ID),
-				Name:           &name,
-				Region:         &location,
-				Status:         &status,
-				AttributesJSON: mustJSON(cluster),
-				DiscoveredBy:   scanID,
-			}
-			if cluster.SystemData != nil {
-				r.CreatedAt = tp(cluster.SystemData.CreatedAt)
-			}
-			if cluster.Tags != nil {
-				s := mustJSON(cluster.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert AKS clusters: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return batch, nil
+		})
 }

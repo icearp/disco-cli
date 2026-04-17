@@ -17,48 +17,23 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 	if err != nil {
 		return 0, 0, fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
 	}
-
-	pager := client.NewListBySubscriptionPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armkeyvault:Vaults.ListBySubscription", sub.ID, err)
+	return azPageScan(ctx, "armkeyvault:Vaults.ListBySubscription", sub, st,
+		client.NewListBySubscriptionPager(nil),
+		func(page armkeyvault.VaultsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			for _, vault := range page.Value {
+				if vault.ID == nil {
+					continue
+				}
+				name, loc := sv(vault.Name), sv(vault.Location)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeKeyVaultVault, NativeID: sv(vault.ID),
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(vault.Tags), AttributesJSON: mustJSON(vault),
+					DiscoveredBy: scanID,
+				})
 			}
-			return 0, 0, fmt.Errorf("armkeyvault:Vaults.ListBySubscription: %w", err)
-		}
-		var batch []*store.Resource
-		for _, vault := range page.Value {
-			if vault.ID == nil {
-				continue
-			}
-			name := sv(vault.Name)
-			location := sv(vault.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeKeyVaultVault,
-				NativeID:       sv(vault.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(vault),
-				DiscoveredBy:   scanID,
-			}
-			if vault.Tags != nil {
-				s := mustJSON(vault.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert Key Vaults: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return batch, nil
+		})
 }

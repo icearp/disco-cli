@@ -3,35 +3,20 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"golang.org/x/sync/errgroup"
 )
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.
 func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanCustomerGateways(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPNGateways(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanVPNConnections(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) {
+			return scanCustomerGateways(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanVPNGateways(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanVPNConnections(ctx, client, acct, region, st, scanID) },
+	)
 }
 
 func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

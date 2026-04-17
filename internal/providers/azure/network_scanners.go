@@ -138,50 +138,25 @@ func scanNSGs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewSecurityGroupsClient: %w", err)
 	}
-
-	pager := client.NewListAllPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armnetwork:SecurityGroups.ListAll", sub.ID, err)
+	return azPageScan(ctx, "armnetwork:SecurityGroups.ListAll", sub, st,
+		client.NewListAllPager(nil),
+		func(page armnetwork.SecurityGroupsClientListAllResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			for _, nsg := range page.Value {
+				if nsg.ID == nil {
+					continue
+				}
+				name, loc := sv(nsg.Name), sv(nsg.Location)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeNetworkSecurityGroup, NativeID: sv(nsg.ID),
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(nsg.Tags), AttributesJSON: mustJSON(nsg),
+					DiscoveredBy: scanID,
+				})
 			}
-			return 0, 0, fmt.Errorf("armnetwork:SecurityGroups.ListAll: %w", err)
-		}
-		var batch []*store.Resource
-		for _, nsg := range page.Value {
-			if nsg.ID == nil {
-				continue
-			}
-			name := sv(nsg.Name)
-			location := sv(nsg.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeNetworkSecurityGroup,
-				NativeID:       sv(nsg.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(nsg),
-				DiscoveredBy:   scanID,
-			}
-			if nsg.Tags != nil {
-				s := mustJSON(nsg.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert NSGs: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return batch, nil
+		})
 }
 
 func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -189,48 +164,23 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewPublicIPAddressesClient: %w", err)
 	}
-
-	pager := client.NewListAllPager(nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armnetwork:PublicIPAddresses.ListAll", sub.ID, err)
+	return azPageScan(ctx, "armnetwork:PublicIPAddresses.ListAll", sub, st,
+		client.NewListAllPager(nil),
+		func(page armnetwork.PublicIPAddressesClientListAllResponse) ([]*store.Resource, [][2]string) {
+			var batch []*store.Resource
+			for _, ip := range page.Value {
+				if ip.ID == nil {
+					continue
+				}
+				name, loc := sv(ip.Name), sv(ip.Location)
+				batch = append(batch, &store.Resource{
+					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Type: TypeNetworkPublicIPAddress, NativeID: sv(ip.ID),
+					Name: &name, Region: &loc,
+					TagsJSON: azTagsJSON(ip.Tags), AttributesJSON: mustJSON(ip),
+					DiscoveredBy: scanID,
+				})
 			}
-			return 0, 0, fmt.Errorf("armnetwork:PublicIPAddresses.ListAll: %w", err)
-		}
-		var batch []*store.Resource
-		for _, ip := range page.Value {
-			if ip.ID == nil {
-				continue
-			}
-			name := sv(ip.Name)
-			location := sv(ip.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeNetworkPublicIPAddress,
-				NativeID:       sv(ip.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(ip),
-				DiscoveredBy:   scanID,
-			}
-			if ip.Tags != nil {
-				s := mustJSON(ip.Tags)
-				r.TagsJSON = &s
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert public IPs: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return batch, nil
+		})
 }

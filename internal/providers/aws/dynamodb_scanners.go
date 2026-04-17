@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -15,17 +14,10 @@ func init() { registerService(serviceEntry{name: "aws:dynamodb", fn: scanDynamoD
 
 // scanDynamoDB is the orchestrator for all DynamoDB resource types in one region.
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanDynamoDBTables(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanDynamoDBGlobalTables(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanDynamoDBTables(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanDynamoDBGlobalTables(ctx, acct, region, st, scanID) },
+	)
 }
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns

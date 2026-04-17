@@ -12,41 +12,26 @@ import (
 
 // scanEC2LocalGateway discovers all Local Gateway resources in parallel.
 func scanEC2LocalGateway(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayRouteTables(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayRoutes(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayVirtualInterfaces(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayVirtualInterfaceGroups(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayRouteTableVPCAssociations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanLocalGatewayRouteTableVIGAssociations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayRouteTables(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayRoutes(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayVirtualInterfaces(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayVirtualInterfaceGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayRouteTableVPCAssociations(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanLocalGatewayRouteTableVIGAssociations(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanLocalGatewayRouteTables(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -88,7 +73,6 @@ func scanLocalGatewayRoutes(ctx context.Context, client *ec2.Client, acct *accou
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
-		rtID := rtID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:SearchLocalGatewayRoutes", acct, region, st,
 				ec2.NewSearchLocalGatewayRoutesPaginator(client, &ec2.SearchLocalGatewayRoutesInput{

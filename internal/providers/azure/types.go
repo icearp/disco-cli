@@ -53,9 +53,46 @@ const (
 	TypeKeyVaultVault = "azure:microsoft.keyvault:vault"
 	// Storage
 	TypeStorageStorageAccount = "azure:microsoft.storage:storage-account"
-	// SQL
+	// SQL — servers and databases
 	TypeSQLServer   = "azure:microsoft.sql:server"
 	TypeSQLDatabase = "azure:microsoft.sql:database"
+	// SQL — subscription-wide resources
+	TypeSQLInstancePool   = "azure:microsoft.sql:instance-pools"
+	TypeSQLVirtualCluster = "azure:microsoft.sql:virtual-clusters"
+	// SQL — managed instances and sub-resources
+	TypeSQLManagedInstance      = "azure:microsoft.sql:managed-instances"
+	TypeSQLManagedDatabase      = "azure:microsoft.sql:managed-instances/databases"
+	TypeSQLManagedInstanceAdmin = "azure:microsoft.sql:managed-instances/administrators"
+	TypeSQLManagedInstanceVA    = "azure:microsoft.sql:managed-instances/vulnerability-assessments"
+	TypeSQLManagedDatabaseVA    = "azure:microsoft.sql:managed-instances/databases/vulnerability-assessments"
+	// SQL — server sub-resources
+	TypeSQLServerKey                 = "azure:microsoft.sql:servers/keys"
+	TypeSQLEncryptionProtector       = "azure:microsoft.sql:servers/encryption-protector"
+	TypeSQLServerAdministrator       = "azure:microsoft.sql:servers/administrators"
+	TypeSQLServerAuditingSettings    = "azure:microsoft.sql:servers/auditing-settings"
+	TypeSQLServerExtAuditingSettings = "azure:microsoft.sql:servers/extended-auditing-settings"
+	TypeSQLServerDevOpsAuditSettings = "azure:microsoft.sql:servers/dev-ops-auditing-settings"
+	TypeSQLServerSecurityAlert       = "azure:microsoft.sql:servers/security-alert-policies"
+	TypeSQLServerAdvancedThreatProt  = "azure:microsoft.sql:servers/advanced-threat-protection-settings"
+	TypeSQLServerVulnAssessment      = "azure:microsoft.sql:servers/vulnerability-assessments"
+	TypeSQLElasticPool               = "azure:microsoft.sql:servers/elasticpools"
+	TypeSQLFailoverGroup             = "azure:microsoft.sql:servers/failover-groups"
+	TypeSQLServerDNSAlias            = "azure:microsoft.sql:servers/dns-aliases"
+	TypeSQLVirtualNetworkRule        = "azure:microsoft.sql:servers/virtual-network-rules"
+	TypeSQLJobAgent                  = "azure:microsoft.sql:servers/job-agents"
+	TypeSQLSyncAgent                 = "azure:microsoft.sql:servers/sync-agents"
+	TypeSQLRestorableDroppedDB       = "azure:microsoft.sql:servers/restorable-dropped-databases"
+	// SQL — database sub-resources
+	TypeSQLDBTransparentDataEnc = "azure:microsoft.sql:servers/databases/transparent-data-encryption"
+	TypeSQLDBSecurityAlert      = "azure:microsoft.sql:servers/databases/security-alert-policies"
+	TypeSQLDBAdvancedThreatProt = "azure:microsoft.sql:servers/databases/advanced-threat-protection-settings"
+	TypeSQLDBAuditingSettings   = "azure:microsoft.sql:servers/databases/auditing-settings"
+	TypeSQLDBVulnAssessment     = "azure:microsoft.sql:servers/databases/vulnerability-assessments"
+	TypeSQLSyncGroup            = "azure:microsoft.sql:servers/databases/sync-groups"
+	TypeSQLReplicationLink      = "azure:microsoft.sql:servers/databases/replication-links"
+	TypeSQLWorkloadGroup        = "azure:microsoft.sql:servers/databases/workload-groups"
+	TypeSQLGeoBackupPolicy      = "azure:microsoft.sql:servers/databases/geo-backup-policies"
+	TypeSQLLedgerDigestUpload   = "azure:microsoft.sql:servers/databases/ledger-digest-uploads"
 	// App Service / Microsoft.Web
 	TypeAppServiceServerFarm               = "azure:microsoft.web:server-farms"
 	TypeAppServiceSite                     = "azure:microsoft.web:sites"
@@ -110,8 +147,41 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.containerservice/managedclusters":                           TypeContainerServiceManagedCluster,
 	"microsoft.keyvault/vaults":                                            TypeKeyVaultVault,
 	"microsoft.storage/storageaccounts":                                    TypeStorageStorageAccount,
-	"microsoft.sql/servers":                                                TypeSQLServer,
-	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
+	"microsoft.sql/servers":                                                                  TypeSQLServer,
+	"microsoft.sql/servers/databases":                                                       TypeSQLDatabase,
+	"microsoft.sql/instancepools":                                                           TypeSQLInstancePool,
+	"microsoft.sql/virtualclusters":                                                         TypeSQLVirtualCluster,
+	"microsoft.sql/managedinstances":                                                        TypeSQLManagedInstance,
+	"microsoft.sql/managedinstances/databases":                                              TypeSQLManagedDatabase,
+	"microsoft.sql/managedinstances/administrators":                                         TypeSQLManagedInstanceAdmin,
+	"microsoft.sql/managedinstances/vulnerabilityassessments":                               TypeSQLManagedInstanceVA,
+	"microsoft.sql/managedinstances/databases/vulnerabilityassessments":                     TypeSQLManagedDatabaseVA,
+	"microsoft.sql/servers/keys":                                                            TypeSQLServerKey,
+	"microsoft.sql/servers/encryptionprotector":                                             TypeSQLEncryptionProtector,
+	"microsoft.sql/servers/administrators":                                                  TypeSQLServerAdministrator,
+	"microsoft.sql/servers/auditingsettings":                                                TypeSQLServerAuditingSettings,
+	"microsoft.sql/servers/extendedauditingsettings":                                        TypeSQLServerExtAuditingSettings,
+	"microsoft.sql/servers/devopsauditsettings":                                             TypeSQLServerDevOpsAuditSettings,
+	"microsoft.sql/servers/securityalertpolicies":                                           TypeSQLServerSecurityAlert,
+	"microsoft.sql/servers/advancedthreatprotectionsettings":                                TypeSQLServerAdvancedThreatProt,
+	"microsoft.sql/servers/vulnerabilityassessments":                                        TypeSQLServerVulnAssessment,
+	"microsoft.sql/servers/elasticpools":                                                    TypeSQLElasticPool,
+	"microsoft.sql/servers/failovergroups":                                                  TypeSQLFailoverGroup,
+	"microsoft.sql/servers/dnsaliases":                                                      TypeSQLServerDNSAlias,
+	"microsoft.sql/servers/virtualnetworkrules":                                             TypeSQLVirtualNetworkRule,
+	"microsoft.sql/servers/jobagents":                                                       TypeSQLJobAgent,
+	"microsoft.sql/servers/syncagents":                                                      TypeSQLSyncAgent,
+	"microsoft.sql/servers/restorabledroppeddatabases":                                      TypeSQLRestorableDroppedDB,
+	"microsoft.sql/servers/databases/transparentdataencryption":                             TypeSQLDBTransparentDataEnc,
+	"microsoft.sql/servers/databases/securityalertpolicies":                                 TypeSQLDBSecurityAlert,
+	"microsoft.sql/servers/databases/advancedthreatprotectionsettings":                      TypeSQLDBAdvancedThreatProt,
+	"microsoft.sql/servers/databases/auditingsettings":                                      TypeSQLDBAuditingSettings,
+	"microsoft.sql/servers/databases/vulnerabilityassessments":                              TypeSQLDBVulnAssessment,
+	"microsoft.sql/servers/databases/syncgroups":                                            TypeSQLSyncGroup,
+	"microsoft.sql/servers/databases/replicationlinks":                                      TypeSQLReplicationLink,
+	"microsoft.sql/servers/databases/workloadgroups":                                        TypeSQLWorkloadGroup,
+	"microsoft.sql/servers/databases/geobackuppolicies":                                     TypeSQLGeoBackupPolicy,
+	"microsoft.sql/servers/databases/ledgerdigestuploads":                                   TypeSQLLedgerDigestUpload,
 	// App Service / Microsoft.Web
 	"microsoft.web/serverfarms":                        TypeAppServiceServerFarm,
 	"microsoft.web/sites":                              TypeAppServiceSite,

@@ -83,7 +83,6 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client *s3.Client,
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, b := range buckets {
-		b := b
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err

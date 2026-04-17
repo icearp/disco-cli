@@ -30,7 +30,6 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 		}
 		var batch []*store.Resource
 		for _, url := range out.QueueUrls {
-			url := url
 			// Use the queue URL as NativeID; it uniquely identifies the queue.
 			r := &store.Resource{
 				Provider:       "aws",

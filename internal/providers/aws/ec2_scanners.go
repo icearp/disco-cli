@@ -18,47 +18,33 @@ func init() { registerService(serviceEntry{name: "aws:ec2", fn: scanEC2}) }
 // sub-scanners via an internal errgroup.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanEC2Networking(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2VPN(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2ComputeMgmt(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2Observability(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2IPAM(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2TGW(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2TrafficMirror(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2VerifiedAccess(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2LocalGateway(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanEC2ClientVPN(ctx, client, acct, region, st, scanID) },
+	)
+}
+
+// runScanners executes scanner functions concurrently via errgroup, aggregating
+// total/inserted counts. Each fn receives the errgroup-derived context.
+func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, error)) (int, int, error) {
 	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanEC2Networking(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanEC2VPN(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanEC2ComputeMgmt(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEC2Observability(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanEC2IPAM(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error { tt, nn, e := scanEC2TGW(gctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanEC2TrafficMirror(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEC2VerifiedAccess(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEC2LocalGateway(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanEC2ClientVPN(gctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
+	for _, fn := range fns {
+		g.Go(func() error {
+			tt, nn, err := fn(gctx)
+			t.Add(int64(tt))
+			n.Add(int64(nn))
+			return err
+		})
+	}
 	return int(t.Load()), int(n.Load()), g.Wait()
 }
 

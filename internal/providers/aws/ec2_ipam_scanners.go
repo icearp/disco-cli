@@ -12,38 +12,21 @@ import (
 
 // scanEC2IPAM discovers all IPAM-related EC2 resources in parallel.
 func scanEC2IPAM(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanIPAMs(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanIPAMScopes(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error { tt, nn, e := scanIPAMPools(ctx, client, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanIPAMAllocations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanIPAMResourceDiscoveries(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanIPAMResourceDiscoveryAssociations(ctx, client, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanIPAMs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanIPAMScopes(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanIPAMPools(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMAllocations(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMResourceDiscoveries(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMResourceDiscoveryAssociations(ctx, client, acct, region, st, scanID)
+		},
+	)
 }
 
 func scanIPAMs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -138,7 +121,6 @@ func scanIPAMPoolCIDRs(ctx context.Context, client *ec2.Client, acct *account, r
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, poolID := range poolIDs {
-		poolID := poolID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:GetIpamPoolCidrs", acct, region, st,
 				ec2.NewGetIpamPoolCidrsPaginator(client, &ec2.GetIpamPoolCidrsInput{IpamPoolId: &poolID}),
@@ -184,7 +166,6 @@ func scanIPAMAllocations(ctx context.Context, client *ec2.Client, acct *account,
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 	g, ctx := errgroup.WithContext(ctx)
 	for _, poolID := range poolIDs {
-		poolID := poolID
 		g.Go(func() error {
 			tt, nn, e := ec2PageScan(ctx, "ec2:GetIpamPoolAllocations", acct, region, st,
 				ec2.NewGetIpamPoolAllocationsPaginator(client, &ec2.GetIpamPoolAllocationsInput{IpamPoolId: &poolID}),

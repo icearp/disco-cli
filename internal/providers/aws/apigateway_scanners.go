@@ -19,61 +19,27 @@ func init() {
 // scanAPIGateway is the orchestrator for all API Gateway v1 (REST) resource types.
 // It runs all sub-scanners concurrently and aggregates their counts.
 func scanAPIGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { tt, nn, e := scanAPIGatewayREST(gctx, acct, region, st, scanID); add(tt, nn); return e })
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayAccount(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayAPIKeys(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayClientCertificates(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayDomainNames(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayUsagePlans(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayVPCLinks(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayREST(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayAccount(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayAPIKeys(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayClientCertificates(ctx, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayDomainNames(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayUsagePlans(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayVPCLinks(ctx, acct, region, st, scanID) },
+	)
 }
 
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
 func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayHTTPAPIs(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	g.Go(func() error {
-		tt, nn, e := scanAPIGatewayV2DomainNames(gctx, acct, region, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) { return scanAPIGatewayHTTPAPIs(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayV2DomainNames(ctx, acct, region, st, scanID)
+		},
+	)
 }
 
 // restAPISummary holds the minimal info needed to fan out per-API sub-scans.
@@ -130,7 +96,6 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 	add := func(tt, nn int) { t.Add(int64(tt)); ni.Add(int64(nn)) }
 	eg, egCtx := errgroup.WithContext(ctx)
 	for _, a := range apis {
-		a := a
 		eg.Go(func() error {
 			tt, nn, e := scanAPIGatewayPerAPI(egCtx, client, acct, region, a.id, st, scanID)
 			add(tt, nn)
@@ -147,56 +112,35 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 
 // scanAPIGatewayPerAPI scans all child resources of a single REST API concurrently.
 func scanAPIGatewayPerAPI(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	eg, egCtx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayAuthorizers(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayDeployments(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayStages(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayResources(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayModels(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayRequestValidators(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayGatewayResponses(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayDocumentationParts(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	eg.Go(func() error {
-		tt, nn, e := scanAPIGatewayDocumentationVersions(egCtx, client, acct, region, apiID, st, scanID)
-		add(tt, nn)
-		return e
-	})
-	err = eg.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return runScanners(ctx,
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayAuthorizers(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayDeployments(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayStages(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayResources(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayModels(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayRequestValidators(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayGatewayResponses(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayDocumentationParts(ctx, client, acct, region, apiID, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayDocumentationVersions(ctx, client, acct, region, apiID, st, scanID)
+		},
+	)
 }
 
 // scanAPIGatewayAuthorizers discovers authorizers for a single REST API.

@@ -327,7 +327,6 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Clie
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, m := range mraps {
-		m := m
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
