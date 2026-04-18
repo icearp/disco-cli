@@ -53,26 +53,36 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontOriginAccessControls(ctx, acct, client, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontFunctions(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontFunctions(ctx, acct, client, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontConnectionFunctions(ctx, acct, client, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontKeyValueStores(ctx, acct, client, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontRealtimeLogConfigs(ctx, acct, client, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontTrustStores(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontTrustStores(ctx, acct, client, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontConnectionGroups(ctx, acct, client, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontAnycastIpLists(ctx, acct, client, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID)
+		},
 	)
 }
 

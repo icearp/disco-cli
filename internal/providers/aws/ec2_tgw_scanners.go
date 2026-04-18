@@ -21,7 +21,9 @@ func scanEC2TGW(ctx context.Context, client *ec2.Client, acct *account, region s
 		func(ctx context.Context) (int, int, error) {
 			return scanTransitGatewayAttachments(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanTGWConnects(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanTGWConnects(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanTGWConnectPeers(ctx, client, acct, region, st, scanID)
 		},
@@ -49,10 +51,10 @@ func scanEC2TGW(ctx context.Context, client *ec2.Client, acct *account, region s
 		func(ctx context.Context) (int, int, error) {
 			return scanTGWRouteTablePropagations(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {return scanTGWVPCAttachments(ctx, client, acct, region, st, scanID)},
 		func(ctx context.Context) (int, int, error) {
-			return scanTGWVPCAttachments(ctx, client, acct, region, st, scanID)
+			return scanTGWRoutes(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanTGWRoutes(ctx, client, acct, region, st, scanID) },
 	)
 }
 

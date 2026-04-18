@@ -63,15 +63,21 @@ func rdsPageScan[P any](
 func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanDBInstances(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanDBClusters(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBInstances(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBClusters(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDBParameterGroups(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanDBProxies(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBProxies(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDBProxyEndpoints(ctx, client, acct, region, st, scanID)
 		},
@@ -81,16 +87,24 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanDBSecurityGroups(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanDBShardGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDBShardGroups(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDBSubnetGroups(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanEventSubscriptions(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanGlobalClusters(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanIntegrations(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanOptionGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanGlobalClusters(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIntegrations(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanOptionGroups(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
 		},

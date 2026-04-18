@@ -11,8 +11,12 @@ import (
 // managed prefix lists, and all Network Insights resources.
 func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanFlowLogs(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanPrefixLists(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanFlowLogs(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanPrefixLists(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanNetworkInsightsPaths(ctx, client, acct, region, st, scanID)
 		},

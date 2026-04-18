@@ -14,9 +14,15 @@ import (
 func scanEC2IPAM(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) { return scanIPAMs(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanIPAMScopes(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanIPAMPools(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMScopes(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMPools(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanIPAMAllocations(ctx, client, acct, region, st, scanID)
 		},

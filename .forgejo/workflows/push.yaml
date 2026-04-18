@@ -8,14 +8,14 @@ jobs:
       - name: Test for tidy, fmt, vet
         run: |
           echo '--- Begin "go mod tidy"'
-          if go mod tidy -diff; then echo '--- "go.mod" is tidy.'; else echo '--- Exit code: $?, "go.mod" is not tidy!'; fi
+          if go mod tidy -diff; then echo '--- "go.mod" is tidy.'; else echo "--- Exit code: $?, "go.mod" is not tidy!"; fi
           echo '--- Begin "gofmt -l"'
-          if test -z $(gofmt -l .); then echo '--- Source files are formatted.'; else echo '--- Exit code: $?, Source is unformatted!'; fi
+          if test -z $(gofmt -l .); then echo '--- Source files are formatted.'; else echo "--- Exit code: $?, Source is unformatted!"; fi
           echo '--- Begin "go vet ./..."'
-          if go vet ./...; then echo '--- No suspicious constructs found.'; else echo '--- Exit code: $?, Suspicious constructs found!'; fi
+          if go vet ./...; then echo '--- No suspicious constructs found.'; else echo "--- Exit code: $?, Suspicious constructs found!"; fi
       - name: Lint
         uses: golangci/golangci-lint-action@v9
       - name: Unit Tests
         run: |
           echo '--- Begin unit testing'
-          if CGO_ENABLED=0 go test ./...; then echo '--- Unit tests passed.'; else echo '--- Exit code: $?, Unit tests failed!'; fi
+          if CGO_ENABLED=0 go test ./...; then echo '--- Unit tests passed.'; else echo "--- Exit code: $?, Unit tests failed!"; fi

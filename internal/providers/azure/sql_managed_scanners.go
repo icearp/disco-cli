@@ -99,7 +99,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 
 	// Phase 2: per-MI fan-out — databases + administrators + vulnerability assessments.
 	var (
-		mu      sync.Mutex
+		mu       sync.Mutex
 		allMIDBs []sqlManagedDatabase
 	)
 

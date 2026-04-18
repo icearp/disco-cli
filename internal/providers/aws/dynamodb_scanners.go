@@ -16,7 +16,9 @@ func init() { registerService(serviceEntry{name: "aws:dynamodb", fn: scanDynamoD
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) { return scanDynamoDBTables(ctx, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanDynamoDBGlobalTables(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanDynamoDBGlobalTables(ctx, acct, region, st, scanID)
+		},
 	)
 }
 

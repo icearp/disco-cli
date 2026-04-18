@@ -19,16 +19,30 @@ func init() { registerService(serviceEntry{name: "aws:ec2", fn: scanEC2}) }
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanEC2Networking(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2Networking(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) { return scanEC2VPN(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2ComputeMgmt(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2Observability(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2ComputeMgmt(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2Observability(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) { return scanEC2IPAM(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) { return scanEC2TGW(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2TrafficMirror(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2VerifiedAccess(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2LocalGateway(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanEC2ClientVPN(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2TrafficMirror(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2VerifiedAccess(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2LocalGateway(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2ClientVPN(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
 

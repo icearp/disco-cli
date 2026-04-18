@@ -14,8 +14,12 @@ func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region s
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomerGateways(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanVPNGateways(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanVPNConnections(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanVPNGateways(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanVPNConnections(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
 

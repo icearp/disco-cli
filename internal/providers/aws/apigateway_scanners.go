@@ -20,22 +20,36 @@ func init() {
 // It runs all sub-scanners concurrently and aggregates their counts.
 func scanAPIGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayREST(ctx, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayAccount(ctx, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayAPIKeys(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayREST(ctx, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayAccount(ctx, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayAPIKeys(ctx, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayClientCertificates(ctx, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayDomainNames(ctx, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayUsagePlans(ctx, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayVPCLinks(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayDomainNames(ctx, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayUsagePlans(ctx, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayVPCLinks(ctx, acct, region, st, scanID)
+		},
 	)
 }
 
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
 func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanAPIGatewayHTTPAPIs(ctx, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayHTTPAPIs(ctx, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayV2DomainNames(ctx, acct, region, st, scanID)
 		},

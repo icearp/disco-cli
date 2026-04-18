@@ -19,7 +19,9 @@ func scanEC2ClientVPN(ctx context.Context, client *ec2.Client, acct *account, re
 		func(ctx context.Context) (int, int, error) {
 			return scanClientVPNAuthorizationRules(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanClientVPNRoutes(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanClientVPNRoutes(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanClientVPNTargetNetworkAssociations(ctx, client, acct, region, st, scanID)
 		},

@@ -15,13 +15,25 @@ import (
 // access settings.
 func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanInstances(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanSecurityGroups(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanInstances(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSecurityGroups(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) { return scanVolumes(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanLaunchTemplates(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanKeyPairs(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanPlacementGroups(ctx, client, acct, region, st, scanID) },
-		func(ctx context.Context) (int, int, error) { return scanSpotFleets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanLaunchTemplates(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanKeyPairs(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanPlacementGroups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSpotFleets(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) { return scanHosts(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
 			return scanCapacityReservations(ctx, client, acct, region, st, scanID)
@@ -32,7 +44,9 @@ func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, 
 		func(ctx context.Context) (int, int, error) {
 			return scanCapacityReservationFleets(ctx, client, acct, region, st, scanID)
 		},
-		func(ctx context.Context) (int, int, error) { return scanEC2Fleets(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2Fleets(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanSecurityGroupVPCAssociations(ctx, client, acct, region, st, scanID)
 		},
