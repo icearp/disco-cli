@@ -10,7 +10,9 @@ jobs:
           echo '--- Begin "go mod tidy"'
           if go mod tidy -diff; then echo '--- "go.mod" is tidy.'; else echo "--- Exit code: $?, "go.mod" is not tidy!"; fi
           echo '--- Begin "gofmt -l"'
-          if test -z $(gofmt -l .); then echo '--- Source files are formatted.'; else echo "--- Exit code: $?, Source is unformatted!"; fi
+          out=$(gofmt -l .)
+          exit_code=$?
+          if test -z $out; then echo '--- Source files are formatted.'; else echo -e "Unformatted files:\n$out\n--- Exit code: $exit_code, Source is unformatted!"; exit $exit_code; fi
           echo '--- Begin "go vet ./..."'
           if go vet ./...; then echo '--- No suspicious constructs found.'; else echo "--- Exit code: $?, Suspicious constructs found!"; fi
       - name: Lint
