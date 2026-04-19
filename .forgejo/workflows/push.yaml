@@ -7,17 +7,29 @@ jobs:
         uses: actions/checkout@v4
       - name: Test for tidy, fmt, vet
         run: |
-          printf -- '--- \U0001f7e6 Begin "go mod tidy"'
-          if go mod tidy -diff; then printf -- '--- \U0001f7e9 "go.mod" is tidy.'; else printf -- "--- \U0001f7e5 Exit code: $?, \"go.mod\" is not tidy!"; fi
-          printf -- '--- \U0001f7e6 Begin "gofmt -l"'
-          out=$(gofmt -l .)
-          exit_code=$?
-          if test -z $out; then printf -- '--- \U0001f7e9 Source files are formatted.'; else echo -e "Unformatted files:\n$out"; printf -- "--- \U0001f7e5 Exit code: $exit_code, Source is unformatted!"; exit $exit_code; fi
-          printf -- '--- \U0001f7e6 Begin "go vet ./..."'
-          if go vet ./...; then printf -- '--- \U0001f7e9 No suspicious constructs found.'; else printf "--- \U0001f7e5 Exit code: $?, Suspicious constructs found!"; fi
+          function message() {
+            if [[ $1 == 'info' ]]; then
+              printf -- "--- \U0001f7e6 $3";
+            else
+              if eval $2; then
+                printf -- "--- \U0001f7e9 $3";
+              else
+                printf -- "--- \U0001f7e5 Exit code: $?, $4";
+              fi
+            fi
+          }
+
+          message info 'Begin "go mod tidy"'
+          message exec 'go mod tidy -diff' '"go.mod" is tidy.' '"go.mod" is not tidy!'
+
+          message info 'Begin "gofmt -l"'
+          message exec 'test -z $(gofmt -l .)'Source files are formatted.' 'Source is unformatted!'
+
+          message info 'Begin "go vet ./..."'
+          message exec 'go vet ./...' 'No suspicious constructs found.' 'Suspicious constructs found!'
       - name: Lint
         uses: golangci/golangci-lint-action@v9
       - name: Unit Tests
         run: |
-          printf -- '--- \U0001f7e6 Begin unit testing'
-          if CGO_ENABLED=0 go test ./...; then printf -- '--- \U0001f7e9 Unit tests passed.'; else printf -- "--- \U0001f7e5 Exit code: $?, Unit tests failed!"; fi
+          message info 'Begin unit testing'
+          message 'CGO_ENABLED go test ./...' 'Unit tests passed.'Unit tests failed!'
