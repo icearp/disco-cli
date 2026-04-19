@@ -8,8 +8,8 @@ jobs:
       - name: Test for tidy, fmt, vet
         run: |
           function message() {
-            if [[ $1 == 'info' ]]; then
-              printf -- "--- \U0001f7e6 $3";
+            if [ $1 = 'info' ]; then
+              printf -- "--- \U0001f7e6 $2";
             else
               if eval $2; then
                 printf -- "--- \U0001f7e9 $3";
@@ -25,7 +25,7 @@ jobs:
           message exec 'go mod tidy -diff' '"go.mod" is tidy.' '"go.mod" is not tidy!'
 
           message info 'Begin "gofmt -l"'
-          message exec 'test -z $(gofmt -l .)'Source files are formatted.' 'Source is unformatted!'
+          message exec 'test -z $(gofmt -l .)' 'Source files are formatted.' 'Source is unformatted!'
 
           message info 'Begin "go vet ./..."'
           message exec 'go vet ./...' 'No suspicious constructs found.' 'Suspicious constructs found!'
