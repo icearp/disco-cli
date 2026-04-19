@@ -14,7 +14,9 @@ jobs:
               if eval $2; then
                 printf -- "--- \U0001f7e9 $3";
               else
-                printf -- "--- \U0001f7e5 Exit code: $?, $4";
+                exit_code=$?
+                printf -- "--- \U0001f7e5 Exit code: $exit_code, $4";
+                exit $exit_code
               fi
             fi
           }
