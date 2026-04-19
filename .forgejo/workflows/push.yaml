@@ -9,13 +9,13 @@ jobs:
         run: |
           function message() {
             if [ $1 = 'info' ]; then
-              printf -- "--- \U0001f7e6 $2";
+              printf -- "--- \U0001f7e6 $2\n";
             else
               if eval $2; then
-                printf -- "--- \U0001f7e9 $3";
+                printf -- "--- \U0001f7e9 $3\n";
               else
                 exit_code=$?
-                printf -- "--- \U0001f7e5 Exit code: $exit_code, $4";
+                printf -- "--- \U0001f7e5 Exit code: $exit_code, $4\n";
                 exit $exit_code
               fi
             fi
