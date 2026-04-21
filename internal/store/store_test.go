@@ -29,6 +29,39 @@ func openTestStore(t *testing.T) *Store {
 // sp returns a pointer to the given string.
 func sp(s string) *string { return &s }
 
+// --- Scan lifecycle tests ---
+
+// TestPartialScan verifies that PartialScan sets the 'partial' status, records
+// the resource count, and persists the combined error message.
+func TestPartialScan(t *testing.T) {
+	st := openTestStore(t)
+
+	id, err := st.CreateScan([]string{"aws", "gcp"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	if err := st.PartialScan(id, 42, "gcp: permission denied"); err != nil {
+		t.Fatalf("PartialScan: %v", err)
+	}
+
+	sc, err := st.GetScan(id)
+	if err != nil {
+		t.Fatalf("GetScan: %v", err)
+	}
+	if sc.Status != "partial" {
+		t.Errorf("Status: got %q, want partial", sc.Status)
+	}
+	if sc.ResourceCount == nil || *sc.ResourceCount != 42 {
+		t.Errorf("ResourceCount: got %v, want 42", sc.ResourceCount)
+	}
+	if sc.Error == nil || *sc.Error != "gcp: permission denied" {
+		t.Errorf("Error: got %v, want %q", sc.Error, "gcp: permission denied")
+	}
+	if sc.FinishedAt == nil {
+		t.Error("FinishedAt should be set by PartialScan, got nil")
+	}
+}
+
 // --- ResourceID tests ---
 
 // TestResourceID_Algorithm verifies the exact hashing formula used by ResourceID.

@@ -92,35 +92,77 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	db.OnServiceComplete = func(service string, total, inserted int) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %-*s  (%d total, %d new)\n",
+		if quiet {
+			return
+		}
+		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  (%d total, %d new)\n",
 			time.Since(start).Round(time.Second), nameWidth, service, total, inserted)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: resolving relationships...\n",
+		if quiet {
+			return
+		}
+		_, _ = fmt.Fprintf(progressW, "  [%s] %s: resolving relationships...\n",
 			time.Since(start).Round(time.Second), provider)
 	}
 	db.OnResolveComplete = func(provider string, edges int) {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: relationships resolved (%d edges)\n",
+		if quiet {
+			return
+		}
+		_, _ = fmt.Fprintf(progressW, "  [%s] %s: relationships resolved (%d edges)\n",
 			time.Since(start).Round(time.Second), provider, edges)
 	}
 
-	// Run all providers in parallel; cancel siblings on the first error.
+	// Run all providers in parallel. A failure in one provider no longer
+	// cancels its siblings — security users would rather have a partial
+	// inventory from the providers that succeeded than nothing at all.
 	ctx := context.Background()
-	g, ctx := errgroup.WithContext(ctx)
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		failed  []string // formatted "<provider>: <error>"
+		succeed int
+	)
 	for _, s := range scanners {
-		g.Go(func() error { return s.Scan(ctx, db, scanID) })
+		wg.Go(func() {
+			if err := s.Scan(ctx, db, scanID); err != nil {
+				mu.Lock()
+				failed = append(failed, fmt.Sprintf("%s: %v", s.Name(), err))
+				mu.Unlock()
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  [%s] %s: FAILED: %v\n",
+					time.Since(start).Round(time.Second), s.Name(), err)
+				return
+			}
+			mu.Lock()
+			succeed++
+			mu.Unlock()
+		})
 	}
-
-	if err := g.Wait(); err != nil {
-		// Best-effort: mark the scan as failed before returning the error.
-		if ferr := db.FailScan(scanID, err.Error()); ferr != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not record scan failure: %v\n", ferr)
-		}
-		return err
-	}
+	wg.Wait()
 
 	count := int(totalSeen)
+	errMsg := strings.Join(failed, "; ")
+
+	// All providers failed → mark failed and surface combined error to the shell.
+	if succeed == 0 && len(failed) > 0 {
+		if ferr := db.FailScan(scanID, errMsg); ferr != nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not record scan failure: %v\n", ferr)
+		}
+		return fmt.Errorf("scan failed: %s", errMsg)
+	}
+
+	// Some providers failed but others succeeded → partial scan.
+	if len(failed) > 0 {
+		if perr := db.PartialScan(scanID, count, errMsg); perr != nil {
+			return fmt.Errorf("mark partial scan: %w", perr)
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+			"Scan partial: %d resources (%d new) in %s; failed providers: %s\n",
+			count, int(totalNew), time.Since(start).Round(time.Second), errMsg)
+		return nil
+	}
+
 	if err := db.CompleteScan(scanID, count); err != nil {
 		return fmt.Errorf("complete scan: %w", err)
 	}

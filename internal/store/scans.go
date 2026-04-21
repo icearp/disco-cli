@@ -69,6 +69,19 @@ func (s *Store) FailScan(id string, scanErr string) error {
 	return err
 }
 
+// PartialScan marks a scan as partially completed: at least one provider
+// succeeded while others failed. The error message should summarize which
+// providers failed and why.
+func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error {
+	_, err := s.db.Exec(`
+		UPDATE scans
+		SET status = 'partial', finished_at = datetime('now'), resource_count = ?, error = ?
+		WHERE id = ?`,
+		resourceCount, scanErr, id,
+	)
+	return err
+}
+
 // GetScan retrieves a scan by ID.
 func (s *Store) GetScan(id string) (*Scan, error) {
 	var sc Scan
