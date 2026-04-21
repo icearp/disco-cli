@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"codeburg.org/icearp/disco/internal/providers"
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 )
 
 var scanCmd = &cobra.Command{
@@ -72,7 +72,13 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return fmt.Errorf("create scan record: %w", err)
 	}
 	start := time.Now()
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan %s started: %v\n", scanID, start.Round(time.Second))
+
+	// Progress goes to stderr so stdout stays clean for piping (only the
+	// final summary line and the scan ID land on stdout). --quiet silences
+	// the per-service progress but keeps the summary.
+	quiet, _ := cmd.Flags().GetBool("quiet")
+	progressW := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintf(progressW, "Scan %s started: %v\n", scanID, start.Round(time.Second))
 
 	// Compute the longest service name across all in-scope scanners for column alignment.
 	nameWidth := 0
@@ -173,6 +179,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 
 func init() {
 	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
+	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
+	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,
