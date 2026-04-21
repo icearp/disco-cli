@@ -4,10 +4,15 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 )
+
+// hexResourceIDRE matches a full 32-hex-char resource ID (output of ResourceID).
+var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Resource represents a discovered cloud resource.
 type Resource struct {
@@ -187,6 +192,75 @@ func (r *Resource) Tags() (map[string]string, error) {
 	}
 	var tags map[string]string
 	return tags, json.Unmarshal([]byte(*r.TagsJSON), &tags)
+}
+
+// ResolveResource finds a resource by either its 32-hex ID or its native ID.
+// When arg is not a hex ID, provider/rtype/account act as disambiguating filters.
+// Returns an error listing candidates when multiple resources share a native ID.
+func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource, error) {
+	if hexResourceIDRE.MatchString(arg) {
+		return s.GetResource(arg)
+	}
+
+	// Match on either native_id or name so users can pass whichever is
+	// more memorable. Disambiguation flags narrow the result set below.
+	q := sq.Select("*").From("resources").
+		Where(sq.Or{sq.Eq{"native_id": arg}, sq.Eq{"name": arg}})
+	if provider != "" {
+		q = q.Where(sq.Eq{"provider": provider})
+	}
+	if rtype != "" {
+		q = q.Where(sq.Eq{"type": rtype})
+	}
+	if account != "" {
+		q = q.Where(sq.Eq{"account_id": account})
+	}
+	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []Resource
+	if err := s.db.Select(&rows, query, args...); err != nil {
+		return nil, fmt.Errorf("resolve resource: %w", err)
+	}
+	switch len(rows) {
+	case 0:
+		return nil, fmt.Errorf("no resource matching %q (native_id or name)%s", arg, resolveFilterSuffix(provider, rtype, account))
+	case 1:
+		return &rows[0], nil
+	default:
+		var lines []string
+		for _, r := range rows {
+			region := ""
+			if r.Region != nil {
+				region = *r.Region
+			}
+			lines = append(lines, fmt.Sprintf("  %s  %s  %s  %s", r.Type, r.AccountID, region, r.ID))
+		}
+		return nil, fmt.Errorf(
+			"ambiguous identifier %q (%d matches) — add --provider / --type / --account:\n%s",
+			arg, len(rows), strings.Join(lines, "\n"),
+		)
+	}
+}
+
+// resolveFilterSuffix formats active disambiguation filters for error messages.
+func resolveFilterSuffix(provider, rtype, account string) string {
+	var parts []string
+	if provider != "" {
+		parts = append(parts, "provider="+provider)
+	}
+	if rtype != "" {
+		parts = append(parts, "type="+rtype)
+	}
+	if account != "" {
+		parts = append(parts, "account="+account)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " in " + strings.Join(parts, ", ")
 }
 
 // DescendantsOf returns all resources that are descendants of parentID (any depth).
