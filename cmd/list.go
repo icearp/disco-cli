@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,22 @@ import (
 	"codeburg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
+
+// listColumns is the canonical column order for tabular output formats
+// (table, csv). JSON/JSONL emit the full Resource struct instead.
+var listColumns = []string{"provider", "account_id", "type", "name", "region", "status", "native_id"}
+
+// resourceRow returns the resource's column values in listColumns order.
+// Used by CSV output; nil string fields render as empty cells.
+func resourceRow(r *store.Resource) []string {
+	s := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	return []string{r.Provider, r.AccountID, r.Type, s(r.Name), s(r.Region), s(r.Status), r.NativeID}
+}
 
 var (
 	listProvider  string
@@ -67,26 +84,39 @@ Examples:
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(resources)
-		default:
+		case "jsonl":
+			// Newline-delimited JSON: one resource per line, no indent.
+			// Suited to streaming into jq, log pipelines, or ELK.
+			enc := json.NewEncoder(os.Stdout)
+			for _, r := range resources {
+				if err := enc.Encode(r); err != nil {
+					return err
+				}
+			}
+			return nil
+		case "csv":
+			w := csv.NewWriter(os.Stdout)
+			defer w.Flush()
+			if err := w.Write(listColumns); err != nil {
+				return err
+			}
+			for _, r := range resources {
+				if err := w.Write(resourceRow(&r)); err != nil {
+					return err
+				}
+			}
+			return nil
+		case "table", "":
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
 			for _, r := range resources {
-				name := "-"
-				if r.Name != nil {
-					name = *r.Name
-				}
-				region := "-"
-				if r.Region != nil {
-					region = *r.Region
-				}
-				status := "-"
-				if r.Status != nil {
-					status = *r.Status
-				}
 				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					r.Provider, r.AccountID, r.Type, name, region, status)
+					r.Provider, r.AccountID, r.Type,
+					ptrOrDash(r.Name), ptrOrDash(r.Region), ptrOrDash(r.Status))
 			}
 			return w.Flush()
+		default:
+			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, csv)", listOutputFmt)
 		}
 	},
 }
@@ -98,7 +128,7 @@ func init() {
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")
 	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (requires --tag-key)")
-	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json")
+	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
 	listCmd.Flags().Uint64Var(&listLimit, "limit", 500, "Maximum number of results")
 	rootCmd.AddCommand(listCmd)
 }
