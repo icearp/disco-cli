@@ -263,6 +263,17 @@ const (
 	TypeLogsScheduledQuery     = "aws:logs:scheduled-query"
 	TypeLogsSubscriptionFilter = "aws:logs:subscription-filter"
 	TypeLogsTransformer        = "aws:logs:transformer"
+
+	// KMS (kms_scanners.go)
+	TypeKMSKey   = "aws:kms:key"
+	TypeKMSAlias = "aws:kms:alias"
+	// Secrets Manager (secretsmanager_scanners.go)
+	TypeSecretsManagerSecret = "aws:secretsmanager:secret"
+	// Organizations (organizations_scanners.go)
+	TypeOrganization         = "aws:organizations:organization"
+	TypeOrganizationsAccount = "aws:organizations:account"
+	TypeOrganizationsOU      = "aws:organizations:ou"
+	TypeOrganizationsSCP     = "aws:organizations:scp"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -384,5 +395,12 @@ func KnownTypes() []string {
 		TypeLogsLogAnomalyDetector, TypeLogsLogGroup, TypeLogsLogStream,
 		TypeLogsMetricFilter, TypeLogsQueryDefinition, TypeLogsResourcePolicy,
 		TypeLogsScheduledQuery, TypeLogsSubscriptionFilter, TypeLogsTransformer,
+		// KMS
+		TypeKMSKey, TypeKMSAlias,
+		// Secrets Manager
+		TypeSecretsManagerSecret,
+		// Organizations
+		TypeOrganization, TypeOrganizationsAccount,
+		TypeOrganizationsOU, TypeOrganizationsSCP,
 	}
 }

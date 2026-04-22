@@ -29,6 +29,9 @@ var expectedAWSServices = []string{
 	"aws:s3control",
 	"aws:sns",
 	"aws:sqs",
+	"aws:kms",
+	"aws:secretsmanager",
+	"aws:organizations",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
