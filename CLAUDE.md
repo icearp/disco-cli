@@ -48,7 +48,10 @@ Providers make **per-service API calls** via each cloud's native Go SDK. No unif
 - `disco scan` — runs all registered providers in parallel
 - `disco scan <provider>` — single provider (e.g. `disco scan aws`)
 - `disco scan --providers aws,gcp` — only named providers (comma-separated `StringSlice`)
-- `disco list` — queries local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json`)
+- `disco list` — queries local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
+- `disco diff <scanA> <scanB>` — drift detection; emits added/removed/changed rows between two scan IDs
+- `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
+- `disco check --rules rules.yaml --builtins --severity high --exit-nonzero` — runs security rules against the store
 
 ### Provider registry (`internal/providers/registry.go`)
 
@@ -83,6 +86,8 @@ Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs and anything squirrel can't express cleanly.
 
+**Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — the store boundary owns this.
+
 ### Resource IDs
 
 `ResourceID(provider, accountID, type, nativeID)` — `internal/store/resources.go` — produces 32-hex-char SHA-256 prefix. Stable across rescans; primary key.
@@ -112,6 +117,10 @@ SQL files in `internal/store/migrations/` embedded at compile time via `//go:emb
 ### Config and DB path
 
 Viper reads `~/.disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO_DB`) overrides DB path; default `~/.disco/disco.db`. `defaultDBPath()` = pure getter — directory creation is `store.Open()`'s job.
+
+### Rules engine (`internal/rules/`)
+
+YAML or built-in rules evaluated against the store by `cmd/check.go`. Rules filter `resources` and emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML and passing `--rules path.yaml`.
 
 ### Testing
 
