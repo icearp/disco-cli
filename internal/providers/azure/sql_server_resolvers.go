@@ -14,6 +14,14 @@ func init() {
 	registerResolver(resolveReplicationLinkToPartner)
 	registerResolver(resolveFailoverGroupToPartnerServer)
 	registerResolver(resolveSyncGroupToSyncAgent)
+	registerResolver(resolveServerEncryptionProtectorToKey)
+}
+
+// resolveServerEncryptionProtectorToKey adds a uses edge from each server
+// encryption protector to the server key it references, derived from
+// properties.serverKeyName. Shares logic with the MI-side resolver.
+func resolveServerEncryptionProtectorToKey(sub *subscription, st *store.Store) error {
+	return resolveEPToKey(sub, st, TypeSQLEncryptionProtector, TypeSQLServerKey, "server")
 }
 
 // resolveDatabaseToElasticPool adds a uses edge from each database that belongs

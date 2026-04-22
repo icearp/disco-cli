@@ -60,11 +60,17 @@ const (
 	TypeSQLInstancePool   = "azure:microsoft.sql:instance-pools"
 	TypeSQLVirtualCluster = "azure:microsoft.sql:virtual-clusters"
 	// SQL — managed instances and sub-resources
-	TypeSQLManagedInstance      = "azure:microsoft.sql:managed-instances"
-	TypeSQLManagedDatabase      = "azure:microsoft.sql:managed-instances/databases"
-	TypeSQLManagedInstanceAdmin = "azure:microsoft.sql:managed-instances/administrators"
-	TypeSQLManagedInstanceVA    = "azure:microsoft.sql:managed-instances/vulnerability-assessments"
-	TypeSQLManagedDatabaseVA    = "azure:microsoft.sql:managed-instances/databases/vulnerability-assessments"
+	TypeSQLManagedInstance           = "azure:microsoft.sql:managed-instances"
+	TypeSQLManagedDatabase           = "azure:microsoft.sql:managed-instances/databases"
+	TypeSQLManagedInstanceAdmin      = "azure:microsoft.sql:managed-instances/administrators"
+	TypeSQLManagedInstanceVA         = "azure:microsoft.sql:managed-instances/vulnerability-assessments"
+	TypeSQLManagedDatabaseVA         = "azure:microsoft.sql:managed-instances/databases/vulnerability-assessments"
+	TypeSQLManagedInstanceKey        = "azure:microsoft.sql:managed-instances/keys"
+	TypeSQLManagedInstanceEP         = "azure:microsoft.sql:managed-instances/encryption-protector"
+	TypeSQLManagedInstancePEC        = "azure:microsoft.sql:managed-instances/private-endpoint-connections"
+	TypeSQLManagedServerSecurityAlert = "azure:microsoft.sql:managed-instances/security-alert-policies"
+	TypeSQLManagedDatabaseTDE        = "azure:microsoft.sql:managed-instances/databases/transparent-data-encryption"
+	TypeSQLManagedDatabaseSecAlert   = "azure:microsoft.sql:managed-instances/databases/security-alert-policies"
 	// SQL — server sub-resources
 	TypeSQLServerKey                 = "azure:microsoft.sql:servers/keys"
 	TypeSQLEncryptionProtector       = "azure:microsoft.sql:servers/encryption-protector"
@@ -156,6 +162,12 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.sql/managedinstances/administrators":                        TypeSQLManagedInstanceAdmin,
 	"microsoft.sql/managedinstances/vulnerabilityassessments":              TypeSQLManagedInstanceVA,
 	"microsoft.sql/managedinstances/databases/vulnerabilityassessments":    TypeSQLManagedDatabaseVA,
+	"microsoft.sql/managedinstances/keys":                                  TypeSQLManagedInstanceKey,
+	"microsoft.sql/managedinstances/encryptionprotector":                   TypeSQLManagedInstanceEP,
+	"microsoft.sql/managedinstances/privateendpointconnections":            TypeSQLManagedInstancePEC,
+	"microsoft.sql/managedinstances/securityalertpolicies":                 TypeSQLManagedServerSecurityAlert,
+	"microsoft.sql/managedinstances/databases/transparentdataencryption":   TypeSQLManagedDatabaseTDE,
+	"microsoft.sql/managedinstances/databases/securityalertpolicies":       TypeSQLManagedDatabaseSecAlert,
 	"microsoft.sql/servers/keys":                                           TypeSQLServerKey,
 	"microsoft.sql/servers/encryptionprotector":                            TypeSQLEncryptionProtector,
 	"microsoft.sql/servers/administrators":                                 TypeSQLServerAdministrator,

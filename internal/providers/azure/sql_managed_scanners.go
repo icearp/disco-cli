@@ -149,6 +149,24 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 			mu.Unlock()
 			return err
 		})
+
+		// MI keys, encryption protectors, private endpoint connections,
+		// and managed-server security alert policies — each its own goroutine
+		// so slow lists don't stall siblings.
+		for _, fn := range managedInstanceChildScanners(gctx, sub, cred, st, scanID, mi) {
+			g.Go(func() error {
+				if err := sem.Acquire(gctx, 1); err != nil {
+					return err
+				}
+				defer sem.Release(1)
+				t, i, err := fn()
+				mu.Lock()
+				total += t
+				inserted += i
+				mu.Unlock()
+				return err
+			})
+		}
 	}
 	if err := g.Wait(); err != nil {
 		return total, inserted, err
@@ -163,20 +181,277 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 	sem2 := semaphore.NewWeighted(maxConcurrentFanout)
 
 	for _, db := range allMIDBs {
-		g2.Go(func() error {
-			if err := sem2.Acquire(g2ctx, 1); err != nil {
+		for _, fn := range managedDatabaseChildScanners(g2ctx, sub, cred, st, scanID, db) {
+			g2.Go(func() error {
+				if err := sem2.Acquire(g2ctx, 1); err != nil {
+					return err
+				}
+				defer sem2.Release(1)
+				t, i, err := fn()
+				mu.Lock()
+				total += t
+				inserted += i
+				mu.Unlock()
 				return err
-			}
-			defer sem2.Release(1)
-			t, i, err := scanManagedDatabaseVulnAssessments(g2ctx, sub, cred, st, scanID, db)
-			mu.Lock()
-			total += t
-			inserted += i
-			mu.Unlock()
-			return err
-		})
+			})
+		}
 	}
 	return total, inserted, g2.Wait()
+}
+
+// managedInstanceChildScanners returns closures for MI-level sub-resource scanners
+// that run in the phase-2 fan-out (alongside databases, admins, VAs).
+func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
+	return []func() (int, int, error){
+		func() (int, int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },
+		func() (int, int, error) { return scanManagedInstanceEncryptionProtectors(ctx, sub, cred, st, scanID, mi) },
+		func() (int, int, error) { return scanManagedInstancePrivateEndpointConnections(ctx, sub, cred, st, scanID, mi) },
+		func() (int, int, error) { return scanManagedServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, mi) },
+	}
+}
+
+// managedDatabaseChildScanners returns closures for MDB-level sub-resource scanners
+// that run in the phase-3 fan-out (alongside MDB VAs).
+func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) []func() (int, int, error) {
+	return []func() (int, int, error){
+		func() (int, int, error) { return scanManagedDatabaseVulnAssessments(ctx, sub, cred, st, scanID, db) },
+		func() (int, int, error) { return scanManagedDatabaseTDE(ctx, sub, cred, st, scanID, db) },
+		func() (int, int, error) { return scanManagedDatabaseSecurityAlertPolicies(ctx, sub, cred, st, scanID, db) },
+	}
+}
+
+func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+	client, err := armsql.NewManagedInstanceKeysClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceKeysClient: %w", err)
+	}
+	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedInstanceKeys.ListByInstance(%s): %w", mi.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedInstanceKey,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceKey, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, mi.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed instance keys")
+}
+
+func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+	client, err := armsql.NewManagedInstanceEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceEncryptionProtectorsClient: %w", err)
+	}
+	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedInstanceEncryptionProtectors.ListByInstance(%s): %w", mi.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedInstanceEP,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstanceEP, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, mi.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed instance encryption protectors")
+}
+
+func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+	client, err := armsql.NewManagedInstancePrivateEndpointConnectionsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedInstancePrivateEndpointConnectionsClient: %w", err)
+	}
+	pager := client.NewListByManagedInstancePager(mi.rgName, mi.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedInstancePrivateEndpointConnections.ListByManagedInstance(%s): %w", mi.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedInstancePEC,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedInstancePEC, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, mi.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed instance private endpoint connections")
+}
+
+func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+	client, err := armsql.NewManagedServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedServerSecurityAlertPoliciesClient: %w", err)
+	}
+	pager := client.NewListByInstancePager(mi.rgName, mi.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedServerSecurityAlertPolicies.ListByInstance(%s): %w", mi.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedServerSecurityAlert,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedServerSecurityAlert, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, mi.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed server security alert policies")
+}
+
+func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+	client, err := armsql.NewManagedDatabaseTransparentDataEncryptionClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseTransparentDataEncryptionClient: %w", err)
+	}
+	pager := client.NewListByDatabasePager(db.rgName, db.miName, db.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseTransparentDataEncryption.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedDatabaseTDE,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabaseTDE, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, db.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed database transparent data encryptions")
+}
+
+func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+	client, err := armsql.NewManagedDatabaseSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseSecurityAlertPoliciesClient: %w", err)
+	}
+	pager := client.NewListByDatabasePager(db.rgName, db.miName, db.name, nil)
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
+		}
+		for _, item := range page.Value {
+			if item.ID == nil {
+				continue
+			}
+			name := sv(item.Name)
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           TypeSQLManagedDatabaseSecAlert,
+				NativeID:       sv(item.ID),
+				Name:           &name,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, TypeSQLManagedDatabaseSecAlert, sv(item.ID))
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, db.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, "managed database security alert policies")
 }
 
 // scanManagedDatabases lists databases for a managed instance, upserts them, and
