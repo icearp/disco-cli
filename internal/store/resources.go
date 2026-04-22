@@ -62,6 +62,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		}
 		r.VerifiedAt = &now
 		r.VerifiedBy = &r.DiscoveredBy
+		r.AttributesJSON = scrubAttributes(r.AttributesJSON)
 	}
 
 	// Count how many of these IDs already exist in the DB.
