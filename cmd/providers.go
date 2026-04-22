@@ -5,7 +5,7 @@ package cmd
 // and makes it available as a "disco scan <name>" subcommand.
 
 import (
-	_ "codeburg.org/icearp/disco/internal/providers/aws"
-	_ "codeburg.org/icearp/disco/internal/providers/azure"
-	_ "codeburg.org/icearp/disco/internal/providers/gcp"
+	_ "codeberg.org/icearp/disco/internal/providers/aws"
+	_ "codeberg.org/icearp/disco/internal/providers/azure"
+	_ "codeberg.org/icearp/disco/internal/providers/gcp"
 )

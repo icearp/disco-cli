@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	smithy "github.com/aws/smithy-go"
 )

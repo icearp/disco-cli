@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveSubnetVNetRelationships verifies that a subnet's VNet parent is

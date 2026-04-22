@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // testScanID is the fixed scan ID inserted into every test database.

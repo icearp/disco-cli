@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveSecretToKMSKey verifies that a secret with a KmsKeyId pointing at

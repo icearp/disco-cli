@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestGraphCmd_JSON exercises the end-to-end JSON rendering path using the

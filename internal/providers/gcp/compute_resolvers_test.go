@@ -3,7 +3,7 @@ package gcp
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveComputeInstanceRelationships verifies that a GCP instance's

@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveDynamoDBGlobalTableRelationships_HappyPath verifies that a global

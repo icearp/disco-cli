@@ -9,7 +9,7 @@ import (
 	"text/tabwriter"
 	"unicode"
 
-	awsprovider "codeburg.org/icearp/disco/internal/providers/aws"
+	awsprovider "codeberg.org/icearp/disco/internal/providers/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"

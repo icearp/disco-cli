@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // --- DB Instance ---

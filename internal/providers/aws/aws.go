@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"codeburg.org/icearp/disco/internal/providers"
-	"codeburg.org/icearp/disco/internal/store"
-	"codeburg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/internal/providers"
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	cloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"codeburg.org/icearp/disco/internal/store"
-	"codeburg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"golang.org/x/sync/errgroup"

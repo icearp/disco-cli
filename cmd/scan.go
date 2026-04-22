@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"codeburg.org/icearp/disco/internal/providers"
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/providers"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
 

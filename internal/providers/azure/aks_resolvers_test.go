@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveAKSRelationships verifies that an AKS cluster's VNet is derived

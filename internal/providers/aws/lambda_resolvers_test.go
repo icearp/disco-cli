@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 var baseFnARN = fmt.Sprintf("arn:aws:lambda:%s:%s:function:my-fn", testRegion, testAccountID)

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/rules"
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/rules"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // seedCheckDB overlays seedTestDB with an unencrypted EBS volume so the

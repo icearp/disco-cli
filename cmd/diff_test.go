@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/viper"
 )
 

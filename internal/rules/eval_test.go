@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // newTestStore opens a temp DB and creates a scan row so Resource FKs hold.

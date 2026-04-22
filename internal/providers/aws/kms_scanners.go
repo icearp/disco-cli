@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	smithy "github.com/aws/smithy-go"

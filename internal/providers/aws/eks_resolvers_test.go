@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveEKSRelationships verifies that an EKS cluster's VPC ID is correctly

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"codeburg.org/icearp/disco/internal/store"
-	"codeburg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 )
 
 func init() { registerResolver(resolveSubnetVNetRelationships) }

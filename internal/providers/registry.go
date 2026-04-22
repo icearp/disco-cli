@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // Scanner is the interface every cloud provider must implement.

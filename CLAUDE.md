@@ -64,7 +64,7 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 **Add new provider** (three steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
 2. Call `providers.Register(&MyScanner{})` in package `init()`
-3. Add `_ "codeburg.org/icearp/disco/internal/providers/<name>"` to `cmd/providers.go`
+3. Add `_ "codeberg.org/icearp/disco/internal/providers/<name>"` to `cmd/providers.go`
 
 `cmd/providers.go` holds all blank imports. `cmd/scan.go`'s `init()` iterates `providers.All()` to build `disco scan <name>` subcommands — no `scan.go` change when adding provider.
 

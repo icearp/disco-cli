@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 

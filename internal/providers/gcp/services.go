@@ -3,7 +3,7 @@ package gcp
 import (
 	"context"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // serviceEntry describes a scannable GCP service (scoped to one project).

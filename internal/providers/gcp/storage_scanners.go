@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/storage/v1"
 )
 

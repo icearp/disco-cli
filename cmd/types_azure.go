@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	azureprovider "codeburg.org/icearp/disco/internal/providers/azure"
+	azureprovider "codeberg.org/icearp/disco/internal/providers/azure"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"golang.org/x/sync/errgroup"
 )

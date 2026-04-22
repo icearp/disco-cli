@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/compute/v1"
 )
 

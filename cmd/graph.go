@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
 

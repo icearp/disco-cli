@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"codeburg.org/icearp/disco/internal/providers"
-	"codeburg.org/icearp/disco/internal/store"
-	"codeburg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/internal/providers"
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/googleapi"

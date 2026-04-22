@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveSnapshotSourceRelationships verifies that a snapshot's source disk

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"codeburg.org/icearp/disco/internal/store"
-	"codeburg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"

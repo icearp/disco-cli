@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // TestResolveKMSAliasToKey verifies that an alias with a TargetKeyId resolves

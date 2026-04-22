@@ -210,7 +210,7 @@ aws:
 1. Create `internal/providers/<name>/<name>.go` — Scanner + `init()` + `Scan()`.
 2. Create `internal/providers/<name>/services.go` — `serviceEntry` / `resolverEntry` registries.
 3. Create `internal/providers/<name>/config.go` — viper loader for accounts/subs/projects.
-4. Add blank import to `cmd/providers.go`: `_ "codeburg.org/icearp/disco/internal/providers/<name>"`.
+4. Add blank import to `cmd/providers.go`: `_ "codeberg.org/icearp/disco/internal/providers/<name>"`.
 5. Service files follow `<service>_scanners.go` + `<service>_resolvers.go` split.
 
 ## Adding a new service to an existing provider

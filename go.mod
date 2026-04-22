@@ -1,4 +1,4 @@
-module codeburg.org/icearp/disco
+module codeberg.org/icearp/disco
 
 go 1.25.0
 

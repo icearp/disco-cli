@@ -3,7 +3,7 @@ package azure
 import (
 	"testing"
 
-	"codeburg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 const hostSubID = "sub-host-test"
