@@ -34,7 +34,7 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	out, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("s3:ListBuckets", acct.ID, "global", err)
+			return 0, 0, skipIfAccessDenied(st, "s3:ListBuckets", acct.ID, "global", err)
 		}
 		return 0, 0, fmt.Errorf("s3:ListBuckets: %w", err)
 	}

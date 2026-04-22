@@ -23,7 +23,7 @@ func scanECR(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("ecr:DescribeRepositories", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "ecr:DescribeRepositories", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("ecr:DescribeRepositories: %w", err)
 		}

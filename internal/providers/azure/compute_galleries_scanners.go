@@ -49,7 +49,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:Galleries.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:Galleries.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:Galleries.List: %w", err)
 		}
@@ -232,7 +232,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied("armcompute:GalleryImages.ListByGallery", sub.ID, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryImages.ListByGallery", sub.ID, err)
 			}
 			return 0, 0, nil, fmt.Errorf("armcompute:GalleryImages.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
@@ -297,7 +297,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azide
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied("armcompute:GalleryApplications.ListByGallery", sub.ID, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryApplications.ListByGallery", sub.ID, err)
 			}
 			return 0, 0, nil, fmt.Errorf("armcompute:GalleryApplications.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
@@ -362,7 +362,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentit
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied("armcompute:GalleryInVMACPs.ListByGallery", sub.ID, err)
+				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:GalleryInVMACPs.ListByGallery", sub.ID, err)
 			}
 			return 0, 0, nil, fmt.Errorf("armcompute:GalleryInVMACPs.ListByGallery %s/%s: %w", gal.rg, gal.name, err)
 		}
@@ -427,7 +427,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azid
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:GalleryImageVersions.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryImageVersions.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:GalleryImageVersions.List %s/%s/%s: %w", img.rg, img.galleryName, img.childName, err)
 		}
@@ -485,7 +485,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:GalleryApplicationVersions.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryApplicationVersions.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:GalleryApplicationVersions.List %s/%s/%s: %w", app.rg, app.galleryName, app.childName, err)
 		}
@@ -543,7 +543,7 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred *az
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:GalleryInVMACPVersions.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:GalleryInVMACPVersions.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:GalleryInVMACPVersions.List %s/%s/%s: %w", prof.rg, prof.galleryName, prof.profileName, err)
 		}

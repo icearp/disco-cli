@@ -91,7 +91,7 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred *azidentity
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:HostGroups.ListBySubscription", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:HostGroups.ListBySubscription", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:HostGroups.ListBySubscription: %w", err)
 		}
@@ -187,7 +187,7 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:DedicatedHosts.ListByHostGroup", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:DedicatedHosts.ListByHostGroup", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:DedicatedHosts.ListByHostGroup %s/%s: %w", hg.rg, hg.name, err)
 		}
@@ -249,7 +249,7 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred *azidentity.Defau
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:CapacityReservationGroups.ListBySubscription", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservationGroups.ListBySubscription", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:CapacityReservationGroups.ListBySubscription: %w", err)
 		}
@@ -345,7 +345,7 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:CapacityReservations.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CapacityReservations.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:CapacityReservations.List %s/%s: %w", crg.rg, crg.name, err)
 		}

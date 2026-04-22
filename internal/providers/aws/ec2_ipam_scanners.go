@@ -116,7 +116,7 @@ func scanIPAMPools(ctx context.Context, client *ec2.Client, acct *account, regio
 // scanIPAMPoolCIDRs fetches all IPAM pool IDs, then fans out concurrently to
 // retrieve CIDRs for each pool.
 func scanIPAMPoolCIDRs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region)
+	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -161,7 +161,7 @@ func scanIPAMPoolCIDRs(ctx context.Context, client *ec2.Client, acct *account, r
 // scanIPAMAllocations fetches all IPAM pool IDs, then fans out concurrently to
 // retrieve allocations for each pool.
 func scanIPAMAllocations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region)
+	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -254,14 +254,14 @@ func scanIPAMResourceDiscoveryAssociations(ctx context.Context, client *ec2.Clie
 }
 
 // listIPAMPoolIDs returns all IPAM pool IDs in this region; used by nested scanners.
-func listIPAMPoolIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listIPAMPoolIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	var poolIDs []string
 	pager := ec2.NewDescribeIpamPoolsPaginator(client, &ec2.DescribeIpamPoolsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeIpamPools", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeIpamPools", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeIpamPools (list pool IDs): %w", err)

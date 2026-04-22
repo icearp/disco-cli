@@ -24,7 +24,7 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("sqs:ListQueues", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "sqs:ListQueues", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("sqs:ListQueues: %w", err)
 		}

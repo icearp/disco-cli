@@ -32,7 +32,7 @@ func scanDynamoDBTables(ctx context.Context, acct *account, region string, st *s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("dynamodb:ListTables", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListTables", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("dynamodb:ListTables: %w", err)
 		}
@@ -104,7 +104,7 @@ func scanDynamoDBGlobalTables(ctx context.Context, acct *account, region string,
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("dynamodb:ListGlobalTables", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListGlobalTables", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("dynamodb:ListGlobalTables: %w", err)
 		}

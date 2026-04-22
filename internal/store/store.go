@@ -11,12 +11,24 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// ScanWarning is a non-fatal skip captured during a scan — typically an
+// access-denied error on a single service or region. Warnings are collected
+// in memory by the scan orchestrator and rendered as a grouped block after
+// the scan completes, instead of interleaving with progress output.
+type ScanWarning struct {
+	Provider string // "aws", "azure", "gcp"
+	Service  string // e.g. "kms:ListKeys", "compute"
+	Scope    string // accountID[/region] or subscriptionID or projectID
+	Message  string // err.Error()
+}
+
 // Store is the primary access point for the disco database.
 type Store struct {
 	db                *sqlx.DB
 	OnServiceComplete func(service string, total, inserted int) // optional; called by providers after each service scan
 	OnResolveStart    func(provider string)                     // optional; called just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)          // optional; called after all resolvers finish
+	OnWarn            func(ScanWarning)                         // optional; called by providers when a skip-worthy error is handled
 	activeCounter     *atomic.Int64                             // non-nil only in scoped copies returned by WithRelCounter
 }
 
@@ -52,6 +64,16 @@ func (s *Store) ReportResolveStart(provider string) {
 func (s *Store) ReportResolveComplete(provider string, edges int) {
 	if s.OnResolveComplete != nil {
 		s.OnResolveComplete(provider, edges)
+	}
+}
+
+// ReportWarning fires OnWarn if set. Providers call this from skip-handling
+// helpers (skipIfAccessDenied, skipIfDenied) in place of log.Printf so that
+// warnings can be collected and rendered as a single grouped block rather
+// than interleaving with aligned progress output.
+func (s *Store) ReportWarning(w ScanWarning) {
+	if s.OnWarn != nil {
+		s.OnWarn(w)
 	}
 }
 

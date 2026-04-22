@@ -23,7 +23,7 @@ func scanELBClassic(ctx context.Context, acct *account, region string, st *store
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeLoadBalancers: %w", err)
 		}

@@ -92,6 +92,7 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 func cfMarkerScan[Output any](
 	ctx context.Context,
 	opName string,
+	st *store.Store,
 	listFn func(ctx context.Context, marker *string) (Output, *string, error),
 	processFn func(Output) (int, int, error),
 ) (total, inserted int, err error) {
@@ -100,7 +101,7 @@ func cfMarkerScan[Output any](
 		out, next, apiErr := listFn(ctx, marker)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied(opName, "", "global", apiErr)
+				return total, inserted, skipIfAccessDenied(st, opName, "", "global", apiErr)
 			}
 			return total, inserted, fmt.Errorf("%s: %w", opName, apiErr)
 		}
@@ -128,7 +129,7 @@ func scanCloudFrontDistributions(ctx context.Context, acct *account, client *clo
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListDistributions", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListDistributions", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListDistributions: %w", err)
 		}
@@ -200,7 +201,7 @@ func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, c
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudfront:ListDistributions (monitoring)", acct.ID, "global", err)
+				return 0, 0, skipIfAccessDenied(st, "cloudfront:ListDistributions (monitoring)", acct.ID, "global", err)
 			}
 			return 0, 0, fmt.Errorf("cloudfront:ListDistributions (monitoring): %w", err)
 		}
@@ -273,7 +274,7 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListStreamingDistributions", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListStreamingDistributions", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListStreamingDistributions: %w", err)
 		}
@@ -316,7 +317,7 @@ func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, clien
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListDistributionTenants", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListDistributionTenants", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListDistributionTenants: %w", err)
 		}
@@ -351,7 +352,7 @@ func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, clien
 // scanCloudFrontCachePolicies discovers customer-owned cache policies.
 // No Type filter is set, which returns only CUSTOM (account-owned) policies.
 func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListCachePolicies",
+	return cfMarkerScan(ctx, "cloudfront:ListCachePolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListCachePoliciesOutput, *string, error) {
 			out, err := client.ListCachePolicies(ctx, &cloudfront.ListCachePoliciesInput{Marker: marker})
 			if err != nil {
@@ -404,7 +405,7 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client *clo
 
 // scanCloudFrontOriginRequestPolicies discovers customer-owned origin request policies.
 func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListOriginRequestPolicies",
+	return cfMarkerScan(ctx, "cloudfront:ListOriginRequestPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListOriginRequestPoliciesOutput, *string, error) {
 			out, err := client.ListOriginRequestPolicies(ctx, &cloudfront.ListOriginRequestPoliciesInput{Marker: marker})
 			if err != nil {
@@ -457,7 +458,7 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 
 // scanCloudFrontResponseHeadersPolicies discovers customer-owned response headers policies.
 func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListResponseHeadersPolicies",
+	return cfMarkerScan(ctx, "cloudfront:ListResponseHeadersPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListResponseHeadersPoliciesOutput, *string, error) {
 			out, err := client.ListResponseHeadersPolicies(ctx, &cloudfront.ListResponseHeadersPoliciesInput{Marker: marker})
 			if err != nil {
@@ -510,7 +511,7 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 
 // scanCloudFrontContinuousDeploymentPolicies discovers continuous deployment policies.
 func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListContinuousDeploymentPolicies",
+	return cfMarkerScan(ctx, "cloudfront:ListContinuousDeploymentPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListContinuousDeploymentPoliciesOutput, *string, error) {
 			out, err := client.ListContinuousDeploymentPolicies(ctx, &cloudfront.ListContinuousDeploymentPoliciesInput{Marker: marker})
 			if err != nil {
@@ -563,7 +564,7 @@ func scanCloudFrontOAIs(ctx context.Context, acct *account, client *cloudfront.C
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListCloudFrontOriginAccessIdentities", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListCloudFrontOriginAccessIdentities", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListCloudFrontOriginAccessIdentities: %w", err)
 		}
@@ -603,7 +604,7 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListOriginAccessControls", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListOriginAccessControls", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListOriginAccessControls: %w", err)
 		}
@@ -639,7 +640,7 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 
 // scanCloudFrontFunctions discovers CloudFront Functions (lightweight edge compute).
 func scanCloudFrontFunctions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListFunctions",
+	return cfMarkerScan(ctx, "cloudfront:ListFunctions", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListFunctionsOutput, *string, error) {
 			out, err := client.ListFunctions(ctx, &cloudfront.ListFunctionsInput{Marker: marker})
 			if err != nil {
@@ -692,7 +693,7 @@ func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, clien
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListConnectionFunctions", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListConnectionFunctions", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListConnectionFunctions: %w", err)
 		}
@@ -726,7 +727,7 @@ func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, clien
 
 // scanCloudFrontKeyGroups discovers key groups used to sign URLs/cookies.
 func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListKeyGroups",
+	return cfMarkerScan(ctx, "cloudfront:ListKeyGroups", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListKeyGroupsOutput, *string, error) {
 			out, err := client.ListKeyGroups(ctx, &cloudfront.ListKeyGroupsInput{Marker: marker})
 			if err != nil {
@@ -784,7 +785,7 @@ func scanCloudFrontKeyValueStores(ctx context.Context, acct *account, client *cl
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListKeyValueStores", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListKeyValueStores", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListKeyValueStores: %w", err)
 		}
@@ -825,7 +826,7 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client *cloudf
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListPublicKeys", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListPublicKeys", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListPublicKeys: %w", err)
 		}
@@ -863,7 +864,7 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client *cloudf
 
 // scanCloudFrontRealtimeLogConfigs discovers real-time log configurations.
 func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListRealtimeLogConfigs",
+	return cfMarkerScan(ctx, "cloudfront:ListRealtimeLogConfigs", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListRealtimeLogConfigsOutput, *string, error) {
 			out, err := client.ListRealtimeLogConfigs(ctx, &cloudfront.ListRealtimeLogConfigsInput{Marker: marker})
 			if err != nil {
@@ -912,7 +913,7 @@ func scanCloudFrontTrustStores(ctx context.Context, acct *account, client *cloud
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListTrustStores", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListTrustStores", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListTrustStores: %w", err)
 		}
@@ -949,7 +950,7 @@ func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client *
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("cloudfront:ListConnectionGroups", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListConnectionGroups", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("cloudfront:ListConnectionGroups: %w", err)
 		}
@@ -983,7 +984,7 @@ func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client *
 
 // scanCloudFrontAnycastIpLists discovers Anycast static IP lists.
 func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListAnycastIpLists",
+	return cfMarkerScan(ctx, "cloudfront:ListAnycastIpLists", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListAnycastIpListsOutput, *string, error) {
 			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
 			if err != nil {
@@ -1027,7 +1028,7 @@ func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client *cl
 
 // scanCloudFrontVpcOrigins discovers VPC origin configurations.
 func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListVpcOrigins",
+	return cfMarkerScan(ctx, "cloudfront:ListVpcOrigins", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListVpcOriginsOutput, *string, error) {
 			out, err := client.ListVpcOrigins(ctx, &cloudfront.ListVpcOriginsInput{Marker: marker})
 			if err != nil {

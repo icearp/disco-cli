@@ -542,3 +542,28 @@ func mustUpsertRel(t *testing.T, st *Store, fromID, toID, kind string) {
 		t.Fatalf("UpsertRelationship %s -[%s]-> %s: %v", fromID, kind, toID, err)
 	}
 }
+
+// TestReportWarning verifies OnWarn receives each reported ScanWarning and
+// that calling ReportWarning without a handler is a no-op.
+func TestReportWarning(t *testing.T) {
+	st := openTestStore(t)
+
+	// No handler installed: must not panic.
+	st.ReportWarning(ScanWarning{Provider: "aws", Service: "kms", Scope: "123", Message: "denied"})
+
+	var got []ScanWarning
+	st.OnWarn = func(w ScanWarning) { got = append(got, w) }
+
+	st.ReportWarning(ScanWarning{Provider: "aws", Service: "kms:ListKeys", Scope: "123/us-east-1", Message: "AccessDenied"})
+	st.ReportWarning(ScanWarning{Provider: "gcp", Service: "storage", Scope: "proj-1", Message: "403 forbidden"})
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 warnings, got %d", len(got))
+	}
+	if got[0].Provider != "aws" || got[0].Service != "kms:ListKeys" {
+		t.Errorf("warning[0] mismatch: %+v", got[0])
+	}
+	if got[1].Provider != "gcp" || got[1].Scope != "proj-1" {
+		t.Errorf("warning[1] mismatch: %+v", got[1])
+	}
+}

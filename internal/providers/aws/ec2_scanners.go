@@ -85,7 +85,7 @@ func ec2PageScan[P any](
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(iamAction, acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
 		}

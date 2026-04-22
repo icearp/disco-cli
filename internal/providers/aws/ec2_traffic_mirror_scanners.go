@@ -54,7 +54,7 @@ func scanTrafficMirrorFilterRules(ctx context.Context, client *ec2.Client, acct 
 	out, err := client.DescribeTrafficMirrorFilterRules(ctx, &ec2.DescribeTrafficMirrorFilterRulesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeTrafficMirrorFilterRules", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeTrafficMirrorFilterRules: %w", err)
 	}

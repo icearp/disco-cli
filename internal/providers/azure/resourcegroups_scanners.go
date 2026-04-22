@@ -23,7 +23,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return skipIfAccessDenied("armresources:ResourceGroups.List", sub.ID, err)
+				return skipIfAccessDenied(st, "armresources:ResourceGroups.List", sub.ID, err)
 			}
 			return fmt.Errorf("armresources:ResourceGroups.List: %w", err)
 		}

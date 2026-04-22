@@ -52,7 +52,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armnetwork:VirtualNetworks.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armnetwork:VirtualNetworks.ListAll", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
 		}

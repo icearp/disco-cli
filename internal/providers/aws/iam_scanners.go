@@ -78,7 +78,7 @@ func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *st
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListRoles", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListRoles", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListRoles: %w", err)
 		}
@@ -120,7 +120,7 @@ func scanIAMUsers(ctx context.Context, client *iam.Client, acct *account, st *st
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListUsers", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListUsers", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListUsers: %w", err)
 		}
@@ -157,7 +157,7 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListGroups", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListGroups", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListGroups: %w", err)
 		}
@@ -198,7 +198,7 @@ func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st 
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListPolicies", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListPolicies", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListPolicies: %w", err)
 		}
@@ -235,7 +235,7 @@ func scanIAMInstanceProfiles(ctx context.Context, client *iam.Client, acct *acco
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListInstanceProfiles", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListInstanceProfiles", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListInstanceProfiles: %w", err)
 		}
@@ -271,7 +271,7 @@ func scanIAMOIDCProviders(ctx context.Context, client *iam.Client, acct *account
 	out, err := client.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("iam:ListOpenIDConnectProviders", acct.ID, "global", err)
+			return 0, 0, skipIfAccessDenied(st, "iam:ListOpenIDConnectProviders", acct.ID, "global", err)
 		}
 		return 0, 0, fmt.Errorf("iam:ListOpenIDConnectProviders: %w", err)
 	}
@@ -331,7 +331,7 @@ func scanIAMSAMLProviders(ctx context.Context, client *iam.Client, acct *account
 	out, err := client.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("iam:ListSAMLProviders", acct.ID, "global", err)
+			return 0, 0, skipIfAccessDenied(st, "iam:ListSAMLProviders", acct.ID, "global", err)
 		}
 		return 0, 0, fmt.Errorf("iam:ListSAMLProviders: %w", err)
 	}
@@ -392,7 +392,7 @@ func scanIAMServerCertificates(ctx context.Context, client *iam.Client, acct *ac
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListServerCertificates", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListServerCertificates", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListServerCertificates: %w", err)
 		}
@@ -430,7 +430,7 @@ func scanIAMVirtualMFADevices(ctx context.Context, client *iam.Client, acct *acc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("iam:ListVirtualMFADevices", acct.ID, "global", err)
+				return total, inserted, skipIfAccessDenied(st, "iam:ListVirtualMFADevices", acct.ID, "global", err)
 			}
 			return total, inserted, fmt.Errorf("iam:ListVirtualMFADevices: %w", err)
 		}

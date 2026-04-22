@@ -58,7 +58,7 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 	})
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied("sqladmin:instances.list", p.ID, err)
+			return 0, 0, skipIfDenied(st, "sqladmin:instances.list", p.ID, err)
 		}
 		return 0, 0, fmt.Errorf("sqladmin:instances.list %s: %w", p.ID, err)
 	}

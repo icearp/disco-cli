@@ -93,7 +93,7 @@ func scanLogsLogGroups(ctx context.Context, client *cwlogs.Client, acct *account
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeLogGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeLogGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeLogGroups: %w", err)
 		}
@@ -181,7 +181,7 @@ func scanLogsDeliveries(ctx context.Context, client *cwlogs.Client, acct *accoun
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeDeliveries", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliveries", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeDeliveries: %w", err)
 		}
@@ -220,7 +220,7 @@ func scanLogsDeliveryDestinations(ctx context.Context, client *cwlogs.Client, ac
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeDeliveryDestinations", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliveryDestinations", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeDeliveryDestinations: %w", err)
 		}
@@ -259,7 +259,7 @@ func scanLogsDeliverySources(ctx context.Context, client *cwlogs.Client, acct *a
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeDeliverySources", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliverySources", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeDeliverySources: %w", err)
 		}
@@ -298,7 +298,7 @@ func scanLogsDestinations(ctx context.Context, client *cwlogs.Client, acct *acco
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeDestinations", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDestinations", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeDestinations: %w", err)
 		}
@@ -336,7 +336,7 @@ func scanLogsIntegrations(ctx context.Context, client *cwlogs.Client, acct *acco
 	out, err := client.ListIntegrations(ctx, &cwlogs.ListIntegrationsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("logs:ListIntegrations", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "logs:ListIntegrations", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("logs:ListIntegrations: %w", err)
 	}
@@ -405,7 +405,7 @@ func scanLogsLogAnomalyDetectors(ctx context.Context, client *cwlogs.Client, acc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:ListLogAnomalyDetectors", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:ListLogAnomalyDetectors", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:ListLogAnomalyDetectors: %w", err)
 		}
@@ -446,7 +446,7 @@ func scanLogsMetricFilters(ctx context.Context, client *cwlogs.Client, acct *acc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeMetricFilters", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeMetricFilters", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeMetricFilters: %w", err)
 		}
@@ -500,7 +500,7 @@ func scanLogsQueryDefinitions(ctx context.Context, client *cwlogs.Client, acct *
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeQueryDefinitions", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeQueryDefinitions", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeQueryDefinitions: %w", err)
 		}
@@ -546,7 +546,7 @@ func scanLogsResourcePolicies(ctx context.Context, client *cwlogs.Client, acct *
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:DescribeResourcePolicies", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeResourcePolicies", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:DescribeResourcePolicies: %w", err)
 		}
@@ -589,7 +589,7 @@ func scanLogsScheduledQueries(ctx context.Context, client *cwlogs.Client, acct *
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("logs:ListScheduledQueries", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "logs:ListScheduledQueries", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("logs:ListScheduledQueries: %w", err)
 		}

@@ -43,7 +43,7 @@ func rdsPageScan[P any](
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(iamAction, acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
 		}
@@ -330,7 +330,7 @@ func scanDBShardGroups(ctx context.Context, client *rds.Client, acct *account, r
 		out, apiErr := client.DescribeDBShardGroups(ctx, &rds.DescribeDBShardGroupsInput{Marker: marker})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied("rds:DescribeDBShardGroups", acct.ID, region, apiErr)
+				return total, inserted, skipIfAccessDenied(st, "rds:DescribeDBShardGroups", acct.ID, region, apiErr)
 			}
 			return total, inserted, fmt.Errorf("rds:DescribeDBShardGroups: %w", apiErr)
 		}

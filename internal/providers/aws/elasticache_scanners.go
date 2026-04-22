@@ -44,7 +44,7 @@ func scanElastiCacheReplicationGroups(ctx context.Context, client *elasticache.C
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeReplicationGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeReplicationGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeReplicationGroups: %w", err)
 		}
@@ -90,7 +90,7 @@ func scanElastiCacheClusters(ctx context.Context, client *elasticache.Client, ac
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeCacheClusters", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheClusters", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeCacheClusters: %w", err)
 		}
@@ -142,7 +142,7 @@ func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client *elastic
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeGlobalReplicationGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeGlobalReplicationGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeGlobalReplicationGroups: %w", err)
 		}
@@ -180,7 +180,7 @@ func scanElastiCacheParameterGroups(ctx context.Context, client *elasticache.Cli
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeCacheParameterGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheParameterGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeCacheParameterGroups: %w", err)
 		}
@@ -237,7 +237,7 @@ func scanElastiCacheSecurityGroups(ctx context.Context, client *elasticache.Clie
 				return 0, 0, nil // VPC-only account — no EC2-Classic cache security groups
 			}
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeCacheSecurityGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheSecurityGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeCacheSecurityGroups: %w", err)
 		}
@@ -281,7 +281,7 @@ func scanElastiCacheServerlessCaches(ctx context.Context, client *elasticache.Cl
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeServerlessCaches", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeServerlessCaches", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeServerlessCaches: %w", err)
 		}
@@ -326,7 +326,7 @@ func scanElastiCacheSubnetGroups(ctx context.Context, client *elasticache.Client
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeCacheSubnetGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeCacheSubnetGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeCacheSubnetGroups: %w", err)
 		}
@@ -370,7 +370,7 @@ func scanElastiCacheUsers(ctx context.Context, client *elasticache.Client, acct 
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeUsers", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeUsers", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeUsers: %w", err)
 		}
@@ -415,7 +415,7 @@ func scanElastiCacheUserGroups(ctx context.Context, client *elasticache.Client, 
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("elasticache:DescribeUserGroups", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "elasticache:DescribeUserGroups", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("elasticache:DescribeUserGroups: %w", err)
 		}

@@ -33,7 +33,7 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 		t, n, err := sub.fn()
 		if err != nil {
 			if isPermissionDenied(err) {
-				return total, inserted, skipIfDenied(sub.action, p.ID, err)
+				return total, inserted, skipIfDenied(st, sub.action, p.ID, err)
 			}
 			return total, inserted, err
 		}

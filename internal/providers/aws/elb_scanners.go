@@ -86,7 +86,7 @@ func scanELBv2LoadBalancers(ctx context.Context, client *elasticloadbalancingv2.
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeLoadBalancers", acct.ID, region, err)
 			}
 			return nil, 0, 0, fmt.Errorf("elasticloadbalancing:DescribeLoadBalancers: %w", err)
 		}
@@ -133,7 +133,7 @@ func scanELBv2Listeners(ctx context.Context, client *elasticloadbalancingv2.Clie
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeListeners", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeListeners", acct.ID, region, err)
 			}
 			return nil, 0, 0, fmt.Errorf("elasticloadbalancing:DescribeListeners: %w", err)
 		}
@@ -175,7 +175,7 @@ func scanELBv2ListenerRules(ctx context.Context, client *elasticloadbalancingv2.
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeRules", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeRules", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeRules: %w", err)
 		}
@@ -216,7 +216,7 @@ func scanELBv2ListenerCertificates(ctx context.Context, client *elasticloadbalan
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeListenerCertificates", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeListenerCertificates", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeListenerCertificates: %w", err)
 		}
@@ -254,7 +254,7 @@ func scanELBv2TargetGroups(ctx context.Context, client *elasticloadbalancingv2.C
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeTargetGroups", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeTargetGroups", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeTargetGroups: %w", err)
 		}
@@ -295,7 +295,7 @@ func scanELBv2TrustStores(ctx context.Context, client *elasticloadbalancingv2.Cl
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeTrustStores", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeTrustStores", acct.ID, region, err)
 			}
 			return nil, 0, 0, fmt.Errorf("elasticloadbalancing:DescribeTrustStores: %w", err)
 		}
@@ -339,7 +339,7 @@ func scanELBv2TrustStoreRevocations(ctx context.Context, client *elasticloadbala
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("elasticloadbalancing:DescribeTrustStoreRevocations", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "elasticloadbalancing:DescribeTrustStoreRevocations", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("elasticloadbalancing:DescribeTrustStoreRevocations: %w", err)
 		}

@@ -40,7 +40,7 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred *azident
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:CloudServices.ListAll", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServices.ListAll", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:CloudServices.ListAll: %w", err)
 		}
@@ -145,7 +145,7 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:CloudServiceRoles.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoles.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:CloudServiceRoles.List %s/%s: %w", cs.rg, cs.name, err)
 		}
@@ -192,7 +192,7 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armcompute:CloudServiceRoleInstances.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armcompute:CloudServiceRoleInstances.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:CloudServiceRoleInstances.List %s/%s: %w", cs.rg, cs.name, err)
 		}

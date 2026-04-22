@@ -163,7 +163,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:WebApps.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:WebApps.List: %w", err)
 		}
@@ -256,7 +256,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:WebApps.ListSlots", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.ListSlots", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:WebApps.ListSlots %s/%s: %w", site.rg, site.name, err)
 		}
@@ -321,7 +321,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred *azident
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:Environments.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.List: %w", err)
 		}
@@ -416,7 +416,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 		page, err := wpPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:Environments.ListWorkerPools", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListWorkerPools", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.ListWorkerPools %s/%s: %w", ase.rg, ase.name, err)
 		}
@@ -448,7 +448,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 		page, err := mrpPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:Environments.ListMultiRolePools", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListMultiRolePools", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.ListMultiRolePools %s/%s: %w", ase.rg, ase.name, err)
 		}
@@ -536,7 +536,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred *azidenti
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:StaticSites.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:StaticSites.List: %w", err)
 		}
@@ -629,7 +629,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armappservice:StaticSites.GetStaticSiteBuilds", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.GetStaticSiteBuilds", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:StaticSites.GetStaticSiteBuilds %s/%s: %w", ss.rg, ss.name, err)
 		}

@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -174,8 +173,9 @@ func isPermissionDenied(err error) bool {
 	return false
 }
 
-// skipIfDenied logs a concise error message (no Details JSON) and returns nil.
-func skipIfDenied(service, projectID string, err error) error {
+// skipIfDenied reports a non-fatal skip as a ScanWarning.
+func skipIfDenied(st *store.Store, service, projectID string, err error) error {
+	msg := err.Error()
 	var gerr *googleapi.Error
 	if errors.As(err, &gerr) {
 		reason := ""
@@ -183,12 +183,16 @@ func skipIfDenied(service, projectID string, err error) error {
 			reason = gerr.Errors[0].Reason
 		}
 		if reason != "" {
-			log.Printf("warn: gcp %s %s: %d %s (%s) (skipping)", service, projectID, gerr.Code, gerr.Message, reason)
+			msg = fmt.Sprintf("%d %s (%s)", gerr.Code, gerr.Message, reason)
 		} else {
-			log.Printf("warn: gcp %s %s: %d %s (skipping)", service, projectID, gerr.Code, gerr.Message)
+			msg = fmt.Sprintf("%d %s", gerr.Code, gerr.Message)
 		}
-		return nil
 	}
-	log.Printf("warn: gcp %s %s: %v (skipping)", service, projectID, err)
+	st.ReportWarning(store.ScanWarning{
+		Provider: "gcp",
+		Service:  service,
+		Scope:    projectID,
+		Message:  msg,
+	})
 	return nil
 }

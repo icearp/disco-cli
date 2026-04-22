@@ -37,7 +37,7 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("kms:ListKeys", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "kms:ListKeys", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("kms:ListKeys: %w", err)
 		}
@@ -124,7 +124,7 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 		page, err := aliasPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("kms:ListAliases", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "kms:ListAliases", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("kms:ListAliases: %w", err)
 		}

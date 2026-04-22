@@ -195,7 +195,7 @@ func scanTGWMulticastDomains(ctx context.Context, client *ec2.Client, acct *acco
 
 // scanTGWMulticastDomainAssociations fans out per multicast domain.
 func scanTGWMulticastDomainAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region)
+	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -251,7 +251,7 @@ func scanTGWMulticastGroupSources(ctx context.Context, client *ec2.Client, acct 
 }
 
 func scanTGWMulticastGroups(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string, isGroupMember bool) (total, inserted int, err error) {
-	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region)
+	domainIDs, err := listTGWMulticastDomainIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -360,7 +360,7 @@ func scanTGWRouteTables(ctx context.Context, client *ec2.Client, acct *account, 
 
 // scanTGWRouteTableAssociations fans out per TGW route table.
 func scanTGWRouteTableAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region)
+	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -406,7 +406,7 @@ func scanTGWRouteTableAssociations(ctx context.Context, client *ec2.Client, acct
 
 // scanTGWRouteTablePropagations fans out per TGW route table.
 func scanTGWRouteTablePropagations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region)
+	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -480,7 +480,7 @@ func scanTGWVPCAttachments(ctx context.Context, client *ec2.Client, acct *accoun
 // scanTGWRoutes fans out per TGW route table and emits each route as a resource.
 // SearchTransitGatewayRoutes does not have a paginator; we call it directly per table.
 func scanTGWRoutes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region)
+	rtIDs, err := listTGWRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -503,7 +503,7 @@ func scanTGWRoutes(ctx context.Context, client *ec2.Client, acct *account, regio
 			})
 			if err != nil {
 				if isAccessDenied(err) {
-					return skipIfAccessDenied("ec2:SearchTransitGatewayRoutes", acct.ID, region, err)
+					return skipIfAccessDenied(st, "ec2:SearchTransitGatewayRoutes", acct.ID, region, err)
 				}
 				return fmt.Errorf("ec2:SearchTransitGatewayRoutes: %w", err)
 			}
@@ -542,14 +542,14 @@ func scanTGWRoutes(ctx context.Context, client *ec2.Client, acct *account, regio
 }
 
 // listTGWMulticastDomainIDs returns all TGW multicast domain IDs in this region.
-func listTGWMulticastDomainIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listTGWMulticastDomainIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	var ids []string
 	pager := ec2.NewDescribeTransitGatewayMulticastDomainsPaginator(client, &ec2.DescribeTransitGatewayMulticastDomainsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeTransitGatewayMulticastDomains", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeTransitGatewayMulticastDomains", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeTransitGatewayMulticastDomains (list IDs): %w", err)
@@ -564,14 +564,14 @@ func listTGWMulticastDomainIDs(ctx context.Context, client *ec2.Client, acct *ac
 }
 
 // listTGWRouteTableIDs returns all TGW route table IDs in this region.
-func listTGWRouteTableIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listTGWRouteTableIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	var ids []string
 	pager := ec2.NewDescribeTransitGatewayRouteTablesPaginator(client, &ec2.DescribeTransitGatewayRouteTablesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeTransitGatewayRouteTables", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeTransitGatewayRouteTables", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeTransitGatewayRouteTables (list IDs): %w", err)

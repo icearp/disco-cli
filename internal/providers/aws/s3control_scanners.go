@@ -70,7 +70,7 @@ func scanAccessGrantsInstances(ctx context.Context, acct *account, region string
 		})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListAccessGrantsInstances", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrantsInstances", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListAccessGrantsInstances: %w", apiErr)
 		}
@@ -129,7 +129,7 @@ func scanAccessGrantsLocations(ctx context.Context, acct *account, region string
 				return 0, 0, nil // no instance in this region — expected
 			}
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListAccessGrantsLocations", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrantsLocations", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListAccessGrantsLocations: %w", apiErr)
 		}
@@ -180,7 +180,7 @@ func scanAccessGrants(ctx context.Context, acct *account, region string, client 
 				return 0, 0, nil // no instance in this region — expected
 			}
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListAccessGrants", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrants", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListAccessGrants: %w", apiErr)
 		}
@@ -227,7 +227,7 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 		})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListAccessPoints", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPoints", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListAccessPoints: %w", apiErr)
 		}
@@ -274,7 +274,7 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3c
 		})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
 		}
@@ -388,7 +388,7 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 		})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListStorageLensConfigurations: %w", apiErr)
 		}
@@ -434,7 +434,7 @@ func scanStorageLensGroups(ctx context.Context, acct *account, region string, cl
 		})
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("s3control:ListStorageLensGroups", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensGroups", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("s3control:ListStorageLensGroups: %w", apiErr)
 		}

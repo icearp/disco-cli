@@ -205,7 +205,7 @@ func scanEIPs(ctx context.Context, client *ec2.Client, acct *account, region str
 	out, err := client.DescribeAddresses(ctx, &ec2.DescribeAddressesInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeAddresses", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeAddresses", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeAddresses: %w", err)
 	}
@@ -417,7 +417,7 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client *ec2.Client, ac
 	out, err := client.DescribeVpcBlockPublicAccessOptions(ctx, &ec2.DescribeVpcBlockPublicAccessOptionsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeVpcBlockPublicAccessOptions", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcBlockPublicAccessOptions", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessOptions: %w", err)
 	}
@@ -454,7 +454,7 @@ func scanVPCBlockPublicAccessExclusions(ctx context.Context, client *ec2.Client,
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("ec2:DescribeVpcBlockPublicAccessExclusions", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "ec2:DescribeVpcBlockPublicAccessExclusions", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessExclusions: %w", err)
 		}
@@ -527,7 +527,7 @@ func scanVPCEndpointServices(ctx context.Context, client *ec2.Client, acct *acco
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("ec2:DescribeVpcEndpointServices", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "ec2:DescribeVpcEndpointServices", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("ec2:DescribeVpcEndpointServices: %w", err)
 		}
@@ -563,7 +563,7 @@ func scanVPCEndpointServices(ctx context.Context, client *ec2.Client, acct *acco
 
 // scanVPCEndpointServicePermissions fans out per VPC endpoint service.
 func scanVPCEndpointServicePermissions(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	svcIDs, err := listVPCEndpointServiceIDs(ctx, client, acct, region)
+	svcIDs, err := listVPCEndpointServiceIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -610,7 +610,7 @@ func scanVPCEndpointServicePermissions(ctx context.Context, client *ec2.Client, 
 // Uses manual NextToken pagination (no paginator available in SDK).
 // The owner filter is required; without it the API returns AWS-managed services
 // which cannot be queried for permissions.
-func listVPCEndpointServiceIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listVPCEndpointServiceIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
 	var ids []string
 	var nextToken *string
@@ -621,7 +621,7 @@ func listVPCEndpointServiceIDs(ctx context.Context, client *ec2.Client, acct *ac
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeVpcEndpointServices", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeVpcEndpointServices", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeVpcEndpointServices (list IDs): %w", err)

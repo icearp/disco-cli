@@ -53,7 +53,7 @@ func scanCWAlarms(ctx context.Context, acct *account, region string, st *store.S
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:DescribeAlarms", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeAlarms", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:DescribeAlarms: %w", err)
 		}
@@ -112,7 +112,7 @@ func scanCWAlarmMuteRules(ctx context.Context, acct *account, region string, st 
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:ListAlarmMuteRules", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListAlarmMuteRules", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:ListAlarmMuteRules: %w", err)
 		}
@@ -160,7 +160,7 @@ func scanCWAnomalyDetectors(ctx context.Context, acct *account, region string, s
 		})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:DescribeAnomalyDetectors", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeAnomalyDetectors", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:DescribeAnomalyDetectors: %w", err)
 		}
@@ -219,7 +219,7 @@ func scanCWDashboards(ctx context.Context, acct *account, region string, st *sto
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:ListDashboards", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListDashboards", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:ListDashboards: %w", err)
 		}
@@ -284,7 +284,7 @@ func scanCWInsightRules(ctx context.Context, acct *account, region string, st *s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:DescribeInsightRules", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeInsightRules", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:DescribeInsightRules: %w", err)
 		}
@@ -327,7 +327,7 @@ func scanCWMetricStreams(ctx context.Context, acct *account, region string, st *
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("cloudwatch:ListMetricStreams", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListMetricStreams", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("cloudwatch:ListMetricStreams: %w", err)
 		}

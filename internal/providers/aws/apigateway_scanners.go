@@ -74,7 +74,7 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetRestApis", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetRestApis", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetRestApis: %w", err)
 		}
@@ -163,7 +163,7 @@ func scanAPIGatewayAuthorizers(ctx context.Context, client *apigateway.Client, a
 	out, err := client.GetAuthorizers(ctx, &apigateway.GetAuthorizersInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("apigateway:GetAuthorizers", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "apigateway:GetAuthorizers", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("apigateway:GetAuthorizers(%s): %w", apiID, err)
 	}
@@ -203,7 +203,7 @@ func scanAPIGatewayDeployments(ctx context.Context, client *apigateway.Client, a
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetDeployments", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDeployments", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetDeployments(%s): %w", apiID, err)
 		}
@@ -240,7 +240,7 @@ func scanAPIGatewayStages(ctx context.Context, client *apigateway.Client, acct *
 	out, err := client.GetStages(ctx, &apigateway.GetStagesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("apigateway:GetStages", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "apigateway:GetStages", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("apigateway:GetStages(%s): %w", apiID, err)
 	}
@@ -287,7 +287,7 @@ func scanAPIGatewayResources(ctx context.Context, client *apigateway.Client, acc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetResources", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetResources", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetResources(%s): %w", apiID, err)
 		}
@@ -352,7 +352,7 @@ func scanAPIGatewayModels(ctx context.Context, client *apigateway.Client, acct *
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetModels", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetModels", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetModels(%s): %w", apiID, err)
 		}
@@ -389,7 +389,7 @@ func scanAPIGatewayRequestValidators(ctx context.Context, client *apigateway.Cli
 	out, err := client.GetRequestValidators(ctx, &apigateway.GetRequestValidatorsInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("apigateway:GetRequestValidators", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "apigateway:GetRequestValidators", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("apigateway:GetRequestValidators(%s): %w", apiID, err)
 	}
@@ -426,7 +426,7 @@ func scanAPIGatewayGatewayResponses(ctx context.Context, client *apigateway.Clie
 	out, err := client.GetGatewayResponses(ctx, &apigateway.GetGatewayResponsesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("apigateway:GetGatewayResponses", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "apigateway:GetGatewayResponses", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("apigateway:GetGatewayResponses(%s): %w", apiID, err)
 	}
@@ -467,7 +467,7 @@ func scanAPIGatewayDocumentationParts(ctx context.Context, client *apigateway.Cl
 		out, apiErr := client.GetDocumentationParts(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("apigateway:GetDocumentationParts", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "apigateway:GetDocumentationParts", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("apigateway:GetDocumentationParts(%s): %w", apiID, apiErr)
 		}
@@ -512,7 +512,7 @@ func scanAPIGatewayDocumentationVersions(ctx context.Context, client *apigateway
 		out, apiErr := client.GetDocumentationVersions(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("apigateway:GetDocumentationVersions", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "apigateway:GetDocumentationVersions", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("apigateway:GetDocumentationVersions(%s): %w", apiID, apiErr)
 		}
@@ -554,7 +554,7 @@ func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st
 	out, err := client.GetAccount(ctx, &apigateway.GetAccountInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("apigateway:GetAccount", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "apigateway:GetAccount", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("apigateway:GetAccount: %w", err)
 	}
@@ -587,7 +587,7 @@ func scanAPIGatewayAPIKeys(ctx context.Context, acct *account, region string, st
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetApiKeys", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetApiKeys", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetApiKeys: %w", err)
 		}
@@ -629,7 +629,7 @@ func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetClientCertificates", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetClientCertificates", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetClientCertificates: %w", err)
 		}
@@ -678,7 +678,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetDomainNames", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDomainNames", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetDomainNames: %w", err)
 		}
@@ -702,7 +702,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 			bpmOut, err := client.GetBasePathMappings(ctx, &apigateway.GetBasePathMappingsInput{DomainName: &domainName})
 			if err != nil {
 				if isAccessDenied(err) {
-					_ = skipIfAccessDenied("apigateway:GetBasePathMappings", acct.ID, region, err)
+					_ = skipIfAccessDenied(st, "apigateway:GetBasePathMappings", acct.ID, region, err)
 					continue
 				}
 				return total, inserted, fmt.Errorf("apigateway:GetBasePathMappings(%s): %w", domainName, err)
@@ -749,7 +749,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		out, apiErr := client.GetDomainNameAccessAssociations(ctx, assocInput)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetDomainNameAccessAssociations", acct.ID, region, apiErr)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetDomainNameAccessAssociations", acct.ID, region, apiErr)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetDomainNameAccessAssociations: %w", apiErr)
 		}
@@ -797,7 +797,7 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetUsagePlans", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetUsagePlans", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetUsagePlans: %w", err)
 		}
@@ -824,7 +824,7 @@ func scanAPIGatewayUsagePlans(ctx context.Context, acct *account, region string,
 				keyOut, err := client.GetUsagePlanKeys(ctx, keyInput)
 				if err != nil {
 					if isAccessDenied(err) {
-						_ = skipIfAccessDenied("apigateway:GetUsagePlanKeys", acct.ID, region, err)
+						_ = skipIfAccessDenied(st, "apigateway:GetUsagePlanKeys", acct.ID, region, err)
 						break
 					}
 					return total, inserted, fmt.Errorf("apigateway:GetUsagePlanKeys(%s): %w", planID, err)
@@ -881,7 +881,7 @@ func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, s
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("apigateway:GetVpcLinks", acct.ID, region, err)
+				return total, inserted, skipIfAccessDenied(st, "apigateway:GetVpcLinks", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("apigateway:GetVpcLinks: %w", err)
 		}
@@ -927,7 +927,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 		page, apiErr := client.GetApis(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("apigatewayv2:GetApis", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "apigatewayv2:GetApis", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("apigatewayv2:GetApis: %w", apiErr)
 		}
@@ -977,7 +977,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 		page, apiErr := client.GetDomainNames(ctx, input)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied("apigatewayv2:GetDomainNames", acct.ID, region, apiErr)
+				return 0, 0, skipIfAccessDenied(st, "apigatewayv2:GetDomainNames", acct.ID, region, apiErr)
 			}
 			return 0, 0, fmt.Errorf("apigatewayv2:GetDomainNames: %w", apiErr)
 		}
@@ -1003,7 +1003,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 				mapOut, mapErr := client.GetApiMappings(ctx, mapInput)
 				if mapErr != nil {
 					if isAccessDenied(mapErr) {
-						_ = skipIfAccessDenied("apigatewayv2:GetApiMappings", acct.ID, region, mapErr)
+						_ = skipIfAccessDenied(st, "apigatewayv2:GetApiMappings", acct.ID, region, mapErr)
 						break
 					}
 					return total, inserted, fmt.Errorf("apigatewayv2:GetApiMappings(%s): %w", domainName, mapErr)

@@ -72,7 +72,7 @@ func scanLambdaFunctions(ctx context.Context, client *lambda.Client, acct *accou
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied("lambda:ListFunctions", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "lambda:ListFunctions", acct.ID, region, err)
 			}
 			return nil, 0, 0, fmt.Errorf("lambda:ListFunctions: %w", err)
 		}
@@ -284,7 +284,7 @@ func scanLambdaCodeSigningConfigs(ctx context.Context, client *lambda.Client, ac
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("lambda:ListCodeSigningConfigs", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "lambda:ListCodeSigningConfigs", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("lambda:ListCodeSigningConfigs: %w", err)
 		}
@@ -323,7 +323,7 @@ func scanLambdaCapacityProviders(ctx context.Context, client *lambda.Client, acc
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("lambda:ListCapacityProviders", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "lambda:ListCapacityProviders", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("lambda:ListCapacityProviders: %w", err)
 		}
@@ -364,7 +364,7 @@ func scanLambdaEventSourceMappings(ctx context.Context, client *lambda.Client, a
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("lambda:ListEventSourceMappings", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "lambda:ListEventSourceMappings", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("lambda:ListEventSourceMappings: %w", err)
 		}
@@ -412,7 +412,7 @@ func scanLambdaLayerVersions(ctx context.Context, client *lambda.Client, acct *a
 		page, err := lpager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("lambda:ListLayers", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "lambda:ListLayers", acct.ID, region, err)
 			}
 			return total, inserted, fmt.Errorf("lambda:ListLayers: %w", err)
 		}

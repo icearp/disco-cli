@@ -23,7 +23,7 @@ func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) (t
 	out, err := svc.Projects.Locations.Clusters.List(parent).Context(ctx).Do()
 	if err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied("container:clusters.list", p.ID, err)
+			return 0, 0, skipIfDenied(st, "container:clusters.list", p.ID, err)
 		}
 		return 0, 0, fmt.Errorf("container:clusters.list %s: %w", p.ID, err)
 	}

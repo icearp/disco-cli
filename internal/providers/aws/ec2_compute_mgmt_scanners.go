@@ -169,7 +169,7 @@ func scanKeyPairs(ctx context.Context, client *ec2.Client, acct *account, region
 	out, err := client.DescribeKeyPairs(ctx, &ec2.DescribeKeyPairsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeKeyPairs", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeKeyPairs", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeKeyPairs: %w", err)
 	}
@@ -206,7 +206,7 @@ func scanPlacementGroups(ctx context.Context, client *ec2.Client, acct *account,
 	out, err := client.DescribePlacementGroups(ctx, &ec2.DescribePlacementGroupsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribePlacementGroups", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribePlacementGroups", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribePlacementGroups: %w", err)
 	}
@@ -431,7 +431,7 @@ func scanSnapshotBlockPublicAccess(ctx context.Context, client *ec2.Client, acct
 	out, err := client.GetSnapshotBlockPublicAccessState(ctx, &ec2.GetSnapshotBlockPublicAccessStateInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:GetSnapshotBlockPublicAccessState", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:GetSnapshotBlockPublicAccessState", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:GetSnapshotBlockPublicAccessState: %w", err)
 	}

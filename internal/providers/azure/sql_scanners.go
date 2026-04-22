@@ -89,7 +89,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred *azi
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armsql:Servers.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armsql:Servers.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:Servers.List: %w", err)
 		}
@@ -1363,7 +1363,7 @@ func scanSQLInstancePools(ctx context.Context, sub *subscription, cred *azidenti
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armsql:InstancePools.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armsql:InstancePools.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:InstancePools.List: %w", err)
 		}
@@ -1407,7 +1407,7 @@ func scanSQLVirtualClusters(ctx context.Context, sub *subscription, cred *aziden
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("armsql:VirtualClusters.List", sub.ID, err)
+				return 0, 0, skipIfAccessDenied(st, "armsql:VirtualClusters.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:VirtualClusters.List: %w", err)
 		}

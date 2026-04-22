@@ -28,7 +28,7 @@ func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account
 	out, err := client.DescribeCustomerGateways(ctx, &ec2.DescribeCustomerGatewaysInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeCustomerGateways", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeCustomerGateways", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeCustomerGateways: %w", err)
 	}
@@ -65,7 +65,7 @@ func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, reg
 	out, err := client.DescribeVpnGateways(ctx, &ec2.DescribeVpnGatewaysInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeVpnGateways", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpnGateways", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeVpnGateways: %w", err)
 	}
@@ -102,7 +102,7 @@ func scanVPNConnections(ctx context.Context, client *ec2.Client, acct *account, 
 	out, err := client.DescribeVpnConnections(ctx, &ec2.DescribeVpnConnectionsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("ec2:DescribeVpnConnections", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpnConnections", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("ec2:DescribeVpnConnections: %w", err)
 	}

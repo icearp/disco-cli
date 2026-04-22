@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -206,9 +205,14 @@ func isFeatureNotAvailable(err error) bool {
 	return false
 }
 
-// skipIfAccessDenied logs the error and returns nil.
-func skipIfAccessDenied(service, subID string, err error) error {
-	log.Printf("warn: azure %s %s: %v (skipping)", service, subID, err)
+// skipIfAccessDenied reports a non-fatal skip as a ScanWarning.
+func skipIfAccessDenied(st *store.Store, service, subID string, err error) error {
+	st.ReportWarning(store.ScanWarning{
+		Provider: "azure",
+		Service:  service,
+		Scope:    subID,
+		Message:  err.Error(),
+	})
 	return nil
 }
 
@@ -304,7 +308,7 @@ func azPageScan[P any](
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(action, sub.ID, err)
+				return total, inserted, skipIfAccessDenied(st, action, sub.ID, err)
 			}
 			return total, inserted, fmt.Errorf("%s: %w", action, err)
 		}

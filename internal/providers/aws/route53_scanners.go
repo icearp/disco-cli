@@ -42,7 +42,7 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("route53:ListHostedZones", acct.ID, "global", err)
+				return 0, 0, skipIfAccessDenied(st, "route53:ListHostedZones", acct.ID, "global", err)
 			}
 			return 0, 0, fmt.Errorf("route53:ListHostedZones: %w", err)
 		}
@@ -279,7 +279,7 @@ func scanRoute53CIDRCollections(
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("route53:ListCidrCollections", acct.ID, "global", err)
+				return 0, 0, skipIfAccessDenied(st, "route53:ListCidrCollections", acct.ID, "global", err)
 			}
 			return 0, 0, fmt.Errorf("route53:ListCidrCollections: %w", err)
 		}
@@ -336,7 +336,7 @@ func scanRoute53HealthChecks(
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("route53:ListHealthChecks", acct.ID, "global", err)
+				return 0, 0, skipIfAccessDenied(st, "route53:ListHealthChecks", acct.ID, "global", err)
 			}
 			return 0, 0, fmt.Errorf("route53:ListHealthChecks: %w", err)
 		}

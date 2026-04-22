@@ -47,7 +47,7 @@ func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, reg
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied("ecs:ListClusters", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "ecs:ListClusters", acct.ID, region, err)
 			}
 			return nil, 0, 0, fmt.Errorf("ecs:ListClusters: %w", err)
 		}
@@ -169,7 +169,7 @@ func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *accou
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied("ecs:ListTaskDefinitions", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, "ecs:ListTaskDefinitions", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("ecs:ListTaskDefinitions: %w", err)
 		}

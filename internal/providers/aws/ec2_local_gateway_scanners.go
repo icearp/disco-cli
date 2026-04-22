@@ -62,7 +62,7 @@ func scanLocalGatewayRouteTables(ctx context.Context, client *ec2.Client, acct *
 // scanLocalGatewayRoutes fans out per local gateway route table using
 // SearchLocalGatewayRoutes (there is no standalone DescribeLocalGatewayRoutes).
 func scanLocalGatewayRoutes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	rtIDs, err := listLocalGatewayRouteTableIDs(ctx, client, acct, region)
+	rtIDs, err := listLocalGatewayRouteTableIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -114,14 +114,14 @@ func scanLocalGatewayRoutes(ctx context.Context, client *ec2.Client, acct *accou
 }
 
 // listLocalGatewayRouteTableIDs returns all local gateway route table IDs in this region.
-func listLocalGatewayRouteTableIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listLocalGatewayRouteTableIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	var ids []string
 	pager := ec2.NewDescribeLocalGatewayRouteTablesPaginator(client, &ec2.DescribeLocalGatewayRouteTablesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeLocalGatewayRouteTables", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeLocalGatewayRouteTables", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeLocalGatewayRouteTables (list IDs): %w", err)

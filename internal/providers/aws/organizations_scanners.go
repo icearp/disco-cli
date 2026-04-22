@@ -29,7 +29,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied("organizations:DescribeOrganization", acct.ID, "", err)
+			return 0, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
 		}
 		return 0, 0, fmt.Errorf("organizations:DescribeOrganization: %w", err)
 	}
@@ -65,7 +65,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 		page, err := rootsPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("organizations:ListRoots", acct.ID, "", err)
+				return total, inserted, skipIfAccessDenied(st, "organizations:ListRoots", acct.ID, "", err)
 			}
 			return total, inserted, fmt.Errorf("organizations:ListRoots: %w", err)
 		}
@@ -129,7 +129,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 		page, err := accountsPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("organizations:ListAccounts", acct.ID, "", err)
+				return total, inserted, skipIfAccessDenied(st, "organizations:ListAccounts", acct.ID, "", err)
 			}
 			return total, inserted, fmt.Errorf("organizations:ListAccounts: %w", err)
 		}
@@ -178,7 +178,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 		page, err := policyPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("organizations:ListPolicies", acct.ID, "", err)
+				return total, inserted, skipIfAccessDenied(st, "organizations:ListPolicies", acct.ID, "", err)
 			}
 			return total, inserted, fmt.Errorf("organizations:ListPolicies: %w", err)
 		}
@@ -235,7 +235,7 @@ func walkOUs(
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied("organizations:ListOrganizationalUnitsForParent", acct.ID, "", err)
+				return total, inserted, skipIfAccessDenied(st, "organizations:ListOrganizationalUnitsForParent", acct.ID, "", err)
 			}
 			return total, inserted, fmt.Errorf("organizations:ListOrganizationalUnitsForParent %s: %w", parentNativeID, err)
 		}

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sync/atomic"
 	"time"
 
@@ -274,9 +273,22 @@ func isAccessDenied(err error) bool {
 	return false
 }
 
-// skipIfAccessDenied logs the error and returns nil when it is an access-denied
-// error, allowing the caller to continue scanning other services.
-func skipIfAccessDenied(service, accountID, region string, err error) error {
-	log.Printf("warn: aws %s %s/%s: %v (skipping)", service, accountID, region, err)
+// skipIfAccessDenied records the error as a scan warning and returns nil,
+// allowing the caller to continue scanning other services. Warnings are
+// collected by the orchestrator (cmd/scan.go) and rendered as a grouped
+// block after the scan completes — no inline log line interleaves with
+// the aligned progress output. The caller must already have verified the
+// error is an access-denied shape via isAccessDenied.
+func skipIfAccessDenied(st *store.Store, service, accountID, region string, err error) error {
+	scope := accountID
+	if region != "" && region != "global" {
+		scope = accountID + "/" + region
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws",
+		Service:  service,
+		Scope:    scope,
+		Message:  err.Error(),
+	})
 	return nil
 }

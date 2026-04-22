@@ -53,7 +53,7 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied("storage:buckets.list", p.ID, err)
+			return 0, 0, skipIfDenied(st, "storage:buckets.list", p.ID, err)
 		}
 		return 0, 0, err
 	}

@@ -58,7 +58,7 @@ func scanClientVPNEndpoints(ctx context.Context, client *ec2.Client, acct *accou
 
 // scanClientVPNAuthorizationRules fans out per Client VPN endpoint.
 func scanClientVPNAuthorizationRules(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region)
+	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func scanClientVPNAuthorizationRules(ctx context.Context, client *ec2.Client, ac
 
 // scanClientVPNRoutes fans out per Client VPN endpoint.
 func scanClientVPNRoutes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region)
+	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -158,7 +158,7 @@ func scanClientVPNRoutes(ctx context.Context, client *ec2.Client, acct *account,
 
 // scanClientVPNTargetNetworkAssociations fans out per Client VPN endpoint.
 func scanClientVPNTargetNetworkAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region)
+	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
 	}
@@ -205,14 +205,14 @@ func scanClientVPNTargetNetworkAssociations(ctx context.Context, client *ec2.Cli
 }
 
 // listClientVPNEndpointIDs returns all Client VPN endpoint IDs in this region.
-func listClientVPNEndpointIDs(ctx context.Context, client *ec2.Client, acct *account, region string) ([]string, error) {
+func listClientVPNEndpointIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
 	var ids []string
 	pager := ec2.NewDescribeClientVpnEndpointsPaginator(client, &ec2.DescribeClientVpnEndpointsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied("ec2:DescribeClientVpnEndpoints", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "ec2:DescribeClientVpnEndpoints", acct.ID, region, err)
 				return nil, nil
 			}
 			return nil, fmt.Errorf("ec2:DescribeClientVpnEndpoints (list IDs): %w", err)

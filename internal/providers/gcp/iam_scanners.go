@@ -51,7 +51,7 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 		return nil
 	}); err != nil {
 		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied("iam:serviceAccounts.list", p.ID, err)
+			return 0, 0, skipIfDenied(st, "iam:serviceAccounts.list", p.ID, err)
 		}
 		return 0, 0, err
 	}
