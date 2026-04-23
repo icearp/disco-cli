@@ -223,6 +223,52 @@ func TestResolveAPIGatewayUsagePlanKeyToUsagePlan_Empty(t *testing.T) {
 	}
 }
 
+// TestResolveAPIGatewayUsagePlanStages verifies that each ApiStages[] entry
+// on a usage plan produces an attached-to edge to the REST API stage.
+func TestResolveAPIGatewayUsagePlanStages(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	region := testRegion
+	apiID := "api-xyz"
+	stageName := "prod"
+	planID := "plan-abc"
+
+	stageARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/%s/stages/%s", region, apiID, stageName)
+	planARN := fmt.Sprintf("arn:aws:apigateway:%s::/usageplans/%s", region, planID)
+	attrs := fmt.Sprintf(`{"ApiStages":[{"ApiId":"%s","Stage":"%s"}]}`, apiID, stageName)
+
+	planResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayUsagePlan, planARN, region, attrs)
+	stageResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayStage, stageARN, region, "{}")
+
+	if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayUsagePlanStages: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(planResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, planResID, stageResID, store.RelAttachedTo)
+}
+
+// TestResolveAPIGatewayUsagePlanStages_NoAttrs verifies that a usage plan
+// with no ApiStages emits no edges and does not panic.
+func TestResolveAPIGatewayUsagePlanStages_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	planARN := fmt.Sprintf("arn:aws:apigateway:%s::/usageplans/plan-bare", testRegion)
+	planResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayUsagePlan, planARN, testRegion, "{}")
+
+	if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayUsagePlanStages: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(planResID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
 // TestResolveAPIGatewayAuthorizerCognito verifies that a REST API authorizer
 // of type COGNITO_USER_POOLS produces a uses edge to each user pool in
 // ProviderARNs.

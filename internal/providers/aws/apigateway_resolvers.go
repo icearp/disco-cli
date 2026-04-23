@@ -20,6 +20,9 @@ func init() {
 		if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
 			return err
 		}
+		if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
+			return err
+		}
 		if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
 			return err
 		}
@@ -314,6 +317,47 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 		planID := store.ResourceID("aws", acct.ID, TypeAPIGatewayUsagePlan, planARN)
 		if err := st.UpsertRelationship(r.ID, planID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert usage-plan-key→usage-plan: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveAPIGatewayUsagePlanStages links each usage plan to the REST API
+// stages it applies to. The scanner stores the full GetUsagePlans item under
+// attributes; ApiStages[] carries {ApiId, Stage} pairs. Rebuild each stage's
+// NativeID using the scanner's ARN shape
+// (arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emit an
+// attached-to edge.
+func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
+	plans, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlan},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, p := range plans {
+		var attrs struct {
+			ApiStages []struct {
+				ApiId *string `json:"ApiId"`
+				Stage *string `json:"Stage"`
+			} `json:"ApiStages"`
+		}
+		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(p.Region)
+		for _, s := range attrs.ApiStages {
+			apiID := sv(s.ApiId)
+			stage := sv(s.Stage)
+			if apiID == "" || stage == "" {
+				continue
+			}
+			stageARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/%s/stages/%s", region, apiID, stage)
+			stageID := store.ResourceID("aws", acct.ID, TypeAPIGatewayStage, stageARN)
+			if err := st.UpsertRelationship(p.ID, stageID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert usage-plan→stage: %w", err)
+			}
 		}
 	}
 	return nil
