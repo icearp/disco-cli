@@ -13,6 +13,9 @@ func init() {
 		if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
 			return err
 		}
+		if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
+			return err
+		}
 		return resolveDynamoDBGlobalTableRelationships(acct, st)
 	})
 }
@@ -45,6 +48,37 @@ func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
 		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.SSEDescription.KMSMasterKeyArn)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert dynamodb table→kms: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveDynamoDBStreamRelationships links each table that has streaming
+// enabled to its DynamoDB stream via LatestStreamArn.
+func resolveDynamoDBStreamRelationships(acct *account, st *store.Store) error {
+	tables, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeDynamoDBTable},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range tables {
+		var attrs struct {
+			LatestStreamArn *string `json:"LatestStreamArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.LatestStreamArn)
+		if arn == "" {
+			continue
+		}
+		streamID := store.ResourceID("aws", acct.ID, TypeDynamoDBStream, arn)
+		if err := st.UpsertRelationship(r.ID, streamID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert dynamodb table→stream: %w", err)
 		}
 	}
 	return nil

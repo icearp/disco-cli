@@ -451,3 +451,27 @@ func TestLambdaStripQualifier(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveLambdaEFSRelationships verifies Function → EFS access point edge.
+func TestResolveLambdaEFSRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:fs-fn"
+	apARN := "arn:aws:elasticfilesystem:us-east-1:" + testAccountID + ":access-point/fsap-abc123"
+	attrs := `{"Role":"arn:aws:iam::` + testAccountID + `:role/r","FileSystemConfigs":[{"Arn":"` + apARN + `"}]}`
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, attrs)
+	apID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSAccessPoint, apARN, testRegion, "{}")
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaFunctionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, fnID, apID, store.RelUses)
+}

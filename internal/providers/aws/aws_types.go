@@ -142,6 +142,20 @@ const (
 	// DynamoDB
 	TypeDynamoDBTable       = "aws:dynamodb:table"
 	TypeDynamoDBGlobalTable = "aws:dynamodb:global-table"
+	TypeDynamoDBStream      = "aws:dynamodb:stream"
+	// EFS (efs_scanners.go, efs_resolvers.go)
+	TypeEFSFileSystem  = "aws:efs:file-system"
+	TypeEFSMountTarget = "aws:efs:mount-target"
+	TypeEFSAccessPoint = "aws:efs:access-point"
+	// WAFv2 (wafv2_scanners.go, wafv2_resolvers.go)
+	TypeWAFv2WebACL    = "aws:wafv2:web-acl"
+	TypeWAFv2RuleGroup = "aws:wafv2:rule-group"
+	TypeWAFv2IPSet     = "aws:wafv2:ip-set"
+	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
+	TypeEventsEventBus = "aws:events:event-bus"
+	TypeEventsRule     = "aws:events:rule"
+	// CloudTrail (cloudtrail_scanners.go, cloudtrail_resolvers.go)
+	TypeCloudTrailTrail = "aws:cloudtrail:trail"
 	// EKS
 	TypeEKSCluster = "aws:eks:cluster"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
@@ -352,7 +366,7 @@ func KnownTypes() []string {
 		TypeRDSDBSecurityGroup, TypeRDSDBShardGroup, TypeRDSDBSubnetGroup,
 		TypeRDSEventSubscription, TypeRDSGlobalCluster,
 		TypeRDSIntegration, TypeRDSOptionGroup,
-		TypeDynamoDBTable, TypeDynamoDBGlobalTable,
+		TypeDynamoDBTable, TypeDynamoDBGlobalTable, TypeDynamoDBStream,
 		TypeEKSCluster,
 		TypeELBClassicLoadBalancer,
 		TypeELBv2LoadBalancer, TypeELBv2Listener, TypeELBv2ListenerCertificate,
@@ -415,5 +429,13 @@ func KnownTypes() []string {
 		TypeKinesisStream,
 		// Firehose
 		TypeFirehoseDeliveryStream,
+		// EFS
+		TypeEFSFileSystem, TypeEFSMountTarget, TypeEFSAccessPoint,
+		// WAFv2
+		TypeWAFv2WebACL, TypeWAFv2RuleGroup, TypeWAFv2IPSet,
+		// EventBridge
+		TypeEventsEventBus, TypeEventsRule,
+		// CloudTrail
+		TypeCloudTrailTrail,
 	}
 }

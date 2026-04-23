@@ -3,14 +3,22 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 )
 
+// ecrImageRe matches ECR image URIs:
+//
+//	<accountID>.dkr.ecr.<region>.amazonaws.com/<repo>[:<tag>|@<digest>]
+var ecrImageRe = regexp.MustCompile(`^(\d+)\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com/([^:@]+)`)
+
 func init() {
 	registerResolver(resolveECSRelationships)
 	registerResolver(resolveECSTaskDefinitionRelationships)
+	registerResolver(resolveECSContainerRelationships)
 }
 
 func resolveECSRelationships(acct *account, st *store.Store) error {
@@ -104,6 +112,74 @@ func resolveECSTaskDefinitionRelationships(acct *account, st *store.Store) error
 			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.ExecutionRoleArn)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ecs-td→execution-role relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveECSContainerRelationships links each task definition to ECR
+// repositories (via container image URIs) and CloudWatch log groups (via
+// awslogs log driver configuration).
+func resolveECSContainerRelationships(acct *account, st *store.Store) error {
+	tds, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range tds {
+		region := sv(r.Region)
+		var attrs struct {
+			ContainerDefinitions []struct {
+				Image            *string `json:"Image"`
+				LogConfiguration *struct {
+					LogDriver *string           `json:"LogDriver"`
+					Options   map[string]string `json:"Options"`
+				} `json:"LogConfiguration"`
+			} `json:"ContainerDefinitions"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		seen := make(map[string]bool)
+		upsert := func(targetType, nativeID string) error {
+			if nativeID == "" {
+				return nil
+			}
+			targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+			if seen[targetID] {
+				return nil
+			}
+			seen[targetID] = true
+			if err := st.UpsertRelationship(r.ID, targetID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert ecs-td→%s relationship: %w", targetType, err)
+			}
+			return nil
+		}
+		for _, c := range attrs.ContainerDefinitions {
+			// ECR image → repository edge
+			if img := sv(c.Image); img != "" {
+				if m := ecrImageRe.FindStringSubmatch(img); m != nil {
+					imgAcct, imgRegion, repo := m[1], m[2], m[3]
+					// repo may have a path; use as-is (ECR repo names can contain /)
+					repo = strings.SplitN(repo, ":", 2)[0] // strip tag if somehow present
+					ecrARN := fmt.Sprintf("arn:aws:ecr:%s:%s:repository/%s", imgRegion, imgAcct, repo)
+					if err := upsert(TypeECRRepository, ecrARN); err != nil {
+						return err
+					}
+				}
+			}
+			// awslogs log group edge
+			if c.LogConfiguration != nil && sv(c.LogConfiguration.LogDriver) == "awslogs" {
+				lgName := c.LogConfiguration.Options["awslogs-group"]
+				if lgName != "" {
+					lgNativeID := logGroupNativeIDFromName(acct.ID, region, lgName)
+					if err := upsert(TypeLogsLogGroup, lgNativeID); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}

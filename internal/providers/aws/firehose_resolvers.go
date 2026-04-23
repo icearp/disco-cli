@@ -16,11 +16,11 @@ func init() { registerResolver(resolveFirehoseDeliveryStreamRelationships) }
 // parse the subset that yields edges to resources disco scans.
 type firehoseDestinationAttrs struct {
 	S3DestinationDescription *struct {
-		BucketARN              *string             `json:"BucketARN"`
+		BucketARN               *string             `json:"BucketARN"`
 		EncryptionConfiguration *firehoseKMSWrapper `json:"EncryptionConfiguration"`
 	} `json:"S3DestinationDescription"`
 	ExtendedS3DestinationDescription *struct {
-		BucketARN              *string             `json:"BucketARN"`
+		BucketARN               *string             `json:"BucketARN"`
 		EncryptionConfiguration *firehoseKMSWrapper `json:"EncryptionConfiguration"`
 	} `json:"ExtendedS3DestinationDescription"`
 }

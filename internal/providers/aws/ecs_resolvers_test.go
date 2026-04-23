@@ -118,3 +118,72 @@ func TestResolveECSTaskDefinitionRelationships(t *testing.T) {
 	assertRelationship(t, rels, tdID, taskRoleID, store.RelAssumes)
 	assertRelationship(t, rels, tdID, execRoleID, store.RelAssumes)
 }
+
+// TestResolveECSContainerRelationships_ECR verifies task-def → ECR repo edge
+// from a container image URI.
+func TestResolveECSContainerRelationships_ECR(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tdARN := "arn:aws:ecs:us-east-1:" + testAccountID + ":task-definition/app:3"
+	ecrRepo := "my-repo"
+	imageURI := testAccountID + ".dkr.ecr." + testRegion + ".amazonaws.com/" + ecrRepo + ":latest"
+	ecrARN := "arn:aws:ecr:" + testRegion + ":" + testAccountID + ":repository/" + ecrRepo
+
+	attrs := `{"ContainerDefinitions":[{"Image":"` + imageURI + `"}]}`
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeECSTaskDefinition, tdARN, testRegion, attrs)
+	ecrID := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, ecrARN, testRegion, "{}")
+
+	if err := resolveECSContainerRelationships(acct, st); err != nil {
+		t.Fatalf("resolveECSContainerRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tdID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tdID, ecrID, store.RelUses)
+}
+
+// TestResolveECSContainerRelationships_LogGroup verifies task-def → log-group
+// edge from awslogs log driver config.
+func TestResolveECSContainerRelationships_LogGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tdARN := "arn:aws:ecs:us-east-1:" + testAccountID + ":task-definition/log-app:1"
+	lgName := "/ecs/my-app"
+	lgNativeID := logGroupNativeIDFromName(testAccountID, testRegion, lgName)
+
+	attrs := `{"ContainerDefinitions":[{"LogConfiguration":{"LogDriver":"awslogs","Options":{"awslogs-group":"` + lgName + `"}}}]}`
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeECSTaskDefinition, tdARN, testRegion, attrs)
+	lgID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, lgNativeID, testRegion, "{}")
+
+	if err := resolveECSContainerRelationships(acct, st); err != nil {
+		t.Fatalf("resolveECSContainerRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tdID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tdID, lgID, store.RelUses)
+}
+
+// TestResolveECSContainerRelationships_NoAttrs verifies no panic on empty attrs.
+func TestResolveECSContainerRelationships_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tdARN := "arn:aws:ecs:us-east-1:" + testAccountID + ":task-definition/bare:1"
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeECSTaskDefinition, tdARN, testRegion, "{}")
+
+	if err := resolveECSContainerRelationships(acct, st); err != nil {
+		t.Fatalf("resolveECSContainerRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tdID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}

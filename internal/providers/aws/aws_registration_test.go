@@ -35,6 +35,10 @@ var expectedAWSServices = []string{
 	"aws:acm",
 	"aws:kinesis",
 	"aws:firehose",
+	"aws:efs",
+	"aws:wafv2",
+	"aws:events",
+	"aws:cloudtrail",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

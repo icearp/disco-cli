@@ -257,6 +257,76 @@ func TestResolveDistributionTenants_NoDistributionId(t *testing.T) {
 	}
 }
 
+// TestResolveDistributionOriginsS3 verifies Distribution → S3 bucket edge from
+// an S3 origin DomainName.
+func TestResolveDistributionOriginsS3(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	distARN := "arn:aws:cloudfront::" + testAccountID + ":distribution/E_S3"
+	bucketName := "my-assets-bucket"
+	bucketARN := "arn:aws:s3:::" + bucketName
+
+	attrs := `{"Origins":{"Items":[{"DomainName":"` + bucketName + `.s3.amazonaws.com"}]}}`
+	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, distARN, "", attrs)
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	if err := resolveDistributionOrigins(acct, st); err != nil {
+		t.Fatalf("resolveDistributionOrigins: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(distID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, distID, bucketID, store.RelUses)
+}
+
+// TestResolveDistributionBehaviorsLambdaEdge verifies Distribution → Lambda@Edge
+// edges from LambdaFunctionAssociations in cache behaviors.
+func TestResolveDistributionBehaviorsLambdaEdge(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	distARN := "arn:aws:cloudfront::" + testAccountID + ":distribution/E_LAMBDA"
+	// Qualified Lambda ARN — resolver must strip :1 qualifier.
+	qualifiedARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:my-fn:1"
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:my-fn"
+
+	attrs := `{"DefaultCacheBehavior":{"LambdaFunctionAssociations":{"Items":[{"LambdaFunctionARN":"` + qualifiedARN + `"}]}}}`
+	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, distARN, "", attrs)
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
+
+	if err := resolveDistributionPolicies(acct, st); err != nil {
+		t.Fatalf("resolveDistributionPolicies: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(distID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, distID, fnID, store.RelUses)
+}
+
+// TestCloudfrontS3BucketFromDomain verifies domain parsing for various S3 domain formats.
+func TestCloudfrontS3BucketFromDomain(t *testing.T) {
+	tests := []struct {
+		domain string
+		want   string
+	}{
+		{"my-bucket.s3.amazonaws.com", "my-bucket"},
+		{"my-bucket.s3.us-east-1.amazonaws.com", "my-bucket"},
+		{"my-bucket.s3-website-us-east-1.amazonaws.com", "my-bucket"},
+		{"my-bucket.s3-website.us-east-1.amazonaws.com", "my-bucket"},
+		{"api.example.com", ""},
+		{"", ""},
+	}
+	for _, tc := range tests {
+		got := cloudfrontS3BucketFromDomain(tc.domain)
+		if got != tc.want {
+			t.Errorf("cloudfrontS3BucketFromDomain(%q) = %q; want %q", tc.domain, got, tc.want)
+		}
+	}
+}
+
 // TestResolveDistributionCertificates verifies Distribution → ACM cert edge.
 func TestResolveDistributionCertificates(t *testing.T) {
 	st := newTestStore(t)

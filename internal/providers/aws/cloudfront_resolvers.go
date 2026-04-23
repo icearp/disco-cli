@@ -88,6 +88,11 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 				FunctionARN *string `json:"FunctionARN"`
 			} `json:"Items"`
 		} `json:"FunctionAssociations"`
+		LambdaFunctionAssociations *struct {
+			Items []struct {
+				LambdaFunctionARN *string `json:"LambdaFunctionARN"`
+			} `json:"Items"`
+		} `json:"LambdaFunctionAssociations"`
 	}
 	type distSummary struct {
 		DefaultCacheBehavior *behavior `json:"DefaultCacheBehavior"`
@@ -156,6 +161,14 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 					}
 				}
 			}
+			if b.LambdaFunctionAssociations != nil {
+				for _, la := range b.LambdaFunctionAssociations.Items {
+					arn := lambdaStripQualifier(sv(la.LambdaFunctionARN))
+					if err := upsert(TypeLambdaFunction, arn); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -173,6 +186,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 	}
 
 	type origin struct {
+		DomainName            *string `json:"DomainName"`
 		OriginAccessControlId *string `json:"OriginAccessControlId"`
 		S3OriginConfig        *struct {
 			// Format: "origin-access-identity/cloudfront/<ID>" or empty string.
@@ -223,6 +237,15 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 					return err
 				}
 			}
+			// S3 origin bucket: DomainName ends in .s3.amazonaws.com or .s3-*.amazonaws.com
+			if domain := sv(o.DomainName); domain != "" {
+				if bucket := cloudfrontS3BucketFromDomain(domain); bucket != "" {
+					bucketARN := "arn:aws:s3:::" + bucket
+					if err := upsert(TypeS3Bucket, bucketARN); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -259,4 +282,27 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// cloudfrontS3BucketFromDomain extracts the S3 bucket name from a CloudFront
+// origin DomainName if it is an S3 origin. Returns "" for non-S3 domains.
+// Handles the forms:
+//
+//	<bucket>.s3.amazonaws.com
+//	<bucket>.s3.<region>.amazonaws.com
+//	<bucket>.s3-website-<region>.amazonaws.com
+//	<bucket>.s3-website.<region>.amazonaws.com
+func cloudfrontS3BucketFromDomain(domain string) string {
+	// All S3 domain variants have ".s3" as a segment after the bucket name.
+	idx := strings.Index(domain, ".s3")
+	if idx <= 0 {
+		return ""
+	}
+	rest := domain[idx:]
+	if strings.HasPrefix(rest, ".s3.amazonaws.com") ||
+		strings.HasPrefix(rest, ".s3-website") ||
+		strings.HasPrefix(rest, ".s3.") {
+		return domain[:idx]
+	}
+	return ""
 }

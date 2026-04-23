@@ -67,6 +67,9 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				SubnetIds        []string `json:"SubnetIds"`
 				SecurityGroupIds []string `json:"SecurityGroupIds"`
 			} `json:"VpcConfig"`
+			FileSystemConfigs []struct {
+				Arn *string `json:"Arn"` // EFS access point ARN
+			} `json:"FileSystemConfigs"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -103,6 +106,16 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lambda→security-group relationship: %w", err)
 				}
+			}
+		}
+		// Function → EFS access point (mounted file system)
+		for _, fs := range attrs.FileSystemConfigs {
+			if sv(fs.Arn) == "" {
+				continue
+			}
+			apID := store.ResourceID("aws", acct.ID, TypeEFSAccessPoint, *fs.Arn)
+			if err := st.UpsertRelationship(r.ID, apID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert lambda→efs-access-point relationship: %w", err)
 			}
 		}
 	}

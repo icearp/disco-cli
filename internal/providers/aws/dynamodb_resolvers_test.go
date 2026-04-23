@@ -71,3 +71,47 @@ func TestResolveDynamoDBTableRelationships_KMS(t *testing.T) {
 	}
 	assertRelationship(t, rels, tableID, keyID, store.RelUses)
 }
+
+// TestResolveDynamoDBStreamRelationships verifies that a table with streaming
+// enabled emits a "contains" edge to its stream.
+func TestResolveDynamoDBStreamRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Streamed"
+	streamARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Streamed/stream/2024-01-01T00:00:00.000"
+	attrs := `{"LatestStreamArn":"` + streamARN + `"}`
+
+	tableID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBTable, tableARN, testRegion, attrs)
+	streamID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBStream, streamARN, testRegion, "{}")
+
+	if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
+		t.Fatalf("resolver error: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tableID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tableID, streamID, store.RelContains)
+}
+
+// TestResolveDynamoDBStreamRelationships_NoStream verifies no edges when
+// streaming is not enabled.
+func TestResolveDynamoDBStreamRelationships_NoStream(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/NoStream"
+	tableID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBTable, tableARN, testRegion, "{}")
+
+	if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
+		t.Fatalf("resolver error: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tableID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
