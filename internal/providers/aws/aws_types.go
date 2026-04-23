@@ -274,6 +274,13 @@ const (
 	TypeOrganizationsAccount = "aws:organizations:account"
 	TypeOrganizationsOU      = "aws:organizations:ou"
 	TypeOrganizationsSCP     = "aws:organizations:scp"
+	// ACM (acm_scanners.go)
+	TypeACMCertificate = "aws:acm:certificate"
+	TypeACMPrivateCA   = "aws:acm:private-ca" // edge target only; no scanner yet
+	// Kinesis Data Streams (kinesis_scanners.go)
+	TypeKinesisStream = "aws:kinesis:stream"
+	// Firehose (firehose_scanners.go)
+	TypeFirehoseDeliveryStream = "aws:firehose:delivery-stream"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -402,5 +409,11 @@ func KnownTypes() []string {
 		// Organizations
 		TypeOrganization, TypeOrganizationsAccount,
 		TypeOrganizationsOU, TypeOrganizationsSCP,
+		// ACM
+		TypeACMCertificate, TypeACMPrivateCA,
+		// Kinesis
+		TypeKinesisStream,
+		// Firehose
+		TypeFirehoseDeliveryStream,
 	}
 }

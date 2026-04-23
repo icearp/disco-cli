@@ -72,3 +72,47 @@ func TestAPIGWLambdaInvokeARN(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveAPIGatewayDomainCertRelationships_V1 verifies v1 domain → ACM.
+func TestResolveAPIGatewayDomainCertRelationships_V1(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	domainARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/api.example.com", testRegion)
+	certARN := fmt.Sprintf("arn:aws:acm:%s:%s:certificate/abc", testRegion, testAccountID)
+	attrs := `{"RegionalCertificateArn":"` + certARN + `"}`
+
+	domainID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayDomainName, domainARN, testRegion, attrs)
+	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, certARN, testRegion, "{}")
+
+	if err := resolveAPIGatewayDomainCertRelationships(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayDomainCertRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(domainID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, domainID, certID, store.RelUses)
+}
+
+// TestResolveAPIGatewayDomainCertRelationships_V2 verifies v2 domain → ACM.
+func TestResolveAPIGatewayDomainCertRelationships_V2(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	domainARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/v2.example.com", testRegion)
+	certARN := fmt.Sprintf("arn:aws:acm:%s:%s:certificate/v2", testRegion, testAccountID)
+	attrs := `{"DomainNameConfigurations":[{"CertificateArn":"` + certARN + `"}]}`
+
+	domainID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayDomainNameV2, domainARN, testRegion, attrs)
+	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, certARN, testRegion, "{}")
+
+	if err := resolveAPIGatewayDomainCertRelationships(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayDomainCertRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(domainID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, domainID, certID, store.RelUses)
+}

@@ -256,3 +256,25 @@ func TestResolveDistributionTenants_NoDistributionId(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestResolveDistributionCertificates verifies Distribution → ACM cert edge.
+func TestResolveDistributionCertificates(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	distARN := "arn:aws:cloudfront::" + testAccountID + ":distribution/E1"
+	certARN := "arn:aws:acm:us-east-1:" + testAccountID + ":certificate/abc"
+	attrs := `{"ViewerCertificate":{"ACMCertificateArn":"` + certARN + `"}}`
+
+	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, distARN, "", attrs)
+	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, certARN, "us-east-1", "{}")
+
+	if err := resolveDistributionCertificates(acct, st); err != nil {
+		t.Fatalf("resolveDistributionCertificates: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(distID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, distID, certID, store.RelUses)
+}

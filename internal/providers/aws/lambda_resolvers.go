@@ -212,10 +212,12 @@ func lambdaESMSourceType(arn string) string {
 	case "sqs":
 		// SQS event source ARN is the queue ARN directly.
 		return TypeSQSQueue
+	case "kinesis":
+		// Kinesis event source ARN is the stream ARN directly.
+		return TypeKinesisStream
 	}
-	// DynamoDB streams and Kinesis streams have their own ARNs that don't match
-	// the parent table/stream resource the scanner stores; skip until we scan
-	// those resources natively.
+	// DynamoDB streams have their own ARNs that don't match the parent table's
+	// ARN the scanner stores; skip until we scan streams natively.
 	return ""
 }
 

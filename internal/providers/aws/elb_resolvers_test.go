@@ -298,3 +298,35 @@ func TestResolveELBv2RevocationRelationships_NoTrustStore(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestResolveELBv2ListenerRelationships_ACM verifies Listener → ACM cert edge.
+func TestResolveELBv2ListenerRelationships_ACM(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	lbARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/my-lb/abc"
+	certARN := "arn:aws:acm:us-east-1:123456789012:certificate/abc"
+	iamCertARN := "arn:aws:iam::123456789012:server-certificate/legacy"
+	listenerARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/my-lb/abc/def"
+	attrs := `{"LoadBalancerArn":"` + lbARN + `","Certificates":[{"CertificateArn":"` + certARN + `"},{"CertificateArn":"` + iamCertARN + `"}]}`
+
+	upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, region, "{}")
+	listenerID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2Listener, listenerARN, region, attrs)
+	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, certARN, region, "{}")
+
+	if err := resolveELBv2ListenerRelationships(acct, st); err != nil {
+		t.Fatalf("resolveELBv2ListenerRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(listenerID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, listenerID, certID, store.RelUses)
+	// IAM server cert should NOT produce an edge (not ACM-prefixed).
+	for _, r := range rels {
+		if r.Kind == store.RelUses && r.ToID != certID {
+			t.Errorf("unexpected uses edge to non-ACM target: %+v", r)
+		}
+	}
+}

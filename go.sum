@@ -48,8 +48,8 @@ github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/aws/aws-sdk-go-v2 v1.41.6 h1:1AX0AthnBQzMx1vbmir3Y4WsnJgiydmnJjiLu+LvXOg=
 github.com/aws/aws-sdk-go-v2 v1.41.6/go.mod h1:dy0UzBIfwSeot4grGvY1AqFWN5zgziMmWGzysDnHFcQ=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 h1:eBMB84YGghSocM7PsjmmPffTa+1FBUeNvGvFou6V/4o=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8/go.mod h1:lyw7GFp3qENLh7kwzf7iMzAxDn+NzjXEAGjKS2UOKqI=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.9 h1:adBsCIIpLbLmYnkQU+nAChU5yhVTvu5PerROm+/Kq2A=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.9/go.mod h1:uOYhgfgThm/ZyAuJGNQ5YgNyOlYfqnGpTHXvk3cpykg=
 github.com/aws/aws-sdk-go-v2/config v1.32.14 h1:opVIRo/ZbbI8OIqSOKmpFaY7IwfFUOCCXBsUpJOwDdI=
 github.com/aws/aws-sdk-go-v2/config v1.32.14/go.mod h1:U4/V0uKxh0Tl5sxmCBZ3AecYny4UNlVmObYjKuuaiOo=
 github.com/aws/aws-sdk-go-v2/credentials v1.19.14 h1:n+UcGWAIZHkXzYt87uMFBv/l8THYELoX6gVcUvgl6fI=
@@ -64,6 +64,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 h1:qYQ4pzQ2Oz6WpQ8T3HvGHnZydA72
 github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6/go.mod h1:O3h0IK87yXci+kg6flUKzJnWeziQUKciKrLjcatSNcY=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 h1:rWyie/PxDRIdhNf4DzRk0lvjVOqFJuNnO8WwaIRVxzQ=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22/go.mod h1:zd/JsJ4P7oGfUhXn1VyLqaRZwPmZwg44Jf2dS84Dm3Y=
+github.com/aws/aws-sdk-go-v2/service/acm v1.38.2 h1:ozcwethaFOi2ST9h6MKGq1GAIHP68tjiDqgkWVPwfR8=
+github.com/aws/aws-sdk-go-v2/service/acm v1.38.2/go.mod h1:HNtDOv4XmqExPxNIBp171KKc5ZoUJwHH9ZhlCcZmdt0=
 github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1 h1:r3dXvi6tMfv4D48pyantOgDL48ifV6Ibj1eU1ca0C3k=
 github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1/go.mod h1:nhYOLBwQu7P3ckR+L4gZkY0DT0nAhrQuZkI51jR1vTE=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1 h1:KdeMmKNbHOcFsiFe8BhLYE2A8crvEWnetrs8GkF2od8=
@@ -92,6 +94,8 @@ github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.23 h1:sLj6B5YHp6
 github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.23/go.mod h1:64UwjvWmvtc6HN/hbnZmLQbh+sFsqRUo8693mOu9LB4=
 github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.10 h1:RRItb+JMcIGZSiNKLViw9fCYxQaahR+BaswSF3LkHEk=
 github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.10/go.mod h1:qogon7Vx0cwiCEkU3x9/42gzUZbHoAr+ADGdLVHRVks=
+github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14 h1:sHXyginrCoA3WaOkHIyaesZ21xzdZfZh45JAJ+iC+Hs=
+github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14/go.mod h1:79fwBYDS6J0bKmEO6Hjp4EisUG5sQDSxM8xw8QJkOJM=
 github.com/aws/aws-sdk-go-v2/service/iam v1.53.7 h1:n9YLiWtX3+6pTLZWvRJmtq5JIB9NA/KFelyCg5fOlTU=
 github.com/aws/aws-sdk-go-v2/service/iam v1.53.7/go.mod h1:sP46Vo6MeJcM4s0ZXcG2PFmfiSyixhIuC/74W52yKuk=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 h1:5EniKhLZe4xzL7a+fU3C2tfUN4nWIqlLesfrjkuPFTY=
@@ -104,6 +108,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 h1:c31//R3x
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21/go.mod h1:r6+pf23ouCB718FUxaqzZdbpYFyDtehyZcmP5KL9FkA=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 h1:ZlvrNcHSFFWURB8avufQq9gFsheUgjVD9536obIknfM=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21/go.mod h1:cv3TNhVrssKR0O/xxLJVRfd2oazSnZnkUeTf6ctUwfQ=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6 h1:Gw375uiaTvryG3z4QN9m5KuaIRkfdWASq/xqZS18zMg=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6/go.mod h1:CHCpwz0om22znPqK8Gn3jmu1QZxnxDzMZ6UbQ1duH3A=
 github.com/aws/aws-sdk-go-v2/service/kms v1.50.5 h1:nEzwx/ZlpUZ2Y6WztsgYmfBh5Ixd3QiECawXMzvTMeo=
 github.com/aws/aws-sdk-go-v2/service/kms v1.50.5/go.mod h1:GBO/aaEi47QldDVoqw2CsM2UZQDoqDiFIMJD/ztHPs0=
 github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5 h1:HWN7xwaV7Zwrn3Jlauio4u4aTMFgRzG2fblHWQeir/k=

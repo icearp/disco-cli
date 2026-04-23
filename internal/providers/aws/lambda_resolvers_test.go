@@ -396,6 +396,30 @@ func TestResolveLambdaESMRelationships_SQSSource(t *testing.T) {
 	assertRelationship(t, rels, esmID, queueID, store.RelUses)
 }
 
+// TestResolveLambdaESMRelationships_KinesisSource verifies ESM with a Kinesis
+// EventSourceArn produces an edge to the stream.
+func TestResolveLambdaESMRelationships_KinesisSource(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	streamARN := fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/events", testRegion, testAccountID)
+	esmARN := fmt.Sprintf("arn:aws:lambda:%s:%s:event-source-mapping:k1", testRegion, testAccountID)
+	attrs := `{"FunctionArn":"` + baseFnARN + `","EventSourceArn":"` + streamARN + `"}`
+
+	esmID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaESM, esmARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN, testRegion, "{}")
+	streamID := upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, streamARN, testRegion, "{}")
+
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaESMRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(esmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, esmID, streamID, store.RelUses)
+}
+
 // TestLambdaStripQualifier verifies the qualifier-stripping helper.
 func TestLambdaStripQualifier(t *testing.T) {
 	tests := []struct {

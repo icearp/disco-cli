@@ -21,7 +21,41 @@ func resolveCloudFrontRelationships(acct *account, st *store.Store) error {
 	if err := resolveDistributionOrigins(acct, st); err != nil {
 		return err
 	}
-	return resolveDistributionTenants(acct, st)
+	if err := resolveDistributionTenants(acct, st); err != nil {
+		return err
+	}
+	return resolveDistributionCertificates(acct, st)
+}
+
+// resolveDistributionCertificates links each distribution to its ACM
+// certificate (ViewerCertificate.ACMCertificateArn). IAM server certs and
+// default CloudFront certs are skipped.
+func resolveDistributionCertificates(acct *account, st *store.Store) error {
+	dists, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range dists {
+		var attrs struct {
+			ViewerCertificate *struct {
+				ACMCertificateArn *string `json:"ACMCertificateArn"`
+			} `json:"ViewerCertificate"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.ViewerCertificate == nil || sv(attrs.ViewerCertificate.ACMCertificateArn) == "" {
+			continue
+		}
+		certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, *attrs.ViewerCertificate.ACMCertificateArn)
+		if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudfront-distribution→acm-cert: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveDistributionPolicies emits "uses" edges from each distribution to the

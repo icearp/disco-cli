@@ -20,8 +20,73 @@ func init() {
 		if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
 			return err
 		}
-		return resolveAPIGatewayMethodRelationships(acct, st)
+		if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
+			return err
+		}
+		return resolveAPIGatewayDomainCertRelationships(acct, st)
 	})
+}
+
+// resolveAPIGatewayDomainCertRelationships links each custom domain name
+// (v1 + v2) to its ACM certificate. APIGW v1 exposes both edge-optimized
+// (CertificateArn) and regional (RegionalCertificateArn) ARNs; either may be
+// present. APIGW v2 uses DomainNameConfigurations[].CertificateArn.
+func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) error {
+	// v1 domains
+	v1, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainName},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range v1 {
+		var attrs struct {
+			CertificateArn         *string `json:"CertificateArn"`
+			RegionalCertificateArn *string `json:"RegionalCertificateArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, arn := range []string{sv(attrs.CertificateArn), sv(attrs.RegionalCertificateArn)} {
+			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+				continue
+			}
+			certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apigw-domain→acm-cert: %w", err)
+			}
+		}
+	}
+	// v2 domains
+	v2, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range v2 {
+		var attrs struct {
+			DomainNameConfigurations []struct {
+				CertificateArn *string `json:"CertificateArn"`
+			} `json:"DomainNameConfigurations"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, dc := range attrs.DomainNameConfigurations {
+			arn := sv(dc.CertificateArn)
+			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+				continue
+			}
+			certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apigwv2-domain→acm-cert: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveAPIGatewayMethodRelationships walks each method's MethodIntegration

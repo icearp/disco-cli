@@ -32,6 +32,9 @@ var expectedAWSServices = []string{
 	"aws:kms",
 	"aws:secretsmanager",
 	"aws:organizations",
+	"aws:acm",
+	"aws:kinesis",
+	"aws:firehose",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

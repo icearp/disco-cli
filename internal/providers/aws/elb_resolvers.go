@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -60,16 +61,30 @@ func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 	for _, r := range listeners {
 		var attrs struct {
 			LoadBalancerArn *string `json:"LoadBalancerArn"`
+			Certificates    []struct {
+				CertificateArn *string `json:"CertificateArn"`
+			} `json:"Certificates"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.LoadBalancerArn == nil {
-			continue
+		if attrs.LoadBalancerArn != nil {
+			lbID := store.ResourceID("aws", acct.ID, TypeELBv2LoadBalancer, *attrs.LoadBalancerArn)
+			if err := st.UpsertRelationship(r.ID, lbID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert listener→lb relationship: %w", err)
+			}
 		}
-		lbID := store.ResourceID("aws", acct.ID, TypeELBv2LoadBalancer, *attrs.LoadBalancerArn)
-		if err := st.UpsertRelationship(r.ID, lbID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert listener→lb relationship: %w", err)
+		// Listener → ACM certificate. IAM server certs (arn:aws:iam:...:server-certificate/)
+		// are skipped; only ACM ARNs produce edges.
+		for _, c := range attrs.Certificates {
+			arn := sv(c.CertificateArn)
+			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+				continue
+			}
+			certID := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert listener→acm-cert relationship: %w", err)
+			}
 		}
 	}
 	return nil
