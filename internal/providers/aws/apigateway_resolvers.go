@@ -17,8 +17,71 @@ func init() {
 		if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
 			return err
 		}
-		return resolveAPIGatewayUsagePlanKeyRelationships(acct, st)
+		if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
+			return err
+		}
+		return resolveAPIGatewayMethodRelationships(acct, st)
 	})
+}
+
+// resolveAPIGatewayMethodRelationships walks each method's MethodIntegration
+// and emits edges to the backend. Lambda proxy/non-proxy integrations produce
+// a uses→Lambda function edge (extracted from the Uri). VPC_LINK integrations
+// produce an attached-to→VpcLink edge (ConnectionId).
+func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error {
+	methods, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayMethod},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range methods {
+		var attrs struct {
+			MethodIntegration *struct {
+				Type         *string `json:"Type"`
+				Uri          *string `json:"Uri"`
+				ConnectionId *string `json:"ConnectionId"`
+			} `json:"MethodIntegration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.MethodIntegration == nil {
+			continue
+		}
+		integ := attrs.MethodIntegration
+		if fnARN := apigwLambdaInvokeARN(sv(integ.Uri)); fnARN != "" {
+			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+			if err := st.UpsertRelationship(r.ID, fnID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apigw-method→lambda: %w", err)
+			}
+		}
+		if sv(integ.Type) == "VPC_LINK" && sv(integ.ConnectionId) != "" {
+			vpcLinkARN := fmt.Sprintf("arn:aws:apigateway:%s::/vpclinks/%s", sv(r.Region), *integ.ConnectionId)
+			vpcLinkID := store.ResourceID("aws", acct.ID, TypeAPIGatewayVpcLink, vpcLinkARN)
+			if err := st.UpsertRelationship(r.ID, vpcLinkID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apigw-method→vpclink: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// apigwLambdaInvokeARN extracts the Lambda function ARN from an API Gateway
+// integration Uri. Lambda integration Uri format:
+// arn:aws:apigateway:{r}:lambda:path/2015-03-31/functions/{fnARN}/invocations
+// Returns "" if uri is not a Lambda integration.
+func apigwLambdaInvokeARN(uri string) string {
+	const marker = ":lambda:path/2015-03-31/functions/"
+	_, after, ok := strings.Cut(uri, marker)
+	if !ok {
+		return ""
+	}
+	if fnARN, _, ok := strings.Cut(after, "/invocations"); ok {
+		after = fnARN
+	}
+	if !strings.HasPrefix(after, "arn:") {
+		return ""
+	}
+	return after
 }
 
 // resolveAPIGatewayStageRelationships links each stage to:
