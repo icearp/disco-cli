@@ -204,9 +204,15 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },
-		func() (int, int, error) { return scanManagedInstanceEncryptionProtectors(ctx, sub, cred, st, scanID, mi) },
-		func() (int, int, error) { return scanManagedInstancePrivateEndpointConnections(ctx, sub, cred, st, scanID, mi) },
-		func() (int, int, error) { return scanManagedServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, mi) },
+		func() (int, int, error) {
+			return scanManagedInstanceEncryptionProtectors(ctx, sub, cred, st, scanID, mi)
+		},
+		func() (int, int, error) {
+			return scanManagedInstancePrivateEndpointConnections(ctx, sub, cred, st, scanID, mi)
+		},
+		func() (int, int, error) {
+			return scanManagedServerSecurityAlertPolicies(ctx, sub, cred, st, scanID, mi)
+		},
 	}
 }
 
@@ -216,7 +222,9 @@ func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred *
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanManagedDatabaseVulnAssessments(ctx, sub, cred, st, scanID, db) },
 		func() (int, int, error) { return scanManagedDatabaseTDE(ctx, sub, cred, st, scanID, db) },
-		func() (int, int, error) { return scanManagedDatabaseSecurityAlertPolicies(ctx, sub, cred, st, scanID, db) },
+		func() (int, int, error) {
+			return scanManagedDatabaseSecurityAlertPolicies(ctx, sub, cred, st, scanID, db)
+		},
 	}
 }
 
