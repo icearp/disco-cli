@@ -341,6 +341,61 @@ func TestResolveLambdaLayerRelationships_NoLayers(t *testing.T) {
 	}
 }
 
+// TestResolveLambdaRelationships_KMSAndVPC verifies that a VPC-attached
+// function with a customer-managed KMS key emits edges to KMS, each subnet,
+// and each security group.
+func TestResolveLambdaRelationships_KMSAndVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:vpc-fn", testRegion, testAccountID)
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abcd", testRegion, testAccountID)
+	attrsJSON := `{"KMSKeyArn":"` + keyARN + `","VpcConfig":{"SubnetIds":["subnet-aaa"],"SecurityGroupIds":["sg-bbb"]}}`
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, attrsJSON)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet,
+		ec2ARN(testRegion, acct.ID, "subnet", "subnet-aaa"), testRegion, "{}")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup,
+		ec2ARN(testRegion, acct.ID, "security-group", "sg-bbb"), testRegion, "{}")
+
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, fnID, keyID, store.RelUses)
+	assertRelationship(t, rels, fnID, subnetID, store.RelAttachedTo)
+	assertRelationship(t, rels, fnID, sgID, store.RelUses)
+}
+
+// TestResolveLambdaESMRelationships_SQSSource verifies that an ESM with an SQS
+// EventSourceArn produces an edge to the queue.
+func TestResolveLambdaESMRelationships_SQSSource(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := baseFnARN
+	queueARN := fmt.Sprintf("arn:aws:sqs:%s:%s:my-queue", testRegion, testAccountID)
+	esmARN := fmt.Sprintf("arn:aws:lambda:%s:%s:event-source-mapping:abc", testRegion, testAccountID)
+	attrs := `{"FunctionArn":"` + fnARN + `","EventSourceArn":"` + queueARN + `"}`
+
+	esmID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaESM, esmARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
+	queueID := upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, queueARN, testRegion, "{}")
+
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaESMRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(esmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, esmID, queueID, store.RelUses)
+}
+
 // TestLambdaStripQualifier verifies the qualifier-stripping helper.
 func TestLambdaStripQualifier(t *testing.T) {
 	tests := []struct {

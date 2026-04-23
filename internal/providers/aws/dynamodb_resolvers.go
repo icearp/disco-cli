@@ -10,8 +10,44 @@ import (
 
 func init() {
 	registerResolver(func(acct *account, st *store.Store) error {
+		if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
+			return err
+		}
 		return resolveDynamoDBGlobalTableRelationships(acct, st)
 	})
+}
+
+// resolveDynamoDBTableRelationships links each table to its KMS key when a
+// customer-managed key is used for server-side encryption. SSEDescription is
+// absent when the table uses the default (AWS-owned) key.
+func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
+	tables, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeDynamoDBTable},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range tables {
+		var attrs struct {
+			SSEDescription *struct {
+				KMSMasterKeyArn *string `json:"KMSMasterKeyArn"`
+			} `json:"SSEDescription"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.SSEDescription == nil || sv(attrs.SSEDescription.KMSMasterKeyArn) == "" {
+			continue
+		}
+		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.SSEDescription.KMSMasterKeyArn)
+		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert dynamodb table→kms: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveDynamoDBGlobalTableRelationships links each global table to the

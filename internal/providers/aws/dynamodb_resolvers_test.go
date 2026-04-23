@@ -48,3 +48,26 @@ func TestResolveDynamoDBGlobalTableRelationships_Empty(t *testing.T) {
 		t.Fatalf("resolver error: %v", err)
 	}
 }
+
+// TestResolveDynamoDBTableRelationships_KMS verifies KMS link for a table
+// configured with customer-managed SSE.
+func TestResolveDynamoDBTableRelationships_KMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Enc"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/abcd"
+	attrs := `{"SSEDescription":{"KMSMasterKeyArn":"` + keyARN + `"}}`
+
+	tableID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBTable, tableARN, testRegion, attrs)
+	keyID := upsertTestResource(t, st, "aws", testAccountID, TypeKMSKey, keyARN, testRegion, "{}")
+
+	if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
+		t.Fatalf("resolver error: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tableID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tableID, keyID, store.RelUses)
+}

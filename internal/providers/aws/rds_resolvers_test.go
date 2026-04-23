@@ -422,3 +422,54 @@ func TestResolveGlobalClusterRelationships_NoMembers(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestResolveRDSInstanceRelationships_KMSAndOptionGroup verifies the KMS and
+// option group edges added by the instance resolver.
+func TestResolveRDSInstanceRelationships_KMSAndOptionGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	keyARN := "arn:aws:kms:us-east-1:123456789012:key/1234"
+	dbARN := "arn:aws:rds:us-east-1:123456789012:db:enc-db"
+	attrsJSON := `{
+		"KmsKeyId": "` + keyARN + `",
+		"OptionGroupMemberships": [{"OptionGroupName":"default:mysql-8-0"}]
+	}`
+	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, dbARN, region, attrsJSON)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, region, "{}")
+	ogARN := rdsARN(region, acct.ID, "og", "default:mysql-8-0")
+	ogID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSOptionGroup, ogARN, region, "{}")
+
+	if err := resolveRDSInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRDSInstanceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(dbID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, dbID, keyID, store.RelUses)
+	assertRelationship(t, rels, dbID, ogID, store.RelUses)
+}
+
+// TestResolveDBClusterRelationships_KMS verifies KMS link for encrypted clusters.
+func TestResolveDBClusterRelationships_KMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	keyARN := "arn:aws:kms:us-east-1:123456789012:key/c1"
+	clusterARN := rdsARN(region, acct.ID, "cluster", "enc-cluster")
+	attrs := `{"KmsKeyId":"` + keyARN + `"}`
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, clusterARN, region, attrs)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, region, "{}")
+
+	if err := resolveDBClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBClusterRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(clusterID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, clusterID, keyID, store.RelUses)
+}

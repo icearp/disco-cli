@@ -104,3 +104,31 @@ func TestResolveInstanceConnectEndpointRelationships_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestResolveInstanceRelationships_IAMProfileAndENI verifies that instance
+// profile and network interface edges are emitted.
+func TestResolveInstanceRelationships_IAMProfileAndENI(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	iid := "i-0abc"
+	instanceARN := ec2ARN(testRegion, acct.ID, "instance", iid)
+	ipARN := "arn:aws:iam::" + testAccountID + ":instance-profile/AppRole"
+	eniID := "eni-1234"
+	attrs := `{"InstanceId":"` + iid + `","IamInstanceProfile":{"Arn":"` + ipARN + `"},"NetworkInterfaces":[{"NetworkInterfaceId":"` + eniID + `"}]}`
+
+	instResID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instanceARN, testRegion, attrs)
+	ipResID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMInstanceProfile, ipARN, "", "{}")
+	eniResID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkInterface,
+		ec2ARN(testRegion, acct.ID, "network-interface", eniID), testRegion, "{}")
+
+	if err := resolveInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveInstanceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(instResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, instResID, ipResID, store.RelUses)
+	assertRelationship(t, rels, instResID, eniResID, store.RelAttachedTo)
+}

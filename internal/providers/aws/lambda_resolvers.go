@@ -48,7 +48,9 @@ func lambdaStripQualifier(arn string) string {
 	return arn
 }
 
-// resolveLambdaRelationships links each function to its IAM execution role.
+// resolveLambdaRelationships links each function to its IAM execution role,
+// VPC subnets and security groups when the function is VPC-attached, and the
+// KMS key used to encrypt its environment variables (customer-managed only).
 func resolveLambdaRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
@@ -59,15 +61,48 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range fns {
 		var attrs struct {
-			Role *string `json:"Role"` // IAM role ARN
+			Role      *string `json:"Role"` // IAM role ARN
+			KMSKeyArn *string `json:"KMSKeyArn"`
+			VpcConfig *struct {
+				SubnetIds        []string `json:"SubnetIds"`
+				SecurityGroupIds []string `json:"SecurityGroupIds"`
+			} `json:"VpcConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
+		region := sv(r.Region)
 		if attrs.Role != nil {
 			roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.Role)
 			if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda→role relationship: %w", err)
+			}
+		}
+		// Function → KMS (customer-managed env-var encryption)
+		if sv(attrs.KMSKeyArn) != "" {
+			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KMSKeyArn)
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert lambda→kms relationship: %w", err)
+			}
+		}
+		if attrs.VpcConfig != nil {
+			for _, sn := range attrs.VpcConfig.SubnetIds {
+				if sn == "" {
+					continue
+				}
+				subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert lambda→subnet relationship: %w", err)
+				}
+			}
+			for _, sg := range attrs.VpcConfig.SecurityGroupIds {
+				if sg == "" {
+					continue
+				}
+				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert lambda→security-group relationship: %w", err)
+				}
 			}
 		}
 	}
@@ -134,21 +169,54 @@ func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range resources {
 		var attrs struct {
-			FunctionArn *string `json:"FunctionArn"`
+			FunctionArn    *string `json:"FunctionArn"`
+			EventSourceArn *string `json:"EventSourceArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		fnARN := lambdaStripQualifier(sv(attrs.FunctionArn))
-		if fnARN == "" {
+		if fnARN != "" {
+			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
+			if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert lambda ESM→function: %w", err)
+			}
+		}
+		// ESM → source resource (DynamoDB stream, Kinesis stream, SQS queue).
+		// Parse the source ARN's service prefix to pick the right resource type.
+		srcARN := sv(attrs.EventSourceArn)
+		if srcARN == "" {
 			continue
 		}
-		fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
-		if err := st.UpsertRelationship(r.ID, fnID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert lambda ESM→function: %w", err)
+		srcType := lambdaESMSourceType(srcARN)
+		if srcType == "" {
+			continue // unsupported/unknown source (e.g. Kafka bootstrap server, DocumentDB)
+		}
+		srcID := store.ResourceID("aws", acct.ID, srcType, srcARN)
+		if err := st.UpsertRelationship(r.ID, srcID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert lambda ESM→source relationship: %w", err)
 		}
 	}
 	return nil
+}
+
+// lambdaESMSourceType maps an EventSourceArn to the disco resource type of the
+// source. Returns "" when the source service isn't scanned by disco.
+func lambdaESMSourceType(arn string) string {
+	parts := strings.Split(arn, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	// parts[2] = service, parts[5] = "resource-type/..." or just "stream/..."
+	switch parts[2] {
+	case "sqs":
+		// SQS event source ARN is the queue ARN directly.
+		return TypeSQSQueue
+	}
+	// DynamoDB streams and Kinesis streams have their own ARNs that don't match
+	// the parent table/stream resource the scanner stores; skip until we scan
+	// those resources natively.
+	return ""
 }
 
 // resolveLambdaEventInvokeConfigRelationships links each async invocation config

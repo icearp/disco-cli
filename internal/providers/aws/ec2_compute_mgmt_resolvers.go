@@ -30,6 +30,9 @@ type instanceAttrs struct {
 			VolumeId *string `json:"VolumeId"`
 		} `json:"Ebs"`
 	} `json:"BlockDeviceMappings"`
+	NetworkInterfaces []struct {
+		NetworkInterfaceId *string `json:"NetworkInterfaceId"`
+	} `json:"NetworkInterfaces"`
 }
 
 func resolveInstanceRelationships(acct *account, st *store.Store) error {
@@ -76,6 +79,24 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 				if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→volume relationship: %w", err)
 				}
+			}
+		}
+		// Instance → IAM instance profile
+		if attrs.IamInstanceProfile != nil && sv(attrs.IamInstanceProfile.Arn) != "" {
+			ipID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, *attrs.IamInstanceProfile.Arn)
+			if err := st.UpsertRelationship(r.ID, ipID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert instance→instance-profile relationship: %w", err)
+			}
+		}
+		// Instance → Network Interfaces
+		for _, eni := range attrs.NetworkInterfaces {
+			if sv(eni.NetworkInterfaceId) == "" {
+				continue
+			}
+			eniID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface,
+				ec2ARN(region, acct.ID, "network-interface", *eni.NetworkInterfaceId))
+			if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert instance→eni relationship: %w", err)
 			}
 		}
 	}

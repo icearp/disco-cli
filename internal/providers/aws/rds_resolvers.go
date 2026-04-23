@@ -37,6 +37,10 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				VpcId            *string `json:"VpcId"`
 				DBSubnetGroupArn *string `json:"DBSubnetGroupArn"`
 			} `json:"DBSubnetGroup"`
+			KmsKeyId               *string `json:"KmsKeyId"`
+			OptionGroupMemberships []struct {
+				OptionGroupName *string `json:"OptionGroupName"`
+			} `json:"OptionGroupMemberships"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -64,6 +68,24 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert rds-instance→subnet-group relationship: %w", err)
 			}
 		}
+		// Instance → KMS key (customer-managed); AWS-managed default key is not scanned
+		if sv(attrs.KmsKeyId) != "" {
+			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyId)
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert rds-instance→kms relationship: %w", err)
+			}
+		}
+		// Instance → Option groups
+		for _, ogm := range attrs.OptionGroupMemberships {
+			if sv(ogm.OptionGroupName) == "" {
+				continue
+			}
+			ogID := store.ResourceID("aws", acct.ID, TypeRDSOptionGroup,
+				rdsARN(region, acct.ID, "og", *ogm.OptionGroupName))
+			if err := st.UpsertRelationship(r.ID, ogID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert rds-instance→option-group relationship: %w", err)
+			}
+		}
 	}
 	return nil
 }
@@ -80,6 +102,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 	for _, r := range clusters {
 		var attrs struct {
 			DBSubnetGroup *string `json:"DBSubnetGroup"`
+			KmsKeyId      *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -89,6 +112,13 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 				rdsARN(sv(r.Region), acct.ID, "subgrp", *attrs.DBSubnetGroup))
 			if err := st.UpsertRelationship(r.ID, sngID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-cluster→subnet-group relationship: %w", err)
+			}
+		}
+		// Cluster → KMS key (customer-managed)
+		if sv(attrs.KmsKeyId) != "" {
+			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyId)
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert db-cluster→kms relationship: %w", err)
 			}
 		}
 	}
