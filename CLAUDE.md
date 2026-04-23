@@ -39,6 +39,19 @@ cmd/scan.go  →  internal/providers/<provider>/  →  internal/store/
 
 Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.BatchAddToHierarchyClosure()` to persist. Errors from all three must propagate — never silence with `_ =`.
 
+### Resolver conventions
+
+- **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs must use PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while passing tests built from hand-rolled JSON.
+- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash separator). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon separator, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
+- **Edge kinds** (`internal/store`):
+  - `contains` — hierarchy parent → child (VPC contains subnet, global-table contains replica)
+  - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
+  - `uses` — runtime dependency, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
+  - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
+  - `routes-to` — routing edges (route table → target)
+  - `peer` — bidirectional peering (VPC peering)
+- **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys not scanned, edge to them = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
+
 ### Per-service API mandate
 
 Providers make **per-service API calls** via each cloud's native Go SDK. No unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory). Every AWS service, Azure `arm*` package, GCP service client called direct. Required for complete coverage.
@@ -51,7 +64,7 @@ Providers make **per-service API calls** via each cloud's native Go SDK. No unif
 - `disco list` — queries local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
 - `disco diff <scanA> <scanB>` — drift detection; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
-- `disco check --rules rules.yaml --builtins --severity high --exit-nonzero` — runs security rules against the store
+- `disco check --rules rules.yaml --builtins --severity high --exit-nonzero` — runs security rules against store
 
 ### Provider registry (`internal/providers/registry.go`)
 
@@ -79,14 +92,14 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
-- **`resources`**: One row per cloud entity. `attributes` (JSON blob) holds full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `parent_id` = immediate parent in provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) and `verified_by` (scan ID FK) set auto by `UpsertResources` — callers must not set.
+- **`resources`**: One row per cloud entity. `attributes` (JSON blob) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `parent_id` = immediate parent in provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) and `verified_by` (scan ID FK) set auto by `UpsertResources` — callers must not set.
 - **`relationships`**: Directed edges. `kind` values: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
-- **`hierarchy_closure`**: Closure table for O(1) "all descendants of node X" without recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
+- **`hierarchy_closure`**: Closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: Lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs and anything squirrel can't express cleanly.
 
-**Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — the store boundary owns this.
+**Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
 ### Resource IDs
 
@@ -120,7 +133,7 @@ Viper reads `~/.disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO
 
 ### Rules engine (`internal/rules/`)
 
-YAML or built-in rules evaluated against the store by `cmd/check.go`. Rules filter `resources` and emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML and passing `--rules path.yaml`.
+YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `resources`, emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML and passing `--rules path.yaml`.
 
 ### Testing
 
@@ -139,11 +152,11 @@ Always add "no attrs / empty case" test alongside happy-path — guards nil-poin
 
 #### FK constraint: resources require scan record
 
-`resources.discovered_by` and `resources.verified_by` are FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
+`resources.discovered_by` and `resources.verified_by` = FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
 
 #### UpsertResources ON CONFLICT scope
 
-`UpsertResources` ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch them.
+`UpsertResources` ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch.
 
 #### Registration tests
 
