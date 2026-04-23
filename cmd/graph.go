@@ -37,8 +37,11 @@ Examples:
   disco graph i-0abc123 --provider aws --depth 3
   disco graph my-bucket-name --type aws:s3:bucket
   disco graph <32-hex-id> --kinds contains,attached-to -o dot | dot -Tpng > g.png`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
