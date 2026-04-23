@@ -18,6 +18,7 @@ func init() {
 	registerResolver(resolveInstanceProfileRoles)
 	registerResolver(resolveInlinePolicyParents)
 	registerResolver(resolveAccessKeyUsers)
+	registerResolver(resolveMFADeviceToUser)
 	registerResolver(resolveManagedPolicyAttachments)
 	registerResolver(resolveUserGroupMemberships)
 }
@@ -135,6 +136,41 @@ func resolveAccessKeyUsers(acct *account, st *store.Store) error {
 		userID := store.ResourceID("aws", acct.ID, TypeIAMUser, r.NativeID[:idx])
 		if err := st.UpsertRelationship(userID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert user→access-key: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveMFADeviceToUser links each assigned virtual MFA device to its owning
+// user. The owning user's ARN is stored in the device's attributes JSON under
+// the User.Arn field, present only when the device is assigned to a user.
+func resolveMFADeviceToUser(acct *account, st *store.Store) error {
+	devices, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMVirtualMFADevice},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+
+	var attrs struct {
+		User *struct {
+			Arn *string `json:"Arn"`
+		} `json:"User"`
+	}
+
+	for _, r := range devices {
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.User == nil || attrs.User.Arn == nil {
+			continue // unassigned device
+		}
+		userID := store.ResourceID("aws", acct.ID, TypeIAMUser, *attrs.User.Arn)
+		if err := st.UpsertRelationship(userID, r.ID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert user→mfaDevice: %w", err)
 		}
 	}
 	return nil

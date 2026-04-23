@@ -163,6 +163,46 @@ func TestResolveAccessKeyUsers_MalformedNativeID(t *testing.T) {
 	}
 }
 
+// --- resolveMFADeviceToUser ---
+
+func TestResolveMFADeviceToUser(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	userARN := "arn:aws:iam::123456789012:user/alice"
+	mfaSerial := "arn:aws:iam::123456789012:mfa/alice"
+	mfaAttrs := `{"SerialNumber":"` + mfaSerial + `","User":{"Arn":"` + userARN + `","UserName":"alice"}}`
+
+	userResID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMUser, userARN, "", "{}")
+	mfaResID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMVirtualMFADevice, mfaSerial, "", mfaAttrs)
+
+	if err := resolveMFADeviceToUser(acct, st); err != nil {
+		t.Fatalf("resolveMFADeviceToUser: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(userResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, userResID, mfaResID, "contains")
+}
+
+func TestResolveMFADeviceToUser_Unassigned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	// Device with no User field — resolver must silently skip it.
+	mfaSerial := "arn:aws:iam::123456789012:mfa/unassigned"
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMVirtualMFADevice, mfaSerial, "", `{"SerialNumber":"`+mfaSerial+`"}`)
+
+	if err := resolveMFADeviceToUser(acct, st); err != nil {
+		t.Fatalf("resolveMFADeviceToUser (unassigned): %v", err)
+	}
+}
+
 // --- resolveManagedPolicyAttachments (empty store — no API calls made) ---
 
 func TestResolveManagedPolicyAttachments_Empty(t *testing.T) {
