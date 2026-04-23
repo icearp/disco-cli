@@ -51,6 +51,16 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
   - `routes-to` — routing edges (route table → target)
   - `peer` — bidirectional peering (VPC peering)
 - **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys not scanned, edge to them = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
+- **`logGroupNativeIDFromName(accountID, region, name)`** — in `logs_scanners.go`, callable from any file in `package aws`. Reconstructs `arn:aws:logs:{r}:{a}:log-group:{name}`. Use instead of `fmt.Sprintf` to keep NativeID shape consistent with scanner.
+- **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or the edge points to a phantom resource.
+- **EFS mount target NativeID**: no native ARN. Synthesise: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
+
+### WAFv2 scope pattern
+
+WAFv2 has two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). The
+CLOUDFRONT scope is only reachable from `us-east-1` — querying it from any
+other region returns an error. Guard with `if region == "us-east-1"` before
+issuing CLOUDFRONT-scope calls to avoid duplicates.
 
 ### Per-service API mandate
 
@@ -118,6 +128,13 @@ Namespaced lowercase: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:
 ### Provider file naming
 
 Scanners in `<service>_scanners.go`, relationship resolvers in `<service>_resolvers.go`. `resolveRelationships` orchestrator in provider top-level file (`aws.go`, `azure.go`, `gcp.go`).
+
+### Embedding child data in parent attributes
+
+When a child resource (e.g. EventBridge rule targets) has no independent lifecycle
+and is only meaningful via its parent, fetch child data at scan time and embed it
+under a key in the parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`).
+Resolvers then read the embedded data without additional API calls.
 
 ### List-then-describe pattern (N+1 avoidance)
 
