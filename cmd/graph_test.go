@@ -49,14 +49,17 @@ func TestGraphCmd_JSON(t *testing.T) {
 	}
 }
 
-// TestGraphCmd_MissingArg verifies cobra surfaces an arg-count error.
+// TestGraphCmd_MissingArg verifies that graph with no args prints help (not an error).
 func TestGraphCmd_MissingArg(t *testing.T) {
-	_, err := captureStdout(t, func() error {
+	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
 		cmd.SetArgs([]string{"graph"})
 		return cmd.Execute()
 	})
-	if err == nil || !strings.Contains(err.Error(), "accepts 1 arg") {
-		t.Errorf("expected arg-count error, got %v", err)
+	if err != nil {
+		t.Errorf("expected nil error, got %v", err)
+	}
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("expected help output, got %q", out)
 	}
 }
