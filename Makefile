@@ -10,7 +10,7 @@ deps:
 	go mod tidy
 
 fmt:
-	gofmt -w .
+	gofmt -w -s .
 
 lint:
 	golangci-lint run ./...
