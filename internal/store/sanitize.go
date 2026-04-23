@@ -46,16 +46,25 @@ func scrubAttributes(raw string) string {
 }
 
 // scrubValue recurses over decoded JSON. Maps get key-level inspection;
-// slices recurse element-wise; scalars pass through.
+// slices recurse element-wise; scalars pass through. A sensitive key only
+// redacts a scalar value — if the value is itself an object or array we
+// recurse so that structural keys like "Secrets" (a container of
+// {ValueFrom} refs) aren't wiped out, while scalar leaks under the same
+// key name (e.g. "SecretString") are still redacted.
 func scrubValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
 		for k, child := range t {
-			if isSensitiveKey(k) {
-				t[k] = redactedPlaceholder
-				continue
+			switch child.(type) {
+			case map[string]any, []any:
+				t[k] = scrubValue(child)
+			default:
+				if isSensitiveKey(k) {
+					t[k] = redactedPlaceholder
+				} else {
+					t[k] = scrubValue(child)
+				}
 			}
-			t[k] = scrubValue(child)
 		}
 		return t
 	case []any:

@@ -168,6 +168,55 @@ func TestResolveECSContainerRelationships_LogGroup(t *testing.T) {
 	assertRelationship(t, rels, tdID, lgID, store.RelUses)
 }
 
+// TestResolveECSTaskDefinitionSecrets covers the three Secrets[].ValueFrom
+// reference shapes: full Secrets Manager ARN (with trailing JSON-key suffix),
+// full SSM parameter ARN, and a bare SSM parameter name.
+func TestResolveECSTaskDefinitionSecrets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	secretARN := "arn:aws:secretsmanager:" + testRegion + ":" + testAccountID + ":secret:prod/db-AbCdEf"
+	// ECS may reference a JSON key within the secret — the suffix must be
+	// trimmed before computing the target resource ID.
+	secretRef := secretARN + ":password::"
+	ssmARN := "arn:aws:ssm:" + testRegion + ":" + testAccountID + ":parameter/app/api-key"
+	bareName := "/app/flag"
+	bareARN := "arn:aws:ssm:" + testRegion + ":" + testAccountID + ":parameter/app/flag"
+
+	tdARN := "arn:aws:ecs:" + testRegion + ":" + testAccountID + ":task-definition/sec-app:1"
+	attrs := `{"ContainerDefinitions":[{"Secrets":[` +
+		`{"ValueFrom":"` + secretRef + `"},` +
+		`{"ValueFrom":"` + ssmARN + `"},` +
+		`{"ValueFrom":"` + bareName + `"}` +
+		`]}]}`
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeECSTaskDefinition, tdARN, testRegion, attrs)
+	smID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secretARN, testRegion, "{}")
+	ssmID := upsertTestResource(t, st, "aws", acct.ID, TypeSSMParameter, ssmARN, testRegion, "{}")
+	bareID := upsertTestResource(t, st, "aws", acct.ID, TypeSSMParameter, bareARN, testRegion, "{}")
+
+	if err := resolveECSTaskDefinitionSecrets(acct, st); err != nil {
+		t.Fatalf("resolveECSTaskDefinitionSecrets: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tdID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tdID, smID, store.RelUses)
+	assertRelationship(t, rels, tdID, ssmID, store.RelUses)
+	assertRelationship(t, rels, tdID, bareID, store.RelUses)
+}
+
+// TestResolveECSTaskDefinitionSecrets_NoAttrs verifies no panic on empty attrs.
+func TestResolveECSTaskDefinitionSecrets_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	tdARN := "arn:aws:ecs:" + testRegion + ":" + testAccountID + ":task-definition/none:1"
+	_ = upsertTestResource(t, st, "aws", acct.ID, TypeECSTaskDefinition, tdARN, testRegion, "{}")
+	if err := resolveECSTaskDefinitionSecrets(acct, st); err != nil {
+		t.Fatalf("resolveECSTaskDefinitionSecrets: %v", err)
+	}
+}
+
 // TestResolveECSContainerRelationships_NoAttrs verifies no panic on empty attrs.
 func TestResolveECSContainerRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)

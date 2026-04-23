@@ -11,7 +11,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 )
 
-func init() { registerResolver(resolveOrganizationsSCPTargets) }
+func init() {
+	registerResolver(resolveOrganizationsSCPTargets)
+	registerResolver(resolveOrganizationsDelegatedAdmins)
+}
 
 // resolveOrganizationsSCPTargets attaches each SCP to the roots, OUs, and
 // accounts it applies to. ListTargetsForPolicy returns native ids
@@ -97,6 +100,88 @@ func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[s
 		}
 	}
 	return arnByID, typeByID, nil
+}
+
+// resolveOrganizationsDelegatedAdmins emits an `attached-to` edge from the
+// organization to each delegated-admin account, with the delegated service
+// principals captured in the edge attributes. The hierarchy org→account
+// (contains) already lives in the closure table; this adds a distinct
+// relationship for privilege-scoped queries ("which accounts admin which
+// services?"). Relationship uniqueness is (from, to, kind), so the two
+// edges coexist without conflict.
+func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
+	orgs, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeOrganization},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(orgs) == 0 {
+		return nil
+	}
+	org := orgs[0]
+
+	arnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+
+	client := organizations.NewFromConfig(acct.cfg)
+	ctx := context.Background()
+
+	var admins []string
+	adminPager := organizations.NewListDelegatedAdministratorsPaginator(client,
+		&organizations.ListDelegatedAdministratorsInput{})
+	for adminPager.HasMorePages() {
+		page, err := adminPager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return nil
+			}
+			return fmt.Errorf("organizations:ListDelegatedAdministrators: %w", err)
+		}
+		for _, a := range page.DelegatedAdministrators {
+			if a.Id != nil {
+				admins = append(admins, *a.Id)
+			}
+		}
+	}
+
+	for _, adminID := range admins {
+		var services []string
+		svcPager := organizations.NewListDelegatedServicesForAccountPaginator(client,
+			&organizations.ListDelegatedServicesForAccountInput{AccountId: &adminID})
+		for svcPager.HasMorePages() {
+			page, err := svcPager.NextPage(ctx)
+			if err != nil {
+				if isAccessDenied(err) {
+					break
+				}
+				return fmt.Errorf("organizations:ListDelegatedServicesForAccount %s: %w", adminID, err)
+			}
+			for _, s := range page.DelegatedServices {
+				if s.ServicePrincipal != nil {
+					services = append(services, *s.ServicePrincipal)
+				}
+			}
+		}
+
+		// Scanner stores accounts keyed by ARN, not the raw 12-digit ID —
+		// look up via the index built from the store.
+		acctARN, ok := arnByID[adminID]
+		if !ok {
+			continue
+		}
+		acctResID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, acctARN)
+		attrJSON := mustJSON(map[string]any{"DelegatedServices": services})
+		if err := st.UpsertRelationship(org.ID, acctResID, store.RelAttachedTo, "directed", &attrJSON); err != nil {
+			return fmt.Errorf("upsert org→delegated-admin: %w", err)
+		}
+	}
+	return nil
 }
 
 // extractPolicyID pulls the p-xxxx identifier out of an SCP ARN of the form

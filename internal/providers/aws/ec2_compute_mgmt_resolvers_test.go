@@ -47,6 +47,41 @@ func TestResolveInstanceRelationships(t *testing.T) {
 	assertRelationship(t, rels, instID, volID, store.RelAttachedTo)
 }
 
+// TestResolveInstanceRelationships_KeyPair verifies instance→key-pair edge
+// via the region+name index (key pair NativeID is by KeyPairId, instance
+// carries KeyName only).
+func TestResolveInstanceRelationships_KeyPair(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+	keyName := "deploy-key"
+
+	instanceARN := ec2ARN(region, acct.ID, "instance", "i-kp")
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instanceARN, region,
+		`{"KeyName":"`+keyName+`"}`)
+
+	// Seed the key pair directly so we can set Name (helper omits it).
+	kpARN := ec2ARN(region, acct.ID, "key-pair", "key-999")
+	kpResource := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeEC2KeyPair,
+		NativeID: kpARN, Region: &region, Name: &keyName,
+		AttributesJSON: "{}", DiscoveredBy: "00000000000000000000000000000000",
+	}
+	if _, err := st.UpsertResource(kpResource); err != nil {
+		t.Fatalf("upsert key pair: %v", err)
+	}
+	kpID := store.ResourceID("aws", acct.ID, TypeEC2KeyPair, kpARN)
+
+	if err := resolveInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveInstanceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(instID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, instID, kpID, store.RelUses)
+}
+
 func TestResolveInstanceRelationships_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")

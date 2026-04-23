@@ -19,6 +19,7 @@ func init() {
 	registerResolver(resolveECSRelationships)
 	registerResolver(resolveECSTaskDefinitionRelationships)
 	registerResolver(resolveECSContainerRelationships)
+	registerResolver(resolveECSTaskDefinitionSecrets)
 }
 
 func resolveECSRelationships(acct *account, st *store.Store) error {
@@ -184,4 +185,80 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// resolveECSTaskDefinitionSecrets emits `uses` edges from each task definition
+// to Secrets Manager secrets or SSM parameters referenced via
+// ContainerDefinitions[].Secrets[].ValueFrom. ValueFrom is either a full secret
+// ARN (optionally suffixed with a JSON key / version), a full SSM parameter
+// ARN, or a bare parameter name (with or without a leading slash).
+func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
+	tds, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range tds {
+		region := sv(r.Region)
+		var attrs struct {
+			ContainerDefinitions []struct {
+				Secrets []struct {
+					ValueFrom *string `json:"ValueFrom"`
+				} `json:"Secrets"`
+			} `json:"ContainerDefinitions"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		seen := make(map[string]bool)
+		for _, c := range attrs.ContainerDefinitions {
+			for _, s := range c.Secrets {
+				vf := sv(s.ValueFrom)
+				if vf == "" {
+					continue
+				}
+				targetType, nativeID := ecsSecretTarget(vf, region, acct.ID)
+				if nativeID == "" {
+					continue
+				}
+				targetID := store.ResourceID("aws", acct.ID, targetType, nativeID)
+				if seen[targetID] {
+					continue
+				}
+				seen[targetID] = true
+				if err := st.UpsertRelationship(r.ID, targetID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ecs-td→secret relationship: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// ecsSecretTarget maps an ECS Secrets ValueFrom reference to a (resource-type,
+// NativeID) pair. Secrets Manager references can carry :key::version-stage:
+// :version-id suffixes that must be stripped to match the secret's stored ARN.
+// Bare SSM parameter names are expanded to the scanner-side NativeID shape.
+func ecsSecretTarget(vf, region, acctID string) (string, string) {
+	switch {
+	case strings.HasPrefix(vf, "arn:aws:secretsmanager:"):
+		// Keep the first 7 colon-separated segments:
+		// arn:aws:secretsmanager:{region}:{acct}:secret:{name-suffix}
+		parts := strings.SplitN(vf, ":", 8)
+		if len(parts) < 7 {
+			return "", ""
+		}
+		return TypeSecretsManagerSecret, strings.Join(parts[:7], ":")
+	case strings.HasPrefix(vf, "arn:aws:ssm:"):
+		return TypeSSMParameter, vf
+	default:
+		// Bare SSM parameter name; scanner stores `arn:aws:ssm:{r}:{a}:parameter{/name}`.
+		name := vf
+		if !strings.HasPrefix(name, "/") {
+			name = "/" + name
+		}
+		return TypeSSMParameter, fmt.Sprintf("arn:aws:ssm:%s:%s:parameter%s", region, acctID, name)
+	}
 }

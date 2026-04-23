@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code (claude.ai/code) in repo.
+Guide for Claude Code (claude.ai/code) in repo.
 
 ## Commands
 
@@ -29,7 +29,7 @@ go vet ./...
 
 ### Key constraint: CGO_ENABLED=0 always
 
-Storage: `modernc.org/sqlite` — pure-Go SQLite transpilation. Cross-platform single-binary, no C toolchain. **Never swap for `mattn/go-sqlite3` or any CGO dep.**
+Storage: `modernc.org/sqlite` — pure-Go SQLite transpile. Cross-platform single-binary, no C toolchain. **Never swap for `mattn/go-sqlite3` or any CGO dep.**
 
 ### Data flow
 
@@ -44,7 +44,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
 - **Edge kinds** (`internal/store`):
-  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; don't "fix" without sweeping all tests.
+  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
   - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
   - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
@@ -53,16 +53,17 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys unscanned, edge = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
 - **`logGroupNativeIDFromName(accountID, region, name)`** — in `logs_scanners.go`, callable from any file in `package aws`. Rebuilds `arn:aws:logs:{r}:{a}:log-group:{name}`. Use instead of `fmt.Sprintf` to keep NativeID shape consistent with scanner.
 - **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or edge points to phantom resource.
-- **EFS mount target NativeID**: no native ARN. Synthesise: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
+- **EFS mount target NativeID**: no native ARN. Synthesize: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
 - **AWS Backup plan ARN** uses `backup-plan:`, not `plan:`. Real format: `arn:aws:backup:{r}:{a}:backup-plan:{planId}`. Synthetic selection NativeID `{planARN}/selection/{selId}` — trim `/selection/...` in resolver to recover parent plan ARN. Wrong prefix → FK error on closure insert.
+- **Organizations NativeID = full ARN, not raw ID**. Accounts + OUs stored keyed by `sv(a.Arn)`, not the `o-xxx` / 12-digit account ID. APIs like `ListDelegatedAdministrators` return raw IDs — translate via `loadOrgTargetIndex` (`organizations_resolvers.go`) before building `ResourceID`.
 
 ### WAFv2 scope pattern
 
-WAFv2 two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to avoid duplicates.
+WAFv2 two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to dodge duplicates.
 
 ### Per-service API mandate
 
-Providers make **per-service API calls** via each cloud's native Go SDK. No unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory). Every AWS service, Azure `arm*` package, GCP service client called direct. Needed for complete coverage.
+Providers make **per-service API calls** via each cloud's native Go SDK. No unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory). Every AWS service, Azure `arm*` package, GCP service client called direct. Needed for full coverage.
 
 ### CLI structure
 
@@ -101,13 +102,15 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
 - **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy goes through `BatchAddToHierarchyClosure(pairs)` only.
-- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
+- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list).
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs and anything squirrel can't express cleanly.
 
 **Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
+
+**Scalar-only redaction**: sensitive key redacts only when value is scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silently yields zero edges under key whose name matches denylist, check here first.
 
 ### Resource IDs
 
@@ -135,11 +138,11 @@ Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaning
 
 ### AWS service-integration ARNs use `:::`
 
-Step Functions Definitions and similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classifying, or emit edges to non-existent resources and blow FK constraints.
+Step Functions Definitions and similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classify, or emit edges to non-existent resources and blow FK constraints.
 
 ### List-then-describe pattern (N+1 avoidance)
 
-AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. Don't Describe sequentially in loop.
+AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. No Describe sequentially in loop.
 
 ### Migrations
 
@@ -162,7 +165,7 @@ YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers that build name-keyed index (e.g. KeyPair by `(region, Name)`), bypass it and call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests in same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
@@ -189,4 +192,4 @@ Always add "no attrs / empty case" test alongside happy-path — guards nil-poin
 5. No redundant code.
 6. Optimize first scan speed, then min memory + CPU.
 7. Keep deps minimal.
-8. Minimize token use. Don't re-read source already in context. Use sed, grep, head, tail to reduce lines during discovery + implementation.
+8. Minimize token use. No re-read source already in context. Use sed, grep, head, tail to cut lines during discovery + implementation.

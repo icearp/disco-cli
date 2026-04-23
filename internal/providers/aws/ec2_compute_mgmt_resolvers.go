@@ -19,6 +19,7 @@ type instanceAttrs struct {
 	InstanceId         *string `json:"InstanceId"`
 	VpcId              *string `json:"VpcId"`
 	SubnetId           *string `json:"SubnetId"`
+	KeyName            *string `json:"KeyName"`
 	IamInstanceProfile *struct {
 		Arn *string `json:"Arn"`
 	} `json:"IamInstanceProfile"`
@@ -42,6 +43,23 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 	})
 	if err != nil {
 		return err
+	}
+	// Build a (region, key-name) → key-pair resource ID index once. Instances
+	// carry KeyName only; the KeyPair scanner stores NativeID by KeyPairId, so
+	// we cannot rebuild the target ARN from name alone.
+	keyPairs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	keyPairByNameRegion := make(map[string]string, len(keyPairs))
+	for _, kp := range keyPairs {
+		if kp.Name == nil {
+			continue
+		}
+		keyPairByNameRegion[sv(kp.Region)+"\x00"+*kp.Name] = kp.ID
 	}
 	for _, r := range instances {
 		var attrs instanceAttrs
@@ -86,6 +104,14 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 			ipID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, *attrs.IamInstanceProfile.Arn)
 			if err := st.UpsertRelationship(r.ID, ipID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→instance-profile relationship: %w", err)
+			}
+		}
+		// Instance → KeyPair (name → id via index)
+		if name := sv(attrs.KeyName); name != "" {
+			if kpID, ok := keyPairByNameRegion[region+"\x00"+name]; ok {
+				if err := st.UpsertRelationship(r.ID, kpID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert instance→key-pair relationship: %w", err)
+				}
 			}
 		}
 		// Instance → Network Interfaces
