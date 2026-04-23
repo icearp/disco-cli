@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -11,6 +12,48 @@ import (
 func init() {
 	registerResolver(resolveSecretsManagerKMS)
 	registerResolver(resolveSecretsManagerRotation)
+	registerResolver(resolveSecretsManagerReplication)
+}
+
+// resolveSecretsManagerReplication links each replica secret back to its
+// primary. A secret is a replica when its PrimaryRegion differs from its own
+// region. The primary's ARN is derived by swapping the region segment of the
+// current secret's ARN with PrimaryRegion.
+func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
+	secrets, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeSecretsManagerSecret},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, s := range secrets {
+		var attrs struct {
+			PrimaryRegion *string `json:"PrimaryRegion"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		primary := sv(attrs.PrimaryRegion)
+		own := sv(s.Region)
+		if primary == "" || own == "" || primary == own {
+			continue
+		}
+		// Secret ARN: arn:aws:secretsmanager:<region>:<acct>:secret:<name>-<6chars>
+		parts := strings.SplitN(s.NativeID, ":", 6)
+		if len(parts) < 6 || parts[0] != "arn" {
+			continue
+		}
+		parts[3] = primary
+		primaryARN := strings.Join(parts, ":")
+		primaryID := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, primaryARN)
+		if err := st.UpsertRelationship(s.ID, primaryID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert secret→primary-secret: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveSecretsManagerRotation links each secret with rotation enabled to the

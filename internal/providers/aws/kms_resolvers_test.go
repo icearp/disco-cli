@@ -29,6 +29,13 @@ func TestResolveKMSAliasToKey(t *testing.T) {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
 	assertRelationship(t, rels, aliasResID, keyResID, store.RelAttachedTo)
+
+	// Inverse: key → alias (contains).
+	fromKey, err := st.RelationshipsFrom(keyResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, fromKey, keyResID, aliasResID, store.RelContains)
 }
 
 // TestResolveKMSAliasToKey_NoAttrs verifies alias with empty attrs is a no-op.

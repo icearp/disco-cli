@@ -55,6 +55,10 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 		if err := st.UpsertRelationship(a.ID, keyID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert kms-alias→key: %w", err)
 		}
+		// Inverse: the key owns its aliases (a key can have multiple aliases).
+		if err := st.UpsertRelationship(keyID, a.ID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert kms-key→alias: %w", err)
+		}
 	}
 	return nil
 }

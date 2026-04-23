@@ -41,6 +41,9 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 			OptionGroupMemberships []struct {
 				OptionGroupName *string `json:"OptionGroupName"`
 			} `json:"OptionGroupMemberships"`
+			DBParameterGroups []struct {
+				DBParameterGroupName *string `json:"DBParameterGroupName"`
+			} `json:"DBParameterGroups"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -75,6 +78,17 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert rds-instance→kms relationship: %w", err)
 			}
 		}
+		// Instance → DB parameter groups
+		for _, pg := range attrs.DBParameterGroups {
+			if sv(pg.DBParameterGroupName) == "" {
+				continue
+			}
+			pgID := store.ResourceID("aws", acct.ID, TypeRDSDBParameterGroup,
+				rdsARN(region, acct.ID, "pg", *pg.DBParameterGroupName))
+			if err := st.UpsertRelationship(r.ID, pgID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert rds-instance→parameter-group relationship: %w", err)
+			}
+		}
 		// Instance → Option groups
 		for _, ogm := range attrs.OptionGroupMemberships {
 			if sv(ogm.OptionGroupName) == "" {
@@ -101,8 +115,9 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range clusters {
 		var attrs struct {
-			DBSubnetGroup *string `json:"DBSubnetGroup"`
-			KmsKeyId      *string `json:"KmsKeyId"`
+			DBSubnetGroup           *string `json:"DBSubnetGroup"`
+			DBClusterParameterGroup *string `json:"DBClusterParameterGroup"`
+			KmsKeyId                *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -112,6 +127,14 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 				rdsARN(sv(r.Region), acct.ID, "subgrp", *attrs.DBSubnetGroup))
 			if err := st.UpsertRelationship(r.ID, sngID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-cluster→subnet-group relationship: %w", err)
+			}
+		}
+		// Cluster → DB cluster parameter group
+		if sv(attrs.DBClusterParameterGroup) != "" {
+			pgID := store.ResourceID("aws", acct.ID, TypeRDSDBClusterParameterGroup,
+				rdsARN(sv(r.Region), acct.ID, "cluster-pg", *attrs.DBClusterParameterGroup))
+			if err := st.UpsertRelationship(r.ID, pgID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert db-cluster→cluster-parameter-group relationship: %w", err)
 			}
 		}
 		// Cluster → KMS key (customer-managed)

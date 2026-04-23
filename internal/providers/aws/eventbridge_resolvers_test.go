@@ -39,6 +39,35 @@ func TestResolveEventBridgeRelationships(t *testing.T) {
 	assertRelationship(t, rels, ruleID, snsID, store.RelRoutesTo)
 }
 
+func TestResolveEventBridgeRelationships_SFNAndFirehoseTargets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	busARN := fmt.Sprintf("arn:aws:events:%s:%s:event-bus/default", testRegion, acct.ID)
+	ruleARN := fmt.Sprintf("arn:aws:events:%s:%s:rule/r", testRegion, acct.ID)
+	smARN := fmt.Sprintf("arn:aws:states:%s:%s:stateMachine:wf", testRegion, acct.ID)
+	fhARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/ds", testRegion, acct.ID)
+
+	ruleAttrs := fmt.Sprintf(
+		`{"Rule":{"EventBusArn":%q},"Targets":[{"Arn":%q},{"Arn":%q}]}`,
+		busARN, smARN, fhARN,
+	)
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
+	_ = upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
+	smID := upsertTestResource(t, st, "aws", acct.ID, TypeSFNStateMachine, smARN, testRegion, "{}")
+	fhID := upsertTestResource(t, st, "aws", acct.ID, TypeFirehoseDeliveryStream, fhARN, testRegion, "{}")
+
+	if err := resolveEventBridgeRelationships(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(ruleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, ruleID, smID, store.RelRoutesTo)
+	assertRelationship(t, rels, ruleID, fhID, store.RelRoutesTo)
+}
+
 func TestResolveEventBridgeRelationships_DefaultBus(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

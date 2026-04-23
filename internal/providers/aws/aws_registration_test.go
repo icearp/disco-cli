@@ -39,6 +39,8 @@ var expectedAWSServices = []string{
 	"aws:wafv2",
 	"aws:events",
 	"aws:cloudtrail",
+	"aws:cognito",
+	"aws:sfn",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

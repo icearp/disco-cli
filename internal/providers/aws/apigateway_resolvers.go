@@ -178,6 +178,7 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 		var attrs struct {
 			DeploymentId        *string `json:"DeploymentId"`
 			ClientCertificateId *string `json:"ClientCertificateId"`
+			WebAclArn           *string `json:"WebAclArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -198,6 +199,13 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 			certID := store.ResourceID("aws", acct.ID, TypeAPIGatewayClientCertificate, certARN)
 			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert stage→client-certificate: %w", err)
+			}
+		}
+
+		if sv(attrs.WebAclArn) != "" {
+			aclID := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, *attrs.WebAclArn)
+			if err := st.UpsertRelationship(r.ID, aclID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert stage→waf-web-acl: %w", err)
 			}
 		}
 	}

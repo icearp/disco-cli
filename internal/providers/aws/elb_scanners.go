@@ -262,6 +262,20 @@ func scanELBv2TargetGroups(ctx context.Context, client *elasticloadbalancingv2.C
 		for _, tg := range page.TargetGroups {
 			arn := sv(tg.TargetGroupArn)
 			name := sv(tg.TargetGroupName)
+			// Fetch registered targets so the resolver can emit TG→target edges.
+			// DescribeTargetHealth returns TargetHealthDescriptions[].Target{Id,Port,AvailabilityZone}.
+			var targets []any
+			if thOut, thErr := client.DescribeTargetHealth(ctx, &elasticloadbalancingv2.DescribeTargetHealthInput{TargetGroupArn: tg.TargetGroupArn}); thErr == nil {
+				for _, d := range thOut.TargetHealthDescriptions {
+					if d.Target != nil {
+						targets = append(targets, d.Target)
+					}
+				}
+			}
+			type tgWithTargets struct {
+				TargetGroup any   `json:"TargetGroup"`
+				Targets     []any `json:"Targets"`
+			}
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -270,7 +284,7 @@ func scanELBv2TargetGroups(ctx context.Context, client *elasticloadbalancingv2.C
 				NativeID:       arn,
 				Name:           &name,
 				Region:         &region,
-				AttributesJSON: mustJSON(tg),
+				AttributesJSON: mustJSON(tgWithTargets{TargetGroup: tg, Targets: targets}),
 				DiscoveredBy:   scanID,
 			}
 			batch = append(batch, r)

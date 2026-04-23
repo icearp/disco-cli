@@ -70,3 +70,26 @@ func TestResolveSecretsManagerRotation(t *testing.T) {
 	}
 	assertRelationship(t, rels, secretID, fnID, store.RelUses)
 }
+
+func TestResolveSecretsManagerReplication(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	replicaRegion := "us-west-2"
+	primaryRegion := "us-east-1"
+	secretARN := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:my-secret-aBcDe1", replicaRegion, acct.ID)
+	primaryARN := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:my-secret-aBcDe1", primaryRegion, acct.ID)
+
+	attrs := fmt.Sprintf(`{"PrimaryRegion":%q}`, primaryRegion)
+	replicaID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secretARN, replicaRegion, attrs)
+	primaryID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, primaryARN, primaryRegion, "{}")
+
+	if err := resolveSecretsManagerReplication(acct, st); err != nil {
+		t.Fatalf("resolveSecretsManagerReplication: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(replicaID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, replicaID, primaryID, store.RelAttachedTo)
+}

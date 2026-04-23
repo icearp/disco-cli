@@ -157,18 +157,46 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range tgs {
+		// Scanner wraps TG details as {"TargetGroup":{...},"Targets":[...]}.
 		var attrs struct {
-			VpcId *string `json:"VpcId"`
+			TargetGroup struct {
+				VpcId      *string `json:"VpcId"`
+				TargetType *string `json:"TargetType"`
+			} `json:"TargetGroup"`
+			Targets []struct {
+				Id *string `json:"Id"`
+			} `json:"Targets"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.VpcId == nil {
-			continue
+		region := sv(r.Region)
+		if attrs.TargetGroup.VpcId != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcId))
+			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert target-group→vpc relationship: %w", err)
+			}
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
-		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert target-group→vpc relationship: %w", err)
+		// Target group → registered targets (lambda or instance).
+		tType := sv(attrs.TargetGroup.TargetType)
+		for _, tgt := range attrs.Targets {
+			id := sv(tgt.Id)
+			if id == "" {
+				continue
+			}
+			switch tType {
+			case "lambda":
+				fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, id)
+				if err := st.UpsertRelationship(r.ID, fnID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert target-group→lambda relationship: %w", err)
+				}
+			case "instance":
+				instARN := ec2ARN(region, acct.ID, "instance", id)
+				instID := store.ResourceID("aws", acct.ID, TypeEC2Instance, instARN)
+				if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert target-group→instance relationship: %w", err)
+				}
+			}
 		}
 	}
 	return nil

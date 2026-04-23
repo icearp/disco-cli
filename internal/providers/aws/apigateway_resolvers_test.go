@@ -39,6 +39,33 @@ func TestResolveAPIGatewayStageToDeployment(t *testing.T) {
 	assertRelationship(t, rels, stageID, deployResID, store.RelAttachedTo)
 }
 
+// TestResolveAPIGatewayStageToWAFv2 verifies that a stage's WebAclArn
+// produces a stage→waf-web-acl uses relationship.
+func TestResolveAPIGatewayStageToWAFv2(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	region := testRegion
+	apiID := "apiWAF"
+	stageARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/%s/stages/prod", region, apiID)
+	restAPIARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/%s", region, apiID)
+	aclARN := fmt.Sprintf("arn:aws:wafv2:%s:%s:regional/webacl/my-acl/abc123", region, acct.ID)
+
+	attrs := fmt.Sprintf(`{"WebAclArn":%q}`, aclARN)
+	stageID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayStage, stageARN, region, attrs)
+	_ = upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayRestAPI, restAPIARN, region, "{}")
+	aclID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2WebACL, aclARN, region, "{}")
+
+	if err := resolveAPIGatewayStageRelationships(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayStageRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(stageID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, stageID, aclID, store.RelUses)
+}
+
 // TestResolveAPIGatewayStageToDeployment_NoAttrs verifies that a stage with
 // empty attributes produces no error and no deployment relationship.
 func TestResolveAPIGatewayStageToDeployment_NoAttrs(t *testing.T) {

@@ -156,6 +156,13 @@ const (
 	TypeEventsRule     = "aws:events:rule"
 	// CloudTrail (cloudtrail_scanners.go, cloudtrail_resolvers.go)
 	TypeCloudTrailTrail = "aws:cloudtrail:trail"
+	// StepFunctions (sfn_scanners.go, sfn_resolvers.go)
+	TypeSFNStateMachine = "aws:sfn:state-machine"
+	TypeSFNActivity     = "aws:sfn:activity"
+	// Cognito (cognito_scanners.go, cognito_resolvers.go)
+	TypeCognitoUserPool     = "aws:cognito:user-pool"
+	TypeCognitoIdentityPool = "aws:cognito:identity-pool"
+	TypeCognitoAppClient    = "aws:cognito:app-client"
 	// EKS
 	TypeEKSCluster = "aws:eks:cluster"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
@@ -437,5 +444,9 @@ func KnownTypes() []string {
 		TypeEventsEventBus, TypeEventsRule,
 		// CloudTrail
 		TypeCloudTrailTrail,
+		// StepFunctions
+		TypeSFNStateMachine, TypeSFNActivity,
+		// Cognito
+		TypeCognitoUserPool, TypeCognitoIdentityPool, TypeCognitoAppClient,
 	}
 }

@@ -29,7 +29,7 @@ go vet ./...
 
 ### Key constraint: CGO_ENABLED=0 always
 
-Storage: `modernc.org/sqlite` — pure-Go SQLite transpilation. Enables cross-platform single-binary, no C toolchain. **Never swap for `mattn/go-sqlite3` or any CGO dep.**
+Storage: `modernc.org/sqlite` — pure-Go SQLite transpilation. Cross-platform single-binary, no C toolchain. **Never swap for `mattn/go-sqlite3` or any CGO dep.**
 
 ### Data flow
 
@@ -41,30 +41,27 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 ### Resolver conventions
 
-- **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs must use PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while passing tests built from hand-rolled JSON.
-- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash separator). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon separator, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
+- **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
+- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
 - **Edge kinds** (`internal/store`):
   - `contains` — hierarchy parent → child (VPC contains subnet, global-table contains replica)
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
-  - `uses` — runtime dependency, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
+  - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
   - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
   - `routes-to` — routing edges (route table → target)
   - `peer` — bidirectional peering (VPC peering)
-- **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys not scanned, edge to them = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
-- **`logGroupNativeIDFromName(accountID, region, name)`** — in `logs_scanners.go`, callable from any file in `package aws`. Reconstructs `arn:aws:logs:{r}:{a}:log-group:{name}`. Use instead of `fmt.Sprintf` to keep NativeID shape consistent with scanner.
-- **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or the edge points to a phantom resource.
+- **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys unscanned, edge = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
+- **`logGroupNativeIDFromName(accountID, region, name)`** — in `logs_scanners.go`, callable from any file in `package aws`. Rebuilds `arn:aws:logs:{r}:{a}:log-group:{name}`. Use instead of `fmt.Sprintf` to keep NativeID shape consistent with scanner.
+- **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or edge points to phantom resource.
 - **EFS mount target NativeID**: no native ARN. Synthesise: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
 
 ### WAFv2 scope pattern
 
-WAFv2 has two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). The
-CLOUDFRONT scope is only reachable from `us-east-1` — querying it from any
-other region returns an error. Guard with `if region == "us-east-1"` before
-issuing CLOUDFRONT-scope calls to avoid duplicates.
+WAFv2 two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to avoid duplicates.
 
 ### Per-service API mandate
 
-Providers make **per-service API calls** via each cloud's native Go SDK. No unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory). Every AWS service, Azure `arm*` package, GCP service client called direct. Required for complete coverage.
+Providers make **per-service API calls** via each cloud's native Go SDK. No unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory). Every AWS service, Azure `arm*` package, GCP service client called direct. Needed for complete coverage.
 
 ### CLI structure
 
@@ -102,10 +99,10 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
-- **`resources`**: One row per cloud entity. `attributes` (JSON blob) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `parent_id` = immediate parent in provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) and `verified_by` (scan ID FK) set auto by `UpsertResources` — callers must not set.
-- **`relationships`**: Directed edges. `kind` values: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
-- **`hierarchy_closure`**: Closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
-- **`scans`**: Lifecycle record per scan run (created at start, updated on complete/fail).
+- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `parent_id` = immediate parent in provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set.
+- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
+- **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
+- **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
 Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs and anything squirrel can't express cleanly.
 
@@ -131,14 +128,17 @@ Scanners in `<service>_scanners.go`, relationship resolvers in `<service>_resolv
 
 ### Embedding child data in parent attributes
 
-When a child resource (e.g. EventBridge rule targets) has no independent lifecycle
-and is only meaningful via its parent, fetch child data at scan time and embed it
-under a key in the parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`).
-Resolvers then read the embedded data without additional API calls.
+Child resource (e.g. EventBridge rule targets) with no independent lifecycle, meaningful only via parent — fetch child at scan time and embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data without extra API calls.
+
+**Warning — wrapping breaks existing resolvers.** Switching scanner from raw SDK struct to wrapped (e.g. adding `Targets` alongside `TargetGroup`) silently drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
+
+### AWS service-integration ARNs use `:::`
+
+Step Functions Definitions and similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classifying, or emit edges to non-existent resources and blow FK constraints.
 
 ### List-then-describe pattern (N+1 avoidance)
 
-When AWS service returns only names from List API (EKS, DynamoDB), describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. Don't Describe sequentially in loop.
+AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. Don't Describe sequentially in loop.
 
 ### Migrations
 
@@ -150,7 +150,7 @@ Viper reads `~/.disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO
 
 ### Rules engine (`internal/rules/`)
 
-YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `resources`, emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML and passing `--rules path.yaml`.
+YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `resources`, emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML + passing `--rules path.yaml`.
 
 ### Testing
 

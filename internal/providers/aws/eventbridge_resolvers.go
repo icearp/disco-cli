@@ -85,6 +85,10 @@ func eventBridgeTargetType(arn string) string {
 		return TypeSQSQueue
 	case strings.Contains(arn, ":kinesis:"):
 		return TypeKinesisStream
+	case strings.Contains(arn, ":states:") && strings.Contains(arn, ":stateMachine:"):
+		return TypeSFNStateMachine
+	case strings.Contains(arn, ":firehose:") && strings.Contains(arn, ":deliverystream/"):
+		return TypeFirehoseDeliveryStream
 	default:
 		return ""
 	}

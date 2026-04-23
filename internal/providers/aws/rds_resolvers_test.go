@@ -452,6 +452,50 @@ func TestResolveRDSInstanceRelationships_KMSAndOptionGroup(t *testing.T) {
 	assertRelationship(t, rels, dbID, ogID, store.RelUses)
 }
 
+// TestResolveRDSInstanceRelationships_ParameterGroup verifies the instance→pg edge.
+func TestResolveRDSInstanceRelationships_ParameterGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	dbARN := "arn:aws:rds:us-east-1:123456789012:db:pg-db"
+	attrs := `{"DBParameterGroups":[{"DBParameterGroupName":"my-pg"}]}`
+	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, dbARN, region, attrs)
+	pgARN := rdsARN(region, acct.ID, "pg", "my-pg")
+	pgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBParameterGroup, pgARN, region, "{}")
+
+	if err := resolveRDSInstanceRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRDSInstanceRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(dbID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, dbID, pgID, store.RelUses)
+}
+
+// TestResolveDBClusterRelationships_ParameterGroup verifies cluster→cluster-pg edge.
+func TestResolveDBClusterRelationships_ParameterGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	clusterARN := rdsARN(region, acct.ID, "cluster", "c-pg")
+	attrs := `{"DBClusterParameterGroup":"my-cluster-pg"}`
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, clusterARN, region, attrs)
+	pgARN := rdsARN(region, acct.ID, "cluster-pg", "my-cluster-pg")
+	pgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBClusterParameterGroup, pgARN, region, "{}")
+
+	if err := resolveDBClusterRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDBClusterRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(clusterID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, clusterID, pgID, store.RelUses)
+}
+
 // TestResolveDBClusterRelationships_KMS verifies KMS link for encrypted clusters.
 func TestResolveDBClusterRelationships_KMS(t *testing.T) {
 	st := newTestStore(t)

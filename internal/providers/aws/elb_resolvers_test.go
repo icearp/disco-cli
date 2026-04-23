@@ -211,7 +211,7 @@ func TestResolveELBv2TGRelationships(t *testing.T) {
 
 	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/my-tg/abc"
 	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region,
-		`{"VpcId": "vpc-tg-999"}`)
+		`{"TargetGroup":{"VpcId":"vpc-tg-999"}}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
 		ec2ARN(region, acct.ID, "vpc", "vpc-tg-999"), region, "{}")
 
@@ -248,6 +248,49 @@ func TestResolveELBv2TGRelationships_NoVPC(t *testing.T) {
 	if len(rels) != 0 {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
+}
+
+func TestResolveELBv2TGRelationships_LambdaTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/lambda-tg/abc"
+	fnARN := "arn:aws:lambda:us-east-1:123456789012:function:my-fn"
+	attrs := `{"TargetGroup":{"TargetType":"lambda"},"Targets":[{"Id":"` + fnARN + `"}]}`
+	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region, attrs)
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, region, "{}")
+
+	if err := resolveELBv2TGRelationships(acct, st); err != nil {
+		t.Fatalf("resolveELBv2TGRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tgID, fnID, store.RelUses)
+}
+
+func TestResolveELBv2TGRelationships_InstanceTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/inst-tg/abc"
+	instID := "i-0123456789abcdef0"
+	attrs := `{"TargetGroup":{"TargetType":"instance"},"Targets":[{"Id":"` + instID + `"}]}`
+	tgResID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region, attrs)
+	instARN := ec2ARN(region, acct.ID, "instance", instID)
+	instResID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instARN, region, "{}")
+
+	if err := resolveELBv2TGRelationships(acct, st); err != nil {
+		t.Fatalf("resolveELBv2TGRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(tgResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, tgResID, instResID, store.RelAttachedTo)
 }
 
 // ── Trust Store Revocation → Trust Store ─────────────────────────────────────
