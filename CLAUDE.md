@@ -25,7 +25,7 @@ go vet ./...
 
 ## Architecture
 
-`disco` = cloud resource discovery CLI (cobra + viper). Scan AWS accounts, Azure subscriptions/resource groups, GCP orgs/folders. Resolve + store resource relationships in local SQLite.
+`disco` = cloud resource discovery CLI (cobra + viper). Scan AWS accounts, Azure subs/resource groups, GCP orgs/folders. Resolve + store resource relationships in local SQLite.
 
 ### Key constraint: CGO_ENABLED=0 always
 
@@ -44,7 +44,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
 - **Edge kinds** (`internal/store`):
-  - `contains` — hierarchy parent → child (VPC contains subnet, global-table contains replica)
+  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; don't "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
   - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
   - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
@@ -54,6 +54,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **`logGroupNativeIDFromName(accountID, region, name)`** — in `logs_scanners.go`, callable from any file in `package aws`. Rebuilds `arn:aws:logs:{r}:{a}:log-group:{name}`. Use instead of `fmt.Sprintf` to keep NativeID shape consistent with scanner.
 - **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or edge points to phantom resource.
 - **EFS mount target NativeID**: no native ARN. Synthesise: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
+- **AWS Backup plan ARN** uses `backup-plan:`, not `plan:`. Real format: `arn:aws:backup:{r}:{a}:backup-plan:{planId}`. Synthetic selection NativeID `{planARN}/selection/{selId}` — trim `/selection/...` in resolver to recover parent plan ARN. Wrong prefix → FK error on closure insert.
 
 ### WAFv2 scope pattern
 
@@ -99,7 +100,7 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
-- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `parent_id` = immediate parent in provider hierarchy (e.g. GCP folder → project). `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set.
+- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy goes through `BatchAddToHierarchyClosure(pairs)` only.
 - **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`.
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
@@ -128,7 +129,7 @@ Scanners in `<service>_scanners.go`, relationship resolvers in `<service>_resolv
 
 ### Embedding child data in parent attributes
 
-Child resource (e.g. EventBridge rule targets) with no independent lifecycle, meaningful only via parent — fetch child at scan time and embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data without extra API calls.
+Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaningful only via parent — fetch child at scan time, embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data, no extra API calls.
 
 **Warning — wrapping breaks existing resolvers.** Switching scanner from raw SDK struct to wrapped (e.g. adding `Targets` alongside `TargetGroup`) silently drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
 
@@ -161,7 +162,7 @@ YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omitting makes computed relationship IDs point to phantom resources, FK error with no obvious diagnosis.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis.
 3. Call resolver function direct (tests in same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
@@ -186,6 +187,6 @@ Always add "no attrs / empty case" test alongside happy-path — guards nil-poin
 3. Comment everything.
 4. Human-readable code.
 5. No redundant code.
-6. Optimize first for scan speed, then min memory + CPU.
+6. Optimize first scan speed, then min memory + CPU.
 7. Keep deps minimal.
 8. Minimize token use. Don't re-read source already in context. Use sed, grep, head, tail to reduce lines during discovery + implementation.

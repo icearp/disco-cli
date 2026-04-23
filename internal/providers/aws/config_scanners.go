@@ -1,0 +1,133 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/service/configservice"
+)
+
+func init() { registerService(serviceEntry{name: "aws:config", fn: scanConfig}) }
+
+// scanConfig discovers AWS Config configuration recorders, delivery channels,
+// and Config rules. Recorders and delivery channels have synthesised ARNs
+// (Describe APIs return them without one); rules carry ConfigRuleArn natively.
+func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	client := configservice.NewFromConfig(acct.cfg, func(o *configservice.Options) { o.Region = region })
+
+	// Configuration recorders.
+	recOut, err := client.DescribeConfigurationRecorders(ctx, &configservice.DescribeConfigurationRecordersInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "config:DescribeConfigurationRecorders", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("config:DescribeConfigurationRecorders: %w", err)
+	}
+	var recBatch []*store.Resource
+	for _, r := range recOut.ConfigurationRecorders {
+		name := sv(r.Name)
+		if name == "" {
+			continue
+		}
+		arn := sv(r.Arn)
+		if arn == "" {
+			arn = fmt.Sprintf("arn:aws:config:%s:%s:config-recorder/%s", region, acct.ID, name)
+		}
+		recBatch = append(recBatch, &store.Resource{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeConfigRecorder,
+			NativeID:       arn,
+			Name:           r.Name,
+			Region:         &region,
+			AttributesJSON: mustJSON(r),
+			DiscoveredBy:   scanID,
+		})
+	}
+	if len(recBatch) > 0 {
+		n, err := st.UpsertResources(recBatch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert Config recorders: %w", err)
+		}
+		total += len(recBatch)
+		inserted += n
+	}
+
+	// Delivery channels.
+	dcOut, err := client.DescribeDeliveryChannels(ctx, &configservice.DescribeDeliveryChannelsInput{})
+	if err == nil {
+		var dcBatch []*store.Resource
+		for _, d := range dcOut.DeliveryChannels {
+			name := sv(d.Name)
+			if name == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:config:%s:%s:delivery-channel/%s", region, acct.ID, name)
+			dcBatch = append(dcBatch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeConfigDeliveryChannel,
+				NativeID:       arn,
+				Name:           d.Name,
+				Region:         &region,
+				AttributesJSON: mustJSON(d),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(dcBatch) > 0 {
+			n, err := st.UpsertResources(dcBatch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert Config delivery channels: %w", err)
+			}
+			total += len(dcBatch)
+			inserted += n
+		}
+	} else if !isAccessDenied(err) {
+		return 0, 0, fmt.Errorf("config:DescribeDeliveryChannels: %w", err)
+	}
+
+	// Config rules (paginated).
+	var ruleBatch []*store.Resource
+	rulePager := configservice.NewDescribeConfigRulesPaginator(client, &configservice.DescribeConfigRulesInput{})
+	for rulePager.HasMorePages() {
+		page, err := rulePager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("config:DescribeConfigRules: %w", err)
+		}
+		for _, r := range page.ConfigRules {
+			arn := sv(r.ConfigRuleArn)
+			if arn == "" {
+				continue
+			}
+			status := string(r.ConfigRuleState)
+			ruleBatch = append(ruleBatch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeConfigRule,
+				NativeID:       arn,
+				Name:           r.ConfigRuleName,
+				Region:         &region,
+				Status:         &status,
+				AttributesJSON: mustJSON(r),
+				DiscoveredBy:   scanID,
+			})
+		}
+	}
+	if len(ruleBatch) > 0 {
+		n, err := st.UpsertResources(ruleBatch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert Config rules: %w", err)
+		}
+		total += len(ruleBatch)
+		inserted += n
+	}
+
+	return total, inserted, nil
+}

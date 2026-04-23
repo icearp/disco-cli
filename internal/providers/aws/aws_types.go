@@ -297,11 +297,27 @@ const (
 	TypeOrganizationsSCP     = "aws:organizations:scp"
 	// ACM (acm_scanners.go)
 	TypeACMCertificate = "aws:acm:certificate"
-	TypeACMPrivateCA   = "aws:acm:private-ca" // edge target only; no scanner yet
+	TypeACMPrivateCA   = "aws:acm:private-ca"
 	// Kinesis Data Streams (kinesis_scanners.go)
 	TypeKinesisStream = "aws:kinesis:stream"
 	// Firehose (firehose_scanners.go)
 	TypeFirehoseDeliveryStream = "aws:firehose:delivery-stream"
+	// SSM (ssm_scanners.go)
+	TypeSSMParameter     = "aws:ssm:parameter"
+	TypeSSMDocument      = "aws:ssm:document"
+	TypeSSMPatchBaseline = "aws:ssm:patch-baseline"
+	// GuardDuty (guardduty_scanners.go)
+	TypeGuardDutyDetector = "aws:guardduty:detector"
+	TypeGuardDutyFilter   = "aws:guardduty:filter"
+	TypeGuardDutyIPSet    = "aws:guardduty:ipset"
+	// Config (config_scanners.go)
+	TypeConfigRecorder        = "aws:config:recorder"
+	TypeConfigDeliveryChannel = "aws:config:delivery-channel"
+	TypeConfigRule            = "aws:config:rule"
+	// Backup (backup_scanners.go)
+	TypeBackupVault     = "aws:backup:vault"
+	TypeBackupPlan      = "aws:backup:plan"
+	TypeBackupSelection = "aws:backup:selection"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -448,5 +464,13 @@ func KnownTypes() []string {
 		TypeSFNStateMachine, TypeSFNActivity,
 		// Cognito
 		TypeCognitoUserPool, TypeCognitoIdentityPool, TypeCognitoAppClient,
+		// SSM
+		TypeSSMParameter, TypeSSMDocument, TypeSSMPatchBaseline,
+		// GuardDuty
+		TypeGuardDutyDetector, TypeGuardDutyFilter, TypeGuardDutyIPSet,
+		// Config
+		TypeConfigRecorder, TypeConfigDeliveryChannel, TypeConfigRule,
+		// Backup
+		TypeBackupVault, TypeBackupPlan, TypeBackupSelection,
 	}
 }

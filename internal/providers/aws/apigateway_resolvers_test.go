@@ -222,3 +222,43 @@ func TestResolveAPIGatewayUsagePlanKeyToUsagePlan_Empty(t *testing.T) {
 		t.Fatalf("resolveAPIGatewayUsagePlanKeyRelationships: %v", err)
 	}
 }
+
+// TestResolveAPIGatewayAuthorizerCognito verifies that a REST API authorizer
+// of type COGNITO_USER_POOLS produces a uses edge to each user pool in
+// ProviderARNs.
+func TestResolveAPIGatewayAuthorizerCognito(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/us-east-1_abcDEF", testRegion, acct.ID)
+	authARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/api-1/authorizers/auth-1", testRegion)
+	attrs := fmt.Sprintf(`{"Type":"COGNITO_USER_POOLS","ProviderARNs":[%q]}`, poolARN)
+
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayAuthorizer, authARN, testRegion, attrs)
+	poolID := upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPool, poolARN, testRegion, "{}")
+
+	if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayAuthorizerCognito: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	assertRelationship(t, rels, authID, poolID, store.RelUses)
+}
+
+// TestResolveAPIGatewayAuthorizerCognito_TokenSkipped verifies that non-Cognito
+// authorizer types produce no edge.
+func TestResolveAPIGatewayAuthorizerCognito_TokenSkipped(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	authARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/api-2/authorizers/auth-2", testRegion)
+	attrs := `{"Type":"TOKEN","ProviderARNs":[]}`
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayAuthorizer, authARN, testRegion, attrs)
+
+	if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 rels, got %d", len(rels))
+	}
+}

@@ -41,6 +41,11 @@ var expectedAWSServices = []string{
 	"aws:cloudtrail",
 	"aws:cognito",
 	"aws:sfn",
+	"aws:ssm",
+	"aws:guardduty",
+	"aws:config",
+	"aws:backup",
+	"aws:acm-pca",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

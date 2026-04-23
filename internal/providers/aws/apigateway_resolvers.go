@@ -23,8 +23,46 @@ func init() {
 		if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
 			return err
 		}
+		if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
+			return err
+		}
 		return resolveAPIGatewayDomainCertRelationships(acct, st)
 	})
+}
+
+// resolveAPIGatewayAuthorizerCognito emits an authorizer → Cognito user-pool
+// edge for each REST API authorizer whose Type is COGNITO_USER_POOLS. The
+// user-pool ARNs are carried in ProviderARNs[]. Skip any with no ARNs.
+func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
+	auths, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayAuthorizer},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range auths {
+		var attrs struct {
+			Type         string   `json:"Type"`
+			ProviderARNs []string `json:"ProviderARNs"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Type != "COGNITO_USER_POOLS" {
+			continue
+		}
+		for _, arn := range attrs.ProviderARNs {
+			if arn == "" {
+				continue
+			}
+			poolID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, arn)
+			if err := st.UpsertRelationship(r.ID, poolID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apigw-authorizer→cognito: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveAPIGatewayDomainCertRelationships links each custom domain name
