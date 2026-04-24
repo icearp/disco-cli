@@ -139,7 +139,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 1. `sensitiveKeySubstrings` (scalar-only, substring match): key matches denylist → scalar value redacted; object/array values recurse so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`) stay intact. Leaf leaks (`SecretString`, `Password`, ...) caught. If resolver unmarshal silent yields zero edges under key whose name matches denylist, check here first.
 2. `containerRedactKeys` (wholesale, exact lower-case match): key matches → every scalar descendant redacted regardless of leaf name. Use for user-key/value maps where leaf names unpredictable (Lambda `Environment.Variables`, CodeBuild env). Add exact lower-case name only; short strings over-match.
 
-**DB file perms (0600)**: `Open` chmods SQLite file to `0600` *after* `migrate()` runs. `sqlx.Open` lazy — file doesn't exist until first query, chmod before migrate silent no-ops. Non-regular paths (e.g. `:memory:`) skipped.
+**DB file perms (0600)**: `Open` chmods SQLite file to `0600` *after* `migrate()` runs. `sqlx.Open` lazy — file no exist until first query, chmod before migrate silent no-ops. Non-regular paths (e.g. `:memory:`) skipped.
 
 ### Resource IDs
 
@@ -214,6 +214,14 @@ Repo surfaces `slicescontains`, `stringscut`, `rangeint` diagnostics. Prefer `sl
 ### Smithy API-error-code predicates
 
 `isAPIErrorCode(err, codes ...string) bool` in `aws.go` = single choke point (wraps `errors.As` + `smithy.APIError.ErrorCode()` + `slices.Contains`). Use inline for one-off checks. Wrap in named helper only when reused 3+ times (precedent: `isAccessDenied` wraps 6 codes, 146 callers). Predicates needing code + message-substring match (e.g. `isCacheSecurityGroupsNotPermitted`) stay one-off — outside this helper's shape.
+
+### `skipIfAccessDenied` always returns nil
+
+Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanners (e.g. `scanEventBridge` running buses + rules + connections + api-destinations in one call) cannot early-return — use `_ = skipIfAccessDenied(...); break` to skip denied phase while preserving totals from prior phases. Precedent: `scanEventBridge` phases 3/4.
+
+### ROADMAP vs source drift
+
+Before implementing a `ROADMAP.md` NOW item, grep for target `Type*` constants + resolver fn names — items get implemented without roadmap sweep (R1.3 Lambda layers + R1.4 SQS KMS both listed TODO while already shipped). Audit first; move DONE items into COMPLETED section same pass.
 
 ### Migrations
 

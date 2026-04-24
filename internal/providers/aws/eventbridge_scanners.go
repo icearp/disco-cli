@@ -135,5 +135,89 @@ func scanEventBridge(ctx context.Context, acct *account, region string, st *stor
 		inserted += n
 	}
 
+	// Phase 3: connections (account+region scope, manual NextToken — no paginator).
+	var connBatch []*store.Resource
+	var connToken *string
+	for {
+		out, err := client.ListConnections(ctx, &eventbridge.ListConnectionsInput{NextToken: connToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "events:ListConnections", acct.ID, region, err)
+				break
+			}
+			return total, inserted, fmt.Errorf("events:ListConnections: %w", err)
+		}
+		for _, c := range out.Connections {
+			arn := sv(c.ConnectionArn)
+			status := string(c.ConnectionState)
+			connBatch = append(connBatch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEventsConnection,
+				NativeID:       arn,
+				Name:           c.Name,
+				Region:         &region,
+				Status:         &status,
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if out.NextToken == nil {
+			break
+		}
+		connToken = out.NextToken
+	}
+	if len(connBatch) > 0 {
+		n, err := st.UpsertResources(connBatch)
+		if err != nil {
+			return total, inserted, fmt.Errorf("upsert EventBridge connections: %w", err)
+		}
+		total += len(connBatch)
+		inserted += n
+	}
+
+	// Phase 4: API destinations (reference connections by ARN).
+	var destBatch []*store.Resource
+	var destToken *string
+	for {
+		out, err := client.ListApiDestinations(ctx, &eventbridge.ListApiDestinationsInput{NextToken: destToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "events:ListApiDestinations", acct.ID, region, err)
+				break
+			}
+			return total, inserted, fmt.Errorf("events:ListApiDestinations: %w", err)
+		}
+		for _, d := range out.ApiDestinations {
+			arn := sv(d.ApiDestinationArn)
+			status := string(d.ApiDestinationState)
+			destBatch = append(destBatch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEventsAPIDestination,
+				NativeID:       arn,
+				Name:           d.Name,
+				Region:         &region,
+				Status:         &status,
+				AttributesJSON: mustJSON(d),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if out.NextToken == nil {
+			break
+		}
+		destToken = out.NextToken
+	}
+	if len(destBatch) > 0 {
+		n, err := st.UpsertResources(destBatch)
+		if err != nil {
+			return total, inserted, fmt.Errorf("upsert EventBridge api destinations: %w", err)
+		}
+		total += len(destBatch)
+		inserted += n
+	}
+
 	return total, inserted, nil
 }

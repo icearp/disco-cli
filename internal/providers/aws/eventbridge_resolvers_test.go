@@ -91,6 +91,72 @@ func TestResolveEventBridgeRelationships_DefaultBus(t *testing.T) {
 	assertRelationship(t, rels, ruleID, busID, store.RelAttachedTo)
 }
 
+func TestResolveEventBridgeRelationships_APIDestinationTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	busARN := fmt.Sprintf("arn:aws:events:%s:%s:event-bus/default", testRegion, acct.ID)
+	ruleARN := fmt.Sprintf("arn:aws:events:%s:%s:rule/r", testRegion, acct.ID)
+	destARN := fmt.Sprintf("arn:aws:events:%s:%s:api-destination/foo/uuid", testRegion, acct.ID)
+
+	ruleAttrs := fmt.Sprintf(`{"Rule":{"EventBusArn":%q},"Targets":[{"Arn":%q}]}`, busARN, destARN)
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
+	_ = upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
+	destID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsAPIDestination, destARN, testRegion, "{}")
+
+	if err := resolveEventBridgeRelationships(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(ruleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, ruleID, destID, store.RelRoutesTo)
+}
+
+func TestResolveEventBridgeAPIDestinationConnection(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	connARN := fmt.Sprintf("arn:aws:events:%s:%s:connection/c/uuid", testRegion, acct.ID)
+	destARN := fmt.Sprintf("arn:aws:events:%s:%s:api-destination/d/uuid", testRegion, acct.ID)
+
+	connID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsConnection, connARN, testRegion, "{}")
+	destAttrs := fmt.Sprintf(`{"ConnectionArn":%q}`, connARN)
+	destID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsAPIDestination, destARN, testRegion, destAttrs)
+
+	if err := resolveEventBridgeAPIDestinationConnection(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeAPIDestinationConnection: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(destID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, destID, connID, store.RelUses)
+}
+
+func TestResolveEventBridgeAPIDestinationConnection_Missing(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	// ConnectionArn points at a connection that was never scanned (cross-account, etc.).
+	missingConn := fmt.Sprintf("arn:aws:events:%s:999999999999:connection/x/uuid", testRegion)
+	destARN := fmt.Sprintf("arn:aws:events:%s:%s:api-destination/d/uuid", testRegion, acct.ID)
+	destAttrs := fmt.Sprintf(`{"ConnectionArn":%q}`, missingConn)
+	destID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsAPIDestination, destARN, testRegion, destAttrs)
+
+	if err := resolveEventBridgeAPIDestinationConnection(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeAPIDestinationConnection: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(destID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected no edge for missing connection, got %d", len(rels))
+	}
+}
+
 func TestResolveEventBridgeRelationships_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

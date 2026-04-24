@@ -153,8 +153,10 @@ const (
 	TypeWAFv2RuleGroup = "aws:wafv2:rule-group"
 	TypeWAFv2IPSet     = "aws:wafv2:ip-set"
 	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
-	TypeEventsEventBus = "aws:events:event-bus"
-	TypeEventsRule     = "aws:events:rule"
+	TypeEventsEventBus       = "aws:events:event-bus"
+	TypeEventsRule           = "aws:events:rule"
+	TypeEventsAPIDestination = "aws:events:api-destination"
+	TypeEventsConnection     = "aws:events:connection"
 	// CloudTrail (cloudtrail_scanners.go, cloudtrail_resolvers.go)
 	TypeCloudTrailTrail = "aws:cloudtrail:trail"
 	// StepFunctions (sfn_scanners.go, sfn_resolvers.go)
@@ -466,6 +468,7 @@ func KnownTypes() []string {
 		TypeWAFv2WebACL, TypeWAFv2RuleGroup, TypeWAFv2IPSet,
 		// EventBridge
 		TypeEventsEventBus, TypeEventsRule,
+		TypeEventsAPIDestination, TypeEventsConnection,
 		// CloudTrail
 		TypeCloudTrailTrail,
 		// StepFunctions

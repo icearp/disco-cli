@@ -11,6 +11,7 @@ import (
 
 func init() {
 	registerResolver(resolveEventBridgeRelationships)
+	registerResolver(resolveEventBridgeAPIDestinationConnection)
 }
 
 // resolveEventBridgeRelationships links each rule to its event bus and targets.
@@ -89,7 +90,58 @@ func eventBridgeTargetType(arn string) string {
 		return TypeSFNStateMachine
 	case strings.Contains(arn, ":firehose:") && strings.Contains(arn, ":deliverystream/"):
 		return TypeFirehoseDeliveryStream
+	case strings.Contains(arn, ":events:") && strings.Contains(arn, ":api-destination/"):
+		return TypeEventsAPIDestination
 	default:
 		return ""
 	}
+}
+
+// resolveEventBridgeAPIDestinationConnection emits uses edges from each API
+// destination to the connection it references (ConnectionArn). FK-safe via
+// scanned-connection id set — cross-account refs silently skip.
+func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) error {
+	dests, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsAPIDestination},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(dests) == 0 {
+		return nil
+	}
+	conns, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsConnection},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	connIDs := make(map[string]struct{}, len(conns))
+	for _, c := range conns {
+		connIDs[c.ID] = struct{}{}
+	}
+
+	type attrs struct {
+		ConnectionArn *string `json:"ConnectionArn"`
+	}
+	for _, d := range dests {
+		var a attrs
+		if err := json.Unmarshal([]byte(d.AttributesJSON), &a); err != nil {
+			continue
+		}
+		connARN := sv(a.ConnectionArn)
+		if connARN == "" {
+			continue
+		}
+		connID := store.ResourceID("aws", acct.ID, TypeEventsConnection, connARN)
+		if _, ok := connIDs[connID]; !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(d.ID, connID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert events-api-destination→connection: %w", err)
+		}
+	}
+	return nil
 }
