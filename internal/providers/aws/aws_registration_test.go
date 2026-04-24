@@ -46,6 +46,7 @@ var expectedAWSServices = []string{
 	"aws:config",
 	"aws:backup",
 	"aws:acm-pca",
+	"aws:kafka",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

@@ -203,7 +203,7 @@ func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 		}
 		srcType := lambdaESMSourceType(srcARN)
 		if srcType == "" {
-			continue // unsupported/unknown source (e.g. Kafka bootstrap server, DocumentDB)
+			continue // unsupported/unknown source (e.g. self-managed Kafka bootstrap server, DocumentDB)
 		}
 		srcID := store.ResourceID("aws", acct.ID, srcType, srcARN)
 		if err := st.UpsertRelationship(r.ID, srcID, store.RelUses, "directed", nil); err != nil {
@@ -228,6 +228,9 @@ func lambdaESMSourceType(arn string) string {
 	case "kinesis":
 		// Kinesis event source ARN is the stream ARN directly.
 		return TypeKinesisStream
+	case "kafka":
+		// MSK event source ARN is the cluster ARN directly.
+		return TypeMSKCluster
 	}
 	// DynamoDB streams have their own ARNs that don't match the parent table's
 	// ARN the scanner stores; skip until we scan streams natively.

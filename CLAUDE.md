@@ -41,7 +41,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 ### Resolver conventions
 
-- **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
+- **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silent match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, buried FK error.
 - **Edge kinds** (`internal/store`):
   - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but some resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
@@ -60,7 +60,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 ### ELBv2 LB attrs wrapped
 
-Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanners.go:109`), not top-level. Resolvers reading `DNSName`, `Scheme`, `VpcId` etc. must unmarshal under `"lb"` key or silently get zero values.
+Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanners.go:109`), not top-level. Resolvers reading `DNSName`, `Scheme`, `VpcId` etc. must unmarshal under `"lb"` key or silent zero values.
 
 ### Route53 alias DNS normalization
 
@@ -68,7 +68,7 @@ Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanne
 
 ### CloudWatch alarm dimensions — two shapes
 
-Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: nested under `Metrics[].MetricStat.Metric.{Namespace,Dimensions}`. Resolvers must read both or skip half of real alarms. See `resolveAlarmDimensions` in `cloudwatch_resolvers.go`.
+Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: nested under `Metrics[].MetricStat.Metric.{Namespace,Dimensions}`. Resolvers must read both or skip half real alarms. See `resolveAlarmDimensions` in `cloudwatch_resolvers.go`.
 
 ### Cognito JWT issuer URL
 
@@ -76,7 +76,7 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 
 ### IAM policy-document parsing
 
-- **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silently fails.
+- **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silent fail.
 - **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
 - **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. No other Federated shapes emit edges (skip rather than dangle).
 
@@ -133,7 +133,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 
 **Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
-**Scalar-only redaction**: sensitive key redacts only when value scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silently yields zero edges under key whose name matches denylist, check here first.
+**Scalar-only redaction**: sensitive key redacts only when value scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silent yields zero edges under key whose name matches denylist, check here first.
 
 ### Resource IDs
 
@@ -169,7 +169,7 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. `res
 
 Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaningful only via parent — fetch child at scan time, embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data, no extra API calls.
 
-**Warning — wrapping breaks existing resolvers.** Switching scanner from raw SDK struct to wrapped (e.g. adding `Targets` alongside `TargetGroup`) silently drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
+**Warning — wrapping breaks existing resolvers.** Switch scanner from raw SDK struct to wrapped (e.g. add `Targets` alongside `TargetGroup`) silent drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
 
 ### Non-resource config fetches → sidecar on `account`
 
@@ -184,6 +184,10 @@ Step Functions Definitions + similar carry built-in integration ARNs like `arn:a
 ### List-then-describe pattern (N+1 avoidance)
 
 AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrent via `errgroup` + `sync.Mutex` to collect, then batch upsert. No sequential Describe in loop.
+
+### Provisioned + Serverless flavors → single type
+
+One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *...`, `Serverless *...`) in native attrs; resolver branches on whichever non-nil. Precedent: `aws:kafka:cluster` MSK, `kafka_resolvers.go` reads subnets/SGs from `BrokerNodeGroupInfo` vs `VpcConfigs[]`. Applies to services modeling variants as parallel fields on same List/Describe response (Redshift Serverless, Aurora Serverless v2, EMR Serverless likely candidates).
 
 ### Sparse list entry → store Get body
 
@@ -203,15 +207,15 @@ AWS service returns only names from List API (EKS, DynamoDB) — describe each r
 
 ### Migrations
 
-SQL files in `internal/store/migrations/` embedded at compile time via `//go:embed`. Names must be `NNN_description.sql` (e.g. `002_add_foo.sql`). Runner splits on semicolons, executes each statement individually — SQLite's `database/sql` driver silently ignores everything after first statement in multi-statement `Exec`.
+SQL files in `internal/store/migrations/` embedded at compile time via `//go:embed`. Names must be `NNN_description.sql` (e.g. `002_add_foo.sql`). Runner splits on semicolons, executes each statement individually — SQLite `database/sql` driver silent ignores everything after first statement in multi-statement `Exec`.
 
 ### Config and DB path
 
-Viper reads `~/.disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO_DB`) overrides DB path; default `~/.disco/disco.db`. `defaultDBPath()` = pure getter — directory creation is `store.Open()`'s job.
+Viper reads `~/.disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO_DB`) overrides DB path; default `~/.disco/disco.db`. `defaultDBPath()` = pure getter — directory creation is `store.Open()` job.
 
 ### Rules engine (`internal/rules/`)
 
-YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `resources`, emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or authoring YAML + pass `--rules path.yaml`.
+YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `resources`, emit `Finding`s with severity. Seed rules in `internal/rules/builtin.go`: public S3, unencrypted EBS, SGs open to `0.0.0.0/0:22`, stale IAM keys. Extend by adding to `builtin.go` or author YAML + pass `--rules path.yaml`.
 
 ### Testing
 
@@ -247,6 +251,6 @@ Always add "no attrs / empty case" test alongside happy-path — guards nil-poin
 3. Comment everything.
 4. Human-readable code.
 5. No redundant code.
-6. Optimize first scan speed, then min memory + CPU.
+6. First optimize scan speed, then min memory + CPU.
 7. Keep deps minimal.
 8. Minimize token use. No re-read source already in context. Use sed, grep, head, tail cut lines during discovery + implementation.

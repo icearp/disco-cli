@@ -291,6 +291,8 @@ const (
 	TypeKMSKey   = "aws:kms:key"
 	TypeKMSAlias = "aws:kms:alias"
 	TypeKMSGrant = "aws:kms:grant"
+	// MSK / Kafka (kafka_scanners.go)
+	TypeMSKCluster = "aws:kafka:cluster"
 	// Secrets Manager (secretsmanager_scanners.go)
 	TypeSecretsManagerSecret = "aws:secretsmanager:secret"
 	// Organizations (organizations_scanners.go)
@@ -445,6 +447,8 @@ func KnownTypes() []string {
 		TypeLogsScheduledQuery, TypeLogsSubscriptionFilter, TypeLogsTransformer,
 		// KMS
 		TypeKMSKey, TypeKMSAlias, TypeKMSGrant,
+		// MSK / Kafka
+		TypeMSKCluster,
 		// Secrets Manager
 		TypeSecretsManagerSecret,
 		// Organizations

@@ -420,6 +420,30 @@ func TestResolveLambdaESMRelationships_KinesisSource(t *testing.T) {
 	assertRelationship(t, rels, esmID, streamID, store.RelUses)
 }
 
+// TestResolveLambdaESMRelationships_MSKSource verifies ESM with an MSK
+// EventSourceArn produces an edge to the cluster.
+func TestResolveLambdaESMRelationships_MSKSource(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	clusterARN := fmt.Sprintf("arn:aws:kafka:%s:%s:cluster/events-cluster/abc-123", testRegion, testAccountID)
+	esmARN := fmt.Sprintf("arn:aws:lambda:%s:%s:event-source-mapping:k2", testRegion, testAccountID)
+	attrs := `{"FunctionArn":"` + baseFnARN + `","EventSourceArn":"` + clusterARN + `"}`
+
+	esmID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaESM, esmARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN, testRegion, "{}")
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeMSKCluster, clusterARN, testRegion, "{}")
+
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaESMRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(esmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, esmID, clusterID, store.RelUses)
+}
+
 // TestLambdaStripQualifier verifies the qualifier-stripping helper.
 func TestLambdaStripQualifier(t *testing.T) {
 	tests := []struct {

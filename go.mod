@@ -44,6 +44,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14
 	github.com/aws/aws-sdk-go-v2/service/guardduty v1.75.2
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
+	github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
