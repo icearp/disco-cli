@@ -1,10 +1,15 @@
 package aws
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"testing"
 
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	smithy "github.com/aws/smithy-go"
 )
 
 // TestEC2ARN verifies the ARN format used as NativeID for EC2 resources.
@@ -99,3 +104,56 @@ func TestEC2TagName_EmptySlice(t *testing.T) {
 		t.Errorf("ec2TagName(nil): got %q, want nil", *got)
 	}
 }
+
+// TestIsTransientNetworkError covers positive + negative classifier cases.
+// The guard exists because one DNS blip during DescribeAlarms otherwise
+// aborts the entire scan.
+func TestIsTransientNetworkError(t *testing.T) {
+	dns := &net.DNSError{Err: "no such host", Name: "monitoring.us-east-1.amazonaws.com", IsNotFound: true}
+	opDial := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+	opRead := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("broken pipe")}
+	timeoutErr := &timeoutError{}
+	wrappedDNS := fmt.Errorf("operation error CloudWatch: DescribeAlarms, %w", dns)
+
+	reqTimeout := &smithy.GenericAPIError{Code: "RequestTimeout", Message: "request timed out"}
+	svcUnavail := &smithy.GenericAPIError{Code: "ServiceUnavailable", Message: "service unavailable"}
+	internal := &smithy.GenericAPIError{Code: "InternalFailure", Message: "internal failure"}
+	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
+	validation := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad input"}
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"dns error direct", dns, true},
+		{"dns error wrapped", wrappedDNS, true},
+		{"op dial error", opDial, true},
+		{"op read error", opRead, true},
+		{"net timeout", timeoutErr, true},
+		{"smithy RequestTimeout", reqTimeout, true},
+		{"smithy ServiceUnavailable", svcUnavail, true},
+		{"smithy InternalFailure", internal, true},
+		{"smithy AccessDenied not transient", accessDenied, false},
+		{"smithy ValidationException not transient", validation, false},
+		{"context canceled not transient", context.Canceled, false},
+		{"plain errors.New not transient", errors.New("some unrelated failure"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := isTransientNetworkError(c.err)
+			if got != c.want {
+				t.Errorf("isTransientNetworkError(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
+	}
+}
+
+// timeoutError satisfies net.Error with Timeout()==true. Used to assert the
+// net.Error+Timeout branch of the classifier independent of DNSError/OpError.
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }

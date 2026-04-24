@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -107,6 +108,11 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
 			if err != nil {
+				if isTransientNetworkError(err) {
+					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
+					st.ReportService(svc.name, 0, 0)
+					return nil
+				}
 				return err
 			}
 			st.ReportService(svc.name, total, inserted)
@@ -163,6 +169,11 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
 			if err != nil {
+				if isTransientNetworkError(err) {
+					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
+					st.ReportService(svc.name, 0, 0)
+					return nil
+				}
 				return err
 			}
 			st.ReportService(svc.name, total, inserted)
@@ -322,6 +333,57 @@ func skipIfAccessDenied(st *store.Store, service, accountID, region string, err 
 		Service:  service,
 		Scope:    scope,
 		Message:  err.Error(),
+	})
+	return nil
+}
+
+// isTransientNetworkError reports whether err looks like a momentary network
+// or service-side glitch rather than a permanent failure. The SDK v2 retryer
+// already handles throttling and 5xx within its budget; anything that reaches
+// us is post-retry. A one-off DNS blip or endpoint flap should warn-skip and
+// let sibling services continue, matching the AccessDenied policy — otherwise
+// a single hiccup aborts the whole scan.
+//
+// Context cancellation (Ctrl-C, parent timeout) is deliberately NOT treated
+// as transient: those indicate the scan should stop.
+func isTransientNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return isAPIErrorCode(err,
+		"RequestTimeout", "RequestTimeoutException", "RequestCanceled",
+		"ServiceUnavailable", "ServiceUnavailableException",
+		"InternalServerError", "InternalFailure", "InternalServerErrorException")
+}
+
+// skipIfTransient mirrors skipIfAccessDenied for transient network/service
+// errors. Records a ScanWarning and returns nil so the caller can continue.
+// The caller must have verified the error shape via isTransientNetworkError.
+func skipIfTransient(st *store.Store, service, accountID, region string, err error) error {
+	scope := accountID
+	if region != "" && region != "global" {
+		scope = accountID + "/" + region
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws",
+		Service:  service,
+		Scope:    scope,
+		Message:  "transient: " + err.Error(),
 	})
 	return nil
 }
