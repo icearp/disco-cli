@@ -332,9 +332,15 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Clie
 	return
 }
 
-// scanStorageLens lists S3 Storage Lens configurations for the given region.
+// scanStorageLens lists S3 Storage Lens configurations for the given region,
+// then fans out GetStorageLensConfiguration concurrently to capture the full
+// body (Include/Exclude buckets, DataExport target). The list response is
+// sparse — only the Get response carries edge-bearing fields consumed by
+// resolveStorageLensRelationships. Per-item access-denied is tolerated so one
+// unreadable config does not fail the whole scan.
 func scanStorageLens(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
+	// 1. List.
+	var entries []s3ctypes.ListStorageLensConfigurationEntry
 	p := s3control.NewListStorageLensConfigurationsPaginator(client, &s3control.ListStorageLensConfigurationsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
@@ -344,10 +350,42 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 			}
 			return 0, 0, fmt.Errorf("s3control:ListStorageLensConfigurations: %w", apiErr)
 		}
-		for _, e := range out.StorageLensConfigurationList {
-			arn := sv(e.StorageLensArn)
+		entries = append(entries, out.StorageLensConfigurationList...)
+	}
+	if len(entries) == 0 {
+		return 0, 0, nil
+	}
+
+	// 2. Fan-out Get per entry.
+	const maxConcurrent = 10
+	sem := semaphore.NewWeighted(maxConcurrent)
+	var (
+		mu    sync.Mutex
+		batch []*store.Resource
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, e := range entries {
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
 			id := sv(e.Id)
-			batch = append(batch, &store.Resource{
+			arn := sv(e.StorageLensArn)
+			out, gerr := client.GetStorageLensConfiguration(gctx, &s3control.GetStorageLensConfigurationInput{
+				AccountId: &acct.ID,
+				ConfigId:  &id,
+			})
+			if gerr != nil {
+				if isAccessDenied(gerr) {
+					return nil
+				}
+				return fmt.Errorf("s3control:GetStorageLensConfiguration %s: %w", id, gerr)
+			}
+			if out.StorageLensConfiguration == nil {
+				return nil
+			}
+			res := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -355,15 +393,22 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 				NativeID:       arn,
 				Name:           &id,
 				Region:         &region,
-				AttributesJSON: mustJSON(e),
+				AttributesJSON: mustJSON(out.StorageLensConfiguration),
 				DiscoveredBy:   scanID,
-			})
-		}
+			}
+			mu.Lock()
+			batch = append(batch, res)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if werr := g.Wait(); werr != nil {
+		return 0, 0, werr
 	}
 	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 Storage Lens configurations: %w", err)
+		n, uerr := st.UpsertResources(batch)
+		if uerr != nil {
+			return 0, 0, fmt.Errorf("upsert S3 Storage Lens configurations: %w", uerr)
 		}
 		total = len(batch)
 		inserted = n
