@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -11,12 +12,15 @@ import (
 
 func init() { registerResolver(resolveCloudWatchRelationships) }
 
-// resolveCloudWatchRelationships runs both CloudWatch relationship passes.
+// resolveCloudWatchRelationships runs all CloudWatch relationship passes.
 func resolveCloudWatchRelationships(acct *account, st *store.Store) error {
 	if err := resolveAlarmSNSActions(acct, st); err != nil {
 		return err
 	}
-	return resolveCompositeAlarmChildren(acct, st)
+	if err := resolveCompositeAlarmChildren(acct, st); err != nil {
+		return err
+	}
+	return resolveAlarmDimensions(acct, st)
 }
 
 // resolveAlarmSNSActions links both metric alarms and composite alarms to the
@@ -116,6 +120,147 @@ func resolveCompositeAlarmChildren(acct *account, st *store.Store) error {
 			}
 			if err := st.UpsertRelationship(r.ID, childID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert composite-alarm→child relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// alarmDimKey pairs CloudWatch metric Namespace + Dimension Name.
+type alarmDimKey struct{ namespace, dim string }
+
+// alarmDimTarget names the scanned resource type and how to build a lookup key
+// from the dimension Value.
+type alarmDimTarget struct {
+	rtype string
+	// mode: "name" = index (type,region,name); "ec2-instance" = rebuild EC2 ARN;
+	// "elbv2-suffix" = match NativeID suffix "loadbalancer/<value>".
+	mode string
+}
+
+// alarmDimMap covers the common CloudWatch namespaces whose scanners are
+// already landed. Extensions land only when matched-type scanners exist.
+var alarmDimMap = map[alarmDimKey]alarmDimTarget{
+	{"AWS/EC2", "InstanceId"}:              {TypeEC2Instance, "ec2-instance"},
+	{"AWS/RDS", "DBInstanceIdentifier"}:    {TypeRDSDBInstance, "name"},
+	{"AWS/RDS", "DBClusterIdentifier"}:     {TypeRDSDBCluster, "name"},
+	{"AWS/Lambda", "FunctionName"}:         {TypeLambdaFunction, "name"},
+	{"AWS/SQS", "QueueName"}:               {TypeSQSQueue, "name"},
+	{"AWS/SNS", "TopicName"}:               {TypeSNSTopic, "name"},
+	{"AWS/DynamoDB", "TableName"}:          {TypeDynamoDBTable, "name"},
+	{"AWS/ApplicationELB", "LoadBalancer"}: {TypeELBv2LoadBalancer, "elbv2-suffix"},
+	{"AWS/NetworkELB", "LoadBalancer"}:     {TypeELBv2LoadBalancer, "elbv2-suffix"},
+	{"AWS/EKS", "ClusterName"}:             {TypeEKSCluster, "name"},
+}
+
+// resolveAlarmDimensions links metric alarms to the resource identified by
+// their Namespace + Dimensions. Covers both top-level (MetricAlarm) and
+// metric-math (Metrics[].MetricStat.Metric) forms. Edge: uses.
+func resolveAlarmDimensions(acct *account, st *store.Store) error {
+	// Collect scanned types referenced by alarmDimMap, then build lookup indexes.
+	nameIdx := map[string]string{}      // "<type>|<region>|<name>" → resourceID
+	ec2InstIdx := map[string]string{}   // "<region>|<instance-id>" → resourceID
+	elbSuffixIdx := map[string]string{} // e.g. "app/my-lb/abc" → resourceID
+
+	wantTypes := map[string]struct{}{}
+	for _, t := range alarmDimMap {
+		wantTypes[t.rtype] = struct{}{}
+	}
+	types := make([]string, 0, len(wantTypes))
+	for t := range wantTypes {
+		types = append(types, t)
+	}
+	targets, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: types, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range targets {
+		region := sv(r.Region)
+		switch r.Type {
+		case TypeEC2Instance:
+			// NativeID tail is "instance/i-...".
+			if idx := strings.LastIndex(r.NativeID, "instance/"); idx != -1 {
+				ec2InstIdx[region+"|"+r.NativeID[idx+len("instance/"):]] = r.ID
+			}
+		case TypeELBv2LoadBalancer:
+			// NativeID tail is "loadbalancer/<app|net>/<name>/<id>".
+			if idx := strings.LastIndex(r.NativeID, "loadbalancer/"); idx != -1 {
+				elbSuffixIdx[r.NativeID[idx+len("loadbalancer/"):]] = r.ID
+			}
+		default:
+			if r.Name != nil && *r.Name != "" {
+				nameIdx[r.Type+"|"+region+"|"+*r.Name] = r.ID
+			}
+		}
+	}
+
+	alarms, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudWatchAlarm},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, a := range alarms {
+		type dim struct{ Name, Value *string }
+		var attrs struct {
+			Namespace  *string
+			Dimensions []dim
+			Metrics    []struct {
+				MetricStat *struct {
+					Metric *struct {
+						Namespace  *string
+						Dimensions []dim
+					}
+				}
+			}
+		}
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(a.Region)
+		seen := map[string]bool{}
+		emit := func(ns string, dims []dim) error {
+			for _, d := range dims {
+				dname := sv(d.Name)
+				dval := sv(d.Value)
+				if dname == "" || dval == "" {
+					continue
+				}
+				tgt, ok := alarmDimMap[alarmDimKey{ns, dname}]
+				if !ok {
+					continue
+				}
+				var toID string
+				switch tgt.mode {
+				case "ec2-instance":
+					toID = ec2InstIdx[region+"|"+dval]
+				case "elbv2-suffix":
+					toID = elbSuffixIdx[dval]
+				default:
+					toID = nameIdx[tgt.rtype+"|"+region+"|"+dval]
+				}
+				if toID == "" || seen[toID] {
+					continue
+				}
+				seen[toID] = true
+				if err := st.UpsertRelationship(a.ID, toID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert alarm→dimension: %w", err)
+				}
+			}
+			return nil
+		}
+		if err := emit(sv(attrs.Namespace), attrs.Dimensions); err != nil {
+			return err
+		}
+		for _, m := range attrs.Metrics {
+			if m.MetricStat == nil || m.MetricStat.Metric == nil {
+				continue
+			}
+			if err := emit(sv(m.MetricStat.Metric.Namespace), m.MetricStat.Metric.Dimensions); err != nil {
+				return err
 			}
 		}
 	}

@@ -42,7 +42,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 ### Resolver conventions
 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
-- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
+- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, buried FK error.
 - **Edge kinds** (`internal/store`):
   - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
@@ -64,6 +64,10 @@ Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanne
 ### Route53 alias DNS normalization
 
 `AliasTarget.DNSName` values carry trailing `.` and (on ELB targets) leading `dualstack.` prefix backend attrs lack. Normalize both before lookup: `strings.TrimSuffix(strings.ToLower(s), ".")` then `strings.TrimPrefix(s, "dualstack.")`. See `normalizeAliasDNS` in `route53_resolvers.go`.
+
+### CloudWatch alarm dimensions — two shapes
+
+Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: nested under `Metrics[].MetricStat.Metric.{Namespace,Dimensions}`. Resolvers must read both or skip half of real alarms. See `resolveAlarmDimensions` in `cloudwatch_resolvers.go`.
 
 ### IAM policy-document parsing
 
@@ -156,7 +160,7 @@ Step Functions Definitions and similar carry built-in integration ARNs like `arn
 
 ### List-then-describe pattern (N+1 avoidance)
 
-AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. No Describe sequentially in loop.
+AWS service returns only names from List API (EKS, DynamoDB) — describe each resource concurrently via `errgroup` + `sync.Mutex` to collect, then upsert batch. No sequential Describe in loop.
 
 ### Migrations
 
