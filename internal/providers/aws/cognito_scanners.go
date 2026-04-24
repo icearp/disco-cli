@@ -24,9 +24,9 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 
 	// Phase 1: list user pool IDs.
 	var poolIDs []string
-	var upToken *string
-	for {
-		out, err := idpClient.ListUserPools(ctx, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60), NextToken: upToken})
+	upPager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})
+	for upPager.HasMorePages() {
+		out, err := upPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
@@ -36,10 +36,6 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 		for _, p := range out.UserPools {
 			poolIDs = append(poolIDs, sv(p.Id))
 		}
-		if out.NextToken == nil {
-			break
-		}
-		upToken = out.NextToken
 	}
 
 	// Phase 2: describe user pools + list/describe app clients (concurrent per pool).
@@ -78,13 +74,12 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 			mu.Unlock()
 
 			// List app clients for this pool.
-			var cToken *string
-			for {
-				cOut, err := idpClient.ListUserPoolClients(gctx, &cognitoidp.ListUserPoolClientsInput{
-					UserPoolId: &poolID,
-					MaxResults: aws.Int32(60),
-					NextToken:  cToken,
-				})
+			cPager := cognitoidp.NewListUserPoolClientsPaginator(idpClient, &cognitoidp.ListUserPoolClientsInput{
+				UserPoolId: &poolID,
+				MaxResults: aws.Int32(60),
+			})
+			for cPager.HasMorePages() {
+				cOut, err := cPager.NextPage(gctx)
 				if err != nil {
 					if isAccessDenied(err) {
 						break
@@ -116,10 +111,6 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 					clientBatch = append(clientBatch, cr)
 					mu.Unlock()
 				}
-				if cOut.NextToken == nil {
-					break
-				}
-				cToken = cOut.NextToken
 			}
 			return nil
 		})
@@ -146,9 +137,9 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 
 	// Phase 3: identity pools.
 	var idBatch []*store.Resource
-	var ipToken *string
-	for {
-		out, err := idClient.ListIdentityPools(ctx, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60), NextToken: ipToken})
+	ipPager := cognitoidentity.NewListIdentityPoolsPaginator(idClient, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60)})
+	for ipPager.HasMorePages() {
+		out, err := ipPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				break
@@ -185,10 +176,6 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 			}
 			idBatch = append(idBatch, r)
 		}
-		if out.NextToken == nil {
-			break
-		}
-		ipToken = out.NextToken
 	}
 	if len(idBatch) > 0 {
 		n, err := st.UpsertResources(idBatch)

@@ -21,12 +21,11 @@ func init() { registerService(serviceEntry{name: "aws:sqs", fn: scanSQS}) }
 func scanSQS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sqs.NewFromConfig(acct.cfg, func(o *sqs.Options) { o.Region = region })
 
-	var nextToken *string
-	for {
-		out, err := client.ListQueues(ctx, &sqs.ListQueuesInput{
-			MaxResults: sdkaws.Int32(1000),
-			NextToken:  nextToken,
-		})
+	p := sqs.NewListQueuesPaginator(client, &sqs.ListQueuesInput{
+		MaxResults: sdkaws.Int32(1000),
+	})
+	for p.HasMorePages() {
+		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "sqs:ListQueues", acct.ID, region, err)
@@ -86,10 +85,6 @@ func scanSQS(ctx context.Context, acct *account, region string, st *store.Store,
 			total += len(batch)
 			inserted += n
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	return total, inserted, nil
 }

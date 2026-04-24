@@ -2,14 +2,12 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	s3ctypes "github.com/aws/aws-sdk-go-v2/service/s3control/types"
-	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -62,12 +60,9 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 // There is at most one instance per region per account.
 func scanAccessGrantsInstances(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListAccessGrantsInstances(ctx, &s3control.ListAccessGrantsInstancesInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListAccessGrantsInstancesPaginator(client, &s3control.ListAccessGrantsInstancesInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrantsInstances", acct.ID, region, apiErr)
@@ -90,10 +85,6 @@ func scanAccessGrantsInstances(ctx context.Context, acct *account, region string
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -106,26 +97,15 @@ func scanAccessGrantsInstances(ctx context.Context, acct *account, region string
 	return
 }
 
-// isAccessGrantsInstanceNotExists reports whether err indicates that no S3
-// Access Grants instance exists in the region. ListAccessGrantsLocations and
-// ListAccessGrants both return this 404 error when no instance is present.
-func isAccessGrantsInstanceNotExists(err error) bool {
-	var ae smithy.APIError
-	return errors.As(err, &ae) && ae.ErrorCode() == "AccessGrantsInstanceNotExistsError"
-}
-
 // scanAccessGrantsLocations lists the registered locations in the account's
 // S3 Access Grants instance for the given region.
 func scanAccessGrantsLocations(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListAccessGrantsLocations(ctx, &s3control.ListAccessGrantsLocationsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListAccessGrantsLocationsPaginator(client, &s3control.ListAccessGrantsLocationsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
-			if isAccessGrantsInstanceNotExists(apiErr) {
+			if isAPIErrorCode(apiErr, "AccessGrantsInstanceNotExistsError") {
 				return 0, 0, nil // no instance in this region — expected
 			}
 			if isAccessDenied(apiErr) {
@@ -149,10 +129,6 @@ func scanAccessGrantsLocations(ctx context.Context, acct *account, region string
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -169,14 +145,11 @@ func scanAccessGrantsLocations(ctx context.Context, acct *account, region string
 // instance for the given region.
 func scanAccessGrants(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListAccessGrants(ctx, &s3control.ListAccessGrantsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListAccessGrantsPaginator(client, &s3control.ListAccessGrantsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
-			if isAccessGrantsInstanceNotExists(apiErr) {
+			if isAPIErrorCode(apiErr, "AccessGrantsInstanceNotExistsError") {
 				return 0, 0, nil // no instance in this region — expected
 			}
 			if isAccessDenied(apiErr) {
@@ -200,10 +173,6 @@ func scanAccessGrants(ctx context.Context, acct *account, region string, client 
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -219,12 +188,9 @@ func scanAccessGrants(ctx context.Context, acct *account, region string, client 
 // scanS3AccessPoints lists S3 access points in the given region.
 func scanS3AccessPoints(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListAccessPoints(ctx, &s3control.ListAccessPointsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListAccessPointsPaginator(client, &s3control.ListAccessPointsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPoints", acct.ID, region, apiErr)
@@ -246,10 +212,6 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -266,12 +228,9 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 // always routed through us-east-1) and then fetches each one's policy.
 func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mraps []s3ctypes.MultiRegionAccessPointReport
-	var nextToken *string
-	for {
-		out, apiErr := client.ListMultiRegionAccessPoints(ctx, &s3control.ListMultiRegionAccessPointsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListMultiRegionAccessPointsPaginator(client, &s3control.ListMultiRegionAccessPointsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
@@ -279,10 +238,6 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3c
 			return 0, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
 		}
 		mraps = append(mraps, out.AccessPoints...)
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 
 	var batch []*store.Resource
@@ -380,12 +335,9 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Clie
 // scanStorageLens lists S3 Storage Lens configurations for the given region.
 func scanStorageLens(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListStorageLensConfigurations(ctx, &s3control.ListStorageLensConfigurationsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListStorageLensConfigurationsPaginator(client, &s3control.ListStorageLensConfigurationsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
@@ -407,10 +359,6 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -426,12 +374,9 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 // scanStorageLensGroups lists S3 Storage Lens groups for the given region.
 func scanStorageLensGroups(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, apiErr := client.ListStorageLensGroups(ctx, &s3control.ListStorageLensGroupsInput{
-			AccountId: &acct.ID,
-			NextToken: nextToken,
-		})
+	p := s3control.NewListStorageLensGroupsPaginator(client, &s3control.ListStorageLensGroupsInput{AccountId: &acct.ID})
+	for p.HasMorePages() {
+		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensGroups", acct.ID, region, apiErr)
@@ -453,10 +398,6 @@ func scanStorageLensGroups(ctx context.Context, acct *account, region string, cl
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)

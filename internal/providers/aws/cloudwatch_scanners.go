@@ -145,19 +145,17 @@ func scanCWAlarmMuteRules(ctx context.Context, acct *account, region string, st 
 }
 
 // scanCWAnomalyDetectors discovers CloudWatch anomaly detection models.
-// DescribeAnomalyDetectors uses manual NextToken iteration.
 // NativeID is derived from the metric coordinates because the API does not
 // expose an ARN: "<Namespace>/<MetricName>/<Stat>" for single-metric detectors,
 // or "<first-query-id>" for metric-math detectors.
 func scanCWAnomalyDetectors(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
 
-	var nextToken *string
-	for {
-		out, err := client.DescribeAnomalyDetectors(ctx, &cloudwatch.DescribeAnomalyDetectorsInput{
-			MaxResults: sdkaws.Int32(100),
-			NextToken:  nextToken,
-		})
+	p := cloudwatch.NewDescribeAnomalyDetectorsPaginator(client, &cloudwatch.DescribeAnomalyDetectorsInput{
+		MaxResults: sdkaws.Int32(100),
+	})
+	for p.HasMorePages() {
+		out, err := p.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeAnomalyDetectors", acct.ID, region, err)
@@ -188,10 +186,6 @@ func scanCWAnomalyDetectors(ctx context.Context, acct *account, region string, s
 			total += len(batch)
 			inserted += n
 		}
-		if out.NextToken == nil {
-			break
-		}
-		nextToken = out.NextToken
 	}
 	return total, inserted, nil
 }

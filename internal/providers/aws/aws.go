@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -284,19 +285,25 @@ func mapTagsJSON(tags map[string]string) *string {
 	return &s
 }
 
+// isAPIErrorCode reports whether err is a Smithy APIError whose ErrorCode()
+// matches any of the given codes. Single choke point for AWS error-code
+// predicates in this package — use directly for one-off checks, or wrap in
+// a named helper (see isAccessDenied) for codes reused across many sites.
+func isAPIErrorCode(err error, codes ...string) bool {
+	var ae smithy.APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return slices.Contains(codes, ae.ErrorCode())
+}
+
 // isAccessDenied reports whether err is an AWS permission error. Such errors
 // are expected when the scanning role lacks access to a specific service or
 // region and should be logged then skipped rather than aborting the scan.
 func isAccessDenied(err error) bool {
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		switch ae.ErrorCode() {
-		case "AccessDenied", "UnauthorizedOperation", "AuthFailure",
-			"AccessDeniedException", "NotAuthorized", "ForbiddenException":
-			return true
-		}
-	}
-	return false
+	return isAPIErrorCode(err,
+		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
+		"AccessDeniedException", "NotAuthorized", "ForbiddenException")
 }
 
 // skipIfAccessDenied records the error as a scan warning and returns nil,

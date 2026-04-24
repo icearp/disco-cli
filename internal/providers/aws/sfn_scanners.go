@@ -20,9 +20,9 @@ func scanSFN(ctx context.Context, acct *account, region string, st *store.Store,
 
 	// Phase 1: list state machine ARNs.
 	var smARNs []string
-	var smToken *string
-	for {
-		out, err := client.ListStateMachines(ctx, &sfn.ListStateMachinesInput{NextToken: smToken})
+	smPager := sfn.NewListStateMachinesPaginator(client, &sfn.ListStateMachinesInput{})
+	for smPager.HasMorePages() {
+		out, err := smPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "states:ListStateMachines", acct.ID, region, err)
@@ -32,10 +32,6 @@ func scanSFN(ctx context.Context, acct *account, region string, st *store.Store,
 		for _, sm := range out.StateMachines {
 			smARNs = append(smARNs, sv(sm.StateMachineArn))
 		}
-		if out.NextToken == nil {
-			break
-		}
-		smToken = out.NextToken
 	}
 
 	// Phase 2: describe each state machine concurrently.
@@ -86,9 +82,9 @@ func scanSFN(ctx context.Context, acct *account, region string, st *store.Store,
 
 	// Phase 3: activities.
 	var actBatch []*store.Resource
-	var actToken *string
-	for {
-		out, err := client.ListActivities(ctx, &sfn.ListActivitiesInput{NextToken: actToken})
+	actPager := sfn.NewListActivitiesPaginator(client, &sfn.ListActivitiesInput{})
+	for actPager.HasMorePages() {
+		out, err := actPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				break
@@ -110,10 +106,6 @@ func scanSFN(ctx context.Context, acct *account, region string, st *store.Store,
 			}
 			actBatch = append(actBatch, r)
 		}
-		if out.NextToken == nil {
-			break
-		}
-		actToken = out.NextToken
 	}
 	if len(actBatch) > 0 {
 		n, err := st.UpsertResources(actBatch)

@@ -2,14 +2,12 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -109,7 +107,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Clie
 			out, err := rc.GetBucketEncryption(gctx, &s3.GetBucketEncryptionInput{Bucket: &name})
 			if err != nil {
 				// No explicit config = default SSE-S3; very common — skip.
-				if isNoSuchBucketEncryption(err) || isAccessDenied(err) {
+				if isAPIErrorCode(err, "ServerSideEncryptionConfigurationNotFoundError") || isAccessDenied(err) {
 					return nil
 				}
 				return fmt.Errorf("s3:GetBucketEncryption %s: %w", name, err)
@@ -127,14 +125,6 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Clie
 		})
 	}
 	return g.Wait()
-}
-
-// isNoSuchBucketEncryption reports whether err is the S3
-// ServerSideEncryptionConfigurationNotFoundError — bucket has no explicit
-// encryption config, a normal state for SSE-S3 buckets, not a real error.
-func isNoSuchBucketEncryption(err error) bool {
-	var ae smithy.APIError
-	return errors.As(err, &ae) && ae.ErrorCode() == "ServerSideEncryptionConfigurationNotFoundError"
 }
 
 // scanS3BucketPolicies fetches the bucket policy for each bucket concurrently.
@@ -173,7 +163,7 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client *s3.Client,
 			out, err := rc.GetBucketPolicy(gctx, &s3.GetBucketPolicyInput{Bucket: &name})
 			if err != nil {
 				// No policy on this bucket — expected and common.
-				if isNoSuchBucketPolicy(err) || isAccessDenied(err) {
+				if isAPIErrorCode(err, "NoSuchBucketPolicy") || isAccessDenied(err) {
 					return nil
 				}
 				return fmt.Errorf("s3:GetBucketPolicy %s: %w", name, err)
@@ -220,11 +210,4 @@ func s3BucketRegion(ctx context.Context, client *s3.Client, bucket string) (stri
 		return "us-east-1", nil
 	}
 	return string(out.LocationConstraint), nil
-}
-
-// isNoSuchBucketPolicy reports whether err is the S3 NoSuchBucketPolicy error,
-// which means the bucket exists but has no attached policy — not a real error.
-func isNoSuchBucketPolicy(err error) bool {
-	var ae smithy.APIError
-	return errors.As(err, &ae) && ae.ErrorCode() == "NoSuchBucketPolicy"
 }

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,7 +9,6 @@ import (
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
-	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -78,7 +76,7 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 				if rerr == nil {
 					b := rot.KeyRotationEnabled
 					attrs.KeyRotationEnabled = &b
-				} else if !isUnsupportedOp(rerr) && !isAccessDenied(rerr) {
+				} else if !isAPIErrorCode(rerr, "UnsupportedOperationException") && !isAccessDenied(rerr) {
 					return fmt.Errorf("kms:GetKeyRotationStatus %s: %w", sv(md.KeyId), rerr)
 				}
 
@@ -164,14 +162,4 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 		}
 	}
 	return total, inserted, nil
-}
-
-// isUnsupportedOp reports whether err is KMS's UnsupportedOperationException,
-// raised by GetKeyRotationStatus on asymmetric/imported keys.
-func isUnsupportedOp(err error) bool {
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		return ae.ErrorCode() == "UnsupportedOperationException"
-	}
-	return false
 }
