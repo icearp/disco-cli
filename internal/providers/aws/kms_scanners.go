@@ -41,8 +41,10 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 		}
 
 		var (
-			mu    sync.Mutex
-			batch []*store.Resource
+			mu         sync.Mutex
+			batch      []*store.Resource
+			grantBatch []*store.Resource
+			grantPairs [][2]string
 		)
 		g, gctx := errgroup.WithContext(ctx)
 		for _, k := range page.Keys {
@@ -84,12 +86,13 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 				if md.Enabled {
 					enabled = "Enabled"
 				}
+				keyARN := sv(md.Arn)
 				r := &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeKMSKey,
-					NativeID:       sv(md.Arn),
+					NativeID:       keyARN,
 					Name:           md.KeyId,
 					Region:         &region,
 					CreatedAt:      tp(md.CreationDate),
@@ -97,8 +100,57 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 					AttributesJSON: mustJSON(attrs),
 					DiscoveredBy:   scanID,
 				}
+				keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, keyARN)
+
+				// ListGrants per key — grants authorize principals outside the key
+				// policy. AccessDenied per-key tolerated so one locked-down key
+				// doesn't fail the scan.
+				gpager := kms.NewListGrantsPaginator(client, &kms.ListGrantsInput{KeyId: md.KeyId})
+				var grants []*store.Resource
+				var pairs [][2]string
+				for gpager.HasMorePages() {
+					gpage, gerr := gpager.NextPage(gctx)
+					if gerr != nil {
+						if isAccessDenied(gerr) {
+							break
+						}
+						return fmt.Errorf("kms:ListGrants %s: %w", sv(md.KeyId), gerr)
+					}
+					for _, ge := range gpage.Grants {
+						// KMS grants have no AWS-issued ARN. Synthesize a stable
+						// NativeID under the key's ARN so ResourceID + hierarchy
+						// are deterministic across rescans.
+						gid := sv(ge.GrantId)
+						if gid == "" {
+							continue
+						}
+						arn := keyARN + "/grant/" + gid
+						name := ge.Name
+						if name == nil || *name == "" {
+							name = ge.GrantId
+						}
+						gr := &store.Resource{
+							Provider:       "aws",
+							AccountID:      acct.ID,
+							AccountName:    &acct.Name,
+							Type:           TypeKMSGrant,
+							NativeID:       arn,
+							Name:           name,
+							Region:         &region,
+							CreatedAt:      tp(ge.CreationDate),
+							AttributesJSON: mustJSON(ge),
+							DiscoveredBy:   scanID,
+						}
+						grantID := store.ResourceID("aws", acct.ID, TypeKMSGrant, arn)
+						grants = append(grants, gr)
+						pairs = append(pairs, [2]string{grantID, keyID})
+					}
+				}
+
 				mu.Lock()
 				batch = append(batch, r)
+				grantBatch = append(grantBatch, grants...)
+				grantPairs = append(grantPairs, pairs...)
 				mu.Unlock()
 				return nil
 			})
@@ -113,6 +165,17 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 			}
 			total += len(batch)
 			inserted += n
+		}
+		if len(grantBatch) > 0 {
+			n, err := st.UpsertResources(grantBatch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert KMS grants: %w", err)
+			}
+			total += len(grantBatch)
+			inserted += n
+			if err := st.BatchAddToHierarchyClosure(grantPairs); err != nil {
+				return 0, 0, fmt.Errorf("closure KMS grants: %w", err)
+			}
 		}
 	}
 
