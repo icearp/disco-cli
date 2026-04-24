@@ -20,8 +20,166 @@ func init() {
 		if err := resolveRoute53KSKRelationships(acct, st); err != nil {
 			return err
 		}
-		return resolveRoute53HealthCheckRelationships(acct, st)
+		if err := resolveRoute53HealthCheckRelationships(acct, st); err != nil {
+			return err
+		}
+		return resolveRoute53AliasRelationships(acct, st)
 	})
+}
+
+// resolveRoute53AliasRelationships links record sets with AliasTarget.DNSName
+// to the AWS backend fronted by that DNS (ELBv2 LB, CloudFront distribution,
+// APIGW custom domain v1/v2). Emits `uses` edges. Alias records whose DNS
+// doesn't match any scanned backend are skipped — avoids phantom edges.
+// S3-website aliases deferred (require RecordSet.Name → bucket mapping).
+func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
+	index, err := buildAliasBackendIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	if len(index) == 0 {
+		return nil
+	}
+	records, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range records {
+		var attrs struct {
+			AliasTarget *struct {
+				DNSName *string `json:"DNSName"`
+			} `json:"AliasTarget"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.AliasTarget == nil {
+			continue
+		}
+		key := normalizeAliasDNS(sv(attrs.AliasTarget.DNSName))
+		if key == "" {
+			continue
+		}
+		backendID, ok := index[key]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, backendID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert route53 record-set→alias-backend: %w", err)
+		}
+	}
+	return nil
+}
+
+// normalizeAliasDNS lower-cases, strips trailing dot, and strips a leading
+// "dualstack." prefix (Route53 alias records commonly carry it on ELB
+// targets even when the LB's own DNSName attribute does not).
+func normalizeAliasDNS(s string) string {
+	s = strings.ToLower(strings.TrimSuffix(s, "."))
+	s = strings.TrimPrefix(s, "dualstack.")
+	return s
+}
+
+// buildAliasBackendIndex maps normalized backend DNS names → backend
+// resource ID for every alias-target candidate in this account: ELBv2 LBs,
+// CloudFront distributions, APIGW custom domains (v1 + v2).
+func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, error) {
+	index := map[string]string{}
+
+	// ELBv2 load balancers — scanner wraps response as {"lb": <LB>, "type": "..."}.
+	lbs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeELBv2LoadBalancer},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range lbs {
+		var attrs struct {
+			LB struct {
+				DNSName *string `json:"DNSName"`
+			} `json:"lb"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if k := normalizeAliasDNS(sv(attrs.LB.DNSName)); k != "" {
+			index[k] = r.ID
+		}
+	}
+
+	// CloudFront distributions — top-level DomainName.
+	dists, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range dists {
+		var attrs struct {
+			DomainName *string `json:"DomainName"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if k := normalizeAliasDNS(sv(attrs.DomainName)); k != "" {
+			index[k] = r.ID
+		}
+	}
+
+	// APIGW v1 custom domains — DistributionDomainName (edge-optimized) +
+	// RegionalDomainName (regional). Either may be set.
+	v1, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainName},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range v1 {
+		var attrs struct {
+			DistributionDomainName *string `json:"DistributionDomainName"`
+			RegionalDomainName     *string `json:"RegionalDomainName"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, dns := range []string{sv(attrs.DistributionDomainName), sv(attrs.RegionalDomainName)} {
+			if k := normalizeAliasDNS(dns); k != "" {
+				index[k] = r.ID
+			}
+		}
+	}
+
+	// APIGW v2 custom domains — DomainNameConfigurations[].ApiGatewayDomainName.
+	v2, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range v2 {
+		var attrs struct {
+			DomainNameConfigurations []struct {
+				ApiGatewayDomainName *string `json:"ApiGatewayDomainName"`
+			} `json:"DomainNameConfigurations"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, c := range attrs.DomainNameConfigurations {
+			if k := normalizeAliasDNS(sv(c.ApiGatewayDomainName)); k != "" {
+				index[k] = r.ID
+			}
+		}
+	}
+
+	return index, nil
 }
 
 // resolveRoute53Relationships links each record set to its hosted zone.

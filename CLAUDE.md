@@ -42,7 +42,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 ### Resolver conventions
 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
-- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID field, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
+- **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, FK error buried.
 - **Edge kinds** (`internal/store`):
   - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
@@ -55,11 +55,19 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **CloudWatch Logs ARN `:*` suffix**: SDK returns `CloudWatchLogsLogGroupArn` with trailing `:*`. Strip via `strings.TrimSuffix(arn, ":*")` before NativeID lookup or edge points to phantom resource.
 - **EFS mount target NativeID**: no native ARN. Synthesize: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets` response.
 - **AWS Backup plan ARN** uses `backup-plan:`, not `plan:`. Real format: `arn:aws:backup:{r}:{a}:backup-plan:{planId}`. Synthetic selection NativeID `{planARN}/selection/{selId}` — trim `/selection/...` in resolver to recover parent plan ARN. Wrong prefix → FK error on closure insert.
-- **Organizations NativeID = full ARN, not raw ID**. Accounts + OUs stored keyed by `sv(a.Arn)`, not the `o-xxx` / 12-digit account ID. APIs like `ListDelegatedAdministrators` return raw IDs — translate via `loadOrgTargetIndex` (`organizations_resolvers.go`) before building `ResourceID`.
+- **Organizations NativeID = full ARN, not raw ID**. Accounts + OUs keyed by `sv(a.Arn)`, not `o-xxx` / 12-digit account ID. APIs like `ListDelegatedAdministrators` return raw IDs — translate via `loadOrgTargetIndex` (`organizations_resolvers.go`) before building `ResourceID`.
+
+### ELBv2 LB attrs wrapped
+
+Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanners.go:109`), not top-level. Resolvers reading `DNSName`, `Scheme`, `VpcId`, etc. must unmarshal under `"lb"` key or silently get zero values.
+
+### Route53 alias DNS normalization
+
+`AliasTarget.DNSName` values carry trailing `.` and (on ELB targets) leading `dualstack.` prefix backend attrs lack. Normalize both before lookup: `strings.TrimSuffix(strings.ToLower(s), ".")` then `strings.TrimPrefix(s, "dualstack.")`. See `normalizeAliasDNS` in `route53_resolvers.go`.
 
 ### IAM policy-document parsing
 
-- **`AssumeRolePolicyDocument` + all IAM policy docs are URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silently fails.
+- **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silently fails.
 - **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
 - **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. No other Federated shapes emit edges (skip rather than dangle).
 
@@ -107,7 +115,7 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
-- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy goes through `BatchAddToHierarchyClosure(pairs)` only.
+- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy via `BatchAddToHierarchyClosure(pairs)` only.
 - **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list).
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
@@ -116,7 +124,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 
 **Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
-**Scalar-only redaction**: sensitive key redacts only when value is scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silently yields zero edges under key whose name matches denylist, check here first.
+**Scalar-only redaction**: sensitive key redacts only when value scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silently yields zero edges under key whose name matches denylist, check here first.
 
 ### Resource IDs
 

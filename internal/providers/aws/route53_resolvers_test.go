@@ -256,3 +256,159 @@ func TestRecordSetZoneARN(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveRoute53AliasToELBv2 verifies alias A-record → ELBv2 LB edge.
+// Scanner wraps LB attrs as {"lb": <LoadBalancer>, "type": "..."}. Record
+// AliasTarget.DNSName carries `dualstack.` prefix + trailing dot — both
+// normalized away before lookup.
+func TestResolveRoute53AliasToELBv2(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	lbDNS := "my-alb-123.us-east-1.elb.amazonaws.com"
+	lbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:us-east-1:%s:loadbalancer/app/my-alb/abc", acct.ID)
+	lbAttrs := fmt.Sprintf(`{"lb":{"DNSName":%q},"type":"application"}`, lbDNS)
+	lbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, "us-east-1", lbAttrs)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/www.example.com"
+	recordAttrs := fmt.Sprintf(`{"Name":"www.example.com.","Type":"A","AliasTarget":{"DNSName":"dualstack.%s.","HostedZoneId":"Z35SXDOTRQ7X7K"}}`, lbDNS)
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, lbID, store.RelUses)
+}
+
+// TestResolveRoute53AliasToCloudFront verifies alias → CloudFront distribution edge.
+func TestResolveRoute53AliasToCloudFront(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cfDNS := "d111111abcdef8.cloudfront.net"
+	cfARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E1ABCDEFG", acct.ID)
+	cfAttrs := fmt.Sprintf(`{"DomainName":%q}`, cfDNS)
+	cfID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, cfARN, "", cfAttrs)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/cdn.example.com"
+	recordAttrs := fmt.Sprintf(`{"AliasTarget":{"DNSName":"%s."}}`, cfDNS)
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, cfID, store.RelUses)
+}
+
+// TestResolveRoute53AliasToAPIGWv1 verifies alias → APIGW v1 custom domain
+// via DistributionDomainName.
+func TestResolveRoute53AliasToAPIGWv1(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	apigwDNS := "d-abcdefgh.execute-api.us-east-1.amazonaws.com"
+	domainARN := "arn:aws:apigateway:us-east-1::/domainnames/api.example.com"
+	domainAttrs := fmt.Sprintf(`{"DomainName":"api.example.com","DistributionDomainName":%q}`, apigwDNS)
+	domainID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayDomainName, domainARN, "us-east-1", domainAttrs)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/api.example.com"
+	recordAttrs := fmt.Sprintf(`{"AliasTarget":{"DNSName":"%s."}}`, apigwDNS)
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, domainID, store.RelUses)
+}
+
+// TestResolveRoute53AliasToAPIGWv2 verifies alias → APIGW v2 custom domain
+// via DomainNameConfigurations[].ApiGatewayDomainName.
+func TestResolveRoute53AliasToAPIGWv2(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	apigwDNS := "d-xyz123.execute-api.us-east-1.amazonaws.com"
+	domainARN := "arn:aws:apigateway:us-east-1::/domainnames/v2.example.com"
+	domainAttrs := fmt.Sprintf(`{"DomainName":"v2.example.com","DomainNameConfigurations":[{"ApiGatewayDomainName":%q}]}`, apigwDNS)
+	domainID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayDomainNameV2, domainARN, "us-east-1", domainAttrs)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/v2.example.com"
+	recordAttrs := fmt.Sprintf(`{"AliasTarget":{"DNSName":"%s."}}`, apigwDNS)
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, domainID, store.RelUses)
+}
+
+// TestResolveRoute53Alias_UnmatchedDNS verifies that an alias record whose
+// DNS doesn't match any scanned backend emits no edges.
+func TestResolveRoute53Alias_UnmatchedDNS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/orphan.example.com"
+	recordAttrs := `{"AliasTarget":{"DNSName":"unknown.elb.amazonaws.com."}}`
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// TestResolveRoute53Alias_NoAliasTarget verifies that a non-alias record
+// (no AliasTarget field) produces no edges and no panic on missing fields.
+func TestResolveRoute53Alias_NoAliasTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	// Seed at least one backend so index is non-empty (exercises the
+	// record-iteration branch, not the early-return short-circuit).
+	lbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:us-east-1:%s:loadbalancer/app/x/y", acct.ID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, "us-east-1",
+		`{"lb":{"DNSName":"x.elb.amazonaws.com"},"type":"application"}`)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/plain.example.com"
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", `{"Type":"A"}`)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
