@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -21,6 +22,7 @@ func init() {
 	registerResolver(resolveMFADeviceToUser)
 	registerResolver(resolveManagedPolicyAttachments)
 	registerResolver(resolveUserGroupMemberships)
+	registerResolver(resolveIAMRoleFederatedTrust)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.
@@ -294,6 +296,88 @@ func resourceIDsByName(st *store.Store, accountID, rtype string) (map[string]str
 		}
 	}
 	return m, nil
+}
+
+// principalList decodes the Principal.Federated field of a trust policy,
+// which AWS serializes as either a single string or an array of strings.
+type principalList []string
+
+func (p *principalList) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '[' {
+		var arr []string
+		if err := json.Unmarshal(b, &arr); err != nil {
+			return err
+		}
+		*p = arr
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*p = []string{s}
+	return nil
+}
+
+// resolveIAMRoleFederatedTrust emits assumes edges from a role to any SAML
+// or OIDC identity provider named in its trust policy's Federated principals.
+// AssumeRolePolicyDocument is URL-encoded by the AWS SDK; decode before parsing.
+func resolveIAMRoleFederatedTrust(acct *account, st *store.Store) error {
+	roles, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMRole, TypeIAMServiceLinkedRole},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range roles {
+		var attrs struct {
+			AssumeRolePolicyDocument *string `json:"AssumeRolePolicyDocument"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.AssumeRolePolicyDocument == nil || *attrs.AssumeRolePolicyDocument == "" {
+			continue
+		}
+		doc, err := url.QueryUnescape(*attrs.AssumeRolePolicyDocument)
+		if err != nil {
+			continue
+		}
+		var policy struct {
+			Statement []struct {
+				Principal struct {
+					Federated principalList `json:"Federated"`
+				} `json:"Principal"`
+			} `json:"Statement"`
+		}
+		if err := json.Unmarshal([]byte(doc), &policy); err != nil {
+			continue
+		}
+		for _, stmt := range policy.Statement {
+			for _, arn := range stmt.Principal.Federated {
+				var providerType string
+				switch {
+				case strings.Contains(arn, ":saml-provider/"):
+					providerType = TypeIAMSAMLProvider
+				case strings.Contains(arn, ":oidc-provider/"):
+					providerType = TypeIAMOIDCProvider
+				default:
+					continue
+				}
+				targetID := store.ResourceID("aws", acct.ID, providerType, arn)
+				if err := st.UpsertRelationship(r.ID, targetID, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert role→federated-provider: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveUserGroupMemberships calls ListGroupsForUser for each user and creates

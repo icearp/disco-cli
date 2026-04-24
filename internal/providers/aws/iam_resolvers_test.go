@@ -1,7 +1,10 @@
 package aws
 
 import (
+	"net/url"
 	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // --- resolveInstanceProfileRoles ---
@@ -220,5 +223,75 @@ func TestResolveUserGroupMemberships_Empty(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	if err := resolveUserGroupMemberships(acct, st); err != nil {
 		t.Fatalf("resolveUserGroupMemberships: %v", err)
+	}
+}
+
+// --- resolveIAMRoleFederatedTrust ---
+
+func TestResolveIAMRoleFederatedTrust(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	samlARN := "arn:aws:iam::123456789012:saml-provider/OktaSAML"
+	oidcARN := "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/ABC"
+	roleARN := "arn:aws:iam::123456789012:role/federated-role"
+
+	// Trust policy with two statements: Federated as string (SAML) and as array (OIDC).
+	trustDoc := `{"Version":"2012-10-17","Statement":[` +
+		`{"Effect":"Allow","Principal":{"Federated":"` + samlARN + `"},"Action":"sts:AssumeRoleWithSAML"},` +
+		`{"Effect":"Allow","Principal":{"Federated":["` + oidcARN + `"]},"Action":"sts:AssumeRoleWithWebIdentity"}` +
+		`]}`
+	attrsJSON := `{"AssumeRolePolicyDocument":"` + url.QueryEscape(trustDoc) + `"}`
+
+	samlID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMSAMLProvider, samlARN, "", "{}")
+	oidcID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMOIDCProvider, oidcARN, "", "{}")
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", attrsJSON)
+
+	if err := resolveIAMRoleFederatedTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleFederatedTrust: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships, got %d", len(rels))
+	}
+	assertRelationship(t, rels, roleID, samlID, string(store.RelAssumes))
+	assertRelationship(t, rels, roleID, oidcID, string(store.RelAssumes))
+}
+
+func TestResolveIAMRoleFederatedTrust_NoTrust(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	roleARN := "arn:aws:iam::123456789012:role/no-trust"
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+
+	if err := resolveIAMRoleFederatedTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleFederatedTrust: %v", err)
+	}
+}
+
+func TestResolveIAMRoleFederatedTrust_NonFederatedPrincipal(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	roleARN := "arn:aws:iam::123456789012:role/ec2-role"
+	trustDoc := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}`
+	attrsJSON := `{"AssumeRolePolicyDocument":"` + url.QueryEscape(trustDoc) + `"}`
+
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", attrsJSON)
+
+	if err := resolveIAMRoleFederatedTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleFederatedTrust: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
 	}
 }

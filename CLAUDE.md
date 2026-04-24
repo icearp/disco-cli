@@ -57,6 +57,12 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **AWS Backup plan ARN** uses `backup-plan:`, not `plan:`. Real format: `arn:aws:backup:{r}:{a}:backup-plan:{planId}`. Synthetic selection NativeID `{planARN}/selection/{selId}` — trim `/selection/...` in resolver to recover parent plan ARN. Wrong prefix → FK error on closure insert.
 - **Organizations NativeID = full ARN, not raw ID**. Accounts + OUs stored keyed by `sv(a.Arn)`, not the `o-xxx` / 12-digit account ID. APIs like `ListDelegatedAdministrators` return raw IDs — translate via `loadOrgTargetIndex` (`organizations_resolvers.go`) before building `ResourceID`.
 
+### IAM policy-document parsing
+
+- **`AssumeRolePolicyDocument` + all IAM policy docs are URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silently fails.
+- **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
+- **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. No other Federated shapes emit edges (skip rather than dangle).
+
 ### WAFv2 scope pattern
 
 WAFv2 two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to dodge duplicates.
