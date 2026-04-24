@@ -67,7 +67,74 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	t, n, err := scanS3BucketPolicies(ctx, acct, client, out.Buckets, st, scanID)
 	total += t
 	inserted += n
-	return total, inserted, err
+	if err != nil {
+		return total, inserted, err
+	}
+	// Populate per-bucket SSE config on the account for use by
+	// resolveS3BucketEncryptionRelationships. No resources are upserted — the
+	// config only exists to drive the bucket→KMS edge.
+	if err := scanS3BucketEncryptions(ctx, acct, client, out.Buckets); err != nil {
+		return total, inserted, err
+	}
+	return total, inserted, nil
+}
+
+// scanS3BucketEncryptions fetches GetBucketEncryption for each bucket
+// concurrently and stores the result in acct.s3BucketEncryption, keyed by
+// bucket name. Buckets without an explicit encryption config return
+// ServerSideEncryptionConfigurationNotFoundError and are silently skipped.
+// AccessDenied is also tolerated (best-effort).
+func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Client, buckets []s3types.Bucket) error {
+	const maxConcurrent = 20
+	sem := semaphore.NewWeighted(maxConcurrent)
+	acct.s3BucketEncryption = make(map[string]s3BucketEncryptionEntry)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, b := range buckets {
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			name := sv(b.Name)
+
+			region, err := s3BucketRegion(gctx, client, name)
+			if err != nil {
+				if isAccessDenied(err) {
+					return nil
+				}
+				return fmt.Errorf("s3:GetBucketLocation %s: %w", name, err)
+			}
+
+			rc := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
+			out, err := rc.GetBucketEncryption(gctx, &s3.GetBucketEncryptionInput{Bucket: &name})
+			if err != nil {
+				// No explicit config = default SSE-S3; very common — skip.
+				if isNoSuchBucketEncryption(err) || isAccessDenied(err) {
+					return nil
+				}
+				return fmt.Errorf("s3:GetBucketEncryption %s: %w", name, err)
+			}
+			if out.ServerSideEncryptionConfiguration == nil {
+				return nil
+			}
+			acct.s3BucketEncryptionMu.Lock()
+			acct.s3BucketEncryption[name] = s3BucketEncryptionEntry{
+				Region: region,
+				Config: out.ServerSideEncryptionConfiguration,
+			}
+			acct.s3BucketEncryptionMu.Unlock()
+			return nil
+		})
+	}
+	return g.Wait()
+}
+
+// isNoSuchBucketEncryption reports whether err is the S3
+// ServerSideEncryptionConfigurationNotFoundError — bucket has no explicit
+// encryption config, a normal state for SSE-S3 buckets, not a real error.
+func isNoSuchBucketEncryption(err error) bool {
+	var ae smithy.APIError
+	return errors.As(err, &ae) && ae.ErrorCode() == "ServerSideEncryptionConfigurationNotFoundError"
 }
 
 // scanS3BucketPolicies fetches the bucket policy for each bucket concurrently.

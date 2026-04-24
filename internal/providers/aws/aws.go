@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	kinesistypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithy "github.com/aws/smithy-go"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -196,6 +198,21 @@ type account struct {
 	Name    string
 	Regions []string
 	cfg     sdkaws.Config // credentials + endpoint config; region is set per client
+
+	// s3BucketEncryption holds per-bucket SSE config fetched during the S3 scan,
+	// keyed by bucket name. Populated by scanS3BucketEncryptions, consumed by
+	// resolveS3BucketEncryptionRelationships. Ephemeral (per scan run) — the
+	// resulting KMS edges persist in relationships; the config itself does not.
+	s3BucketEncryption   map[string]s3BucketEncryptionEntry
+	s3BucketEncryptionMu sync.Mutex
+}
+
+// s3BucketEncryptionEntry carries a bucket's SSE configuration alongside the
+// bucket's home region. Region is needed by the resolver so bare KMS key IDs
+// and aliases in KMSMasterKeyID can be normalized to full cross-region ARNs.
+type s3BucketEncryptionEntry struct {
+	Region string
+	Config *s3types.ServerSideEncryptionConfiguration
 }
 
 func mustJSON(v any) string   { return util.MustJSON(v) }

@@ -63,7 +63,7 @@ Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanne
 
 ### Route53 alias DNS normalization
 
-`AliasTarget.DNSName` values carry trailing `.` and (on ELB targets) leading `dualstack.` prefix backend attrs lack. Normalize both before lookup: `strings.TrimSuffix(strings.ToLower(s), ".")` then `strings.TrimPrefix(s, "dualstack.")`. See `normalizeAliasDNS` in `route53_resolvers.go`.
+`AliasTarget.DNSName` values carry trailing `.` + (on ELB targets) leading `dualstack.` prefix backend attrs lack. Normalize both before lookup: `strings.TrimSuffix(strings.ToLower(s), ".")` then `strings.TrimPrefix(s, "dualstack.")`. See `normalizeAliasDNS` in `route53_resolvers.go`.
 
 ### CloudWatch alarm dimensions — two shapes
 
@@ -81,7 +81,7 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 
 ### WAFv2 scope pattern
 
-WAFv2 two scopes: `REGIONAL` (per-region) and `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to dodge duplicates.
+WAFv2 two scopes: `REGIONAL` (per-region) + `CLOUDFRONT` (global). CLOUDFRONT scope only reachable from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to dodge duplicates.
 
 ### Per-service API mandate
 
@@ -150,13 +150,19 @@ Namespaced lowercase: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:
 
 ### Provider file naming
 
-Scanners in `<service>_scanners.go`, relationship resolvers in `<service>_resolvers.go`. `resolveRelationships` orchestrator in provider top-level file (`aws.go`, `azure.go`, `gcp.go`).
+Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. `resolveRelationships` orchestrator in provider top-level file (`aws.go`, `azure.go`, `gcp.go`).
 
 ### Embedding child data in parent attributes
 
 Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaningful only via parent — fetch child at scan time, embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data, no extra API calls.
 
 **Warning — wrapping breaks existing resolvers.** Switching scanner from raw SDK struct to wrapped (e.g. adding `Targets` alongside `TargetGroup`) silently drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
+
+### Non-resource config fetches → sidecar on `account`
+
+Do NOT invent resource types for AWS concepts that aren't real resources (`aws:s3:bucket-encryption` rejected — `GetBucketEncryption` returns config *of* existing bucket, not own ARN'd resource). Do NOT wrap primary resource's raw SDK attrs JSON to co-locate config — `attributes` must equal native SDK response verbatim.
+
+Pattern for edges needing non-resource config: stash on `account` struct during scan (mutex-protected if concurrent), consume in resolver. Edge persists; raw config ephemeral per scan. Precedent: `account.s3BucketEncryption` populated by `scanS3BucketEncryptions`, consumed by `resolveS3BucketEncryptionRelationships`. If config must later be queryable, add generic `resource_configs(resource_id, config_type, payload_json)` sidecar table — do NOT retrofit by synthesizing resource type or wrapping attrs.
 
 ### AWS service-integration ARNs use `:::`
 
@@ -187,7 +193,7 @@ YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers that build name-keyed index (e.g. KeyPair by `(region, Name)`), bypass it + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), bypass + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests in same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
