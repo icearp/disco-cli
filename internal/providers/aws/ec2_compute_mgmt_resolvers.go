@@ -17,6 +17,7 @@ func init() {
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.
 type instanceAttrs struct {
 	InstanceId         *string `json:"InstanceId"`
+	ImageId            *string `json:"ImageId"`
 	VpcId              *string `json:"VpcId"`
 	SubnetId           *string `json:"SubnetId"`
 	KeyName            *string `json:"KeyName"`
@@ -60,6 +61,19 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		keyPairByNameRegion[sv(kp.Region)+"\x00"+*kp.Name] = kp.ID
+	}
+	// Build an AMI id set from scanned images. Public/Marketplace/shared AMIs
+	// aren't scanned, so instance→AMI edges are FK-safe only for AMIs we own.
+	images, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	imageByID := make(map[string]string, len(images))
+	for _, img := range images {
+		imageByID[img.ID] = img.ID
 	}
 	for _, r := range instances {
 		var attrs instanceAttrs
@@ -111,6 +125,15 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 			if kpID, ok := keyPairByNameRegion[region+"\x00"+name]; ok {
 				if err := st.UpsertRelationship(r.ID, kpID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→key-pair relationship: %w", err)
+				}
+			}
+		}
+		// Instance → AMI (self-owned only; public/Marketplace AMIs skipped).
+		if id := sv(attrs.ImageId); id != "" {
+			amiID := store.ResourceID("aws", acct.ID, TypeEC2Image, ec2ARN(region, acct.ID, "image", id))
+			if _, ok := imageByID[amiID]; ok {
+				if err := st.UpsertRelationship(r.ID, amiID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert instance→image relationship: %w", err)
 				}
 			}
 		}

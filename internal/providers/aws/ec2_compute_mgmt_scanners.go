@@ -22,6 +22,7 @@ func scanEC2ComputeMgmt(ctx context.Context, client *ec2.Client, acct *account, 
 			return scanSecurityGroups(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) { return scanVolumes(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) { return scanImages(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
 			return scanLaunchTemplates(ctx, client, acct, region, st, scanID)
 		},
@@ -130,6 +131,36 @@ func scanVolumes(ctx context.Context, client *ec2.Client, acct *account, region 
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(vol.Tags),
 					AttributesJSON: mustJSON(vol),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanImages discovers self-owned AMIs in the region. Public/Marketplace/shared
+// AMIs are intentionally skipped — unbounded set and not "ours" to audit.
+// Instance→AMI edges in resolveInstanceRelationships silently skip AMIs missing
+// from the store so FK constraints stay intact for public-AMI references.
+func scanImages(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(ctx, "ec2:DescribeImages", acct, region, st,
+		ec2.NewDescribeImagesPaginator(client, &ec2.DescribeImagesInput{Owners: []string{"self"}}),
+		func(page *ec2.DescribeImagesOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, img := range page.Images {
+				status := string(img.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2Image,
+					NativeID:       ec2ARN(region, acct.ID, "image", sv(img.ImageId)),
+					Name:           img.Name,
+					Region:         &region,
+					Status:         &status,
+					TagsJSON:       awsTagsJSON(img.Tags),
+					AttributesJSON: mustJSON(img),
 					DiscoveredBy:   scanID,
 				})
 			}

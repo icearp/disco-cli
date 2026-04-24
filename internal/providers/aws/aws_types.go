@@ -6,6 +6,7 @@ package aws
 const (
 	// EC2 — compute management (ec2_compute_mgmt_scanners.go)
 	TypeEC2Instance                = "aws:ec2:instance"
+	TypeEC2Image                   = "aws:ec2:image"
 	TypeEC2SecurityGroup           = "aws:ec2:security-group"
 	TypeEC2Volume                  = "aws:ec2:volume"
 	TypeEC2LaunchTemplate          = "aws:ec2:launch-template"
@@ -326,7 +327,7 @@ const (
 func KnownTypes() []string {
 	return []string{
 		// EC2 — compute management
-		TypeEC2Instance, TypeEC2SecurityGroup, TypeEC2Volume,
+		TypeEC2Instance, TypeEC2Image, TypeEC2SecurityGroup, TypeEC2Volume,
 		TypeEC2LaunchTemplate, TypeEC2KeyPair, TypeEC2PlacementGroup,
 		TypeEC2SpotFleet, TypeEC2Host, TypeEC2CapacityReservation,
 		TypeEC2InstanceConnectEndpoint,
