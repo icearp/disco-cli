@@ -25,10 +25,9 @@ build:
 	$(GO) go build -o $(BINARY) .
 
 dist:
-	mkdir -p $(DIST_DIR)
-	$(GO) GOOS=linux   GOARCH=amd64  go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY)-linux-amd64 . && upx -9 $(DIST_DIR)/$(BINARY)-linux-amd64
-	$(GO) GOOS=darwin  GOARCH=arm64  go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY)-darwin-arm64 .
-	$(GO) GOOS=windows GOARCH=amd64  go build -ldflags="-s -w" -o $(DIST_DIR)/$(BINARY)-windows-amd64.exe . && upx -9 $(DIST_DIR)/$(BINARY)-windows-amd64.exe
+	$(GO) GOOS=linux   GOARCH=amd64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-linux-amd64 . && upx -9 $(DIST_DIR)/$(BINARY)-linux-amd64
+	$(GO) GOOS=darwin  GOARCH=arm64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-darwin-arm64 .
+	$(GO) GOOS=windows GOARCH=amd64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-windows-amd64.exe . && upx -9 $(DIST_DIR)/$(BINARY)-windows-amd64.exe
 
 clean:
 	rm -f $(BINARY)
