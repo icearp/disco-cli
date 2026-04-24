@@ -1,0 +1,196 @@
+package aws
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
+)
+
+func init() {
+	registerResolver(resolveNetworkFirewallFirewallRelationships)
+	registerResolver(resolveNetworkFirewallPolicyRelationships)
+}
+
+// nfFirewallAttrs extracts the fields on DescribeFirewall's response needed
+// for edge emission. Tags are PascalCase to match mustJSON output of the AWS
+// SDK v2 response structs (no json tags).
+type nfFirewallAttrs struct {
+	Firewall *struct {
+		FirewallPolicyArn *string `json:"FirewallPolicyArn"`
+		VpcId             *string `json:"VpcId"`
+		SubnetMappings    []struct {
+			SubnetId *string `json:"SubnetId"`
+		} `json:"SubnetMappings"`
+	} `json:"Firewall"`
+}
+
+// nfPolicyAttrs extracts the rule-group references from DescribeFirewallPolicy.
+// Covers both stateless (priority-ordered) and stateful references.
+type nfPolicyAttrs struct {
+	FirewallPolicy *struct {
+		StatelessRuleGroupReferences []struct {
+			ResourceArn *string `json:"ResourceArn"`
+		} `json:"StatelessRuleGroupReferences"`
+		StatefulRuleGroupReferences []struct {
+			ResourceArn *string `json:"ResourceArn"`
+		} `json:"StatefulRuleGroupReferences"`
+	} `json:"FirewallPolicy"`
+}
+
+// resolveNetworkFirewallFirewallRelationships emits edges from each Network
+// Firewall to: its firewall policy (uses), its VPC (attached-to), and each
+// subnet mapping (attached-to). FK-safe: targets absent from the store are
+// silently skipped.
+func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store) error {
+	firewalls, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeNetworkFirewallFirewall},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(firewalls) == 0 {
+		return nil
+	}
+
+	known, err := networkFirewallFirewallTargetIDSet(acct, st)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range firewalls {
+		var attrs nfFirewallAttrs
+		if err := json.Unmarshal([]byte(f.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Firewall == nil {
+			continue
+		}
+		region := sv(f.Region)
+
+		if arn := sv(attrs.Firewall.FirewallPolicyArn); arn != "" {
+			polID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallFirewallPolicy, arn)
+			if known[polID] {
+				if err := st.UpsertRelationship(f.ID, polID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert network-firewall firewall→policy: %w", err)
+				}
+			}
+		}
+
+		if vpc := sv(attrs.Firewall.VpcId); vpc != "" {
+			vpcARN := ec2ARN(region, acct.ID, "vpc", vpc)
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			if known[vpcID] {
+				if err := st.UpsertRelationship(f.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert network-firewall firewall→vpc: %w", err)
+				}
+			}
+		}
+
+		for _, m := range attrs.Firewall.SubnetMappings {
+			sn := sv(m.SubnetId)
+			if sn == "" {
+				continue
+			}
+			snARN := ec2ARN(region, acct.ID, "subnet", sn)
+			snID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
+			if !known[snID] {
+				continue
+			}
+			if err := st.UpsertRelationship(f.ID, snID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert network-firewall firewall→subnet: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveNetworkFirewallPolicyRelationships emits edges from each firewall
+// policy to the rule groups it references (stateless + stateful). FK-safe.
+func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) error {
+	policies, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeNetworkFirewallFirewallPolicy},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(policies) == 0 {
+		return nil
+	}
+
+	rgSet, err := networkFirewallRuleGroupIDSet(acct, st)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range policies {
+		var attrs nfPolicyAttrs
+		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.FirewallPolicy == nil {
+			continue
+		}
+
+		refs := make([]string, 0, len(attrs.FirewallPolicy.StatelessRuleGroupReferences)+len(attrs.FirewallPolicy.StatefulRuleGroupReferences))
+		for _, r := range attrs.FirewallPolicy.StatelessRuleGroupReferences {
+			refs = append(refs, sv(r.ResourceArn))
+		}
+		for _, r := range attrs.FirewallPolicy.StatefulRuleGroupReferences {
+			refs = append(refs, sv(r.ResourceArn))
+		}
+
+		for _, arn := range refs {
+			if arn == "" {
+				continue
+			}
+			rgID := store.ResourceID("aws", acct.ID, TypeNetworkFirewallRuleGroup, arn)
+			if !rgSet[rgID] {
+				continue
+			}
+			if err := st.UpsertRelationship(p.ID, rgID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert network-firewall policy→rule-group: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// networkFirewallFirewallTargetIDSet pre-builds the id set covering all
+// resource types referenced from firewall attributes (policy, VPC, subnet).
+func networkFirewallFirewallTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
+	targets, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeNetworkFirewallFirewallPolicy, TypeEC2VPC, TypeEC2Subnet},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool, len(targets))
+	for _, r := range targets {
+		m[r.ID] = true
+	}
+	return m, nil
+}
+
+func networkFirewallRuleGroupIDSet(acct *account, st *store.Store) (map[string]bool, error) {
+	targets, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeNetworkFirewallRuleGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool, len(targets))
+	for _, r := range targets {
+		m[r.ID] = true
+	}
+	return m, nil
+}

@@ -152,6 +152,10 @@ const (
 	TypeWAFv2WebACL    = "aws:wafv2:web-acl"
 	TypeWAFv2RuleGroup = "aws:wafv2:rule-group"
 	TypeWAFv2IPSet     = "aws:wafv2:ip-set"
+	// Network Firewall (networkfirewall_scanners.go, networkfirewall_resolvers.go)
+	TypeNetworkFirewallFirewall       = "aws:network-firewall:firewall"
+	TypeNetworkFirewallFirewallPolicy = "aws:network-firewall:firewall-policy"
+	TypeNetworkFirewallRuleGroup      = "aws:network-firewall:rule-group"
 	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
 	TypeEventsEventBus       = "aws:events:event-bus"
 	TypeEventsRule           = "aws:events:rule"
@@ -467,6 +471,8 @@ func KnownTypes() []string {
 		TypeEFSFileSystem, TypeEFSMountTarget, TypeEFSAccessPoint,
 		// WAFv2
 		TypeWAFv2WebACL, TypeWAFv2RuleGroup, TypeWAFv2IPSet,
+		// Network Firewall
+		TypeNetworkFirewallFirewall, TypeNetworkFirewallFirewallPolicy, TypeNetworkFirewallRuleGroup,
 		// EventBridge
 		TypeEventsEventBus, TypeEventsRule,
 		TypeEventsAPIDestination, TypeEventsConnection,
