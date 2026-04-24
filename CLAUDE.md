@@ -4,6 +4,8 @@ Guide Claude Code (claude.ai/code) in repo.
 
 ## Commands
 
+Primary branch: `dev` (origin no `main`). Feature branches fork from `dev`, merge back to `dev`.
+
 ```bash
 # Build (CGO_ENABLED=0 is required — all builds must be CGO-free)
 CGO_ENABLED=0 go build -o disco .
@@ -78,7 +80,7 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 
 - **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silent fail.
 - **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
-- **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. No other Federated shapes emit edges (skip rather than dangle).
+- **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. Other Federated shapes emit no edges (skip, no dangle).
 
 ### WAFv2 scope pattern
 
@@ -94,7 +96,7 @@ Providers make **per-service API calls** via each cloud's native Go SDK. No unif
 - `disco scan <provider>` — single provider (e.g. `disco scan aws`)
 - `disco scan --providers aws,gcp` — only named providers (comma-separated `StringSlice`)
 - `disco list` — query local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
-- `disco diff <scanA> <scanB>` — drift detection; emits added/removed/changed rows between two scan IDs
+- `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
 - `disco check --rules rules.yaml --builtins --severity high --exit-nonzero` — runs security rules against store
 
@@ -133,7 +135,11 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 
 **Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
-**Scalar-only redaction**: sensitive key redacts only when value scalar. Object/array values recurse, so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`, array of `{ValueFrom}` refs) pass through intact; leaf leaks (`SecretString`, `Password`, ...) still caught. If resolver unmarshal silent yields zero edges under key whose name matches denylist, check here first.
+**Two redaction modes** (`sanitize.go`):
+1. `sensitiveKeySubstrings` (scalar-only, substring match): key matches denylist → scalar value redacted; object/array values recurse so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`) stay intact. Leaf leaks (`SecretString`, `Password`, ...) caught. If resolver unmarshal silent yields zero edges under key whose name matches denylist, check here first.
+2. `containerRedactKeys` (wholesale, exact lower-case match): key matches → every scalar descendant redacted regardless of leaf name. Use for user-key/value maps where leaf names unpredictable (Lambda `Environment.Variables`, CodeBuild env). Add exact lower-case name only; short strings over-match.
+
+**DB file perms (0600)**: `Open` chmods SQLite file to `0600` *after* `migrate()` runs. `sqlx.Open` lazy — file doesn't exist until first query, chmod before migrate silent no-ops. Non-regular paths (e.g. `:memory:`) skipped.
 
 ### Resource IDs
 
@@ -187,11 +193,15 @@ AWS service returns only names from List API (EKS, DynamoDB) — describe each r
 
 ### Provisioned + Serverless flavors → single type
 
-One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *...`, `Serverless *...`) in native attrs; resolver branches on whichever non-nil. Precedent: `aws:kafka:cluster` MSK, `kafka_resolvers.go` reads subnets/SGs from `BrokerNodeGroupInfo` vs `VpcConfigs[]`. Applies to services modeling variants as parallel fields on same List/Describe response (Redshift Serverless, Aurora Serverless v2, EMR Serverless likely candidates).
+One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *...`, `Serverless *...`) in native attrs; resolver branches on whichever non-nil. Precedent: `aws:kafka:cluster` MSK, `kafka_resolvers.go` reads subnets/SGs from `BrokerNodeGroupInfo` vs `VpcConfigs[]`. Applies to services modeling variants as parallel fields on same List/Describe response (Redshift Serverless, Aurora Serverless v2, EMR Serverless likely).
 
 ### Sparse list entry → store Get body
 
 `List*` returns skeleton (`{Id, Arn, HomeRegion, IsEnabled}`) while edge-bearing fields live on `Get*`/`Describe*` body (e.g. S3 StorageLens `Include.Buckets[]`, `DataExport.S3BucketDestination`). Enrich scanner: fan-out Get per entry, store Get response as `AttributesJSON`. Still "native SDK response verbatim" — Get body IS native. Don't merge List+Get into ad-hoc struct; pick one SDK response + store whole. Precedent: `scanStorageLens` in `s3control_scanners.go`.
+
+### Go 1.25 modernizer lint
+
+Repo surfaces `slicescontains`, `stringscut`, `rangeint` diagnostics. Prefer `slices.Contains(xs, v)`, `before, after, ok := strings.Cut(s, sep)`, `for i := range N` over manual equivalents.
 
 ### Loop-var copy unneeded (Go 1.22+)
 
@@ -227,7 +237,7 @@ Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
 2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), bypass + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
-3. Call resolver function direct (tests in same package, e.g. `package aws`).
+3. Call resolver function direct (tests same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
 Always add "no attrs / empty case" test alongside happy-path — guards nil-pointer panics on missing JSON fields.

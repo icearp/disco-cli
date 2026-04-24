@@ -107,6 +107,17 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+
+	// Restrict DB file to owner-only. Stored attributes may embed sensitive
+	// cloud metadata; default umask (0644) leaves them group/world-readable.
+	// Chmod runs after migrate so the file is guaranteed to exist; skipped
+	// for non-regular paths like :memory: URIs.
+	if fi, statErr := os.Stat(path); statErr == nil && fi.Mode().IsRegular() {
+		if err := os.Chmod(path, 0600); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("chmod db: %w", err)
+		}
+	}
 	return s, nil
 }
 

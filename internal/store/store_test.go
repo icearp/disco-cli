@@ -3,7 +3,9 @@ package store
 import (
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -565,5 +567,28 @@ func TestReportWarning(t *testing.T) {
 	}
 	if got[1].Provider != "gcp" || got[1].Scope != "proj-1" {
 		t.Errorf("warning[1] mismatch: %+v", got[1])
+	}
+}
+
+// TestOpen_DBFilePermissions verifies that the SQLite database file is
+// created with 0600 permissions so stored cloud metadata + scrubbed
+// attributes aren't group/world-readable under a default umask.
+func TestOpen_DBFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file mode not meaningful on Windows")
+	}
+	path := filepath.Join(t.TempDir(), "perms.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if got := fi.Mode().Perm(); got != 0600 {
+		t.Errorf("DB file perms: got %o, want 0600", got)
 	}
 }

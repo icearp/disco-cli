@@ -81,6 +81,49 @@ func TestScrubAttributes_EmptyAndMalformed(t *testing.T) {
 	}
 }
 
+func TestScrubAttributes_ExtendedDenylist(t *testing.T) {
+	input := `{
+		"AccessKeyId": "AKIA...",
+		"ConnectionString": "Endpoint=sb://x;SharedAccessKey=abc",
+		"SasToken": "?sv=2021",
+		"KeyMaterial": "-----BEGIN PRIVATE KEY-----",
+		"UserData": "#!/bin/bash\nexport DB_PASS=hunter2"
+	}`
+	out := scrubAttributes(input)
+	for _, k := range []string{"AccessKeyId", "ConnectionString", "SasToken", "KeyMaterial", "UserData"} {
+		if !strings.Contains(out, `"`+k+`":"[REDACTED]"`) {
+			t.Errorf("%s not redacted: %s", k, out)
+		}
+	}
+}
+
+func TestScrubAttributes_LambdaEnvironmentVariables(t *testing.T) {
+	input := `{
+		"FunctionName": "my-fn",
+		"Environment": {
+			"Variables": {
+				"DATABASE_URL": "postgres://u:p@h/db",
+				"OPENAI_KEY": "sk-abc",
+				"LOG_LEVEL": "debug"
+			}
+		}
+	}`
+	out := scrubAttributes(input)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got["FunctionName"] != "my-fn" {
+		t.Errorf("FunctionName clobbered: %v", got["FunctionName"])
+	}
+	vars := got["Environment"].(map[string]any)["Variables"].(map[string]any)
+	for _, k := range []string{"DATABASE_URL", "OPENAI_KEY", "LOG_LEVEL"} {
+		if vars[k] != redactedPlaceholder {
+			t.Errorf("Variables[%s] not redacted: %v", k, vars[k])
+		}
+	}
+}
+
 func TestScrubAttributes_CaseInsensitive(t *testing.T) {
 	input := `{"PASSWORD":"x","Secret_Token":"y","auth":"z"}`
 	out := scrubAttributes(input)
