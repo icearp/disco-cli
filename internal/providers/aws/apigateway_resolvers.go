@@ -29,6 +29,9 @@ func init() {
 		if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
 			return err
 		}
+		if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+			return err
+		}
 		return resolveAPIGatewayDomainCertRelationships(acct, st)
 	})
 }
@@ -63,6 +66,60 @@ func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
 			if err := st.UpsertRelationship(r.ID, poolID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apigw-authorizer→cognito: %w", err)
 			}
+		}
+	}
+	return nil
+}
+
+// resolveAPIGatewayV2AuthorizerCognito emits an authorizer → Cognito user-pool
+// edge for each v2 (HTTP API) authorizer whose AuthorizerType is JWT and whose
+// JwtConfiguration.Issuer is a Cognito pool URL of the form
+// https://cognito-idp.{region}.amazonaws.com/{userPoolId}. Non-Cognito JWT
+// issuers (Auth0, Okta, ...) are skipped — no phantom edges.
+func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error {
+	auths, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Authorizer},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	const issuerPrefix = "https://cognito-idp."
+	const hostSuffix = ".amazonaws.com"
+	for _, r := range auths {
+		var attrs struct {
+			AuthorizerType   string `json:"AuthorizerType"`
+			JwtConfiguration *struct {
+				Issuer *string `json:"Issuer"`
+			} `json:"JwtConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.AuthorizerType != "JWT" || attrs.JwtConfiguration == nil {
+			continue
+		}
+		issuer := sv(attrs.JwtConfiguration.Issuer)
+		if !strings.HasPrefix(issuer, issuerPrefix) {
+			continue
+		}
+		// Trim scheme/prefix, split host/path on first "/".
+		rest := strings.TrimPrefix(issuer, issuerPrefix)
+		host, poolID, ok := strings.Cut(rest, "/")
+		if !ok {
+			continue
+		}
+		if !strings.HasSuffix(host, hostSuffix) || poolID == "" {
+			continue
+		}
+		region := strings.TrimSuffix(host, hostSuffix)
+		if region == "" {
+			continue
+		}
+		poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
+		targetID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, poolARN)
+		if err := st.UpsertRelationship(r.ID, targetID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert apigw-v2-authorizer→cognito: %w", err)
 		}
 	}
 	return nil

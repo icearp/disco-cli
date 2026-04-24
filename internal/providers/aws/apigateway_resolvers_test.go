@@ -308,3 +308,97 @@ func TestResolveAPIGatewayAuthorizerCognito_TokenSkipped(t *testing.T) {
 		t.Errorf("expected 0 rels, got %d", len(rels))
 	}
 }
+
+// v2 authorizer ARN helper.
+func v2AuthARN(region, apiID, authID string) string {
+	return fmt.Sprintf("arn:aws:apigateway:%s::/apis/%s/authorizers/%s", region, apiID, authID)
+}
+
+// TestResolveAPIGWV2Authorizer_CognitoIssuer — JWT issuer with Cognito URL
+// emits authorizer→user-pool edge.
+func TestResolveAPIGWV2Authorizer_CognitoIssuer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-east-1"
+	poolID := "us-east-1_abc123"
+	poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
+
+	poolResID := upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPool, poolARN, region, "{}")
+	attrs := fmt.Sprintf(`{"AuthorizerType":"JWT","JwtConfiguration":{"Issuer":"https://cognito-idp.%s.amazonaws.com/%s"}}`, region, poolID)
+	authResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Authorizer, v2AuthARN(region, "api1", "auth1"), region, attrs)
+
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(authResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != poolResID || rels[0].Kind != store.RelUses {
+		t.Fatalf("want 1 uses edge to %s, got %+v", poolResID, rels)
+	}
+}
+
+// TestResolveAPIGWV2Authorizer_NonJWTType — REQUEST authorizers skipped.
+func TestResolveAPIGWV2Authorizer_NonJWTType(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	attrs := `{"AuthorizerType":"REQUEST","JwtConfiguration":{"Issuer":"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"}}`
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Authorizer, v2AuthARN("us-east-1", "api1", "auth1"), "us-east-1", attrs)
+
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 rels, got %d", len(rels))
+	}
+}
+
+// TestResolveAPIGWV2Authorizer_NonCognitoIssuer — Auth0/Okta issuer skipped.
+func TestResolveAPIGWV2Authorizer_NonCognitoIssuer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	attrs := `{"AuthorizerType":"JWT","JwtConfiguration":{"Issuer":"https://example.auth0.com/"}}`
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Authorizer, v2AuthARN("us-east-1", "api1", "auth1"), "us-east-1", attrs)
+
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 rels, got %d", len(rels))
+	}
+}
+
+// TestResolveAPIGWV2Authorizer_EmptyIssuer — JWT type without issuer skipped.
+func TestResolveAPIGWV2Authorizer_EmptyIssuer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	attrs := `{"AuthorizerType":"JWT"}`
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Authorizer, v2AuthARN("us-east-1", "api1", "auth1"), "us-east-1", attrs)
+
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 rels, got %d", len(rels))
+	}
+}
+
+// TestResolveAPIGWV2Authorizer_MalformedIssuer — issuer with no path segment skipped.
+func TestResolveAPIGWV2Authorizer_MalformedIssuer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	attrs := `{"AuthorizerType":"JWT","JwtConfiguration":{"Issuer":"https://cognito-idp.us-east-1.amazonaws.com"}}`
+	authID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Authorizer, v2AuthARN("us-east-1", "api1", "auth1"), "us-east-1", attrs)
+
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(authID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 rels, got %d", len(rels))
+	}
+}

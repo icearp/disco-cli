@@ -44,7 +44,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silently match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, buried FK error.
 - **Edge kinds** (`internal/store`):
-  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but several resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
+  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but some resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
   - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
   - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
@@ -68,6 +68,10 @@ Scanner stores LoadBalancer as `{"lb": <LB>, "type": "<kind>"}` (see `elb_scanne
 ### CloudWatch alarm dimensions — two shapes
 
 Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: nested under `Metrics[].MetricStat.Metric.{Namespace,Dimensions}`. Resolvers must read both or skip half of real alarms. See `resolveAlarmDimensions` in `cloudwatch_resolvers.go`.
+
+### Cognito JWT issuer URL
+
+APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{region}.amazonaws.com/{poolId}`. `strings.Cut` on host/path after prefix strip; rebuild `arn:aws:cognito-idp:{region}:{acct}:userpool/{poolId}` for `store.ResourceID` lookup. Non-Cognito issuers (Auth0, Okta) skip — no phantom edges.
 
 ### IAM policy-document parsing
 
@@ -102,7 +106,7 @@ Name() string
 Scan(ctx context.Context, st *store.Store, scanID string) error
 ```
 
-`providers.All()` returns all registered scanners sorted by name. `providers.Get(name)` for validation. `providers.Names()` for error messages.
+`providers.All()` returns registered scanners sorted by name. `providers.Get(name)` for validation. `providers.Names()` for error messages.
 
 **Add new provider** (three steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
@@ -124,7 +128,7 @@ Four tables: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
-Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs and anything squirrel can't express cleanly.
+Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interpolation. `sqlx` handles struct scanning. Raw SQL for CTEs + anything squirrel can't express cleanly.
 
 **Secret scrubbing**: `UpsertResources` calls `scrubAttributes` (`internal/store/sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
@@ -156,7 +160,7 @@ Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaning
 
 ### AWS service-integration ARNs use `:::`
 
-Step Functions Definitions and similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classify, or emit edges to non-existent resources and blow FK constraints.
+Step Functions Definitions + similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classify, or emit edges to non-existent resources + blow FK constraints.
 
 ### List-then-describe pattern (N+1 avoidance)
 
@@ -183,7 +187,7 @@ YAML or built-in rules evaluated against store by `cmd/check.go`. Rules filter `
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers that build name-keyed index (e.g. KeyPair by `(region, Name)`), bypass it and call `st.UpsertResource(&Resource{..., Name: &name})` direct.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources, FK error no obvious diagnosis. Helper does **not** set `Name`; for resolvers that build name-keyed index (e.g. KeyPair by `(region, Name)`), bypass it + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests in same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 
@@ -191,7 +195,7 @@ Always add "no attrs / empty case" test alongside happy-path — guards nil-poin
 
 #### FK constraint: resources require scan record
 
-`resources.discovered_by` and `resources.verified_by` = FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
+`resources.discovered_by` + `resources.verified_by` = FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
 
 #### UpsertResources ON CONFLICT scope
 

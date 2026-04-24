@@ -916,13 +916,15 @@ func scanAPIGatewayVPCLinks(ctx context.Context, acct *account, region string, s
 // scanAPIGatewayV2 discovers HTTP and WebSocket APIs (API Gateway v2).
 // Tags are included in the GetApis response; no separate tag call is needed.
 // ARN format: arn:aws:apigateway:{region}::/apis/{id}
-// scanAPIGatewayHTTPAPIs discovers HTTP and WebSocket APIs (API Gateway v2).
+// scanAPIGatewayHTTPAPIs discovers HTTP and WebSocket APIs (API Gateway v2),
+// then fans out to scan per-API child resources (authorizers) concurrently.
 func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 
 	// GetApis uses NextToken pagination; no built-in paginator exists.
 	input := &apigatewayv2.GetApisInput{}
 	var batch []*store.Resource
+	var apiIDs []string
 	for {
 		page, apiErr := client.GetApis(ctx, input)
 		if apiErr != nil {
@@ -946,6 +948,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 				TagsJSON:       mapTagsJSON(api.Tags),
 				DiscoveredBy:   scanID,
 			})
+			apiIDs = append(apiIDs, sv(api.ApiId))
 		}
 		if page.NextToken == nil {
 			break
@@ -956,6 +959,67 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 		n, err := st.UpsertResources(batch)
 		if err != nil {
 			return 0, 0, fmt.Errorf("upsert HTTP/WebSocket APIs (%s): %w", region, err)
+		}
+		total = len(batch)
+		inserted = n
+	}
+
+	// Fan out per-API child scans (authorizers) concurrently.
+	var t, ni atomic.Int64
+	eg, egCtx := errgroup.WithContext(ctx)
+	for _, id := range apiIDs {
+		eg.Go(func() error {
+			tt, nn, e := scanAPIGatewayV2Authorizers(egCtx, client, acct, region, id, st, scanID)
+			t.Add(int64(tt))
+			ni.Add(int64(nn))
+			return e
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return total, inserted, err
+	}
+	total += int(t.Load())
+	inserted += int(ni.Load())
+	return
+}
+
+// scanAPIGatewayV2Authorizers discovers authorizers for a single v2 (HTTP/WebSocket) API.
+// ARN format: arn:aws:apigateway:{region}::/apis/{apiId}/authorizers/{authorizerId}
+func scanAPIGatewayV2Authorizers(ctx context.Context, client *apigatewayv2.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+	input := &apigatewayv2.GetAuthorizersInput{ApiId: &apiID}
+	var batch []*store.Resource
+	for {
+		page, apiErr := client.GetAuthorizers(ctx, input)
+		if apiErr != nil {
+			if isAccessDenied(apiErr) {
+				return 0, 0, skipIfAccessDenied(st, "apigatewayv2:GetAuthorizers", acct.ID, region, apiErr)
+			}
+			return 0, 0, fmt.Errorf("apigatewayv2:GetAuthorizers(%s): %w", apiID, apiErr)
+		}
+		for _, item := range page.Items {
+			nativeID := fmt.Sprintf("arn:aws:apigateway:%s::/apis/%s/authorizers/%s", region, apiID, sv(item.AuthorizerId))
+			name := sv(item.Name)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAPIGatewayV2Authorizer,
+				NativeID:       nativeID,
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if page.NextToken == nil {
+			break
+		}
+		input.NextToken = page.NextToken
+	}
+	if len(batch) > 0 {
+		n, err := st.UpsertResources(batch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert v2 authorizers (%s/%s): %w", region, apiID, err)
 		}
 		total = len(batch)
 		inserted = n

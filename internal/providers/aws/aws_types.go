@@ -258,6 +258,7 @@ const (
 	TypeAPIGatewayVpcLink               = "aws:apigateway:vpc-link"
 	// API Gateway v2 (apigateway_scanners.go)
 	TypeAPIGatewayV2API             = "aws:apigatewayv2:api"
+	TypeAPIGatewayV2Authorizer      = "aws:apigatewayv2:authorizer"
 	TypeAPIGatewayBasePathMappingV2 = "aws:apigatewayv2:base-path-mapping"
 	TypeAPIGatewayDomainNameV2      = "aws:apigatewayv2:domain-name"
 	// CloudWatch (cloudwatch_scanners.go)
@@ -428,7 +429,8 @@ func KnownTypes() []string {
 		TypeAPIGatewayGatewayResponse, TypeAPIGatewayMethod, TypeAPIGatewayModel,
 		TypeAPIGatewayRequestValidator, TypeAPIGatewayResource, TypeAPIGatewayStage,
 		TypeAPIGatewayUsagePlan, TypeAPIGatewayUsagePlanKey, TypeAPIGatewayVpcLink,
-		TypeAPIGatewayV2API, TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayDomainNameV2,
+		TypeAPIGatewayV2API, TypeAPIGatewayV2Authorizer,
+		TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayDomainNameV2,
 		// CloudWatch
 		TypeCloudWatchAlarm, TypeCloudWatchAlarmMuteRule, TypeCloudWatchAnomalyDetector,
 		TypeCloudWatchCompositeAlarm, TypeCloudWatchDashboard,
