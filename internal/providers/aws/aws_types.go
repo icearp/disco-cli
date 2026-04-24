@@ -158,7 +158,8 @@ const (
 	TypeEventsAPIDestination = "aws:events:api-destination"
 	TypeEventsConnection     = "aws:events:connection"
 	// CloudTrail (cloudtrail_scanners.go, cloudtrail_resolvers.go)
-	TypeCloudTrailTrail = "aws:cloudtrail:trail"
+	TypeCloudTrailTrail          = "aws:cloudtrail:trail"
+	TypeCloudTrailEventDataStore = "aws:cloudtrail:event-data-store"
 	// StepFunctions (sfn_scanners.go, sfn_resolvers.go)
 	TypeSFNStateMachine = "aws:sfn:state-machine"
 	TypeSFNActivity     = "aws:sfn:activity"
@@ -470,7 +471,7 @@ func KnownTypes() []string {
 		TypeEventsEventBus, TypeEventsRule,
 		TypeEventsAPIDestination, TypeEventsConnection,
 		// CloudTrail
-		TypeCloudTrailTrail,
+		TypeCloudTrailTrail, TypeCloudTrailEventDataStore,
 		// StepFunctions
 		TypeSFNStateMachine, TypeSFNActivity,
 		// Cognito

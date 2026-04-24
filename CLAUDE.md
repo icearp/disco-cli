@@ -46,7 +46,7 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silent match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers**: `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep, RDS-specific). Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom target, buried FK error.
 - **Edge kinds** (`internal/store`):
-  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but some resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service you touch; no "fix" without sweeping all tests.
+  - `contains` — hierarchy edge. Intended parent→child (VPC→subnet, KMS key→alias), but some resolvers emit child→parent (EFS mt→fs, GuardDuty filter→detector, Backup selection→plan). Match existing direction for service touched; no "fix" without sweeping all tests.
   - `attached-to` — structural membership (instance → VPC/subnet, ESM → function)
   - `uses` — runtime dep, no lifecycle coupling (instance → security-group, function → KMS key, service → subnet in awsvpc mode)
   - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
@@ -181,7 +181,7 @@ Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaning
 
 Do NOT invent resource types for AWS concepts that aren't real resources (`aws:s3:bucket-encryption` rejected — `GetBucketEncryption` returns config *of* existing bucket, not own ARN'd resource). Do NOT wrap primary resource's raw SDK attrs JSON to co-locate config — `attributes` must equal native SDK response verbatim.
 
-Pattern for edges needing non-resource config: stash on `account` struct during scan (mutex-protected if concurrent), consume in resolver. Edge persists; raw config ephemeral per scan. Precedent: `account.s3BucketEncryption` populated by `scanS3BucketEncryptions`, consumed by `resolveS3BucketEncryptionRelationships`. If config must later be queryable, add generic `resource_configs(resource_id, config_type, payload_json)` sidecar table — do NOT retrofit by synthesizing resource type or wrapping attrs.
+Pattern for edges needing non-resource config: stash on `account` struct during scan (mutex-protected if concurrent), consume in resolver. Edge persists; raw config ephemeral per scan. Precedent: `account.s3BucketEncryption` populated by `scanS3BucketEncryptions`, consumed by `resolveS3BucketEncryptionRelationships`. If config must later be queryable, add generic `resource_configs(resource_id, config_type, payload_json)` sidecar table — do NOT retrofit via synthesized resource type or wrapped attrs.
 
 ### AWS service-integration ARNs use `:::`
 
@@ -222,6 +222,10 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 ### ROADMAP vs source drift
 
 Before implementing a `ROADMAP.md` NOW item, grep for target `Type*` constants + resolver fn names — items get implemented without roadmap sweep (R1.3 Lambda layers + R1.4 SQS KMS both listed TODO while already shipped). Audit first; move DONE items into COMPLETED section same pass.
+
+### KMS key edge shape — use `kmsKeyTargetARN`
+
+Resolver sees KMS ref in three shapes: full ARN, `alias/foo`, bare key ID. Use `kmsKeyTargetARN(ref, region, acctID)` (in `sns_resolvers.go`) to normalize to full ARN before `store.ResourceID` lookup. Skip `alias/aws/*` first (AWS-managed default keys unscanned → dangling edge). Precedent: SQS, SNS, Kafka, Kinesis, S3-encryption, CloudTrail-EDS resolvers.
 
 ### Migrations
 
