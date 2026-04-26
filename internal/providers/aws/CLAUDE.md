@@ -34,6 +34,8 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 
 - **`AssumeRolePolicyDocument` + all IAM policy docs URL-encoded JSON** (AWS SDK v2). `url.QueryUnescape` before `json.Unmarshal` or parse silent fail.
 - **`Principal.Federated` / `AWS` / `Service` may be string OR `[]string`.** Use custom `UnmarshalJSON` wrapper type (see `principalList` in `iam_resolvers.go`) — bare `[]string` tag only matches array form.
+- **`Statement` may be single object OR array.** Same trick as `principalList` — see `statementList` in `iam_resolvers.go`. **`Statement[].Resource`** likewise string-or-array (`resourceList`). `Effect != "Allow"` (Deny / conditional) emits no positive edge.
+- **Managed policy doc requires `GetPolicyVersion` fan-out.** `ListPolicies` returns no Document body. `scanIAMPolicies` enriches each row as `{"Policy": ..., "PolicyVersion": ...}`; walker reads `PolicyVersion.Document` for managed and `PolicyDocument` for inline (`GetRolePolicy` etc. already include it).
 - **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. Other Federated shapes emit no edges (skip, no dangle).
 
 ## WAFv2 scope pattern
@@ -87,6 +89,10 @@ Before implementing `ROADMAP.md` NOW item, grep for target `Type*` constants + r
 ## KMS key edge — use `loadKMSResolveIndex` + `resolveKMSKeyID`
 
 Resolver sees KMS ref in four shapes: full key ARN, alias ARN, `alias/foo`, bare key UUID. Build index once per resolver via `loadKMSResolveIndex(acct, st)` (`kms_helpers.go`), then call `idx.resolveKMSKeyID(ref, region, acctID)` per edge — returns `(keyID, ok)` where `ok=false` means target wasn't scanned (skip emit, no FK error). Index also resolves alias name → underlying key ARN, so `alias/aws/foo` references now link to the AWS-managed key (which IS scanned — see kms scanner). Don't manually call `kmsKeyTargetARN` + build a key ID set + check `alias/aws/` — the helper does all three. Precedent: backup, rds, sns, sqs, kinesis, firehose, ssm, config, s3-encryption, kafka, cloudtrail-eds resolvers.
+
+## Wildcard guard runs on canonical resource, not raw ref
+
+Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) trim object/version/index suffixes before checking for `*?`. `arn:aws:s3:::bucket/*` is a real bucket-level grant; only wildcards inside the canonical segment (`prod-*` in bucket name, `*` as whole ref) should skip. Same for `:function:NAME:*`, `:secret:NAME:*`, `:table/NAME/*`, `:log-group:NAME:*`.
 
 ## Per-call concurrency constants
 

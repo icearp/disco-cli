@@ -295,3 +295,283 @@ func TestResolveIAMRoleFederatedTrust_NonFederatedPrincipal(t *testing.T) {
 		t.Fatalf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// --- resolveIAMPolicyResources ---
+
+// inlineRolePolicyAttrs builds an AttributesJSON shaped like GetRolePolicyOutput
+// — PolicyDocument is URL-encoded as the AWS SDK delivers it.
+func inlineRolePolicyAttrs(t *testing.T, doc string) string {
+	t.Helper()
+	return `{"PolicyDocument":"` + url.QueryEscape(doc) + `"}`
+}
+
+// managedPolicyAttrs builds an AttributesJSON shaped like the wrapped form
+// emitted by scanIAMPolicies after Pass A (Policy + PolicyVersion siblings).
+func managedPolicyAttrs(t *testing.T, doc string) string {
+	t.Helper()
+	return `{"Policy":{},"PolicyVersion":{"Document":"` + url.QueryEscape(doc) + `"}}`
+}
+
+func TestResolveIAMPolicyResources_InlineRolePolicyToS3AndKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/data-reader"
+	policyNativeID := roleARN + "/policy/AllowReadBucketAndKMS"
+	bucketARN := "arn:aws:s3:::sensitive-bucket"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/abcd-1234"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + bucketARN + `/*","` + keyARN + `"]}]}`
+
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRolePolicy, policyNativeID, "", inlineRolePolicyAttrs(t, doc))
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, bucketID, store.RelUses)
+	assertRelationship(t, rels, policyID, keyID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_ManagedPolicyToDynamoAndSecrets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/AppDataAccess"
+	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/orders"
+	secretARN := "arn:aws:secretsmanager:us-east-1:" + testAccountID + ":secret:prod/db-AbCdEf"
+
+	// Reference the table via an index ARN to exercise child-suffix trimming,
+	// and the secret via a versioned ARN to exercise version-segment trimming.
+	tableIndexRef := tableARN + "/index/by-customer"
+	secretVersionedRef := secretARN + ":AWSCURRENT:abcdefab-1234-1234-1234-abcdefabcdef"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + tableIndexRef + `","` + secretVersionedRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	tableID := upsertTestResource(t, st, "aws", acct.ID, TypeDynamoDBTable, tableARN, testRegion, "{}")
+	secretID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secretARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, tableID, store.RelUses)
+	assertRelationship(t, rels, policyID, secretID, store.RelUses)
+}
+
+// statementList must accept a single object as well as an array.
+func TestResolveIAMPolicyResources_StatementSingleObject(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/SingleStmt"
+	bucketARN := "arn:aws:s3:::single-stmt-bucket"
+	doc := `{"Statement":{"Effect":"Allow","Resource":["` + bucketARN + `"]}}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, bucketID, store.RelUses)
+}
+
+// resourceList must accept a single string as well as an array.
+func TestResolveIAMPolicyResources_ResourceSingleString(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/SingleRes"
+	bucketARN := "arn:aws:s3:::single-res-bucket"
+	doc := `{"Statement":[{"Effect":"Allow","Resource":"` + bucketARN + `"}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, bucketID, store.RelUses)
+}
+
+// Deny statements must not produce edges — only Allow grants positive access.
+func TestResolveIAMPolicyResources_DenySkipped(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/DenyOnly"
+	bucketARN := "arn:aws:s3:::deny-bucket"
+	doc := `{"Statement":[{"Effect":"Deny","Resource":["` + bucketARN + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+// Cross-account / wildcard / unscanned references must skip silently.
+func TestResolveIAMPolicyResources_FKSafeSkip(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/Phantom"
+	otherBucketARN := "arn:aws:s3:::cross-account-bucket"   // not scanned
+	wildcardARN := "arn:aws:s3:::prod-*"                    // wildcard
+	starARN := "*"                                          // pure wildcard
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + otherBucketARN + `","` + wildcardARN + `","` + starARN + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Fatalf("expected 0 relationships (FK-safe skip), got %d", len(rels))
+	}
+}
+
+// Empty / malformed docs must not panic or error.
+func TestResolveIAMPolicyResources_EmptyAndMalformed(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, "arn:aws:iam::"+testAccountID+":policy/empty", "", "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, "arn:aws:iam::"+testAccountID+":policy/no-version", "", `{"Policy":{}}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRolePolicy,
+		"arn:aws:iam::"+testAccountID+":role/r/policy/bad-doc", "",
+		`{"PolicyDocument":"%ZZ-not-url-encoded"}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRolePolicy,
+		"arn:aws:iam::"+testAccountID+":role/r/policy/bad-json", "",
+		inlineRolePolicyAttrs(t, "{not json"))
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+}
+
+func TestResolveIAMPolicyResources_LambdaWithVersion(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/InvokeFn"
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:order-processor"
+	versionedRef := fnARN + ":PROD"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":"` + versionedRef + `"}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, fnID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_LogGroupStripsStarSuffix(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/LambdaExec"
+	groupARN := "arn:aws:logs:us-east-1:" + testAccountID + ":log-group:/aws/lambda/order-processor"
+	starRef := groupARN + ":*"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":"` + starRef + `"}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	groupID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, groupARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, groupID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_SNSTopic(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/Publish"
+	topicARN := "arn:aws:sns:us-east-1:" + testAccountID + ":order-events"
+	subARN := topicARN + ":7d6e5c4b-3a2f-1e0d-9c8b-7a6e5d4c3b2a"
+
+	// Topic ARN should match; subscription ARN (extra segment) should skip.
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + topicARN + `","` + subARN + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	topicID := upsertTestResource(t, st, "aws", acct.ID, TypeSNSTopic, topicARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 edge (topic only, sub skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, topicID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_SQSQueue(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/SendMsg"
+	queueARN := "arn:aws:sqs:us-east-1:" + testAccountID + ":incoming"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":"` + queueARN + `"}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	queueID := upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, queueARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, queueID, store.RelUses)
+}

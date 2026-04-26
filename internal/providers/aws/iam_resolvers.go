@@ -23,6 +23,7 @@ func init() {
 	registerResolver(resolveManagedPolicyAttachments)
 	registerResolver(resolveUserGroupMemberships)
 	registerResolver(resolveIAMRoleFederatedTrust)
+	registerResolver(resolveIAMPolicyResources)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.
@@ -397,6 +398,328 @@ func resolveIAMRoleFederatedTrust(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// statementList decodes a policy doc Statement field, which AWS allows as
+// either a single object or an array of objects.
+type statementList []policyStmt
+
+func (s *statementList) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '[' {
+		var arr []policyStmt
+		if err := json.Unmarshal(b, &arr); err != nil {
+			return err
+		}
+		*s = arr
+		return nil
+	}
+	var one policyStmt
+	if err := json.Unmarshal(b, &one); err != nil {
+		return err
+	}
+	*s = []policyStmt{one}
+	return nil
+}
+
+// resourceList decodes a Statement.Resource field, single string or array.
+type resourceList []string
+
+func (r *resourceList) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '[' {
+		var arr []string
+		if err := json.Unmarshal(b, &arr); err != nil {
+			return err
+		}
+		*r = arr
+		return nil
+	}
+	var one string
+	if err := json.Unmarshal(b, &one); err != nil {
+		return err
+	}
+	*r = []string{one}
+	return nil
+}
+
+type policyStmt struct {
+	Effect   string       `json:"Effect"`
+	Resource resourceList `json:"Resource"`
+}
+
+// resolveIAMPolicyResources walks the Document of every IAM policy resource
+// (managed + inline role/user/group) and emits "uses" edges from the policy to
+// each scanned KMS key, S3 bucket, Secrets Manager secret, and DynamoDB table
+// referenced by an Allow statement. Cross-account, wildcard, and unscanned
+// targets are skipped FK-safe.
+func resolveIAMPolicyResources(acct *account, st *store.Store) error {
+	policies, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(policies) == 0 {
+		return nil
+	}
+
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	bucketIDs, err := resourceIDSet(st, acct.ID, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	secretIDs, err := resourceIDSet(st, acct.ID, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	tableIDs, err := resourceIDSet(st, acct.ID, TypeDynamoDBTable)
+	if err != nil {
+		return err
+	}
+	lambdaIDs, err := resourceIDSet(st, acct.ID, TypeLambdaFunction)
+	if err != nil {
+		return err
+	}
+	logGroupIDs, err := resourceIDSet(st, acct.ID, TypeLogsLogGroup)
+	if err != nil {
+		return err
+	}
+	topicIDs, err := resourceIDSet(st, acct.ID, TypeSNSTopic)
+	if err != nil {
+		return err
+	}
+	queueIDs, err := resourceIDSet(st, acct.ID, TypeSQSQueue)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range policies {
+		doc := extractPolicyDoc(p)
+		if doc == "" {
+			continue
+		}
+		decoded, err := url.QueryUnescape(doc)
+		if err != nil {
+			continue
+		}
+		var parsed struct {
+			Statement statementList `json:"Statement"`
+		}
+		if err := json.Unmarshal([]byte(decoded), &parsed); err != nil {
+			continue
+		}
+		// Region carried by the policy itself only matters as a fallback for KMS
+		// references that lack a region (bare key UUID, alias name); managed and
+		// inline policies are global, so use the empty string and let any embedded
+		// ARN provide its own region.
+		region := ""
+		if p.Region != nil {
+			region = *p.Region
+		}
+		for _, stmt := range parsed.Statement {
+			if !strings.EqualFold(stmt.Effect, "Allow") {
+				continue
+			}
+			for _, ref := range stmt.Resource {
+				if ref == "" || ref == "*" {
+					continue
+				}
+				targetID, ok := classifyPolicyResource(ref, region, acct.ID, kmsIdx, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs)
+				if !ok {
+					continue
+				}
+				if err := st.UpsertRelationship(p.ID, targetID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert iam-policy→resource: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// extractPolicyDoc returns the URL-encoded policy document for any of the four
+// IAM policy types. Inline Get*Policy responses carry it under "PolicyDocument";
+// managed policies (wrapped at scan time) carry it under "PolicyVersion.Document".
+func extractPolicyDoc(r store.Resource) string {
+	switch r.Type {
+	case TypeIAMPolicy:
+		var w struct {
+			PolicyVersion *struct {
+				Document *string `json:"Document"`
+			} `json:"PolicyVersion"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &w); err != nil || w.PolicyVersion == nil || w.PolicyVersion.Document == nil {
+			return ""
+		}
+		return *w.PolicyVersion.Document
+	default:
+		var w struct {
+			PolicyDocument *string `json:"PolicyDocument"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &w); err != nil || w.PolicyDocument == nil {
+			return ""
+		}
+		return *w.PolicyDocument
+	}
+}
+
+// classifyPolicyResource maps a Resource ARN to a stored resource ID via the
+// per-type id sets. Returns ok=false for unrecognized services, wildcard ARNs,
+// and cross-account / unscanned targets — the caller emits no edge.
+func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs map[string]struct{}) (string, bool) {
+	switch {
+	case strings.Contains(ref, ":kms:"):
+		// KMS grants don't use object-suffix patterns; any wildcard here means
+		// the policy targets a class of keys rather than one identifier.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		return kmsIdx.resolveKMSKeyID(ref, region, acctID)
+	case strings.HasPrefix(ref, "arn:aws:s3:::"):
+		// Strip object-key suffix: arn:aws:s3:::bucket/path → arn:aws:s3:::bucket.
+		// "/*" after the bucket name means "all objects in this bucket" — still a
+		// concrete bucket grant. A wildcard inside the bucket-name segment itself
+		// (e.g. "prod-*") is a name pattern; skip.
+		bucketARN := ref
+		if i := strings.Index(ref[len("arn:aws:s3:::"):], "/"); i >= 0 {
+			bucketARN = ref[:len("arn:aws:s3:::")+i]
+		}
+		if strings.ContainsAny(bucketARN, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeS3Bucket, bucketARN)
+		if _, ok := bucketIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:secretsmanager:") && strings.Contains(ref, ":secret:"):
+		// Trim version-stage / version-id tail: keep first 7 colon-separated segments.
+		parts := strings.SplitN(ref, ":", 8)
+		if len(parts) < 7 {
+			return "", false
+		}
+		secretARN := strings.Join(parts[:7], ":")
+		if strings.ContainsAny(secretARN, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeSecretsManagerSecret, secretARN)
+		if _, ok := secretIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:dynamodb:") && strings.Contains(ref, ":table/"):
+		// Trim child suffixes: /index/..., /stream/..., /backup/..., /export/....
+		tableARN := ref
+		base := strings.Index(ref, ":table/")
+		if base >= 0 {
+			rest := ref[base+len(":table/"):]
+			if slash := strings.Index(rest, "/"); slash >= 0 {
+				tableARN = ref[:base+len(":table/")+slash]
+			}
+		}
+		if strings.ContainsAny(tableARN, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeDynamoDBTable, tableARN)
+		if _, ok := tableIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:lambda:") && strings.Contains(ref, ":function:"):
+		// Lambda function ARNs: arn:aws:lambda:r:a:function:NAME[:VERSION|ALIAS].
+		// Scanner stores the unqualified ARN (first 7 colon segments) as NativeID.
+		parts := strings.SplitN(ref, ":", 8)
+		if len(parts) < 7 {
+			return "", false
+		}
+		fnARN := strings.Join(parts[:7], ":")
+		if strings.ContainsAny(fnARN, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeLambdaFunction, fnARN)
+		if _, ok := lambdaIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:logs:") && strings.Contains(ref, ":log-group:"):
+		// Log group ARNs: arn:aws:logs:r:a:log-group:NAME[:*][:log-stream:...].
+		// Scanner NativeID has no ":*" tail; trim everything from the first ":"
+		// after the name segment.
+		base := strings.Index(ref, ":log-group:")
+		nameStart := base + len(":log-group:")
+		nameEnd := len(ref)
+		if i := strings.Index(ref[nameStart:], ":"); i >= 0 {
+			nameEnd = nameStart + i
+		}
+		groupARN := ref[:nameEnd]
+		if strings.ContainsAny(groupARN, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeLogsLogGroup, groupARN)
+		if _, ok := logGroupIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:sns:"):
+		// Topic ARN is whole ref. Subscription ARNs have an extra colon-separated
+		// subscription-id segment past the topic name; reject those (no scanned
+		// type for subscriptions today).
+		if strings.Count(ref, ":") != 5 {
+			return "", false
+		}
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeSNSTopic, ref)
+		if _, ok := topicIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:sqs:"):
+		// Queue ARN is whole ref (NativeID switched URL→ARN per aws/CLAUDE.md).
+		if strings.Count(ref, ":") != 5 {
+			return "", false
+		}
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeSQSQueue, ref)
+		if _, ok := queueIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	}
+	return "", false
+}
+
+// resourceIDSet returns the stable IDs of every resource of rtype for one
+// account. Used by resolvers that need FK-safe per-type membership lookup.
+func resourceIDSet(st *store.Store, accountID, rtype string) (map[string]struct{}, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: accountID,
+		Types:     []string{rtype},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]struct{}, len(rows))
+	for _, r := range rows {
+		out[r.ID] = struct{}{}
+	}
+	return out, nil
 }
 
 // resolveUserGroupMemberships calls ListGroupsForUser for each user and creates

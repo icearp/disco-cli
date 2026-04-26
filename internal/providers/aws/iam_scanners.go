@@ -188,7 +188,11 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 	return
 }
 
-// scanIAMPolicies lists all IAM managed policies — both AWS-managed and customer-managed.
+// scanIAMPolicies lists all IAM customer-managed policies and enriches each
+// with its default-version document via GetPolicyVersion. The document body is
+// required by resolveIAMPolicyResources to walk Statement[].Resource and emit
+// edges to KMS / S3 / Secrets / DynamoDB targets; ListPolicies alone does not
+// return it.
 func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	// PolicyScopeTypeLocal returns only customer-managed policies. PolicyScopeTypeAll
 	// also returns ~1,500+ AWS-managed policies, which are public/static and not
@@ -202,9 +206,50 @@ func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st 
 			}
 			return total, inserted, fmt.Errorf("iam:ListPolicies: %w", err)
 		}
+
+		// Fetch each default policy version concurrently. Per-policy AccessDenied
+		// degrades to "no document"; the row still lands in the store, the walker
+		// just emits no edges for it.
+		versions := make([]*iamtypes.PolicyVersion, len(page.Policies))
+		sem := semaphore.NewWeighted(fanoutMed)
+		g, gctx := errgroup.WithContext(ctx)
+		for i, p := range page.Policies {
+			if p.Arn == nil || p.DefaultVersionId == nil {
+				continue
+			}
+			g.Go(func() error {
+				if err := sem.Acquire(gctx, 1); err != nil {
+					return err
+				}
+				defer sem.Release(1)
+				out, err := client.GetPolicyVersion(gctx, &iam.GetPolicyVersionInput{
+					PolicyArn: p.Arn,
+					VersionId: p.DefaultVersionId,
+				})
+				if err != nil {
+					if isAccessDenied(err) {
+						return nil
+					}
+					return fmt.Errorf("iam:GetPolicyVersion %s: %w", sv(p.Arn), err)
+				}
+				versions[i] = out.PolicyVersion
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			return total, inserted, err
+		}
+
 		var batch []*store.Resource
-		for _, p := range page.Policies {
+		for i, p := range page.Policies {
 			name := sv(p.PolicyName)
+			// Wrap shape per CLAUDE.md "embedding child data": preserve Policy verbatim,
+			// add sibling PolicyVersion (URL-encoded Document field). resolveManagedPolicyAttachments
+			// consumes only NativeID, so wrapping is safe.
+			wrapped := struct {
+				Policy        iamtypes.Policy        `json:"Policy"`
+				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
+			}{Policy: p, PolicyVersion: versions[i]}
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -213,7 +258,7 @@ func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st 
 				NativeID:       sv(p.Arn),
 				Name:           &name,
 				CreatedAt:      tp(p.CreateDate),
-				AttributesJSON: mustJSON(p),
+				AttributesJSON: mustJSON(wrapped),
 				DiscoveredBy:   scanID,
 			})
 		}
