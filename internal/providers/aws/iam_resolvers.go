@@ -156,6 +156,23 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// FK-safe: device User.Arn may point to the AWS account root user
+	// (arn:aws:iam::{acct}:root), which is not an aws:iam:user resource
+	// — root has no IAM-user identity. Build the scanned-user set so we
+	// skip emit when target is absent, regardless of arn-shape mismatch.
+	users, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMUser},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	userByID := make(map[string]struct{}, len(users))
+	for _, u := range users {
+		userByID[u.ID] = struct{}{}
+	}
 
 	var attrs struct {
 		User *struct {
@@ -171,6 +188,9 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 			continue // unassigned device
 		}
 		userID := store.ResourceID("aws", acct.ID, TypeIAMUser, *attrs.User.Arn)
+		if _, ok := userByID[userID]; !ok {
+			continue // root or unscanned user — no IAM-user resource to link to
+		}
 		if err := st.UpsertRelationship(userID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert user→mfaDevice: %w", err)
 		}
