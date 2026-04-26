@@ -30,6 +30,20 @@ func resolveBackupVaults(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// FK-safe: build set of scanned KMS key IDs. Backup vaults may reference
+	// keys in other accounts/regions (or AWS-managed keys we don't scan); skip
+	// any edge whose target is absent to avoid FK blowup.
+	kmsKeys, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSKey},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	kmsByID := make(map[string]struct{}, len(kmsKeys))
+	for _, k := range kmsKeys {
+		kmsByID[k.ID] = struct{}{}
+	}
 	for _, r := range vaults {
 		var attrs struct {
 			EncryptionKeyArn *string `json:"EncryptionKeyArn"`
@@ -41,7 +55,11 @@ func resolveBackupVaults(acct *account, st *store.Store) error {
 		if key == "" || strings.HasPrefix(key, "alias/aws/") {
 			continue
 		}
-		kid := store.ResourceID("aws", acct.ID, TypeKMSKey, key)
+		target := kmsKeyTargetARN(key, sv(r.Region), acct.ID)
+		kid := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
+		if _, ok := kmsByID[kid]; !ok {
+			continue
+		}
 		if err := st.UpsertRelationship(r.ID, kid, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert backup-vault→kms: %w", err)
 		}
