@@ -2,6 +2,9 @@ package aws
 
 import (
 	"context"
+	"reflect"
+	"runtime"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 )
@@ -30,9 +33,12 @@ func registerService(e serviceEntry) {
 	registeredServices = append(registeredServices, e)
 }
 
-// resolverEntry describes a phase-2 relationship resolver.
+// resolverEntry describes a phase-2 relationship resolver. Name is derived
+// from the function's reflected name so error reports can identify the
+// failing resolver without each call site spelling its own name.
 type resolverEntry struct {
-	fn func(acct *account, st *store.Store) error
+	name string
+	fn   func(acct *account, st *store.Store) error
 }
 
 // registeredResolvers is populated by each *_resolvers.go file's init().
@@ -40,5 +46,15 @@ var registeredResolvers []resolverEntry
 
 // registerResolver adds a resolver to the package-level registry.
 func registerResolver(fn func(acct *account, st *store.Store) error) {
-	registeredResolvers = append(registeredResolvers, resolverEntry{fn: fn})
+	registeredResolvers = append(registeredResolvers, resolverEntry{name: resolverName(fn), fn: fn})
+}
+
+// resolverName returns the unqualified function name from runtime reflection,
+// e.g. "resolveBackupVaults" for codeberg.org/.../aws.resolveBackupVaults.
+func resolverName(fn any) string {
+	full := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	if i := strings.LastIndex(full, "."); i >= 0 {
+		return full[i+1:]
+	}
+	return full
 }

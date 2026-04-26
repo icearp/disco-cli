@@ -22,22 +22,35 @@ type ScanWarning struct {
 	Message  string // err.Error()
 }
 
+// ScanError is a per-service / per-resolver failure captured during a scan.
+// Errors never abort the scan; they are accumulated and rendered as a grouped
+// block at the end so the user sees each failure exactly once.
+type ScanError struct {
+	Provider string // "aws", "azure", "gcp"
+	Service  string // e.g. "ec2", "iam", "resolve:resolveBackupVaults"
+	Scope    string // accountID[/region] or subscriptionID or projectID
+	Message  string // err.Error()
+}
+
 // Store is the primary access point for the disco database.
 type Store struct {
 	db                *sqlx.DB
-	OnServiceComplete func(service string, total, inserted int) // optional; called by providers after each service scan
-	OnResolveStart    func(provider string)                     // optional; called just before phase-2 resolvers run
-	OnResolveComplete func(provider string, edges int)          // optional; called after all resolvers finish
-	OnWarn            func(ScanWarning)                         // optional; called by providers when a skip-worthy error is handled
-	activeCounter     *atomic.Int64                             // non-nil only in scoped copies returned by WithRelCounter
+	OnServiceComplete func(service string, total, inserted, errCount int) // optional; called by providers after each service scan
+	OnResolveStart    func(provider string)                                // optional; called just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)                     // optional; called after all resolvers finish
+	OnWarn            func(ScanWarning)                                    // optional; called by providers when a skip-worthy error is handled
+	OnError           func(ScanError)                                      // optional; called by providers when a service or resolver fails
+	activeCounter     *atomic.Int64                                        // non-nil only in scoped copies returned by WithRelCounter
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
-// service scan function returns successfully. total = resources seen this scan,
-// inserted = resources newly added (not previously in the DB).
-func (s *Store) ReportService(service string, total, inserted int) {
+// service scan function returns. total = resources seen this scan, inserted =
+// resources newly added (not previously in the DB), errCount = number of errors
+// encountered while scanning this service (>0 surfaces as a "(with errors)"
+// suffix on the progress line).
+func (s *Store) ReportService(service string, total, inserted, errCount int) {
 	if s.OnServiceComplete != nil {
-		s.OnServiceComplete(service, total, inserted)
+		s.OnServiceComplete(service, total, inserted, errCount)
 	}
 }
 
@@ -74,6 +87,15 @@ func (s *Store) ReportResolveComplete(provider string, edges int) {
 func (s *Store) ReportWarning(w ScanWarning) {
 	if s.OnWarn != nil {
 		s.OnWarn(w)
+	}
+}
+
+// ReportError fires OnError if set. Providers call this when a service or
+// resolver fails — the error is accumulated and rendered as a grouped block
+// at the end of the scan, never aborting other in-flight work.
+func (s *Store) ReportError(e ScanError) {
+	if s.OnError != nil {
+		s.OnError(e)
 	}
 }
 

@@ -30,7 +30,6 @@ import (
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithy "github.com/aws/smithy-go"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -77,110 +76,124 @@ func (s *Scanner) ServiceNames() []string {
 }
 
 // Scan discovers all AWS resources across all configured accounts and regions.
+// Errors are reported via st.ReportError and never abort the scan: a failure
+// in one service / resolver / account does not stop the others.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
 	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride)
 	if err != nil {
-		return fmt.Errorf("aws: load accounts: %w", err)
+		st.ReportError(store.ScanError{
+			Provider: "aws", Service: "load-accounts", Scope: "", Message: err.Error(),
+		})
+		return nil
 	}
 	for i := range accounts {
-		if err := scanAccount(ctx, &accounts[i], s.serviceFilter, st, scanID); err != nil {
-			return fmt.Errorf("aws account %s: %w", accounts[i].ID, err)
-		}
+		scanAccount(ctx, &accounts[i], s.serviceFilter, st, scanID)
 	}
 	return nil
 }
 
-// scanAccount runs phase 1 (resources) then phase 2 (relationships) for one account.
-func scanAccount(ctx context.Context, acct *account, services []string, st *store.Store, scanID string) error {
+// scanAccount runs phase 1 (resources) then phase 2 (relationships) for one
+// account. Errors are reported via st.ReportError and never propagate — a
+// service failure does not abort sibling services or the relationship phase.
+func scanAccount(ctx context.Context, acct *account, services []string, st *store.Store, scanID string) {
 	// Phase 1a: global services (once per account, region is irrelevant).
+	// Use a plain WaitGroup with a semaphore — errgroup would cancel siblings
+	// on first error, which we explicitly do not want anymore.
 	sem := semaphore.NewWeighted(maxConcurrentServices)
-	g0, ctx0 := errgroup.WithContext(ctx)
+	var wg0 sync.WaitGroup
 	for _, svc := range filteredServices(services) {
 		if !svc.global {
 			continue
 		}
-		g0.Go(func() error {
-			if err := sem.Acquire(ctx0, 1); err != nil {
-				return err
+		wg0.Go(func() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return
 			}
 			defer sem.Release(1)
-			svcCtx, cancel := context.WithTimeout(ctx0, serviceTimeout)
+			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
 			if err != nil {
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
-					st.ReportService(svc.name, 0, 0)
-					return nil
+					st.ReportService(svc.name, 0, 0, 0)
+					return
 				}
-				return err
+				st.ReportError(store.ScanError{
+					Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
+				})
+				st.ReportService(svc.name, total, inserted, 1)
+				return
 			}
-			st.ReportService(svc.name, total, inserted)
-			return nil
+			st.ReportService(svc.name, total, inserted, 0)
 		})
 	}
-	if err := g0.Wait(); err != nil {
-		return err
-	}
+	wg0.Wait()
 
 	// Phase 1b: regional services — all regions sequentially, parallel within each.
 	for _, region := range acct.Regions {
-		if err := scanRegion(ctx, acct, region, services, st, scanID); err != nil {
-			return fmt.Errorf("region %s: %w", region, err)
-		}
+		scanRegion(ctx, acct, region, services, st, scanID)
 	}
 
 	// Phase 2: derive relationships now that all resources exist in the DB.
 	st.ReportResolveStart("aws")
 	var counter atomic.Int64
-	err := resolveRelationships(ctx, acct, st.WithRelCounter(&counter))
+	resolveRelationships(ctx, acct, st.WithRelCounter(&counter))
 	st.ReportResolveComplete("aws", int(counter.Load()))
-	return err
 }
 
 // resolveRelationships is phase 2: after all resources are written to the DB,
 // derive relationships from the JSON attributes stored on each resource.
 // Using ResourceID to compute stable IDs means we never need to read back
-// resources just to get their primary keys.
-func resolveRelationships(_ context.Context, acct *account, st *store.Store) error {
+// resources just to get their primary keys. A failure in one resolver is
+// reported and does not stop the others — partial graph beats no graph.
+func resolveRelationships(_ context.Context, acct *account, st *store.Store) {
 	for _, r := range registeredResolvers {
 		if err := r.fn(acct, st); err != nil {
-			return err
+			st.ReportError(store.ScanError{
+				Provider: "aws",
+				Service:  "resolve:" + r.name,
+				Scope:    acct.ID,
+				Message:  err.Error(),
+			})
 		}
 	}
-	return nil
 }
 
 // scanRegion runs all regional service scanners in parallel, bounded by
-// maxConcurrentServices to avoid API rate limits.
-func scanRegion(ctx context.Context, acct *account, region string, services []string, st *store.Store, scanID string) error {
+// maxConcurrentServices to avoid API rate limits. Service failures are
+// reported and never abort sibling services.
+func scanRegion(ctx context.Context, acct *account, region string, services []string, st *store.Store, scanID string) {
 	sem := semaphore.NewWeighted(maxConcurrentServices)
-	g, gctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 	for _, svc := range filteredServices(services) {
 		if svc.global {
 			continue
 		}
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+		wg.Go(func() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return
 			}
 			defer sem.Release(1)
-			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
 			if err != nil {
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
-					st.ReportService(svc.name, 0, 0)
-					return nil
+					st.ReportService(svc.name, 0, 0, 0)
+					return
 				}
-				return err
+				st.ReportError(store.ScanError{
+					Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
+				})
+				st.ReportService(svc.name, total, inserted, 1)
+				return
 			}
-			st.ReportService(svc.name, total, inserted)
-			return nil
+			st.ReportService(svc.name, total, inserted, 0)
 		})
 	}
-	return g.Wait()
+	wg.Wait()
 }
 
 // filteredServices returns the services to run. When filter is non-empty, only

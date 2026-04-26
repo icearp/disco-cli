@@ -124,7 +124,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 			if err != nil {
 				return err
 			}
-			st.ReportService(svc.name, total, inserted)
+			st.ReportService(svc.name, total, inserted, 0)
 			return nil
 		})
 	}

@@ -96,15 +96,22 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 
 	// Print a status line each time a provider completes scanning one service.
 	// Accumulate totals here — these are the source of truth for the summary counts.
+	// errCount > 0 means the service hit one or more errors (which were already
+	// reported via OnError); annotate the line with "(with errors)" so the user
+	// can scan output for trouble without grepping.
 	var totalSeen, totalNew int64
-	db.OnServiceComplete = func(service string, total, inserted int) {
+	db.OnServiceComplete = func(service string, total, inserted, errCount int) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
 		if quiet {
 			return
 		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  (%d total, %d new)\n",
-			time.Since(start).Round(time.Second), nameWidth, service, total, inserted)
+		suffix := ""
+		if errCount > 0 {
+			suffix = "  (with errors)"
+		}
+		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  (%d total, %d new)%s\n",
+			time.Since(start).Round(time.Second), nameWidth, service, total, inserted, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
@@ -133,59 +140,69 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		warnMu.Unlock()
 	}
 
-	// Run all providers in parallel. A failure in one provider no longer
-	// cancels its siblings — security users would rather have a partial
-	// inventory from the providers that succeeded than nothing at all.
-	ctx := context.Background()
+	// Collect errors in memory and render grouped at end. Errors do NOT abort
+	// the scan: any provider/service/resolver failure is captured here and
+	// surfaced exactly once after all in-flight work settles.
 	var (
-		wg      sync.WaitGroup
-		mu      sync.Mutex
-		failed  []string // formatted "<provider>: <error>"
-		succeed int
+		scanErrors []store.ScanError
+		errMu      sync.Mutex
 	)
+	db.OnError = func(e store.ScanError) {
+		errMu.Lock()
+		scanErrors = append(scanErrors, e)
+		errMu.Unlock()
+	}
+
+	// Run all providers in parallel. A failure in one provider does not abort
+	// its siblings — security users would rather have a partial inventory from
+	// the providers that succeeded than nothing at all. Providers should never
+	// return an error from Scan() (errors flow through OnError); if one does,
+	// we still capture it as a ScanError and continue.
+	ctx := context.Background()
+	var wg sync.WaitGroup
 	for _, s := range scanners {
 		wg.Go(func() {
 			if err := s.Scan(ctx, db, scanID); err != nil {
-				mu.Lock()
-				failed = append(failed, fmt.Sprintf("%s: %v", s.Name(), err))
-				mu.Unlock()
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  [%s] %s: FAILED: %v\n",
-					time.Since(start).Round(time.Second), s.Name(), err)
-				return
+				errMu.Lock()
+				scanErrors = append(scanErrors, store.ScanError{
+					Provider: s.Name(), Service: "scan", Scope: "", Message: err.Error(),
+				})
+				errMu.Unlock()
 			}
-			mu.Lock()
-			succeed++
-			mu.Unlock()
 		})
 	}
 	wg.Wait()
 
-	// Render grouped warnings block before the final summary line.
+	// Render grouped warnings + errors blocks before the final summary line.
 	renderWarnings(progressW, warnings, quiet)
+	renderErrors(progressW, scanErrors, quiet)
+
 	warnSuffix := ""
 	if len(warnings) > 0 {
 		warnSuffix = fmt.Sprintf(", %d warnings", len(warnings))
 	}
-
-	count := int(totalSeen)
-	errMsg := strings.Join(failed, "; ")
-
-	// All providers failed → mark failed and surface combined error to the shell.
-	if succeed == 0 && len(failed) > 0 {
-		if ferr := db.FailScan(scanID, errMsg); ferr != nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not record scan failure: %v\n", ferr)
-		}
-		return fmt.Errorf("scan failed: %s", errMsg)
+	errSuffix := ""
+	if len(scanErrors) > 0 {
+		errSuffix = fmt.Sprintf(", %d errors", len(scanErrors))
 	}
 
-	// Some providers failed but others succeeded → partial scan.
-	if len(failed) > 0 {
+	count := int(totalSeen)
+
+	// Any errors → partial scan; otherwise complete. We no longer distinguish
+	// "all failed" from "some failed" because nothing aborts: even with errors,
+	// resources from the surviving services are persisted and worth keeping.
+	if len(scanErrors) > 0 {
+		errMsgs := make([]string, len(scanErrors))
+		for i, e := range scanErrors {
+			errMsgs[i] = fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message)
+		}
+		errMsg := strings.Join(errMsgs, "; ")
 		if perr := db.PartialScan(scanID, count, errMsg); perr != nil {
 			return fmt.Errorf("mark partial scan: %w", perr)
 		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"Scan partial: %d resources (%d new) in %s%s; failed providers: %s\n",
-			count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix, errMsg)
+			"Scan partial: %d resources (%d new) in %s%s%s\n",
+			count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return nil
 	}
 
@@ -195,6 +212,43 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
 		count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// renderErrors prints a grouped, column-aligned block of scan errors at the
+// end of the run so each failure is shown exactly once. Sort order: provider,
+// scope, service — deterministic across runs.
+func renderErrors(w io.Writer, errs []store.ScanError, quiet bool) {
+	if quiet || len(errs) == 0 {
+		return
+	}
+	sorted := make([]store.ScanError, len(errs))
+	copy(sorted, errs)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Provider != sorted[j].Provider {
+			return sorted[i].Provider < sorted[j].Provider
+		}
+		if sorted[i].Scope != sorted[j].Scope {
+			return sorted[i].Scope < sorted[j].Scope
+		}
+		return sorted[i].Service < sorted[j].Service
+	})
+	provW, svcW, scopeW := 0, 0, 0
+	for _, x := range sorted {
+		if len(x.Provider) > provW {
+			provW = len(x.Provider)
+		}
+		if len(x.Service) > svcW {
+			svcW = len(x.Service)
+		}
+		if len(x.Scope) > scopeW {
+			scopeW = len(x.Scope)
+		}
+	}
+	_, _ = fmt.Fprintf(w, "\nErrors (%d):\n", len(sorted))
+	for _, x := range sorted {
+		_, _ = fmt.Fprintf(w, "  %-*s  %-*s  %-*s  %s\n",
+			provW, x.Provider, svcW, x.Service, scopeW, x.Scope, x.Message)
+	}
 }
 
 // renderWarnings prints a grouped, column-aligned block of scan warnings.

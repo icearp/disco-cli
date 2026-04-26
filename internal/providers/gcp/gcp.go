@@ -118,7 +118,7 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			if err != nil {
 				return err
 			}
-			st.ReportService(svc.name, total, inserted)
+			st.ReportService(svc.name, total, inserted, 0)
 			return nil
 		})
 	}
