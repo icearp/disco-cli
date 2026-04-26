@@ -1,12 +1,12 @@
 # disco
 
-`disco` is a CLI that pulls an inventory of your AWS, Azure, and GCP accounts into a local SQLite database, along with the relationships between resources. Once it's scanned, you can query the database offline to figure out things like what a given IAM role is attached to, which Lambdas read a particular secret, or what changed between yesterday and today. It's aimed at security and compliance work, where you usually need to see everything rather than the subset surfaced by a console search box.
+`disco` is a CLI that pulls an inventory of your AWS, Azure, and GCP accounts into a local SQLite database, along with the relationships between resources. Once it's scanned, you can query the database offline to figure out things like what a given IAM role is attached to or which Lambdas read a particular secret. It's aimed at security and compliance work, where you usually need to see everything rather than the subset surfaced by a console search box.
 
 ## What it does
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
 - `resolve` runs after scanning and connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`).
-- `list`, `graph`, and `diff` query the local DB without going back to the cloud.
+- `list` and `graph` query the local DB without going back to the cloud.
 - `check` runs rules against stored state and prints findings.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
@@ -40,7 +40,6 @@ disco scan gcp    --org <org-id>
 # Query
 disco list  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
-disco diff  <scanA> <scanB>
 disco check
 ```
 
