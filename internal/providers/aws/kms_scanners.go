@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -58,10 +57,6 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 				}
 				md := desc.KeyMetadata
 				if md == nil {
-					return nil
-				}
-				// Skip AWS-managed keys — not user-configurable and noise for rules.
-				if md.KeyManager == types.KeyManagerTypeAws {
 					return nil
 				}
 
@@ -192,12 +187,6 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 		var batch []*store.Resource
 		for _, a := range page.Aliases {
 			if a.TargetKeyId == nil {
-				continue
-			}
-			// Skip AWS-managed aliases (alias/aws/*) — they target AWS-managed
-			// keys that the key scanner also skips, so the resolver would fail
-			// the FK check against a non-existent target.
-			if strings.HasPrefix(sv(a.AliasName), "alias/aws/") {
 				continue
 			}
 			arn := sv(a.AliasArn)

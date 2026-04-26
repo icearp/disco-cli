@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -21,15 +20,17 @@ func resolveSQSQueueRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
 	for _, r := range queues {
 		var attrs map[string]string
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		// Queue → KMS (customer-managed only). AWS-managed key alias/aws/sqs is skipped.
-		if keyRef := attrs["KmsMasterKeyId"]; keyRef != "" && !strings.HasPrefix(keyRef, "alias/aws/") {
-			target := kmsKeyTargetARN(keyRef, sv(r.Region), acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
+		// Queue → KMS.
+		if keyID, ok := kmsIdx.resolveKMSKeyID(attrs["KmsMasterKeyId"], sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sqs-queue→kms: %w", err)
 			}

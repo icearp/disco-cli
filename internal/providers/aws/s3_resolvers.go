@@ -21,11 +21,14 @@ func init() {
 // resolveS3BucketEncryptionRelationships emits bucket→KMS `uses` edges from
 // the per-bucket SSE config collected by scanS3BucketEncryptions. Only rules
 // with SSEAlgorithm "aws:kms" / "aws:kms:dsse" and a non-empty KMSMasterKeyID
-// produce edges. AWS-managed default keys (alias/aws/s3) are skipped — they
-// are never scanned, and emitting an edge would dangle.
+// produce edges; resolveKMSKeyID handles alias-name → key-ARN resolution.
 func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) error {
 	if len(acct.s3BucketEncryption) == 0 {
 		return nil
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
 	}
 	for bucket, entry := range acct.s3BucketEncryption {
 		if entry.Config == nil {
@@ -42,12 +45,10 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 			if alg != "aws:kms" && alg != "aws:kms:dsse" {
 				continue
 			}
-			keyRef := sv(def.KMSMasterKeyID)
-			if keyRef == "" || keyRef == "alias/aws/s3" {
+			keyID, ok := kmsIdx.resolveKMSKeyID(sv(def.KMSMasterKeyID), entry.Region, acct.ID)
+			if !ok {
 				continue
 			}
-			target := kmsKeyTargetARN(keyRef, entry.Region, acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
 			if err := st.UpsertRelationship(bucketID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert s3-bucket→kms: %w", err)
 			}

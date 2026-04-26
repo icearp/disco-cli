@@ -57,6 +57,10 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
 	for _, r := range dcs {
 		var attrs struct {
 			S3BucketName *string `json:"S3BucketName"`
@@ -72,8 +76,7 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert config-dc→s3: %w", err)
 			}
 		}
-		if kms := sv(attrs.S3KmsKeyArn); kms != "" && !strings.HasPrefix(kms, "alias/aws/") {
-			kid := store.ResourceID("aws", acct.ID, TypeKMSKey, kms)
+		if kid, ok := kmsIdx.resolveKMSKeyID(sv(attrs.S3KmsKeyArn), sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, kid, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert config-dc→kms: %w", err)
 			}

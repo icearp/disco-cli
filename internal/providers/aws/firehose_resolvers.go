@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -43,6 +42,10 @@ func resolveFirehoseDeliveryStreamRelationships(acct *account, st *store.Store) 
 	if err != nil {
 		return err
 	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
 	for _, r := range streams {
 		var attrs struct {
 			Source *struct {
@@ -66,7 +69,7 @@ func resolveFirehoseDeliveryStreamRelationships(acct *account, st *store.Store) 
 		}
 		// Destinations
 		for _, d := range attrs.Destinations {
-			if err := firehoseEmitS3AndKMS(st, r.ID, acct.ID, d); err != nil {
+			if err := firehoseEmitS3AndKMS(st, r.ID, acct.ID, sv(r.Region), kmsIdx, d); err != nil {
 				return err
 			}
 		}
@@ -76,7 +79,7 @@ func resolveFirehoseDeliveryStreamRelationships(acct *account, st *store.Store) 
 
 // firehoseEmitS3AndKMS emits routes-to S3 bucket edges and uses KMS edges for
 // one destination description.
-func firehoseEmitS3AndKMS(st *store.Store, fromID, acctID string, d firehoseDestinationAttrs) error {
+func firehoseEmitS3AndKMS(st *store.Store, fromID, acctID, region string, kmsIdx *kmsResolveIndex, d firehoseDestinationAttrs) error {
 	emitS3 := func(bucketARN string) error {
 		if bucketARN == "" {
 			return nil
@@ -91,11 +94,10 @@ func firehoseEmitS3AndKMS(st *store.Store, fromID, acctID string, d firehoseDest
 		if w == nil || w.KMSEncryptionConfig == nil {
 			return nil
 		}
-		keyARN := sv(w.KMSEncryptionConfig.AWSKMSKeyARN)
-		if keyARN == "" || strings.HasPrefix(keyARN, "alias/aws/") {
+		keyID, ok := kmsIdx.resolveKMSKeyID(sv(w.KMSEncryptionConfig.AWSKMSKeyARN), region, acctID)
+		if !ok {
 			return nil
 		}
-		keyID := store.ResourceID("aws", acctID, TypeKMSKey, keyARN)
 		if err := st.UpsertRelationship(fromID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert firehose→kms: %w", err)
 		}

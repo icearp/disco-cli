@@ -84,6 +84,6 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 
 Before implementing `ROADMAP.md` NOW item, grep for target `Type*` constants + resolver fn names — items get implemented without roadmap sweep (R1.3 Lambda layers + R1.4 SQS KMS both listed TODO while already shipped). Audit first; move DONE items into COMPLETED section same pass.
 
-## KMS key edge shape — use `kmsKeyTargetARN`
+## KMS key edge — use `loadKMSResolveIndex` + `resolveKMSKeyID`
 
-Resolver sees KMS ref in three shapes: full ARN, `alias/foo`, bare key ID. Use `kmsKeyTargetARN(ref, region, acctID)` (in `sns_resolvers.go`) to normalize to full ARN before `store.ResourceID` lookup. Skip `alias/aws/*` first (AWS-managed default keys unscanned → dangling edge). Precedent: SQS, SNS, Kafka, Kinesis, S3-encryption, CloudTrail-EDS resolvers.
+Resolver sees KMS ref in four shapes: full key ARN, alias ARN, `alias/foo`, bare key UUID. Build index once per resolver via `loadKMSResolveIndex(acct, st)` (`kms_helpers.go`), then call `idx.resolveKMSKeyID(ref, region, acctID)` per edge — returns `(keyID, ok)` where `ok=false` means target wasn't scanned (skip emit, no FK error). Index also resolves alias name → underlying key ARN, so `alias/aws/foo` references now link to the AWS-managed key (which IS scanned — see kms scanner). Don't manually call `kmsKeyTargetARN` + build a key ID set + check `alias/aws/` — the helper does all three. Precedent: backup, rds, sns, sqs, kinesis, firehose, ssm, config, s3-encryption, kafka, cloudtrail-eds resolvers.

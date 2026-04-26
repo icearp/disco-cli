@@ -30,19 +30,9 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	// FK-safe: KmsKeyId may reference a key in another account or an
-	// AWS-managed key we don't scan. Build the scanned-key set so we can
-	// skip emit when target is absent.
-	kmsKeys, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSKey},
-		Limit: util.AllResources,
-	})
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
 		return err
-	}
-	kmsByID := make(map[string]struct{}, len(kmsKeys))
-	for _, k := range kmsKeys {
-		kmsByID[k.ID] = struct{}{}
 	}
 	for _, r := range dbs {
 		var attrs struct {
@@ -85,15 +75,11 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert rds-instance→subnet-group relationship: %w", err)
 			}
 		}
-		// Instance → KMS key (customer-managed); AWS-managed default key is not scanned.
-		// Normalize key ref shape (ARN/alias/bare-id) and skip when target was not scanned.
-		if key := sv(attrs.KmsKeyId); key != "" && !strings.HasPrefix(key, "alias/aws/") {
-			target := kmsKeyTargetARN(key, region, acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
-			if _, ok := kmsByID[keyID]; ok {
-				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert rds-instance→kms relationship: %w", err)
-				}
+		// Instance → KMS key. resolveKMSKeyID handles ARN/alias/bare-id and
+		// returns ok=false when the target wasn't scanned.
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), region, acct.ID); ok {
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert rds-instance→kms relationship: %w", err)
 			}
 		}
 		// Instance → DB parameter groups
@@ -131,18 +117,9 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	// FK-safe: see resolveRDSInstanceRelationships — clusters reference KMS
-	// keys that may not be in the scanned set (cross-account, AWS-managed).
-	kmsKeys, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSKey},
-		Limit: util.AllResources,
-	})
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
 		return err
-	}
-	kmsByID := make(map[string]struct{}, len(kmsKeys))
-	for _, k := range kmsKeys {
-		kmsByID[k.ID] = struct{}{}
 	}
 	for _, r := range clusters {
 		var attrs struct {
@@ -168,15 +145,11 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert db-cluster→cluster-parameter-group relationship: %w", err)
 			}
 		}
-		// Cluster → KMS key (customer-managed). Normalize ref shape and skip
-		// when target was not scanned (cross-account or AWS-managed).
-		if key := sv(attrs.KmsKeyId); key != "" && !strings.HasPrefix(key, "alias/aws/") {
-			target := kmsKeyTargetARN(key, sv(r.Region), acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
-			if _, ok := kmsByID[keyID]; ok {
-				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert db-cluster→kms relationship: %w", err)
-				}
+		// Cluster → KMS key. resolveKMSKeyID normalizes ref shape and skips
+		// when target was not scanned.
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), sv(r.Region), acct.ID); ok {
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert db-cluster→kms relationship: %w", err)
 			}
 		}
 	}

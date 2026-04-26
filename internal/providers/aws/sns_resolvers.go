@@ -22,15 +22,17 @@ func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
 	for _, r := range topics {
 		var attrs map[string]string
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		// Topic → KMS. AWS-managed default key (alias/aws/sns) is not scanned.
-		if keyRef := attrs["KmsMasterKeyId"]; keyRef != "" && !strings.HasPrefix(keyRef, "alias/aws/") {
-			target := kmsKeyTargetARN(keyRef, sv(r.Region), acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, target)
+		// Topic → KMS.
+		if keyID, ok := kmsIdx.resolveKMSKeyID(attrs["KmsMasterKeyId"], sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sns-topic→kms: %w", err)
 			}

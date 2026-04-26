@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -52,6 +51,10 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 	}
 
 	known, err := kafkaTargetIDSet(acct, st)
+	if err != nil {
+		return err
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
 		return err
 	}
@@ -105,13 +108,9 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert msk-cluster→security-group: %w", err)
 			}
 		}
-		if kmsRef != "" && !strings.HasPrefix(kmsRef, "alias/aws/") {
-			keyARN := kmsKeyTargetARN(kmsRef, region, acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, keyARN)
-			if known[keyID] {
-				if err := st.UpsertRelationship(c.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert msk-cluster→kms: %w", err)
-				}
+		if keyID, ok := kmsIdx.resolveKMSKeyID(kmsRef, region, acct.ID); ok {
+			if err := st.UpsertRelationship(c.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert msk-cluster→kms: %w", err)
 			}
 		}
 	}

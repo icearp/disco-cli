@@ -83,16 +83,9 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 	if len(eds) == 0 {
 		return nil
 	}
-	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSKey},
-		Limit: util.AllResources,
-	})
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
 		return err
-	}
-	keyIDs := make(map[string]struct{}, len(keys))
-	for _, k := range keys {
-		keyIDs[k.ID] = struct{}{}
 	}
 	roles, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIAMRole},
@@ -116,13 +109,9 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 			continue
 		}
 		// EDS → KMS
-		if k := sv(a.KmsKeyId); k != "" && !strings.HasPrefix(k, "alias/aws/") {
-			keyARN := kmsKeyTargetARN(k, sv(r.Region), acct.ID)
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, keyARN)
-			if _, ok := keyIDs[keyID]; ok {
-				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cloudtrail-eds→kms: %w", err)
-				}
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(a.KmsKeyId), sv(r.Region), acct.ID); ok {
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cloudtrail-eds→kms: %w", err)
 			}
 		}
 		// EDS → federation IAM role
