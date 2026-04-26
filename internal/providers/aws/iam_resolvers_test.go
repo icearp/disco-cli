@@ -443,9 +443,9 @@ func TestResolveIAMPolicyResources_FKSafeSkip(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	policyARN := "arn:aws:iam::" + testAccountID + ":policy/Phantom"
-	otherBucketARN := "arn:aws:s3:::cross-account-bucket"   // not scanned
-	wildcardARN := "arn:aws:s3:::prod-*"                    // wildcard
-	starARN := "*"                                          // pure wildcard
+	otherBucketARN := "arn:aws:s3:::cross-account-bucket" // not scanned
+	wildcardARN := "arn:aws:s3:::prod-*"                  // wildcard
+	starARN := "*"                                        // pure wildcard
 	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + otherBucketARN + `","` + wildcardARN + `","` + starARN + `"]}]}`
 
 	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))

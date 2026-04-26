@@ -247,7 +247,7 @@ func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st 
 			// add sibling PolicyVersion (URL-encoded Document field). resolveManagedPolicyAttachments
 			// consumes only NativeID, so wrapping is safe.
 			wrapped := struct {
-				Policy        iamtypes.Policy        `json:"Policy"`
+				Policy        iamtypes.Policy         `json:"Policy"`
 				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
 			}{Policy: p, PolicyVersion: versions[i]}
 			batch = append(batch, &store.Resource{

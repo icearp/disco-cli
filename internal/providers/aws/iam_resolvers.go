@@ -581,7 +581,7 @@ func loadPolicyResourceSets(acct *account, st *store.Store) (*policyResourceSets
 	}
 	s := &policyResourceSets{kms: kmsIdx}
 	for _, pair := range []struct {
-		dst  *map[string]struct{}
+		dst   *map[string]struct{}
 		rtype string
 	}{
 		{&s.buckets, TypeS3Bucket},

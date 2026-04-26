@@ -294,11 +294,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 // either never existed (CREATE_FAILED) or no longer exists (DELETE_*),
 // so emitting a contains edge would point at a phantom target.
 var skipResourceStatus = map[string]bool{
-	"CREATE_FAILED":         true,
-	"DELETE_COMPLETE":       true,
-	"DELETE_IN_PROGRESS":    true,
-	"DELETE_SKIPPED":        true,
-	"DELETE_FAILED":         true,
+	"CREATE_FAILED":      true,
+	"DELETE_COMPLETE":    true,
+	"DELETE_IN_PROGRESS": true,
+	"DELETE_SKIPPED":     true,
+	"DELETE_FAILED":      true,
 }
 
 // resolveCloudFormationStackResources walks every scanned stack's embedded

@@ -87,7 +87,7 @@ type stackWithResources struct {
 // stackSetWithInstances wraps DescribeStackSet output plus the per-instance
 // ListStackInstances results so the resolver can walk deployed stacks.
 type stackSetWithInstances struct {
-	StackSet  *cfntypes.StackSet             `json:"StackSet"`
+	StackSet  *cfntypes.StackSet              `json:"StackSet"`
 	Instances []cfntypes.StackInstanceSummary `json:"Instances"`
 }
 

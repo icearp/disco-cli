@@ -44,11 +44,11 @@ type ScanError struct {
 type Store struct {
 	db                *sqlx.DB
 	OnServiceComplete func(service string, total, inserted, errCount int) // after each service scan; errCount>0 surfaces "(with errors)" in progress
-	OnResolveStart    func(provider string)                                // just before phase-2 resolvers run
-	OnResolveComplete func(provider string, edges int)                     // after all resolvers finish
-	OnWarn            func(ScanWarning)                                    // skip-worthy error handled (transient, access-denied)
-	OnError           func(ScanError)                                      // service or resolver failure; never aborts the scan
-	activeCounter     *atomic.Int64                                        // non-nil only in scoped copies returned by WithRelCounter
+	OnResolveStart    func(provider string)                               // just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)                    // after all resolvers finish
+	OnWarn            func(ScanWarning)                                   // skip-worthy error handled (transient, access-denied)
+	OnError           func(ScanError)                                     // service or resolver failure; never aborts the scan
+	activeCounter     *atomic.Int64                                       // non-nil only in scoped copies returned by WithRelCounter
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
