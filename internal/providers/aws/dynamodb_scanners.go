@@ -24,67 +24,36 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns
 // names only; we describe each table in parallel to avoid N+1 sequential API calls.
-func scanDynamoDBTables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDynamoDBTables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
-
-	pager := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListTables", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("dynamodb:ListTables: %w", err)
-		}
-
-		// Describe all tables in the page concurrently.
-		var (
-			mu    sync.Mutex
-			batch []*store.Resource
-		)
-		g, gctx := errgroup.WithContext(ctx)
-		for _, name := range page.TableNames {
-			g.Go(func() error {
-				desc, err := client.DescribeTable(gctx, &dynamodb.DescribeTableInput{TableName: &name})
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("dynamodb:DescribeTable %s: %w", name, err)
-				}
-				t := desc.Table
-				r := &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeDynamoDBTable,
-					NativeID:       sv(t.TableArn),
-					Name:           t.TableName,
-					Region:         &region,
-					CreatedAt:      tp(t.CreationDateTime),
-					Status:         sp(string(t.TableStatus)),
-					AttributesJSON: mustJSON(t),
-					DiscoveredBy:   scanID,
-				}
-				mu.Lock()
-				batch = append(batch, r)
-				mu.Unlock()
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return 0, 0, err
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+	p := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
+	return pageScanConcurrent(ctx, "dynamodb:ListTables", acct, region, st,
+		p.HasMorePages,
+		func(c context.Context) (*dynamodb.ListTablesOutput, error) { return p.NextPage(c) },
+		func(o *dynamodb.ListTablesOutput) []string { return o.TableNames },
+		func(gctx context.Context, name string) (*store.Resource, error) {
+			desc, err := client.DescribeTable(gctx, &dynamodb.DescribeTableInput{TableName: &name})
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert DynamoDB tables: %w", err)
+				if isAccessDenied(err) {
+					return nil, nil
+				}
+				return nil, fmt.Errorf("dynamodb:DescribeTable %s: %w", name, err)
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			t := desc.Table
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeDynamoDBTable,
+				NativeID:       sv(t.TableArn),
+				Name:           t.TableName,
+				Region:         &region,
+				CreatedAt:      tp(t.CreationDateTime),
+				Status:         sp(string(t.TableStatus)),
+				AttributesJSON: mustJSON(t),
+				DiscoveredBy:   scanID,
+			}, nil
+		}, 0)
 }
 
 // scanDynamoDBGlobalTables discovers DynamoDB global tables (legacy v2017.11.29

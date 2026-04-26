@@ -3,12 +3,10 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() { registerService(serviceEntry{name: "aws:cloudtrail", fn: scanCloudTrail}) }
@@ -73,43 +71,29 @@ func scanCloudTrail(ctx context.Context, acct *account, region string, st *store
 
 	// Phase 2: CloudTrail Lake event data stores. List returns sparse entries;
 	// GetEventDataStore supplies KmsKeyId + FederationRoleArn needed by resolvers.
-	paginator := cloudtrail.NewListEventDataStoresPaginator(client, &cloudtrail.ListEventDataStoresInput{})
-	var arns []string
-	for paginator.HasMorePages() {
-		page, pErr := paginator.NextPage(ctx)
-		if pErr != nil {
-			if isAccessDenied(pErr) {
-				_ = skipIfAccessDenied(st, "cloudtrail:ListEventDataStores", acct.ID, region, pErr)
-				return total, inserted, nil
+	p := cloudtrail.NewListEventDataStoresPaginator(client, &cloudtrail.ListEventDataStoresInput{})
+	t2, n2, err := pageScanConcurrent(ctx, "cloudtrail:ListEventDataStores", acct, region, st,
+		p.HasMorePages,
+		func(c context.Context) (*cloudtrail.ListEventDataStoresOutput, error) { return p.NextPage(c) },
+		func(o *cloudtrail.ListEventDataStoresOutput) []string {
+			out := make([]string, 0, len(o.EventDataStores))
+			for _, e := range o.EventDataStores {
+				if a := sv(e.EventDataStoreArn); a != "" {
+					out = append(out, a)
+				}
 			}
-			return total, inserted, fmt.Errorf("cloudtrail:ListEventDataStores: %w", pErr)
-		}
-		for _, e := range page.EventDataStores {
-			if a := sv(e.EventDataStoreArn); a != "" {
-				arns = append(arns, a)
-			}
-		}
-	}
-	if len(arns) == 0 {
-		return total, inserted, nil
-	}
-
-	var (
-		mu       sync.Mutex
-		edsBatch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, arn := range arns {
-		g.Go(func() error {
+			return out
+		},
+		func(gctx context.Context, arn string) (*store.Resource, error) {
 			detail, gErr := client.GetEventDataStore(gctx, &cloudtrail.GetEventDataStoreInput{EventDataStore: &arn})
 			if gErr != nil {
 				if isAccessDenied(gErr) {
-					return nil
+					return nil, nil
 				}
-				return fmt.Errorf("cloudtrail:GetEventDataStore %s: %w", arn, gErr)
+				return nil, fmt.Errorf("cloudtrail:GetEventDataStore %s: %w", arn, gErr)
 			}
 			status := string(detail.Status)
-			r := &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -120,23 +104,9 @@ func scanCloudTrail(ctx context.Context, acct *account, region string, st *store
 				Status:         &status,
 				AttributesJSON: mustJSON(detail),
 				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			edsBatch = append(edsBatch, r)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if gErr := g.Wait(); gErr != nil {
-		return total, inserted, gErr
-	}
-	if len(edsBatch) > 0 {
-		n, uErr := st.UpsertResources(edsBatch)
-		if uErr != nil {
-			return total, inserted, fmt.Errorf("upsert CloudTrail event-data-stores: %w", uErr)
-		}
-		total += len(edsBatch)
-		inserted += n
-	}
-	return total, inserted, nil
+			}, nil
+		}, 0)
+	total += t2
+	inserted += n2
+	return total, inserted, err
 }
