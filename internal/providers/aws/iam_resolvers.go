@@ -471,57 +471,7 @@ func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	kmsIdx, err := loadKMSResolveIndex(acct, st)
-	if err != nil {
-		return err
-	}
-	bucketIDs, err := resourceIDSet(st, acct.ID, TypeS3Bucket)
-	if err != nil {
-		return err
-	}
-	secretIDs, err := resourceIDSet(st, acct.ID, TypeSecretsManagerSecret)
-	if err != nil {
-		return err
-	}
-	tableIDs, err := resourceIDSet(st, acct.ID, TypeDynamoDBTable)
-	if err != nil {
-		return err
-	}
-	lambdaIDs, err := resourceIDSet(st, acct.ID, TypeLambdaFunction)
-	if err != nil {
-		return err
-	}
-	logGroupIDs, err := resourceIDSet(st, acct.ID, TypeLogsLogGroup)
-	if err != nil {
-		return err
-	}
-	topicIDs, err := resourceIDSet(st, acct.ID, TypeSNSTopic)
-	if err != nil {
-		return err
-	}
-	queueIDs, err := resourceIDSet(st, acct.ID, TypeSQSQueue)
-	if err != nil {
-		return err
-	}
-	paramIDs, err := resourceIDSet(st, acct.ID, TypeSSMParameter)
-	if err != nil {
-		return err
-	}
-	streamIDs, err := resourceIDSet(st, acct.ID, TypeKinesisStream)
-	if err != nil {
-		return err
-	}
-	repoIDs, err := resourceIDSet(st, acct.ID, TypeECRRepository)
-	if err != nil {
-		return err
-	}
-	// IAM roles + service-linked roles share an id set; the resolver picks the
-	// type for ResourceID based on the "/aws-service-role/" path segment.
-	roleIDs, err := resourceIDSet(st, acct.ID, TypeIAMRole)
-	if err != nil {
-		return err
-	}
-	slrIDs, err := resourceIDSet(st, acct.ID, TypeIAMServiceLinkedRole)
+	sets, err := loadPolicyResourceSets(acct, st)
 	if err != nil {
 		return err
 	}
@@ -557,7 +507,7 @@ func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 				if ref == "" || ref == "*" {
 					continue
 				}
-				targetID, ok := classifyPolicyResource(ref, region, acct.ID, kmsIdx, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs, paramIDs, streamIDs, repoIDs, roleIDs, slrIDs)
+				targetID, ok := classifyPolicyResource(ref, region, acct.ID, sets)
 				if !ok {
 					continue
 				}
@@ -596,10 +546,76 @@ func extractPolicyDoc(r store.Resource) string {
 	}
 }
 
+// policyResourceSets bundles the per-type FK-safety lookups built once per
+// resolver run. Each id-set maps a stable resource ID to membership; the
+// classifier returns ok=true only when the computed id appears in the
+// matching set, so cross-account / unscanned targets skip silently.
+type policyResourceSets struct {
+	kms           *kmsResolveIndex
+	buckets       map[string]struct{}
+	secrets       map[string]struct{}
+	tables        map[string]struct{}
+	lambdas       map[string]struct{}
+	logGroups     map[string]struct{}
+	topics        map[string]struct{}
+	queues        map[string]struct{}
+	parameters    map[string]struct{}
+	streams       map[string]struct{}
+	repositories  map[string]struct{}
+	roles         map[string]struct{}
+	serviceLinked map[string]struct{}
+	rdsInstances  map[string]struct{}
+	rdsClusters   map[string]struct{}
+	stateMachines map[string]struct{}
+	eventBuses    map[string]struct{}
+	eventRules    map[string]struct{}
+	efsFS         map[string]struct{}
+}
+
+// loadPolicyResourceSets constructs policyResourceSets for one account in a
+// single pass over the store.
+func loadPolicyResourceSets(acct *account, st *store.Store) (*policyResourceSets, error) {
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return nil, err
+	}
+	s := &policyResourceSets{kms: kmsIdx}
+	for _, pair := range []struct {
+		dst  *map[string]struct{}
+		rtype string
+	}{
+		{&s.buckets, TypeS3Bucket},
+		{&s.secrets, TypeSecretsManagerSecret},
+		{&s.tables, TypeDynamoDBTable},
+		{&s.lambdas, TypeLambdaFunction},
+		{&s.logGroups, TypeLogsLogGroup},
+		{&s.topics, TypeSNSTopic},
+		{&s.queues, TypeSQSQueue},
+		{&s.parameters, TypeSSMParameter},
+		{&s.streams, TypeKinesisStream},
+		{&s.repositories, TypeECRRepository},
+		{&s.roles, TypeIAMRole},
+		{&s.serviceLinked, TypeIAMServiceLinkedRole},
+		{&s.rdsInstances, TypeRDSDBInstance},
+		{&s.rdsClusters, TypeRDSDBCluster},
+		{&s.stateMachines, TypeSFNStateMachine},
+		{&s.eventBuses, TypeEventsEventBus},
+		{&s.eventRules, TypeEventsRule},
+		{&s.efsFS, TypeEFSFileSystem},
+	} {
+		set, err := resourceIDSet(st, acct.ID, pair.rtype)
+		if err != nil {
+			return nil, err
+		}
+		*pair.dst = set
+	}
+	return s, nil
+}
+
 // classifyPolicyResource maps a Resource ARN to a stored resource ID via the
 // per-type id sets. Returns ok=false for unrecognized services, wildcard ARNs,
 // and cross-account / unscanned targets — the caller emits no edge.
-func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs, paramIDs, streamIDs, repoIDs, roleIDs, slrIDs map[string]struct{}) (string, bool) {
+func classifyPolicyResource(ref, region, acctID string, sets *policyResourceSets) (string, bool) {
 	switch {
 	case strings.Contains(ref, ":kms:"):
 		// KMS grants don't use object-suffix patterns; any wildcard here means
@@ -607,7 +623,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 		if strings.ContainsAny(ref, "*?") {
 			return "", false
 		}
-		return kmsIdx.resolveKMSKeyID(ref, region, acctID)
+		return sets.kms.resolveKMSKeyID(ref, region, acctID)
 	case strings.HasPrefix(ref, "arn:aws:s3:::"):
 		// Strip object-key suffix: arn:aws:s3:::bucket/path → arn:aws:s3:::bucket.
 		// "/*" after the bucket name means "all objects in this bucket" — still a
@@ -621,7 +637,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeS3Bucket, bucketARN)
-		if _, ok := bucketIDs[id]; ok {
+		if _, ok := sets.buckets[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -636,7 +652,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeSecretsManagerSecret, secretARN)
-		if _, ok := secretIDs[id]; ok {
+		if _, ok := sets.secrets[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -654,7 +670,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeDynamoDBTable, tableARN)
-		if _, ok := tableIDs[id]; ok {
+		if _, ok := sets.tables[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -670,7 +686,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeLambdaFunction, fnARN)
-		if _, ok := lambdaIDs[id]; ok {
+		if _, ok := sets.lambdas[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -689,7 +705,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeLogsLogGroup, groupARN)
-		if _, ok := logGroupIDs[id]; ok {
+		if _, ok := sets.logGroups[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -704,7 +720,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeSNSTopic, ref)
-		if _, ok := topicIDs[id]; ok {
+		if _, ok := sets.topics[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -717,7 +733,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeSQSQueue, ref)
-		if _, ok := queueIDs[id]; ok {
+		if _, ok := sets.queues[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -729,7 +745,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeSSMParameter, ref)
-		if _, ok := paramIDs[id]; ok {
+		if _, ok := sets.parameters[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -744,7 +760,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeKinesisStream, ref)
-		if _, ok := streamIDs[id]; ok {
+		if _, ok := sets.streams[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -756,7 +772,7 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		id := store.ResourceID("aws", acctID, TypeECRRepository, ref)
-		if _, ok := repoIDs[id]; ok {
+		if _, ok := sets.repositories[id]; ok {
 			return id, true
 		}
 		return "", false
@@ -767,13 +783,82 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 			return "", false
 		}
 		rtype := TypeIAMRole
-		bag := roleIDs
+		bag := sets.roles
 		if strings.Contains(ref, "/aws-service-role/") {
 			rtype = TypeIAMServiceLinkedRole
-			bag = slrIDs
+			bag = sets.serviceLinked
 		}
 		id := store.ResourceID("aws", acctID, rtype, ref)
 		if _, ok := bag[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:rds:"):
+		// RDS ARNs use colon separators: arn:aws:rds:r:a:db:NAME, :cluster:NAME.
+		// Snapshot / parameter-group / subnet-group share the prefix but live
+		// under their own resource segments — match only :db: and :cluster:.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		switch {
+		case strings.Contains(ref, ":db:"):
+			id := store.ResourceID("aws", acctID, TypeRDSDBInstance, ref)
+			if _, ok := sets.rdsInstances[id]; ok {
+				return id, true
+			}
+		case strings.Contains(ref, ":cluster:"):
+			id := store.ResourceID("aws", acctID, TypeRDSDBCluster, ref)
+			if _, ok := sets.rdsClusters[id]; ok {
+				return id, true
+			}
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:states:") && strings.Contains(ref, ":stateMachine:"):
+		// Step Functions service-integration ARNs (arn:aws:states:::lambda:invoke
+		// etc.) carry empty region+account; reject before id lookup so they
+		// don't accidentally hash to a phantom state machine. See aws/CLAUDE.md
+		// "AWS service-integration ARNs use :::".
+		if strings.Contains(ref, ":::") {
+			return "", false
+		}
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeSFNStateMachine, ref)
+		if _, ok := sets.stateMachines[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":event-bus/"):
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeEventsEventBus, ref)
+		if _, ok := sets.eventBuses[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":rule/"):
+		// Rule ARNs: default bus → arn:aws:events:r:a:rule/NAME; custom bus →
+		// arn:aws:events:r:a:rule/BUS/NAME. Scanner stores the API-returned ARN
+		// verbatim, so the whole ref matches NativeID directly.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeEventsRule, ref)
+		if _, ok := sets.eventRules[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:elasticfilesystem:") && strings.Contains(ref, ":file-system/"):
+		// File-system ARN whole ref. Mount-target / access-point ARNs use
+		// different resource segments and have their own scanned types; this
+		// case intentionally only matches file-system.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeEFSFileSystem, ref)
+		if _, ok := sets.efsFS[id]; ok {
 			return id, true
 		}
 		return "", false

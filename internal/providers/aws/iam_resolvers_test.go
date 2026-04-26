@@ -674,3 +674,110 @@ func TestResolveIAMPolicyResources_IAMRolePassRole(t *testing.T) {
 	assertRelationship(t, rels, policyID, roleID, store.RelUses)
 	assertRelationship(t, rels, policyID, slrID, store.RelUses)
 }
+
+func TestResolveIAMPolicyResources_RDSInstanceAndCluster(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/RDSAccess"
+	dbARN := "arn:aws:rds:us-east-1:" + testAccountID + ":db:orders-prod"
+	clusterARN := "arn:aws:rds:us-east-1:" + testAccountID + ":cluster:orders-aurora"
+	snapshotRef := "arn:aws:rds:us-east-1:" + testAccountID + ":snapshot:orders-2026-01-01"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + dbARN + `","` + clusterARN + `","` + snapshotRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, dbARN, testRegion, "{}")
+	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, clusterARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (db + cluster, snapshot skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, dbID, store.RelUses)
+	assertRelationship(t, rels, policyID, clusterID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_SFNStateMachineRejectsIntegration(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/StartSFN"
+	smARN := "arn:aws:states:us-east-1:" + testAccountID + ":stateMachine:OrderFlow"
+	integrationRef := "arn:aws:states:::stateMachine:invoke" // synthetic-but-realistic shape
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + smARN + `","` + integrationRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	smID := upsertTestResource(t, st, "aws", acct.ID, TypeSFNStateMachine, smARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 edge (state-machine only, ::: integration skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, smID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_EventBridgeBusAndRule(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/EBPublish"
+	busARN := "arn:aws:events:us-east-1:" + testAccountID + ":event-bus/orders"
+	customBusRuleARN := "arn:aws:events:us-east-1:" + testAccountID + ":rule/orders/order-placed"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + busARN + `","` + customBusRuleARN + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	busID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, customBusRuleARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, busID, store.RelUses)
+	assertRelationship(t, rels, policyID, ruleID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/MountEFS"
+	fsARN := "arn:aws:elasticfilesystem:us-east-1:" + testAccountID + ":file-system/fs-0123456789abcdef0"
+	apRef := "arn:aws:elasticfilesystem:us-east-1:" + testAccountID + ":access-point/fsap-0123456789abcdef0"
+
+	// Access-point ARN must skip — separate scanned type, not handled here.
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + fsARN + `","` + apRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	fsID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSFileSystem, fsARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 edge (file-system only, access-point skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, fsID, store.RelUses)
+}

@@ -37,6 +37,7 @@ APIGW v2 JWT authorizer `JwtConfiguration.Issuer` shape: `https://cognito-idp.{r
 - **`Statement` may be single object OR array.** Same trick as `principalList` — see `statementList` in `iam_resolvers.go`. **`Statement[].Resource`** likewise string-or-array (`resourceList`). `Effect != "Allow"` (Deny / conditional) emits no positive edge.
 - **Managed policy doc requires `GetPolicyVersion` fan-out.** `ListPolicies` returns no Document body. `scanIAMPolicies` enriches each row as `{"Policy": ..., "PolicyVersion": ...}`; walker reads `PolicyVersion.Document` for managed and `PolicyDocument` for inline (`GetRolePolicy` etc. already include it).
 - **Federated-provider ARN dispatch**: `:saml-provider/` → `TypeIAMSAMLProvider`; `:oidc-provider/` → `TypeIAMOIDCProvider`. Other Federated shapes emit no edges (skip, no dangle).
+- **Bare resource names in `Resource[]` skip.** Policy documents carry no region context, so synthesizing an ARN risks targeting the wrong region. Contrast with `ecsSecretTarget` (`ecs_resolvers.go`), which DOES synthesize from bare names — task-defs supply the region. Same input shape, different rule, because of the carrier.
 
 ## WAFv2 scope pattern
 
