@@ -333,6 +333,12 @@ const (
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
+	// IAM Identity Center / Identity Store (sso_scanners.go, sso_resolvers.go)
+	TypeSSOInstance          = "aws:sso:instance"
+	TypeSSOPermissionSet     = "aws:sso:permission-set"
+	TypeSSOAccountAssignment = "aws:sso:account-assignment"
+	TypeIdentityStoreUser    = "aws:identitystore:user"
+	TypeIdentityStoreGroup   = "aws:identitystore:group"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -495,5 +501,8 @@ func KnownTypes() []string {
 		TypeBackupVault, TypeBackupPlan, TypeBackupSelection,
 		// CloudFormation
 		TypeCloudFormationStack, TypeCloudFormationStackSet,
+		// IAM Identity Center / Identity Store
+		TypeSSOInstance, TypeSSOPermissionSet, TypeSSOAccountAssignment,
+		TypeIdentityStoreUser, TypeIdentityStoreGroup,
 	}
 }
