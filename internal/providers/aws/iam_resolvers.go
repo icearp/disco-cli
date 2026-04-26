@@ -503,6 +503,28 @@ func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	paramIDs, err := resourceIDSet(st, acct.ID, TypeSSMParameter)
+	if err != nil {
+		return err
+	}
+	streamIDs, err := resourceIDSet(st, acct.ID, TypeKinesisStream)
+	if err != nil {
+		return err
+	}
+	repoIDs, err := resourceIDSet(st, acct.ID, TypeECRRepository)
+	if err != nil {
+		return err
+	}
+	// IAM roles + service-linked roles share an id set; the resolver picks the
+	// type for ResourceID based on the "/aws-service-role/" path segment.
+	roleIDs, err := resourceIDSet(st, acct.ID, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	slrIDs, err := resourceIDSet(st, acct.ID, TypeIAMServiceLinkedRole)
+	if err != nil {
+		return err
+	}
 
 	for _, p := range policies {
 		doc := extractPolicyDoc(p)
@@ -535,7 +557,7 @@ func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 				if ref == "" || ref == "*" {
 					continue
 				}
-				targetID, ok := classifyPolicyResource(ref, region, acct.ID, kmsIdx, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs)
+				targetID, ok := classifyPolicyResource(ref, region, acct.ID, kmsIdx, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs, paramIDs, streamIDs, repoIDs, roleIDs, slrIDs)
 				if !ok {
 					continue
 				}
@@ -577,7 +599,7 @@ func extractPolicyDoc(r store.Resource) string {
 // classifyPolicyResource maps a Resource ARN to a stored resource ID via the
 // per-type id sets. Returns ok=false for unrecognized services, wildcard ARNs,
 // and cross-account / unscanned targets — the caller emits no edge.
-func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs map[string]struct{}) (string, bool) {
+func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex, bucketIDs, secretIDs, tableIDs, lambdaIDs, logGroupIDs, topicIDs, queueIDs, paramIDs, streamIDs, repoIDs, roleIDs, slrIDs map[string]struct{}) (string, bool) {
 	switch {
 	case strings.Contains(ref, ":kms:"):
 		// KMS grants don't use object-suffix patterns; any wildcard here means
@@ -696,6 +718,62 @@ func classifyPolicyResource(ref, region, acctID string, kmsIdx *kmsResolveIndex,
 		}
 		id := store.ResourceID("aws", acctID, TypeSQSQueue, ref)
 		if _, ok := queueIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:ssm:") && strings.Contains(ref, ":parameter"):
+		// Parameter ARN whole ref. Bare param names are skipped — policy docs
+		// carry no region context, so synthesizing an ARN would silently target
+		// the wrong region. Full-ARN refs are unambiguous.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeSSMParameter, ref)
+		if _, ok := paramIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:kinesis:") && strings.Contains(ref, ":stream/"):
+		// Stream ARNs: arn:aws:kinesis:r:a:stream/NAME. Stream consumers carry
+		// an extra "/consumer/NAME:TS" tail and have no scanned type — reject.
+		_, after, _ := strings.Cut(ref, ":stream/")
+		if strings.Contains(after, "/") {
+			return "", false
+		}
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeKinesisStream, ref)
+		if _, ok := streamIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:ecr:") && strings.Contains(ref, ":repository/"):
+		// Repository ARN whole ref. Image-tag refs would have an extra path
+		// segment past the repo name; ECR doesn't surface those via Resource
+		// in practice, so accept whole ref and let FK guard handle anything odd.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		id := store.ResourceID("aws", acctID, TypeECRRepository, ref)
+		if _, ok := repoIDs[id]; ok {
+			return id, true
+		}
+		return "", false
+	case strings.HasPrefix(ref, "arn:aws:iam:") && strings.Contains(ref, ":role/"):
+		// Role ARN whole ref. Service-linked roles live under "/aws-service-role/"
+		// — they're a distinct resource type with its own NativeID hash.
+		if strings.ContainsAny(ref, "*?") {
+			return "", false
+		}
+		rtype := TypeIAMRole
+		bag := roleIDs
+		if strings.Contains(ref, "/aws-service-role/") {
+			rtype = TypeIAMServiceLinkedRole
+			bag = slrIDs
+		}
+		id := store.ResourceID("aws", acctID, rtype, ref)
+		if _, ok := bag[id]; ok {
 			return id, true
 		}
 		return "", false

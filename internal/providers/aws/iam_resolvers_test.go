@@ -575,3 +575,102 @@ func TestResolveIAMPolicyResources_SQSQueue(t *testing.T) {
 	}
 	assertRelationship(t, rels, policyID, queueID, store.RelUses)
 }
+
+func TestResolveIAMPolicyResources_SSMParameter(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/ReadConfig"
+	paramARN := "arn:aws:ssm:us-east-1:" + testAccountID + ":parameter/app/db-host"
+	bareNameRef := "/app/db-host" // bare name — must skip (no region context)
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + paramARN + `","` + bareNameRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	paramID := upsertTestResource(t, st, "aws", acct.ID, TypeSSMParameter, paramARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 edge (full ARN only, bare name skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, paramID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_KinesisStreamRejectsConsumer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/ReadStream"
+	streamARN := "arn:aws:kinesis:us-east-1:" + testAccountID + ":stream/clickstream"
+	consumerRef := streamARN + "/consumer/my-app:1700000000"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + streamARN + `","` + consumerRef + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	streamID := upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, streamARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 edge (stream only, consumer skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, policyID, streamID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_ECRRepository(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/PullImage"
+	repoARN := "arn:aws:ecr:us-east-1:" + testAccountID + ":repository/orders/api"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":"` + repoARN + `"}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	repoID := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, repoARN, testRegion, "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, repoID, store.RelUses)
+}
+
+func TestResolveIAMPolicyResources_IAMRolePassRole(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/PassExecRole"
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/lambda-exec"
+	slrARN := "arn:aws:iam::" + testAccountID + ":role/aws-service-role/elasticache.amazonaws.com/AWSServiceRoleForElastiCache"
+
+	doc := `{"Statement":[{"Effect":"Allow","Resource":["` + roleARN + `","` + slrARN + `"]}]}`
+
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", managedPolicyAttrs(t, doc))
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	slrID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMServiceLinkedRole, slrARN, "", "{}")
+
+	if err := resolveIAMPolicyResources(acct, st); err != nil {
+		t.Fatalf("resolveIAMPolicyResources: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, policyID, roleID, store.RelUses)
+	assertRelationship(t, rels, policyID, slrID, store.RelUses)
+}
