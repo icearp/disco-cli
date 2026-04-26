@@ -6,6 +6,17 @@ Cross-provider conventions. AWS-specific guidance: see `aws/CLAUDE.md`.
 
 Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.BatchAddToHierarchyClosure()` to persist. Errors from all three must propagate — never silence with `_ =`.
 
+## Errors never abort scan
+
+Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:
+
+- On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
+- `ReportService(name, total, inserted, errCount)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line.
+- `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
+- `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end. Inline `FAILED:` lines no longer printed.
+
+Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws.go` `scanRegion` + `scanAccount` phase 1a.
+
 ## Provider registry (`registry.go`)
 
 Each provider self-registers via `init()` calling `providers.Register(s Scanner)`. `Scanner` interface needs two methods:

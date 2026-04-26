@@ -75,6 +75,10 @@ Repo surfaces `slicescontains`, `stringscut`, `rangeint` diagnostics. Prefer `sl
 
 `for _, x := range xs { g.Go(func() { ... x ... }) }` — no `x := x` shadow needed. Linter flags `forvar: copying variable is unneeded`. Per-iteration scope built in.
 
+### `sync.WaitGroup.Go` (Go 1.25+)
+
+Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `wg.Go(func() { ... })` instead.
+
 ## Solution Rules
 
 1. **KEEP THINGS SIMPLE**
