@@ -1,75 +1,75 @@
 # disco
 
-Cloud resource discovery CLI. Scans AWS accounts, Azure subscriptions, and GCP organizations via per-service native SDK calls. Resolves cross-resource relationships and stores everything in a local SQLite graph for query, diff, and posture review.
+`disco` is a CLI that pulls an inventory of your AWS, Azure, and GCP accounts into a local SQLite database, along with the relationships between resources. Once it's scanned, you can query the database offline to figure out things like what a given IAM role is attached to, which Lambdas read a particular secret, or what changed between yesterday and today. It's aimed at security and compliance work, where you usually need to see everything rather than the subset surfaced by a console search box.
 
-## Why
+## What it does
 
-Unified discovery APIs (AWS Resource Explorer, Azure Resource Graph, GCP Cloud Asset Inventory) trade coverage for convenience. `disco` calls each service's native SDK directly so the graph reflects what actually exists, including the long tail of resource types those aggregators miss.
+- `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
+- `resolve` runs after scanning and connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`).
+- `list`, `graph`, and `diff` query the local DB without going back to the cloud.
+- `check` runs rules against stored state and prints findings.
+
+## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
+
+Those services are convenient, but they don't cover everything. `disco` calls each cloud's per-service SDK directly, so things that the unified APIs skip — KMS grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center assignments, and a fairly long list of others — actually show up in the graph.
 
 ## Install
 
-Pure-Go build, no CGO, single static binary.
+You need Go and that's it. There's no C toolchain involved because the SQLite driver is pure Go (`modernc.org/sqlite`), which is also why `CGO_ENABLED=0` is required:
 
 ```bash
 CGO_ENABLED=0 go build -o disco .
 ```
 
-Cross-compile from Linux:
+Cross-compile from anywhere to anywhere:
 
 ```bash
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o dist/disco-linux-amd64   .
-CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o dist/disco-darwin-arm64  .
+CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o dist/disco-linux-amd64       .
+CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o dist/disco-darwin-arm64      .
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/disco-windows-amd64.exe .
 ```
 
-`CGO_ENABLED=0` is mandatory — storage uses `modernc.org/sqlite` (pure-Go transpile) so the binary needs no C toolchain on any target.
-
-## Usage
+## Quickstart
 
 ```bash
+# Scan
 disco scan aws    --profile myprofile
 disco scan azure  --subscription <sub-id>
 disco scan gcp    --org <org-id>
 
-disco list  --type aws:ec2:instance
-disco graph <resource-id> --kinds contains --depth 2
-disco diff  --since 24h
-disco check                       # run posture rules
+# Query
+disco list  --type aws:ec2:instance --region us-east-1
+disco graph <resource-id> --kinds contains --depth 2 --output dot
+disco diff  <scanA> <scanB>
+disco check
 ```
 
-Subcommands:
-
-- `scan`   — enumerate resources for a provider, write to local DB
-- `list`   — query stored resources by type, account, region, tag
-- `graph`  — walk relationships from a starting resource
-- `diff`   — compare two scan timestamps
-- `check`  — evaluate rules engine against current state
+Resource types follow the pattern `cloud:service:kind`, lowercase. So `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`, and so on.
 
 ## Configuration
 
-Viper reads `~/.disco/config.yaml` and the `DISCO_` env-var prefix. Override the DB path with `--db` or `$DISCO_DB`; default is `~/.disco/disco.db`.
+Config lives in `~/.disco/config.yaml` (Viper format). Anything in the file can be overridden with a `DISCO_`-prefixed environment variable. The database path defaults to `~/.disco/disco.db`; override it with `--db` or `$DISCO_DB`.
 
-## Architecture
+## How it works
 
 ```
-cmd/<subcommand>.go  →  internal/providers/<aws|azure|gcp>/  →  internal/store/
+cmd/<subcommand>.go  →  internal/providers/<aws|azure|gcp>/  →  internal/store/  →  sqlite
+                              (scanners then resolvers)         (sqlx + squirrel)
 ```
 
-- **Providers** register scanners (cloud → resource rows) and resolvers (resource rows → relationship edges) via `init()`.
-- **Store** is SQLite via `sqlx` + `squirrel`. Schema covers `resources`, `relationships`, and a hierarchy closure table.
-- **Resource types** are namespaced lowercase: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`.
+Scanners are registered via `init()` and write rows into the `resources` table, one file per service. Resolvers run afterwards, read those rows, and emit edges into `relationships` and `hierarchy_closure`. Edges that point at unscanned targets get skipped rather than failing, so a partial scan still gives you a usable graph instead of a wall of FK errors. Secrets are scrubbed at the store boundary in `internal/store/sanitize.go` before anything is written.
 
-Path-scoped `CLAUDE.md` files document conventions in each subtree (provider scanner/resolver patterns, store schema, CLI orchestration).
+There are `CLAUDE.md` files scattered through the tree that document the conventions for each subdirectory; `CODE_STRUCTURE.md` is the higher-level map.
 
 ## Coverage
 
-AWS: 30+ services including EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Backup, CloudTrail, IAM Identity Center, Organizations.
+AWS is the most thorough at the moment. Roughly 30+ services: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Backup, CloudTrail, IAM Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, plus a handful of others.
 
-Azure: compute, network, storage, key vault, SQL, app service, AKS.
+Azure covers compute, network, storage, key vault, SQL, app service, and AKS.
 
-GCP: compute, storage, IAM, project hierarchy.
+GCP covers compute, storage, IAM, and the project hierarchy.
 
-See `ROADMAP.md` for in-flight scanners and gaps.
+`ROADMAP.md` tracks what's in progress and what's missing.
 
 ## Development
 
@@ -79,4 +79,8 @@ CGO_ENABLED=0 go test ./internal/providers/aws/... -run TestSomething -v
 go vet ./...
 ```
 
-Primary branch: `dev`. Feature branches fork from `dev` and merge back.
+The primary branch is `dev`. Feature branches fork from `dev` and merge back into it.
+
+## Acknowledgements
+
+Large portions of this codebase were written with [Claude Code](https://claude.com/claude-code), Anthropic's CLI for Claude. Scanner and resolver scaffolding, test fixtures, and a fair amount of the cross-service edge logic were drafted, reviewed, and iterated on with it.
