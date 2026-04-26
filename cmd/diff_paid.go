@@ -1,3 +1,5 @@
+//go:build paid
+
 package cmd
 
 import (
@@ -6,6 +8,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"codeberg.org/icearp/disco/internal/license"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +29,9 @@ Examples:
   disco diff abc123 def456 -o json`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := license.Require(); err != nil {
+			return err
+		}
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)

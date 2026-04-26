@@ -1,8 +1,10 @@
 BINARY   := disco
 DIST_DIR := dist
 GO       := CGO_ENABLED=0
+TAGS     ?=
+TAGFLAG  := $(if $(TAGS),-tags "$(TAGS)",)
 
-.PHONY: all deps fmt lint vet test build clean dist
+.PHONY: all deps fmt lint vet test test-paid build build-paid clean dist oss-sync
 
 all: fmt vet test build
 
@@ -19,10 +21,19 @@ vet:
 	go vet ./...
 
 test:
-	$(GO) go test ./...
+	$(GO) go test $(TAGFLAG) ./...
+
+test-paid:
+	$(MAKE) test TAGS=paid
 
 build:
-	$(GO) go build -o $(BINARY) .
+	$(GO) go build $(TAGFLAG) -o $(BINARY) .
+
+build-paid:
+	$(MAKE) build TAGS=paid
+
+oss-sync:
+	./scripts/oss-sync.sh
 
 dist:
 	$(GO) GOOS=linux   GOARCH=amd64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-linux-amd64 . && upx -9 $(DIST_DIR)/$(BINARY)-linux-amd64

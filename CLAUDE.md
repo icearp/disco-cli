@@ -65,6 +65,15 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/rules/CLAUDE.md` — rules engine
 
+## OSS / paid split
+
+Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make build` / `make build-paid` / `make test-paid` cover both. CI runs both `go test ./...` and `go test -tags paid ./...` — don't break either.
+
+- Paid-only files: name `*_paid.go` (or `*_paid_test.go`) **and** first line `//go:build paid`. Both required — `scripts/oss-sync.sh` excludes by name pattern + content scan.
+- OSS stub for paid pkgs: `<pkg>.go` with `//go:build !paid` (e.g. `internal/license/license.go`). Stubs ship to OSS; `_paid.go` siblings do not.
+- Paid commands: first line of `RunE` must be `if err := license.Require(); err != nil { return err }`. Canonical shape: `cmd/diff_paid.go`.
+- Bug fixes / new free features: edit untagged files normally — flow downstream to OSS via next `make oss-sync`.
+
 ## Go lint conventions
 
 ### Go 1.25 modernizer lint

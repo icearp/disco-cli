@@ -35,3 +35,7 @@ jobs:
         run: |
           msg info 'Begin unit testing'
           msg 'CGO_ENABLED=0 go test ./...' 'Unit tests passed.' 'Unit tests failed!'
+      - name: Paid build + tests
+        run: |
+          CGO_ENABLED=0 go build -tags paid -o /tmp/disco-paid .
+          CGO_ENABLED=0 go test -tags paid ./...
