@@ -98,3 +98,7 @@ Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) 
 ## Per-call concurrency constants
 
 `concurrency.go` exports `fanoutHigh` (20), `fanoutMed` (10), `fanoutLow` (2) for `semaphore.NewWeighted(...)` inside scanner/resolver fan-out loops. Distinct from `maxConcurrentServices` (`aws.go`) which caps top-level service scanners. Do not redeclare `const maxConcurrent` inside individual scanners — pick a fanout tier.
+
+## CFN `PhysicalResourceId` shape varies per ResourceType
+
+Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for some (Lambda, SNS, ELBv2, SFN, SecretsManager, Lambda layer), bare name/ID for others (S3, IAM, EC2 *, KMS key, DynamoDB, Logs, ECR, Kinesis, RDS, EFS, EventBridge), queue URL for SQS, ID-only for APIGW. Verify shape against the CFN resource-ref docs per type — wrong synth = phantom NativeID, FK-safe lookup silently drops the edge with no error. Custom-bus EventBridge rules cannot be resolved from physID alone (no bus context); reject pipe-form `BUS|NAME` rather than synth a wrong ARN.

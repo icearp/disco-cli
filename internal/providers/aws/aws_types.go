@@ -330,6 +330,9 @@ const (
 	TypeBackupVault     = "aws:backup:vault"
 	TypeBackupPlan      = "aws:backup:plan"
 	TypeBackupSelection = "aws:backup:selection"
+	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
+	TypeCloudFormationStack    = "aws:cloudformation:stack"
+	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -490,5 +493,7 @@ func KnownTypes() []string {
 		TypeConfigRecorder, TypeConfigDeliveryChannel, TypeConfigRule,
 		// Backup
 		TypeBackupVault, TypeBackupPlan, TypeBackupSelection,
+		// CloudFormation
+		TypeCloudFormationStack, TypeCloudFormationStackSet,
 	}
 }

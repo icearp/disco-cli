@@ -48,6 +48,7 @@ var expectedAWSServices = []string{
 	"aws:acm-pca",
 	"aws:kafka",
 	"aws:network-firewall",
+	"aws:cloudformation",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
