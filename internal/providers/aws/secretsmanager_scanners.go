@@ -2,10 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
 func init() { registerService(serviceEntry{name: "aws:secretsmanager", fn: scanSecretsManager}) }
@@ -13,33 +13,26 @@ func init() { registerService(serviceEntry{name: "aws:secretsmanager", fn: scanS
 // scanSecretsManager discovers Secrets Manager secrets in one region. Secret
 // values are never fetched — only metadata (rotation config, last-rotated date,
 // KMS key binding) suitable for posture rules.
-func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := secretsmanager.NewFromConfig(acct.cfg, func(o *secretsmanager.Options) { o.Region = region })
-
-	pager := secretsmanager.NewListSecretsPaginator(client, &secretsmanager.ListSecretsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "secretsmanager:ListSecrets", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("secretsmanager:ListSecrets: %w", err)
-		}
-		var batch []*store.Resource
-		for _, s := range page.SecretList {
-			arn := sv(s.ARN)
+	p := secretsmanager.NewListSecretsPaginator(client, &secretsmanager.ListSecretsInput{})
+	return pageScan(ctx, "secretsmanager:ListSecrets", acct, region, st,
+		p.HasMorePages,
+		func(c context.Context) (*secretsmanager.ListSecretsOutput, error) { return p.NextPage(c) },
+		func(p *secretsmanager.ListSecretsOutput) []smtypes.SecretListEntry { return p.SecretList },
+		func(s smtypes.SecretListEntry) *store.Resource {
 			tags := make(map[string]string, len(s.Tags))
 			for _, t := range s.Tags {
 				if t.Key != nil && t.Value != nil {
 					tags[*t.Key] = *t.Value
 				}
 			}
-			r := &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeSecretsManagerSecret,
-				NativeID:       arn,
+				NativeID:       sv(s.ARN),
 				Name:           s.Name,
 				Region:         &region,
 				CreatedAt:      tp(s.CreatedDate),
@@ -47,16 +40,5 @@ func scanSecretsManager(ctx context.Context, acct *account, region string, st *s
 				AttributesJSON: mustJSON(s),
 				DiscoveredBy:   scanID,
 			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert secrets: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+		})
 }
