@@ -125,14 +125,6 @@ func renderGraphDot(g *store.GraphResult) error {
 	return err
 }
 
-// short returns the first 8 chars of a resource ID for compact table display.
-func short(id string) string {
-	if len(id) <= 8 {
-		return id
-	}
-	return id[:8]
-}
-
 func init() {
 	graphCmd.Flags().StringVar(&graphProvider, "provider", "", "Disambiguate native ID by provider")
 	graphCmd.Flags().StringVar(&graphType, "type", "", "Disambiguate native ID by resource type")

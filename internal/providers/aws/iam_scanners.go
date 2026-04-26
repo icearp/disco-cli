@@ -275,8 +275,7 @@ func scanIAMOIDCProviders(ctx context.Context, client *iam.Client, acct *account
 		}
 		return 0, 0, fmt.Errorf("iam:ListOpenIDConnectProviders: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)
@@ -335,8 +334,7 @@ func scanIAMSAMLProviders(ctx context.Context, client *iam.Client, acct *account
 		}
 		return 0, 0, fmt.Errorf("iam:ListSAMLProviders: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)
@@ -474,8 +472,7 @@ func scanIAMAccessKeys(ctx context.Context, client *iam.Client, acct *account, s
 	if err != nil {
 		return 0, 0, fmt.Errorf("list IAM users for access key scan: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)
@@ -541,8 +538,7 @@ func scanIAMRolePolicies(ctx context.Context, client *iam.Client, acct *account,
 	if err != nil {
 		return 0, 0, fmt.Errorf("list IAM roles for role policy scan: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)
@@ -618,8 +614,7 @@ func scanIAMUserPolicies(ctx context.Context, client *iam.Client, acct *account,
 	if err != nil {
 		return 0, 0, fmt.Errorf("list IAM users for user policy scan: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)
@@ -695,8 +690,7 @@ func scanIAMGroupPolicies(ctx context.Context, client *iam.Client, acct *account
 	if err != nil {
 		return 0, 0, fmt.Errorf("list IAM groups for group policy scan: %w", err)
 	}
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	var batch []*store.Resource
 	g, gctx := errgroup.WithContext(ctx)

@@ -274,8 +274,7 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3c
 
 // scanMRAPPolicies fetches the policy for each MRAP concurrently.
 func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Client, mraps []s3ctypes.MultiRegionAccessPointReport, st *store.Store, scanID string) (total, inserted int, err error) {
-	const maxConcurrent = 10
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -357,8 +356,7 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 	}
 
 	// 2. Fan-out Get per entry.
-	const maxConcurrent = 10
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource

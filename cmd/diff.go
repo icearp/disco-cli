@@ -74,14 +74,6 @@ func renderDiffTable(d *store.ScanDiff) error {
 	return w.Flush()
 }
 
-// ptrOrDash returns the pointed-to string, or "-" if the pointer is nil.
-func ptrOrDash(p *string) string {
-	if p == nil {
-		return "-"
-	}
-	return *p
-}
-
 func init() {
 	diffCmd.Flags().StringVarP(&diffOutputFmt, "output", "o", "table", "Output format: table, json")
 	rootCmd.AddCommand(diffCmd)

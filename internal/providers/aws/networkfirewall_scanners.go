@@ -70,7 +70,7 @@ func scanNetworkFirewalls(ctx context.Context, client *networkfirewall.Client, a
 		return 0, 0, nil
 	}
 
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -146,7 +146,7 @@ func scanNetworkFirewallPolicies(ctx context.Context, client *networkfirewall.Cl
 		return 0, 0, nil
 	}
 
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
@@ -224,7 +224,7 @@ func scanNetworkFirewallRuleGroups(ctx context.Context, client *networkfirewall.
 		return 0, 0, nil
 	}
 
-	sem := semaphore.NewWeighted(20)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource

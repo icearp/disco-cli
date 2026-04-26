@@ -35,10 +35,16 @@ type Resource struct {
 	VerifiedBy     *string `db:"verified_by"` // scan ID that last verified this resource
 }
 
+// idHashBytes is the number of SHA-256 prefix bytes used in a resource ID.
+// 16 bytes hex-encode to the 32-char IDs documented in store/CLAUDE.md;
+// the prefix is short enough to fit in tabular output (cf. cmd.short()) yet
+// long enough that collisions within a single account are vanishingly rare.
+const idHashBytes = 16
+
 // ResourceID computes a stable deterministic ID for a resource.
 func ResourceID(provider, accountID, resourceType, nativeID string) string {
 	h := sha256.Sum256([]byte(provider + "|" + accountID + "|" + resourceType + "|" + nativeID))
-	return fmt.Sprintf("%x", h[:16])
+	return fmt.Sprintf("%x", h[:idHashBytes])
 }
 
 // UpsertResource inserts or replaces a single resource. Delegates to UpsertResources.

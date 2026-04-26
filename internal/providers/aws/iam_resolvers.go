@@ -236,9 +236,8 @@ func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 
 	// Fan out across all policies concurrently; collect relationship edges and
 	// write them under a mutex to avoid concurrent SQLite writes.
-	const maxConcurrent = 10
 	client := iam.NewFromConfig(acct.cfg)
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutMed)
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(context.Background())
 	for _, r := range policies {
@@ -415,9 +414,8 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	if len(users) == 0 {
 		return nil
 	}
-	const maxConcurrent = 20
 	client := iam.NewFromConfig(acct.cfg)
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var mu sync.Mutex
 	g, gctx := errgroup.WithContext(context.Background())
 	for _, u := range users {

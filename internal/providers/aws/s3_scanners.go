@@ -83,8 +83,7 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 // ServerSideEncryptionConfigurationNotFoundError and are silently skipped.
 // AccessDenied is also tolerated (best-effort).
 func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Client, buckets []s3types.Bucket) error {
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	acct.s3BucketEncryption = make(map[string]s3BucketEncryptionEntry)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, b := range buckets {
@@ -132,8 +131,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Clie
 // Each GetBucketPolicy call uses a client pinned to the bucket's home region —
 // using the wrong region endpoint causes a 301 PermanentRedirect error.
 func scanS3BucketPolicies(ctx context.Context, acct *account, client *s3.Client, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
-	const maxConcurrent = 20
-	sem := semaphore.NewWeighted(maxConcurrent)
+	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource

@@ -33,13 +33,21 @@ type ScanError struct {
 }
 
 // Store is the primary access point for the disco database.
+//
+// The On* callback fields implement the report-and-continue scan contract:
+// providers never propagate per-service or per-resolver errors out of Scan().
+// Instead they invoke OnError / OnWarn so cmd/scan.go can accumulate the
+// failures and render one grouped block at the end. A nil callback is the
+// silent default; callers (cmd/scan.go) wire the ones they need before
+// kicking off a scan. See internal/providers/CLAUDE.md ("Errors never abort
+// scan") for the wider contract.
 type Store struct {
 	db                *sqlx.DB
-	OnServiceComplete func(service string, total, inserted, errCount int) // optional; called by providers after each service scan
-	OnResolveStart    func(provider string)                                // optional; called just before phase-2 resolvers run
-	OnResolveComplete func(provider string, edges int)                     // optional; called after all resolvers finish
-	OnWarn            func(ScanWarning)                                    // optional; called by providers when a skip-worthy error is handled
-	OnError           func(ScanError)                                      // optional; called by providers when a service or resolver fails
+	OnServiceComplete func(service string, total, inserted, errCount int) // after each service scan; errCount>0 surfaces "(with errors)" in progress
+	OnResolveStart    func(provider string)                                // just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)                     // after all resolvers finish
+	OnWarn            func(ScanWarning)                                    // skip-worthy error handled (transient, access-denied)
+	OnError           func(ScanError)                                      // service or resolver failure; never aborts the scan
 	activeCounter     *atomic.Int64                                        // non-nil only in scoped copies returned by WithRelCounter
 }
 

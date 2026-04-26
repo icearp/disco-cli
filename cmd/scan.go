@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -215,77 +214,22 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 }
 
 // renderErrors prints a grouped, column-aligned block of scan errors at the
-// end of the run so each failure is shown exactly once. Sort order: provider,
-// scope, service — deterministic across runs.
+// end of the run so each failure is shown exactly once.
 func renderErrors(w io.Writer, errs []store.ScanError, quiet bool) {
-	if quiet || len(errs) == 0 {
-		return
+	rows := make([]messageRow, len(errs))
+	for i, e := range errs {
+		rows[i] = messageRow{e.Provider, e.Service, e.Scope, e.Message}
 	}
-	sorted := make([]store.ScanError, len(errs))
-	copy(sorted, errs)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Provider != sorted[j].Provider {
-			return sorted[i].Provider < sorted[j].Provider
-		}
-		if sorted[i].Scope != sorted[j].Scope {
-			return sorted[i].Scope < sorted[j].Scope
-		}
-		return sorted[i].Service < sorted[j].Service
-	})
-	provW, svcW, scopeW := 0, 0, 0
-	for _, x := range sorted {
-		if len(x.Provider) > provW {
-			provW = len(x.Provider)
-		}
-		if len(x.Service) > svcW {
-			svcW = len(x.Service)
-		}
-		if len(x.Scope) > scopeW {
-			scopeW = len(x.Scope)
-		}
-	}
-	_, _ = fmt.Fprintf(w, "\nErrors (%d):\n", len(sorted))
-	for _, x := range sorted {
-		_, _ = fmt.Fprintf(w, "  %-*s  %-*s  %-*s  %s\n",
-			provW, x.Provider, svcW, x.Service, scopeW, x.Scope, x.Message)
-	}
+	renderMessages(w, "Errors", rows, quiet)
 }
 
 // renderWarnings prints a grouped, column-aligned block of scan warnings.
-// Sort order: provider, scope, service — deterministic across runs.
 func renderWarnings(w io.Writer, warnings []store.ScanWarning, quiet bool) {
-	if quiet || len(warnings) == 0 {
-		return
+	rows := make([]messageRow, len(warnings))
+	for i, x := range warnings {
+		rows[i] = messageRow{x.Provider, x.Service, x.Scope, x.Message}
 	}
-	sorted := make([]store.ScanWarning, len(warnings))
-	copy(sorted, warnings)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Provider != sorted[j].Provider {
-			return sorted[i].Provider < sorted[j].Provider
-		}
-		if sorted[i].Scope != sorted[j].Scope {
-			return sorted[i].Scope < sorted[j].Scope
-		}
-		return sorted[i].Service < sorted[j].Service
-	})
-	// Compute widths for column alignment.
-	provW, svcW, scopeW := 0, 0, 0
-	for _, x := range sorted {
-		if len(x.Provider) > provW {
-			provW = len(x.Provider)
-		}
-		if len(x.Service) > svcW {
-			svcW = len(x.Service)
-		}
-		if len(x.Scope) > scopeW {
-			scopeW = len(x.Scope)
-		}
-	}
-	_, _ = fmt.Fprintf(w, "\nWarnings (%d):\n", len(sorted))
-	for _, x := range sorted {
-		_, _ = fmt.Fprintf(w, "  %-*s  %-*s  %-*s  %s\n",
-			provW, x.Provider, svcW, x.Service, scopeW, x.Scope, x.Message)
-	}
+	renderMessages(w, "Warnings", rows, quiet)
 }
 
 func init() {
