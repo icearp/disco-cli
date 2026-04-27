@@ -14,7 +14,9 @@ Cobra command layer.
 
 ## Parallel scanning
 
-`cmd/scan.go` runs selected scanners concurrent via `errgroup.WithContext`. First error cancels siblings. On error: scan record marked failed via `db.FailScan`. On success: `db.CompleteScan`.
+`cmd/scan.go` runs selected scanners concurrent via plain `sync.WaitGroup` — no sibling cancellation. Per-service / per-region failures collected via `store.OnError` and rendered as one grouped block at end. Scan record always finalised via `db.CompleteScan` (failed or not). Lifecycle + errgroup-error-tolerance details: `internal/providers/CLAUDE.md` "Errors never abort scan".
+
+`runScan(cmd, scanners)` (`scan.go`) holds the shared open-db / `CreateScan` / WaitGroup / `CompleteScan` lifecycle. `scanCmd.RunE` calls it with `providers.All()`; per-provider subcommands call it with a single-element slice.
 
 ## Provider blank imports
 
