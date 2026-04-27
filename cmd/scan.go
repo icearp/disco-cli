@@ -251,8 +251,10 @@ func init() {
 		}
 		subcmd.Flags().StringSlice("services", nil,
 			fmt.Sprintf("comma-separated services to scan (e.g. %s:ec2,%s:iam); omit to scan all", s.Name(), s.Name()))
-		subcmd.Flags().StringSlice("region", nil,
+		subcmd.Flags().StringSlice("regions", nil,
 			"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
+		subcmd.Flags().StringSlice("region", nil, "alias for --regions")
+		_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
 		subcmd.Flags().String("profile", "",
 			"named credential profile (e.g. a profile defined in ~/.aws/config)")
 		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -263,7 +265,10 @@ func init() {
 					sf.SetServiceFilter(svcs)
 				}
 			}
-			regions, _ := cmd.Flags().GetStringSlice("region")
+			regions, _ := cmd.Flags().GetStringSlice("regions")
+			if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
+				regions = legacy
+			}
 			if len(regions) > 0 {
 				if ro, ok := s.(providers.RegionOverrider); ok {
 					ro.SetRegionOverride(regions)

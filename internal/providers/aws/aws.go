@@ -37,6 +37,11 @@ const (
 	// maxConcurrentServices caps the number of service scanners running in parallel
 	// per region to avoid hitting AWS API rate limits.
 	maxConcurrentServices = 10
+	// maxConcurrentRegions caps how many regions are scanned in parallel for a
+	// single account. Each region multiplies the in-flight service goroutines
+	// (= maxConcurrentServices × maxConcurrentRegions) and the SQLite write
+	// queue depth, so keep this low.
+	maxConcurrentRegions = 4
 	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
 	// won't stall the entire scan beyond this duration.
 	serviceTimeout = 5 * time.Minute
@@ -114,26 +119,42 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
 			if err != nil {
+				if errors.Is(err, errServiceDisabled) {
+					st.ReportService(svc.name, 0, 0, 0, true)
+					return
+				}
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
-					st.ReportService(svc.name, 0, 0, 0)
+					st.ReportService(svc.name, 0, 0, 0, false)
 					return
 				}
 				st.ReportError(store.ScanError{
 					Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
 				})
-				st.ReportService(svc.name, total, inserted, 1)
+				st.ReportService(svc.name, total, inserted, 1, false)
 				return
 			}
-			st.ReportService(svc.name, total, inserted, 0)
+			st.ReportService(svc.name, total, inserted, 0, false)
 		})
 	}
 	wg0.Wait()
 
-	// Phase 1b: regional services — all regions sequentially, parallel within each.
+	// Phase 1b: regional services — regions in parallel (capped by
+	// maxConcurrentRegions), services in parallel within each region (capped
+	// by maxConcurrentServices). Per-region failures are reported independently
+	// and never abort siblings.
+	regionSem := semaphore.NewWeighted(maxConcurrentRegions)
+	var wg1 sync.WaitGroup
 	for _, region := range acct.Regions {
-		scanRegion(ctx, acct, region, services, st, scanID)
+		wg1.Go(func() {
+			if err := regionSem.Acquire(ctx, 1); err != nil {
+				return
+			}
+			defer regionSem.Release(1)
+			scanRegion(ctx, acct, region, services, st, scanID)
+		})
 	}
+	wg1.Wait()
 
 	// Phase 2: derive relationships now that all resources exist in the DB.
 	st.ReportResolveStart("aws")
