@@ -339,6 +339,10 @@ const (
 	TypeSSOAccountAssignment = "aws:sso:account-assignment"
 	TypeIdentityStoreUser    = "aws:identitystore:user"
 	TypeIdentityStoreGroup   = "aws:identitystore:group"
+	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
+	TypeShieldProtection      = "aws:shield:protection"
+	TypeShieldProtectionGroup = "aws:shield:protection-group"
+	TypeShieldSubscription    = "aws:shield:subscription"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -504,5 +508,7 @@ func KnownTypes() []string {
 		// IAM Identity Center / Identity Store
 		TypeSSOInstance, TypeSSOPermissionSet, TypeSSOAccountAssignment,
 		TypeIdentityStoreUser, TypeIdentityStoreGroup,
+		// Shield Advanced
+		TypeShieldProtection, TypeShieldProtectionGroup, TypeShieldSubscription,
 	}
 }
