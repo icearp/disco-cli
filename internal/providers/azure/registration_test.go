@@ -32,6 +32,7 @@ var expectedAzureServices = []string{
 	"azure:postgresql",
 	"azure:privateendpoints",
 	"azure:redis",
+	"azure:security",
 	"azure:servicebus",
 	"azure:sql",
 	"azure:storage",

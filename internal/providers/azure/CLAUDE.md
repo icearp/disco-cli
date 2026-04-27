@@ -14,7 +14,7 @@ Azure-specific scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 ## Helpers (reuse before reinventing)
 
-- `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`.
+- `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`. **For non-paginator single-call APIs** (e.g. `armsecurity.PricingsClient.List`): unwrap `azcore.ResponseError` manually for 401/403 → `skipIfAccessDenied`; precedent: `security_scanners.go`.
 - `rgHierarchyPair(sub, type, nativeID)` — RG closure pair (resource → RG).
 - `vnetIDFromSubnetID(s)` — strip `/subnets/X` suffix to recover parent VNet ARM ID.
 - `nameFromID(id)` — last `/`-segment of an ARM ID. Used to build name-keyed indexes (vault-name, registry-name).

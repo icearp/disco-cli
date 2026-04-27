@@ -9,6 +9,8 @@ const (
 	TypeSubscription           = "azure:microsoft.resources:subscription"
 	// Management Groups (tenant scope)
 	TypeManagementGroup = "azure:microsoft.management:management-group"
+	// Microsoft Defender for Cloud
+	TypeSecurityPricing = "azure:microsoft.security:pricing"
 	// Authorization (RBAC)
 	TypeAuthorizationRoleAssignment = "azure:microsoft.authorization:role-assignment"
 	TypeAuthorizationRoleDefinition = "azure:microsoft.authorization:role-definition"
@@ -166,6 +168,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
 	"microsoft.resources/subscriptions":                                    TypeSubscription,
 	"microsoft.management/managementgroups":                                TypeManagementGroup,
+	"microsoft.security/pricings":                                          TypeSecurityPricing,
 	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
 	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,
 	"microsoft.managedidentity/userassignedidentities":                     TypeManagedIdentityUserAssigned,
