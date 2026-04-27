@@ -10,6 +10,7 @@ import (
 var expectedAzureServices = []string{
 	"azure:aks",
 	"azure:applicationgateway",
+	"azure:apimanagement",
 	"azure:appservice",
 	"azure:authorization",
 	"azure:cdn",

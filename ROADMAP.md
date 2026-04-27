@@ -102,6 +102,13 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: API connections (`Microsoft.Web/connections`), integration accounts, integration service environments (ISE — deprecated tier), workflow versions, triggers + actions as standalone resources, run history.
 - Live-scan validation: 1 sub, 0 workflows, scanner ran clean.
 
+### R3.15 Azure API Management services (this session)
+- **Azure API Management** new type `azure:microsoft.apimanagement:service`. Subscription-scoped service `azure:apimanagement` runs one phase: `armapimanagement.ServiceClient.NewListPager`. NativeIDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement`.
+- **Resolver** `resolveAPIManagementRelationships` derives APIM service -[attached-to]-> VNet edge for VNet-injected (Internal / External mode) instances via `properties.virtualNetworkConfiguration.subnetResourceId` (reuses `vnetIDFromSubnetID`). External / non-VNet instances skip silently.
+- Identity → MSI edges covered by generic consumer resolver. Closes the APIM leg of R3.15; R3.15 fully landed (App Gateway + Traffic Manager + Front Door/CDN + APIM all in).
+- Out of scope: APIs, products, policies, subscriptions, named values (KeyVault-secret refs would need sanitizer-exempt path), certificates, backends, gateways, identity providers, custom domains, diagnostic + logger settings, openid-connect providers.
+- Live-scan validation: 1 sub, 0 services, scanner ran clean.
+
 ### R3.6 Microsoft Defender for Cloud — pricings (this session)
 - **Microsoft Defender for Cloud** new type `azure:microsoft.security:pricing`. Subscription-scoped service `azure:security` calls `armsecurity.PricingsClient.List(scope=/subscriptions/<id>)` (single call, no pagination — small fixed-size result set per sub). Each pricing entry covers one resource type (VirtualMachines, AppServices, SqlServers, KeyVaults, StorageAccounts, ContainerRegistry, etc.) and its enabled tier (Free / Standard) — provides per-sub Defender plan inventory for compliance + audit queries. AccessDenied tolerated explicitly (manual unwrap of `azcore.ResponseError`; `azPageScan` not used since this isn't a paginator). New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/security/armsecurity`.
 - **No resolver this iter.** Pricing is config metadata not a graph node — no edges to other resources.
@@ -443,7 +450,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 12. *(partial — Event Hubs + Service Bus namespace scanners + namespace→KeyVault CMEK resolver landed; Event Grid topics + system topics + event subscriptions (with destination edges to function/queue/webhook/dead-letter) deferred to follow-up — see COMPLETED R3.12)*
 13. **Functions** (if not under AppService) — edges to storage account, KeyVault, Insights.
 14. *(removed — Logic Apps workflow scanner landed; API connection → downstream resolver deferred until connection scanner exists — see COMPLETED R3.14)*
-15. *(partial — Application Gateway + Traffic Manager + Front Door/CDN profile scanners landed; AGW→VNet/PIP + TM-profile→target resolvers landed; CDN/AFD origin-target resolvers + APIM still deferred to follow-up iters; AGW→KeyVault deferred due to sanitizer false-positive on keyVaultSecretId — see COMPLETED R3.15 entries)*
+15. *(removed — Application Gateway + Traffic Manager + Front Door/CDN + API Management scanners + AGW→VNet/PIP + TM→target + APIM→VNet resolvers landed; CDN/AFD origin-target resolvers deferred; AGW→KeyVault deferred due to sanitizer false-positive — see COMPLETED R3.15 entries)*
 16. *(removed — Private Endpoint scanner + PE→VNet + PE→target (any resource) resolvers landed; private-DNS-zones/zone-groups/private-link-services deferred — see COMPLETED R3.16)*
 17. *(partial — public + private DNS zone scanners + private-zone vnet-link scanner + vnet-link→VNet resolver landed; record sets across both zone types deferred — see COMPLETED R3.17)*
 18. **ExpressRoute / Virtual WAN / VPN Gateway** — enterprise networking.

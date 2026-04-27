@@ -40,6 +40,7 @@ const (
 	TypeNetworkApplicationGateway    = "azure:microsoft.network:application-gateway"
 	TypeNetworkTrafficManagerProfile = "azure:microsoft.network:traffic-manager-profile"
 	TypeCDNProfile                   = "azure:microsoft.cdn:profile"
+	TypeAPIManagementService         = "azure:microsoft.apimanagement:service"
 	// Analytics — Databricks + Synapse
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
 	TypeSynapseWorkspace    = "azure:microsoft.synapse:workspace"
@@ -190,6 +191,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.network/trafficmanagerprofiles":                             TypeNetworkTrafficManagerProfile,
 	"microsoft.cdn/profiles":                                               TypeCDNProfile,
+	"microsoft.apimanagement/service":                                      TypeAPIManagementService,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
 	"microsoft.synapse/workspaces":                                         TypeSynapseWorkspace,
 	"microsoft.datafactory/factories":                                      TypeDataFactoryFactory,
