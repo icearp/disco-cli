@@ -21,29 +21,13 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappcontainers:NewManagedEnvironmentsClient: %w", err)
 	}
-	et, ei, err := azPageScan(ctx, "armappcontainers:ManagedEnvironments.ListBySubscription", sub, st,
+	et, ei, err := azSimpleScan(ctx, "armappcontainers:ManagedEnvironments.ListBySubscription", TypeAppContainersManagedEnvironment, sub, st, scanID,
 		envClient.NewListBySubscriptionPager(nil),
-		func(page armappcontainers.ManagedEnvironmentsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeAppContainersManagedEnvironment, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeAppContainersManagedEnvironment, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armappcontainers.ManagedEnvironmentsClientListBySubscriptionResponse) []*armappcontainers.ManagedEnvironment {
+			return p.Value
+		},
+		func(r *armappcontainers.ManagedEnvironment) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 	total += et
 	inserted += ei
@@ -55,29 +39,13 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return total, inserted, fmt.Errorf("armappcontainers:NewContainerAppsClient: %w", err)
 	}
-	at, ai, err := azPageScan(ctx, "armappcontainers:ContainerApps.ListBySubscription", sub, st,
+	at, ai, err := azSimpleScan(ctx, "armappcontainers:ContainerApps.ListBySubscription", TypeAppContainersContainerApp, sub, st, scanID,
 		appClient.NewListBySubscriptionPager(nil),
-		func(page armappcontainers.ContainerAppsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeAppContainersContainerApp, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeAppContainersContainerApp, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armappcontainers.ContainerAppsClientListBySubscriptionResponse) []*armappcontainers.ContainerApp {
+			return p.Value
+		},
+		func(r *armappcontainers.ContainerApp) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 	total += at
 	inserted += ai
@@ -89,29 +57,13 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return total, inserted, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)
 	}
-	gt, gi, err := azPageScan(ctx, "armcontainerinstance:ContainerGroups.List", sub, st,
+	gt, gi, err := azSimpleScan(ctx, "armcontainerinstance:ContainerGroups.List", TypeContainerInstanceContainerGroup, sub, st, scanID,
 		aciClient.NewListPager(nil),
-		func(page armcontainerinstance.ContainerGroupsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeContainerInstanceContainerGroup, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeContainerInstanceContainerGroup, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armcontainerinstance.ContainerGroupsClientListResponse) []*armcontainerinstance.ContainerGroup {
+			return p.Value
+		},
+		func(r *armcontainerinstance.ContainerGroup) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 	total += gt
 	inserted += gi

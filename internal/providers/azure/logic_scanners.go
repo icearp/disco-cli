@@ -20,28 +20,10 @@ func scanLogic(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 	if err != nil {
 		return 0, 0, fmt.Errorf("armlogic:NewWorkflowsClient: %w", err)
 	}
-	return azPageScan(ctx, "armlogic:Workflows.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armlogic:Workflows.ListBySubscription", TypeLogicWorkflow, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armlogic.WorkflowsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, w := range page.Value {
-				if w == nil || w.ID == nil {
-					continue
-				}
-				name, loc := sv(w.Name), sv(w.Location)
-				nativeID := sv(w.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeLogicWorkflow, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(w.Tags), AttributesJSON: mustJSON(w),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeLogicWorkflow, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armlogic.WorkflowsClientListBySubscriptionResponse) []*armlogic.Workflow { return p.Value },
+		func(w *armlogic.Workflow) azTrackedBase {
+			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 		})
 }

@@ -21,28 +21,10 @@ func scanEventHub(ctx context.Context, sub *subscription, cred *azidentity.Defau
 	if err != nil {
 		return 0, 0, fmt.Errorf("armeventhub:NewNamespacesClient: %w", err)
 	}
-	return azPageScan(ctx, "armeventhub:Namespaces.List", sub, st,
+	return azSimpleScan(ctx, "armeventhub:Namespaces.List", TypeEventHubNamespace, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armeventhub.NamespacesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeEventHubNamespace, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeEventHubNamespace, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armeventhub.NamespacesClientListResponse) []*armeventhub.EHNamespace { return p.Value },
+		func(r *armeventhub.EHNamespace) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 }

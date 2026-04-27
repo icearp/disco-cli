@@ -21,28 +21,12 @@ func scanPostgreSQL(ctx context.Context, sub *subscription, cred *azidentity.Def
 	if err != nil {
 		return 0, 0, fmt.Errorf("armpostgresqlflexibleservers:NewServersClient: %w", err)
 	}
-	return azPageScan(ctx, "armpostgresqlflexibleservers:Servers.List", sub, st,
+	return azSimpleScan(ctx, "armpostgresqlflexibleservers:Servers.List", TypePostgreSQLFlexibleServer, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armpostgresqlflexibleservers.ServersClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypePostgreSQLFlexibleServer, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypePostgreSQLFlexibleServer, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armpostgresqlflexibleservers.ServersClientListResponse) []*armpostgresqlflexibleservers.Server {
+			return p.Value
+		},
+		func(r *armpostgresqlflexibleservers.Server) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 }

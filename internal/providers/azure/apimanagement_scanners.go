@@ -20,28 +20,10 @@ func scanAPIManagement(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return 0, 0, fmt.Errorf("armapimanagement:NewServiceClient: %w", err)
 	}
-	return azPageScan(ctx, "armapimanagement:Service.List", sub, st,
+	return azSimpleScan(ctx, "armapimanagement:Service.List", TypeAPIManagementService, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armapimanagement.ServiceClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, s := range page.Value {
-				if s == nil || s.ID == nil {
-					continue
-				}
-				name, loc := sv(s.Name), sv(s.Location)
-				nativeID := sv(s.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeAPIManagementService, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(s.Tags), AttributesJSON: mustJSON(s),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeAPIManagementService, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armapimanagement.ServiceClientListResponse) []*armapimanagement.ServiceResource { return p.Value },
+		func(s *armapimanagement.ServiceResource) azTrackedBase {
+			return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 		})
 }

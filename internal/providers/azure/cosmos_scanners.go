@@ -21,28 +21,12 @@ func scanCosmos(ctx context.Context, sub *subscription, cred *azidentity.Default
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcosmos:NewDatabaseAccountsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcosmos:DatabaseAccounts.List", sub, st,
+	return azSimpleScan(ctx, "armcosmos:DatabaseAccounts.List", TypeCosmosDatabaseAccount, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcosmos.DatabaseAccountsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, a := range page.Value {
-				if a == nil || a.ID == nil {
-					continue
-				}
-				name, loc := sv(a.Name), sv(a.Location)
-				nativeID := sv(a.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeCosmosDatabaseAccount, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(a.Tags), AttributesJSON: mustJSON(a),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeCosmosDatabaseAccount, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armcosmos.DatabaseAccountsClientListResponse) []*armcosmos.DatabaseAccountGetResults {
+			return p.Value
+		},
+		func(a *armcosmos.DatabaseAccountGetResults) azTrackedBase {
+			return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 		})
 }

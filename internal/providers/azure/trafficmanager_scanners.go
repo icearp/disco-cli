@@ -23,28 +23,12 @@ func scanTrafficManager(ctx context.Context, sub *subscription, cred *azidentity
 	if err != nil {
 		return 0, 0, fmt.Errorf("armtrafficmanager:NewProfilesClient: %w", err)
 	}
-	return azPageScan(ctx, "armtrafficmanager:Profiles.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armtrafficmanager:Profiles.ListBySubscription", TypeNetworkTrafficManagerProfile, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armtrafficmanager.ProfilesClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, p := range page.Value {
-				if p == nil || p.ID == nil {
-					continue
-				}
-				name, loc := sv(p.Name), sv(p.Location)
-				nativeID := sv(p.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeNetworkTrafficManagerProfile, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(p.Tags), AttributesJSON: mustJSON(p),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeNetworkTrafficManagerProfile, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armtrafficmanager.ProfilesClientListBySubscriptionResponse) []*armtrafficmanager.Profile {
+			return p.Value
+		},
+		func(p *armtrafficmanager.Profile) azTrackedBase {
+			return azTrackedBase{id: sv(p.ID), name: sv(p.Name), location: sv(p.Location), tags: p.Tags, full: p}
 		})
 }

@@ -23,28 +23,10 @@ func scanCDN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcdn:NewProfilesClient: %w", err)
 	}
-	return azPageScan(ctx, "armcdn:Profiles.List", sub, st,
+	return azSimpleScan(ctx, "armcdn:Profiles.List", TypeCDNProfile, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcdn.ProfilesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, p := range page.Value {
-				if p == nil || p.ID == nil {
-					continue
-				}
-				name, loc := sv(p.Name), sv(p.Location)
-				nativeID := sv(p.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeCDNProfile, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(p.Tags), AttributesJSON: mustJSON(p),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeCDNProfile, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armcdn.ProfilesClientListResponse) []*armcdn.Profile { return p.Value },
+		func(p *armcdn.Profile) azTrackedBase {
+			return azTrackedBase{id: sv(p.ID), name: sv(p.Name), location: sv(p.Location), tags: p.Tags, full: p}
 		})
 }

@@ -20,28 +20,10 @@ func scanSynapse(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsynapse:NewWorkspacesClient: %w", err)
 	}
-	return azPageScan(ctx, "armsynapse:Workspaces.List", sub, st,
+	return azSimpleScan(ctx, "armsynapse:Workspaces.List", TypeSynapseWorkspace, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armsynapse.WorkspacesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, w := range page.Value {
-				if w == nil || w.ID == nil {
-					continue
-				}
-				name, loc := sv(w.Name), sv(w.Location)
-				nativeID := sv(w.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeSynapseWorkspace, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(w.Tags), AttributesJSON: mustJSON(w),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeSynapseWorkspace, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armsynapse.WorkspacesClientListResponse) []*armsynapse.Workspace { return p.Value },
+		func(w *armsynapse.Workspace) azTrackedBase {
+			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 		})
 }

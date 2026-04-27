@@ -19,28 +19,10 @@ func scanRedis(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 	if err != nil {
 		return 0, 0, fmt.Errorf("armredis:NewClient: %w", err)
 	}
-	return azPageScan(ctx, "armredis:Caches.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armredis:Caches.ListBySubscription", TypeRedisCache, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armredis.ClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeRedisCache, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeRedisCache, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armredis.ClientListBySubscriptionResponse) []*armredis.ResourceInfo { return p.Value },
+		func(r *armredis.ResourceInfo) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 }

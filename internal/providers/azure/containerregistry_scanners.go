@@ -21,28 +21,12 @@ func scanContainerRegistry(ctx context.Context, sub *subscription, cred *azident
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcontainerregistry:NewRegistriesClient: %w", err)
 	}
-	return azPageScan(ctx, "armcontainerregistry:Registries.List", sub, st,
+	return azSimpleScan(ctx, "armcontainerregistry:Registries.List", TypeContainerRegistryRegistry, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcontainerregistry.RegistriesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, r := range page.Value {
-				if r == nil || r.ID == nil {
-					continue
-				}
-				name, loc := sv(r.Name), sv(r.Location)
-				nativeID := sv(r.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeContainerRegistryRegistry, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(r.Tags), AttributesJSON: mustJSON(r),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeContainerRegistryRegistry, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armcontainerregistry.RegistriesClientListResponse) []*armcontainerregistry.Registry {
+			return p.Value
+		},
+		func(r *armcontainerregistry.Registry) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 }

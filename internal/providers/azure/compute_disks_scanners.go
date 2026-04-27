@@ -14,24 +14,11 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDisksClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:Disks.List", sub, st,
+	return azSimpleScan(ctx, "armcompute:Disks.List", TypeComputeManagedDisk, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcompute.DisksClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			for _, d := range page.Value {
-				if d.ID == nil {
-					continue
-				}
-				name, loc := sv(d.Name), sv(d.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeManagedDisk, NativeID: sv(d.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(d.Tags), AttributesJSON: mustJSON(d),
-					DiscoveredBy: scanID,
-				})
-			}
-			return batch, nil
+		func(p armcompute.DisksClientListResponse) []*armcompute.Disk { return p.Value },
+		func(d *armcompute.Disk) azTrackedBase {
+			return azTrackedBase{id: sv(d.ID), name: sv(d.Name), location: sv(d.Location), tags: d.Tags, full: d}
 		})
 }
 
@@ -40,26 +27,11 @@ func scanSnapshots(ctx context.Context, sub *subscription, cred *azidentity.Defa
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewSnapshotsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:Snapshots.List", sub, st,
+	return azSimpleScan(ctx, "armcompute:Snapshots.List", TypeComputeSnapshot, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcompute.SnapshotsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, s := range page.Value {
-				if s.ID == nil {
-					continue
-				}
-				name, loc := sv(s.Name), sv(s.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeSnapshot, NativeID: sv(s.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(s.Tags), AttributesJSON: mustJSON(s),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeSnapshot, sv(s.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.SnapshotsClientListResponse) []*armcompute.Snapshot { return p.Value },
+		func(s *armcompute.Snapshot) azTrackedBase {
+			return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 		})
 }
 
@@ -68,26 +40,13 @@ func scanDiskEncryptionSets(ctx context.Context, sub *subscription, cred *aziden
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDiskEncryptionSetsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:DiskEncryptionSets.List", sub, st,
+	return azSimpleScan(ctx, "armcompute:DiskEncryptionSets.List", TypeComputeDiskEncryptionSet, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcompute.DiskEncryptionSetsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, des := range page.Value {
-				if des.ID == nil {
-					continue
-				}
-				name, loc := sv(des.Name), sv(des.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeDiskEncryptionSet, NativeID: sv(des.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(des.Tags), AttributesJSON: mustJSON(des),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeDiskEncryptionSet, sv(des.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.DiskEncryptionSetsClientListResponse) []*armcompute.DiskEncryptionSet {
+			return p.Value
+		},
+		func(d *armcompute.DiskEncryptionSet) azTrackedBase {
+			return azTrackedBase{id: sv(d.ID), name: sv(d.Name), location: sv(d.Location), tags: d.Tags, full: d}
 		})
 }
 
@@ -96,25 +55,10 @@ func scanDiskAccesses(ctx context.Context, sub *subscription, cred *azidentity.D
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDiskAccessesClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:DiskAccesses.List", sub, st,
+	return azSimpleScan(ctx, "armcompute:DiskAccesses.List", TypeComputeDiskAccess, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcompute.DiskAccessesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, da := range page.Value {
-				if da.ID == nil {
-					continue
-				}
-				name, loc := sv(da.Name), sv(da.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeDiskAccess, NativeID: sv(da.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(da.Tags), AttributesJSON: mustJSON(da),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeDiskAccess, sv(da.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.DiskAccessesClientListResponse) []*armcompute.DiskAccess { return p.Value },
+		func(d *armcompute.DiskAccess) azTrackedBase {
+			return azTrackedBase{id: sv(d.ID), name: sv(d.Name), location: sv(d.Location), tags: d.Tags, full: d}
 		})
 }

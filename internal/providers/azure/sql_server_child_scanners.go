@@ -9,6 +9,84 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
+// sqlChildExtract is the per-item shape returned by each child scanner's
+// extractor: identity (id, name) and optional tracked-resource fields
+// (region, tags). Region/tags are pointer/map so scanners covering proxy
+// resources (no Location/Tags) leave them nil, matching prior behavior.
+type sqlChildExtract struct {
+	id, name string
+	region   *string
+	tags     map[string]*string
+}
+
+// sqlChildScan is the shared body for SQL-server sub-resource scans:
+// page through the ListByServer pager, map each item to a Resource hierarchical
+// to its parent server, and upsert via sqlUpsert. AccessDenied and
+// FeatureNotAvailable errors break the loop without surfacing — matches the
+// pre-existing per-function behavior.
+func sqlChildScan[C any, T any](
+	ctx context.Context,
+	label, rtype string,
+	sub *subscription,
+	st *store.Store,
+	scanID string,
+	srv sqlServer,
+	pager azPager[C],
+	pageItems func(C) []*T,
+	extract func(*T) sqlChildExtract,
+) (total, inserted int, err error) {
+	var batch []*store.Resource
+	var pairs [][2]string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+				break
+			}
+			return 0, 0, fmt.Errorf("armsql:%s.ListByServer(%s): %w", label, srv.name, err)
+		}
+		for _, item := range pageItems(page) {
+			if item == nil {
+				continue
+			}
+			e := extract(item)
+			if e.id == "" {
+				continue
+			}
+			r := &store.Resource{
+				Provider:       "azure",
+				AccountID:      sub.ID,
+				AccountName:    &sub.Name,
+				Type:           rtype,
+				NativeID:       e.id,
+				Name:           &e.name,
+				Region:         e.region,
+				TagsJSON:       azTagsJSON(e.tags),
+				AttributesJSON: mustJSON(item),
+				DiscoveredBy:   scanID,
+			}
+			discoID := store.ResourceID("azure", sub.ID, rtype, e.id)
+			batch = append(batch, r)
+			pairs = append(pairs, [2]string{discoID, srv.resourceID})
+		}
+	}
+	return sqlUpsert(st, batch, pairs, label)
+}
+
+// sqlProxyExtract returns id+name for SQL proxy sub-resources with no
+// per-resource Location or Tags (the majority of server child types).
+func sqlProxyExtract(id, name *string) sqlChildExtract {
+	return sqlChildExtract{id: sv(id), name: sv(name)}
+}
+
+// sqlTrackedExtract returns id+name+region+tags for SQL child types whose
+// SDK shape is a tracked resource (ElasticPool, FailoverGroup, JobAgent,
+// RestorableDroppedDB).
+func sqlTrackedExtract(id, name, location *string, tags map[string]*string) sqlChildExtract {
+	loc := sv(location)
+	return sqlChildExtract{id: sv(id), name: sv(name), region: &loc, tags: tags}
+}
+
 // serverChildScanners returns one closure per server sub-resource type (excluding databases).
 func serverChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) []func() (int, int, error) {
 	return []func() (int, int, error){
@@ -31,646 +109,204 @@ func serverChildScanners(ctx context.Context, sub *subscription, cred *azidentit
 	}
 }
 
-func scanServerKeys(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerKeysClient(sub.ID, cred, azClientOptions)
+func scanServerKeys(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerKeysClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerKeys.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerKey,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerKey, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server keys")
+	return sqlChildScan(ctx, "ServerKeys", TypeSQLServerKey, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerKeysClientListByServerResponse) []*armsql.ServerKey { return p.Value },
+		func(x *armsql.ServerKey) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanEncryptionProtectors(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
+func scanEncryptionProtectors(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewEncryptionProtectorsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:EncryptionProtectors.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLEncryptionProtector,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLEncryptionProtector, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "encryption protectors")
+	return sqlChildScan(ctx, "EncryptionProtectors", TypeSQLEncryptionProtector, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.EncryptionProtectorsClientListByServerResponse) []*armsql.EncryptionProtector {
+			return p.Value
+		},
+		func(x *armsql.EncryptionProtector) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAdministrators(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerAzureADAdministratorsClient(sub.ID, cred, azClientOptions)
+func scanServerAdministrators(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerAzureADAdministratorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerAzureADAdministratorsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerAdministrators.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerAdministrator,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerAdministrator, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server administrators")
+	return sqlChildScan(ctx, "ServerAdministrators", TypeSQLServerAdministrator, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerAzureADAdministratorsClientListByServerResponse) []*armsql.ServerAzureADAdministrator {
+			return p.Value
+		},
+		func(x *armsql.ServerAzureADAdministrator) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAuditingSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
+func scanServerAuditingSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerBlobAuditingPoliciesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerBlobAuditingPolicies.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerAuditingSettings,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerAuditingSettings, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server auditing settings")
+	return sqlChildScan(ctx, "ServerBlobAuditingPolicies", TypeSQLServerAuditingSettings, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerBlobAuditingPoliciesClientListByServerResponse) []*armsql.ServerBlobAuditingPolicy {
+			return p.Value
+		},
+		func(x *armsql.ServerBlobAuditingPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerExtAuditingSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewExtendedServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
+func scanServerExtAuditingSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewExtendedServerBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewExtendedServerBlobAuditingPoliciesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ExtendedServerBlobAuditingPolicies.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerExtAuditingSettings,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerExtAuditingSettings, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server extended auditing settings")
+	return sqlChildScan(ctx, "ExtendedServerBlobAuditingPolicies", TypeSQLServerExtAuditingSettings, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ExtendedServerBlobAuditingPoliciesClientListByServerResponse) []*armsql.ExtendedServerBlobAuditingPolicy {
+			return p.Value
+		},
+		func(x *armsql.ExtendedServerBlobAuditingPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerDevOpsAuditSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerDevOpsAuditSettingsClient(sub.ID, cred, azClientOptions)
+func scanServerDevOpsAuditSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerDevOpsAuditSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerDevOpsAuditSettingsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerDevOpsAuditSettings.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerDevOpsAuditSettings,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerDevOpsAuditSettings, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server devops audit settings")
+	return sqlChildScan(ctx, "ServerDevOpsAuditSettings", TypeSQLServerDevOpsAuditSettings, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerDevOpsAuditSettingsClientListByServerResponse) []*armsql.ServerDevOpsAuditingSettings {
+			return p.Value
+		},
+		func(x *armsql.ServerDevOpsAuditingSettings) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
+func scanServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerSecurityAlertPoliciesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerSecurityAlertPolicies.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerSecurityAlert,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerSecurityAlert, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server security alert policies")
+	return sqlChildScan(ctx, "ServerSecurityAlertPolicies", TypeSQLServerSecurityAlert, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerSecurityAlertPoliciesClientListByServerResponse) []*armsql.ServerSecurityAlertPolicy {
+			return p.Value
+		},
+		func(x *armsql.ServerSecurityAlertPolicy) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerAdvancedThreatProtection(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerAdvancedThreatProtectionSettingsClient(sub.ID, cred, azClientOptions)
+func scanServerAdvancedThreatProtection(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerAdvancedThreatProtectionSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerAdvancedThreatProtectionSettingsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerAdvancedThreatProtection.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerAdvancedThreatProt,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerAdvancedThreatProt, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server advanced threat protection settings")
+	return sqlChildScan(ctx, "ServerAdvancedThreatProtection", TypeSQLServerAdvancedThreatProt, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerAdvancedThreatProtectionSettingsClientListByServerResponse) []*armsql.ServerAdvancedThreatProtection {
+			return p.Value
+		},
+		func(x *armsql.ServerAdvancedThreatProtection) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanServerVulnAssessments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
+func scanServerVulnAssessments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerVulnerabilityAssessmentsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerVulnerabilityAssessments.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerVulnAssessment,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerVulnAssessment, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server vulnerability assessments")
+	return sqlChildScan(ctx, "ServerVulnerabilityAssessments", TypeSQLServerVulnAssessment, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerVulnerabilityAssessmentsClientListByServerResponse) []*armsql.ServerVulnerabilityAssessment {
+			return p.Value
+		},
+		func(x *armsql.ServerVulnerabilityAssessment) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanElasticPools(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewElasticPoolsClient(sub.ID, cred, azClientOptions)
+func scanElasticPools(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewElasticPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewElasticPoolsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ElasticPools.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			location := sv(item.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLElasticPool,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			if item.Tags != nil {
-				s := mustJSON(item.Tags)
-				r.TagsJSON = &s
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLElasticPool, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "elastic pools")
+	return sqlChildScan(ctx, "ElasticPools", TypeSQLElasticPool, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ElasticPoolsClientListByServerResponse) []*armsql.ElasticPool { return p.Value },
+		func(x *armsql.ElasticPool) sqlChildExtract {
+			return sqlTrackedExtract(x.ID, x.Name, x.Location, x.Tags)
+		})
 }
 
-func scanFailoverGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewFailoverGroupsClient(sub.ID, cred, azClientOptions)
+func scanFailoverGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewFailoverGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewFailoverGroupsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:FailoverGroups.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			location := sv(item.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLFailoverGroup,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			if item.Tags != nil {
-				s := mustJSON(item.Tags)
-				r.TagsJSON = &s
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLFailoverGroup, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "failover groups")
+	return sqlChildScan(ctx, "FailoverGroups", TypeSQLFailoverGroup, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.FailoverGroupsClientListByServerResponse) []*armsql.FailoverGroup { return p.Value },
+		func(x *armsql.FailoverGroup) sqlChildExtract {
+			return sqlTrackedExtract(x.ID, x.Name, x.Location, x.Tags)
+		})
 }
 
-func scanServerDNSAliases(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewServerDNSAliasesClient(sub.ID, cred, azClientOptions)
+func scanServerDNSAliases(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewServerDNSAliasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServerDNSAliasesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:ServerDNSAliases.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLServerDNSAlias,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLServerDNSAlias, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "server DNS aliases")
+	return sqlChildScan(ctx, "ServerDNSAliases", TypeSQLServerDNSAlias, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.ServerDNSAliasesClientListByServerResponse) []*armsql.ServerDNSAlias { return p.Value },
+		func(x *armsql.ServerDNSAlias) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanVirtualNetworkRules(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewVirtualNetworkRulesClient(sub.ID, cred, azClientOptions)
+func scanVirtualNetworkRules(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewVirtualNetworkRulesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewVirtualNetworkRulesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:VirtualNetworkRules.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLVirtualNetworkRule,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLVirtualNetworkRule, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "virtual network rules")
+	return sqlChildScan(ctx, "VirtualNetworkRules", TypeSQLVirtualNetworkRule, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.VirtualNetworkRulesClientListByServerResponse) []*armsql.VirtualNetworkRule {
+			return p.Value
+		},
+		func(x *armsql.VirtualNetworkRule) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanJobAgents(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewJobAgentsClient(sub.ID, cred, azClientOptions)
+func scanJobAgents(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewJobAgentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewJobAgentsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:JobAgents.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			location := sv(item.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLJobAgent,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			if item.Tags != nil {
-				s := mustJSON(item.Tags)
-				r.TagsJSON = &s
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLJobAgent, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "job agents")
+	return sqlChildScan(ctx, "JobAgents", TypeSQLJobAgent, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.JobAgentsClientListByServerResponse) []*armsql.JobAgent { return p.Value },
+		func(x *armsql.JobAgent) sqlChildExtract { return sqlTrackedExtract(x.ID, x.Name, x.Location, x.Tags) })
 }
 
-func scanSyncAgents(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewSyncAgentsClient(sub.ID, cred, azClientOptions)
+func scanSyncAgents(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewSyncAgentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewSyncAgentsClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:SyncAgents.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLSyncAgent,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLSyncAgent, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "sync agents")
+	return sqlChildScan(ctx, "SyncAgents", TypeSQLSyncAgent, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.SyncAgentsClientListByServerResponse) []*armsql.SyncAgent { return p.Value },
+		func(x *armsql.SyncAgent) sqlChildExtract { return sqlProxyExtract(x.ID, x.Name) })
 }
 
-func scanRestorableDroppedDBs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, err error) {
-	client, err := armsql.NewRestorableDroppedDatabasesClient(sub.ID, cred, azClientOptions)
+func scanRestorableDroppedDBs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (int, int, error) {
+	c, err := armsql.NewRestorableDroppedDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewRestorableDroppedDatabasesClient: %w", err)
 	}
-	pager := client.NewListByServerPager(srv.rgName, srv.name, nil)
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
-				break
-			}
-			return 0, 0, fmt.Errorf("armsql:RestorableDroppedDatabases.ListByServer(%s): %w", srv.name, err)
-		}
-		for _, item := range page.Value {
-			if item.ID == nil {
-				continue
-			}
-			name := sv(item.Name)
-			location := sv(item.Location)
-			r := &store.Resource{
-				Provider:       "azure",
-				AccountID:      sub.ID,
-				AccountName:    &sub.Name,
-				Type:           TypeSQLRestorableDroppedDB,
-				NativeID:       sv(item.ID),
-				Name:           &name,
-				Region:         &location,
-				AttributesJSON: mustJSON(item),
-				DiscoveredBy:   scanID,
-			}
-			discoID := store.ResourceID("azure", sub.ID, TypeSQLRestorableDroppedDB, sv(item.ID))
-			batch = append(batch, r)
-			pairs = append(pairs, [2]string{discoID, srv.resourceID})
-		}
-	}
-	return sqlUpsert(st, batch, pairs, "restorable dropped databases")
+	return sqlChildScan(ctx, "RestorableDroppedDatabases", TypeSQLRestorableDroppedDB, sub, st, scanID, srv,
+		c.NewListByServerPager(srv.rgName, srv.name, nil),
+		func(p armsql.RestorableDroppedDatabasesClientListByServerResponse) []*armsql.RestorableDroppedDatabase {
+			return p.Value
+		},
+		func(x *armsql.RestorableDroppedDatabase) sqlChildExtract {
+			return sqlTrackedExtract(x.ID, x.Name, x.Location, x.Tags)
+		})
 }

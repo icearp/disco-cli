@@ -15,6 +15,8 @@ Azure-specific scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 ## Helpers (reuse before reinventing)
 
 - `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`. **For non-paginator single-call APIs** (e.g. `armsecurity.PricingsClient.List`): unwrap `azcore.ResponseError` manually for 401/403 → `skipIfAccessDenied`; precedent: `security_scanners.go`.
+- `azSimpleScan[T,P](ctx, action, rtype, sub, st, scanID, pager, pageItems, extract)` — wraps `azPageScan` for the dominant pattern: simple sub-scoped list → tracked-resource Resource + RG hierarchy pair. Extractor returns `azTrackedBase{id, name, location, tags, full}`. Each scanner reduces to ~12 LOC: client construct + one call + extractor. Always emits RG pair when ID has `/resourceGroups/` segment — prefer over hand-rolled `azPageScan` callbacks. Precedent: `keyvault_scanners.go`, `wan_scanners.go` (multi-phase).
+- `sqlChildScan[C,T](ctx, label, rtype, sub, st, scanID, srv, pager, pageItems, extract)` — body for SQL-server child scanners. Tolerates AccessDenied + FeatureNotAvailable (break loop, no error). Extractor returns `sqlChildExtract` via `sqlProxyExtract(id, name)` for proxy resources or `sqlTrackedExtract(id, name, location, tags)` for tracked types (ElasticPool, FailoverGroup, JobAgent, RestorableDroppedDB). Precedent: `sql_server_child_scanners.go`.
 - **Multi-type single service** pattern (precedent: `wan_scanners.go`): one `serviceEntry` running N sequential phases. Generic `wanRows[T]` + per-type `*ToBase` extractors share a single batch-build + hierarchy-pair path, keeping each scanner ~100 LOC. Use when several SDK types share `(ID, Name, Location, Tags)` shape and belong to the same logical area (e.g. enterprise networking).
 - `rgHierarchyPair(sub, type, nativeID)` — RG closure pair (resource → RG).
 - `vnetIDFromSubnetID(s)` — strip `/subnets/X` suffix to recover parent VNet ARM ID.
@@ -43,6 +45,14 @@ Azure stores IDs as-returned (whatever case the user typed at create time). Reso
 ## Subscription-scoped vs tenant-scoped
 
 Every current scanner runs per-subscription via `scanSubscription`. Truly tenant-scoped services (Entra ID via Microsoft Graph SDK) need a separate top-level scanner. **Hybrid pattern** (precedent: `management_scanners.go`): a tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication of the result set — `ResourceID` hash includes account_id so dedup works locally. This is the same trick used for RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+
+## SDK pointer-element types
+
+`pageItems` returns `[]*T` where T is the SDK's per-resource struct, often *not* the obvious singular of the client name. Common patterns: `armredis.ResourceInfo` (not `Cache`), `armservicebus.SBNamespace`, `armeventhub.EHNamespace`, `armapimanagement.ServiceResource`, `armmsi.Identity`, `armcosmos.DatabaseAccountGetResults`, `armcompute.SSHPublicKeyResource`. Grep the SDK's `models.go` or build-and-fix when uncertain.
+
+## RG hierarchy pairs are mandatory
+
+Every RG-scoped resource must emit a `rgHierarchyPair` (resource → RG closure). `azSimpleScan` does this automatically. When hand-rolling a callback, do not omit pairs — peers without pairs were oversights, not by design.
 
 ## Lint gotchas
 

@@ -24,29 +24,11 @@ func scanDNS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdns:NewZonesClient: %w", err)
 	}
-	zt, zi, err := azPageScan(ctx, "armdns:Zones.List", sub, st,
+	zt, zi, err := azSimpleScan(ctx, "armdns:Zones.List", TypeDNSZone, sub, st, scanID,
 		zonesClient.NewListPager(nil),
-		func(page armdns.ZonesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, z := range page.Value {
-				if z == nil || z.ID == nil {
-					continue
-				}
-				name, loc := sv(z.Name), sv(z.Location)
-				nativeID := sv(z.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeDNSZone, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(z.Tags), AttributesJSON: mustJSON(z),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeDNSZone, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armdns.ZonesClientListResponse) []*armdns.Zone { return p.Value },
+		func(z *armdns.Zone) azTrackedBase {
+			return azTrackedBase{id: sv(z.ID), name: sv(z.Name), location: sv(z.Location), tags: z.Tags, full: z}
 		})
 	total += zt
 	inserted += zi
@@ -62,34 +44,18 @@ func scanDNS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		rg, name, discoID string
 	}
 	var privZones []privZoneRef
-	pt, pi, err := azPageScan(ctx, "armprivatedns:PrivateZones.List", sub, st,
+	pt, pi, err := azSimpleScan(ctx, "armprivatedns:PrivateZones.List", TypeDNSPrivateZone, sub, st, scanID,
 		pzClient.NewListPager(nil),
-		func(page armprivatedns.PrivateZonesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, z := range page.Value {
-				if z == nil || z.ID == nil {
-					continue
-				}
-				name, loc := sv(z.Name), sv(z.Location)
-				nativeID := sv(z.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeDNSPrivateZone, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(z.Tags), AttributesJSON: mustJSON(z),
-					DiscoveredBy: scanID,
+		func(p armprivatedns.PrivateZonesClientListResponse) []*armprivatedns.PrivateZone { return p.Value },
+		func(z *armprivatedns.PrivateZone) azTrackedBase {
+			b := azTrackedBase{id: sv(z.ID), name: sv(z.Name), location: sv(z.Location), tags: z.Tags, full: z}
+			if rg := rgNameFromID(b.id); rg != "" {
+				privZones = append(privZones, privZoneRef{
+					rg: rg, name: b.name,
+					discoID: store.ResourceID("azure", sub.ID, TypeDNSPrivateZone, b.id),
 				})
-				rg := rgNameFromID(nativeID)
-				if rg != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeDNSPrivateZone, nativeID))
-					privZones = append(privZones, privZoneRef{
-						rg: rg, name: name,
-						discoID: store.ResourceID("azure", sub.ID, TypeDNSPrivateZone, nativeID),
-					})
-				}
 			}
-			return batch, pairs
+			return b
 		})
 	total += pt
 	inserted += pi

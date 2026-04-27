@@ -23,28 +23,12 @@ func scanPrivateEndpoints(ctx context.Context, sub *subscription, cred *azidenti
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewPrivateEndpointsClient: %w", err)
 	}
-	return azPageScan(ctx, "armnetwork:PrivateEndpoints.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armnetwork:PrivateEndpoints.ListBySubscription", TypeNetworkPrivateEndpoint, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armnetwork.PrivateEndpointsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, pe := range page.Value {
-				if pe == nil || pe.ID == nil {
-					continue
-				}
-				name, loc := sv(pe.Name), sv(pe.Location)
-				nativeID := sv(pe.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeNetworkPrivateEndpoint, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(pe.Tags), AttributesJSON: mustJSON(pe),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeNetworkPrivateEndpoint, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armnetwork.PrivateEndpointsClientListBySubscriptionResponse) []*armnetwork.PrivateEndpoint {
+			return p.Value
+		},
+		func(pe *armnetwork.PrivateEndpoint) azTrackedBase {
+			return azTrackedBase{id: sv(pe.ID), name: sv(pe.Name), location: sv(pe.Location), tags: pe.Tags, full: pe}
 		})
 }

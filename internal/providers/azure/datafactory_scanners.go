@@ -21,28 +21,10 @@ func scanDataFactory(ctx context.Context, sub *subscription, cred *azidentity.De
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdatafactory:NewFactoriesClient: %w", err)
 	}
-	return azPageScan(ctx, "armdatafactory:Factories.List", sub, st,
+	return azSimpleScan(ctx, "armdatafactory:Factories.List", TypeDataFactoryFactory, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armdatafactory.FactoriesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, f := range page.Value {
-				if f == nil || f.ID == nil {
-					continue
-				}
-				name, loc := sv(f.Name), sv(f.Location)
-				nativeID := sv(f.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeDataFactoryFactory, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(f.Tags), AttributesJSON: mustJSON(f),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeDataFactoryFactory, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armdatafactory.FactoriesClientListResponse) []*armdatafactory.Factory { return p.Value },
+		func(f *armdatafactory.Factory) azTrackedBase {
+			return azTrackedBase{id: sv(f.ID), name: sv(f.Name), location: sv(f.Location), tags: f.Tags, full: f}
 		})
 }

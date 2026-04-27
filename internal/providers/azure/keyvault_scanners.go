@@ -17,23 +17,10 @@ func scanKeyVault(ctx context.Context, sub *subscription, cred *azidentity.Defau
 	if err != nil {
 		return 0, 0, fmt.Errorf("armkeyvault:NewVaultsClient: %w", err)
 	}
-	return azPageScan(ctx, "armkeyvault:Vaults.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armkeyvault:Vaults.ListBySubscription", TypeKeyVaultVault, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armkeyvault.VaultsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			for _, vault := range page.Value {
-				if vault.ID == nil {
-					continue
-				}
-				name, loc := sv(vault.Name), sv(vault.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeKeyVaultVault, NativeID: sv(vault.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(vault.Tags), AttributesJSON: mustJSON(vault),
-					DiscoveredBy: scanID,
-				})
-			}
-			return batch, nil
+		func(p armkeyvault.VaultsClientListBySubscriptionResponse) []*armkeyvault.Vault { return p.Value },
+		func(v *armkeyvault.Vault) azTrackedBase {
+			return azTrackedBase{id: sv(v.ID), name: sv(v.Name), location: sv(v.Location), tags: v.Tags, full: v}
 		})
 }

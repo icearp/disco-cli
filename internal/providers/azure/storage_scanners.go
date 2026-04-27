@@ -17,23 +17,10 @@ func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	if err != nil {
 		return 0, 0, fmt.Errorf("armstorage:NewAccountsClient: %w", err)
 	}
-	return azPageScan(ctx, "armstorage:Accounts.List", sub, st,
+	return azSimpleScan(ctx, "armstorage:Accounts.List", TypeStorageStorageAccount, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armstorage.AccountsClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			for _, acct := range page.Value {
-				if acct.ID == nil {
-					continue
-				}
-				name, loc := sv(acct.Name), sv(acct.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeStorageStorageAccount, NativeID: sv(acct.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(acct.Tags), AttributesJSON: mustJSON(acct),
-					DiscoveredBy: scanID,
-				})
-			}
-			return batch, nil
+		func(p armstorage.AccountsClientListResponse) []*armstorage.Account { return p.Value },
+		func(a *armstorage.Account) azTrackedBase {
+			return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 		})
 }

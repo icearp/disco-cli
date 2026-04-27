@@ -22,28 +22,12 @@ func scanApplicationGateway(ctx context.Context, sub *subscription, cred *aziden
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewApplicationGatewaysClient: %w", err)
 	}
-	return azPageScan(ctx, "armnetwork:ApplicationGateways.ListAll", sub, st,
+	return azSimpleScan(ctx, "armnetwork:ApplicationGateways.ListAll", TypeNetworkApplicationGateway, sub, st, scanID,
 		client.NewListAllPager(nil),
-		func(page armnetwork.ApplicationGatewaysClientListAllResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, agw := range page.Value {
-				if agw == nil || agw.ID == nil {
-					continue
-				}
-				name, loc := sv(agw.Name), sv(agw.Location)
-				nativeID := sv(agw.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeNetworkApplicationGateway, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(agw.Tags), AttributesJSON: mustJSON(agw),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeNetworkApplicationGateway, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armnetwork.ApplicationGatewaysClientListAllResponse) []*armnetwork.ApplicationGateway {
+			return p.Value
+		},
+		func(agw *armnetwork.ApplicationGateway) azTrackedBase {
+			return azTrackedBase{id: sv(agw.ID), name: sv(agw.Name), location: sv(agw.Location), tags: agw.Tags, full: agw}
 		})
 }

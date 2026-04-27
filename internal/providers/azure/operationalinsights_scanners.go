@@ -23,28 +23,12 @@ func scanOperationalInsights(ctx context.Context, sub *subscription, cred *azide
 	if err != nil {
 		return 0, 0, fmt.Errorf("armoperationalinsights:NewWorkspacesClient: %w", err)
 	}
-	return azPageScan(ctx, "armoperationalinsights:Workspaces.List", sub, st,
+	return azSimpleScan(ctx, "armoperationalinsights:Workspaces.List", TypeOpInsightsWorkspace, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armoperationalinsights.WorkspacesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, w := range page.Value {
-				if w == nil || w.ID == nil {
-					continue
-				}
-				name, loc := sv(w.Name), sv(w.Location)
-				nativeID := sv(w.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeOpInsightsWorkspace, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(w.Tags), AttributesJSON: mustJSON(w),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeOpInsightsWorkspace, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armoperationalinsights.WorkspacesClientListResponse) []*armoperationalinsights.Workspace {
+			return p.Value
+		},
+		func(w *armoperationalinsights.Workspace) azTrackedBase {
+			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 		})
 }

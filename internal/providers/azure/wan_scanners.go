@@ -20,11 +20,6 @@ func init() { registerService(serviceEntry{name: "azure:wan", fn: scanWAN}) }
 // (Microsoft.Network/expressRouteGateways) are RG-scoped only — deferred
 // until a per-RG fan-out scanner pattern lands.
 func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	type phase struct {
-		name string
-		fn   func() (int, int, error)
-	}
-
 	circuitsClient, err := armnetwork.NewExpressRouteCircuitsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewExpressRouteCircuitsClient: %w", err)
@@ -46,46 +41,43 @@ func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		return 0, 0, fmt.Errorf("armnetwork:NewVPNGatewaysClient: %w", err)
 	}
 
-	phases := []phase{
-		{name: "armnetwork:ExpressRouteCircuits.ListAll", fn: func() (int, int, error) {
-			return azPageScan(ctx, "armnetwork:ExpressRouteCircuits.ListAll", sub, st,
+	phases := []func() (int, int, error){
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:ExpressRouteCircuits.ListAll", TypeNetworkExpressRouteCircuit, sub, st, scanID,
 				circuitsClient.NewListAllPager(nil),
-				func(page armnetwork.ExpressRouteCircuitsClientListAllResponse) ([]*store.Resource, [][2]string) {
-					return wanRows(sub, scanID, page.Value, TypeNetworkExpressRouteCircuit, ercToBase)
-				})
-		}},
-		{name: "armnetwork:VirtualWans.List", fn: func() (int, int, error) {
-			return azPageScan(ctx, "armnetwork:VirtualWans.List", sub, st,
+				func(p armnetwork.ExpressRouteCircuitsClientListAllResponse) []*armnetwork.ExpressRouteCircuit {
+					return p.Value
+				},
+				ercToBase)
+		},
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:VirtualWans.List", TypeNetworkVirtualWAN, sub, st, scanID,
 				wansClient.NewListPager(nil),
-				func(page armnetwork.VirtualWansClientListResponse) ([]*store.Resource, [][2]string) {
-					return wanRows(sub, scanID, page.Value, TypeNetworkVirtualWAN, vwanToBase)
-				})
-		}},
-		{name: "armnetwork:VirtualHubs.List", fn: func() (int, int, error) {
-			return azPageScan(ctx, "armnetwork:VirtualHubs.List", sub, st,
+				func(p armnetwork.VirtualWansClientListResponse) []*armnetwork.VirtualWAN { return p.Value },
+				vwanToBase)
+		},
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:VirtualHubs.List", TypeNetworkVirtualHub, sub, st, scanID,
 				hubsClient.NewListPager(nil),
-				func(page armnetwork.VirtualHubsClientListResponse) ([]*store.Resource, [][2]string) {
-					return wanRows(sub, scanID, page.Value, TypeNetworkVirtualHub, vhubToBase)
-				})
-		}},
-		{name: "armnetwork:VPNSites.List", fn: func() (int, int, error) {
-			return azPageScan(ctx, "armnetwork:VPNSites.List", sub, st,
+				func(p armnetwork.VirtualHubsClientListResponse) []*armnetwork.VirtualHub { return p.Value },
+				vhubToBase)
+		},
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:VPNSites.List", TypeNetworkVPNSite, sub, st, scanID,
 				sitesClient.NewListPager(nil),
-				func(page armnetwork.VPNSitesClientListResponse) ([]*store.Resource, [][2]string) {
-					return wanRows(sub, scanID, page.Value, TypeNetworkVPNSite, vpnSiteToBase)
-				})
-		}},
-		{name: "armnetwork:VPNGateways.List", fn: func() (int, int, error) {
-			return azPageScan(ctx, "armnetwork:VPNGateways.List", sub, st,
+				func(p armnetwork.VPNSitesClientListResponse) []*armnetwork.VPNSite { return p.Value },
+				vpnSiteToBase)
+		},
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:VPNGateways.List", TypeNetworkVPNGateway, sub, st, scanID,
 				gwClient.NewListPager(nil),
-				func(page armnetwork.VPNGatewaysClientListResponse) ([]*store.Resource, [][2]string) {
-					return wanRows(sub, scanID, page.Value, TypeNetworkVPNGateway, vpnGatewayToBase)
-				})
-		}},
+				func(p armnetwork.VPNGatewaysClientListResponse) []*armnetwork.VPNGateway { return p.Value },
+				vpnGatewayToBase)
+		},
 	}
 
-	for _, p := range phases {
-		t, i, err := p.fn()
+	for _, fn := range phases {
+		t, i, err := fn()
 		total += t
 		inserted += i
 		if err != nil {
@@ -95,56 +87,22 @@ func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	return total, inserted, nil
 }
 
-// wanResourceBase is the shared shape every armnetwork WAN type satisfies:
-// ID, Name, Location, Tags. Each type-specific extractor below returns these
-// four fields so wanRows can build a generic store.Resource batch.
-type wanResourceBase struct {
-	id, name, location string
-	tags               map[string]*string
-	full               any
+func ercToBase(e *armnetwork.ExpressRouteCircuit) azTrackedBase {
+	return azTrackedBase{id: sv(e.ID), name: sv(e.Name), location: sv(e.Location), tags: e.Tags, full: e}
 }
 
-func wanRows[T any](sub *subscription, scanID string, items []*T, rtype string, extract func(*T) wanResourceBase) ([]*store.Resource, [][2]string) {
-	var batch []*store.Resource
-	var pairs [][2]string
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		b := extract(item)
-		if b.id == "" {
-			continue
-		}
-		batch = append(batch, &store.Resource{
-			Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-			Type: rtype, NativeID: b.id,
-			Name: &b.name, Region: &b.location,
-			TagsJSON: azTagsJSON(b.tags), AttributesJSON: mustJSON(b.full),
-			DiscoveredBy: scanID,
-		})
-		if rgFromID(b.id) != "" {
-			pairs = append(pairs, rgHierarchyPair(sub, rtype, b.id))
-		}
-	}
-	return batch, pairs
+func vwanToBase(v *armnetwork.VirtualWAN) azTrackedBase {
+	return azTrackedBase{id: sv(v.ID), name: sv(v.Name), location: sv(v.Location), tags: v.Tags, full: v}
 }
 
-func ercToBase(e *armnetwork.ExpressRouteCircuit) wanResourceBase {
-	return wanResourceBase{id: sv(e.ID), name: sv(e.Name), location: sv(e.Location), tags: e.Tags, full: e}
+func vhubToBase(h *armnetwork.VirtualHub) azTrackedBase {
+	return azTrackedBase{id: sv(h.ID), name: sv(h.Name), location: sv(h.Location), tags: h.Tags, full: h}
 }
 
-func vwanToBase(v *armnetwork.VirtualWAN) wanResourceBase {
-	return wanResourceBase{id: sv(v.ID), name: sv(v.Name), location: sv(v.Location), tags: v.Tags, full: v}
+func vpnSiteToBase(s *armnetwork.VPNSite) azTrackedBase {
+	return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 }
 
-func vhubToBase(h *armnetwork.VirtualHub) wanResourceBase {
-	return wanResourceBase{id: sv(h.ID), name: sv(h.Name), location: sv(h.Location), tags: h.Tags, full: h}
-}
-
-func vpnSiteToBase(s *armnetwork.VPNSite) wanResourceBase {
-	return wanResourceBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
-}
-
-func vpnGatewayToBase(g *armnetwork.VPNGateway) wanResourceBase {
-	return wanResourceBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+func vpnGatewayToBase(g *armnetwork.VPNGateway) azTrackedBase {
+	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
 }

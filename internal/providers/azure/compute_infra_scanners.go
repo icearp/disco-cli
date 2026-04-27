@@ -14,26 +14,13 @@ func scanAvailabilitySets(ctx context.Context, sub *subscription, cred *azidenti
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewAvailabilitySetsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:AvailabilitySets.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armcompute:AvailabilitySets.ListBySubscription", TypeComputeAvailabilitySet, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armcompute.AvailabilitySetsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, a := range page.Value {
-				if a.ID == nil {
-					continue
-				}
-				name, loc := sv(a.Name), sv(a.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeAvailabilitySet, NativeID: sv(a.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(a.Tags), AttributesJSON: mustJSON(a),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeAvailabilitySet, sv(a.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.AvailabilitySetsClientListBySubscriptionResponse) []*armcompute.AvailabilitySet {
+			return p.Value
+		},
+		func(a *armcompute.AvailabilitySet) azTrackedBase {
+			return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 		})
 }
 
@@ -42,26 +29,13 @@ func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewSSHPublicKeysClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:SSHPublicKeys.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armcompute:SSHPublicKeys.ListBySubscription", TypeComputeSSHPublicKey, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armcompute.SSHPublicKeysClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, k := range page.Value {
-				if k.ID == nil {
-					continue
-				}
-				name, loc := sv(k.Name), sv(k.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeSSHPublicKey, NativeID: sv(k.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(k.Tags), AttributesJSON: mustJSON(k),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeSSHPublicKey, sv(k.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.SSHPublicKeysClientListBySubscriptionResponse) []*armcompute.SSHPublicKeyResource {
+			return p.Value
+		},
+		func(k *armcompute.SSHPublicKeyResource) azTrackedBase {
+			return azTrackedBase{id: sv(k.ID), name: sv(k.Name), location: sv(k.Location), tags: k.Tags, full: k}
 		})
 }
 
@@ -70,26 +44,13 @@ func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred *
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewProximityPlacementGroupsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:ProximityPlacementGroups.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armcompute:ProximityPlacementGroups.ListBySubscription", TypeComputeProximityPlacementGroup, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armcompute.ProximityPlacementGroupsClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, p := range page.Value {
-				if p.ID == nil {
-					continue
-				}
-				name, loc := sv(p.Name), sv(p.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeProximityPlacementGroup, NativeID: sv(p.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(p.Tags), AttributesJSON: mustJSON(p),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeProximityPlacementGroup, sv(p.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.ProximityPlacementGroupsClientListBySubscriptionResponse) []*armcompute.ProximityPlacementGroup {
+			return p.Value
+		},
+		func(p *armcompute.ProximityPlacementGroup) azTrackedBase {
+			return azTrackedBase{id: sv(p.ID), name: sv(p.Name), location: sv(p.Location), tags: p.Tags, full: p}
 		})
 }
 
@@ -98,26 +59,11 @@ func scanComputeImages(ctx context.Context, sub *subscription, cred *azidentity.
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewImagesClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:Images.List", sub, st,
+	return azSimpleScan(ctx, "armcompute:Images.List", TypeComputeImage, sub, st, scanID,
 		client.NewListPager(nil),
-		func(page armcompute.ImagesClientListResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, img := range page.Value {
-				if img.ID == nil {
-					continue
-				}
-				name, loc := sv(img.Name), sv(img.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeImage, NativeID: sv(img.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(img.Tags), AttributesJSON: mustJSON(img),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeImage, sv(img.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.ImagesClientListResponse) []*armcompute.Image { return p.Value },
+		func(i *armcompute.Image) azTrackedBase {
+			return azTrackedBase{id: sv(i.ID), name: sv(i.Name), location: sv(i.Location), tags: i.Tags, full: i}
 		})
 }
 
@@ -126,25 +72,12 @@ func scanRestorePointCollections(ctx context.Context, sub *subscription, cred *a
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewRestorePointCollectionsClient: %w", err)
 	}
-	return azPageScan(ctx, "armcompute:RestorePointCollections.ListAll", sub, st,
+	return azSimpleScan(ctx, "armcompute:RestorePointCollections.ListAll", TypeComputeRestorePointCollection, sub, st, scanID,
 		client.NewListAllPager(nil),
-		func(page armcompute.RestorePointCollectionsClientListAllResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, rpc := range page.Value {
-				if rpc.ID == nil {
-					continue
-				}
-				name, loc := sv(rpc.Name), sv(rpc.Location)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeComputeRestorePointCollection, NativeID: sv(rpc.ID),
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(rpc.Tags), AttributesJSON: mustJSON(rpc),
-					DiscoveredBy: scanID,
-				})
-				pairs = append(pairs, rgHierarchyPair(sub, TypeComputeRestorePointCollection, sv(rpc.ID)))
-			}
-			return batch, pairs
+		func(p armcompute.RestorePointCollectionsClientListAllResponse) []*armcompute.RestorePointCollection {
+			return p.Value
+		},
+		func(r *armcompute.RestorePointCollection) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
 }

@@ -20,28 +20,12 @@ func scanManagedIdentity(ctx context.Context, sub *subscription, cred *azidentit
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmsi:NewUserAssignedIdentitiesClient: %w", err)
 	}
-	return azPageScan(ctx, "armmsi:UserAssignedIdentities.ListBySubscription", sub, st,
+	return azSimpleScan(ctx, "armmsi:UserAssignedIdentities.ListBySubscription", TypeManagedIdentityUserAssigned, sub, st, scanID,
 		client.NewListBySubscriptionPager(nil),
-		func(page armmsi.UserAssignedIdentitiesClientListBySubscriptionResponse) ([]*store.Resource, [][2]string) {
-			var batch []*store.Resource
-			var pairs [][2]string
-			for _, id := range page.Value {
-				if id == nil || id.ID == nil {
-					continue
-				}
-				name, loc := sv(id.Name), sv(id.Location)
-				nativeID := sv(id.ID)
-				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
-					Type: TypeManagedIdentityUserAssigned, NativeID: nativeID,
-					Name: &name, Region: &loc,
-					TagsJSON: azTagsJSON(id.Tags), AttributesJSON: mustJSON(id),
-					DiscoveredBy: scanID,
-				})
-				if rgFromID(nativeID) != "" {
-					pairs = append(pairs, rgHierarchyPair(sub, TypeManagedIdentityUserAssigned, nativeID))
-				}
-			}
-			return batch, pairs
+		func(p armmsi.UserAssignedIdentitiesClientListBySubscriptionResponse) []*armmsi.Identity {
+			return p.Value
+		},
+		func(id *armmsi.Identity) azTrackedBase {
+			return azTrackedBase{id: sv(id.ID), name: sv(id.Name), location: sv(id.Location), tags: id.Tags, full: id}
 		})
 }
