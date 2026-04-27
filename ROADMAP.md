@@ -77,6 +77,12 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Tier 2 expansion (this session)**: SSM parameter (full ARN only — bare names skipped, no region context in policy doc), Kinesis stream (`:stream/NAME`, consumer ARNs rejected via `/consumer/...` tail), ECR repository (`:repository/NAME`), IAM role for PassRole/AssumeRole references (regular `:role/NAME` and service-linked `/aws-service-role/...` discriminated by path).
 - **Tier 3 expansion (this session)**: RDS instance (`:db:NAME`) and cluster (`:cluster:NAME`) — colon-separated, snapshot/parameter-group/subnet-group share prefix and reject; SFN state-machine (`:stateMachine:NAME`, `:::` integration ARNs rejected per aws/CLAUDE.md); EventBridge event-bus (`:event-bus/NAME`) and rule (`:rule/[BUS/]NAME`); EFS file-system (`:file-system/fs-xxx`, mount-target/access-point intentionally skipped). `classifyPolicyResource` signature refactored: 14 separate map args replaced by one `*policyResourceSets` struct built once via `loadPolicyResourceSets`.
 
+### R3.19 Azure Databricks workspaces (this session)
+- **Azure Databricks** new type `azure:microsoft.databricks:workspace`. Subscription-scoped service `azure:databricks` runs one phase: `armdatabricks.WorkspacesClient.NewListBySubscriptionPager`. NativeIDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks`. Synapse + Data Factory (rest of R3.19) deferred to follow-up — separate SDKs each.
+- **Resolver** `resolveDatabricksRelationships` derives workspace -[attached-to]-> VNet for VNet-injected (Premium-tier) deployments via `properties.parameters.customVirtualNetworkId.value`. Match case-insensitive against per-sub VNet NativeID index. Default-VNet workspaces (Databricks-managed VNet) produce no edge — the managed VNet lives in the workspace's `managedResourceGroup`, which itself isn't a first-class resource in disco.
+- Out of scope: VNet peerings (resource-type `Microsoft.Databricks/workspaces/virtualNetworkPeerings`), private endpoint connections (covered by PE scanner), access connectors (`Microsoft.Databricks/accessConnectors` — separate ARM type warranting its own scanner), workspace customer-managed keys (CMEK refs are deeply nested under properties.encryption.entities[].keySource — defer until edge value justifies the parser complexity).
+- Live-scan validation: 1 sub, 0 workspaces, scanner ran clean.
+
 ### R3.15 Azure Application Gateway (this session)
 - **Azure Application Gateway** new type `azure:microsoft.network:application-gateway`. Subscription-scoped service `azure:applicationgateway` runs one phase: `armnetwork.ApplicationGatewaysClient.NewListAllPager` (v6 SDK already in use). NativeIDs verbatim. Hierarchy pair to RG. Front Door / Traffic Manager / API Management deferred to follow-up iterations — three more SDK packages each, sized as separate items.
 - **Resolver** `resolveApplicationGatewayRelationships` derives two edge classes per AGW:
@@ -390,7 +396,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 16. *(removed — Private Endpoint scanner + PE→VNet + PE→target (any resource) resolvers landed; private-DNS-zones/zone-groups/private-link-services deferred — see COMPLETED R3.16)*
 17. *(partial — public + private DNS zone scanners + private-zone vnet-link scanner + vnet-link→VNet resolver landed; record sets across both zone types deferred — see COMPLETED R3.17)*
 18. **ExpressRoute / Virtual WAN / VPN Gateway** — enterprise networking.
-19. **Databricks + Synapse + Data Factory** — workspace + linked services.
+19. *(partial — Databricks workspace scanner + workspace→VNet (custom-VNet injection) resolver landed; Synapse + Data Factory deferred to follow-up — see COMPLETED R3.19)*
 20. **Management groups + Subscriptions** (currently scoped input, not scanned as resources).
 
 ### R4. GCP scanner expansion
