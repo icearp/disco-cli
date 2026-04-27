@@ -2,6 +2,10 @@
 
 Azure-specific scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
+## Discover what's not yet covered
+
+`go run . types azure --filter uncovered` — diff Azure provider registry vs `azureAPITypeMap`. Use to pick next scanner. Other filters: `--filter covered`, `--services microsoft.compute,microsoft.network`, `--output json`.
+
 ## Adding a new type — 3 spots
 
 1. `types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).

@@ -32,7 +32,8 @@ const (
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
 	// L7 ingress
-	TypeNetworkApplicationGateway = "azure:microsoft.network:application-gateway"
+	TypeNetworkApplicationGateway    = "azure:microsoft.network:application-gateway"
+	TypeNetworkTrafficManagerProfile = "azure:microsoft.network:traffic-manager-profile"
 	// Analytics — Databricks
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
 	// Integration — Logic Apps
@@ -176,6 +177,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/privatednszones":                                    TypeDNSPrivateZone,
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
+	"microsoft.network/trafficmanagerprofiles":                             TypeNetworkTrafficManagerProfile,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
 	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
 	"microsoft.authorization/policydefinitions":                            TypePolicyDefinition,
