@@ -370,6 +370,9 @@ const (
 	// Athena (athena_scanners.go, athena_resolvers.go)
 	TypeAthenaWorkgroup   = "aws:athena:workgroup"
 	TypeAthenaDataCatalog = "aws:athena:datacatalog"
+	// Redshift (redshift_scanners.go, redshift_resolvers.go)
+	TypeRedshiftCluster     = "aws:redshift:cluster"
+	TypeRedshiftSubnetGroup = "aws:redshift:subnet-group"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -555,5 +558,7 @@ func KnownTypes() []string {
 		TypeGlueDatabase, TypeGlueTable,
 		// Athena
 		TypeAthenaWorkgroup, TypeAthenaDataCatalog,
+		// Redshift
+		TypeRedshiftCluster, TypeRedshiftSubnetGroup,
 	}
 }
