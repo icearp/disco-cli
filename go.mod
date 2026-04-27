@@ -26,6 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.5
 	github.com/aws/aws-sdk-go-v2/service/auditmanager v1.46.13
 	github.com/aws/aws-sdk-go-v2/service/backup v1.55.1
+	github.com/aws/aws-sdk-go-v2/service/batch v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.61.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.10

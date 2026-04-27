@@ -394,6 +394,10 @@ const (
 	// App Runner (apprunner_scanners.go, apprunner_resolvers.go)
 	TypeAppRunnerService      = "aws:apprunner:service"
 	TypeAppRunnerVPCConnector = "aws:apprunner:vpc-connector"
+	// Batch (batch_scanners.go, batch_resolvers.go)
+	TypeBatchComputeEnvironment = "aws:batch:compute-environment"
+	TypeBatchJobQueue           = "aws:batch:job-queue"
+	TypeBatchJobDefinition      = "aws:batch:job-definition"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -595,5 +599,7 @@ func KnownTypes() []string {
 		TypeControlTowerLandingZone, TypeControlTowerEnabledBaseline,
 		// App Runner
 		TypeAppRunnerService, TypeAppRunnerVPCConnector,
+		// Batch
+		TypeBatchComputeEnvironment, TypeBatchJobQueue, TypeBatchJobDefinition,
 	}
 }

@@ -80,6 +80,8 @@ github.com/aws/aws-sdk-go-v2/service/auditmanager v1.46.13 h1:DRXTwlMEwgbwSo/8wz
 github.com/aws/aws-sdk-go-v2/service/auditmanager v1.46.13/go.mod h1:5q2Bab0wK5wQVv+g2kw8QQ1yBxYmcAPNUulqqebW340=
 github.com/aws/aws-sdk-go-v2/service/backup v1.55.1 h1:Bcy9ZgE+OP8vnyLPEbxoey6JKK7RBRbRzGb7LIePJdE=
 github.com/aws/aws-sdk-go-v2/service/backup v1.55.1/go.mod h1:KmdGb8jdVZsGbhBRdU5Hcf77Wda2mOQMdfyJYCYaBSk=
+github.com/aws/aws-sdk-go-v2/service/batch v1.64.0 h1:WWUx80mFg1lNOriUCt/7DAzCVXrv/Ze03qkHpMXpjPU=
+github.com/aws/aws-sdk-go-v2/service/batch v1.64.0/go.mod h1:0edUfnYx6DKtduRjcLa60g/sOm/nc1Drr4Y24tvbH/E=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9 h1:AISf54dn2oMUmhoWt4UH80xC8GqlZectZIcffiJzp6U=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9/go.mod h1:YWA53lezhB2wltdgeVvDQEIwGVKWh/n+yU5Wh0YTxCw=
 github.com/aws/aws-sdk-go-v2/service/cloudfront v1.61.0 h1:Yx6+Np7TIPx2/j15dWnuGadv+w11ysw5KHgKpaiZsYM=
