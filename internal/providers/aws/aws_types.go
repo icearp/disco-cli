@@ -402,6 +402,9 @@ const (
 	TypeLightsailInstance         = "aws:lightsail:instance"
 	TypeLightsailDatabase         = "aws:lightsail:database"
 	TypeLightsailContainerService = "aws:lightsail:container-service"
+	// Elastic Beanstalk (elasticbeanstalk_scanners.go, elasticbeanstalk_resolvers.go)
+	TypeBeanstalkApplication = "aws:elasticbeanstalk:application"
+	TypeBeanstalkEnvironment = "aws:elasticbeanstalk:environment"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -607,5 +610,7 @@ func KnownTypes() []string {
 		TypeBatchComputeEnvironment, TypeBatchJobQueue, TypeBatchJobDefinition,
 		// Lightsail
 		TypeLightsailInstance, TypeLightsailDatabase, TypeLightsailContainerService,
+		// Elastic Beanstalk
+		TypeBeanstalkApplication, TypeBeanstalkEnvironment,
 	}
 }

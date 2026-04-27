@@ -69,6 +69,7 @@ var expectedAWSServices = []string{
 	"aws:apprunner",
 	"aws:batch",
 	"aws:lightsail",
+	"aws:elasticbeanstalk",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
