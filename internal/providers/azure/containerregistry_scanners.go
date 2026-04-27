@@ -9,7 +9,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 )
 
-func init() { registerService(serviceEntry{name: "azure:containerregistry", fn: scanContainerRegistry}) }
+func init() {
+	registerService(serviceEntry{name: "azure:containerregistry", fn: scanContainerRegistry})
+}
 
 // scanContainerRegistry discovers Azure Container Registry (ACR) registries.
 // Replications, webhooks, tasks, scope-maps, tokens, cache rules, and private

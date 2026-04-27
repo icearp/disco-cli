@@ -9,7 +9,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights"
 )
 
-func init() { registerService(serviceEntry{name: "azure:operationalinsights", fn: scanOperationalInsights}) }
+func init() {
+	registerService(serviceEntry{name: "azure:operationalinsights", fn: scanOperationalInsights})
+}
 
 // scanOperationalInsights discovers Azure Log Analytics workspaces.
 // Solutions, data collection rules/endpoints, saved searches, and linked

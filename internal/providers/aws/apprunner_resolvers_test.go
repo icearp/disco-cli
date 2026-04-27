@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	testARServiceName    = "web-svc"
-	testARServiceID      = "00000000000000000000000000000000"
-	testARConnectorName  = "private-connector"
-	testARConnectorID    = "11111111111111111111111111111111"
-	testARSubnet         = "subnet-ar1111"
-	testARSG             = "sg-ar2222"
-	testARInstanceRole   = "AppRunnerInstanceRole"
-	testARAccessRole     = "AppRunnerECRAccessRole"
-	testARKMSKeyID       = "ddddeeee-ffff-0000-1111-222233334444"
-	testARRepo           = "myapp"
+	testARServiceName   = "web-svc"
+	testARServiceID     = "00000000000000000000000000000000"
+	testARConnectorName = "private-connector"
+	testARConnectorID   = "11111111111111111111111111111111"
+	testARSubnet        = "subnet-ar1111"
+	testARSG            = "sg-ar2222"
+	testARInstanceRole  = "AppRunnerInstanceRole"
+	testARAccessRole    = "AppRunnerECRAccessRole"
+	testARKMSKeyID      = "ddddeeee-ffff-0000-1111-222233334444"
+	testARRepo          = "myapp"
 )
 
 func arServiceARN() string {
