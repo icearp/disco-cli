@@ -23,6 +23,9 @@ CGO_ENABLED=0 go test ./internal/store/... -run TestFoo -v
 
 # Vet and lint
 go vet ./...
+
+# Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
+gofmt -w .
 ```
 
 ## Architecture
@@ -63,6 +66,7 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/store/CLAUDE.md` — schema, edge kinds, scrubbing/redaction, ResourceID, migrations, UpsertResources scope, DB perms
 - `internal/providers/CLAUDE.md` — registry, Scanner iface, add-provider steps, file naming, sidecar pattern, embed-child-data, registration tests, resolver test pattern
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
+- `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/rules/CLAUDE.md` — rules engine
 
 ## OSS / paid split
