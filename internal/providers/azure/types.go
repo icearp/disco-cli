@@ -38,6 +38,7 @@ const (
 	// Analytics — Databricks + Synapse
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
 	TypeSynapseWorkspace    = "azure:microsoft.synapse:workspace"
+	TypeDataFactoryFactory  = "azure:microsoft.datafactory:factory"
 	// Integration — Logic Apps
 	TypeLogicWorkflow = "azure:microsoft.logic:workflow"
 	// Azure Policy
@@ -183,6 +184,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.cdn/profiles":                                               TypeCDNProfile,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
 	"microsoft.synapse/workspaces":                                         TypeSynapseWorkspace,
+	"microsoft.datafactory/factories":                                      TypeDataFactoryFactory,
 	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
 	"microsoft.authorization/policydefinitions":                            TypePolicyDefinition,
 	"microsoft.authorization/policysetdefinitions":                         TypePolicySetDefinition,

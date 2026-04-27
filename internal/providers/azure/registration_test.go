@@ -18,6 +18,7 @@ var expectedAzureServices = []string{
 	"azure:containerregistry",
 	"azure:cosmos",
 	"azure:databricks",
+	"azure:datafactory",
 	"azure:dns",
 	"azure:eventhub",
 	"azure:keyvault",
