@@ -63,6 +63,7 @@ var expectedAWSServices = []string{
 	"aws:opensearch",
 	"aws:docdb",
 	"aws:neptune",
+	"aws:servicecatalog",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

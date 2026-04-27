@@ -381,6 +381,9 @@ const (
 	// Neptune (neptune_scanners.go, neptune_resolvers.go)
 	TypeNeptuneCluster  = "aws:neptune:cluster"
 	TypeNeptuneInstance = "aws:neptune:instance"
+	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)
+	TypeServiceCatalogPortfolio = "aws:servicecatalog:portfolio"
+	TypeServiceCatalogProduct   = "aws:servicecatalog:product"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -574,5 +577,7 @@ func KnownTypes() []string {
 		TypeDocDBCluster, TypeDocDBInstance,
 		// Neptune
 		TypeNeptuneCluster, TypeNeptuneInstance,
+		// Service Catalog
+		TypeServiceCatalogPortfolio, TypeServiceCatalogProduct,
 	}
 }

@@ -67,6 +67,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3control v1.69.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.69.1
+	github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.13
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.60.3
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.40.11
 	github.com/aws/aws-sdk-go-v2/service/shield v1.34.22
