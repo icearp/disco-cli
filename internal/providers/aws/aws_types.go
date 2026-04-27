@@ -364,6 +364,9 @@ const (
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter = "aws:inspector2:filter"
 	TypeInspector2Member = "aws:inspector2:member"
+	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
+	TypeGlueDatabase = "aws:glue:database"
+	TypeGlueTable    = "aws:glue:table"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -545,5 +548,7 @@ func KnownTypes() []string {
 		TypeSESEmailIdentity, TypeSESConfigurationSet,
 		// Inspector v2
 		TypeInspector2Filter, TypeInspector2Member,
+		// Glue Data Catalog
+		TypeGlueDatabase, TypeGlueTable,
 	}
 }
