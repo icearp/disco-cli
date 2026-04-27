@@ -15,6 +15,7 @@ Azure-specific scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 ## Helpers (reuse before reinventing)
 
 - `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`. **For non-paginator single-call APIs** (e.g. `armsecurity.PricingsClient.List`): unwrap `azcore.ResponseError` manually for 401/403 → `skipIfAccessDenied`; precedent: `security_scanners.go`.
+- **Multi-type single service** pattern (precedent: `wan_scanners.go`): one `serviceEntry` running N sequential phases. Generic `wanRows[T]` + per-type `*ToBase` extractors share a single batch-build + hierarchy-pair path, keeping each scanner ~100 LOC. Use when several SDK types share `(ID, Name, Location, Tags)` shape and belong to the same logical area (e.g. enterprise networking).
 - `rgHierarchyPair(sub, type, nativeID)` — RG closure pair (resource → RG).
 - `vnetIDFromSubnetID(s)` — strip `/subnets/X` suffix to recover parent VNet ARM ID.
 - `nameFromID(id)` — last `/`-segment of an ARM ID. Used to build name-keyed indexes (vault-name, registry-name).

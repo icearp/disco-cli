@@ -102,6 +102,14 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: API connections (`Microsoft.Web/connections`), integration accounts, integration service environments (ISE — deprecated tier), workflow versions, triggers + actions as standalone resources, run history.
 - Live-scan validation: 1 sub, 0 workflows, scanner ran clean.
 
+### R3.18 Azure ER + Virtual WAN + VPN (sub-wide-listable subset, this session)
+- **Azure enterprise networking** new types `azure:microsoft.network:express-route-circuit`, `:virtual-wan`, `:virtual-hub`, `:vpn-site`, `:vpn-gateway`. Single subscription-scoped service `azure:wan` runs five sequential phases: ExpressRoute Circuits (`NewListAllPager`), Virtual WANs (`NewListPager` — already sub-wide), Virtual Hubs (`NewListPager`), VPN Sites (`NewListPager`), and vWAN VPN Gateways (`NewListPager`). NativeIDs verbatim. Hierarchy pairs to RG. All five reuse the existing `armnetwork/v6` SDK already in use by network scanner.
+- Implementation reuses a small generic `wanRows[T]` helper + per-type `*ToBase` extractors so all five phases share one batch-build + hierarchy-pair path — keeps the multi-resource scanner concise while preserving per-type SDK names in error messages.
+- **No resolvers this iter.** Edges (circuit → peering → ExpressRoute Gateway, hub → wan + → connections, site → gateway, gateway → connections + → BGP info) live in either nested properties or RG-scoped sub-resources requiring per-instance fan-out — defer to a follow-up iteration with rate-limited fan-out.
+- **Deferred — RG-fanout pattern needed**: `Microsoft.Network/virtualNetworkGateways` (covers both classic ER gateways and classic VPN gateways) and `Microsoft.Network/expressRouteGateways` are RG-scoped only (no sub-wide list API). Adding them requires querying RGs from store + per-RG fan-out — landed in a follow-up iteration once the RG-iteration pattern is established.
+- Out of scope: connections (`vpnConnections`, `expressRouteConnections`, `hubVirtualNetworkConnections`), peerings (`expressRouteCircuits/peerings`), routing intent + route tables, BGP routes, hub-to-hub config, network virtual appliances.
+- Live-scan validation: 1 sub, 0 resources, scanner ran clean.
+
 ### R3.15 Azure API Management services (this session)
 - **Azure API Management** new type `azure:microsoft.apimanagement:service`. Subscription-scoped service `azure:apimanagement` runs one phase: `armapimanagement.ServiceClient.NewListPager`. NativeIDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement`.
 - **Resolver** `resolveAPIManagementRelationships` derives APIM service -[attached-to]-> VNet edge for VNet-injected (Internal / External mode) instances via `properties.virtualNetworkConfiguration.subnetResourceId` (reuses `vnetIDFromSubnetID`). External / non-VNet instances skip silently.
@@ -453,7 +461,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 15. *(removed — Application Gateway + Traffic Manager + Front Door/CDN + API Management scanners + AGW→VNet/PIP + TM→target + APIM→VNet resolvers landed; CDN/AFD origin-target resolvers deferred; AGW→KeyVault deferred due to sanitizer false-positive — see COMPLETED R3.15 entries)*
 16. *(removed — Private Endpoint scanner + PE→VNet + PE→target (any resource) resolvers landed; private-DNS-zones/zone-groups/private-link-services deferred — see COMPLETED R3.16)*
 17. *(partial — public + private DNS zone scanners + private-zone vnet-link scanner + vnet-link→VNet resolver landed; record sets across both zone types deferred — see COMPLETED R3.17)*
-18. **ExpressRoute / Virtual WAN / VPN Gateway** — enterprise networking.
+18. *(partial — sub-wide-listable subset landed: ExpressRoute circuits + Virtual WAN + Virtual Hubs + VPN Sites + vWAN VPN Gateways. Classic VirtualNetworkGateways + ExpressRouteGateways need RG-fanout pattern, deferred — see COMPLETED R3.18)*
 19. *(removed — Databricks + Synapse + Data Factory scanners landed; Databricks→VNet + Synapse→Storage resolvers landed; per-linked-service resolvers deferred — see COMPLETED R3.19 entries)*
 20. *(removed — Management Groups + Subscriptions scanners landed (single service azure:management); mgmt-group hierarchy + sub→mgmt-group containment deferred — see COMPLETED R3.20)*
 

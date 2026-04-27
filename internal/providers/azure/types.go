@@ -33,6 +33,12 @@ const (
 	TypeMySQLFlexibleServer      = "azure:microsoft.dbformysql:flexible-server"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
+	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
+	TypeNetworkExpressRouteCircuit = "azure:microsoft.network:express-route-circuit"
+	TypeNetworkVirtualWAN          = "azure:microsoft.network:virtual-wan"
+	TypeNetworkVirtualHub          = "azure:microsoft.network:virtual-hub"
+	TypeNetworkVPNSite             = "azure:microsoft.network:vpn-site"
+	TypeNetworkVPNGateway          = "azure:microsoft.network:vpn-gateway"
 	// Messaging — Event Hubs + Service Bus
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
@@ -183,6 +189,11 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.dbforpostgresql/flexibleservers":                            TypePostgreSQLFlexibleServer,
 	"microsoft.dbformysql/flexibleservers":                                 TypeMySQLFlexibleServer,
 	"microsoft.network/privateendpoints":                                   TypeNetworkPrivateEndpoint,
+	"microsoft.network/expressroutecircuits":                               TypeNetworkExpressRouteCircuit,
+	"microsoft.network/virtualwans":                                        TypeNetworkVirtualWAN,
+	"microsoft.network/virtualhubs":                                        TypeNetworkVirtualHub,
+	"microsoft.network/vpnsites":                                           TypeNetworkVPNSite,
+	"microsoft.network/vpngateways":                                        TypeNetworkVPNGateway,
 	"microsoft.eventhub/namespaces":                                        TypeEventHubNamespace,
 	"microsoft.servicebus/namespaces":                                      TypeServiceBusNamespace,
 	"microsoft.network/dnszones":                                           TypeDNSZone,
