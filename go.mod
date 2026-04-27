@@ -49,6 +49,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
+	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2
 	github.com/aws/aws-sdk-go-v2/service/rds v1.117.1

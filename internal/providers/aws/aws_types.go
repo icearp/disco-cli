@@ -339,6 +339,11 @@ const (
 	TypeSSOAccountAssignment = "aws:sso:account-assignment"
 	TypeIdentityStoreUser    = "aws:identitystore:user"
 	TypeIdentityStoreGroup   = "aws:identitystore:group"
+	// Macie (macie_scanners.go, macie_resolvers.go)
+	TypeMacieSession              = "aws:macie:session"
+	TypeMacieClassificationJob    = "aws:macie:classification-job"
+	TypeMacieCustomDataIdentifier = "aws:macie:custom-data-identifier"
+	TypeMacieAllowList            = "aws:macie:allow-list"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
@@ -510,5 +515,8 @@ func KnownTypes() []string {
 		TypeIdentityStoreUser, TypeIdentityStoreGroup,
 		// Shield Advanced
 		TypeShieldProtection, TypeShieldProtectionGroup, TypeShieldSubscription,
+		// Macie
+		TypeMacieSession, TypeMacieClassificationJob,
+		TypeMacieCustomDataIdentifier, TypeMacieAllowList,
 	}
 }

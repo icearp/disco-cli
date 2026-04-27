@@ -16,6 +16,7 @@ AWS scanner + resolver conventions. Cross-provider rules: see `../CLAUDE.md`.
 - **SSO permission-set ARN → instance ARN**: rebuild via `instanceArnFromPermissionSetArn` in `sso_resolvers.go` — permission-set ARN's `:permissionSet/{ssoins-id}/…` path embeds instance id; canonical instance ARN is `arn:aws:sso:::instance/{ssoins-id}`. `strings.Cut` twice, no Index.
 - **AWS Backup plan ARN** uses `backup-plan:`, not `plan:`. Real: `arn:aws:backup:{r}:{a}:backup-plan:{planId}`. Synthetic selection NativeID `{planARN}/selection/{selId}` — trim `/selection/...` in resolver to recover parent plan ARN. Wrong prefix → FK error on closure insert.
 - **Org test fixtures**: `loadOrgTargetIndex` keys on attrs JSON `{"Id":...}`, not NativeID. Test rows for `TypeOrganizationsAccount` / `TypeOrganizationsOU` need `{"Id":"<raw-id>","Arn":"<arn>"}` in attrs — bare `{}` leaves index empty, every chained resolver silently emits zero edges with no FK error.
+- **Macie session NativeID**: `GetMacieSession` returns no ARN — session is account/region config. Synthesize `arn:aws:macie2:{region}:{acct}:session` (`macieSessionNativeID` in `macie_scanners.go`). Singleton per (account, region); classification jobs / CDIs / allow-lists hang off it via the contains closure.
 - **Organizations NativeID = full ARN, not raw ID**. Accounts + OUs keyed by `sv(a.Arn)`, not `o-xxx` / 12-digit account ID. APIs like `ListDelegatedAdministrators` return raw IDs — translate via `loadOrgTargetIndex` (`organizations_resolvers.go`) before building `ResourceID`.
 
 ## ELBv2 LB attrs wrapped
@@ -105,7 +106,13 @@ Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) 
 
 ## Service-not-enabled → soft skip via per-service helper
 
-Some AWS APIs return `ResourceNotFoundException` (not `AccessDenied`) when account has not subscribed to / activated feature — Shield Advanced canonical case (`isShieldNotSubscribed` in `shield_scanners.go`). Add sibling helper alongside `isAccessDenied` checks; in multi-phase scanners, treat both identically (early-return for single-phase, `break` for multi-phase to preserve totals from earlier phases). Likely candidates: Detective, Macie, Security Hub, Inspector v2.
+Some AWS APIs return `ResourceNotFoundException` (not `AccessDenied`) when account has not subscribed to / activated feature — Shield Advanced canonical case (`isShieldNotSubscribed` in `shield_scanners.go`). Add sibling helper alongside `isAccessDenied` checks; in multi-phase scanners, treat both identically (early-return for single-phase, `break` for multi-phase to preserve totals from earlier phases). Likely candidates: Detective, Security Hub, Inspector v2.
+
+**Variant — first-phase short-circuit when every phase fails identically.** Macie returns `AccessDeniedException` from *every* API when the service is not enabled in the region. Rather than per-phase checks, phase 1 (`GetMacieSession`) returns a `present bool`; sibling phases skip when `!present`. See `scanMacie` in `macie_scanners.go`. Use this shape when feature-disabled state is uniform across phases (saves N redundant API calls + N error reports); use Shield's per-phase shape when phases have independent enablement (e.g. Shield Advanced lets you DescribeSubscription but not ListProtections under partial IAM grants).
+
+## Multi-phase scanner totals
+
+Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — scan-progress line will report nonsense on rescans where every row is an update.
 
 ## Cross-service ResourceArn ≠ scanner NativeID shape
 
