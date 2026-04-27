@@ -10,6 +10,7 @@ import (
 var expectedAzureServices = []string{
 	"azure:aks",
 	"azure:appservice",
+	"azure:authorization",
 	"azure:compute",
 	"azure:keyvault",
 	"azure:network",

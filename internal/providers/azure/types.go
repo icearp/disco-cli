@@ -6,6 +6,9 @@ package azure
 const (
 	// Resource Manager
 	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-group"
+	// Authorization (RBAC)
+	TypeAuthorizationRoleAssignment = "azure:microsoft.authorization:role-assignment"
+	TypeAuthorizationRoleDefinition = "azure:microsoft.authorization:role-definition"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -117,6 +120,8 @@ const (
 // Update this map whenever a new service scanner is added.
 var azureAPITypeMap = map[string]string{
 	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
+	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
+	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
