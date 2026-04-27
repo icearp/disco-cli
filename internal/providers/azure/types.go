@@ -6,6 +6,9 @@ package azure
 const (
 	// Resource Manager
 	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-group"
+	TypeSubscription           = "azure:microsoft.resources:subscription"
+	// Management Groups (tenant scope)
+	TypeManagementGroup = "azure:microsoft.management:management-group"
 	// Authorization (RBAC)
 	TypeAuthorizationRoleAssignment = "azure:microsoft.authorization:role-assignment"
 	TypeAuthorizationRoleDefinition = "azure:microsoft.authorization:role-definition"
@@ -161,6 +164,8 @@ const (
 // Update this map whenever a new service scanner is added.
 var azureAPITypeMap = map[string]string{
 	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
+	"microsoft.resources/subscriptions":                                    TypeSubscription,
+	"microsoft.management/managementgroups":                                TypeManagementGroup,
 	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
 	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,
 	"microsoft.managedidentity/userassignedidentities":                     TypeManagedIdentityUserAssigned,

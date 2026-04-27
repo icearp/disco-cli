@@ -41,7 +41,7 @@ Azure stores IDs as-returned (whatever case the user typed at create time). Reso
 
 ## Subscription-scoped vs tenant-scoped
 
-Every current scanner runs per-subscription via `scanSubscription`. Tenant-scoped services (Entra ID via Microsoft Graph SDK, Management Groups via `armmanagementgroups`) need a separate top-level scanner — don't shoehorn into `scanSubscription`.
+Every current scanner runs per-subscription via `scanSubscription`. Truly tenant-scoped services (Entra ID via Microsoft Graph SDK) need a separate top-level scanner. **Hybrid pattern** (precedent: `management_scanners.go`): a tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication of the result set — `ResourceID` hash includes account_id so dedup works locally. This is the same trick used for RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Lint gotchas
 

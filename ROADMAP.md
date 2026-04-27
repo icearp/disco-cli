@@ -102,6 +102,12 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: API connections (`Microsoft.Web/connections`), integration accounts, integration service environments (ISE — deprecated tier), workflow versions, triggers + actions as standalone resources, run history.
 - Live-scan validation: 1 sub, 0 workflows, scanner ran clean.
 
+### R3.20 Azure Management Groups + Subscriptions (this session)
+- **Azure Management** new types `azure:microsoft.management:management-group` and `azure:microsoft.resources:subscription`. Subscription-scoped service `azure:management` runs two phases: (1) `armmanagementgroups.Client.NewListPager` (tenant-scoped — typically requires tenant-level RBAC; AccessDenied tolerated via `skipIfAccessDenied`), (2) `armsubscription.SubscriptionsClient.NewListPager` (returns all subs the cred sees). Both APIs are tenant-scoped but the scanner runs per-subscription — duplication accepted (`ResourceID` hash includes account_id, per-sub resolvers FK locally; same precedent as RBAC built-in role-definitions). New SDK deps: `armmanagementgroups`, `armsubscription`. Adding subscription-as-resource closes the policy-assignment scope-FK gap (assignments scoped to `/subscriptions/<id>` can now match a stored resource).
+- **No resolver this iter.** Mgmt-group parent-child hierarchy (`properties.details.parent.id`) requires per-group GET (not in list response) — defer until value justifies the fan-out. Subscription-to-mgmt-group containment also requires the GET. Scope-FK improvements (e.g. policy assignments to subscription) will land naturally as resolvers re-run with the new resource rows present.
+- Out of scope: management-group hierarchies (parent edges via per-group GET), tenant entity (`armtenants`), management-group subscription associations (cross-account), invoice / billing scopes, customer locations.
+- Live-scan validation: 1 sub, 1 subscription resource (mgmt-groups skipped with AccessDenied warning — cred lacks tenant RBAC).
+
 ### R3.19 Azure Data Factory factories (this session)
 - **Azure Data Factory** new type `azure:microsoft.datafactory:factory`. Subscription-scoped service `azure:datafactory` runs one phase: `armdatafactory.FactoriesClient.NewListPager`. NativeIDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datafactory/armdatafactory`.
 - **No resolver this iter.** Linked services + integration runtimes + managed-VNet sub-resources hold the cross-service edges (linked service → backing storage / SQL / etc.), but each linked-service type has its own typed payload requiring per-type resolver dispatch — defer to a follow-up iteration where the value justifies the implementation surface.
@@ -436,7 +442,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 17. *(partial — public + private DNS zone scanners + private-zone vnet-link scanner + vnet-link→VNet resolver landed; record sets across both zone types deferred — see COMPLETED R3.17)*
 18. **ExpressRoute / Virtual WAN / VPN Gateway** — enterprise networking.
 19. *(removed — Databricks + Synapse + Data Factory scanners landed; Databricks→VNet + Synapse→Storage resolvers landed; per-linked-service resolvers deferred — see COMPLETED R3.19 entries)*
-20. **Management groups + Subscriptions** (currently scoped input, not scanned as resources).
+20. *(removed — Management Groups + Subscriptions scanners landed (single service azure:management); mgmt-group hierarchy + sub→mgmt-group containment deferred — see COMPLETED R3.20)*
 
 ### R4. GCP scanner expansion
 Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQL, Storage.
