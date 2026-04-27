@@ -385,6 +385,82 @@ func TestResolveRoute53Alias_UnmatchedDNS(t *testing.T) {
 	}
 }
 
+// TestResolveRoute53AliasToS3Website verifies alias A-record → S3 bucket
+// edge for a static-website-hosted bucket. Resolver pivots on
+// `s3-website-` prefix in the alias DNS and looks the bucket up by record
+// FQDN (S3 enforces bucket name == FQDN for website hosting).
+func TestResolveRoute53AliasToS3Website(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	bucketName := "www.example.com"
+	bucketARN := "arn:aws:s3:::" + bucketName
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/www.example.com"
+	recordAttrs := `{"Name":"www.example.com.","Type":"A","AliasTarget":{"DNSName":"s3-website-us-east-1.amazonaws.com.","HostedZoneId":"Z3AQBSTGFYJSTF"}}`
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, bucketID, store.RelUses)
+}
+
+// TestResolveRoute53AliasToS3Website_ModernEndpoint covers the newer
+// `s3-website.<region>` (dot, not dash) endpoint shape used in regions
+// added after ~2018.
+func TestResolveRoute53AliasToS3Website_ModernEndpoint(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	bucketName := "blog.example.com"
+	bucketARN := "arn:aws:s3:::" + bucketName
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/blog.example.com"
+	recordAttrs := `{"Name":"blog.example.com.","AliasTarget":{"DNSName":"s3-website.eu-south-1.amazonaws.com."}}`
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, recordID, bucketID, store.RelUses)
+}
+
+// TestResolveRoute53AliasToS3Website_BucketNotScanned verifies that a record
+// pointing at an unscanned bucket emits no edge (FK-safe).
+func TestResolveRoute53AliasToS3Website_BucketNotScanned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	zoneARN := "arn:aws:route53:::hostedzone/Z1"
+	recordNativeID := zoneARN + "/A/ghost.example.com"
+	recordAttrs := `{"Name":"ghost.example.com.","AliasTarget":{"DNSName":"s3-website-us-east-1.amazonaws.com."}}`
+	recordID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53RecordSet, recordNativeID, "", recordAttrs)
+
+	if err := resolveRoute53AliasRelationships(acct, st); err != nil {
+		t.Fatalf("resolveRoute53AliasRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(recordID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
 // TestResolveRoute53Alias_NoAliasTarget verifies that a non-alias record
 // (no AliasTarget field) produces no edges and no panic on missing fields.
 func TestResolveRoute53Alias_NoAliasTarget(t *testing.T) {

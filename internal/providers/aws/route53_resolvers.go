@@ -31,13 +31,23 @@ func init() {
 // to the AWS backend fronted by that DNS (ELBv2 LB, CloudFront distribution,
 // APIGW custom domain v1/v2). Emits `uses` edges. Alias records whose DNS
 // doesn't match any scanned backend are skipped — avoids phantom edges.
-// S3-website aliases deferred (require RecordSet.Name → bucket mapping).
+//
+// S3-website aliases handled separately: the AliasTarget.DNSName is a region
+// endpoint shared by every website-enabled bucket in that region (e.g.
+// `s3-website-us-east-1.amazonaws.com`), so it can't disambiguate which
+// bucket. S3 website hosting requires the bucket name to exactly match the
+// record FQDN, so when the alias DNS is recognized as an S3-website endpoint
+// the resolver pivots to looking up the bucket by record-set name.
 func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 	index, err := buildAliasBackendIndex(acct, st)
 	if err != nil {
 		return err
 	}
-	if len(index) == 0 {
+	bucketByName, err := buildS3BucketNameIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	if len(index) == 0 && len(bucketByName) == 0 {
 		return nil
 	}
 	records, err := st.ListResources(store.ResourceFilter{
@@ -49,6 +59,7 @@ func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range records {
 		var attrs struct {
+			Name        *string `json:"Name"`
 			AliasTarget *struct {
 				DNSName *string `json:"DNSName"`
 			} `json:"AliasTarget"`
@@ -63,6 +74,19 @@ func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 		if key == "" {
 			continue
 		}
+		// S3-website endpoints: bucket-name match against scanned buckets.
+		if isS3WebsiteEndpoint(key) {
+			recordName := normalizeAliasDNS(sv(attrs.Name))
+			if recordName == "" {
+				continue
+			}
+			if bucketID, ok := bucketByName[recordName]; ok {
+				if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert route53 record-set→s3-website bucket: %w", err)
+				}
+			}
+			continue
+		}
 		backendID, ok := index[key]
 		if !ok {
 			continue
@@ -72,6 +96,43 @@ func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// isS3WebsiteEndpoint reports whether dns is an S3 static-website hosting
+// regional endpoint. Two shapes coexist: legacy `s3-website-<region>` (older
+// regions like us-east-1) and modern `s3-website.<region>` (newer regions
+// like ap-east-1, eu-south-1). Both are normalized via lowercase + trailing
+// dot strip prior to this check.
+func isS3WebsiteEndpoint(dns string) bool {
+	return strings.HasPrefix(dns, "s3-website-") || strings.HasPrefix(dns, "s3-website.")
+}
+
+// buildS3BucketNameIndex maps lowercased bucket name → bucket resource ID
+// for every scanned S3 bucket in the account. Bucket NativeID is
+// `arn:aws:s3:::<name>`, so the name is the suffix after the prefix. S3
+// bucket names are globally unique and case-folded by AWS, so the lowercase
+// is just for matching against record FQDNs (which the resolver also lowers).
+func buildS3BucketNameIndex(acct *account, st *store.Store) (map[string]string, error) {
+	const arnPrefix = "arn:aws:s3:::"
+	rs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3Bucket},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	index := make(map[string]string, len(rs))
+	for _, r := range rs {
+		if !strings.HasPrefix(r.NativeID, arnPrefix) {
+			continue
+		}
+		name := strings.ToLower(r.NativeID[len(arnPrefix):])
+		if name == "" {
+			continue
+		}
+		index[name] = r.ID
+	}
+	return index, nil
 }
 
 // normalizeAliasDNS lower-cases, strips trailing dot, and strips a leading
