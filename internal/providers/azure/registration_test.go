@@ -21,6 +21,7 @@ var expectedAzureServices = []string{
 	"azure:databricks",
 	"azure:datafactory",
 	"azure:dns",
+	"azure:eventgrid",
 	"azure:eventhub",
 	"azure:keyvault",
 	"azure:logic",

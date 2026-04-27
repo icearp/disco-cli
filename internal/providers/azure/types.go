@@ -42,6 +42,11 @@ const (
 	// Messaging — Event Hubs + Service Bus
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
+	// Eventing — Event Grid
+	TypeEventGridTopic             = "azure:microsoft.eventgrid:topic"
+	TypeEventGridSystemTopic       = "azure:microsoft.eventgrid:system-topic"
+	TypeEventGridDomain            = "azure:microsoft.eventgrid:domain"
+	TypeEventGridEventSubscription = "azure:microsoft.eventgrid:event-subscription"
 	// L7 ingress
 	TypeNetworkApplicationGateway    = "azure:microsoft.network:application-gateway"
 	TypeNetworkTrafficManagerProfile = "azure:microsoft.network:traffic-manager-profile"
@@ -196,6 +201,10 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/vpngateways":                                        TypeNetworkVPNGateway,
 	"microsoft.eventhub/namespaces":                                        TypeEventHubNamespace,
 	"microsoft.servicebus/namespaces":                                      TypeServiceBusNamespace,
+	"microsoft.eventgrid/topics":                                           TypeEventGridTopic,
+	"microsoft.eventgrid/systemtopics":                                     TypeEventGridSystemTopic,
+	"microsoft.eventgrid/domains":                                          TypeEventGridDomain,
+	"microsoft.eventgrid/eventsubscriptions":                               TypeEventGridEventSubscription,
 	"microsoft.network/dnszones":                                           TypeDNSZone,
 	"microsoft.network/privatednszones":                                    TypeDNSPrivateZone,
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,

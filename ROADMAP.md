@@ -77,6 +77,18 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Tier 2 expansion (this session)**: SSM parameter (full ARN only — bare names skipped, no region context in policy doc), Kinesis stream (`:stream/NAME`, consumer ARNs rejected via `/consumer/...` tail), ECR repository (`:repository/NAME`), IAM role for PassRole/AssumeRole references (regular `:role/NAME` and service-linked `/aws-service-role/...` discriminated by path).
 - **Tier 3 expansion (this session)**: RDS instance (`:db:NAME`) and cluster (`:cluster:NAME`) — colon-separated, snapshot/parameter-group/subnet-group share prefix and reject; SFN state-machine (`:stateMachine:NAME`, `:::` integration ARNs rejected per aws/CLAUDE.md); EventBridge event-bus (`:event-bus/NAME`) and rule (`:rule/[BUS/]NAME`); EFS file-system (`:file-system/fs-xxx`, mount-target/access-point intentionally skipped). `classifyPolicyResource` signature refactored: 14 separate map args replaced by one `*policyResourceSets` struct built once via `loadPolicyResourceSets`.
 
+### R3.12 Azure Event Grid — topics + system-topics + domains + global event subscriptions (this session)
+- **Azure Event Grid** new types `azure:microsoft.eventgrid:topic`, `:system-topic`, `:domain`, `:event-subscription`. Subscription-scoped service `azure:eventgrid` runs four phases sequentially: (1) `armeventgrid.TopicsClient.NewListBySubscriptionPager`, (2) `SystemTopicsClient.NewListBySubscriptionPager`, (3) `DomainsClient.NewListBySubscriptionPager`, (4) `EventSubscriptionsClient.NewListGlobalBySubscriptionPager` (covers subscription- and resource-group-scope event subscriptions). NativeIDs verbatim. Hierarchy pairs to RG via `azSimpleScan` for tracked types (Topic / SystemTopic / Domain). EventSubscription is a proxy resource (no Location/Tags) — uses `azPageScan` directly. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2`.
+- **Resolver** `resolveEventGridRelationships` derives four edge classes:
+  - event-subscription -[attached-to]-> topic / system-topic / domain via `properties.topic` (per-sub case-insensitive NativeID index — same pattern as PE/RBAC).
+  - event-subscription -[uses]-> destination via `properties.destination.properties.resourceId`. Discriminator on `endpointType` (AzureFunction / StorageQueue / ServiceBusQueue / ServiceBusTopic / EventHub / HybridConnection) — resolver is endpoint-type-agnostic, just reads `resourceId`. Webhook destinations carry no ARM ID and skip silently.
+  - event-subscription -[uses]-> dead-letter Storage account via `properties.deadLetterDestination.properties.resourceId` or `properties.deadLetterWithResourceIdentity.deadLetterDestination.properties.resourceId` (managed-identity variant).
+  - system-topic -[uses]-> source resource via `properties.source` (provider-agnostic ARM-ID lookup — covers any resource generating events).
+- **PE-style sub-resource trim**: Service Bus topic destination `resourceId` carries the topic suffix (`…/namespaces/foo/topics/bar`), but the SB scanner stores only the namespace ARM ID. Resolver progressively strips trailing `/`-segments until a stored parent matches (precedent: `privateendpoints_resolvers.go::resolvePrivateEndpointRelationships`). Same trick handles future destination shapes that point at sub-resources.
+- Identity → MSI edges (event subscriptions can carry user-assigned identity for delivery + dead-lettering) covered by generic `resolveManagedIdentityConsumers`. Closes residual leg of R3.12 — Event Hubs + Service Bus landed prior; R3.12 fully closed.
+- Out of scope: per-topic / per-domain / per-system-topic event-subscription fan-out (`NewListByResource` / `NewListByDomainTopic` / `NewListBySystemTopic` — global pager covers sub + RG scope, the bulk of graph-relevant traffic; per-topic ES needs follow-up iter), namespaces (newer pull-style EventGrid `Microsoft.EventGrid/namespaces` — own SDK surface), partner namespaces / topics / channels / configurations / registrations, CA certificates, verified partners, extension topics.
+- Live-scan validation: 1 sub, 0 EventGrid resources, scanner ran clean.
+
 ### R3.15 Azure Front Door + classic CDN profiles (this session)
 - **Azure CDN + Front Door** new type `azure:microsoft.cdn:profile` covering both Azure Front Door Standard / Premium and classic CDN profiles (both surface under `Microsoft.Cdn/profiles`; SKU.Name differentiates — `Standard_AzureFrontDoor` / `Premium_AzureFrontDoor` vs `Standard_Microsoft` / `Standard_Verizon` / etc.). Subscription-scoped service `azure:cdn` runs one phase: `armcdn.ProfilesClient.NewListPager`. NativeIDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn`.
 - **No resolver this iter.** Origin targets live in sub-resources: classic CDN endpoints + origins (`Microsoft.Cdn/profiles/endpoints/origins`) and Front Door AFD endpoints + origin groups + origins (`Microsoft.Cdn/profiles/afdEndpoints` + `originGroups` + `origins`). Both require per-profile fan-out via separate clients (`EndpointsClient`, `AFDEndpointsClient`, `AFDOriginGroupsClient`, `AFDOriginsClient`) — defer to a follow-up iteration with rate-limited per-profile fan-out and target-resolution pluggability (origin host can be FQDN, App Service site, Storage static-website, or another ARM resource ID).
@@ -438,10 +450,10 @@ Order by edges-opened vs scanner effort.
 Deferred within services already landed:
 - **SSM document** content → referenced IAM role (needs YAML/JSON doc-content parser).
 - **Backup selection** → tagged resources (needs tag-condition-expression expansion against resources table).
-- **GuardDuty detector** → member accounts (cross-account edges beyond current provider scope).
+- **GuardDuty detector** → member accounts via `loadOrgTargetIndex` (pattern proven in Detective / Inspector2 / SSO resolvers; FK-safe across accounts when Org tree scanned).
 
 ### R3. Azure scanner expansion
-Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/CloudServices/Infra), KeyVault, Network, ResourceGroups, SQL (Database/Server + children + Managed), Storage.
+Current Azure (32 services): AKS, APIManagement, ApplicationGateway, AppService, Authorization (RBAC), CDN/FrontDoor, Compute (VMs/VMSS/Disks/Galleries/Dedicated/CloudServices/Infra), ContainerApps + ContainerInstance, ContainerRegistry, Cosmos, Databricks, DataFactory, DNS (public + private), EventHub, KeyVault, Logic, ManagedIdentity, Management (mgmt-groups + subscriptions), MySQL flexible-server, Network, OperationalInsights (Log Analytics), Policy, PostgreSQL flexible-server, PrivateEndpoints, Redis, ResourceGroups, Security (Defender pricings), ServiceBus, SQL (Database/Server + children + Managed), Storage, Synapse, TrafficManager, WAN (ER circuits + vWAN + VPN). Authoritative list: `KnownTypes()` per provider — see G5 `disco coverage`.
 
 **Add, priority order:**
 1. **Entra ID** (formerly Azure AD) — users, groups, app registrations, service principals. Edges to RBAC assignments = graph payoff.
@@ -455,15 +467,18 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 9. *(removed — Cosmos DB account scanner + account→KeyVault CMEK resolver landed; databases/containers + private-endpoint edges deferred — see COMPLETED R3.9)*
 10. *(removed — PG + MySQL flexible-server scanners landed; resolvers cover server→VNet (delegatedSubnet), MySQL→KeyVault CMEK; PG CMEK pending SDK field; databases/configurations/firewall-rules/Single-Server deferred — see COMPLETED R3.10)*
 11. *(removed — Redis cache scanner + cache→VNet resolver landed; firewall-rules/patch-schedules/linked-servers/private-endpoints/Redis-Enterprise deferred — see COMPLETED R3.11)*
-12. *(partial — Event Hubs + Service Bus namespace scanners + namespace→KeyVault CMEK resolver landed; Event Grid topics + system topics + event subscriptions (with destination edges to function/queue/webhook/dead-letter) deferred to follow-up — see COMPLETED R3.12)*
-13. **Functions** (if not under AppService) — edges to storage account, KeyVault, Insights.
+12. *(removed — Event Grid topics + system-topics + domains + global event-subscription scanners + ES→topic/system-topic/domain + ES→destination + ES→dead-letter + system-topic→source resolvers landed; per-topic ES fan-out + EventGrid namespaces + partner-* deferred — see COMPLETED R3.12)*
+13. **Functions resolver** — AppService scanner already lists `Microsoft.Web/sites` of `Kind=functionapp`, but no Functions-specific edges. Add resolver: FunctionApp → Storage (`AzureWebJobsStorage` connection string), → KeyVault (app-setting refs `@Microsoft.KeyVault(...)`), → Application Insights (`APPINSIGHTS_INSTRUMENTATIONKEY` / `APPLICATIONINSIGHTS_CONNECTION_STRING`). No new scanner.
 14. *(removed — Logic Apps workflow scanner landed; API connection → downstream resolver deferred until connection scanner exists — see COMPLETED R3.14)*
 15. *(removed — Application Gateway + Traffic Manager + Front Door/CDN + API Management scanners + AGW→VNet/PIP + TM→target + APIM→VNet resolvers landed; CDN/AFD origin-target resolvers deferred; AGW→KeyVault deferred due to sanitizer false-positive — see COMPLETED R3.15 entries)*
 16. *(removed — Private Endpoint scanner + PE→VNet + PE→target (any resource) resolvers landed; private-DNS-zones/zone-groups/private-link-services deferred — see COMPLETED R3.16)*
-17. *(partial — public + private DNS zone scanners + private-zone vnet-link scanner + vnet-link→VNet resolver landed; record sets across both zone types deferred — see COMPLETED R3.17)*
-18. *(partial — sub-wide-listable subset landed: ExpressRoute circuits + Virtual WAN + Virtual Hubs + VPN Sites + vWAN VPN Gateways. Classic VirtualNetworkGateways + ExpressRouteGateways need RG-fanout pattern, deferred — see COMPLETED R3.18)*
+17. **DNS record sets** — public + private zone record-set fan-out (rate-limited per-zone). High-value resolvers: A → public IP, CNAME → AppService / load-balancer hostname. Closes residual leg of R3.17.
+18. **Classic network gateways via RG-fanout** — `Microsoft.Network/virtualNetworkGateways` (classic ER + classic VPN) + `expressRouteGateways`. No sub-wide list API; needs RG-iteration pattern (see R3.21). Closes residual leg of R3.18.
 19. *(removed — Databricks + Synapse + Data Factory scanners landed; Databricks→VNet + Synapse→Storage resolvers landed; per-linked-service resolvers deferred — see COMPLETED R3.19 entries)*
 20. *(removed — Management Groups + Subscriptions scanners landed (single service azure:management); mgmt-group hierarchy + sub→mgmt-group containment deferred — see COMPLETED R3.20)*
+21. **Diagnostic settings cross-service resolver** — walk every diagnosable resource, batch GET `armmonitor.DiagnosticSettingsClient.List`, FK to workspace / storage / event-hub destinations. Highest-leverage Azure edge (every diagnosable resource → observability sink). Currently buried as deferred bullet in COMPLETED R3.4.
+22. **Sanitizer reference-URI allowlist** — store sanitizer (`internal/store/sanitize.go`) currently redacts `keyVaultSecretId` reference URIs as `[REDACTED]` (substring match on `secret`), blocking AGW → KV edge (R3.15) and any future scanner storing KV reference URIs (App Service config refs, AKS secret-store CSI, Logic Apps named values). Add allowlist for KV reference-URI shape (`https://{vault}.vault.azure.net/secrets|keys|certificates/{name}[/{version}]`) — value is a pointer, not material. Unblocks R3.15 AGW→KV + downstream scanners.
+23. **RG-fanout helper** — generic helper for ARM resource types with no sub-wide list API. First consumer: classic gateway types (item 18). Pattern: query RG list from store, errgroup + `semaphore.NewWeighted(maxConcurrentFanout)` per-RG list call. Once landed, unblocks: Front Door / classic CDN endpoints + origins (R3.15), Logic Apps `Microsoft.Web/connections` + integration accounts (R3.14), Data Factory linked services + integration runtimes (R3.19), Cosmos per-API databases + containers (R3.9).
 
 ### R4. GCP scanner expansion
 Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQL, Storage.
@@ -495,7 +510,7 @@ Most resolvers same-provider same-service today. Add:
 - **AWS** cross-account references in `relationships` already work via account ID in ResourceID. Add explicit `aws:cross-account-trust` edges: IAM role trust policy principals → `arn:aws:iam::<other-acct>:...`.
 - **Azure** cross-subscription RBAC assignments (cross by construction).
 - **GCP** cross-project IAM (member in another project, role at higher scope).
-- **Cloud-to-cloud** (opt-in, expensive): dangling DNS records → rechecked against other clouds. Out of scope unless user demand.
+- **Cloud-to-cloud** (opt-in, expensive): dangling DNS records → rechecked against other clouds. Trigger condition: revisit when L1 Cloudflare provider lands (natural cross-cloud DNS surface).
 
 ---
 
@@ -518,8 +533,8 @@ Current: `disco graph <id> --depth N --kinds X --direction both --output table|j
 
 ### G2. Relationships table evolution
 - Add `source_resolver TEXT` column (migration) populated from resolver name via context.
-- Add `confidence REAL` column for heuristic edges (e.g. Route53 alias reverse-lookup).
-- Add index on `(to_id, kind)` — current indexes likely cover `from_id` only; reverse-graph queries pay for it.
+- Add `confidence REAL` column for heuristic edges (e.g. Route53 alias reverse-lookup). Spec consumer alongside the column: `disco graph --min-confidence 0.8` filter + rule-engine predicate; otherwise drop the column.
+- *(removed — both `idx_rel_from(from_id, kind)` AND `idx_rel_to(to_id, kind)` already present in `001_initial.sql`; reverse-graph queries already indexed)*
 
 ### G4. Rule engine expansion
 - **Graph-aware rules** — rules that traverse relationships, not just filter resources. E.g. "Lambda function with env-var secret that does NOT have a KMS edge". Needs small graph DSL in YAML.
@@ -530,11 +545,14 @@ Current: `disco graph <id> --depth N --kinds X --direction both --output table|j
 ### G5. `disco coverage`
 New command: prints coverage matrix vs CloudFormation / ARM / GCP Asset Inventory registries. Uses `KnownTypes()` per provider. Markdown output for README inclusion.
 
-### G7. `disco check --format sarif`
-SARIF v2.1.0 output for GitHub / GitLab code-scanning integration. Rule ID → SARIF ruleId, severity → level, resource ID → result.locations. Enables PR-gate workflows without custom glue.
+### G7. `disco check --output sarif`
+SARIF v2.1.0 output for GitHub / GitLab code-scanning integration. Extends existing `--output`/`-o` flag (currently `table|json|jsonl` per `cmd/check.go`). Rule ID → SARIF ruleId, severity → level, resource ID → result.locations. Enables PR-gate workflows without custom glue.
 
 ### G8. `disco export` / `disco import`
 Portable DB snapshots: export resources + relationships + scans to single JSONL bundle, re-importable into fresh DB. Distinct from L5 SIEM sinks — this for offline analysis, airgapped reviews, support dumps.
+
+### G10. `disco scan --resume`
+N1 PartialScan landed status flag; natural follow-up is resuming a partial scan from last successful service rather than restarting from zero. Big-account scan timeouts the obvious driver. Requires per-(scan, service) progress checkpoint in scans table.
 
 ### G9. Redaction verification + deprecation registry
 - `disco audit --redaction` — re-runs `scrubAttributes` over stored rows, flags entries written before denylist update.
@@ -563,7 +581,7 @@ Portable DB snapshots: export resources + relationships + scans to single JSONL 
 - **Performance** — benchmark harness (`go test -bench`) with fake provider emitting N resources. Target: 10k resources/sec UpsertResources, 100k edges/sec for closure inserts.
 - **Observability** — slog with `scan_id` correlation throughout. Redirect provider SDK logs behind flag.
 - **Docs** — `go generate`-produced `docs/coverage.md` (supersedes `disco coverage` command or complements it).
-- **CI** — coverage budget enforcement per-package; test gates per-provider.
+- **CI** — coverage budget enforcement per-package. (Per-provider test gates dropped — current CI runs `go test ./...` + `go test -tags paid ./...`; "per-provider gate" had no concrete meaning beyond build tags. Reintroduce only if cred-required live-scan tests added behind a tag.)
 - **Release** — goreleaser pipeline (linux/darwin/windows amd64+arm64), signed binaries.
 
 ---
