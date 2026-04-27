@@ -20,6 +20,7 @@ var expectedAzureServices = []string{
 	"azure:dns",
 	"azure:eventhub",
 	"azure:keyvault",
+	"azure:logic",
 	"azure:managedidentity",
 	"azure:mysql",
 	"azure:network",

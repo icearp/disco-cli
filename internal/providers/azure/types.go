@@ -35,6 +35,8 @@ const (
 	TypeNetworkApplicationGateway = "azure:microsoft.network:application-gateway"
 	// Analytics — Databricks
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
+	// Integration — Logic Apps
+	TypeLogicWorkflow = "azure:microsoft.logic:workflow"
 	// Public IP (already covered by network scanner — no const needed beyond the existing one above)
 	// DNS — public + private zones + vnet links
 	TypeDNSZone                = "azure:microsoft.network:dns-zone"
@@ -171,6 +173,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
+	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
