@@ -18,6 +18,7 @@ var expectedAzureServices = []string{
 	"azure:managedidentity",
 	"azure:network",
 	"azure:operationalinsights",
+	"azure:redis",
 	"azure:sql",
 	"azure:storage",
 }

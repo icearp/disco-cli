@@ -17,6 +17,8 @@ const (
 	TypeContainerRegistryRegistry = "azure:microsoft.containerregistry:registry"
 	// Cosmos DB
 	TypeCosmosDatabaseAccount = "azure:microsoft.documentdb:database-account"
+	// Redis Cache
+	TypeRedisCache = "azure:microsoft.cache:redis"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -134,6 +136,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.operationalinsights/workspaces":                             TypeOpInsightsWorkspace,
 	"microsoft.containerregistry/registries":                               TypeContainerRegistryRegistry,
 	"microsoft.documentdb/databaseaccounts":                                TypeCosmosDatabaseAccount,
+	"microsoft.cache/redis":                                                TypeRedisCache,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
