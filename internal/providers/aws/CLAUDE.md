@@ -136,6 +136,10 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
 
+## RDS-shaped engines: shared API vs dedicated API
+
+Neptune rides on the RDS control-plane API — `rds:DescribeDBClusters` returns `Engine=neptune` rows alongside Aurora/MySQL/Postgres. `aws:rds:*` types cover it; the `Engine` field on `AttributesJSON` discriminates. **DocumentDB does NOT** — it has its own SDK service (`aws-sdk-go-v2/service/docdb`) with `Engine: docdb` valid only via `docdb:CreateDBCluster`, and the API endpoint is namespaced separately. Needs a dedicated scanner (`docdb_scanners.go`). Don't conflate. Verify by checking the SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list before claiming RDS coverage. (DocDB's *ARN prefix* still uses `arn:aws:rds:` — historical artefact predating the API split.)
+
 ## List returns entry, Get rejects it
 
 Some AWS services surface implicit/managed entries in `List*` responses but reject the matching `Get*`/`Describe*` call (Athena `ListDataCatalogs` returns `AwsDataCatalog` — the implicit Glue catalog — but `GetDataCatalog` raises `InvalidRequestException: ... was not found`). Tolerate per-item via the same pattern as `AccessDenied`: skip the row, preserve sibling totals. `isAPIErrorCode(derr, "InvalidRequestException")` (or service-specific code) alongside `isAccessDenied(derr)` in the per-item branch. Don't blanket-tolerate at phase level — real not-found / malformed-input still surface for normal entries.

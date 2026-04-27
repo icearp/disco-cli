@@ -375,6 +375,9 @@ const (
 	TypeRedshiftSubnetGroup = "aws:redshift:subnet-group"
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
+	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
+	TypeDocDBCluster  = "aws:docdb:cluster"
+	TypeDocDBInstance = "aws:docdb:instance"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -564,5 +567,7 @@ func KnownTypes() []string {
 		TypeRedshiftCluster, TypeRedshiftSubnetGroup,
 		// OpenSearch
 		TypeOpenSearchDomain,
+		// DocumentDB
+		TypeDocDBCluster, TypeDocDBInstance,
 	}
 }
