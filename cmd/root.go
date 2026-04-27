@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,8 +24,14 @@ Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP 
 
 // Execute runs the root command.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	cmd, err := rootCmd.ExecuteC()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		// Unknown command / subcommand: print the matched parent's usage so
+		// the user sees the available subcommands inline with the error.
+		if cmd != nil && strings.HasPrefix(err.Error(), "unknown command") {
+			_ = cmd.Usage()
+		}
 		os.Exit(1)
 	}
 }
