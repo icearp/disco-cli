@@ -23,6 +23,9 @@ const (
 	TypeAppContainersManagedEnvironment = "azure:microsoft.app:managed-environment"
 	TypeAppContainersContainerApp       = "azure:microsoft.app:container-app"
 	TypeContainerInstanceContainerGroup = "azure:microsoft.containerinstance:container-group"
+	// Database flexible servers
+	TypePostgreSQLFlexibleServer = "azure:microsoft.dbforpostgresql:flexible-server"
+	TypeMySQLFlexibleServer      = "azure:microsoft.dbformysql:flexible-server"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -144,6 +147,8 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.app/managedenvironments":                                    TypeAppContainersManagedEnvironment,
 	"microsoft.app/containerapps":                                          TypeAppContainersContainerApp,
 	"microsoft.containerinstance/containergroups":                          TypeContainerInstanceContainerGroup,
+	"microsoft.dbforpostgresql/flexibleservers":                            TypePostgreSQLFlexibleServer,
+	"microsoft.dbformysql/flexibleservers":                                 TypeMySQLFlexibleServer,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,

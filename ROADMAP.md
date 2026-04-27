@@ -77,6 +77,15 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Tier 2 expansion (this session)**: SSM parameter (full ARN only — bare names skipped, no region context in policy doc), Kinesis stream (`:stream/NAME`, consumer ARNs rejected via `/consumer/...` tail), ECR repository (`:repository/NAME`), IAM role for PassRole/AssumeRole references (regular `:role/NAME` and service-linked `/aws-service-role/...` discriminated by path).
 - **Tier 3 expansion (this session)**: RDS instance (`:db:NAME`) and cluster (`:cluster:NAME`) — colon-separated, snapshot/parameter-group/subnet-group share prefix and reject; SFN state-machine (`:stateMachine:NAME`, `:::` integration ARNs rejected per aws/CLAUDE.md); EventBridge event-bus (`:event-bus/NAME`) and rule (`:rule/[BUS/]NAME`); EFS file-system (`:file-system/fs-xxx`, mount-target/access-point intentionally skipped). `classifyPolicyResource` signature refactored: 14 separate map args replaced by one `*policyResourceSets` struct built once via `loadPolicyResourceSets`.
 
+### R3.10 Azure PostgreSQL + MySQL flexible servers (this session)
+- **Azure Database for PostgreSQL/MySQL flexible servers** new types `azure:microsoft.dbforpostgresql:flexible-server`, `azure:microsoft.dbformysql:flexible-server`. Two services (`azure:postgresql`, `azure:mysql`), one phase each: `ServersClient.NewListPager` from `armpostgresqlflexibleservers` v1.1.0 / `armmysqlflexibleservers` v1.2.0. NativeIDs verbatim. Hierarchy pairs to RG. Single Server (deprecated tier) deferred — Microsoft recommends migration to Flexible Server.
+- **Resolvers**.
+  - `resolvePostgreSQLRelationships`: PG -[attached-to]-> VNet via `properties.network.delegatedSubnetResourceId` (PG Flexible integrates via subnet delegation, not standalone subnetId; reuses `vnetIDFromSubnetID`).
+  - `resolveMySQLRelationships`: MySQL -[attached-to]-> VNet via the same `delegatedSubnetResourceId` field, plus MySQL -[uses]-> KeyVault via `properties.dataEncryption.primaryKeyUri` CMEK reference (reuses `vaultNameFromKeyURI`). PG v1.1.0 SDK does not expose `dataEncryption` on the server model so PG CMEK edge omitted; will be added when SDK lands the field. Geo-backup CMEK key + secondary user-assigned identity edges deferred — separate region/identity, low marginal value.
+- Identity → MSI edges (both PG + MySQL support user-assigned identities for CMEK + AAD auth) covered by generic `resolveManagedIdentityConsumers`.
+- Out of scope: databases (`DatabasesClient`), configurations (per-server tuning params, narrow graph value), firewall rules, backup policies, server administrators, server start/stop state, virtual network rules, replicas, Single Server (`armpostgresql` / `armmysql` separate SDKs, deprecated tier).
+- Live-scan validation: 1 sub, 0 servers, scanners ran clean.
+
 ### R3.8 Azure Container Apps + Container Instances (this session)
 - **Azure Container Apps + Container Instances** new types `azure:microsoft.app:managed-environment`, `azure:microsoft.app:container-app`, `azure:microsoft.containerinstance:container-group`. Subscription-scoped service `azure:containerapps` runs three phases: (1) `armappcontainers.ManagedEnvironmentsClient.ListBySubscription`, (2) `armappcontainers.ContainerAppsClient.ListBySubscription`, (3) `armcontainerinstance.ContainerGroupsClient.List`. NativeIDs verbatim. Hierarchy pairs to RG via `rgHierarchyPair`. New SDK deps: `armappcontainers` v1.1.0, `armcontainerinstance` v1.0.0.
 - **Resolvers**.
@@ -341,7 +350,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 7. *(removed — ACR registry scanner + registry→KeyVault CMEK resolver landed; replications/webhooks/AKS-pull deferred — see COMPLETED R3.7)*
 8. *(removed — Container Apps managed-env + container-app + ACI container-group scanners landed; resolvers cover app→env, env→VNet, app→ACR, ACI→VNet; revisions/jobs/DAPR/auth-config deferred — see COMPLETED R3.8)*
 9. *(removed — Cosmos DB account scanner + account→KeyVault CMEK resolver landed; databases/containers + private-endpoint edges deferred — see COMPLETED R3.9)*
-10. **PostgreSQL / MySQL flexible servers** — edges to VNet, KeyVault, backup vaults.
+10. *(removed — PG + MySQL flexible-server scanners landed; resolvers cover server→VNet (delegatedSubnet), MySQL→KeyVault CMEK; PG CMEK pending SDK field; databases/configurations/firewall-rules/Single-Server deferred — see COMPLETED R3.10)*
 11. *(removed — Redis cache scanner + cache→VNet resolver landed; firewall-rules/patch-schedules/linked-servers/private-endpoints/Redis-Enterprise deferred — see COMPLETED R3.11)*
 12. **Event Grid + Event Hubs + Service Bus** — edges: topic/namespace → KeyVault, → private endpoint; subscription → destination (function/queue/webhook).
 13. **Functions** (if not under AppService) — edges to storage account, KeyVault, Insights.
