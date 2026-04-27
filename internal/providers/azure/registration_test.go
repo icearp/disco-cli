@@ -12,6 +12,7 @@ var expectedAzureServices = []string{
 	"azure:applicationgateway",
 	"azure:appservice",
 	"azure:authorization",
+	"azure:cdn",
 	"azure:compute",
 	"azure:containerapps",
 	"azure:containerregistry",

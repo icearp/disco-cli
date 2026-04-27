@@ -34,6 +34,7 @@ const (
 	// L7 ingress
 	TypeNetworkApplicationGateway    = "azure:microsoft.network:application-gateway"
 	TypeNetworkTrafficManagerProfile = "azure:microsoft.network:traffic-manager-profile"
+	TypeCDNProfile                   = "azure:microsoft.cdn:profile"
 	// Analytics — Databricks
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
 	// Integration — Logic Apps
@@ -178,6 +179,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.network/trafficmanagerprofiles":                             TypeNetworkTrafficManagerProfile,
+	"microsoft.cdn/profiles":                                               TypeCDNProfile,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
 	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
 	"microsoft.authorization/policydefinitions":                            TypePolicyDefinition,
