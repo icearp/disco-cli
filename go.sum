@@ -150,6 +150,8 @@ github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1 h1:pqxfuLWtNHVTOybxVzPA39Sih
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1/go.mod h1:cVZCUudpBhZWgzualBjHg/U+sq0ma2O1S6eMgE+yjfU=
 github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0 h1:m4dFEJee5tpnA1qVSlcJbfOOWvsk/iifKxmwOX8nhAc=
 github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0/go.mod h1:sfJGDHpakN4ZOe1k+DvD/ZVYnfalAJ+GzBrx5FYQN+w=
+github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0 h1:aBPbUvfgXI9M05r8y5vxaceF17LbL0orIWDz6l/LpU4=
+github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0/go.mod h1:Vl2mkiFwxo+XTJ5VKSfhmlpiYCQFC93c6NB/EhV5lfA=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2 h1:2TDersSNowBwSRTrnD0LxLilpr6Dr5coXwVsWO7f2rw=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2/go.mod h1:UMm4MKZDJMbuJZF5QOJBsVRMLeKiEXAgCXFpocWPDFo=
 github.com/aws/aws-sdk-go-v2/service/rds v1.117.1 h1:LwcVYTKHBsQPhD0evNWtHIH8+xQG62kQaXmWJbLd7jg=

@@ -373,6 +373,8 @@ const (
 	// Redshift (redshift_scanners.go, redshift_resolvers.go)
 	TypeRedshiftCluster     = "aws:redshift:cluster"
 	TypeRedshiftSubnetGroup = "aws:redshift:subnet-group"
+	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
+	TypeOpenSearchDomain = "aws:opensearch:domain"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -560,5 +562,7 @@ func KnownTypes() []string {
 		TypeAthenaWorkgroup, TypeAthenaDataCatalog,
 		// Redshift
 		TypeRedshiftCluster, TypeRedshiftSubnetGroup,
+		// OpenSearch
+		TypeOpenSearchDomain,
 	}
 }
