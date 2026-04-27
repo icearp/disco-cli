@@ -152,6 +152,8 @@ github.com/aws/aws-sdk-go-v2/service/s3control v1.69.0 h1:rJNPSXP9gjaHz+OCnmeYCp
 github.com/aws/aws-sdk-go-v2/service/s3control v1.69.0/go.mod h1:uaFd207QRYURS41DhU0riuwnVm/EMKA1FDt9dvsvUUY=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6 h1:XR42AXidhYs4HwH0I+yElLXVt7zb2hAyNHQJe6Blv7w=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6/go.mod h1:nOTsSVQlAsgwVRdtZYtECSnsInF8IUhrpnclCPat7Fs=
+github.com/aws/aws-sdk-go-v2/service/securityhub v1.69.1 h1:qGO40xLjGl5UgwXoaeuvvgWTdRK4Rdv5T3AoQ9+VXlc=
+github.com/aws/aws-sdk-go-v2/service/securityhub v1.69.1/go.mod h1:MtEnnltJF7k6LXbX6Iebc4yFY9oRbQFNd8BiiS2icLs=
 github.com/aws/aws-sdk-go-v2/service/sfn v1.40.11 h1:GZVmdkqgNtTFMH5HDEvqk6UOXu9hvEAOkKPfbH1fQ2Y=
 github.com/aws/aws-sdk-go-v2/service/sfn v1.40.11/go.mod h1:uncFALoLM30hwDKY6Tr+cZwZEvP1XHG+qGAAHvjdx6E=
 github.com/aws/aws-sdk-go-v2/service/shield v1.34.22 h1:RA1Cj3ZNnGxHxG+oPhv3CNWe39b2Y7FXxSF0yviC1rw=

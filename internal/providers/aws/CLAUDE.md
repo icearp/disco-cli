@@ -110,6 +110,14 @@ Some AWS APIs return `ResourceNotFoundException` (not `AccessDenied`) when accou
 
 **Variant — first-phase short-circuit when every phase fails identically.** Macie returns `AccessDeniedException` from *every* API when the service is not enabled in the region. Rather than per-phase checks, phase 1 (`GetMacieSession`) returns a `present bool`; sibling phases skip when `!present`. See `scanMacie` in `macie_scanners.go`. Use this shape when feature-disabled state is uniform across phases (saves N redundant API calls + N error reports); use Shield's per-phase shape when phases have independent enablement (e.g. Shield Advanced lets you DescribeSubscription but not ListProtections under partial IAM grants).
 
+## Multi-phase parent + children closure-wiring helper
+
+Scanners modeling a per-(acct,region) singleton parent with N child phases (Macie session + jobs/CDIs/allow-lists, Security Hub hub + insights/standards/product-subs) factor closure-wiring into one `upsertXChildren(st, parentARN, acct, batch, kind)` helper. Helper does `UpsertResources(batch)` + `BatchAddToHierarchyClosure([(child.ID, parentID)])` together. Don't inline per phase — three+ duplicated copies of the same closure-pair build is a sign to extract. Precedent: `upsertMacieChildren` (`macie_scanners.go:343`), `upsertSecurityHubChildren` (`securityhub_scanners.go`).
+
+## Region-scoped FK-safe id sets
+
+When target NativeID is not deterministic per (acct, region) (e.g. multiple `aws:guardduty:detector` rows possible per region; `aws:config:recorder` arbitrary name), use `scannedIDsByRegion(acct, st, type) → map[region][]resourceID` instead of a flat id set. Singleton-per-region services (`aws:macie:session` via `macieSessionNativeID`) keep the flat `scannedIDSet`. Both helpers in `securityhub_resolvers.go`. Same FK-safety guarantees as the flat-set pattern; emits one edge per scanned target in region rather than guessing a NativeID.
+
 ## Multi-phase scanner totals
 
 Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — scan-progress line will report nonsense on rescans where every row is an update.

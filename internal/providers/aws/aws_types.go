@@ -348,6 +348,11 @@ const (
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
 	TypeShieldSubscription    = "aws:shield:subscription"
+	// Security Hub (securityhub_scanners.go, securityhub_resolvers.go)
+	TypeSecurityHubHub                   = "aws:securityhub:hub"
+	TypeSecurityHubInsight               = "aws:securityhub:insight"
+	TypeSecurityHubStandardsSubscription = "aws:securityhub:standards-subscription"
+	TypeSecurityHubProductSubscription   = "aws:securityhub:product-subscription"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -518,5 +523,8 @@ func KnownTypes() []string {
 		// Macie
 		TypeMacieSession, TypeMacieClassificationJob,
 		TypeMacieCustomDataIdentifier, TypeMacieAllowList,
+		// Security Hub
+		TypeSecurityHubHub, TypeSecurityHubInsight,
+		TypeSecurityHubStandardsSubscription, TypeSecurityHubProductSubscription,
 	}
 }
