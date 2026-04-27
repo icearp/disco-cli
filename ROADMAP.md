@@ -77,6 +77,15 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Tier 2 expansion (this session)**: SSM parameter (full ARN only — bare names skipped, no region context in policy doc), Kinesis stream (`:stream/NAME`, consumer ARNs rejected via `/consumer/...` tail), ECR repository (`:repository/NAME`), IAM role for PassRole/AssumeRole references (regular `:role/NAME` and service-linked `/aws-service-role/...` discriminated by path).
 - **Tier 3 expansion (this session)**: RDS instance (`:db:NAME`) and cluster (`:cluster:NAME`) — colon-separated, snapshot/parameter-group/subnet-group share prefix and reject; SFN state-machine (`:stateMachine:NAME`, `:::` integration ARNs rejected per aws/CLAUDE.md); EventBridge event-bus (`:event-bus/NAME`) and rule (`:rule/[BUS/]NAME`); EFS file-system (`:file-system/fs-xxx`, mount-target/access-point intentionally skipped). `classifyPolicyResource` signature refactored: 14 separate map args replaced by one `*policyResourceSets` struct built once via `loadPolicyResourceSets`.
 
+### R3.16 Azure Private Endpoints (this session)
+- **Azure Private Endpoints** new type `azure:microsoft.network:private-endpoint`. Subscription-scoped service `azure:privateendpoints` runs one phase: `armnetwork.PrivateEndpointsClient.NewListBySubscriptionPager` (v6 SDK already in use by network scanner). NativeIDs verbatim. Hierarchy pair to RG.
+- **Resolver** `resolvePrivateEndpointRelationships` derives two edge classes per PE:
+  - PE -[attached-to]-> VNet via `properties.subnet.id` (reuses `vnetIDFromSubnetID`).
+  - PE -[attached-to]-> target resource via `privateLinkServiceConnections[].privateLinkServiceId` and `manualPrivateLinkServiceConnections[].privateLinkServiceId`. Match against per-sub lowercased NativeID index. Private Link target IDs sometimes carry a sub-resource path suffix (e.g. `/storageAccounts/foo/blobServices/default`), so the resolver progressively trims path segments from the right and takes the first parent that matches a stored resource. Provider-agnostic on the target side — any future scanner that stores its native ARM ID picks up PE edges automatically.
+- Out of scope: private DNS zones, private DNS zone groups, private link services (provider side, separate ARM resource type), network interfaces created for the PE, custom DNS configs.
+- **CLAUDE.md** addition: "PE target ID may carry sub-resource suffix → trim right" pattern documented inline in `privateendpoints_resolvers.go::resolvePrivateEndpointRelationships` for reuse by future Private Link consumers.
+- Live-scan validation: 1 sub, 0 PEs, scanner ran clean.
+
 ### R3.10 Azure PostgreSQL + MySQL flexible servers (this session)
 - **Azure Database for PostgreSQL/MySQL flexible servers** new types `azure:microsoft.dbforpostgresql:flexible-server`, `azure:microsoft.dbformysql:flexible-server`. Two services (`azure:postgresql`, `azure:mysql`), one phase each: `ServersClient.NewListPager` from `armpostgresqlflexibleservers` v1.1.0 / `armmysqlflexibleservers` v1.2.0. NativeIDs verbatim. Hierarchy pairs to RG. Single Server (deprecated tier) deferred — Microsoft recommends migration to Flexible Server.
 - **Resolvers**.
@@ -356,7 +365,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 13. **Functions** (if not under AppService) — edges to storage account, KeyVault, Insights.
 14. **Logic Apps** — workflow → API connection → downstream resources.
 15. **Application Gateway / Front Door / Traffic Manager / API Management** — networking L7 ingress; edges: → Key Vault certs, → WAF policy, → backend pools (AppService / VM / etc.).
-16. **Private Endpoints / Private DNS Zones** — edges: PE → VNet subnet → target resource.
+16. *(removed — Private Endpoint scanner + PE→VNet + PE→target (any resource) resolvers landed; private-DNS-zones/zone-groups/private-link-services deferred — see COMPLETED R3.16)*
 17. **DNS Zones** (public + private) — records → target resource.
 18. **ExpressRoute / Virtual WAN / VPN Gateway** — enterprise networking.
 19. **Databricks + Synapse + Data Factory** — workspace + linked services.

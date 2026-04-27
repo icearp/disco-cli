@@ -26,6 +26,8 @@ const (
 	// Database flexible servers
 	TypePostgreSQLFlexibleServer = "azure:microsoft.dbforpostgresql:flexible-server"
 	TypeMySQLFlexibleServer      = "azure:microsoft.dbformysql:flexible-server"
+	// Private Endpoints
+	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -149,6 +151,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.containerinstance/containergroups":                          TypeContainerInstanceContainerGroup,
 	"microsoft.dbforpostgresql/flexibleservers":                            TypePostgreSQLFlexibleServer,
 	"microsoft.dbformysql/flexibleservers":                                 TypeMySQLFlexibleServer,
+	"microsoft.network/privateendpoints":                                   TypeNetworkPrivateEndpoint,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
