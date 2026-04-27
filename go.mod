@@ -49,6 +49,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
+	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.7
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0

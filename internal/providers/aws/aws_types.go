@@ -356,6 +356,8 @@ const (
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
+	// Lake Formation (lakeformation_scanners.go, lakeformation_resolvers.go)
+	TypeLakeFormationResource = "aws:lakeformation:resource"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -531,5 +533,7 @@ func KnownTypes() []string {
 		TypeSecurityHubStandardsSubscription, TypeSecurityHubProductSubscription,
 		// Detective
 		TypeDetectiveGraph, TypeDetectiveMember,
+		// Lake Formation
+		TypeLakeFormationResource,
 	}
 }
