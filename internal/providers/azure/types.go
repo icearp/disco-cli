@@ -37,6 +37,10 @@ const (
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
 	// Integration — Logic Apps
 	TypeLogicWorkflow = "azure:microsoft.logic:workflow"
+	// Azure Policy
+	TypePolicyDefinition    = "azure:microsoft.authorization:policy-definition"
+	TypePolicySetDefinition = "azure:microsoft.authorization:policy-set-definition"
+	TypePolicyAssignment    = "azure:microsoft.authorization:policy-assignment"
 	// Public IP (already covered by network scanner — no const needed beyond the existing one above)
 	// DNS — public + private zones + vnet links
 	TypeDNSZone                = "azure:microsoft.network:dns-zone"
@@ -174,6 +178,9 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
 	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
+	"microsoft.authorization/policydefinitions":                            TypePolicyDefinition,
+	"microsoft.authorization/policysetdefinitions":                         TypePolicySetDefinition,
+	"microsoft.authorization/policyassignments":                            TypePolicyAssignment,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
