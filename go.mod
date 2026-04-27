@@ -46,6 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/guardduty v1.75.2
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.6
+	github.com/aws/aws-sdk-go-v2/service/inspector2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5

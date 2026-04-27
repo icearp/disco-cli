@@ -361,6 +361,9 @@ const (
 	// SES v2 (ses_scanners.go, ses_resolvers.go)
 	TypeSESEmailIdentity    = "aws:ses:email-identity"
 	TypeSESConfigurationSet = "aws:ses:configuration-set"
+	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
+	TypeInspector2Filter = "aws:inspector2:filter"
+	TypeInspector2Member = "aws:inspector2:member"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -540,5 +543,7 @@ func KnownTypes() []string {
 		TypeLakeFormationResource,
 		// SES v2
 		TypeSESEmailIdentity, TypeSESConfigurationSet,
+		// Inspector v2
+		TypeInspector2Filter, TypeInspector2Member,
 	}
 }
