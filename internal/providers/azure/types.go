@@ -31,6 +31,9 @@ const (
 	// Messaging — Event Hubs + Service Bus
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
+	// L7 ingress
+	TypeNetworkApplicationGateway = "azure:microsoft.network:application-gateway"
+	// Public IP (already covered by network scanner — no const needed beyond the existing one above)
 	// DNS — public + private zones + vnet links
 	TypeDNSZone                = "azure:microsoft.network:dns-zone"
 	TypeDNSPrivateZone         = "azure:microsoft.network:private-dns-zone"
@@ -164,6 +167,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/dnszones":                                           TypeDNSZone,
 	"microsoft.network/privatednszones":                                    TypeDNSPrivateZone,
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
+	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
