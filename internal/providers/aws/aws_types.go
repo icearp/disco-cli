@@ -388,6 +388,9 @@ const (
 	TypeAuditManagerAssessment = "aws:auditmanager:assessment"
 	TypeAuditManagerFramework  = "aws:auditmanager:framework"
 	TypeAuditManagerControl    = "aws:auditmanager:control"
+	// Control Tower (controltower_scanners.go, controltower_resolvers.go)
+	TypeControlTowerLandingZone     = "aws:controltower:landing-zone"
+	TypeControlTowerEnabledBaseline = "aws:controltower:enabled-baseline"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -585,5 +588,7 @@ func KnownTypes() []string {
 		TypeServiceCatalogPortfolio, TypeServiceCatalogProduct,
 		// Audit Manager
 		TypeAuditManagerAssessment, TypeAuditManagerFramework, TypeAuditManagerControl,
+		// Control Tower
+		TypeControlTowerLandingZone, TypeControlTowerEnabledBaseline,
 	}
 }
