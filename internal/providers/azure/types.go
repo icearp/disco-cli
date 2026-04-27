@@ -9,6 +9,8 @@ const (
 	// Authorization (RBAC)
 	TypeAuthorizationRoleAssignment = "azure:microsoft.authorization:role-assignment"
 	TypeAuthorizationRoleDefinition = "azure:microsoft.authorization:role-definition"
+	// Managed Identity (user-assigned)
+	TypeManagedIdentityUserAssigned = "azure:microsoft.managedidentity:user-assigned-identity"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -122,6 +124,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.resources/resourcegroups":                                   TypeResourcesResourceGroup,
 	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
 	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,
+	"microsoft.managedidentity/userassignedidentities":                     TypeManagedIdentityUserAssigned,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
