@@ -138,6 +138,10 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
 
+## ECR image identifier → repository ARN
+
+Services that reference container images by image-URL (App Runner `ImageRepository.ImageIdentifier`, ECS task-def `ContainerDefinitions[].Image`, etc.) carry the URL form `{acct}.dkr.ecr.{region}.amazonaws.com/{repo}[:tag]`. Strip the tag suffix (`strings.LastIndexByte ':'`), parse host into `{acct}` + `{region}` via `.dkr.ecr.` and `.amazonaws.com` cuts, then reconstruct `arn:aws:ecr:{region}:{acct}:repository/{repo}` for the canonical NativeID lookup. `public.ecr.aws/...` and other registries (`docker.io/...`, `quay.io/...`) skip — no edge to emit. Helper precedent: `apprunnerImageToRepoARN` in `apprunner_resolvers.go`. Multi-segment repo names (`team/myapp`) preserved.
+
 ## RDS-shaped engines: shared API vs dedicated API
 
 Neptune AND DocumentDB each have their own dedicated SDK service (`aws-sdk-go-v2/service/neptune` / `.../docdb`) with their own scanners (`aws:neptune:*` / `aws:docdb:*` types). Neptune *also* surfaces via `rds:DescribeDBClusters` (`Engine=neptune`); DocumentDB does NOT (separate API endpoint). To prevent duplicate rows when scanning the same physical Neptune cluster under both `aws:rds:cluster` AND `aws:neptune:cluster`, the RDS scanner filters `Engine ∈ {neptune, docdb}` via `nonRDSEngines` in `rds_scanners.go`. Add an engine to `nonRDSEngines` whenever you add a dedicated scanner that conflicts with the shared RDS API. Verify by checking the dedicated SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list AND probing `rds:DescribeDBClusters` behaviour in a test account. (Both Neptune and DocDB *ARN prefixes* use `arn:aws:rds:` — historical artefact predating the API split.)

@@ -391,6 +391,9 @@ const (
 	// Control Tower (controltower_scanners.go, controltower_resolvers.go)
 	TypeControlTowerLandingZone     = "aws:controltower:landing-zone"
 	TypeControlTowerEnabledBaseline = "aws:controltower:enabled-baseline"
+	// App Runner (apprunner_scanners.go, apprunner_resolvers.go)
+	TypeAppRunnerService      = "aws:apprunner:service"
+	TypeAppRunnerVPCConnector = "aws:apprunner:vpc-connector"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -590,5 +593,7 @@ func KnownTypes() []string {
 		TypeAuditManagerAssessment, TypeAuditManagerFramework, TypeAuditManagerControl,
 		// Control Tower
 		TypeControlTowerLandingZone, TypeControlTowerEnabledBaseline,
+		// App Runner
+		TypeAppRunnerService, TypeAppRunnerVPCConnector,
 	}
 }

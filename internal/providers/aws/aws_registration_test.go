@@ -66,6 +66,7 @@ var expectedAWSServices = []string{
 	"aws:servicecatalog",
 	"aws:auditmanager",
 	"aws:controltower",
+	"aws:apprunner",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
