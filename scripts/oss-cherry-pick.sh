@@ -9,7 +9,7 @@
 # traceability.
 #
 # Run from inside the upstream repo. The OSS clone is expected at
-# ../disco-oss (override with $OSS_DIR).
+# ../disco (override with $OSS_DIR).
 #
 # Usage:
 #   scripts/oss-cherry-pick.sh <upstream-sha>
@@ -27,7 +27,7 @@ SHA="$1"
 DRY_RUN=0
 [[ "${2:-}" == "--dry-run" ]] && DRY_RUN=1
 
-OSS_DIR="${OSS_DIR:-../disco-oss}"
+OSS_DIR="${OSS_DIR:-../disco}"
 
 # Resolve the sha against the upstream repo so a typo fails fast.
 if ! FULL_SHA=$(git rev-parse --verify "${SHA}^{commit}" 2>/dev/null); then
