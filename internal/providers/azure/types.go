@@ -67,6 +67,8 @@ const (
 	TypeDNSZone                = "azure:microsoft.network:dns-zone"
 	TypeDNSPrivateZone         = "azure:microsoft.network:private-dns-zone"
 	TypeDNSPrivateZoneVNetLink = "azure:microsoft.network:private-dns-zone/virtual-network-link"
+	TypeDNSRecordSet           = "azure:microsoft.network:dns-zone/record-set"
+	TypeDNSPrivateRecordSet    = "azure:microsoft.network:private-dns-zone/record-set"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -208,6 +210,22 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/dnszones":                                           TypeDNSZone,
 	"microsoft.network/privatednszones":                                    TypeDNSPrivateZone,
 	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
+	"microsoft.network/dnszones/a":                                         TypeDNSRecordSet,
+	"microsoft.network/dnszones/aaaa":                                      TypeDNSRecordSet,
+	"microsoft.network/dnszones/cname":                                     TypeDNSRecordSet,
+	"microsoft.network/dnszones/mx":                                        TypeDNSRecordSet,
+	"microsoft.network/dnszones/ns":                                        TypeDNSRecordSet,
+	"microsoft.network/dnszones/ptr":                                       TypeDNSRecordSet,
+	"microsoft.network/dnszones/srv":                                       TypeDNSRecordSet,
+	"microsoft.network/dnszones/txt":                                       TypeDNSRecordSet,
+	"microsoft.network/dnszones/caa":                                       TypeDNSRecordSet,
+	"microsoft.network/privatednszones/a":                                  TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/aaaa":                               TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/cname":                              TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/mx":                                 TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/ptr":                                TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/srv":                                TypeDNSPrivateRecordSet,
+	"microsoft.network/privatednszones/txt":                                TypeDNSPrivateRecordSet,
 	"microsoft.network/applicationgateways":                                TypeNetworkApplicationGateway,
 	"microsoft.network/trafficmanagerprofiles":                             TypeNetworkTrafficManagerProfile,
 	"microsoft.cdn/profiles":                                               TypeCDNProfile,
