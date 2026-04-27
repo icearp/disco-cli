@@ -31,6 +31,10 @@ const (
 	// Messaging — Event Hubs + Service Bus
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
+	// DNS — public + private zones + vnet links
+	TypeDNSZone                = "azure:microsoft.network:dns-zone"
+	TypeDNSPrivateZone         = "azure:microsoft.network:private-dns-zone"
+	TypeDNSPrivateZoneVNetLink = "azure:microsoft.network:private-dns-zone/virtual-network-link"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -157,6 +161,9 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/privateendpoints":                                   TypeNetworkPrivateEndpoint,
 	"microsoft.eventhub/namespaces":                                        TypeEventHubNamespace,
 	"microsoft.servicebus/namespaces":                                      TypeServiceBusNamespace,
+	"microsoft.network/dnszones":                                           TypeDNSZone,
+	"microsoft.network/privatednszones":                                    TypeDNSPrivateZone,
+	"microsoft.network/privatednszones/virtualnetworklinks":                TypeDNSPrivateZoneVNetLink,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
