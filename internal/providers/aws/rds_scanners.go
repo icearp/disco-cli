@@ -111,12 +111,28 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 	)
 }
 
+// nonRDSEngines covers engines that ride on the rds:Describe* APIs but
+// have their own dedicated SDK service + disco type. Filter these out
+// of the RDS scanner so each engine row lands under exactly one type
+// (and one scanner owns its resolvers). Kept narrow: docdb is here for
+// safety even though rds:DescribeDBClusters does NOT return docdb in
+// practice (per docdb's own dedicated CreateDBCluster.Engine valid
+// values); the filter is cheap and guards against AWS later choosing
+// to surface docdb via the shared API.
+var nonRDSEngines = map[string]bool{
+	"neptune": true,
+	"docdb":   true,
+}
+
 func scanDBInstances(ctx context.Context, client *rds.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return rdsPageScan(ctx, "rds:DescribeDBInstances", acct, region, st,
 		rds.NewDescribeDBInstancesPaginator(client, &rds.DescribeDBInstancesInput{}),
 		func(page *rds.DescribeDBInstancesOutput) []*store.Resource {
 			var out []*store.Resource
 			for _, db := range page.DBInstances {
+				if nonRDSEngines[sv(db.Engine)] {
+					continue
+				}
 				name := sv(db.DBInstanceIdentifier)
 				out = append(out, &store.Resource{
 					Provider:       "aws",
@@ -144,6 +160,9 @@ func scanDBClusters(ctx context.Context, client *rds.Client, acct *account, regi
 		func(page *rds.DescribeDBClustersOutput) []*store.Resource {
 			var out []*store.Resource
 			for _, c := range page.DBClusters {
+				if nonRDSEngines[sv(c.Engine)] {
+					continue
+				}
 				name := sv(c.DBClusterIdentifier)
 				out = append(out, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

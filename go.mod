@@ -56,6 +56,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.7
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1
+	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.4
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2

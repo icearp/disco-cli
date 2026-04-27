@@ -138,7 +138,7 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 ## RDS-shaped engines: shared API vs dedicated API
 
-Neptune rides on the RDS control-plane API — `rds:DescribeDBClusters` returns `Engine=neptune` rows alongside Aurora/MySQL/Postgres. `aws:rds:*` types cover it; the `Engine` field on `AttributesJSON` discriminates. **DocumentDB does NOT** — it has its own SDK service (`aws-sdk-go-v2/service/docdb`) with `Engine: docdb` valid only via `docdb:CreateDBCluster`, and the API endpoint is namespaced separately. Needs a dedicated scanner (`docdb_scanners.go`). Don't conflate. Verify by checking the SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list before claiming RDS coverage. (DocDB's *ARN prefix* still uses `arn:aws:rds:` — historical artefact predating the API split.)
+Neptune AND DocumentDB each have their own dedicated SDK service (`aws-sdk-go-v2/service/neptune` / `.../docdb`) with their own scanners (`aws:neptune:*` / `aws:docdb:*` types). Neptune *also* surfaces via `rds:DescribeDBClusters` (`Engine=neptune`); DocumentDB does NOT (separate API endpoint). To prevent duplicate rows when scanning the same physical Neptune cluster under both `aws:rds:cluster` AND `aws:neptune:cluster`, the RDS scanner filters `Engine ∈ {neptune, docdb}` via `nonRDSEngines` in `rds_scanners.go`. Add an engine to `nonRDSEngines` whenever you add a dedicated scanner that conflicts with the shared RDS API. Verify by checking the dedicated SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list AND probing `rds:DescribeDBClusters` behaviour in a test account. (Both Neptune and DocDB *ARN prefixes* use `arn:aws:rds:` — historical artefact predating the API split.)
 
 ## List returns entry, Get rejects it
 

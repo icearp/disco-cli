@@ -378,6 +378,9 @@ const (
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
 	TypeDocDBCluster  = "aws:docdb:cluster"
 	TypeDocDBInstance = "aws:docdb:instance"
+	// Neptune (neptune_scanners.go, neptune_resolvers.go)
+	TypeNeptuneCluster  = "aws:neptune:cluster"
+	TypeNeptuneInstance = "aws:neptune:instance"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -569,5 +572,7 @@ func KnownTypes() []string {
 		TypeOpenSearchDomain,
 		// DocumentDB
 		TypeDocDBCluster, TypeDocDBInstance,
+		// Neptune
+		TypeNeptuneCluster, TypeNeptuneInstance,
 	}
 }
