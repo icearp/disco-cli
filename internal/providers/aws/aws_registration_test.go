@@ -64,6 +64,7 @@ var expectedAWSServices = []string{
 	"aws:docdb",
 	"aws:neptune",
 	"aws:servicecatalog",
+	"aws:auditmanager",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

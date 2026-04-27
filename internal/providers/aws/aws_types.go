@@ -384,6 +384,10 @@ const (
 	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)
 	TypeServiceCatalogPortfolio = "aws:servicecatalog:portfolio"
 	TypeServiceCatalogProduct   = "aws:servicecatalog:product"
+	// Audit Manager (auditmanager_scanners.go, auditmanager_resolvers.go)
+	TypeAuditManagerAssessment = "aws:auditmanager:assessment"
+	TypeAuditManagerFramework  = "aws:auditmanager:framework"
+	TypeAuditManagerControl    = "aws:auditmanager:control"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -579,5 +583,7 @@ func KnownTypes() []string {
 		TypeNeptuneCluster, TypeNeptuneInstance,
 		// Service Catalog
 		TypeServiceCatalogPortfolio, TypeServiceCatalogProduct,
+		// Audit Manager
+		TypeAuditManagerAssessment, TypeAuditManagerFramework, TypeAuditManagerControl,
 	}
 }
