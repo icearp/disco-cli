@@ -15,6 +15,7 @@ var expectedAzureServices = []string{
 	"azure:keyvault",
 	"azure:managedidentity",
 	"azure:network",
+	"azure:operationalinsights",
 	"azure:sql",
 	"azure:storage",
 }

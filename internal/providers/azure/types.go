@@ -11,6 +11,8 @@ const (
 	TypeAuthorizationRoleDefinition = "azure:microsoft.authorization:role-definition"
 	// Managed Identity (user-assigned)
 	TypeManagedIdentityUserAssigned = "azure:microsoft.managedidentity:user-assigned-identity"
+	// Log Analytics
+	TypeOpInsightsWorkspace = "azure:microsoft.operationalinsights:workspace"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -125,6 +127,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.authorization/roleassignments":                              TypeAuthorizationRoleAssignment,
 	"microsoft.authorization/roledefinitions":                              TypeAuthorizationRoleDefinition,
 	"microsoft.managedidentity/userassignedidentities":                     TypeManagedIdentityUserAssigned,
+	"microsoft.operationalinsights/workspaces":                             TypeOpInsightsWorkspace,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
