@@ -68,6 +68,7 @@ var expectedAWSServices = []string{
 	"aws:controltower",
 	"aws:apprunner",
 	"aws:batch",
+	"aws:lightsail",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

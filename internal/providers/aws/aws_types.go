@@ -398,6 +398,10 @@ const (
 	TypeBatchComputeEnvironment = "aws:batch:compute-environment"
 	TypeBatchJobQueue           = "aws:batch:job-queue"
 	TypeBatchJobDefinition      = "aws:batch:job-definition"
+	// Lightsail (lightsail_scanners.go)
+	TypeLightsailInstance         = "aws:lightsail:instance"
+	TypeLightsailDatabase         = "aws:lightsail:database"
+	TypeLightsailContainerService = "aws:lightsail:container-service"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -601,5 +605,7 @@ func KnownTypes() []string {
 		TypeAppRunnerService, TypeAppRunnerVPCConnector,
 		// Batch
 		TypeBatchComputeEnvironment, TypeBatchJobQueue, TypeBatchJobDefinition,
+		// Lightsail
+		TypeLightsailInstance, TypeLightsailDatabase, TypeLightsailContainerService,
 	}
 }
