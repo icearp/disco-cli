@@ -75,7 +75,7 @@ func scanSecurityHubHub(ctx context.Context, client *securityhub.Client, acct *a
 			return "", false, 0, 0, nil
 		}
 		if isSecurityHubNotEnabled(derr) {
-			return "", false, 0, 0, nil
+			return "", false, 0, 0, markServiceDisabled(derr)
 		}
 		return "", false, 0, 0, fmt.Errorf("securityhub:DescribeHub: %w", derr)
 	}

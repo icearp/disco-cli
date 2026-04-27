@@ -99,14 +99,17 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// reported via OnError); annotate the line with "(with errors)" so the user
 	// can scan output for trouble without grepping.
 	var totalSeen, totalNew int64
-	db.OnServiceComplete = func(service string, total, inserted, errCount int) {
+	db.OnServiceComplete = func(service string, total, inserted, errCount int, disabled bool) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
 		if quiet {
 			return
 		}
 		suffix := ""
-		if errCount > 0 {
+		switch {
+		case disabled:
+			suffix = "  (service disabled)"
+		case errCount > 0:
 			suffix = "  (with errors)"
 		}
 		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  (%d total, %d new)%s\n",

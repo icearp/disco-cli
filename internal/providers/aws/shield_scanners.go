@@ -78,7 +78,7 @@ func scanShieldSubscription(ctx context.Context, client *shield.Client, acct *ac
 			return 0, 0, nil
 		}
 		if isShieldNotSubscribed(derr) {
-			return 0, 0, nil
+			return 0, 0, markServiceDisabled(derr)
 		}
 		return 0, 0, fmt.Errorf("shield:DescribeSubscription: %w", derr)
 	}

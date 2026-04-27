@@ -179,18 +179,22 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
 			if err != nil {
+				if errors.Is(err, errServiceDisabled) {
+					st.ReportService(svc.name, 0, 0, 0, true)
+					return
+				}
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
-					st.ReportService(svc.name, 0, 0, 0)
+					st.ReportService(svc.name, 0, 0, 0, false)
 					return
 				}
 				st.ReportError(store.ScanError{
 					Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
 				})
-				st.ReportService(svc.name, total, inserted, 1)
+				st.ReportService(svc.name, total, inserted, 1, false)
 				return
 			}
-			st.ReportService(svc.name, total, inserted, 0)
+			st.ReportService(svc.name, total, inserted, 0, false)
 		})
 	}
 	wg.Wait()
@@ -328,6 +332,24 @@ func isAccessDenied(err error) bool {
 	return isAPIErrorCode(err,
 		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
 		"AccessDeniedException", "NotAuthorized", "ForbiddenException")
+}
+
+// errServiceDisabled is a sentinel returned by per-service scanners when they
+// detect that the AWS service itself is not enabled in the calling account or
+// region (Macie not enabled, Shield Advanced not subscribed, Security Hub
+// hub not present, etc). The scanRegion / scanAccount dispatch loop detects
+// it via errors.Is and surfaces "(service disabled)" on the progress line —
+// no warning, no error report. Wrap upstream errors via markServiceDisabled
+// so the original message is preserved for debugging if anyone unwraps.
+var errServiceDisabled = errors.New("aws service not enabled")
+
+// markServiceDisabled wraps the upstream "feature not enabled" error so the
+// dispatch loop can identify it via errors.Is(err, errServiceDisabled). Per-
+// service helpers (isShieldNotSubscribed, isSecurityHubNotEnabled, Macie's
+// "Macie is not enabled" message check) return this from their phase-1
+// detection step instead of nil.
+func markServiceDisabled(err error) error {
+	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
 }
 
 // skipIfAccessDenied records the error as a scan warning and returns nil,

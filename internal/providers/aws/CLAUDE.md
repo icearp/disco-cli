@@ -104,11 +104,13 @@ Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) 
 
 `concurrency.go` exports `fanoutHigh` (20), `fanoutMed` (10), `fanoutLow` (2) for `semaphore.NewWeighted(...)` inside scanner/resolver fan-out loops. Distinct from `maxConcurrentServices` (`aws.go`) which caps top-level service scanners. Do not redeclare `const maxConcurrent` inside individual scanners — pick fanout tier.
 
-## Service-not-enabled → soft skip via per-service helper
+## Service-not-enabled → markServiceDisabled sentinel
 
-Some AWS APIs return `ResourceNotFoundException` (not `AccessDenied`) when account has not subscribed to / activated feature — Shield Advanced canonical case (`isShieldNotSubscribed` in `shield_scanners.go`). Add sibling helper alongside `isAccessDenied` checks; in multi-phase scanners, treat both identically (early-return for single-phase, `break` for multi-phase to preserve totals from earlier phases). Likely candidates: Detective, Security Hub, Inspector v2.
+Some AWS APIs return a distinct exception code when the account has not subscribed to / activated the feature — Shield Advanced (`ResourceNotFoundException` via `isShieldNotSubscribed`), Security Hub (`InvalidAccessException` / `ResourceNotFoundException` via `isSecurityHubNotEnabled`). Phase-1 detection step returns `markServiceDisabled(err)` (`aws.go`) instead of nil; the dispatch loop in `scanRegion` / `scanAccount` detects the sentinel via `errors.Is(err, errServiceDisabled)`, suppresses warning + error reporting, and surfaces `(service disabled)` on the per-service progress line. New service-disabled helpers should follow this shape.
 
-**Variant — first-phase short-circuit when every phase fails identically.** Macie returns `AccessDeniedException` from *every* API when the service is not enabled in the region. Rather than per-phase checks, phase 1 (`GetMacieSession`) returns a `present bool`; sibling phases skip when `!present`. See `scanMacie` in `macie_scanners.go`. Use this shape when feature-disabled state is uniform across phases (saves N redundant API calls + N error reports); use Shield's per-phase shape when phases have independent enablement (e.g. Shield Advanced lets you DescribeSubscription but not ListProtections under partial IAM grants).
+**Macie variant — code+message disambiguation.** Macie collides on `AccessDeniedException` for both real IAM denial AND not-enabled. `isMacieNotEnabled` in `macie_scanners.go` adds a `strings.Contains(err.Error(), "Macie is not enabled")` check on top of `isAccessDenied`. Real IAM deny on `GetMacieSession` still falls through to `skipIfAccessDenied`, preserving the warning signal. Precedent: `isCacheSecurityGroupsNotPermitted` (code+message matcher per "Smithy API-error-code predicates" above).
+
+**Multi-phase orchestration.** Only the phase-1 detection step (`DescribeSubscription` / `DescribeHub` / `GetMacieSession`) returns the sentinel. Phases 2+ keep their per-phase tolerant `isAccessDenied` skip — handles rare partial-IAM-grant case where the subscription is detectable but list APIs fail. Top-level scanner (`scanShield` / `scanSecurityHub` / `scanMacie`) propagates the sentinel via the existing `if ferr != nil { return 0, 0, ferr }` chain, halting downstream phases naturally.
 
 ## Multi-phase parent + children closure-wiring helper
 

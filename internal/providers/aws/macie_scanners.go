@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -10,6 +11,16 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+// isMacieNotEnabled reports whether err is the AccessDeniedException variant
+// that Macie raises when the service is not enabled in the calling region.
+// Macie collides on AccessDeniedException for both real IAM denial AND the
+// not-enabled feature-gate state, so disambiguate by message substring
+// (precedent: isCacheSecurityGroupsNotPermitted in elasticache_scanners.go,
+// per aws/CLAUDE.md "Smithy API-error-code predicates").
+func isMacieNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "Macie is not enabled")
+}
 
 func init() { registerService(serviceEntry{name: "aws:macie", fn: scanMacie}) }
 
@@ -72,6 +83,9 @@ func macieSessionNativeID(accountID, region string) string {
 func scanMacieSession(ctx context.Context, client *macie2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {
 	out, derr := client.GetMacieSession(ctx, &macie2.GetMacieSessionInput{})
 	if derr != nil {
+		if isMacieNotEnabled(derr) {
+			return 0, 0, false, markServiceDisabled(derr)
+		}
 		if isAccessDenied(derr) {
 			_ = skipIfAccessDenied(st, "macie2:GetMacieSession", acct.ID, region, derr)
 			return 0, 0, false, nil

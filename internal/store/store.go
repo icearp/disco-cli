@@ -43,7 +43,7 @@ type ScanError struct {
 // scan") for the wider contract.
 type Store struct {
 	db                *sqlx.DB
-	OnServiceComplete func(service string, total, inserted, errCount int) // after each service scan; errCount>0 surfaces "(with errors)" in progress
+	OnServiceComplete func(service string, total, inserted, errCount int, disabled bool) // after each service scan; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
 	OnResolveStart    func(provider string)                               // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                    // after all resolvers finish
 	OnWarn            func(ScanWarning)                                   // skip-worthy error handled (transient, access-denied)
@@ -55,10 +55,12 @@ type Store struct {
 // service scan function returns. total = resources seen this scan, inserted =
 // resources newly added (not previously in the DB), errCount = number of errors
 // encountered while scanning this service (>0 surfaces as a "(with errors)"
-// suffix on the progress line).
-func (s *Store) ReportService(service string, total, inserted, errCount int) {
+// suffix on the progress line). disabled = service is not enabled in this
+// account/region (surfaces as a "(service disabled)" suffix; mutually
+// exclusive with errCount>0 since a disabled service emits no errors).
+func (s *Store) ReportService(service string, total, inserted, errCount int, disabled bool) {
 	if s.OnServiceComplete != nil {
-		s.OnServiceComplete(service, total, inserted, errCount)
+		s.OnServiceComplete(service, total, inserted, errCount, disabled)
 	}
 }
 
