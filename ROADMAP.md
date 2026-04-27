@@ -77,6 +77,17 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Tier 2 expansion (this session)**: SSM parameter (full ARN only — bare names skipped, no region context in policy doc), Kinesis stream (`:stream/NAME`, consumer ARNs rejected via `/consumer/...` tail), ECR repository (`:repository/NAME`), IAM role for PassRole/AssumeRole references (regular `:role/NAME` and service-linked `/aws-service-role/...` discriminated by path).
 - **Tier 3 expansion (this session)**: RDS instance (`:db:NAME`) and cluster (`:cluster:NAME`) — colon-separated, snapshot/parameter-group/subnet-group share prefix and reject; SFN state-machine (`:stateMachine:NAME`, `:::` integration ARNs rejected per aws/CLAUDE.md); EventBridge event-bus (`:event-bus/NAME`) and rule (`:rule/[BUS/]NAME`); EFS file-system (`:file-system/fs-xxx`, mount-target/access-point intentionally skipped). `classifyPolicyResource` signature refactored: 14 separate map args replaced by one `*policyResourceSets` struct built once via `loadPolicyResourceSets`.
 
+### R3.8 Azure Container Apps + Container Instances (this session)
+- **Azure Container Apps + Container Instances** new types `azure:microsoft.app:managed-environment`, `azure:microsoft.app:container-app`, `azure:microsoft.containerinstance:container-group`. Subscription-scoped service `azure:containerapps` runs three phases: (1) `armappcontainers.ManagedEnvironmentsClient.ListBySubscription`, (2) `armappcontainers.ContainerAppsClient.ListBySubscription`, (3) `armcontainerinstance.ContainerGroupsClient.List`. NativeIDs verbatim. Hierarchy pairs to RG via `rgHierarchyPair`. New SDK deps: `armappcontainers` v1.1.0, `armcontainerinstance` v1.0.0.
+- **Resolvers**.
+  - `resolveContainerAppEnvironments`: app -[attached-to]-> env via `properties.managedEnvironmentId` (per-sub env-NativeID index, case-insensitive); env -[attached-to]-> VNet via `properties.vnetConfiguration.{infrastructureSubnetId,runtimeSubnetId}` (reuses `vnetIDFromSubnetID`, dedupes per-env).
+  - `resolveContainerAppRegistries`: app -[uses]-> ACR via `properties.configuration.registries[].server` FQDN parse — strips ACR DNS suffix (azurecr.io / .us / .cn / .de), matches leading subdomain against per-sub registry-name index. Dedupes per-app.
+  - `resolveContainerInstanceVNets`: container-group -[attached-to]-> VNet via `properties.subnetIds[].id`.
+- Identity → MSI edges (both ContainerApp + ManagedEnvironment + ContainerGroup) covered by generic `resolveManagedIdentityConsumers`.
+- Out of scope: revisions + replicas (volatile state, narrow graph value), DAPR components, env storages (Azure Files mount), AuthConfig (OIDC providers), certificates, custom domains, jobs (`armappcontainers.JobsClient`), scale rules with KEDA.
+- **CLAUDE.md** addition: ACR login-server FQDN → registry parsing pattern (strip `.azurecr.{io,us,cn,de}` suffix) documented inline in `containerapps_resolvers.go::resolveContainerAppRegistries` for reuse by future resolvers (AKS pull, ACI pull, AppService image source).
+- Live-scan validation: 1 sub, 0 resources, scanner ran clean.
+
 ### R3.11 Azure Cache for Redis (this session)
 - **Azure Cache for Redis** new type `azure:microsoft.cache:redis`. Subscription-scoped service `azure:redis` runs one phase: `Client.NewListBySubscriptionPager` from `armredis`. NativeIDs are full Azure resource IDs verbatim. Hierarchy pair to RG. New SDK dep: `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis`.
 - **Resolver** `resolveRedisRelationships` derives cache -[attached-to]-> VNet for VNet-injected Premium-tier instances via `properties.subnetId` → parent VNet (reuses `vnetIDFromSubnetID` from AKS resolver). Identity → MSI edges already covered by generic consumer resolver.
@@ -328,7 +339,7 @@ Current Azure: AKS, AppService, Compute (VMs/VMSS/Disks/Galleries/Dedicated/Clou
 5. **Azure Policy** — assignments, definitions, exemptions. Edges: assignment → scope, → role (for DINE/deployIfNotExists).
 6. **Defender for Cloud** — pricing tiers, recommendations, assessments per subscription.
 7. *(removed — ACR registry scanner + registry→KeyVault CMEK resolver landed; replications/webhooks/AKS-pull deferred — see COMPLETED R3.7)*
-8. **Container Apps / Container Instances** — edges: → VNet, → ACR, → Log Analytics.
+8. *(removed — Container Apps managed-env + container-app + ACI container-group scanners landed; resolvers cover app→env, env→VNet, app→ACR, ACI→VNet; revisions/jobs/DAPR/auth-config deferred — see COMPLETED R3.8)*
 9. *(removed — Cosmos DB account scanner + account→KeyVault CMEK resolver landed; databases/containers + private-endpoint edges deferred — see COMPLETED R3.9)*
 10. **PostgreSQL / MySQL flexible servers** — edges to VNet, KeyVault, backup vaults.
 11. *(removed — Redis cache scanner + cache→VNet resolver landed; firewall-rules/patch-schedules/linked-servers/private-endpoints/Redis-Enterprise deferred — see COMPLETED R3.11)*

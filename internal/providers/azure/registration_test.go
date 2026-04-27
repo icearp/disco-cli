@@ -12,6 +12,7 @@ var expectedAzureServices = []string{
 	"azure:appservice",
 	"azure:authorization",
 	"azure:compute",
+	"azure:containerapps",
 	"azure:containerregistry",
 	"azure:cosmos",
 	"azure:keyvault",

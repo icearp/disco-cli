@@ -19,6 +19,10 @@ const (
 	TypeCosmosDatabaseAccount = "azure:microsoft.documentdb:database-account"
 	// Redis Cache
 	TypeRedisCache = "azure:microsoft.cache:redis"
+	// Container Apps + Container Instances
+	TypeAppContainersManagedEnvironment = "azure:microsoft.app:managed-environment"
+	TypeAppContainersContainerApp       = "azure:microsoft.app:container-app"
+	TypeContainerInstanceContainerGroup = "azure:microsoft.containerinstance:container-group"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -137,6 +141,9 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.containerregistry/registries":                               TypeContainerRegistryRegistry,
 	"microsoft.documentdb/databaseaccounts":                                TypeCosmosDatabaseAccount,
 	"microsoft.cache/redis":                                                TypeRedisCache,
+	"microsoft.app/managedenvironments":                                    TypeAppContainersManagedEnvironment,
+	"microsoft.app/containerapps":                                          TypeAppContainersContainerApp,
+	"microsoft.containerinstance/containergroups":                          TypeContainerInstanceContainerGroup,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,
