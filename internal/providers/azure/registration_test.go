@@ -33,6 +33,7 @@ var expectedAzureServices = []string{
 	"azure:servicebus",
 	"azure:sql",
 	"azure:storage",
+	"azure:synapse",
 	"azure:trafficmanager",
 }
 

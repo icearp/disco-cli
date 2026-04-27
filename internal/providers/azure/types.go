@@ -35,8 +35,9 @@ const (
 	TypeNetworkApplicationGateway    = "azure:microsoft.network:application-gateway"
 	TypeNetworkTrafficManagerProfile = "azure:microsoft.network:traffic-manager-profile"
 	TypeCDNProfile                   = "azure:microsoft.cdn:profile"
-	// Analytics — Databricks
+	// Analytics — Databricks + Synapse
 	TypeDatabricksWorkspace = "azure:microsoft.databricks:workspace"
+	TypeSynapseWorkspace    = "azure:microsoft.synapse:workspace"
 	// Integration — Logic Apps
 	TypeLogicWorkflow = "azure:microsoft.logic:workflow"
 	// Azure Policy
@@ -181,6 +182,7 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/trafficmanagerprofiles":                             TypeNetworkTrafficManagerProfile,
 	"microsoft.cdn/profiles":                                               TypeCDNProfile,
 	"microsoft.databricks/workspaces":                                      TypeDatabricksWorkspace,
+	"microsoft.synapse/workspaces":                                         TypeSynapseWorkspace,
 	"microsoft.logic/workflows":                                            TypeLogicWorkflow,
 	"microsoft.authorization/policydefinitions":                            TypePolicyDefinition,
 	"microsoft.authorization/policysetdefinitions":                         TypePolicySetDefinition,
