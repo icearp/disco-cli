@@ -46,6 +46,10 @@ Azure stores IDs as-returned (whatever case the user typed at create time). Reso
 
 Every current scanner runs per-subscription via `scanSubscription`. Truly tenant-scoped services (Entra ID via Microsoft Graph SDK) need a separate top-level scanner. **Hybrid pattern** (precedent: `management_scanners.go`): a tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication of the result set — `ResourceID` hash includes account_id so dedup works locally. This is the same trick used for RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
+## Shared helpers live in `azure.go`
+
+Cross-service helpers (`azPageScan`, `azSimpleScan`, `azTrackedRows`, `azTagsJSON`, `rgFromID`, `nameFromID`, `azPager`, `azClientOptions`) live in `azure.go`. Do not create new top-level files like `helpers.go` or `<concept>_scanner.go` — append to `azure.go`. Per-service code stays in `<svc>_scanners.go` / `<svc>_resolvers.go`.
+
 ## SDK pointer-element types
 
 `pageItems` returns `[]*T` where T is the SDK's per-resource struct, often *not* the obvious singular of the client name. Common patterns: `armredis.ResourceInfo` (not `Cache`), `armservicebus.SBNamespace`, `armeventhub.EHNamespace`, `armapimanagement.ServiceResource`, `armmsi.Identity`, `armcosmos.DatabaseAccountGetResults`, `armcompute.SSHPublicKeyResource`. Grep the SDK's `models.go` or build-and-fix when uncertain.
