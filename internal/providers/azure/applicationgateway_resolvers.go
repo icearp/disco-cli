@@ -11,15 +11,12 @@ import (
 
 func init() { registerResolver(resolveApplicationGatewayRelationships) }
 
-// resolveApplicationGatewayRelationships derives two edge classes per AGW:
+// resolveApplicationGatewayRelationships derives three edge classes per AGW:
 //   - AGW -[attached-to]-> VNet via gatewayIPConfigurations[].properties.subnet.id
 //   - AGW -[uses]-> Public IP via frontendIPConfigurations[].properties.publicIPAddress.id
-//
-// AGW → Key Vault (via sslCertificates[].keyVaultSecretId) intentionally
-// deferred — the value is redacted by the store-side sanitizer because the
-// JSON key matches the "secret" substring denylist (false positive: the URI
-// is a reference, not the secret material). Re-enabling requires either a
-// targeted denylist exception or a sidecar capture during scan.
+//   - AGW -[uses]-> Key Vault via sslCertificates[].properties.keyVaultSecretId
+//     (Key Vault reference URI — pointer, not material). Reference URIs now
+//     pass the sanitizer allowlist (`internal/store/sanitize.go::isReferenceURI`).
 //
 // Backend pool members (FQDN/IP addresses, NIC refs) deferred — AGW backends
 // are usually FQDNs which don't map cleanly to ARM IDs. Identity → MSI edges
@@ -47,6 +44,19 @@ func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) 
 		pipIndex[strings.ToLower(p.NativeID)] = p.ID
 	}
 
+	vaults, err := st.ListResources(store.ResourceFilter{
+		Provider: "azure", AccountID: sub.ID,
+		Types: []string{TypeKeyVaultVault},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	vaultByName := make(map[string]string, len(vaults))
+	for _, v := range vaults {
+		vaultByName[strings.ToLower(nameFromID(v.NativeID))] = v.ID
+	}
+
 	for _, g := range gws {
 		var attrs struct {
 			Properties *struct {
@@ -64,6 +74,11 @@ func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) 
 						} `json:"publicIPAddress"`
 					} `json:"properties"`
 				} `json:"frontendIPConfigurations"`
+				SSLCertificates []struct {
+					Properties *struct {
+						KeyVaultSecretID *string `json:"keyVaultSecretId"`
+					} `json:"properties"`
+				} `json:"sslCertificates"`
 			} `json:"properties"`
 		}
 		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil || attrs.Properties == nil {
@@ -110,6 +125,25 @@ func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) 
 			}
 		}
 
+		// AGW → Key Vault (via sslCertificates[].keyVaultSecretId reference URI).
+		seenVault := map[string]bool{}
+		for _, sslc := range attrs.Properties.SSLCertificates {
+			if sslc.Properties == nil || sslc.Properties.KeyVaultSecretID == nil {
+				continue
+			}
+			vaultName := vaultNameFromKeyURI(*sslc.Properties.KeyVaultSecretID)
+			if vaultName == "" || seenVault[vaultName] {
+				continue
+			}
+			seenVault[vaultName] = true
+			toID, ok := vaultByName[strings.ToLower(vaultName)]
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(g.ID, toID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert agw→vault: %w", err)
+			}
+		}
 	}
 	return nil
 }

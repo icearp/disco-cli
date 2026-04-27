@@ -166,3 +166,68 @@ func TestUpsertResources_ScrubsAttributes(t *testing.T) {
 		t.Errorf("no redaction marker in stored attrs: %s", got.AttributesJSON)
 	}
 }
+
+// TestScrubAttributes_KeyVaultRefURIAllowed verifies that an Azure Key Vault
+// reference URI (a pointer, not material) is preserved verbatim under a key
+// whose name matches the denylist. Resolvers downstream (AGW → KV, App
+// Service config refs, etc.) need the URI to FK to the vault.
+func TestScrubAttributes_KeyVaultRefURIAllowed(t *testing.T) {
+	input := `{
+		"properties": {
+			"sslCertificates": [
+				{"name": "cert1", "properties": {"keyVaultSecretId": "https://myvault.vault.azure.net/secrets/cert1/abc123"}},
+				{"name": "cert2", "properties": {"keyVaultSecretId": "https://gov.vault.usgovcloudapi.net/certificates/cert2"}}
+			],
+			"someSecretToken": "hunter2",
+			"keyVaultSecretId": "not-a-uri"
+		}
+	}`
+	out := scrubAttributes(input)
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	props := got["properties"].(map[string]any)
+	certs := props["sslCertificates"].([]any)
+	for i, want := range []string{
+		"https://myvault.vault.azure.net/secrets/cert1/abc123",
+		"https://gov.vault.usgovcloudapi.net/certificates/cert2",
+	} {
+		c := certs[i].(map[string]any)["properties"].(map[string]any)
+		if c["keyVaultSecretId"] != want {
+			t.Errorf("ssl cert %d: keyVaultSecretId got %v, want %q", i, c["keyVaultSecretId"], want)
+		}
+	}
+	if props["someSecretToken"] != redactedPlaceholder {
+		t.Errorf("scalar secret value should still redact: %v", props["someSecretToken"])
+	}
+	if props["keyVaultSecretId"] != redactedPlaceholder {
+		t.Errorf("non-URI value under denylist key must redact: %v", props["keyVaultSecretId"])
+	}
+}
+
+func TestIsReferenceURI(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"https://myvault.vault.azure.net/secrets/foo", true},
+		{"https://myvault.vault.azure.net/secrets/foo/v1", true},
+		{"https://myvault.vault.azure.net/keys/k1", true},
+		{"https://myvault.vault.azure.net/certificates/c1", true},
+		{"https://gov.vault.usgovcloudapi.net/secrets/foo", true},
+		{"https://cn.vault.azure.cn/secrets/foo", true},
+		{"https://de.vault.microsoftazure.de/secrets/foo", true},
+		{"https://myvault.vault.azure.net/", false}, // no object path
+		{"https://myvault.vault.azure.net/secrets/", false},
+		{"https://example.com/secrets/foo", false},            // not a vault host
+		{"http://myvault.vault.azure.net/secrets/foo", false}, // not https
+		{"hunter2", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := isReferenceURI(tc.in); got != tc.want {
+			t.Errorf("isReferenceURI(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}

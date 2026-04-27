@@ -4,11 +4,11 @@ import (
 	"testing"
 )
 
-// TestResolveApplicationGatewayRelationships verifies an AGW emits two edges
-// given a configured attributes blob: VNet (via subnet path of the gateway IP
-// config), Public IP (via frontend IP config). KeyVault edge intentionally
-// omitted — sslCertificates[].keyVaultSecretId is redacted by the store
-// sanitizer (key matches "secret" substring); see resolver doc comment.
+// TestResolveApplicationGatewayRelationships verifies an AGW emits three
+// edges given a configured attributes blob: VNet (via subnet path of the
+// gateway IP config), Public IP (via frontend IP config), and Key Vault (via
+// sslCertificates[].keyVaultSecretId reference URI — preserved by the
+// sanitizer's reference-URI allowlist).
 func TestResolveApplicationGatewayRelationships(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("sub-agw")
@@ -20,7 +20,10 @@ func TestResolveApplicationGatewayRelationships(t *testing.T) {
 	pipNativeID := "/subscriptions/sub-agw/resourceGroups/Net/providers/Microsoft.Network/publicIPAddresses/pip1"
 	pipID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkPublicIPAddress, pipNativeID, "eastus", "{}")
 
-	agwAttrs := `{"properties":{"gatewayIPConfigurations":[{"properties":{"subnet":{"id":"` + subnetNativeID + `"}}}],"frontendIPConfigurations":[{"properties":{"publicIPAddress":{"id":"` + pipNativeID + `"}}}]}}`
+	vaultID := upsertTestResource(t, st, "azure", sub.ID, TypeKeyVaultVault,
+		"/subscriptions/sub-agw/resourceGroups/RG/providers/Microsoft.KeyVault/vaults/myvault", "eastus", "{}")
+
+	agwAttrs := `{"properties":{"gatewayIPConfigurations":[{"properties":{"subnet":{"id":"` + subnetNativeID + `"}}}],"frontendIPConfigurations":[{"properties":{"publicIPAddress":{"id":"` + pipNativeID + `"}}}],"sslCertificates":[{"properties":{"keyVaultSecretId":"https://myvault.vault.azure.net/secrets/cert1/abc123"}}]}}`
 	agwID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkApplicationGateway,
 		"/subscriptions/sub-agw/resourceGroups/RG/providers/Microsoft.Network/applicationGateways/agw", "eastus", agwAttrs)
 
@@ -28,15 +31,15 @@ func TestResolveApplicationGatewayRelationships(t *testing.T) {
 		t.Fatalf("resolveApplicationGatewayRelationships: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(agwID)
-	if len(rels) != 2 {
-		t.Fatalf("expected 2 relationships, got %d (%+v)", len(rels), rels)
+	if len(rels) != 3 {
+		t.Fatalf("expected 3 relationships, got %d (%+v)", len(rels), rels)
 	}
 	got := map[string]bool{}
 	for _, r := range rels {
 		got[r.ToID] = true
 	}
-	if !got[vnetID] || !got[pipID] {
-		t.Errorf("expected edges to vnet (%s) / pip (%s), got %+v", vnetID, pipID, rels)
+	if !got[vnetID] || !got[pipID] || !got[vaultID] {
+		t.Errorf("expected edges to vnet (%s) / pip (%s) / vault (%s), got %+v", vnetID, pipID, vaultID, rels)
 	}
 }
 

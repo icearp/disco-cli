@@ -66,6 +66,14 @@ func scrubAttributes(raw string) string {
 // recurse so that structural keys like "Secrets" (a container of
 // {ValueFrom} refs) aren't wiped out, while scalar leaks under the same
 // key name (e.g. "SecretString") are still redacted.
+//
+// Reference-URI allowlist: a scalar value whose shape matches a known
+// pointer-not-material pattern (e.g. an Azure Key Vault reference URI
+// `https://{vault}.vault.azure.net/{secrets|keys|certificates}/{name}[/{ver}]`)
+// is preserved verbatim even when its key matches the denylist. This unblocks
+// resolver edges keyed on the reference target (AGW → Key Vault, App Service
+// → KV-backed app settings, AKS secret-store CSI, etc.) without leaking
+// secret material — the URI is a pointer, the secret stays in Key Vault.
 func scrubValue(v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -79,7 +87,11 @@ func scrubValue(v any) any {
 				t[k] = scrubValue(child)
 			default:
 				if isSensitiveKey(k) {
-					t[k] = redactedPlaceholder
+					if s, ok := child.(string); ok && isReferenceURI(s) {
+						t[k] = s
+					} else {
+						t[k] = redactedPlaceholder
+					}
 				} else {
 					t[k] = scrubValue(child)
 				}
@@ -133,4 +145,53 @@ func isSensitiveKey(key string) bool {
 // descendants should all be redacted.
 func isContainerRedactKey(key string) bool {
 	return slices.Contains(containerRedactKeys, strings.ToLower(key))
+}
+
+// keyVaultDNSSuffixes covers Azure public, US-government, China, and Germany
+// Key Vault DNS roots. Used by isReferenceURI to allow KV reference URIs
+// (pointers, not material) past the denylist.
+var keyVaultDNSSuffixes = []string{
+	".vault.azure.net",
+	".vault.usgovcloudapi.net",
+	".vault.azure.cn",
+	".vault.microsoftazure.de",
+}
+
+// keyVaultObjectPaths are the path prefixes immediately after the vault host
+// for KV reference URIs.
+var keyVaultObjectPaths = []string{"/secrets/", "/keys/", "/certificates/"}
+
+// isReferenceURI reports whether s is a known pointer-style URI whose shape
+// guarantees no secret material is embedded — only addressing data (vault
+// host + object name + optional version). Currently recognises Azure Key
+// Vault reference URIs across all four cloud DNS suffixes; extend the lists
+// to add more pointer shapes (e.g. AWS Secrets Manager ARNs already FK by
+// shape, no allowlist needed).
+func isReferenceURI(s string) bool {
+	if !strings.HasPrefix(s, "https://") {
+		return false
+	}
+	rest := s[len("https://"):]
+	slash := strings.IndexByte(rest, '/')
+	if slash < 0 {
+		return false
+	}
+	host := strings.ToLower(rest[:slash])
+	path := rest[slash:]
+	hostMatch := false
+	for _, suffix := range keyVaultDNSSuffixes {
+		if strings.HasSuffix(host, suffix) && len(host) > len(suffix) {
+			hostMatch = true
+			break
+		}
+	}
+	if !hostMatch {
+		return false
+	}
+	for _, p := range keyVaultObjectPaths {
+		if strings.HasPrefix(path, p) && len(path) > len(p) {
+			return true
+		}
+	}
+	return false
 }
