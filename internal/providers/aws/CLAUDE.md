@@ -131,3 +131,7 @@ Security-overlay services (Shield, GuardDuty findings, Inspector findings) emit 
 ## CFN `PhysicalResourceId` shape varies per ResourceType
 
 Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for some (Lambda, SNS, ELBv2, SFN, SecretsManager, Lambda layer), bare name/ID for others (S3, IAM, EC2 *, KMS key, DynamoDB, Logs, ECR, Kinesis, RDS, EFS, EventBridge), queue URL for SQS, ID-only for APIGW. Verify shape against CFN resource-ref docs per type — wrong synth = phantom NativeID, FK-safe lookup silently drops edge with no error. Custom-bus EventBridge rules cannot be resolved from physID alone (no bus context); reject pipe-form `BUS|NAME` rather than synth wrong ARN.
+
+## Adding new AWS SDK service module
+
+`go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.

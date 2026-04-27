@@ -353,6 +353,9 @@ const (
 	TypeSecurityHubInsight               = "aws:securityhub:insight"
 	TypeSecurityHubStandardsSubscription = "aws:securityhub:standards-subscription"
 	TypeSecurityHubProductSubscription   = "aws:securityhub:product-subscription"
+	// Detective (detective_scanners.go, detective_resolvers.go)
+	TypeDetectiveGraph  = "aws:detective:graph"
+	TypeDetectiveMember = "aws:detective:member"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -526,5 +529,7 @@ func KnownTypes() []string {
 		// Security Hub
 		TypeSecurityHubHub, TypeSecurityHubInsight,
 		TypeSecurityHubStandardsSubscription, TypeSecurityHubProductSubscription,
+		// Detective
+		TypeDetectiveGraph, TypeDetectiveMember,
 	}
 }

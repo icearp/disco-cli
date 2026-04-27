@@ -35,7 +35,7 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 ## Provider file naming
 
-Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. `resolveRelationships` orchestrator in provider top-level file (`aws.go`, `azure.go`, `gcp.go`).
+Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS scanners + resolvers self-register via `registerService` / `registerResolver` (see `aws_services.go`) called from each file's `init()` — no manual wire-up in `aws.go`.
 
 ## Shared utilities (`internal/util`)
 

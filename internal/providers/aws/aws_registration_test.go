@@ -53,6 +53,7 @@ var expectedAWSServices = []string{
 	"aws:shield",
 	"aws:macie",
 	"aws:securityhub",
+	"aws:detective",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
