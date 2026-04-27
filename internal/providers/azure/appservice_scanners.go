@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -17,6 +18,7 @@ func init() { registerService(serviceEntry{name: "azure:appservice", fn: scanApp
 // siteEntry holds the identifying fields of a web app for slot fanout.
 type siteEntry struct {
 	rg, name, nativeID, discoID string
+	isFunctionApp               bool
 }
 
 // aseEntry holds the identifying fields of an App Service Environment for pool fanout.
@@ -190,13 +192,15 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 				r.TagsJSON = &ts
 			}
 			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceSite, nativeID)
+			kind := sv(s.Kind)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceSite, nativeID))
 			entries = append(entries, siteEntry{
-				rg:       rgNameFromID(nativeID),
-				name:     name,
-				nativeID: nativeID,
-				discoID:  discoID,
+				rg:            rgNameFromID(nativeID),
+				name:          name,
+				nativeID:      nativeID,
+				discoID:       discoID,
+				isFunctionApp: strings.Contains(strings.ToLower(kind), "functionapp"),
 			})
 		}
 	}
@@ -215,7 +219,8 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 		return total, inserted, nil
 	}
 
-	// Fan out slot scans per web app.
+	// Fan out slot scans per web app, plus app-settings fetch for function
+	// apps. Both share the maxConcurrentFanout budget.
 	var (
 		mu                sync.Mutex
 		sTotal, sInserted int
@@ -239,11 +244,47 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 			mu.Unlock()
 			return nil
 		})
+		if entry.isFunctionApp {
+			g.Go(func() error {
+				if err := sem.Acquire(gCtx, 1); err != nil {
+					return err
+				}
+				defer sem.Release(1)
+				return fetchFunctionAppSettings(gCtx, sub, client, entry)
+			})
+		}
 	}
 	if err := g.Wait(); err != nil {
 		return 0, 0, err
 	}
 	return total + sTotal, inserted + sInserted, nil
+}
+
+// fetchFunctionAppSettings calls WebAppsClient.ListApplicationSettings for
+// one function-app site and stores the result in the per-subscription
+// sidecar (consumed by resolveFunctionAppRelationships). AccessDenied
+// tolerated — partial-cred scans skip the resolver edges silently.
+func fetchFunctionAppSettings(ctx context.Context, sub *subscription, client *armappservice.WebAppsClient, site siteEntry) error {
+	resp, err := client.ListApplicationSettings(ctx, site.rg, site.name, nil)
+	if err != nil {
+		if isAccessDenied(err) {
+			return nil
+		}
+		// App settings fetch is best-effort enrichment, not a scan-fatal
+		// failure. Resolver tolerates missing entries.
+		return nil
+	}
+	if len(resp.Properties) == 0 {
+		return nil
+	}
+	settings := make(map[string]string, len(resp.Properties))
+	for k, v := range resp.Properties {
+		if v != nil {
+			settings[k] = *v
+		}
+	}
+	recordFunctionAppSettings(sub.ID, site.discoID, settings)
+	return nil
 }
 
 // scanWebAppSlots lists deployment slots for a single web app.

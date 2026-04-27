@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -176,6 +177,44 @@ func filteredServices(filter []string) []serviceEntry {
 type subscription struct {
 	ID   string
 	Name string
+}
+
+// functionAppSettingsByDiscoID is a per-subscription sidecar populated by the
+// AppService scanner during scan and consumed by the Functions resolver.
+// Outer key = subscription ID, inner key = function-app disco ID, innermost
+// = setting name → value. App settings are NOT a first-class ARM resource
+// (they live as sub-resource config of `Microsoft.Web/sites`), so per the
+// providers/CLAUDE.md "non-resource config fetches" rule they sidecar
+// rather than wrap into the parent site's AttributesJSON. Package-level
+// rather than `subscription` field because subscription is passed by value
+// in some call paths and adding a mutex would break those copy semantics.
+var (
+	functionAppSettingsMu sync.Mutex
+	functionAppSettings   = map[string]map[string]map[string]string{}
+)
+
+// recordFunctionAppSettings stores app settings for one function-app site
+// under a given subscription, concurrent-safe across per-site fan-out.
+func recordFunctionAppSettings(subID, siteDiscoID string, settings map[string]string) {
+	if len(settings) == 0 {
+		return
+	}
+	functionAppSettingsMu.Lock()
+	defer functionAppSettingsMu.Unlock()
+	subMap, ok := functionAppSettings[subID]
+	if !ok {
+		subMap = map[string]map[string]string{}
+		functionAppSettings[subID] = subMap
+	}
+	subMap[siteDiscoID] = settings
+}
+
+// loadFunctionAppSettings returns the app settings recorded for the given
+// subscription. Concurrent-safe; returns nil if scanner did not run.
+func loadFunctionAppSettings(subID string) map[string]map[string]string {
+	functionAppSettingsMu.Lock()
+	defer functionAppSettingsMu.Unlock()
+	return functionAppSettings[subID]
 }
 
 func mustJSON(v any) string { return util.MustJSON(v) }
