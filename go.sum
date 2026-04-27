@@ -72,6 +72,8 @@ github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1 h1:r3dXvi6tMfv4D48pyantO
 github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1/go.mod h1:nhYOLBwQu7P3ckR+L4gZkY0DT0nAhrQuZkI51jR1vTE=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1 h1:KdeMmKNbHOcFsiFe8BhLYE2A8crvEWnetrs8GkF2od8=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1/go.mod h1:QdVi7bF8U8HE8FWQ77pa4wcAMFnxI/UPx4mmQ4azRQs=
+github.com/aws/aws-sdk-go-v2/service/athena v1.57.5 h1:kQHg6KdRJQIag91wjykAyu/IsRURFWUdP6TxNEVW2tY=
+github.com/aws/aws-sdk-go-v2/service/athena v1.57.5/go.mod h1:FXY8aUvShyTNvipq6MRzN7m3avkladzCf/5tS7dJAvo=
 github.com/aws/aws-sdk-go-v2/service/backup v1.55.1 h1:Bcy9ZgE+OP8vnyLPEbxoey6JKK7RBRbRzGb7LIePJdE=
 github.com/aws/aws-sdk-go-v2/service/backup v1.55.1/go.mod h1:KmdGb8jdVZsGbhBRdU5Hcf77Wda2mOQMdfyJYCYaBSk=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9 h1:AISf54dn2oMUmhoWt4UH80xC8GqlZectZIcffiJzp6U=

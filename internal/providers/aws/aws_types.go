@@ -367,6 +367,9 @@ const (
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"
+	// Athena (athena_scanners.go, athena_resolvers.go)
+	TypeAthenaWorkgroup   = "aws:athena:workgroup"
+	TypeAthenaDataCatalog = "aws:athena:datacatalog"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -550,5 +553,7 @@ func KnownTypes() []string {
 		TypeInspector2Filter, TypeInspector2Member,
 		// Glue Data Catalog
 		TypeGlueDatabase, TypeGlueTable,
+		// Athena
+		TypeAthenaWorkgroup, TypeAthenaDataCatalog,
 	}
 }

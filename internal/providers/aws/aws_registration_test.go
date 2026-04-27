@@ -58,6 +58,7 @@ var expectedAWSServices = []string{
 	"aws:ses",
 	"aws:inspector2",
 	"aws:glue",
+	"aws:athena",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

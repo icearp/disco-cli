@@ -136,6 +136,10 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
 
+## List returns entry, Get rejects it
+
+Some AWS services surface implicit/managed entries in `List*` responses but reject the matching `Get*`/`Describe*` call (Athena `ListDataCatalogs` returns `AwsDataCatalog` — the implicit Glue catalog — but `GetDataCatalog` raises `InvalidRequestException: ... was not found`). Tolerate per-item via the same pattern as `AccessDenied`: skip the row, preserve sibling totals. `isAPIErrorCode(derr, "InvalidRequestException")` (or service-specific code) alongside `isAccessDenied(derr)` in the per-item branch. Don't blanket-tolerate at phase level — real not-found / malformed-input still surface for normal entries.
+
 ## Tag JSON helpers
 
 `awsTagsJSON[T awsTag]` (`aws.go`) is generic-union restricted. New SDK service tag types (`sesv2types.Tag`, `lakeformationtypes.Tag`, etc.) must be added to the `awsTag` union AND a new `case` in the `switch tt := any(t).(type)` block — both edits or the helper drops tags silently. For map-typed tags (Macie `map[string]string`, ECR repo tags map) use `mapTagsJSON` instead. Defer tag plumbing if scope is tight; tags rarely block graph analysis and adding the union touches a global type list.
