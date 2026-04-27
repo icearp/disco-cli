@@ -28,6 +28,9 @@ const (
 	TypeMySQLFlexibleServer      = "azure:microsoft.dbformysql:flexible-server"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
+	// Messaging — Event Hubs + Service Bus
+	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
+	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
 	// Compute — vms
 	TypeComputeVirtualMachine          = "azure:microsoft.compute:virtual-machine"
 	TypeComputeVMExtension             = "azure:microsoft.compute:virtual-machines/extensions"
@@ -152,6 +155,8 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.dbforpostgresql/flexibleservers":                            TypePostgreSQLFlexibleServer,
 	"microsoft.dbformysql/flexibleservers":                                 TypeMySQLFlexibleServer,
 	"microsoft.network/privateendpoints":                                   TypeNetworkPrivateEndpoint,
+	"microsoft.eventhub/namespaces":                                        TypeEventHubNamespace,
+	"microsoft.servicebus/namespaces":                                      TypeServiceBusNamespace,
 	"microsoft.compute/virtualmachines":                                    TypeComputeVirtualMachine,
 	"microsoft.compute/disks":                                              TypeComputeManagedDisk,
 	"microsoft.compute/availabilitysets":                                   TypeComputeAvailabilitySet,

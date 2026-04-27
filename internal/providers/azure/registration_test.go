@@ -15,6 +15,7 @@ var expectedAzureServices = []string{
 	"azure:containerapps",
 	"azure:containerregistry",
 	"azure:cosmos",
+	"azure:eventhub",
 	"azure:keyvault",
 	"azure:managedidentity",
 	"azure:mysql",
@@ -23,6 +24,7 @@ var expectedAzureServices = []string{
 	"azure:postgresql",
 	"azure:privateendpoints",
 	"azure:redis",
+	"azure:servicebus",
 	"azure:sql",
 	"azure:storage",
 }
