@@ -39,6 +39,8 @@ const (
 	TypeNetworkVirtualHub          = "azure:microsoft.network:virtual-hub"
 	TypeNetworkVPNSite             = "azure:microsoft.network:vpn-site"
 	TypeNetworkVPNGateway          = "azure:microsoft.network:vpn-gateway"
+	TypeNetworkVirtualNetworkGW    = "azure:microsoft.network:virtual-network-gateway"
+	TypeNetworkExpressRouteGateway = "azure:microsoft.network:express-route-gateway"
 	// Messaging — Event Hubs + Service Bus
 	TypeEventHubNamespace   = "azure:microsoft.eventhub:namespace"
 	TypeServiceBusNamespace = "azure:microsoft.servicebus:namespace"
@@ -201,6 +203,8 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/virtualhubs":                                        TypeNetworkVirtualHub,
 	"microsoft.network/vpnsites":                                           TypeNetworkVPNSite,
 	"microsoft.network/vpngateways":                                        TypeNetworkVPNGateway,
+	"microsoft.network/virtualnetworkgateways":                             TypeNetworkVirtualNetworkGW,
+	"microsoft.network/expressroutegateways":                               TypeNetworkExpressRouteGateway,
 	"microsoft.eventhub/namespaces":                                        TypeEventHubNamespace,
 	"microsoft.servicebus/namespaces":                                      TypeServiceBusNamespace,
 	"microsoft.eventgrid/topics":                                           TypeEventGridTopic,

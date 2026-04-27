@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -408,6 +409,134 @@ func azTrackedRows[T any](sub *subscription, scanID, rtype string, items []*T, e
 		}
 	}
 	return batch, pairs
+}
+
+// listSubscriptionRGNames enumerates all resource groups in the subscription
+// via the ARM resource-groups SDK. Used by azRGFanoutScan and any other
+// caller that needs RG names without depending on scan order against the
+// `azure:resourcegroups` service. AccessDenied tolerated (returns empty
+// slice + nil error). Imported as a reverse dep on `armresources` already
+// pulled in by `resourcegroups_scanners.go`.
+func listSubscriptionRGNames(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential) ([]string, error) {
+	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return nil, fmt.Errorf("armresources:NewResourceGroupsClient: %w", err)
+	}
+	var out []string
+	pager := client.NewListPager(nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("armresources:ResourceGroups.List: %w", err)
+		}
+		for _, rg := range page.Value {
+			if rg == nil || rg.Name == nil {
+				continue
+			}
+			out = append(out, *rg.Name)
+		}
+	}
+	return out, nil
+}
+
+// azRGFanoutScan covers ARM resource types that have NO subscription-wide list
+// API (only per-RG list endpoints). It enumerates RGs via
+// listSubscriptionRGNames once, then fans out per-RG list calls bounded by
+// maxConcurrentFanout (errgroup + semaphore). pagerFn returns a fresh pager
+// for each RG; pageItems extracts the SDK slice; extract converts each item
+// to azTrackedBase. Same shape as azSimpleScan but with a per-RG dimension.
+//
+// Per-RG AccessDenied + ResourceGroupNotFound errors are tolerated and skip
+// that RG silently — partial-cred scans don't fail wholesale. Other errors
+// abort. Hierarchy pairs to RG are emitted automatically when the resource
+// ID contains a `/resourceGroups/` segment (consistent with azTrackedRows).
+//
+// Use when adding scanners for RG-scoped types like classic
+// VirtualNetworkGateways, ExpressRouteGateways, Front Door endpoints, ADF
+// linked services, Logic Apps API connections, etc.
+func azRGFanoutScan[T any, P any](
+	ctx context.Context,
+	action, rtype string,
+	sub *subscription,
+	cred *azidentity.DefaultAzureCredential,
+	st *store.Store,
+	scanID string,
+	pagerFn func(rg string) azPager[P],
+	pageItems func(P) []*T,
+	extract func(*T) azTrackedBase,
+) (total, inserted int, err error) {
+	rgs, err := listSubscriptionRGNames(ctx, sub, cred)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(rgs) == 0 {
+		return 0, 0, nil
+	}
+
+	var (
+		mu       sync.Mutex
+		allBatch []*store.Resource
+		allPairs [][2]string
+	)
+	sem := semaphore.NewWeighted(maxConcurrentFanout)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, rg := range rgs {
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			pager := pagerFn(rg)
+			for pager.More() {
+				page, err := pager.NextPage(gctx)
+				if err != nil {
+					if isAccessDenied(err) || isResourceGroupNotFound(err) {
+						return nil
+					}
+					return fmt.Errorf("%s rg=%s: %w", action, rg, err)
+				}
+				batch, pairs := azTrackedRows(sub, scanID, rtype, pageItems(page), extract)
+				if len(batch) == 0 {
+					continue
+				}
+				mu.Lock()
+				allBatch = append(allBatch, batch...)
+				allPairs = append(allPairs, pairs...)
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	if len(allBatch) == 0 {
+		return 0, 0, nil
+	}
+	n, err := st.UpsertResources(allBatch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert %s: %w", action, err)
+	}
+	if len(allPairs) > 0 {
+		if err := st.BatchAddToHierarchyClosure(allPairs); err != nil {
+			return len(allBatch), n, fmt.Errorf("closure %s: %w", action, err)
+		}
+	}
+	return len(allBatch), n, nil
+}
+
+// isResourceGroupNotFound reports whether err is an Azure 404 RG-vanished
+// error (race between RG-list and per-RG list calls). Treated as
+// best-effort skip in azRGFanoutScan.
+func isResourceGroupNotFound(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == http.StatusNotFound
+	}
+	return false
 }
 
 // azSimpleScan wires NewListPager → azPageScan → azTrackedRows in a single

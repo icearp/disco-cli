@@ -12,13 +12,13 @@ import (
 func init() { registerService(serviceEntry{name: "azure:wan", fn: scanWAN}) }
 
 // scanWAN discovers Azure enterprise networking resources that have
-// subscription-wide list APIs: ExpressRoute circuits, Virtual WANs, Virtual
-// Hubs, VPN Sites, and vWAN VPN Gateways.
-//
-// Classic VirtualNetworkGateways (Microsoft.Network/virtualNetworkGateways —
-// covers both ER gateways and classic VPN gateways) and ExpressRoute Gateways
-// (Microsoft.Network/expressRouteGateways) are RG-scoped only — deferred
-// until a per-RG fan-out scanner pattern lands.
+// subscription-wide list APIs (ExpressRoute circuits, Virtual WANs, Virtual
+// Hubs, VPN Sites, vWAN VPN Gateways) plus the two classic gateway types
+// that require per-RG fan-out (VirtualNetworkGateways — covers both classic
+// ER gateways and classic VPN gateways — and ExpressRouteGateways).
+// VirtualNetworkGateways landed via the new `azRGFanoutScan` helper;
+// ExpressRouteGateways uses the SDK's single `ListBySubscription` call
+// despite the type only being settable per-RG.
 func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	circuitsClient, err := armnetwork.NewExpressRouteCircuitsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -39,6 +39,14 @@ func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	gwClient, err := armnetwork.NewVPNGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewVPNGatewaysClient: %w", err)
+	}
+	vngClient, err := armnetwork.NewVirtualNetworkGatewaysClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armnetwork:NewVirtualNetworkGatewaysClient: %w", err)
+	}
+	ergClient, err := armnetwork.NewExpressRouteGatewaysClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armnetwork:NewExpressRouteGatewaysClient: %w", err)
 	}
 
 	phases := []func() (int, int, error){
@@ -74,6 +82,23 @@ func scanWAN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 				func(p armnetwork.VPNGatewaysClientListResponse) []*armnetwork.VPNGateway { return p.Value },
 				vpnGatewayToBase)
 		},
+		// Classic VirtualNetworkGateways — RG-scoped only, fan out via
+		// azRGFanoutScan (R3.23 helper).
+		func() (int, int, error) {
+			return azRGFanoutScan(ctx, "armnetwork:VirtualNetworkGateways.List", TypeNetworkVirtualNetworkGW, sub, cred, st, scanID,
+				func(rg string) azPager[armnetwork.VirtualNetworkGatewaysClientListResponse] {
+					return vngClient.NewListPager(rg, nil)
+				},
+				func(p armnetwork.VirtualNetworkGatewaysClientListResponse) []*armnetwork.VirtualNetworkGateway {
+					return p.Value
+				},
+				vngToBase)
+		},
+		// ExpressRouteGateways — SDK exposes ListBySubscription (single call,
+		// no pager). Wrap in a one-shot adapter to keep phase shape uniform.
+		func() (int, int, error) {
+			return scanExpressRouteGateways(ctx, sub, ergClient, st, scanID)
+		},
 	}
 
 	for _, fn := range phases {
@@ -105,4 +130,39 @@ func vpnSiteToBase(s *armnetwork.VPNSite) azTrackedBase {
 
 func vpnGatewayToBase(g *armnetwork.VPNGateway) azTrackedBase {
 	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+}
+
+func vngToBase(g *armnetwork.VirtualNetworkGateway) azTrackedBase {
+	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+}
+
+func ergToBase(g *armnetwork.ExpressRouteGateway) azTrackedBase {
+	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+}
+
+// scanExpressRouteGateways adapts the single-call ListBySubscription API
+// into the standard scanner-phase shape: enumerate, build batch + RG pairs
+// via azTrackedRows, upsert.
+func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *armnetwork.ExpressRouteGatewaysClient, st *store.Store, scanID string) (total, inserted int, err error) {
+	resp, err := client.ListBySubscription(ctx, nil)
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "armnetwork:ExpressRouteGateways.ListBySubscription", sub.ID, err)
+		}
+		return 0, 0, fmt.Errorf("armnetwork:ExpressRouteGateways.ListBySubscription: %w", err)
+	}
+	batch, pairs := azTrackedRows(sub, scanID, TypeNetworkExpressRouteGateway, resp.Value, ergToBase)
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert ExpressRouteGateways: %w", err)
+	}
+	if len(pairs) > 0 {
+		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			return len(batch), n, fmt.Errorf("closure ExpressRouteGateways: %w", err)
+		}
+	}
+	return len(batch), n, nil
 }
