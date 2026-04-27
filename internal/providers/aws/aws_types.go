@@ -358,6 +358,9 @@ const (
 	TypeDetectiveMember = "aws:detective:member"
 	// Lake Formation (lakeformation_scanners.go, lakeformation_resolvers.go)
 	TypeLakeFormationResource = "aws:lakeformation:resource"
+	// SES v2 (ses_scanners.go, ses_resolvers.go)
+	TypeSESEmailIdentity    = "aws:ses:email-identity"
+	TypeSESConfigurationSet = "aws:ses:configuration-set"
 )
 
 // KnownTypes returns all disco type strings currently covered by this provider.
@@ -535,5 +538,7 @@ func KnownTypes() []string {
 		TypeDetectiveGraph, TypeDetectiveMember,
 		// Lake Formation
 		TypeLakeFormationResource,
+		// SES v2
+		TypeSESEmailIdentity, TypeSESConfigurationSet,
 	}
 }

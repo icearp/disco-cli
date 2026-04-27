@@ -135,3 +135,7 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 ## Adding new AWS SDK service module
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
+
+## Tag JSON helpers
+
+`awsTagsJSON[T awsTag]` (`aws.go`) is generic-union restricted. New SDK service tag types (`sesv2types.Tag`, `lakeformationtypes.Tag`, etc.) must be added to the `awsTag` union AND a new `case` in the `switch tt := any(t).(type)` block — both edits or the helper drops tags silently. For map-typed tags (Macie `map[string]string`, ECR repo tags map) use `mapTagsJSON` instead. Defer tag plumbing if scope is tight; tags rarely block graph analysis and adding the union touches a global type list.

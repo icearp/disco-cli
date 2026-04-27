@@ -34,3 +34,6 @@ go.work.sum
 
 # Sonar scanner output
 .scannerwork/
+
+# Claude Code local state
+.claude/
