@@ -73,6 +73,7 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 - OSS stub for paid pkgs: `<pkg>.go` with `//go:build !paid` (e.g. `internal/license/license.go`). Stubs ship to OSS; `_paid.go` siblings do not.
 - Paid commands: first line of `RunE` must be `if err := license.Require(); err != nil { return err }`. Canonical shape: `cmd/diff_paid.go`.
 - Bug fixes / new free features: edit untagged files normally — flow downstream to OSS via next `make oss-sync`.
+- Paid-only docs: name `*_paid.md` — excluded by `scripts/oss-sync.sh` name pattern. Canonical: `ROADMAP_paid.md`. Do not cross-reference from OSS-tracked files.
 
 ## Go lint conventions
 
