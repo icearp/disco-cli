@@ -10,6 +10,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:lambda", fn: scanLambda}) }
 
+// lambdaAPI is the narrow set of Lambda operations called by the scanLambda
+// sub-phases. Lambda has the largest iface in the codebase (10 paginators)
+// — the scanner discovers functions, their aliases / versions / URLs /
+// event-invoke configs, plus event-source mappings, code-signing configs,
+// capacity providers, layers, and layer-versions.
+type lambdaAPI interface {
+	ListFunctions(context.Context, *lambda.ListFunctionsInput, ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
+	ListAliases(context.Context, *lambda.ListAliasesInput, ...func(*lambda.Options)) (*lambda.ListAliasesOutput, error)
+	ListVersionsByFunction(context.Context, *lambda.ListVersionsByFunctionInput, ...func(*lambda.Options)) (*lambda.ListVersionsByFunctionOutput, error)
+	ListFunctionEventInvokeConfigs(context.Context, *lambda.ListFunctionEventInvokeConfigsInput, ...func(*lambda.Options)) (*lambda.ListFunctionEventInvokeConfigsOutput, error)
+	ListFunctionUrlConfigs(context.Context, *lambda.ListFunctionUrlConfigsInput, ...func(*lambda.Options)) (*lambda.ListFunctionUrlConfigsOutput, error)
+	ListCodeSigningConfigs(context.Context, *lambda.ListCodeSigningConfigsInput, ...func(*lambda.Options)) (*lambda.ListCodeSigningConfigsOutput, error)
+	ListCapacityProviders(context.Context, *lambda.ListCapacityProvidersInput, ...func(*lambda.Options)) (*lambda.ListCapacityProvidersOutput, error)
+	ListEventSourceMappings(context.Context, *lambda.ListEventSourceMappingsInput, ...func(*lambda.Options)) (*lambda.ListEventSourceMappingsOutput, error)
+	ListLayers(context.Context, *lambda.ListLayersInput, ...func(*lambda.Options)) (*lambda.ListLayersOutput, error)
+	ListLayerVersions(context.Context, *lambda.ListLayerVersionsInput, ...func(*lambda.Options)) (*lambda.ListLayerVersionsOutput, error)
+}
+
 // lambdaFunctionSummary holds the minimal per-function data reused by per-function
 // sub-scanners (aliases, versions, event invoke configs, function URLs).
 type lambdaFunctionSummary struct {
@@ -32,7 +50,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 
 	// Per-function resources. Most functions have none of these; the paginator
 	// returns immediately, so the overhead per function is minimal.
-	type perFnScanner func(context.Context, *lambda.Client, *account, []lambdaFunctionSummary, string, *store.Store, string) (int, int, error)
+	type perFnScanner func(context.Context, lambdaAPI, *account, []lambdaFunctionSummary, string, *store.Store, string) (int, int, error)
 	for _, scan := range []perFnScanner{
 		scanLambdaAliases,
 		scanLambdaVersions,
@@ -48,7 +66,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 	}
 
 	// Account-level resources (not per-function).
-	for _, scan := range []func(context.Context, *lambda.Client, *account, string, *store.Store, string) (int, int, error){
+	for _, scan := range []func(context.Context, lambdaAPI, *account, string, *store.Store, string) (int, int, error){
 		scanLambdaCodeSigningConfigs,
 		scanLambdaCapacityProviders,
 		scanLambdaEventSourceMappings,
@@ -66,7 +84,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 
 // scanLambdaFunctions discovers Lambda functions in one region and returns a
 // summary list for use by per-function sub-scanners.
-func scanLambdaFunctions(ctx context.Context, client *lambda.Client, acct *account, region string, st *store.Store, scanID string) (fns []lambdaFunctionSummary, total, inserted int, err error) {
+func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (fns []lambdaFunctionSummary, total, inserted int, err error) {
 	pager := lambda.NewListFunctionsPaginator(client, &lambda.ListFunctionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -107,7 +125,7 @@ func scanLambdaFunctions(ctx context.Context, client *lambda.Client, acct *accou
 
 // scanLambdaAliases discovers all aliases for each function and upserts them as
 // aws:lambda:alias resources. The NativeID is the AliasArn (qualified ARN).
-func scanLambdaAliases(ctx context.Context, client *lambda.Client, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListAliasesPaginator(client, &lambda.ListAliasesInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -149,7 +167,7 @@ func scanLambdaAliases(ctx context.Context, client *lambda.Client, acct *account
 // scanLambdaVersions discovers all published versions for each function and
 // upserts them as aws:lambda:version resources. $LATEST is skipped — it is a
 // mutable pseudo-version, not a stable published version.
-func scanLambdaVersions(ctx context.Context, client *lambda.Client, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListVersionsByFunctionPaginator(client, &lambda.ListVersionsByFunctionInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -195,7 +213,7 @@ func scanLambdaVersions(ctx context.Context, client *lambda.Client, acct *accoun
 // each function and upserts them as aws:lambda:event-invoke-config resources.
 // The NativeID is the qualified FunctionArn from the config (may include a
 // version or alias qualifier).
-func scanLambdaEventInvokeConfigs(ctx context.Context, client *lambda.Client, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaEventInvokeConfigs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListFunctionEventInvokeConfigsPaginator(client, &lambda.ListFunctionEventInvokeConfigsInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -237,7 +255,7 @@ func scanLambdaEventInvokeConfigs(ctx context.Context, client *lambda.Client, ac
 // scanLambdaFunctionURLs discovers function URL configurations for each function
 // and upserts them as aws:lambda:url resources. The NativeID is the qualified
 // FunctionArn; the Name is the human-readable function URL.
-func scanLambdaFunctionURLs(ctx context.Context, client *lambda.Client, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, fn := range fns {
 		pager := lambda.NewListFunctionUrlConfigsPaginator(client, &lambda.ListFunctionUrlConfigsInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -278,7 +296,7 @@ func scanLambdaFunctionURLs(ctx context.Context, client *lambda.Client, acct *ac
 
 // scanLambdaCodeSigningConfigs discovers all code signing configurations in the
 // region and upserts them as aws:lambda:code-signing-config resources.
-func scanLambdaCodeSigningConfigs(ctx context.Context, client *lambda.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaCodeSigningConfigs(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := lambda.NewListCodeSigningConfigsPaginator(client, &lambda.ListCodeSigningConfigsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -317,7 +335,7 @@ func scanLambdaCodeSigningConfigs(ctx context.Context, client *lambda.Client, ac
 
 // scanLambdaCapacityProviders discovers all Lambda capacity providers in the
 // region and upserts them as aws:lambda:capacity-provider resources.
-func scanLambdaCapacityProviders(ctx context.Context, client *lambda.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaCapacityProviders(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := lambda.NewListCapacityProvidersPaginator(client, &lambda.ListCapacityProvidersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -358,7 +376,7 @@ func scanLambdaCapacityProviders(ctx context.Context, client *lambda.Client, acc
 
 // scanLambdaEventSourceMappings discovers all event source mappings in the
 // region and upserts them as aws:lambda:event-source-mapping resources.
-func scanLambdaEventSourceMappings(ctx context.Context, client *lambda.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaEventSourceMappings(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := lambda.NewListEventSourceMappingsPaginator(client, &lambda.ListEventSourceMappingsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -400,7 +418,7 @@ func scanLambdaEventSourceMappings(ctx context.Context, client *lambda.Client, a
 // scanLambdaLayerVersions discovers all Lambda layer versions in the region and
 // upserts them as aws:lambda:layer-version resources. It first lists all layers,
 // then paginates layer versions per layer.
-func scanLambdaLayerVersions(ctx context.Context, client *lambda.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// lambdaLayerSummary holds the minimal data needed to list a layer's versions.
 	type lambdaLayerSummary struct {
 		name string
