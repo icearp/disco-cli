@@ -86,6 +86,16 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.16 GCP Cloud Logging sinks + Monitoring alert policies (this session)
+- **GCP Cloud Logging sinks** new type `gcp:logging:sink`. Service `gcp:logging`: `logging/v2` `Projects.Sinks.List`. Synthesized NativeID `projects/{p}/sinks/{name}` because LogSink has no fully-qualified resource name in v2. Folder + organization scope sinks deferred — they're scoped above the per-project fan-out.
+- **GCP Cloud Monitoring alert policies** new type `gcp:monitoring:alert-policy`. Service `gcp:monitoring`: `monitoring/v3` `Projects.AlertPolicies.List`. NativeID is the policy resource name. Notification channels (`alert.notificationChannels[]`) deferred — separate Channels.List, alert→channel resolver follow-up.
+- **Resolver** `resolveLoggingSinkRelationships` derives sink -[routes-to]-> destination across three canonical destination shapes:
+  - `storage.googleapis.com/{bucket}` → gcp:storage:bucket (matched by trailing bucket-name segment of bucket SelfLink)
+  - `bigquery.googleapis.com/projects/{p}/datasets/{ds}` → gcp:bigquery:dataset (path → canonical "{p}:{ds}")
+  - `pubsub.googleapis.com/projects/{p}/topics/{topic}` → gcp:pubsub:topic
+  Logbucket destinations (`logging.googleapis.com/...`) deferred — log-bucket scanner not yet landed.
+- Live-scan validation: 2 projects, 4 default sinks (2 per project: `_Default`, `_Required` log-bucket sinks both pointing at `logging.googleapis.com/...buckets/_Default`); resolver emitted 0 edges (all destinations were the deferred logbucket shape, expected).
+
 ### R4.15 GCP Artifact Registry — repositories (this session)
 - **GCP Artifact Registry** new type `gcp:artifactregistry:repository`. Project-scoped service `gcp:artifactregistry` runs one phase: `artifactregistry/v1` `Projects.Locations.Repositories.List` with the `locations/-` wildcard parent. Format (DOCKER / NPM / MAVEN / PYTHON / APT / YUM / GO / KFP) carried inline in attributes — no per-format scanner needed.
 - **Resolver** `resolveArtifactRegistryRelationships` derives repository -[uses]-> cryptoKey CMEK edges via `kmsKeyName`. Reverse-direction edges (GKE / Cloud Run → repository pull) deferred — they require parsing image references out of container specs, not yet structured fields on either workload scanner.
@@ -649,7 +659,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 13. *(removed — Bigtable instance+cluster, Firestore database, Spanner instance+database scanners landed with unified CMEK resolver across all three. Backups, tables, sessions, indexes deferred; see COMPLETED R4.13)*
 14. **Dataproc + Dataflow** — cluster / job; edges to network, SA. *(Composer environment scanner + CMEK/SA resolver landed via locations/- wildcard — see COMPLETED R4.14. Dataproc + Dataflow remain — both need a shared per-region fan-out helper since neither supports the locations/- wildcard pattern.)*
 15. *(removed — Artifact Registry repository scanner + repo→CMEK resolver landed via locations/- wildcard. GKE/Cloud Run → repo pull edges deferred (image-ref parsing); see COMPLETED R4.15)*
-16. **Cloud Logging sinks** + monitoring alert policies — sink → destination (GCS/BQ/PubSub).
+16. *(removed — logging sink + monitoring alert-policy scanners landed; sink → GCS/BQ/PubSub destination resolver landed. Logbucket destinations + alert→notification-channel + folder/org-scope sinks deferred; see COMPLETED R4.16)*
 17. **Cloud Build triggers** — trigger → repo + worker pool.
 18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services.
 19. **Binary Authorization** — policy, attestor. Edges: policy → KMS attestor keys.

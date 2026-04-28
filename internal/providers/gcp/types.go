@@ -48,6 +48,9 @@ const (
 	TypeComposerEnv = "gcp:composer:environment"
 	// Artifact Registry
 	TypeArtifactRepository = "gcp:artifactregistry:repository"
+	// Logging / Monitoring
+	TypeLoggingSink        = "gcp:logging:sink"
+	TypeMonitoringAlertPol = "gcp:monitoring:alert-policy"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

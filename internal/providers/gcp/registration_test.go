@@ -25,6 +25,8 @@ var expectedGCPServices = []string{
 	"gcp:iam-key",
 	"gcp:iam-policy",
 	"gcp:loadbalancing",
+	"gcp:logging",
+	"gcp:monitoring",
 	"gcp:pubsub",
 	"gcp:secretmanager",
 	"gcp:spanner",
