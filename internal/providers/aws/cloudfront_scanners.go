@@ -10,6 +10,33 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// cloudfrontAPI is the narrow set of CloudFront operations called by the
+// scanCloudFront sub-phases. CloudFront has the broadest fan-out in the
+// codebase (~21 resource types from one service); the iface mirrors that.
+type cloudfrontAPI interface {
+	ListDistributions(context.Context, *cloudfront.ListDistributionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListDistributionsOutput, error)
+	ListStreamingDistributions(context.Context, *cloudfront.ListStreamingDistributionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListStreamingDistributionsOutput, error)
+	ListDistributionTenants(context.Context, *cloudfront.ListDistributionTenantsInput, ...func(*cloudfront.Options)) (*cloudfront.ListDistributionTenantsOutput, error)
+	ListCloudFrontOriginAccessIdentities(context.Context, *cloudfront.ListCloudFrontOriginAccessIdentitiesInput, ...func(*cloudfront.Options)) (*cloudfront.ListCloudFrontOriginAccessIdentitiesOutput, error)
+	ListOriginAccessControls(context.Context, *cloudfront.ListOriginAccessControlsInput, ...func(*cloudfront.Options)) (*cloudfront.ListOriginAccessControlsOutput, error)
+	ListConnectionFunctions(context.Context, *cloudfront.ListConnectionFunctionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListConnectionFunctionsOutput, error)
+	ListConnectionGroups(context.Context, *cloudfront.ListConnectionGroupsInput, ...func(*cloudfront.Options)) (*cloudfront.ListConnectionGroupsOutput, error)
+	ListKeyValueStores(context.Context, *cloudfront.ListKeyValueStoresInput, ...func(*cloudfront.Options)) (*cloudfront.ListKeyValueStoresOutput, error)
+	ListPublicKeys(context.Context, *cloudfront.ListPublicKeysInput, ...func(*cloudfront.Options)) (*cloudfront.ListPublicKeysOutput, error)
+	ListTrustStores(context.Context, *cloudfront.ListTrustStoresInput, ...func(*cloudfront.Options)) (*cloudfront.ListTrustStoresOutput, error)
+	ListAnycastIpLists(context.Context, *cloudfront.ListAnycastIpListsInput, ...func(*cloudfront.Options)) (*cloudfront.ListAnycastIpListsOutput, error)
+	ListCachePolicies(context.Context, *cloudfront.ListCachePoliciesInput, ...func(*cloudfront.Options)) (*cloudfront.ListCachePoliciesOutput, error)
+	ListContinuousDeploymentPolicies(context.Context, *cloudfront.ListContinuousDeploymentPoliciesInput, ...func(*cloudfront.Options)) (*cloudfront.ListContinuousDeploymentPoliciesOutput, error)
+	ListFunctions(context.Context, *cloudfront.ListFunctionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListFunctionsOutput, error)
+	ListKeyGroups(context.Context, *cloudfront.ListKeyGroupsInput, ...func(*cloudfront.Options)) (*cloudfront.ListKeyGroupsOutput, error)
+	ListOriginRequestPolicies(context.Context, *cloudfront.ListOriginRequestPoliciesInput, ...func(*cloudfront.Options)) (*cloudfront.ListOriginRequestPoliciesOutput, error)
+	ListRealtimeLogConfigs(context.Context, *cloudfront.ListRealtimeLogConfigsInput, ...func(*cloudfront.Options)) (*cloudfront.ListRealtimeLogConfigsOutput, error)
+	ListResponseHeadersPolicies(context.Context, *cloudfront.ListResponseHeadersPoliciesInput, ...func(*cloudfront.Options)) (*cloudfront.ListResponseHeadersPoliciesOutput, error)
+	ListVpcOrigins(context.Context, *cloudfront.ListVpcOriginsInput, ...func(*cloudfront.Options)) (*cloudfront.ListVpcOriginsOutput, error)
+	GetMonitoringSubscription(context.Context, *cloudfront.GetMonitoringSubscriptionInput, ...func(*cloudfront.Options)) (*cloudfront.GetMonitoringSubscriptionOutput, error)
+	ListTagsForResource(context.Context, *cloudfront.ListTagsForResourceInput, ...func(*cloudfront.Options)) (*cloudfront.ListTagsForResourceOutput, error)
+}
+
 func init() {
 	registerService(serviceEntry{
 		name:   "aws:cloudfront",
@@ -123,7 +150,7 @@ func cfMarkerScan[Output any](
 // scanCloudFrontDistributions discovers CloudFront distributions.
 // ListDistributions returns DistributionSummary items with full configuration —
 // no separate GetDistribution call is needed. Tags are fetched concurrently.
-func scanCloudFrontDistributions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontDistributions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListDistributionsPaginator(client, &cloudfront.ListDistributionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -192,7 +219,7 @@ func scanCloudFrontDistributions(ctx context.Context, acct *account, client *clo
 // scanCloudFrontMonitoringSubscriptions fetches the CloudWatch monitoring
 // subscription (if any) for each distribution. GetMonitoringSubscription is the
 // only API — there is no list endpoint. A missing subscription is not an error.
-func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Collect all (id, arn) pairs from distributions.
 	type distRef struct{ id, arn string }
 	var refs []distRef
@@ -268,7 +295,7 @@ func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, c
 // --- Streaming Distributions ---
 
 // scanCloudFrontStreamingDistributions discovers RTMP streaming distributions.
-func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListStreamingDistributionsPaginator(client, &cloudfront.ListStreamingDistributionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -311,7 +338,7 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 // --- Distribution Tenants ---
 
 // scanCloudFrontDistributionTenants discovers SaaS Manager distribution tenants.
-func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListDistributionTenantsPaginator(client, &cloudfront.ListDistributionTenantsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -351,7 +378,7 @@ func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, clien
 
 // scanCloudFrontCachePolicies discovers customer-owned cache policies.
 // No Type filter is set, which returns only CUSTOM (account-owned) policies.
-func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListCachePolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListCachePoliciesOutput, *string, error) {
 			out, err := client.ListCachePolicies(ctx, &cloudfront.ListCachePoliciesInput{Marker: marker})
@@ -404,7 +431,7 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client *clo
 // --- Origin Request Policies ---
 
 // scanCloudFrontOriginRequestPolicies discovers customer-owned origin request policies.
-func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListOriginRequestPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListOriginRequestPoliciesOutput, *string, error) {
 			out, err := client.ListOriginRequestPolicies(ctx, &cloudfront.ListOriginRequestPoliciesInput{Marker: marker})
@@ -457,7 +484,7 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 // --- Response Headers Policies ---
 
 // scanCloudFrontResponseHeadersPolicies discovers customer-owned response headers policies.
-func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListResponseHeadersPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListResponseHeadersPoliciesOutput, *string, error) {
 			out, err := client.ListResponseHeadersPolicies(ctx, &cloudfront.ListResponseHeadersPoliciesInput{Marker: marker})
@@ -510,7 +537,7 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 // --- Continuous Deployment Policies ---
 
 // scanCloudFrontContinuousDeploymentPolicies discovers continuous deployment policies.
-func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListContinuousDeploymentPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListContinuousDeploymentPoliciesOutput, *string, error) {
 			out, err := client.ListContinuousDeploymentPolicies(ctx, &cloudfront.ListContinuousDeploymentPoliciesInput{Marker: marker})
@@ -558,7 +585,7 @@ func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *accou
 // --- Origin Access Identities (legacy) ---
 
 // scanCloudFrontOAIs discovers CloudFront origin access identities (legacy OAI).
-func scanCloudFrontOAIs(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOAIs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListCloudFrontOriginAccessIdentitiesPaginator(client, &cloudfront.ListCloudFrontOriginAccessIdentitiesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -598,7 +625,7 @@ func scanCloudFrontOAIs(ctx context.Context, acct *account, client *cloudfront.C
 // --- Origin Access Controls ---
 
 // scanCloudFrontOriginAccessControls discovers origin access controls (modern OAI replacement).
-func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListOriginAccessControlsPaginator(client, &cloudfront.ListOriginAccessControlsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -639,7 +666,7 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 // --- Functions ---
 
 // scanCloudFrontFunctions discovers CloudFront Functions (lightweight edge compute).
-func scanCloudFrontFunctions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontFunctions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListFunctions", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListFunctionsOutput, *string, error) {
 			out, err := client.ListFunctions(ctx, &cloudfront.ListFunctionsInput{Marker: marker})
@@ -687,7 +714,7 @@ func scanCloudFrontFunctions(ctx context.Context, acct *account, client *cloudfr
 // --- Connection Functions ---
 
 // scanCloudFrontConnectionFunctions discovers connection functions.
-func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListConnectionFunctionsPaginator(client, &cloudfront.ListConnectionFunctionsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -726,7 +753,7 @@ func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, clien
 // --- Key Groups ---
 
 // scanCloudFrontKeyGroups discovers key groups used to sign URLs/cookies.
-func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListKeyGroups", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListKeyGroupsOutput, *string, error) {
 			out, err := client.ListKeyGroups(ctx, &cloudfront.ListKeyGroupsInput{Marker: marker})
@@ -779,7 +806,7 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client *cloudfr
 // --- Key Value Stores ---
 
 // scanCloudFrontKeyValueStores discovers CloudFront KeyValueStore resources.
-func scanCloudFrontKeyValueStores(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontKeyValueStores(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListKeyValueStoresPaginator(client, &cloudfront.ListKeyValueStoresInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -820,7 +847,7 @@ func scanCloudFrontKeyValueStores(ctx context.Context, acct *account, client *cl
 // --- Public Keys ---
 
 // scanCloudFrontPublicKeys discovers public keys used with signed URLs/cookies.
-func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListPublicKeysPaginator(client, &cloudfront.ListPublicKeysInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -863,7 +890,7 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client *cloudf
 // --- Real-time Log Configs ---
 
 // scanCloudFrontRealtimeLogConfigs discovers real-time log configurations.
-func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListRealtimeLogConfigs", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListRealtimeLogConfigsOutput, *string, error) {
 			out, err := client.ListRealtimeLogConfigs(ctx, &cloudfront.ListRealtimeLogConfigsInput{Marker: marker})
@@ -907,7 +934,7 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 // --- Trust Stores ---
 
 // scanCloudFrontTrustStores discovers mutual TLS trust stores.
-func scanCloudFrontTrustStores(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontTrustStores(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListTrustStoresPaginator(client, &cloudfront.ListTrustStoresInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -944,7 +971,7 @@ func scanCloudFrontTrustStores(ctx context.Context, acct *account, client *cloud
 // --- Connection Groups ---
 
 // scanCloudFrontConnectionGroups discovers connection groups (VPC origins routing).
-func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudfront.NewListConnectionGroupsPaginator(client, &cloudfront.ListConnectionGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -983,7 +1010,7 @@ func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client *
 // --- Anycast IP Lists ---
 
 // scanCloudFrontAnycastIpLists discovers Anycast static IP lists.
-func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListAnycastIpLists", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListAnycastIpListsOutput, *string, error) {
 			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
@@ -1027,7 +1054,7 @@ func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client *cl
 // --- VPC Origins ---
 
 // scanCloudFrontVpcOrigins discovers VPC origin configurations.
-func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client *cloudfront.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListVpcOrigins", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListVpcOriginsOutput, *string, error) {
 			out, err := client.ListVpcOrigins(ctx, &cloudfront.ListVpcOriginsInput{Marker: marker})

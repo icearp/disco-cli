@@ -10,6 +10,17 @@ import (
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
+// route53API is the narrow set of Route 53 operations called by the
+// scanRoute53 sub-phases.
+type route53API interface {
+	ListHostedZones(context.Context, *route53.ListHostedZonesInput, ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error)
+	ListResourceRecordSets(context.Context, *route53.ListResourceRecordSetsInput, ...func(*route53.Options)) (*route53.ListResourceRecordSetsOutput, error)
+	GetDNSSEC(context.Context, *route53.GetDNSSECInput, ...func(*route53.Options)) (*route53.GetDNSSECOutput, error)
+	ListCidrCollections(context.Context, *route53.ListCidrCollectionsInput, ...func(*route53.Options)) (*route53.ListCidrCollectionsOutput, error)
+	ListHealthChecks(context.Context, *route53.ListHealthChecksInput, ...func(*route53.Options)) (*route53.ListHealthChecksOutput, error)
+	ListTagsForResources(context.Context, *route53.ListTagsForResourcesInput, ...func(*route53.Options)) (*route53.ListTagsForResourcesOutput, error)
+}
+
 func init() {
 	registerService(serviceEntry{
 		name:   "aws:route53",
@@ -140,7 +151,7 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 // scanRoute53RecordSets pages through all record sets in one hosted zone and
 // upserts them. The NativeID is composed as "<zoneARN>/<type>/<name>" to produce
 // a stable, unique identifier per record set within the zone.
-func scanRoute53RecordSets(ctx context.Context, client *route53.Client, acct *account, zoneID, zoneARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRoute53RecordSets(ctx context.Context, client route53API, acct *account, zoneID, zoneARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := route53.NewListResourceRecordSetsPaginator(client, &route53.ListResourceRecordSetsInput{
 		HostedZoneId: &zoneID,
 	})
@@ -188,7 +199,7 @@ func scanRoute53RecordSets(ctx context.Context, client *route53.Client, acct *ac
 // resources per zone. Both resource types come from the same API call.
 func scanRoute53DNSSEC(
 	ctx context.Context,
-	client *route53.Client,
+	client route53API,
 	acct *account,
 	zones []route53ZoneSummary,
 	st *store.Store,
@@ -269,7 +280,7 @@ func scanRoute53DNSSEC(
 // the collection ARN (real ARN provided by the API).
 func scanRoute53CIDRCollections(
 	ctx context.Context,
-	client *route53.Client,
+	client route53API,
 	acct *account,
 	st *store.Store,
 	scanID string,
@@ -319,7 +330,7 @@ func scanRoute53CIDRCollections(
 // batches of 10 via ListTagsForResources (best-effort, same as zone tags).
 func scanRoute53HealthChecks(
 	ctx context.Context,
-	client *route53.Client,
+	client route53API,
 	acct *account,
 	st *store.Store,
 	scanID string,
