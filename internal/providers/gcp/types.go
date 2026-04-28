@@ -19,6 +19,7 @@ const (
 	TypeComputeURLMap           = "gcp:compute:url-map"
 	TypeComputeBackendService   = "gcp:compute:backend-service"
 	TypeComputeBackendBucket    = "gcp:compute:backend-bucket"
+	TypeComputeSecurityPolicy   = "gcp:compute:security-policy"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM
