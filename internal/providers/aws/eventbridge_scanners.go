@@ -12,11 +12,26 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:events", fn: scanEventBridge}) }
 
+// eventbridgeAPI is the narrow set of EventBridge operations called by
+// scanEventBridgeAll.
+type eventbridgeAPI interface {
+	ListEventBuses(context.Context, *eventbridge.ListEventBusesInput, ...func(*eventbridge.Options)) (*eventbridge.ListEventBusesOutput, error)
+	ListRules(context.Context, *eventbridge.ListRulesInput, ...func(*eventbridge.Options)) (*eventbridge.ListRulesOutput, error)
+	ListTargetsByRule(context.Context, *eventbridge.ListTargetsByRuleInput, ...func(*eventbridge.Options)) (*eventbridge.ListTargetsByRuleOutput, error)
+	ListApiDestinations(context.Context, *eventbridge.ListApiDestinationsInput, ...func(*eventbridge.Options)) (*eventbridge.ListApiDestinationsOutput, error)
+	ListConnections(context.Context, *eventbridge.ListConnectionsInput, ...func(*eventbridge.Options)) (*eventbridge.ListConnectionsOutput, error)
+}
+
 // scanEventBridge discovers EventBridge event buses and rules in one region.
 // Rules are listed per event bus and enriched with their targets via
 // ListTargetsByRule (targets are stored inline in attributes for resolver use).
 func scanEventBridge(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eventbridge.NewFromConfig(acct.cfg, func(o *eventbridge.Options) { o.Region = region })
+	return scanEventBridgeAll(ctx, client, acct, region, st, scanID)
+}
+
+// scanEventBridgeAll holds the testable scan body.
+func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	// Phase 1: event buses
 	var busBatch []*store.Resource
