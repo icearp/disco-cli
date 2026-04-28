@@ -22,6 +22,18 @@ func init() {
 	})
 }
 
+// s3API is the narrow set of S3 operations called by the global ListBuckets
+// phase + per-bucket sub-phases. Note: s3 sub-phases construct PER-REGION
+// clients (each bucket's home region), so the iface lift is intentionally
+// SHALLOW — the top-level client used for ListBuckets / GetBucketLocation
+// is bound here; per-bucket clients (GetBucketEncryption / GetBucketPolicy)
+// stay constructed inline. Lifting the per-bucket constructors would require
+// a region→client factory abstraction; defer.
+type s3API interface {
+	ListBuckets(context.Context, *s3.ListBucketsInput, ...func(*s3.Options)) (*s3.ListBucketsOutput, error)
+	GetBucketLocation(context.Context, *s3.GetBucketLocationInput, ...func(*s3.Options)) (*s3.GetBucketLocationOutput, error)
+}
+
 // scanS3 discovers S3 buckets. S3 is a global service; buckets are returned
 // without region info from ListBuckets, but each bucket has a region that can
 // be fetched separately. We store the bucket-level region in attributes.
@@ -82,7 +94,7 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 // bucket name. Buckets without an explicit encryption config return
 // ServerSideEncryptionConfigurationNotFoundError and are silently skipped.
 // AccessDenied is also tolerated (best-effort).
-func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Client, buckets []s3types.Bucket) error {
+func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket) error {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	acct.s3BucketEncryption = make(map[string]s3BucketEncryptionEntry)
 	g, gctx := errgroup.WithContext(ctx)
@@ -130,7 +142,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client *s3.Clie
 // Buckets with no policy (NoSuchBucketPolicy) are silently skipped.
 // Each GetBucketPolicy call uses a client pinned to the bucket's home region —
 // using the wrong region endpoint causes a 301 PermanentRedirect error.
-func scanS3BucketPolicies(ctx context.Context, acct *account, client *s3.Client, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
@@ -199,7 +211,7 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client *s3.Client,
 
 // s3BucketRegion returns the home region of an S3 bucket.
 // GetBucketLocation returns an empty LocationConstraint for us-east-1 buckets.
-func s3BucketRegion(ctx context.Context, client *s3.Client, bucket string) (string, error) {
+func s3BucketRegion(ctx context.Context, client s3API, bucket string) (string, error) {
 	out, err := client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
 	if err != nil {
 		return "", err

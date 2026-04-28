@@ -12,6 +12,20 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
+// s3controlAPI is the narrow set of S3 Control operations called by the
+// scanS3Control sub-phases.
+type s3controlAPI interface {
+	ListAccessGrantsInstances(context.Context, *s3control.ListAccessGrantsInstancesInput, ...func(*s3control.Options)) (*s3control.ListAccessGrantsInstancesOutput, error)
+	ListAccessGrantsLocations(context.Context, *s3control.ListAccessGrantsLocationsInput, ...func(*s3control.Options)) (*s3control.ListAccessGrantsLocationsOutput, error)
+	ListAccessGrants(context.Context, *s3control.ListAccessGrantsInput, ...func(*s3control.Options)) (*s3control.ListAccessGrantsOutput, error)
+	ListAccessPoints(context.Context, *s3control.ListAccessPointsInput, ...func(*s3control.Options)) (*s3control.ListAccessPointsOutput, error)
+	ListMultiRegionAccessPoints(context.Context, *s3control.ListMultiRegionAccessPointsInput, ...func(*s3control.Options)) (*s3control.ListMultiRegionAccessPointsOutput, error)
+	GetMultiRegionAccessPointPolicy(context.Context, *s3control.GetMultiRegionAccessPointPolicyInput, ...func(*s3control.Options)) (*s3control.GetMultiRegionAccessPointPolicyOutput, error)
+	ListStorageLensConfigurations(context.Context, *s3control.ListStorageLensConfigurationsInput, ...func(*s3control.Options)) (*s3control.ListStorageLensConfigurationsOutput, error)
+	GetStorageLensConfiguration(context.Context, *s3control.GetStorageLensConfigurationInput, ...func(*s3control.Options)) (*s3control.GetStorageLensConfigurationOutput, error)
+	ListStorageLensGroups(context.Context, *s3control.ListStorageLensGroupsInput, ...func(*s3control.Options)) (*s3control.ListStorageLensGroupsOutput, error)
+}
+
 func init() {
 	registerService(serviceEntry{
 		name:   "aws:s3control",
@@ -27,7 +41,7 @@ func init() {
 func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := s3control.NewFromConfig(acct.cfg, func(o *s3control.Options) { o.Region = region })
 	// Regional resources: scan in every region.
-	for _, scan := range []func(context.Context, *account, string, *s3control.Client, *store.Store, string) (int, int, error){
+	for _, scan := range []func(context.Context, *account, string, s3controlAPI, *store.Store, string) (int, int, error){
 		scanAccessGrantsInstances,
 		scanAccessGrantsLocations,
 		scanAccessGrants,
@@ -58,7 +72,7 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 
 // scanAccessGrantsInstances lists S3 Access Grants instances for one region.
 // There is at most one instance per region per account.
-func scanAccessGrantsInstances(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAccessGrantsInstances(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	p := s3control.NewListAccessGrantsInstancesPaginator(client, &s3control.ListAccessGrantsInstancesInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
@@ -99,7 +113,7 @@ func scanAccessGrantsInstances(ctx context.Context, acct *account, region string
 
 // scanAccessGrantsLocations lists the registered locations in the account's
 // S3 Access Grants instance for the given region.
-func scanAccessGrantsLocations(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAccessGrantsLocations(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	p := s3control.NewListAccessGrantsLocationsPaginator(client, &s3control.ListAccessGrantsLocationsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
@@ -143,7 +157,7 @@ func scanAccessGrantsLocations(ctx context.Context, acct *account, region string
 
 // scanAccessGrants lists all access grants in the account's S3 Access Grants
 // instance for the given region.
-func scanAccessGrants(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAccessGrants(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	p := s3control.NewListAccessGrantsPaginator(client, &s3control.ListAccessGrantsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
@@ -186,7 +200,7 @@ func scanAccessGrants(ctx context.Context, acct *account, region string, client 
 }
 
 // scanS3AccessPoints lists S3 access points in the given region.
-func scanS3AccessPoints(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanS3AccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	p := s3control.NewListAccessPointsPaginator(client, &s3control.ListAccessPointsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
@@ -226,7 +240,7 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 
 // scanMultiRegionAccessPoints lists all Multi-Region Access Points (global,
 // always routed through us-east-1) and then fetches each one's policy.
-func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mraps []s3ctypes.MultiRegionAccessPointReport
 	p := s3control.NewListMultiRegionAccessPointsPaginator(client, &s3control.ListMultiRegionAccessPointsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
@@ -273,7 +287,7 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client *s3c
 }
 
 // scanMRAPPolicies fetches the policy for each MRAP concurrently.
-func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Client, mraps []s3ctypes.MultiRegionAccessPointReport, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, mraps []s3ctypes.MultiRegionAccessPointReport, st *store.Store, scanID string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
@@ -337,7 +351,7 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client *s3control.Clie
 // sparse — only the Get response carries edge-bearing fields consumed by
 // resolveStorageLensRelationships. Per-item access-denied is tolerated so one
 // unreadable config does not fail the whole scan.
-func scanStorageLens(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageLens(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	// 1. List.
 	var entries []s3ctypes.ListStorageLensConfigurationEntry
 	p := s3control.NewListStorageLensConfigurationsPaginator(client, &s3control.ListStorageLensConfigurationsInput{AccountId: &acct.ID})
@@ -415,7 +429,7 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client *
 }
 
 // scanStorageLensGroups lists S3 Storage Lens groups for the given region.
-func scanStorageLensGroups(ctx context.Context, acct *account, region string, client *s3control.Client, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStorageLensGroups(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	p := s3control.NewListStorageLensGroupsPaginator(client, &s3control.ListStorageLensGroupsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
