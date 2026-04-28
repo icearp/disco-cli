@@ -44,6 +44,8 @@ const (
 	TypeFirestoreDB      = "gcp:firestore:database"
 	TypeSpannerInstance  = "gcp:spanner:instance"
 	TypeSpannerDatabase  = "gcp:spanner:database"
+	// Composer
+	TypeComposerEnv = "gcp:composer:environment"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

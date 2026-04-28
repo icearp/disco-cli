@@ -16,6 +16,7 @@ var expectedGCPServices = []string{
 	"gcp:cloudfunctions",
 	"gcp:cloudkms",
 	"gcp:cloudrun",
+	"gcp:composer",
 	"gcp:compute",
 	"gcp:firestore",
 	"gcp:gke",
