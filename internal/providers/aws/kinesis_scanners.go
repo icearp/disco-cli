@@ -12,12 +12,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:kinesis", fn: scanKinesis}) }
 
+// kinesisAPI is the narrow set of Kinesis operations called by
+// scanKinesisStreams. *kinesis.Client satisfies; tests inject a stub.
+type kinesisAPI interface {
+	ListStreams(context.Context, *kinesis.ListStreamsInput, ...func(*kinesis.Options)) (*kinesis.ListStreamsOutput, error)
+	DescribeStreamSummary(context.Context, *kinesis.DescribeStreamSummaryInput, ...func(*kinesis.Options)) (*kinesis.DescribeStreamSummaryOutput, error)
+	ListTagsForStream(context.Context, *kinesis.ListTagsForStreamInput, ...func(*kinesis.Options)) (*kinesis.ListTagsForStreamOutput, error)
+}
+
 // scanKinesis discovers Kinesis Data Streams in one region. ListStreams
 // returns names; DescribeStreamSummary is called concurrently to fetch
 // encryption + metadata without the expensive shard enumeration.
 func scanKinesis(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kinesis.NewFromConfig(acct.cfg, func(o *kinesis.Options) { o.Region = region })
+	return scanKinesisStreams(ctx, client, acct, region, st, scanID)
+}
 
+// scanKinesisStreams holds the testable scan body.
+func scanKinesisStreams(ctx context.Context, client kinesisAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := kinesis.NewListStreamsPaginator(client, &kinesis.ListStreamsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

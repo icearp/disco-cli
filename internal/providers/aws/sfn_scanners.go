@@ -12,12 +12,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:sfn", fn: scanSFN}) }
 
+// sfnAPI is the narrow set of Step Functions operations called by
+// scanSFNStateMachines.
+type sfnAPI interface {
+	ListStateMachines(context.Context, *sfn.ListStateMachinesInput, ...func(*sfn.Options)) (*sfn.ListStateMachinesOutput, error)
+	DescribeStateMachine(context.Context, *sfn.DescribeStateMachineInput, ...func(*sfn.Options)) (*sfn.DescribeStateMachineOutput, error)
+	ListActivities(context.Context, *sfn.ListActivitiesInput, ...func(*sfn.Options)) (*sfn.ListActivitiesOutput, error)
+}
+
 // scanSFN discovers Step Functions state machines and activities in one region.
 // State machines are list-then-described concurrently so the full Definition
 // (state DAG) lands in attributes for resolvers.
 func scanSFN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sfn.NewFromConfig(acct.cfg, func(o *sfn.Options) { o.Region = region })
+	return scanSFNStateMachines(ctx, client, acct, region, st, scanID)
+}
 
+// scanSFNStateMachines holds the testable scan body.
+func scanSFNStateMachines(ctx context.Context, client sfnAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase 1: list state machine ARNs.
 	var smARNs []string
 	smPager := sfn.NewListStateMachinesPaginator(client, &sfn.ListStateMachinesInput{})

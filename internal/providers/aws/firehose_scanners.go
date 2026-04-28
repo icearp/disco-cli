@@ -12,13 +12,25 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:firehose", fn: scanFirehose}) }
 
+// firehoseAPI is the narrow set of Firehose operations called by
+// scanFirehoseDeliveryStreams.
+type firehoseAPI interface {
+	ListDeliveryStreams(context.Context, *firehose.ListDeliveryStreamsInput, ...func(*firehose.Options)) (*firehose.ListDeliveryStreamsOutput, error)
+	DescribeDeliveryStream(context.Context, *firehose.DescribeDeliveryStreamInput, ...func(*firehose.Options)) (*firehose.DescribeDeliveryStreamOutput, error)
+	ListTagsForDeliveryStream(context.Context, *firehose.ListTagsForDeliveryStreamInput, ...func(*firehose.Options)) (*firehose.ListTagsForDeliveryStreamOutput, error)
+}
+
 // scanFirehose discovers Kinesis Firehose delivery streams in one region.
 // ListDeliveryStreams returns names (paginated via ExclusiveStartDeliveryStreamName);
 // DescribeDeliveryStream is called concurrently per name for full config
 // including destinations and encryption.
 func scanFirehose(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := firehose.NewFromConfig(acct.cfg, func(o *firehose.Options) { o.Region = region })
+	return scanFirehoseDeliveryStreams(ctx, client, acct, region, st, scanID)
+}
 
+// scanFirehoseDeliveryStreams holds the testable scan body.
+func scanFirehoseDeliveryStreams(ctx context.Context, client firehoseAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var exclusiveStart *string
 	for {
 		out, err := client.ListDeliveryStreams(ctx, &firehose.ListDeliveryStreamsInput{
