@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -106,7 +107,6 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 	sem := semaphore.NewWeighted(maxConcurrentServices)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, svc := range filteredServices(services) {
-		svc := svc
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
@@ -165,10 +165,21 @@ func strp(s string) *string {
 }
 
 // isPermissionDenied reports whether err is a GCP 403 / permission denied error.
+//
+// Also covers the BigQuery quirk where API-not-enabled surfaces as HTTP 400
+// with message "has not enabled BigQuery" instead of the usual 403
+// `accessNotConfigured`. Treating both as non-fatal lets downstream code use
+// a single `skipIfDenied` path for the "service unreachable in this project"
+// failure mode regardless of which HTTP code the API picks.
 func isPermissionDenied(err error) bool {
 	var gerr *googleapi.Error
 	if errors.As(err, &gerr) {
-		return gerr.Code == http.StatusForbidden || gerr.Code == http.StatusUnauthorized
+		if gerr.Code == http.StatusForbidden || gerr.Code == http.StatusUnauthorized {
+			return true
+		}
+		if gerr.Code == http.StatusBadRequest && strings.Contains(gerr.Message, "has not enabled") {
+			return true
+		}
 	}
 	return false
 }

@@ -86,6 +86,14 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.12 GCP BigQuery — datasets + tables (this session)
+- **GCP BigQuery** new types `gcp:bigquery:dataset`, `gcp:bigquery:table`. Project-scoped service `gcp:bigquery` runs two phases: (1) `bigquery/v2` `Datasets.List` paginated returns lightweight stubs; (2) per-dataset fan-out (sem 10) does `Datasets.Get` for the full proto (needed for `defaultEncryptionConfiguration.kmsKeyName` → CMEK edge) plus `Tables.List` paginated. NativeIDs are BigQuery's canonical opaque `Id` field (`{project}:{dataset}` or `{project}:{dataset}.{table}`). Hierarchy: dataset → project; table → dataset.
+- **API-not-enabled quirk**. BigQuery surfaces "API not enabled" as HTTP 400 with message `"has not enabled BigQuery"` instead of the standard 403 `accessNotConfigured`. `isPermissionDenied` extended to recognize this 400 variant so disabled BigQuery in a project produces a single warning, not a partial-scan error.
+- **Resolver** `resolveBigQueryRelationships` derives dataset -[uses]-> cryptoKey CMEK edge. Per-table CMEK + authorized-views deferred (per-table Get fan-out cost vs. demand; authorized-views are dataset → dataset which is rare to graph-query). Routines + Models deferred — dataset+table covers the bulk of "what's the schema" queries.
+- **Drive-by lint fix**: removed pre-existing `svc := svc` shadow in `gcp.go` `scanProject` (Go 1.22+ per-iteration scope makes the copy unnecessary).
+- **New helper** `msToRFC3339` — converts BigQuery's millisecond-since-epoch timestamps to RFC3339 pointer for `Resource.CreatedAt`; returns nil for zero/missing values.
+- Live-scan validation: 2 projects, BigQuery enabled in one (returned 0 datasets) and disabled in the other (now downgrades from error to warning).
+
 ### R4.11 GCP Pub/Sub — topics + subscriptions + schemas (this session)
 - **GCP Pub/Sub** new types `gcp:pubsub:topic`, `gcp:pubsub:subscription`, `gcp:pubsub:schema`. Project-scoped service `gcp:pubsub` runs three sequential phases: `pubsub/v1` `Projects.Topics.List`, `Subscriptions.List`, `Schemas.List`. Pub/Sub is global at the API surface — no per-location fan-out. NativeIDs verbatim. Hierarchy pairs via shared `upsertWithProjClosure`.
 - **Resolver** `resolvePubSubRelationships` derives four edge classes:
@@ -613,7 +621,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 9. *(removed — Cloud DNS managed-zone + record-set scanners landed with A/AAAA → forwarding-rule resolver via IP match. CNAME chain + GeoLB routing-policy + DNSSEC + response policies deferred; see COMPLETED R4.9)*
 10. *(removed — Cloud Functions Gen1+Gen2 (via v2 API) + Cloud Run service scanners + function/run → SA + function → KMS resolvers landed via wildcard locations/-. VPC connector + EventTrigger → Pub/Sub/Storage + Cloud Run Jobs deferred; see COMPLETED R4.10)*
 11. *(removed — Pub/Sub topic + subscription + schema scanners landed with subscription→topic/DLQ + topic→KMS/schema resolvers. Push-endpoint URL + BigQuery / Cloud Storage subscription targets deferred; see COMPLETED R4.11)*
-12. **BigQuery** — dataset, table, routine, model. Edges: dataset → CMEK key, → authorized views, table → external source (Storage / Drive).
+12. *(removed — BigQuery dataset + table scanners + dataset→CMEK resolver landed. Routines/Models, per-table CMEK, authorized-views, table → external source deferred; see COMPLETED R4.12)*
 13. **Bigtable / Firestore / Spanner** — instance + database; edges to CMEK, backups.
 14. **Dataproc / Dataflow / Composer** — cluster / job / environment; edges to network, SA.
 15. **Artifact Registry** — repo (docker/npm/maven/...). Edges: repo → CMEK, GKE/Cloud Run → repo pull.

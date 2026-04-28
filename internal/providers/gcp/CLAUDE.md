@@ -16,6 +16,10 @@ Per-project service entries can't reach folder / organization scopes — those n
 
 Member matching: only `serviceAccount:{email}` members are FK-safe today. Email parsed from existing `gcp:iam:service-account` resource NativeIDs (`projects/{id}/serviceAccounts/{email}`); cross-project SA emails won't match the in-store index and the edge is skipped. Non-SA member kinds (user, group, domain, allUsers, allAuthenticatedUsers) require an Entra-equivalent identity scanner — defer until that lands rather than synthesizing principal resources.
 
+## API-not-enabled — protocol variations
+
+Most GCP APIs return 403 `accessNotConfigured` when not enabled in a project. BigQuery is the known exception: it returns HTTP 400 with the message `"has not enabled BigQuery"`. `isPermissionDenied` in `gcp.go` recognizes both — extend it (don't bypass it) when adding scanners that surface API-not-enabled differently.
+
 ## Permission-denied is non-fatal
 
 `isPermissionDenied(err)` covers 401/403. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` which calls `ReportWarning` + returns nil — never propagate 403 from a per-service scanner. Compute / GKE / IAM all enforce per-API enablement; users with disabled APIs see warnings, not failures.

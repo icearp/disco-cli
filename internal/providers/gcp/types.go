@@ -35,6 +35,9 @@ const (
 	TypePubSubTopic        = "gcp:pubsub:topic"
 	TypePubSubSubscription = "gcp:pubsub:subscription"
 	TypePubSubSchema       = "gcp:pubsub:schema"
+	// BigQuery
+	TypeBQDataset = "gcp:bigquery:dataset"
+	TypeBQTable   = "gcp:bigquery:table"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM
