@@ -6,8 +6,6 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/iam/v1"
 )
 
@@ -47,44 +45,34 @@ func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store,
 	}
 
 	// Phase B: fan-out Keys.List per SA, bounded by maxConcurrentSAKeyFetches.
-	sem := semaphore.NewWeighted(maxConcurrentSAKeyFetches)
-	g, gctx := errgroup.WithContext(ctx)
 	var mu sync.Mutex
 	var batch []*store.Resource
-	for _, name := range saNames {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+	if err := forEachItem(ctx, maxConcurrentSAKeyFetches, saNames, func(gctx context.Context, name string) error {
+		resp, err := svc.Projects.ServiceAccounts.Keys.List(name).Context(gctx).Do()
+		if err != nil {
+			if isPermissionDenied(err) {
+				return skipIfDenied(st, "iam:serviceAccounts.keys.list", p.ID, err)
 			}
-			defer sem.Release(1)
-			resp, err := svc.Projects.ServiceAccounts.Keys.List(name).Context(gctx).Do()
-			if err != nil {
-				if isPermissionDenied(err) {
-					return skipIfDenied(st, "iam:serviceAccounts.keys.list", p.ID, err)
-				}
-				return err
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			for _, k := range resp.Keys {
-				keyName := k.Name
-				r := &store.Resource{
-					Provider:       "gcp",
-					AccountID:      p.ID,
-					AccountName:    &p.Name,
-					Type:           TypeIAMSAKey,
-					NativeID:       keyName,
-					Name:           &keyName,
-					CreatedAt:      strp(k.ValidAfterTime),
-					AttributesJSON: mustJSON(k),
-					DiscoveredBy:   scanID,
-				}
-				batch = append(batch, r)
-			}
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
+			return err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, k := range resp.Keys {
+			keyName := k.Name
+			batch = append(batch, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeIAMSAKey,
+				NativeID:       keyName,
+				Name:           &keyName,
+				CreatedAt:      strp(k.ValidAfterTime),
+				AttributesJSON: mustJSON(k),
+				DiscoveredBy:   scanID,
+			})
+		}
+		return nil
+	}); err != nil {
 		return 0, 0, err
 	}
 	if len(batch) == 0 {

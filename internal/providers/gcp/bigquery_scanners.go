@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/bigquery/v2"
 )
 
@@ -74,99 +72,92 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 	}
 
 	// Phase 2: per-dataset Get + Tables.List.
-	sem := semaphore.NewWeighted(maxConcurrentBQDatasets)
-	g, gctx := errgroup.WithContext(ctx)
 	var mu sync.Mutex
-	for _, d := range datasets {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+	if err := forEachItem(ctx, maxConcurrentBQDatasets, datasets, func(gctx context.Context, d dsRef) error {
+		full, err := svc.Datasets.Get(d.projectID, d.datasetID).Context(gctx).Do()
+		if err != nil {
+			if isPermissionDenied(err) {
+				return skipIfDenied(st, "bigquery:datasets.get", p.ID, err)
 			}
-			defer sem.Release(1)
+			return err
+		}
+		// Native ID for dataset: the full opaque "{project}:{dataset}" ID
+		// returned from List/Get; matches BigQuery's own canonical reference.
+		nativeID := full.Id
+		name := d.datasetID
+		region := full.Location
+		dsResource := &store.Resource{
+			Provider:       "gcp",
+			AccountID:      p.ID,
+			AccountName:    &p.Name,
+			Type:           TypeBQDataset,
+			NativeID:       nativeID,
+			Name:           &name,
+			Region:         strp(region),
+			CreatedAt:      msToRFC3339(full.CreationTime),
+			AttributesJSON: mustJSON(full),
+			DiscoveredBy:   scanID,
+		}
+		mu.Lock()
+		tt, nn, uerr := upsertWithProjClosure(p, st, []*store.Resource{dsResource})
+		total += tt
+		inserted += nn
+		mu.Unlock()
+		if uerr != nil {
+			return uerr
+		}
 
-			full, err := svc.Datasets.Get(d.projectID, d.datasetID).Context(gctx).Do()
-			if err != nil {
-				if isPermissionDenied(err) {
-					return skipIfDenied(st, "bigquery:datasets.get", p.ID, err)
+		// Tables for the dataset.
+		dsResourceID := store.ResourceID("gcp", p.ID, TypeBQDataset, nativeID)
+		if err := svc.Tables.List(d.projectID, d.datasetID).Pages(gctx, func(page *bigquery.TableList) error {
+			var batch []*store.Resource
+			for _, tb := range page.Tables {
+				tname := ""
+				if tb.TableReference != nil {
+					tname = tb.TableReference.TableId
 				}
-				return err
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBQTable,
+					NativeID:       tb.Id,
+					Name:           &tname,
+					Region:         strp(region),
+					CreatedAt:      msToRFC3339(tb.CreationTime),
+					AttributesJSON: mustJSON(tb),
+					DiscoveredBy:   scanID,
+				})
 			}
-			// Native ID for dataset: the full opaque "{project}:{dataset}" ID
-			// returned from List/Get; matches BigQuery's own canonical reference.
-			nativeID := full.Id
-			name := d.datasetID
-			region := full.Location
-			dsResource := &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeBQDataset,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         strp(region),
-				CreatedAt:      msToRFC3339(full.CreationTime),
-				AttributesJSON: mustJSON(full),
-				DiscoveredBy:   scanID,
+			if len(batch) == 0 {
+				return nil
 			}
 			mu.Lock()
-			tt, nn, uerr := upsertWithProjClosure(p, st, []*store.Resource{dsResource})
-			total += tt
-			inserted += nn
-			mu.Unlock()
-			if uerr != nil {
-				return uerr
+			defer mu.Unlock()
+			bn, berr := st.UpsertResources(batch)
+			if berr != nil {
+				return berr
 			}
-
-			// Tables for the dataset.
-			dsResourceID := store.ResourceID("gcp", p.ID, TypeBQDataset, nativeID)
-			if err := svc.Tables.List(d.projectID, d.datasetID).Pages(gctx, func(page *bigquery.TableList) error {
-				var batch []*store.Resource
-				for _, tb := range page.Tables {
-					tname := ""
-					if tb.TableReference != nil {
-						tname = tb.TableReference.TableId
-					}
-					batch = append(batch, &store.Resource{
-						Provider:       "gcp",
-						AccountID:      p.ID,
-						AccountName:    &p.Name,
-						Type:           TypeBQTable,
-						NativeID:       tb.Id,
-						Name:           &tname,
-						Region:         strp(region),
-						CreatedAt:      msToRFC3339(tb.CreationTime),
-						AttributesJSON: mustJSON(tb),
-						DiscoveredBy:   scanID,
-					})
-				}
-				if len(batch) == 0 {
-					return nil
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				bn, berr := st.UpsertResources(batch)
-				if berr != nil {
-					return berr
-				}
-				total += len(batch)
-				inserted += bn
-				// Closure: table → dataset.
-				pairs := make([][2]string, 0, len(batch))
-				for _, r := range batch {
-					pairs = append(pairs, [2]string{
-						store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-						dsResourceID,
-					})
-				}
-				return st.BatchAddToHierarchyClosure(pairs)
-			}); err != nil {
-				if isPermissionDenied(err) {
-					return skipIfDenied(st, "bigquery:tables.list", p.ID, err)
-				}
-				return err
+			total += len(batch)
+			inserted += bn
+			// Closure: table → dataset.
+			pairs := make([][2]string, 0, len(batch))
+			for _, r := range batch {
+				pairs = append(pairs, [2]string{
+					store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
+					dsResourceID,
+				})
 			}
-			return nil
-		})
+			return st.BatchAddToHierarchyClosure(pairs)
+		}); err != nil {
+			if isPermissionDenied(err) {
+				return skipIfDenied(st, "bigquery:tables.list", p.ID, err)
+			}
+			return err
+		}
+		return nil
+	}); err != nil {
+		return total, inserted, err
 	}
-	return total, inserted, g.Wait()
+	return total, inserted, nil
 }

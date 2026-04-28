@@ -190,6 +190,26 @@ func runPaginated[P any](ctx context.Context, st *store.Store, p *project, actio
 	return total, inserted, nil
 }
 
+// forEachItem runs fn over each item with at most concurrency goroutines in
+// flight. First non-nil error aborts siblings via the errgroup-derived
+// context. Used by per-location / per-zone / per-SA fan-out scanners (KMS
+// locations, DNS zones, BigQuery datasets, IAM-key SAs) so the
+// errgroup+semaphore boilerplate lives in one place.
+func forEachItem[T any](ctx context.Context, concurrency int, items []T, fn func(ctx context.Context, item T) error) error {
+	sem := semaphore.NewWeighted(int64(concurrency))
+	g, gctx := errgroup.WithContext(ctx)
+	for _, it := range items {
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			return fn(gctx, it)
+		})
+	}
+	return g.Wait()
+}
+
 // project holds a resolved GCP project with its parent hierarchy IDs.
 type project struct {
 	ID       string // GCP project ID (e.g. "my-project-123")

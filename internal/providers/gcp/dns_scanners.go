@@ -6,8 +6,6 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/dns/v1"
 )
 
@@ -72,58 +70,51 @@ func scanCloudDNS(ctx context.Context, p *project, st *store.Store, scanID strin
 	}
 
 	// Phase 2: per-zone record sets.
-	sem := semaphore.NewWeighted(maxConcurrentDNSZones)
-	g, gctx := errgroup.WithContext(ctx)
 	var mu sync.Mutex
-	for _, z := range zones {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+	if err := forEachItem(ctx, maxConcurrentDNSZones, zones, func(gctx context.Context, z zoneRef) error {
+		err := svc.ResourceRecordSets.List(p.ID, z.name).Pages(gctx, func(page *dns.ResourceRecordSetsListResponse) error {
+			var batch []*store.Resource
+			for _, rr := range page.Rrsets {
+				nativeID := fmt.Sprintf("%s/rrsets/%s/%s", z.nativeID, rr.Type, rr.Name)
+				name := fmt.Sprintf("%s %s", rr.Name, rr.Type)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeDNSRecordSet,
+					NativeID:       nativeID,
+					Name:           &name,
+					AttributesJSON: mustJSON(rr),
+					DiscoveredBy:   scanID,
+				})
 			}
-			defer sem.Release(1)
-			err := svc.ResourceRecordSets.List(p.ID, z.name).Pages(gctx, func(page *dns.ResourceRecordSetsListResponse) error {
-				var batch []*store.Resource
-				for _, rr := range page.Rrsets {
-					nativeID := fmt.Sprintf("%s/rrsets/%s/%s", z.nativeID, rr.Type, rr.Name)
-					name := fmt.Sprintf("%s %s", rr.Name, rr.Type)
-					batch = append(batch, &store.Resource{
-						Provider:       "gcp",
-						AccountID:      p.ID,
-						AccountName:    &p.Name,
-						Type:           TypeDNSRecordSet,
-						NativeID:       nativeID,
-						Name:           &name,
-						AttributesJSON: mustJSON(rr),
-						DiscoveredBy:   scanID,
-					})
-				}
-				if len(batch) == 0 {
-					return nil
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				rn, e := st.UpsertResources(batch)
-				if e != nil {
-					return e
-				}
-				total += len(batch)
-				inserted += rn
-				// Closure: record-set → managed-zone.
-				zoneResID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, z.nativeID)
-				pairs := make([][2]string, 0, len(batch))
-				for _, r := range batch {
-					pairs = append(pairs, [2]string{
-						store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-						zoneResID,
-					})
-				}
-				return st.BatchAddToHierarchyClosure(pairs)
-			})
-			if err != nil && isPermissionDenied(err) {
-				return skipIfDenied(st, "dns:resourceRecordSets.list", p.ID, err)
+			if len(batch) == 0 {
+				return nil
 			}
-			return err
+			mu.Lock()
+			defer mu.Unlock()
+			rn, e := st.UpsertResources(batch)
+			if e != nil {
+				return e
+			}
+			total += len(batch)
+			inserted += rn
+			zoneResID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, z.nativeID)
+			pairs := make([][2]string, 0, len(batch))
+			for _, r := range batch {
+				pairs = append(pairs, [2]string{
+					store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
+					zoneResID,
+				})
+			}
+			return st.BatchAddToHierarchyClosure(pairs)
 		})
+		if err != nil && isPermissionDenied(err) {
+			return skipIfDenied(st, "dns:resourceRecordSets.list", p.ID, err)
+		}
+		return err
+	}); err != nil {
+		return total, inserted, err
 	}
-	return total, inserted, g.Wait()
+	return total, inserted, nil
 }

@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/api/cloudkms/v1"
 )
 
@@ -57,78 +55,69 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 	// trip a shared flag on the first such 403 and skip the remaining
 	// locations for this scan.
 	var apiDisabled atomic.Bool
-	sem := semaphore.NewWeighted(maxConcurrentKMSLocations)
-	g, gctx := errgroup.WithContext(ctx)
 	var mu sync.Mutex
 	var batch []*store.Resource
-	for _, locName := range locations {
-		g.Go(func() error {
-			if apiDisabled.Load() {
-				return nil
-			}
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			region := lastSegment(locName) // "projects/{p}/locations/us-central1" → "us-central1"
-			if err := svc.Projects.Locations.KeyRings.List(locName).Pages(gctx, func(krPage *cloudkms.ListKeyRingsResponse) error {
-				for _, kr := range krPage.KeyRings {
-					mu.Lock()
-					name := lastSegment(kr.Name)
-					batch = append(batch, &store.Resource{
-						Provider:       "gcp",
-						AccountID:      p.ID,
-						AccountName:    &p.Name,
-						Type:           TypeKMSKeyRing,
-						NativeID:       kr.Name,
-						Name:           &name,
-						Region:         &region,
-						CreatedAt:      strp(kr.CreateTime),
-						AttributesJSON: mustJSON(kr),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
+	if err := forEachItem(ctx, maxConcurrentKMSLocations, locations, func(gctx context.Context, locName string) error {
+		if apiDisabled.Load() {
+			return nil
+		}
+		region := lastSegment(locName) // "projects/{p}/locations/us-central1" → "us-central1"
+		if err := svc.Projects.Locations.KeyRings.List(locName).Pages(gctx, func(krPage *cloudkms.ListKeyRingsResponse) error {
+			for _, kr := range krPage.KeyRings {
+				mu.Lock()
+				name := lastSegment(kr.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeKMSKeyRing,
+					NativeID:       kr.Name,
+					Name:           &name,
+					Region:         &region,
+					CreatedAt:      strp(kr.CreateTime),
+					AttributesJSON: mustJSON(kr),
+					DiscoveredBy:   scanID,
+				})
+				mu.Unlock()
 
-					if err := svc.Projects.Locations.KeyRings.CryptoKeys.List(kr.Name).Pages(gctx, func(ckPage *cloudkms.ListCryptoKeysResponse) error {
-						for _, ck := range ckPage.CryptoKeys {
-							mu.Lock()
-							ckName := lastSegment(ck.Name)
-							batch = append(batch, &store.Resource{
-								Provider:       "gcp",
-								AccountID:      p.ID,
-								AccountName:    &p.Name,
-								Type:           TypeKMSCryptoKey,
-								NativeID:       ck.Name,
-								Name:           &ckName,
-								Region:         &region,
-								CreatedAt:      strp(ck.CreateTime),
-								AttributesJSON: mustJSON(ck),
-								DiscoveredBy:   scanID,
-							})
-							mu.Unlock()
-						}
-						return nil
-					}); err != nil {
-						if isPermissionDenied(err) {
-							return skipIfDenied(st, "cloudkms:cryptoKeys.list", p.ID, err)
-						}
-						return err
-					}
-				}
-				return nil
-			}); err != nil {
-				if isPermissionDenied(err) {
-					if !apiDisabled.Swap(true) {
-						return skipIfDenied(st, "cloudkms:keyRings.list", p.ID, err)
+				if err := svc.Projects.Locations.KeyRings.CryptoKeys.List(kr.Name).Pages(gctx, func(ckPage *cloudkms.ListCryptoKeysResponse) error {
+					for _, ck := range ckPage.CryptoKeys {
+						mu.Lock()
+						ckName := lastSegment(ck.Name)
+						batch = append(batch, &store.Resource{
+							Provider:       "gcp",
+							AccountID:      p.ID,
+							AccountName:    &p.Name,
+							Type:           TypeKMSCryptoKey,
+							NativeID:       ck.Name,
+							Name:           &ckName,
+							Region:         &region,
+							CreatedAt:      strp(ck.CreateTime),
+							AttributesJSON: mustJSON(ck),
+							DiscoveredBy:   scanID,
+						})
+						mu.Unlock()
 					}
 					return nil
+				}); err != nil {
+					if isPermissionDenied(err) {
+						return skipIfDenied(st, "cloudkms:cryptoKeys.list", p.ID, err)
+					}
+					return err
 				}
-				return err
 			}
 			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
+		}); err != nil {
+			if isPermissionDenied(err) {
+				if !apiDisabled.Swap(true) {
+					return skipIfDenied(st, "cloudkms:keyRings.list", p.ID, err)
+				}
+				return nil
+			}
+			return err
+		}
+		return nil
+	}); err != nil {
 		return 0, 0, err
 	}
 	if len(batch) == 0 {

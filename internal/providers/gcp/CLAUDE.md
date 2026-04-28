@@ -47,6 +47,12 @@ Real IAM 403 (rare; caller lacks permission but API enabled) still goes to warni
 
 `isPermissionDenied(err)` covers 401/403/BigQuery-400. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` — never propagate from per-service scanner. Function dispatches internally between sentinel (API not enabled — see above) and warning (real permission denial).
 
+## `forEachItem[T]` helper — bounded-concurrency fan-out
+
+`forEachItem[T any](ctx, concurrency, items, fn)` in `gcp.go` runs `fn(gctx, item)` over each item with at most `concurrency` goroutines in flight. First non-nil err aborts siblings. Used by per-location / per-zone / per-SA / per-dataset fan-out (KMS, DNS record-sets, IAM-key, BigQuery). Replaces the `sem := semaphore.NewWeighted(...); g, gctx := errgroup.WithContext(...); for ... { g.Go(... sem.Acquire ... defer sem.Release ...) }; g.Wait()` setup repeated across four scanners.
+
+Inner pagination + mutex still belong to the caller — `forEachItem` only owns the fan-out skeleton. Caller-owned: `apiDisabled atomic.Bool` short-circuit (KMS), `var mu sync.Mutex` over shared batch slice, per-call err classification.
+
 ## `runPaginated[P]` helper — preferred List driver
 
 `runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
