@@ -20,6 +20,11 @@ const (
 	TypeComputeBackendService   = "gcp:compute:backend-service"
 	TypeComputeBackendBucket    = "gcp:compute:backend-bucket"
 	TypeComputeSecurityPolicy   = "gcp:compute:security-policy"
+	// Certificate Manager
+	TypeCertManagerCertificate = "gcp:certificatemanager:certificate"
+	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
+	TypeCertManagerMapEntry    = "gcp:certificatemanager:certificate-map-entry"
+	TypeCertManagerDNSAuth     = "gcp:certificatemanager:dns-authorization"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

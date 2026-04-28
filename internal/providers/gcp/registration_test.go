@@ -8,6 +8,7 @@ import (
 // expectedGCPServices is the authoritative list of service names that must be
 // registered. Update this list when adding a new service scanner.
 var expectedGCPServices = []string{
+	"gcp:certificatemanager",
 	"gcp:cloudarmor",
 	"gcp:cloudkms",
 	"gcp:compute",
