@@ -13,6 +13,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:opensearch", fn: scanOpenSearch}) }
 
+// opensearchAPI is the narrow set of OpenSearch operations called by
+// scanOpenSearchDomains.
+type opensearchAPI interface {
+	ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error)
+	DescribeDomain(context.Context, *opensearch.DescribeDomainInput, ...func(*opensearch.Options)) (*opensearch.DescribeDomainOutput, error)
+}
+
 // scanOpenSearch discovers OpenSearch (and legacy Elasticsearch — same SDK)
 // domains in one region. ListDomainNames returns name-only entries; full
 // edge-bearing body lives on DescribeDomain. Per-item AccessDenied
@@ -21,7 +28,11 @@ func init() { registerService(serviceEntry{name: "aws:opensearch", fn: scanOpenS
 // domain edges.
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
+	return scanOpenSearchDomains(ctx, client, acct, region, st, scanID)
+}
 
+// scanOpenSearchDomains holds the testable scan body.
+func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	listOut, lerr := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
 	if lerr != nil {
 		if isAccessDenied(lerr) {

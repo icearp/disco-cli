@@ -13,6 +13,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:glue", fn: scanGlue}) }
 
+// glueAPI is the narrow set of Glue operations called by the scanGlue
+// sub-phases.
+type glueAPI interface {
+	GetDatabases(context.Context, *glue.GetDatabasesInput, ...func(*glue.Options)) (*glue.GetDatabasesOutput, error)
+	GetTables(context.Context, *glue.GetTablesInput, ...func(*glue.Options)) (*glue.GetTablesOutput, error)
+}
+
 // scanGlue discovers Glue Data Catalog databases and tables in one region.
 // Catalog itself is implicit (one per account+region) and not modeled. Two
 // phases run sequentially: GetDatabases (paginator) → per-database GetTables
@@ -50,7 +57,7 @@ func glueTableARN(region, accountID, dbName, tableName string) string {
 	return fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", region, accountID, dbName, tableName)
 }
 
-func scanGlueDatabases(ctx context.Context, client *glue.Client, acct *account, region string, st *store.Store, scanID string) (dbNames []string, total, inserted int, err error) {
+func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (dbNames []string, total, inserted int, err error) {
 	pager := glue.NewGetDatabasesPaginator(client, &glue.GetDatabasesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -91,7 +98,7 @@ func scanGlueDatabases(ctx context.Context, client *glue.Client, acct *account, 
 	return dbNames, len(batch), n, nil
 }
 
-func scanGlueTables(ctx context.Context, client *glue.Client, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total, inserted int, err error) {
+func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex

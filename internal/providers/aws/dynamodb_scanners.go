@@ -12,20 +12,31 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:dynamodb", fn: scanDynamoDB}) }
 
+// dynamodbAPI is the narrow set of DynamoDB operations called by the
+// scanDynamoDB sub-phases.
+type dynamodbAPI interface {
+	ListTables(context.Context, *dynamodb.ListTablesInput, ...func(*dynamodb.Options)) (*dynamodb.ListTablesOutput, error)
+	DescribeTable(context.Context, *dynamodb.DescribeTableInput, ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error)
+	ListGlobalTables(context.Context, *dynamodb.ListGlobalTablesInput, ...func(*dynamodb.Options)) (*dynamodb.ListGlobalTablesOutput, error)
+	DescribeGlobalTable(context.Context, *dynamodb.DescribeGlobalTableInput, ...func(*dynamodb.Options)) (*dynamodb.DescribeGlobalTableOutput, error)
+}
+
 // scanDynamoDB is the orchestrator for all DynamoDB resource types in one region.
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
 	return runScanners(ctx,
-		func(ctx context.Context) (int, int, error) { return scanDynamoDBTables(ctx, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
-			return scanDynamoDBGlobalTables(ctx, acct, region, st, scanID)
+			return scanDynamoDBTables(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDynamoDBGlobalTables(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns
 // names only; we describe each table in parallel to avoid N+1 sequential API calls.
-func scanDynamoDBTables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
+func scanDynamoDBTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := dynamodb.NewListTablesPaginator(client, &dynamodb.ListTablesInput{})
 	return pageScanConcurrent(ctx, "dynamodb:ListTables", acct, region, st,
 		p.HasMorePages,
@@ -62,9 +73,7 @@ func scanDynamoDBTables(ctx context.Context, acct *account, region string, st *s
 // scan is registered per-region like all other services; repeated upserts are
 // idempotent because GlobalTableArn is the stable NativeID. Global tables are
 // stored with Region=nil since they span multiple regions.
-func scanDynamoDBGlobalTables(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
-
+func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// ListGlobalTables has no SDK Paginator; paginate manually via LastEvaluatedGlobalTableName.
 	var startName *string
 	for {

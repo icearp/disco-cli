@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:neptune", fn: scanNeptune}) }
 
+// neptuneAPI is the narrow set of Neptune operations called by the
+// scanNeptune sub-phases.
+type neptuneAPI interface {
+	DescribeDBClusters(context.Context, *neptune.DescribeDBClustersInput, ...func(*neptune.Options)) (*neptune.DescribeDBClustersOutput, error)
+	DescribeDBInstances(context.Context, *neptune.DescribeDBInstancesInput, ...func(*neptune.Options)) (*neptune.DescribeDBInstancesOutput, error)
+}
+
 // scanNeptune discovers Amazon Neptune clusters and instances in one
 // region. Although Neptune rides on the RDS control-plane API
 // (rds:DescribeDBClusters returns Engine=neptune rows), the dedicated
@@ -43,7 +50,7 @@ func scanNeptune(ctx context.Context, acct *account, region string, st *store.St
 	return total, inserted, nil
 }
 
-func scanNeptuneClusters(ctx context.Context, client *neptune.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptuneClusters(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := neptune.NewDescribeDBClustersPaginator(client, &neptune.DescribeDBClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -86,7 +93,7 @@ func scanNeptuneClusters(ctx context.Context, client *neptune.Client, acct *acco
 	return len(batch), n, nil
 }
 
-func scanNeptuneInstances(ctx context.Context, client *neptune.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNeptuneInstances(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := neptune.NewDescribeDBInstancesPaginator(client, &neptune.DescribeDBInstancesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

@@ -13,6 +13,15 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:athena", fn: scanAthena}) }
 
+// athenaAPI is the narrow set of Athena operations called by the scanAthena
+// sub-phases.
+type athenaAPI interface {
+	ListWorkGroups(context.Context, *athena.ListWorkGroupsInput, ...func(*athena.Options)) (*athena.ListWorkGroupsOutput, error)
+	GetWorkGroup(context.Context, *athena.GetWorkGroupInput, ...func(*athena.Options)) (*athena.GetWorkGroupOutput, error)
+	ListDataCatalogs(context.Context, *athena.ListDataCatalogsInput, ...func(*athena.Options)) (*athena.ListDataCatalogsOutput, error)
+	GetDataCatalog(context.Context, *athena.GetDataCatalogInput, ...func(*athena.Options)) (*athena.GetDataCatalogOutput, error)
+}
+
 // scanAthena discovers Athena workgroups and data catalogs in one region.
 // Two phases run sequentially. Each phase: List (paginator, name-only) →
 // fan-out Get for full body (errgroup + fanoutMed). Named queries +
@@ -45,7 +54,7 @@ func athenaDataCatalogARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:athena:%s:%s:datacatalog/%s", region, accountID, name)
 }
 
-func scanAthenaWorkGroups(ctx context.Context, client *athena.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := athena.NewListWorkGroupsPaginator(client, &athena.ListWorkGroupsInput{})
 	var names []string
 	for pager.HasMorePages() {
@@ -122,7 +131,7 @@ func scanAthenaWorkGroups(ctx context.Context, client *athena.Client, acct *acco
 	return len(batch), n, nil
 }
 
-func scanAthenaDataCatalogs(ctx context.Context, client *athena.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := athena.NewListDataCatalogsPaginator(client, &athena.ListDataCatalogsInput{})
 	var names []string
 	for pager.HasMorePages() {

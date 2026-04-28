@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:redshift", fn: scanRedshift}) }
 
+// redshiftAPI is the narrow set of Redshift operations called by the
+// scanRedshift sub-phases.
+type redshiftAPI interface {
+	DescribeClusters(context.Context, *redshift.DescribeClustersInput, ...func(*redshift.Options)) (*redshift.DescribeClustersOutput, error)
+	DescribeClusterSubnetGroups(context.Context, *redshift.DescribeClusterSubnetGroupsInput, ...func(*redshift.Options)) (*redshift.DescribeClusterSubnetGroupsOutput, error)
+}
+
 // scanRedshift discovers Redshift provisioned clusters and cluster subnet
 // groups in one region. Two phases run sequentially. Each phase is
 // paginator-native; List bodies carry edge-bearing fields, no Describe
@@ -45,7 +52,7 @@ func redshiftSubnetGroupARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:redshift:%s:%s:subnetgroup:%s", region, accountID, name)
 }
 
-func scanRedshiftClusters(ctx context.Context, client *redshift.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := redshift.NewDescribeClustersPaginator(client, &redshift.DescribeClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -88,7 +95,7 @@ func scanRedshiftClusters(ctx context.Context, client *redshift.Client, acct *ac
 	return len(batch), n, nil
 }
 
-func scanRedshiftClusterSubnetGroups(ctx context.Context, client *redshift.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := redshift.NewDescribeClusterSubnetGroupsPaginator(client, &redshift.DescribeClusterSubnetGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

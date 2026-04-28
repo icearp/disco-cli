@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:docdb", fn: scanDocDB}) }
 
+// docdbAPI is the narrow set of DocumentDB operations called by the
+// scanDocDB sub-phases.
+type docdbAPI interface {
+	DescribeDBClusters(context.Context, *docdb.DescribeDBClustersInput, ...func(*docdb.Options)) (*docdb.DescribeDBClustersOutput, error)
+	DescribeDBInstances(context.Context, *docdb.DescribeDBInstancesInput, ...func(*docdb.Options)) (*docdb.DescribeDBInstancesOutput, error)
+}
+
 // scanDocDB discovers Amazon DocumentDB clusters and instances in one
 // region. DocumentDB has its own dedicated control-plane API (not shared
 // with RDS, despite the structural similarity), so it needs a dedicated
@@ -37,7 +44,7 @@ func scanDocDB(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-func scanDocDBClusters(ctx context.Context, client *docdb.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocDBClusters(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := docdb.NewDescribeDBClustersPaginator(client, &docdb.DescribeDBClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -80,7 +87,7 @@ func scanDocDBClusters(ctx context.Context, client *docdb.Client, acct *account,
 	return len(batch), n, nil
 }
 
-func scanDocDBInstances(ctx context.Context, client *docdb.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocDBInstances(ctx context.Context, client docdbAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := docdb.NewDescribeDBInstancesPaginator(client, &docdb.DescribeDBInstancesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
