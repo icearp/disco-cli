@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
+	"google.golang.org/api/compute/v1"
 )
 
 // TestResolveComputeInstanceRelationships verifies that a GCP instance's
@@ -17,16 +18,12 @@ func TestResolveComputeInstanceRelationships(t *testing.T) {
 	networkURL := "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/default"
 	subnetURL := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/default"
 
-	attrsJSON := `{
-		"networkInterfaces": [
-			{
-				"network":    "` + networkURL + `",
-				"subnetwork": "` + subnetURL + `"
-			}
-		]
-	}`
+	inst := compute.Instance{NetworkInterfaces: []*compute.NetworkInterface{{
+		Network:    networkURL,
+		Subnetwork: subnetURL,
+	}}}
 	instID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstance,
-		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-1", "", attrsJSON)
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-1", "", marshalAttrs(t, inst))
 	netID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeNetwork, networkURL, "", "{}")
 	subnetID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeSubnet, subnetURL, "", "{}")
 
@@ -53,9 +50,9 @@ func TestResolveComputeInstanceRelationships_NetworkOnly(t *testing.T) {
 	p := newTestProject("my-project")
 
 	networkURL := "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/default"
-	attrsJSON := `{"networkInterfaces": [{"network": "` + networkURL + `"}]}`
+	inst := compute.Instance{NetworkInterfaces: []*compute.NetworkInterface{{Network: networkURL}}}
 	instID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeInstance,
-		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-2", "", attrsJSON)
+		"//compute.googleapis.com/projects/my-project/zones/us-central1-a/instances/inst-2", "", marshalAttrs(t, inst))
 	upsertTestResource(t, st, "gcp", p.ID, TypeComputeNetwork, networkURL, "", "{}")
 
 	if err := resolveComputeInstanceRelationships(p, st); err != nil {
@@ -100,9 +97,9 @@ func TestResolveSubnetworkRelationships(t *testing.T) {
 
 	networkURL := "https://www.googleapis.com/compute/v1/projects/my-project/global/networks/default"
 	subnetURL := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/subnetworks/default"
-	attrsJSON := `{"network": "` + networkURL + `"}`
+	subnet := compute.Subnetwork{Network: networkURL}
 
-	subnetID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeSubnet, subnetURL, "", attrsJSON)
+	subnetID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeSubnet, subnetURL, "", marshalAttrs(t, subnet))
 	netID := upsertTestResource(t, st, "gcp", p.ID, TypeComputeNetwork, networkURL, "", "{}")
 
 	if err := resolveSubnetworkRelationships(p, st); err != nil {

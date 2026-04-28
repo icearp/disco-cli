@@ -88,6 +88,14 @@ GCP Compute `*.AggregatedList` returns `map[string]ScopedList` where keys are ei
 
 Scanners fanning out over global locations/regions catalog before hitting API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional) still benefit from per-project `atomic.Bool` short-circuit even though sentinel mechanism above already suppresses warning storm. Reason: each goroutine still issues API call before returning sentinel. Flipping bool on first 403 lets remaining goroutines exit without network round-trip. Precedent: `kms_scanners.go` `apiDisabled`.
 
+## Scanner-level tests via httptest fake server
+
+Per-phase scanners (`scanForwardingRules`, `scanInstances`, etc.) already accept `*compute.Service` — directly testable, no body extraction needed. Pattern: `httptest.NewServer` + `option.WithEndpoint(srv.URL)` + `option.WithHTTPClient(srv.Client())` + `option.WithoutAuthentication()` builds a concrete client pointed at the fake. Helpers in `fake_testhelper_test.go`: `fakeGCPServer(t, routes)`, `fakeGCPServerStatus(t, status, body)`, `fakeComputeService(t, srv)`. Precedent: `loadbalancing_scanners_test.go` covers happy path, real-403 ScanWarning, API-not-enabled sentinel.
+
+**Endpoint path gotcha:** `option.WithEndpoint(srv.URL)` replaces the *full* base URL including `/compute/v1`. Route keys are `/projects/{p}/aggregated/forwardingRules` — **not** `/compute/v1/projects/...`. First-time 404? Strip the API-version prefix.
+
+For permission-denied test bodies, mirror the exact `googleapi.Error` JSON shape `isPermissionDenied` / `isAPINotEnabled` inspect — `accessNotConfigured` reason or `"has not been used in project"` message triggers the sentinel path; anything else triggers the warning path.
+
 ## Resource ID conventions
 
 NativeID = full resource name where GCP returns one (`sa.Name`, `inst.SelfLink`, `projects/{id}` for projects, `organizations/{id}` for orgs). Compute uses self-link URLs verbatim — include project/region/zone, so same instance scanned in two projects produces two distinct rows. For hierarchy parent of any project-scoped resource use `store.ResourceID("gcp", p.ID, TypeProject, p.ID)` — project's NativeID is bare ID, not `projects/{id}` form.
