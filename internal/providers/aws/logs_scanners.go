@@ -18,13 +18,34 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:logs", fn: scanLogs}) }
 
+// cwlogsAPI is the narrow set of CloudWatch Logs operations called by the
+// scanLogs sub-phases.
+type cwlogsAPI interface {
+	DescribeLogGroups(context.Context, *cwlogs.DescribeLogGroupsInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeLogGroupsOutput, error)
+	DescribeLogStreams(context.Context, *cwlogs.DescribeLogStreamsInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeLogStreamsOutput, error)
+	DescribeAccountPolicies(context.Context, *cwlogs.DescribeAccountPoliciesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeAccountPoliciesOutput, error)
+	DescribeMetricFilters(context.Context, *cwlogs.DescribeMetricFiltersInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeMetricFiltersOutput, error)
+	DescribeSubscriptionFilters(context.Context, *cwlogs.DescribeSubscriptionFiltersInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeSubscriptionFiltersOutput, error)
+	DescribeDeliveries(context.Context, *cwlogs.DescribeDeliveriesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeDeliveriesOutput, error)
+	DescribeDeliveryDestinations(context.Context, *cwlogs.DescribeDeliveryDestinationsInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeDeliveryDestinationsOutput, error)
+	DescribeDeliverySources(context.Context, *cwlogs.DescribeDeliverySourcesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeDeliverySourcesOutput, error)
+	DescribeDestinations(context.Context, *cwlogs.DescribeDestinationsInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeDestinationsOutput, error)
+	DescribeQueryDefinitions(context.Context, *cwlogs.DescribeQueryDefinitionsInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeQueryDefinitionsOutput, error)
+	DescribeResourcePolicies(context.Context, *cwlogs.DescribeResourcePoliciesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeResourcePoliciesOutput, error)
+	ListLogAnomalyDetectors(context.Context, *cwlogs.ListLogAnomalyDetectorsInput, ...func(*cwlogs.Options)) (*cwlogs.ListLogAnomalyDetectorsOutput, error)
+	ListIntegrations(context.Context, *cwlogs.ListIntegrationsInput, ...func(*cwlogs.Options)) (*cwlogs.ListIntegrationsOutput, error)
+	GetIntegration(context.Context, *cwlogs.GetIntegrationInput, ...func(*cwlogs.Options)) (*cwlogs.GetIntegrationOutput, error)
+	ListScheduledQueries(context.Context, *cwlogs.ListScheduledQueriesInput, ...func(*cwlogs.Options)) (*cwlogs.ListScheduledQueriesOutput, error)
+	GetTransformer(context.Context, *cwlogs.GetTransformerInput, ...func(*cwlogs.Options)) (*cwlogs.GetTransformerOutput, error)
+}
+
 // scanLogs discovers all CloudWatch Logs resources in one region.
 // Phase 1 scans independent resources; phase 2 scans per-log-group resources
 // that depend on phase 1 log groups being in the DB first.
 func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cwlogs.NewFromConfig(acct.cfg, func(o *cwlogs.Options) { o.Region = region })
 
-	type subFn func(context.Context, *cwlogs.Client, *account, string, *store.Store, string) (int, int, error)
+	type subFn func(context.Context, cwlogsAPI, *account, string, *store.Store, string) (int, int, error)
 
 	// Phase 1: independent scanners — run sequentially.
 	phase1 := []subFn{
@@ -87,7 +108,7 @@ func logGroupNativeIDFromName(accountID, region, name string) string {
 // scanLogsLogGroups discovers all CloudWatch Logs log groups in the region.
 // Tags are not returned inline by DescribeLogGroups and require a separate
 // ListTagsForResource call; we skip tag fetching to keep scanning fast.
-func scanLogsLogGroups(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeLogGroupsPaginator(client, &cwlogs.DescribeLogGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -127,7 +148,7 @@ func scanLogsLogGroups(ctx context.Context, client *cwlogs.Client, acct *account
 
 // scanLogsAccountPolicies discovers all CloudWatch Logs account-level policies.
 // The API requires a PolicyType parameter; we iterate all known types.
-func scanLogsAccountPolicies(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, pt := range logsTypes.PolicyType("").Values() {
 		var nextToken *string
 		for {
@@ -175,7 +196,7 @@ func scanLogsAccountPolicies(ctx context.Context, client *cwlogs.Client, acct *a
 }
 
 // scanLogsDeliveries discovers all CloudWatch Logs deliveries in the region.
-func scanLogsDeliveries(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeDeliveriesPaginator(client, &cwlogs.DescribeDeliveriesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -214,7 +235,7 @@ func scanLogsDeliveries(ctx context.Context, client *cwlogs.Client, acct *accoun
 }
 
 // scanLogsDeliveryDestinations discovers all CloudWatch Logs delivery destinations.
-func scanLogsDeliveryDestinations(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeDeliveryDestinationsPaginator(client, &cwlogs.DescribeDeliveryDestinationsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -253,7 +274,7 @@ func scanLogsDeliveryDestinations(ctx context.Context, client *cwlogs.Client, ac
 }
 
 // scanLogsDeliverySources discovers all CloudWatch Logs delivery sources.
-func scanLogsDeliverySources(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsDeliverySources(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeDeliverySourcesPaginator(client, &cwlogs.DescribeDeliverySourcesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -292,7 +313,7 @@ func scanLogsDeliverySources(ctx context.Context, client *cwlogs.Client, acct *a
 }
 
 // scanLogsDestinations discovers all CloudWatch Logs cross-account destinations.
-func scanLogsDestinations(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeDestinationsPaginator(client, &cwlogs.DescribeDestinationsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -332,7 +353,7 @@ func scanLogsDestinations(ctx context.Context, client *cwlogs.Client, acct *acco
 
 // scanLogsIntegrations discovers all CloudWatch Logs integrations, fetching
 // full details for each via GetIntegration concurrently.
-func scanLogsIntegrations(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.ListIntegrations(ctx, &cwlogs.ListIntegrationsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -399,7 +420,7 @@ func scanLogsIntegrations(ctx context.Context, client *cwlogs.Client, acct *acco
 }
 
 // scanLogsLogAnomalyDetectors discovers all CloudWatch Logs anomaly detectors.
-func scanLogsLogAnomalyDetectors(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsLogAnomalyDetectors(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewListLogAnomalyDetectorsPaginator(client, &cwlogs.ListLogAnomalyDetectorsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -440,7 +461,7 @@ func scanLogsLogAnomalyDetectors(ctx context.Context, client *cwlogs.Client, acc
 // scanLogsMetricFilters discovers all CloudWatch Logs metric filters in the
 // region. Called without a log group filter to retrieve all filters at once.
 // Hierarchy closure is recorded so each filter points back to its log group.
-func scanLogsMetricFilters(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewDescribeMetricFiltersPaginator(client, &cwlogs.DescribeMetricFiltersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -492,7 +513,7 @@ func scanLogsMetricFilters(ctx context.Context, client *cwlogs.Client, acct *acc
 
 // scanLogsQueryDefinitions discovers all CloudWatch Logs Insights saved query
 // definitions using manual NextToken pagination.
-func scanLogsQueryDefinitions(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsQueryDefinitions(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.DescribeQueryDefinitions(ctx, &cwlogs.DescribeQueryDefinitionsInput{
@@ -538,7 +559,7 @@ func scanLogsQueryDefinitions(ctx context.Context, client *cwlogs.Client, acct *
 
 // scanLogsResourcePolicies discovers all CloudWatch Logs resource policies
 // using manual NextToken pagination.
-func scanLogsResourcePolicies(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var nextToken *string
 	for {
 		out, err := client.DescribeResourcePolicies(ctx, &cwlogs.DescribeResourcePoliciesInput{
@@ -583,7 +604,7 @@ func scanLogsResourcePolicies(ctx context.Context, client *cwlogs.Client, acct *
 
 // scanLogsScheduledQueries discovers all CloudWatch Logs Insights Live Tail
 // scheduled queries in the region.
-func scanLogsScheduledQueries(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsScheduledQueries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cwlogs.NewListScheduledQueriesPaginator(client, &cwlogs.ListScheduledQueriesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -640,7 +661,7 @@ func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]st
 // scanLogsLogStreams fetches log streams for every log group in the region,
 // running up to 20 log groups concurrently. Hierarchy closure is recorded
 // so each stream points back to its log group.
-func scanLogsLogStreams(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	groups, err := loadLogGroupsForRegion(acct, region, st)
 	if err != nil {
 		return 0, 0, fmt.Errorf("load log groups for streams: %w", err)
@@ -672,7 +693,7 @@ func scanLogsLogStreams(ctx context.Context, client *cwlogs.Client, acct *accoun
 }
 
 // scanLogStreamsForGroup paginates log streams for one log group and upserts them.
-func scanLogStreamsForGroup(ctx context.Context, client *cwlogs.Client, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	lgName := ""
 	if grp.Name != nil {
 		lgName = *grp.Name
@@ -727,7 +748,7 @@ func scanLogStreamsForGroup(ctx context.Context, client *cwlogs.Client, acct *ac
 
 // scanLogsSubscriptionFilters fetches subscription filters for every log group,
 // running up to 20 log groups concurrently.
-func scanLogsSubscriptionFilters(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	groups, err := loadLogGroupsForRegion(acct, region, st)
 	if err != nil {
 		return 0, 0, fmt.Errorf("load log groups for subscription filters: %w", err)
@@ -759,7 +780,7 @@ func scanLogsSubscriptionFilters(ctx context.Context, client *cwlogs.Client, acc
 }
 
 // scanSubscriptionFiltersForGroup paginates subscription filters for one log group.
-func scanSubscriptionFiltersForGroup(ctx context.Context, client *cwlogs.Client, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, grp store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	lgName := ""
 	if grp.Name != nil {
 		lgName = *grp.Name
@@ -815,7 +836,7 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client *cwlogs.Client,
 // scanLogsTransformers fetches log transformers for every log group, running up
 // to 20 log groups concurrently. Each log group has at most one transformer.
 // Groups without a transformer return ResourceNotFoundException, which is skipped.
-func scanLogsTransformers(ctx context.Context, client *cwlogs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	groups, err := loadLogGroupsForRegion(acct, region, st)
 	if err != nil {
 		return 0, 0, fmt.Errorf("load log groups for transformers: %w", err)
