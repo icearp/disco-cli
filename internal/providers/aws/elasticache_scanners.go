@@ -12,10 +12,25 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:elasticache", fn: scanElastiCache}) }
 
+// elasticacheAPI is the narrow set of ElastiCache operations called by the
+// scanElastiCache sub-phases.
+type elasticacheAPI interface {
+	DescribeCacheClusters(context.Context, *elasticache.DescribeCacheClustersInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error)
+	DescribeReplicationGroups(context.Context, *elasticache.DescribeReplicationGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeReplicationGroupsOutput, error)
+	DescribeGlobalReplicationGroups(context.Context, *elasticache.DescribeGlobalReplicationGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeGlobalReplicationGroupsOutput, error)
+	DescribeCacheParameterGroups(context.Context, *elasticache.DescribeCacheParameterGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheParameterGroupsOutput, error)
+	DescribeCacheSecurityGroups(context.Context, *elasticache.DescribeCacheSecurityGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheSecurityGroupsOutput, error)
+	DescribeServerlessCaches(context.Context, *elasticache.DescribeServerlessCachesInput, ...func(*elasticache.Options)) (*elasticache.DescribeServerlessCachesOutput, error)
+	DescribeCacheSubnetGroups(context.Context, *elasticache.DescribeCacheSubnetGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheSubnetGroupsOutput, error)
+	DescribeUsers(context.Context, *elasticache.DescribeUsersInput, ...func(*elasticache.Options)) (*elasticache.DescribeUsersOutput, error)
+	DescribeUserGroups(context.Context, *elasticache.DescribeUserGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeUserGroupsOutput, error)
+	ListTagsForResource(context.Context, *elasticache.ListTagsForResourceInput, ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
+}
+
 // scanElastiCache discovers all ElastiCache resource types in the given region.
 func scanElastiCache(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticache.NewFromConfig(acct.cfg, func(o *elasticache.Options) { o.Region = region })
-	for _, scan := range []func(context.Context, *elasticache.Client, *account, string, *store.Store, string) (int, int, error){
+	for _, scan := range []func(context.Context, elasticacheAPI, *account, string, *store.Store, string) (int, int, error){
 		scanElastiCacheReplicationGroups,
 		scanElastiCacheClusters,
 		scanElastiCacheGlobalReplicationGroups,
@@ -38,7 +53,7 @@ func scanElastiCache(ctx context.Context, acct *account, region string, st *stor
 
 // scanElastiCacheReplicationGroups pages through DescribeReplicationGroups and
 // upserts each group. Tags are included via ListTagsForResource.
-func scanElastiCacheReplicationGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeReplicationGroupsPaginator(client, &elasticache.DescribeReplicationGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -84,7 +99,7 @@ func scanElastiCacheReplicationGroups(ctx context.Context, client *elasticache.C
 
 // scanElastiCacheClusters pages through DescribeCacheClusters. This covers
 // Memcached clusters and the individual shard clusters within Redis replication groups.
-func scanElastiCacheClusters(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheClusters(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeCacheClustersPaginator(client, &elasticache.DescribeCacheClustersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -133,7 +148,7 @@ func scanElastiCacheClusters(ctx context.Context, client *elasticache.Client, ac
 // scanElastiCacheGlobalReplicationGroups pages through DescribeGlobalReplicationGroups.
 // These are global resources (not region-scoped); UpsertResources deduplicates by
 // stable NativeID-derived primary key, so calling per-region is safe.
-func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	showMembers := true
 	pager := elasticache.NewDescribeGlobalReplicationGroupsPaginator(client, &elasticache.DescribeGlobalReplicationGroupsInput{
 		ShowMemberInfo: &showMembers,
@@ -174,7 +189,7 @@ func scanElastiCacheGlobalReplicationGroups(ctx context.Context, client *elastic
 }
 
 // scanElastiCacheParameterGroups pages through DescribeCacheParameterGroups.
-func scanElastiCacheParameterGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeCacheParameterGroupsPaginator(client, &elasticache.DescribeCacheParameterGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -228,7 +243,7 @@ func isCacheSecurityGroupsNotPermitted(err error) bool {
 // scanElastiCacheSecurityGroups pages through DescribeCacheSecurityGroups.
 // These are legacy EC2-Classic security groups; VPC-only accounts return
 // InvalidParameterValue, which is treated as an empty result.
-func scanElastiCacheSecurityGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheSecurityGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeCacheSecurityGroupsPaginator(client, &elasticache.DescribeCacheSecurityGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -275,7 +290,7 @@ func scanElastiCacheSecurityGroups(ctx context.Context, client *elasticache.Clie
 }
 
 // scanElastiCacheServerlessCaches pages through DescribeServerlessCaches.
-func scanElastiCacheServerlessCaches(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheServerlessCaches(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeServerlessCachesPaginator(client, &elasticache.DescribeServerlessCachesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -320,7 +335,7 @@ func scanElastiCacheServerlessCaches(ctx context.Context, client *elasticache.Cl
 }
 
 // scanElastiCacheSubnetGroups pages through DescribeCacheSubnetGroups.
-func scanElastiCacheSubnetGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheSubnetGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeCacheSubnetGroupsPaginator(client, &elasticache.DescribeCacheSubnetGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -364,7 +379,7 @@ func scanElastiCacheSubnetGroups(ctx context.Context, client *elasticache.Client
 }
 
 // scanElastiCacheUsers pages through DescribeUsers.
-func scanElastiCacheUsers(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeUsersPaginator(client, &elasticache.DescribeUsersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -409,7 +424,7 @@ func scanElastiCacheUsers(ctx context.Context, client *elasticache.Client, acct 
 }
 
 // scanElastiCacheUserGroups pages through DescribeUserGroups.
-func scanElastiCacheUserGroups(ctx context.Context, client *elasticache.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticache.NewDescribeUserGroupsPaginator(client, &elasticache.DescribeUserGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
