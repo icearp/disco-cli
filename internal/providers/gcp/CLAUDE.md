@@ -33,13 +33,19 @@ Per-project service entries can't reach folder / organization scopes — those n
 
 Member matching: only `serviceAccount:{email}` members are FK-safe today. Email parsed from existing `gcp:iam:service-account` resource NativeIDs (`projects/{id}/serviceAccounts/{email}`); cross-project SA emails won't match the in-store index and the edge is skipped. Non-SA member kinds (user, group, domain, allUsers, allAuthenticatedUsers) require an Entra-equivalent identity scanner — defer until that lands rather than synthesizing principal resources.
 
-## API-not-enabled — protocol variations
+## API-not-enabled → service-disabled sentinel
 
-Most GCP APIs return 403 `accessNotConfigured` when not enabled in a project. BigQuery is the known exception: it returns HTTP 400 with the message `"has not enabled BigQuery"`. `isPermissionDenied` in `gcp.go` recognizes both — extend it (don't bypass it) when adding scanners that surface API-not-enabled differently.
+When an API is not enabled in the project, scanners propagate a sentinel error and the dispatch loop renders `(service disabled)` on the per-service progress line — no warning. Mechanism:
+
+- `isAPINotEnabled(err)` (in `gcp.go`) matches three known shapes: 403 message `"has not been used in project"`, 400 message `"has not enabled"` (BigQuery), and `googleapi.Error.Errors[].Reason == "accessNotConfigured"`. Extend this predicate (not `isPermissionDenied`) when adding scanners that surface API-not-enabled differently.
+- `skipIfDenied` returns `markServiceDisabled(err)` when `isAPINotEnabled` matches, otherwise records a `ScanWarning` and returns nil. Existing call sites (`if isPermissionDenied(err) { return ..., skipIfDenied(...) }`) bubble the sentinel up automatically — no per-scanner-file edits needed.
+- `scanProject` detects the sentinel via `errors.Is(err, errServiceDisabled)` and calls `st.ReportService(name, 0, 0, 0, true)` so `cmd/scan.go` renders the `(service disabled)` suffix. Mirrors the AWS pattern (`aws/aws.go` `errServiceDisabled` + `markServiceDisabled`).
+
+Real IAM 403 (rare; caller lacks permission but API is enabled) still goes to warnings via `skipIfDenied`'s second branch. Spanner billing-disabled (`"has billing disabled"`) is intentionally out of scope — billing precondition, not API enablement; surfaces as warning.
 
 ## Permission-denied is non-fatal
 
-`isPermissionDenied(err)` covers 401/403. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` which calls `ReportWarning` + returns nil — never propagate 403 from a per-service scanner. Compute / GKE / IAM all enforce per-API enablement; users with disabled APIs see warnings, not failures.
+`isPermissionDenied(err)` covers 401/403/BigQuery-400. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` — never propagate from a per-service scanner. The function dispatches internally between sentinel (API not enabled — see above) and warning (real permission denial).
 
 ## Wildcard locations parent
 
@@ -60,9 +66,9 @@ Stable across rescans; matches the synthetic-NativeID precedent in `internal/sto
 
 GCP Compute `*.AggregatedList` returns `map[string]ScopedList` where keys are either `"global"` or `"regions/{region}"`. Helper `scopedListRegion(scope)` in `loadbalancing_scanners.go` extracts the region segment (returns "" for global). Reuse for any new AggregatedList consumer.
 
-## API-not-enabled noise dedup
+## API-not-enabled fan-out short-circuit
 
-Some GCP scanners fan out over the global locations / regions catalog before hitting an API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional). When the API is disabled in the project, every fan-out unit returns 403, producing ~30 identical "API has not been used" warnings per project. Pattern: per-project `atomic.Bool`, flip on first 403 via `Swap(true)`, skip remaining units. Precedent: `kms_scanners.go` `apiDisabled`. Reuse for any future scanner with this fan-out shape.
+Scanners that fan out over the global locations / regions catalog before hitting an API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional) still benefit from a per-project `atomic.Bool` short-circuit even though the sentinel mechanism above already suppresses the warning storm. Reason: each goroutine still issues an API call before returning the sentinel. Flipping the bool on first 403 lets remaining goroutines exit without a network round-trip. Precedent: `kms_scanners.go` `apiDisabled`.
 
 ## Resource ID conventions
 
