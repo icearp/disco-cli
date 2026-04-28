@@ -46,6 +46,8 @@ const (
 	TypeSpannerDatabase  = "gcp:spanner:database"
 	// Composer
 	TypeComposerEnv = "gcp:composer:environment"
+	// Artifact Registry
+	TypeArtifactRepository = "gcp:artifactregistry:repository"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

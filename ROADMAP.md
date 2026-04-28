@@ -86,6 +86,12 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.15 GCP Artifact Registry — repositories (this session)
+- **GCP Artifact Registry** new type `gcp:artifactregistry:repository`. Project-scoped service `gcp:artifactregistry` runs one phase: `artifactregistry/v1` `Projects.Locations.Repositories.List` with the `locations/-` wildcard parent. Format (DOCKER / NPM / MAVEN / PYTHON / APT / YUM / GO / KFP) carried inline in attributes — no per-format scanner needed.
+- **Resolver** `resolveArtifactRegistryRelationships` derives repository -[uses]-> cryptoKey CMEK edges via `kmsKeyName`. Reverse-direction edges (GKE / Cloud Run → repository pull) deferred — they require parsing image references out of container specs, not yet structured fields on either workload scanner.
+- Per-package + per-version fan-out deferred (version cardinality unbounded on busy registries; rare graph edges).
+- Live-scan validation: 2 projects, Artifact Registry API disabled in both; 0 repos, scanner ran clean.
+
 ### R4.14 GCP Cloud Composer environments (this session)
 - **GCP Cloud Composer** new type `gcp:composer:environment`. Project-scoped service `gcp:composer` runs one phase: `composer/v1` `Projects.Locations.Environments.List` with the wildcard parent `projects/{p}/locations/-`. Composer SDK has no Locations.List, so the wildcard is the only practical shape — per-location fan-out would require an external region enumeration.
 - **Resolver** `resolveComposerRelationships` derives:
@@ -642,7 +648,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 12. *(removed — BigQuery dataset + table scanners + dataset→CMEK resolver landed. Routines/Models, per-table CMEK, authorized-views, table → external source deferred; see COMPLETED R4.12)*
 13. *(removed — Bigtable instance+cluster, Firestore database, Spanner instance+database scanners landed with unified CMEK resolver across all three. Backups, tables, sessions, indexes deferred; see COMPLETED R4.13)*
 14. **Dataproc + Dataflow** — cluster / job; edges to network, SA. *(Composer environment scanner + CMEK/SA resolver landed via locations/- wildcard — see COMPLETED R4.14. Dataproc + Dataflow remain — both need a shared per-region fan-out helper since neither supports the locations/- wildcard pattern.)*
-15. **Artifact Registry** — repo (docker/npm/maven/...). Edges: repo → CMEK, GKE/Cloud Run → repo pull.
+15. *(removed — Artifact Registry repository scanner + repo→CMEK resolver landed via locations/- wildcard. GKE/Cloud Run → repo pull edges deferred (image-ref parsing); see COMPLETED R4.15)*
 16. **Cloud Logging sinks** + monitoring alert policies — sink → destination (GCS/BQ/PubSub).
 17. **Cloud Build triggers** — trigger → repo + worker pool.
 18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services.
