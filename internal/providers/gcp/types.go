@@ -31,6 +31,10 @@ const (
 	// Cloud Functions / Cloud Run
 	TypeCloudFunction = "gcp:cloudfunctions:function"
 	TypeCloudRunSvc   = "gcp:run:service"
+	// Pub/Sub
+	TypePubSubTopic        = "gcp:pubsub:topic"
+	TypePubSubSubscription = "gcp:pubsub:subscription"
+	TypePubSubSchema       = "gcp:pubsub:schema"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

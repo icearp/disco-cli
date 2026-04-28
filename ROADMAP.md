@@ -86,6 +86,17 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.11 GCP Pub/Sub — topics + subscriptions + schemas (this session)
+- **GCP Pub/Sub** new types `gcp:pubsub:topic`, `gcp:pubsub:subscription`, `gcp:pubsub:schema`. Project-scoped service `gcp:pubsub` runs three sequential phases: `pubsub/v1` `Projects.Topics.List`, `Subscriptions.List`, `Schemas.List`. Pub/Sub is global at the API surface — no per-location fan-out. NativeIDs verbatim. Hierarchy pairs via shared `upsertWithProjClosure`.
+- **Resolver** `resolvePubSubRelationships` derives four edge classes:
+  - subscription -[attached-to]-> topic (subscription.topic)
+  - subscription -[routes-to]-> dead-letter topic (deadLetterPolicy.deadLetterTopic)
+  - topic -[uses]-> cryptoKey (topic.kmsKeyName, version-suffix stripped)
+  - topic -[uses]-> schema (topic.schemaSettings.schema)
+  Pub/Sub's tombstone string `_deleted-topic_` for orphaned subscription topic refs implicitly skipped by the FK lookup.
+- Deferred: subscription push-endpoint URLs (parses to Cloud Run / Cloud Functions / arbitrary HTTPS — needs hostname resolution against in-store resources, deferred); BigQuery dataset / Cloud Storage bucket subscription targets (BigQuery scanner is R4.12; storage edge needs `cloudStorageConfig.bucket` parsing alongside).
+- Live-scan validation: 2 projects, Pub/Sub API enabled in both (no 403); 0 resources, scanner ran clean.
+
 ### R4.10 GCP Cloud Functions Gen2 + Cloud Run services (this session)
 - **GCP Cloud Functions** new type `gcp:cloudfunctions:function` via `cloudfunctions/v2` `Projects.Locations.Functions.List` with the wildcard parent `projects/{p}/locations/-` (cross-location list in one paginated call — no per-location fan-out tier needed). Both Gen1 + Gen2 functions surface through v2 (Gen1 returns `environment: GEN_1`).
 - **GCP Cloud Run** new type `gcp:run:service` via `run/v2` `Projects.Locations.Services.List` with same `locations/-` wildcard. Cloud Run Jobs deferred to R4.20 (separate sibling API surface `Projects.Locations.Jobs`).
@@ -601,7 +612,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 8. *(removed — Cert Manager scanner at global scope: certificate, certificate-map, certificate-map-entry, dns-authorization. Resolver emits mapEntry → certificate and targetHttpsProxy → certificateMap. Regional fan-out + DNS-auth → managed-cert + legacy compute SslCertificates deferred; see COMPLETED R4.8)*
 9. *(removed — Cloud DNS managed-zone + record-set scanners landed with A/AAAA → forwarding-rule resolver via IP match. CNAME chain + GeoLB routing-policy + DNSSEC + response policies deferred; see COMPLETED R4.9)*
 10. *(removed — Cloud Functions Gen1+Gen2 (via v2 API) + Cloud Run service scanners + function/run → SA + function → KMS resolvers landed via wildcard locations/-. VPC connector + EventTrigger → Pub/Sub/Storage + Cloud Run Jobs deferred; see COMPLETED R4.10)*
-11. **Pub/Sub** — topic, subscription, schema. Edges: subscription → push endpoint, → BigQuery dataset (BigQuery subscriptions), → dead-letter topic.
+11. *(removed — Pub/Sub topic + subscription + schema scanners landed with subscription→topic/DLQ + topic→KMS/schema resolvers. Push-endpoint URL + BigQuery / Cloud Storage subscription targets deferred; see COMPLETED R4.11)*
 12. **BigQuery** — dataset, table, routine, model. Edges: dataset → CMEK key, → authorized views, table → external source (Storage / Drive).
 13. **Bigtable / Firestore / Spanner** — instance + database; edges to CMEK, backups.
 14. **Dataproc / Dataflow / Composer** — cluster / job / environment; edges to network, SA.
