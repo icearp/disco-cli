@@ -12,12 +12,22 @@ func init() {
 	registerService(serviceEntry{name: "aws:elasticloadbalancing", fn: scanELBClassic})
 }
 
+// elbClassicAPI is the narrow set of Classic ELB operations called by
+// scanELBClassicLoadBalancers.
+type elbClassicAPI interface {
+	DescribeLoadBalancers(context.Context, *elasticloadbalancing.DescribeLoadBalancersInput, ...func(*elasticloadbalancing.Options)) (*elasticloadbalancing.DescribeLoadBalancersOutput, error)
+}
+
 // scanELBClassic discovers Classic (v1) load balancers in one region.
 // Classic ELBs have no ARN in the API response; we synthesise one as
 // arn:aws:elasticloadbalancing:<region>:<accountID>:loadbalancer/<name>.
 func scanELBClassic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticloadbalancing.NewFromConfig(acct.cfg, func(o *elasticloadbalancing.Options) { o.Region = region })
+	return scanELBClassicLoadBalancers(ctx, client, acct, region, st, scanID)
+}
 
+// scanELBClassicLoadBalancers holds the testable scan body.
+func scanELBClassicLoadBalancers(ctx context.Context, client elbClassicAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancing.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancing.DescribeLoadBalancersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

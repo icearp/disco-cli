@@ -13,6 +13,17 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:network-firewall", fn: scanNetworkFirewall}) }
 
+// networkfirewallAPI is the narrow set of Network Firewall operations
+// called by the scanNetworkFirewall sub-phases.
+type networkfirewallAPI interface {
+	ListFirewalls(context.Context, *networkfirewall.ListFirewallsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListFirewallsOutput, error)
+	DescribeFirewall(context.Context, *networkfirewall.DescribeFirewallInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeFirewallOutput, error)
+	ListFirewallPolicies(context.Context, *networkfirewall.ListFirewallPoliciesInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListFirewallPoliciesOutput, error)
+	DescribeFirewallPolicy(context.Context, *networkfirewall.DescribeFirewallPolicyInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeFirewallPolicyOutput, error)
+	ListRuleGroups(context.Context, *networkfirewall.ListRuleGroupsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListRuleGroupsOutput, error)
+	DescribeRuleGroup(context.Context, *networkfirewall.DescribeRuleGroupInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeRuleGroupOutput, error)
+}
+
 // scanNetworkFirewall discovers Network Firewall firewalls, firewall policies,
 // and rule groups in one region. Each of the three phases List→Describe fans
 // out describe calls concurrently via errgroup. Phase-level AccessDenied is
@@ -48,7 +59,7 @@ func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *
 	return total, inserted, nil
 }
 
-func scanNetworkFirewalls(ctx context.Context, client *networkfirewall.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFirewalls(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := networkfirewall.NewListFirewallsPaginator(client, &networkfirewall.ListFirewallsInput{})
 	var arns []string
 	for pager.HasMorePages() {
@@ -124,7 +135,7 @@ func scanNetworkFirewalls(ctx context.Context, client *networkfirewall.Client, a
 	return total, inserted, nil
 }
 
-func scanNetworkFirewallPolicies(ctx context.Context, client *networkfirewall.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFirewallPolicies(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := networkfirewall.NewListFirewallPoliciesPaginator(client, &networkfirewall.ListFirewallPoliciesInput{})
 	var arns []string
 	for pager.HasMorePages() {
@@ -200,7 +211,7 @@ func scanNetworkFirewallPolicies(ctx context.Context, client *networkfirewall.Cl
 	return total, inserted, nil
 }
 
-func scanNetworkFirewallRuleGroups(ctx context.Context, client *networkfirewall.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkFirewallRuleGroups(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Default Scope=ACCOUNT (omitted) returns customer-owned rule groups (both
 	// stateless and stateful). MANAGED scope is excluded — not customer-owned.
 	pager := networkfirewall.NewListRuleGroupsPaginator(client, &networkfirewall.ListRuleGroupsInput{})

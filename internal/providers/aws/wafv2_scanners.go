@@ -13,6 +13,14 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:wafv2", fn: scanWAFv2}) }
 
+// wafv2API is the narrow set of WAFv2 operations called by scanWAFv2Scope.
+type wafv2API interface {
+	ListWebACLs(context.Context, *wafv2.ListWebACLsInput, ...func(*wafv2.Options)) (*wafv2.ListWebACLsOutput, error)
+	GetWebACL(context.Context, *wafv2.GetWebACLInput, ...func(*wafv2.Options)) (*wafv2.GetWebACLOutput, error)
+	ListRuleGroups(context.Context, *wafv2.ListRuleGroupsInput, ...func(*wafv2.Options)) (*wafv2.ListRuleGroupsOutput, error)
+	ListIPSets(context.Context, *wafv2.ListIPSetsInput, ...func(*wafv2.Options)) (*wafv2.ListIPSetsOutput, error)
+}
+
 // scanWAFv2 discovers WAFv2 web ACLs, rule groups, and IP sets in one region.
 // WAFv2 uses two scopes: REGIONAL (per region) and CLOUDFRONT (global, only
 // reachable from us-east-1). Both are scanned; CloudFront-scope resources are
@@ -36,7 +44,7 @@ func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-func scanWAFv2Scope(ctx context.Context, client *wafv2.Client, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWAFv2Scope(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Web ACLs: list summaries then GetWebACL for full config.
 	var aclSummaries []types.WebACLSummary
 	var aclMarker *string
