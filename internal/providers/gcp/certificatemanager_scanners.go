@@ -98,21 +98,7 @@ func scanCertificateManager(ctx context.Context, p *project, st *store.Store, sc
 								DiscoveredBy:   scanID,
 							})
 						}
-						if len(ebatch) == 0 {
-							return 0, 0, nil
-						}
-						en, eer := st.UpsertResources(ebatch)
-						if eer != nil {
-							return 0, 0, eer
-						}
-						pairs := make([][2]string, 0, len(ebatch))
-						for _, r := range ebatch {
-							pairs = append(pairs, [2]string{
-								store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-								store.ResourceID(r.Provider, r.AccountID, TypeCertManagerMap, mn),
-							})
-						}
-						return len(ebatch), en, st.BatchAddToHierarchyClosure(pairs)
+						return upsertWithParent(st, ebatch, store.ResourceID("gcp", p.ID, TypeCertManagerMap, mn))
 					})
 				pt += et
 				pn += en

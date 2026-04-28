@@ -56,8 +56,16 @@ func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID 
 
 // upsertWithProjClosure upserts a batch and fans out hierarchy_closure pairs
 // to the project parent. Centralizes the boilerplate the LB sub-phases all
-// share.
+// share. Equivalent to upsertWithParent with the project's resource ID.
 func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource) (int, int, error) {
+	return upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, TypeProject, p.ID))
+}
+
+// upsertWithParent upserts a batch and fans out hierarchy_closure pairs to a
+// caller-supplied parent resource id. Use when the parent is something other
+// than the project (e.g. table → dataset, record-set → managed-zone, entry →
+// cert-map, crypto-key → keyring, cluster → instance).
+func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string) (int, int, error) {
 	if len(batch) == 0 {
 		return 0, 0, nil
 	}
@@ -65,12 +73,11 @@ func upsertWithProjClosure(p *project, st *store.Store, batch []*store.Resource)
 	if err != nil {
 		return 0, 0, err
 	}
-	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
 	pairs := make([][2]string, 0, len(batch))
 	for _, r := range batch {
 		pairs = append(pairs, [2]string{
 			store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-			projParentID,
+			parentID,
 		})
 	}
 	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {

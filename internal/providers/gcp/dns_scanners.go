@@ -88,26 +88,12 @@ func scanCloudDNS(ctx context.Context, p *project, st *store.Store, scanID strin
 					DiscoveredBy:   scanID,
 				})
 			}
-			if len(batch) == 0 {
-				return nil
-			}
 			mu.Lock()
 			defer mu.Unlock()
-			rn, e := st.UpsertResources(batch)
-			if e != nil {
-				return e
-			}
-			total += len(batch)
+			rt, rn, rerr := upsertWithParent(st, batch, store.ResourceID("gcp", p.ID, TypeDNSManagedZone, z.nativeID))
+			total += rt
 			inserted += rn
-			zoneResID := store.ResourceID("gcp", p.ID, TypeDNSManagedZone, z.nativeID)
-			pairs := make([][2]string, 0, len(batch))
-			for _, r := range batch {
-				pairs = append(pairs, [2]string{
-					store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-					zoneResID,
-				})
-			}
-			return st.BatchAddToHierarchyClosure(pairs)
+			return rerr
 		})
 		if err != nil && isPermissionDenied(err) {
 			return skipIfDenied(st, "dns:resourceRecordSets.list", p.ID, err)

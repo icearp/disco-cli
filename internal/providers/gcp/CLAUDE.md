@@ -72,9 +72,11 @@ Some GCP resources have no API-issued canonical name. Synthesize from parent res
 - `gcp:iam:policy` → `{scope}/policy` — IAM policy is JSON returned by `GetIamPolicy`, not real resource.
 Stable across rescans; matches synthetic-NativeID precedent in `internal/store/CLAUDE.md`.
 
-## Shared LB upsert helper
+## Shared upsert+closure helpers
 
-`upsertWithProjClosure(p, st, batch)` in `loadbalancing_scanners.go` factors out upsert + `BatchAddToHierarchyClosure` pair-fanout to `projParentID`. Reuse from any scanner whose resources hang directly off project (no intermediate parent). When parent is else (e.g. record-set → managed-zone), build closure pairs inline.
+`upsertWithProjClosure(p, st, batch)` in `loadbalancing_scanners.go` upserts + closure-pairs to project parent. Resources hanging directly off project use this.
+
+`upsertWithParent(st, batch, parentID)` (same file) takes any parent resource id — use for child→parent closure where parent isn't the project: BigQuery table → dataset, DNS rrset → managed-zone, cert-map entry → map, Spanner database → instance, Bigtable cluster → instance. KMS-style multi-parent batches (keyring → project + cryptokey → keyring in one slice) still build pairs inline because the parent depends on the resource type.
 
 ## AggregatedList scope-key parsing
 

@@ -129,26 +129,12 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 					DiscoveredBy:   scanID,
 				})
 			}
-			if len(batch) == 0 {
-				return nil
-			}
 			mu.Lock()
 			defer mu.Unlock()
-			bn, berr := st.UpsertResources(batch)
-			if berr != nil {
-				return berr
-			}
-			total += len(batch)
+			bt, bn, berr := upsertWithParent(st, batch, dsResourceID)
+			total += bt
 			inserted += bn
-			// Closure: table → dataset.
-			pairs := make([][2]string, 0, len(batch))
-			for _, r := range batch {
-				pairs = append(pairs, [2]string{
-					store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-					dsResourceID,
-				})
-			}
-			return st.BatchAddToHierarchyClosure(pairs)
+			return berr
 		}); err != nil {
 			if isPermissionDenied(err) {
 				return skipIfDenied(st, "bigquery:tables.list", p.ID, err)

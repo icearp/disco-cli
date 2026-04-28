@@ -82,26 +82,12 @@ func scanBigtable(ctx context.Context, p *project, st *store.Store, scanID strin
 				DiscoveredBy:   scanID,
 			})
 		}
-		if len(cbatch) == 0 {
-			continue
-		}
-		cn, cerr := st.UpsertResources(cbatch)
+		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
+		ct, cn, cerr := upsertWithParent(st, cbatch, instResID)
+		total += ct
+		inserted += cn
 		if cerr != nil {
 			return total, inserted, cerr
-		}
-		total += len(cbatch)
-		inserted += cn
-		// Closure: cluster → instance.
-		instResID := store.ResourceID("gcp", p.ID, TypeBigtableInstance, inst.Name)
-		pairs := make([][2]string, 0, len(cbatch))
-		for _, r := range cbatch {
-			pairs = append(pairs, [2]string{
-				store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-				instResID,
-			})
-		}
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-			return total, inserted, err
 		}
 	}
 	return total, inserted, nil
@@ -209,25 +195,12 @@ func scanSpanner(ctx context.Context, p *project, st *store.Store, scanID string
 				DiscoveredBy:   scanID,
 			})
 		}
-		if len(dbatch) == 0 {
-			continue
-		}
-		dn, derr := st.UpsertResources(dbatch)
+		instResID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst.Name)
+		dt, dn, derr := upsertWithParent(st, dbatch, instResID)
+		total += dt
+		inserted += dn
 		if derr != nil {
 			return total, inserted, derr
-		}
-		total += len(dbatch)
-		inserted += dn
-		instResID := store.ResourceID("gcp", p.ID, TypeSpannerInstance, inst.Name)
-		pairs := make([][2]string, 0, len(dbatch))
-		for _, r := range dbatch {
-			pairs = append(pairs, [2]string{
-				store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-				instResID,
-			})
-		}
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-			return total, inserted, err
 		}
 	}
 	return total, inserted, nil
