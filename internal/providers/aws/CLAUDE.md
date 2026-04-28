@@ -160,7 +160,9 @@ Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client 
 
 **Footgun — duplicate client line**: when introducing a `scanXBody(ctx, client xAPI, ...)` wrapper around a single-fn scanner, also DELETE the original `client := <svc>.NewFromConfig(...)` line that lived inside. Forgetting it causes "no new variables on left side of :=" because the wrapper now passes the client in. Move the construction up into scanX, leave only logic in the body.
 
-**Skip criteria**: defer the lift when (a) sub-phases build per-region clients inside themselves (s3, s3control), (b) scan uses multiple SDK clients (cognito idp+identity), or (c) the file is >400 lines with many paginators (lambda, rds, iam) — bigger refactor needs its own PR.
+**Skip criteria**: defer the lift when (a) sub-phases build per-region clients inside themselves (s3, s3control), (b) scan uses multiple SDK clients (cognito idp+identity).
+
+**Dispatcher function-type aliases**: when a scanner uses local `type perFnScanner func(..., *svc.Client, ...) (...)` aliases (lambda, ssm, rds), the sed propagation also needs to update those alias declarations from `*svc.Client` to `svcAPI`. Build error otherwise: "cannot use scanX as perFnScanner value".
 
 ## Cross-account member-row → org account edges
 
