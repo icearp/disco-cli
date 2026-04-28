@@ -14,6 +14,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:cognito", fn: scanCognito}) }
 
+// cognitoidpAPI is the narrow set of Cognito Identity Provider operations
+// called by scanCognito. Distinct from cognitoidentityAPI — Cognito uses
+// two separate SDK packages with disjoint method sets.
+type cognitoidpAPI interface {
+	ListUserPools(context.Context, *cognitoidp.ListUserPoolsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolsOutput, error)
+	DescribeUserPool(context.Context, *cognitoidp.DescribeUserPoolInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolOutput, error)
+	ListUserPoolClients(context.Context, *cognitoidp.ListUserPoolClientsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolClientsOutput, error)
+	DescribeUserPoolClient(context.Context, *cognitoidp.DescribeUserPoolClientInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolClientOutput, error)
+}
+
+// cognitoidentityAPI is the narrow set of Cognito Identity (federated
+// identity pools) operations called by scanCognito.
+type cognitoidentityAPI interface {
+	ListIdentityPools(context.Context, *cognitoidentity.ListIdentityPoolsInput, ...func(*cognitoidentity.Options)) (*cognitoidentity.ListIdentityPoolsOutput, error)
+	DescribeIdentityPool(context.Context, *cognitoidentity.DescribeIdentityPoolInput, ...func(*cognitoidentity.Options)) (*cognitoidentity.DescribeIdentityPoolOutput, error)
+	GetIdentityPoolRoles(context.Context, *cognitoidentity.GetIdentityPoolRolesInput, ...func(*cognitoidentity.Options)) (*cognitoidentity.GetIdentityPoolRolesOutput, error)
+}
+
 // scanCognito discovers Cognito user pools, user-pool app clients, and
 // identity pools in one region. User pools and their app clients are
 // list-then-described concurrently. Identity pools are paired with their role
@@ -21,6 +39,12 @@ func init() { registerService(serviceEntry{name: "aws:cognito", fn: scanCognito}
 func scanCognito(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	idpClient := cognitoidp.NewFromConfig(acct.cfg, func(o *cognitoidp.Options) { o.Region = region })
 	idClient := cognitoidentity.NewFromConfig(acct.cfg, func(o *cognitoidentity.Options) { o.Region = region })
+	return scanCognitoAll(ctx, idpClient, idClient, acct, region, st, scanID)
+}
+
+// scanCognitoAll holds the testable scan body — accepts both narrow ifaces
+// so unit tests can swap in stubs without touching production wiring.
+func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	// Phase 1: list user pool IDs.
 	var poolIDs []string
