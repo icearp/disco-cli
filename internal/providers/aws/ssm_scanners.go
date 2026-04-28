@@ -11,6 +11,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:ssm", fn: scanSSM}) }
 
+// ssmAPI is the narrow set of SSM operations called by scanSSMAll.
+type ssmAPI interface {
+	DescribeParameters(context.Context, *ssm.DescribeParametersInput, ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error)
+	ListDocuments(context.Context, *ssm.ListDocumentsInput, ...func(*ssm.Options)) (*ssm.ListDocumentsOutput, error)
+	DescribePatchBaselines(context.Context, *ssm.DescribePatchBaselinesInput, ...func(*ssm.Options)) (*ssm.DescribePatchBaselinesOutput, error)
+}
+
 // scanSSM discovers SSM parameters (metadata only — never values), customer-
 // owned SSM documents, and customer-owned patch baselines.
 //
@@ -20,7 +27,11 @@ func init() { registerService(serviceEntry{name: "aws:ssm", fn: scanSSM}) }
 // metadata alone.
 func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
+	return scanSSMAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanSSMAll holds the testable scan body.
+func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Parameters (metadata only).
 	var paramBatch []*store.Resource
 	paramPager := ssm.NewDescribeParametersPaginator(client, &ssm.DescribeParametersInput{})

@@ -14,10 +14,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:cloudwatch", fn: scanCloudWatch}) }
 
+// cloudwatchAPI is the narrow set of CloudWatch operations called by the
+// scanCloudWatch sub-phases.
+type cloudwatchAPI interface {
+	DescribeAlarms(context.Context, *cloudwatch.DescribeAlarmsInput, ...func(*cloudwatch.Options)) (*cloudwatch.DescribeAlarmsOutput, error)
+	ListAlarmMuteRules(context.Context, *cloudwatch.ListAlarmMuteRulesInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListAlarmMuteRulesOutput, error)
+	DescribeAnomalyDetectors(context.Context, *cloudwatch.DescribeAnomalyDetectorsInput, ...func(*cloudwatch.Options)) (*cloudwatch.DescribeAnomalyDetectorsOutput, error)
+	ListDashboards(context.Context, *cloudwatch.ListDashboardsInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListDashboardsOutput, error)
+	GetDashboard(context.Context, *cloudwatch.GetDashboardInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetDashboardOutput, error)
+	DescribeInsightRules(context.Context, *cloudwatch.DescribeInsightRulesInput, ...func(*cloudwatch.Options)) (*cloudwatch.DescribeInsightRulesOutput, error)
+	ListMetricStreams(context.Context, *cloudwatch.ListMetricStreamsInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListMetricStreamsOutput, error)
+	GetMetricStream(context.Context, *cloudwatch.GetMetricStreamInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetMetricStreamOutput, error)
+}
+
 // scanCloudWatch discovers all CloudWatch resources in one region by calling
 // each sub-scanner in sequence and accumulating the totals.
 func scanCloudWatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	type subFn func(context.Context, *account, string, *store.Store, string) (int, int, error)
+	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+	type subFn func(context.Context, cloudwatchAPI, *account, string, *store.Store, string) (int, int, error)
 	fns := []subFn{
 		scanCWAlarms,
 		scanCWAlarmMuteRules,
@@ -27,7 +41,7 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 		scanCWMetricStreams,
 	}
 	for _, fn := range fns {
-		t, i, err := fn(ctx, acct, region, st, scanID)
+		t, i, err := fn(ctx, client, acct, region, st, scanID)
 		if err != nil {
 			return total, inserted, err
 		}
@@ -40,8 +54,7 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 // scanCWAlarms discovers CloudWatch metric alarms and composite alarms. Both
 // types are returned by DescribeAlarms; we split them into their own disco
 // resource types so gap-analysis and filtering work correctly.
-func scanCWAlarms(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := cloudwatch.NewDescribeAlarmsPaginator(client, &cloudwatch.DescribeAlarmsInput{
 		AlarmTypes: []cwtypes.AlarmType{
@@ -104,8 +117,7 @@ func scanCWAlarms(ctx context.Context, acct *account, region string, st *store.S
 
 // scanCWAlarmMuteRules discovers CloudWatch alarm mute rules. Mute rules are
 // not paginated via a SDK Paginator type; we iterate manually using NextToken.
-func scanCWAlarmMuteRules(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := cloudwatch.NewListAlarmMuteRulesPaginator(client, &cloudwatch.ListAlarmMuteRulesInput{})
 	for pager.HasMorePages() {
@@ -148,8 +160,7 @@ func scanCWAlarmMuteRules(ctx context.Context, acct *account, region string, st 
 // NativeID is derived from the metric coordinates because the API does not
 // expose an ARN: "<Namespace>/<MetricName>/<Stat>" for single-metric detectors,
 // or "<first-query-id>" for metric-math detectors.
-func scanCWAnomalyDetectors(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	p := cloudwatch.NewDescribeAnomalyDetectorsPaginator(client, &cloudwatch.DescribeAnomalyDetectorsInput{
 		MaxResults: sdkaws.Int32(100),
@@ -205,8 +216,7 @@ func anomalyDetectorID(d cwtypes.AnomalyDetector) string {
 
 // scanCWDashboards discovers CloudWatch dashboards and fetches their body via
 // GetDashboard concurrently (one goroutine per dashboard in each page).
-func scanCWDashboards(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWDashboards(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := cloudwatch.NewListDashboardsPaginator(client, &cloudwatch.ListDashboardsInput{})
 	for pager.HasMorePages() {
@@ -270,8 +280,7 @@ func scanCWDashboards(ctx context.Context, acct *account, region string, st *sto
 
 // scanCWInsightRules discovers CloudWatch Contributor Insights rules.
 // InsightRules are identified by name; there is no ARN exposed in the API.
-func scanCWInsightRules(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := cloudwatch.NewDescribeInsightRulesPaginator(client, &cloudwatch.DescribeInsightRulesInput{})
 	for pager.HasMorePages() {
@@ -313,8 +322,7 @@ func scanCWInsightRules(ctx context.Context, acct *account, region string, st *s
 // scanCWMetricStreams discovers CloudWatch metric streams and fetches their
 // full configuration via GetMetricStream concurrently (one goroutine per
 // stream in each page).
-func scanCWMetricStreams(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
+func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := cloudwatch.NewListMetricStreamsPaginator(client, &cloudwatch.ListMetricStreamsInput{})
 	for pager.HasMorePages() {
