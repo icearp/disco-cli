@@ -86,6 +86,15 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.19 GCP Binary Authorization — policy + attestors (this session)
+- **GCP Binary Authorization** new types `gcp:binaryauthorization:policy`, `gcp:binaryauthorization:attestor`. Project-scoped service `gcp:binaryauthorization` runs two phases: (1) `binaryauthorization/v1` `Projects.GetPolicy` for the singleton project policy (`projects/{p}/policy` — there's no list surface, exactly one policy per project); (2) `Projects.Attestors.List` paginated.
+- **Resolver** `resolveBinaryAuthorizationRelationships` derives attestor -[uses]-> service-account via `userOwnedGrafeasNote.delegationServiceAccountEmail`. The delegation SA is the principal the attestor uses to read attestation occurrences from Container Analysis — security-meaningful for "who can validate signatures on behalf of this attestor".
+- Deferred: attestor → KMS public key (v1 surface stores PGP/PKIX inline; v1beta1 has KMS-backed attestation key support — lands when GCP graduates it). Policy → cluster admission rules (keyed on cluster-id strings; needs GKE NativeID alignment, follow-up).
+- Live-scan validation: 2 projects, BinAuth API disabled in both; 0 resources, scanner ran clean.
+
+### R4.18 GCP VPC Service Controls — deferred (this session)
+- **Decision: defer R4.18.** VPC-SC perimeters live under access policies parented at the **organization** scope (`accesscontextmanager/v1` AccessPolicies.List requires `parent=organizations/{org_id}`), not project scope. The provider's per-project fan-out shape would do redundant cross-project work, and a clean once-per-scan org-scoped path needs a sibling registry lane that doesn't exist yet. Tracked for follow-up alongside the same gap blocking folder/org-scope IAM policies (R4.1) and folder/org-scope Logging sinks (R4.16). Implementing them together pays for the new registration mechanism cleanly.
+
 ### R4.17 GCP Cloud Build triggers (this session)
 - **GCP Cloud Build** new type `gcp:cloudbuild:trigger`. Project-scoped service `gcp:cloudbuild` runs one phase: `cloudbuild/v1` `Projects.Triggers.List`. NativeID prefers `ResourceName` field when populated (canonical `projects/{p}/locations/global/triggers/{id}`), falls back to synthesized `projects/{p}/triggers/{id}`.
 - **Resolver** `resolveCloudBuildRelationships` derives trigger -[uses]-> service-account. Trigger's `serviceAccount` field is documented as full resource name `projects/{p}/serviceAccounts/{email}` but the API sometimes returns just the email — resolver checks both forms (saIDByNative + saIDByEmail) for FK match.
@@ -667,8 +676,8 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 15. *(removed — Artifact Registry repository scanner + repo→CMEK resolver landed via locations/- wildcard. GKE/Cloud Run → repo pull edges deferred (image-ref parsing); see COMPLETED R4.15)*
 16. *(removed — logging sink + monitoring alert-policy scanners landed; sink → GCS/BQ/PubSub destination resolver landed. Logbucket destinations + alert→notification-channel + folder/org-scope sinks deferred; see COMPLETED R4.16)*
 17. *(removed — Cloud Build trigger scanner + trigger→SA resolver landed. Worker pool + repo connection (cloudbuild/v2) deferred to own iterations; see COMPLETED R4.17)*
-18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services.
-19. **Binary Authorization** — policy, attestor. Edges: policy → KMS attestor keys.
+18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services. *(Deferred — org-scoped, blocks on once-per-scan registration mechanism shared with folder/org-scope IAM policies (R4.1) and Logging sinks (R4.16). See COMPLETED R4.18 for the explicit deferral note.)*
+19. *(removed — BinAuth policy + attestor scanners + attestor→delegation-SA resolver landed. KMS-backed attestor keys (v1beta1) + policy→cluster admission rules deferred; see COMPLETED R4.19)*
 20. **Cloud Run Jobs, Batch** — job → SA + network.
 
 ### R5. Cross-service resolvers (multi-provider aware)

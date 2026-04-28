@@ -11,6 +11,7 @@ var expectedGCPServices = []string{
 	"gcp:artifactregistry",
 	"gcp:bigquery",
 	"gcp:bigtable",
+	"gcp:binaryauthorization",
 	"gcp:certificatemanager",
 	"gcp:cloudarmor",
 	"gcp:cloudbuild",

@@ -53,6 +53,9 @@ const (
 	TypeMonitoringAlertPol = "gcp:monitoring:alert-policy"
 	// Cloud Build
 	TypeCloudBuildTrigger = "gcp:cloudbuild:trigger"
+	// Binary Authorization
+	TypeBinAuthPolicy   = "gcp:binaryauthorization:policy"
+	TypeBinAuthAttestor = "gcp:binaryauthorization:attestor"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

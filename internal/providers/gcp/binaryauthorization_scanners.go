@@ -1,0 +1,79 @@
+package gcp
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"google.golang.org/api/binaryauthorization/v1"
+)
+
+func init() {
+	registerService(serviceEntry{name: "gcp:binaryauthorization", fn: scanBinaryAuthorization})
+}
+
+// scanBinaryAuthorization discovers the project's BinAuth policy (singleton
+// per project — `projects/{p}/policy`) and any user-defined attestors. The
+// policy is fetched via Get rather than List because there is no list
+// surface — exactly one policy exists per project.
+func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
+	opts := clientOptions(ctx, providerCfg{})
+	svc, err := binaryauthorization.NewService(ctx, opts...)
+	if err != nil {
+		return 0, 0, fmt.Errorf("binaryauthorization client: %w", err)
+	}
+
+	// Policy (singleton).
+	policy, err := svc.Projects.GetPolicy(fmt.Sprintf("projects/%s/policy", p.ID)).Context(ctx).Do()
+	if err != nil {
+		if isPermissionDenied(err) {
+			return 0, 0, skipIfDenied(st, "binaryauthorization:projects.getPolicy", p.ID, err)
+		}
+		return 0, 0, err
+	}
+	pname := lastSegment(policy.Name)
+	t, n, e := upsertWithProjClosure(p, st, []*store.Resource{{
+		Provider:       "gcp",
+		AccountID:      p.ID,
+		AccountName:    &p.Name,
+		Type:           TypeBinAuthPolicy,
+		NativeID:       policy.Name,
+		Name:           &pname,
+		AttributesJSON: mustJSON(policy),
+		DiscoveredBy:   scanID,
+	}})
+	total += t
+	inserted += n
+	if e != nil {
+		return total, inserted, e
+	}
+
+	// Attestors.
+	err = svc.Projects.Attestors.List(fmt.Sprintf("projects/%s", p.ID)).Pages(ctx, func(page *binaryauthorization.ListAttestorsResponse) error {
+		var batch []*store.Resource
+		for _, a := range page.Attestors {
+			name := lastSegment(a.Name)
+			batch = append(batch, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      p.ID,
+				AccountName:    &p.Name,
+				Type:           TypeBinAuthAttestor,
+				NativeID:       a.Name,
+				Name:           &name,
+				AttributesJSON: mustJSON(a),
+				DiscoveredBy:   scanID,
+			})
+		}
+		t, n, ae := upsertWithProjClosure(p, st, batch)
+		total += t
+		inserted += n
+		return ae
+	})
+	if err != nil {
+		if isPermissionDenied(err) {
+			return total, inserted, skipIfDenied(st, "binaryauthorization:attestors.list", p.ID, err)
+		}
+		return total, inserted, err
+	}
+	return total, inserted, nil
+}
