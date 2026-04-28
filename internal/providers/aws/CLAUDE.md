@@ -152,7 +152,15 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 
 ## Scanner iface lift (testability)
 
-Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client wiring) + `scanXEntities(ctx, client xAPI, ...)` (testable body) + narrow `xAPI` interface listing only the SDK methods called. `*svc.Client` satisfies the interface; tests inject stubs. Precedent: `sqs_scanners.go`, `sns`, `eks`, `acm`, `kafka`, `secretsmanager`. Method signatures preserve the SDK's variadic `...func(*svc.Options)` so SDK paginators continue to compile against the interface.
+Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client wiring) + `scanXEntities(ctx, client xAPI, ...)` (testable body) + narrow `xAPI` interface listing only the SDK methods called. `*svc.Client` satisfies the interface; tests inject stubs. Method signatures preserve the SDK's variadic `...func(*svc.Options)` so SDK paginators continue to compile against the interface.
+
+**Multi-fn shortcut**: when sub-phases already take `*svc.Client`, lift in one shot — declare iface above `init()` then `sed -i 's|client \*svc\.Client|client svcAPI|g' <file>`. Sub-fn signatures + paginator constructors continue to compile.
+
+**Method enumeration**: `grep -oE "(client|c|gctx)\.[A-Z][a-zA-Z]+|<svc>\.New[A-Z][a-zA-Z]+Paginator" file | grep -v "^c\." | sort -u` produces the exact iface method set.
+
+**Footgun — duplicate client line**: when introducing a `scanXBody(ctx, client xAPI, ...)` wrapper around a single-fn scanner, also DELETE the original `client := <svc>.NewFromConfig(...)` line that lived inside. Forgetting it causes "no new variables on left side of :=" because the wrapper now passes the client in. Move the construction up into scanX, leave only logic in the body.
+
+**Skip criteria**: defer the lift when (a) sub-phases build per-region clients inside themselves (s3, s3control), (b) scan uses multiple SDK clients (cognito idp+identity), or (c) the file is >400 lines with many paginators (lambda, rds, iam) — bigger refactor needs its own PR.
 
 ## Cross-account member-row → org account edges
 
