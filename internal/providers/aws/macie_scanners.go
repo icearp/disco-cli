@@ -24,6 +24,18 @@ func isMacieNotEnabled(err error) bool {
 
 func init() { registerService(serviceEntry{name: "aws:macie", fn: scanMacie}) }
 
+// macie2API is the narrow set of Macie operations called by the scanMacie
+// sub-phases.
+type macie2API interface {
+	GetMacieSession(context.Context, *macie2.GetMacieSessionInput, ...func(*macie2.Options)) (*macie2.GetMacieSessionOutput, error)
+	ListClassificationJobs(context.Context, *macie2.ListClassificationJobsInput, ...func(*macie2.Options)) (*macie2.ListClassificationJobsOutput, error)
+	DescribeClassificationJob(context.Context, *macie2.DescribeClassificationJobInput, ...func(*macie2.Options)) (*macie2.DescribeClassificationJobOutput, error)
+	ListCustomDataIdentifiers(context.Context, *macie2.ListCustomDataIdentifiersInput, ...func(*macie2.Options)) (*macie2.ListCustomDataIdentifiersOutput, error)
+	GetCustomDataIdentifier(context.Context, *macie2.GetCustomDataIdentifierInput, ...func(*macie2.Options)) (*macie2.GetCustomDataIdentifierOutput, error)
+	ListAllowLists(context.Context, *macie2.ListAllowListsInput, ...func(*macie2.Options)) (*macie2.ListAllowListsOutput, error)
+	GetAllowList(context.Context, *macie2.GetAllowListInput, ...func(*macie2.Options)) (*macie2.GetAllowListOutput, error)
+}
+
 // scanMacie discovers Macie session config, classification jobs, custom data
 // identifiers, and allow lists in one region. Macie is regional. Accounts that
 // have not enabled Macie in the region surface AccessDeniedException at every
@@ -80,7 +92,7 @@ func macieSessionNativeID(accountID, region string) string {
 	return fmt.Sprintf("arn:aws:macie2:%s:%s:session", region, accountID)
 }
 
-func scanMacieSession(ctx context.Context, client *macie2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {
+func scanMacieSession(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {
 	out, derr := client.GetMacieSession(ctx, &macie2.GetMacieSessionInput{})
 	if derr != nil {
 		if isMacieNotEnabled(derr) {
@@ -114,7 +126,7 @@ func scanMacieSession(ctx context.Context, client *macie2.Client, acct *account,
 	return 1, n, true, nil
 }
 
-func scanMacieClassificationJobs(ctx context.Context, client *macie2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieClassificationJobs(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := macie2.NewListClassificationJobsPaginator(client, &macie2.ListClassificationJobsInput{})
 	var jobIDs []string
 	for pager.HasMorePages() {
@@ -194,7 +206,7 @@ func scanMacieClassificationJobs(ctx context.Context, client *macie2.Client, acc
 	return len(batch), n, nil
 }
 
-func scanMacieCustomDataIdentifiers(ctx context.Context, client *macie2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieCustomDataIdentifiers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := macie2.NewListCustomDataIdentifiersPaginator(client, &macie2.ListCustomDataIdentifiersInput{})
 	var ids []string
 	for pager.HasMorePages() {
@@ -272,7 +284,7 @@ func scanMacieCustomDataIdentifiers(ctx context.Context, client *macie2.Client, 
 	return len(batch), n, nil
 }
 
-func scanMacieAllowLists(ctx context.Context, client *macie2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMacieAllowLists(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := macie2.NewListAllowListsPaginator(client, &macie2.ListAllowListsInput{})
 	var ids []string
 	for pager.HasMorePages() {

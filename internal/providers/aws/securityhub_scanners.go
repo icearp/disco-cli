@@ -10,6 +10,15 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:securityhub", fn: scanSecurityHub}) }
 
+// securityhubAPI is the narrow set of Security Hub operations called by the
+// scanSecurityHub sub-phases.
+type securityhubAPI interface {
+	DescribeHub(context.Context, *securityhub.DescribeHubInput, ...func(*securityhub.Options)) (*securityhub.DescribeHubOutput, error)
+	GetInsights(context.Context, *securityhub.GetInsightsInput, ...func(*securityhub.Options)) (*securityhub.GetInsightsOutput, error)
+	GetEnabledStandards(context.Context, *securityhub.GetEnabledStandardsInput, ...func(*securityhub.Options)) (*securityhub.GetEnabledStandardsOutput, error)
+	ListEnabledProductsForImport(context.Context, *securityhub.ListEnabledProductsForImportInput, ...func(*securityhub.Options)) (*securityhub.ListEnabledProductsForImportOutput, error)
+}
+
 // scanSecurityHub discovers the per-region hub, enabled standards, imported
 // products, and saved insights. Security Hub is regional. Accounts that have
 // not enabled the hub in this region surface InvalidAccessException at every
@@ -67,7 +76,7 @@ func securityHubHubNativeID(accountID, region string) string {
 	return fmt.Sprintf("arn:aws:securityhub:%s:%s:hub/default", region, accountID)
 }
 
-func scanSecurityHubHub(ctx context.Context, client *securityhub.Client, acct *account, region string, st *store.Store, scanID string) (hubARN string, present bool, total, inserted int, err error) {
+func scanSecurityHubHub(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (hubARN string, present bool, total, inserted int, err error) {
 	out, derr := client.DescribeHub(ctx, &securityhub.DescribeHubInput{})
 	if derr != nil {
 		if isAccessDenied(derr) {
@@ -103,7 +112,7 @@ func scanSecurityHubHub(ctx context.Context, client *securityhub.Client, acct *a
 	return nid, true, 1, n, nil
 }
 
-func scanSecurityHubInsights(ctx context.Context, client *securityhub.Client, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := securityhub.NewGetInsightsPaginator(client, &securityhub.GetInsightsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -147,7 +156,7 @@ func scanSecurityHubInsights(ctx context.Context, client *securityhub.Client, ac
 	return len(batch), n, nil
 }
 
-func scanSecurityHubStandards(ctx context.Context, client *securityhub.Client, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubStandards(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := securityhub.NewGetEnabledStandardsPaginator(client, &securityhub.GetEnabledStandardsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -192,7 +201,7 @@ func scanSecurityHubStandards(ctx context.Context, client *securityhub.Client, a
 	return len(batch), n, nil
 }
 
-func scanSecurityHubProducts(ctx context.Context, client *securityhub.Client, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSecurityHubProducts(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := securityhub.NewListEnabledProductsForImportPaginator(client, &securityhub.ListEnabledProductsForImportInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
