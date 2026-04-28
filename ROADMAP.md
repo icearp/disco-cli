@@ -86,6 +86,15 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.13 GCP Bigtable + Firestore + Spanner (this session)
+- **Three database services** in one iteration. New types `gcp:bigtableadmin:instance`, `gcp:bigtableadmin:cluster`, `gcp:firestore:database`, `gcp:spanner:instance`, `gcp:spanner:database`. Three services registered: `gcp:bigtable`, `gcp:firestore`, `gcp:spanner`.
+- **Bigtable** scanner does `bigtableadmin/v2` `Projects.Instances.List` + per-instance `Clusters.List` (sequential — instance counts per project are tiny). Closure: cluster → instance → project.
+- **Firestore** scanner does `firestore/v1` `Projects.Databases.List`. Multi-DB project support (returned list contains every named database).
+- **Spanner** scanner does `spanner/v1` `Projects.Instances.List` + per-instance `Databases.List`. Region derived from `Config` field (`projects/{p}/instanceConfigs/{region-or-multi}`). Closure: database → instance → project.
+- **Resolver** `resolveDatabasesRelationships` derives CMEK edges across all three services in one pass: bigtableCluster.encryptionConfig.kmsKeyName, firestoreDB.cmekConfig.kmsKeyName, spannerDB.encryptionConfig.kmsKeyName. Cross-project key references skipped.
+- **Deferred**: Bigtable tables + app-profiles (table cardinality unbounded; app-profiles narrow); Firestore indexes / collection groups / fields (per-DB fan-out cost vs. demand); Spanner backups (cardinality proportional to retention) + sessions (runtime objects). Spanner `encryptionInfo[]` per-version detail deferred — duplicates encryptionConfig for graph purposes. Bigtable instance-level CMEK doesn't exist in the API (only cluster-level), so this is implicit.
+- Live-scan validation: 2 projects, all three APIs disabled in both; 0 resources, scanners ran clean (warnings + one billing-disabled message — pre-existing project state).
+
 ### R4.12 GCP BigQuery — datasets + tables (this session)
 - **GCP BigQuery** new types `gcp:bigquery:dataset`, `gcp:bigquery:table`. Project-scoped service `gcp:bigquery` runs two phases: (1) `bigquery/v2` `Datasets.List` paginated returns lightweight stubs; (2) per-dataset fan-out (sem 10) does `Datasets.Get` for the full proto (needed for `defaultEncryptionConfiguration.kmsKeyName` → CMEK edge) plus `Tables.List` paginated. NativeIDs are BigQuery's canonical opaque `Id` field (`{project}:{dataset}` or `{project}:{dataset}.{table}`). Hierarchy: dataset → project; table → dataset.
 - **API-not-enabled quirk**. BigQuery surfaces "API not enabled" as HTTP 400 with message `"has not enabled BigQuery"` instead of the standard 403 `accessNotConfigured`. `isPermissionDenied` extended to recognize this 400 variant so disabled BigQuery in a project produces a single warning, not a partial-scan error.
@@ -622,7 +631,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 10. *(removed — Cloud Functions Gen1+Gen2 (via v2 API) + Cloud Run service scanners + function/run → SA + function → KMS resolvers landed via wildcard locations/-. VPC connector + EventTrigger → Pub/Sub/Storage + Cloud Run Jobs deferred; see COMPLETED R4.10)*
 11. *(removed — Pub/Sub topic + subscription + schema scanners landed with subscription→topic/DLQ + topic→KMS/schema resolvers. Push-endpoint URL + BigQuery / Cloud Storage subscription targets deferred; see COMPLETED R4.11)*
 12. *(removed — BigQuery dataset + table scanners + dataset→CMEK resolver landed. Routines/Models, per-table CMEK, authorized-views, table → external source deferred; see COMPLETED R4.12)*
-13. **Bigtable / Firestore / Spanner** — instance + database; edges to CMEK, backups.
+13. *(removed — Bigtable instance+cluster, Firestore database, Spanner instance+database scanners landed with unified CMEK resolver across all three. Backups, tables, sessions, indexes deferred; see COMPLETED R4.13)*
 14. **Dataproc / Dataflow / Composer** — cluster / job / environment; edges to network, SA.
 15. **Artifact Registry** — repo (docker/npm/maven/...). Edges: repo → CMEK, GKE/Cloud Run → repo pull.
 16. **Cloud Logging sinks** + monitoring alert policies — sink → destination (GCS/BQ/PubSub).

@@ -38,6 +38,12 @@ const (
 	// BigQuery
 	TypeBQDataset = "gcp:bigquery:dataset"
 	TypeBQTable   = "gcp:bigquery:table"
+	// Bigtable / Firestore / Spanner
+	TypeBigtableInstance = "gcp:bigtableadmin:instance"
+	TypeBigtableCluster  = "gcp:bigtableadmin:cluster"
+	TypeFirestoreDB      = "gcp:firestore:database"
+	TypeSpannerInstance  = "gcp:spanner:instance"
+	TypeSpannerDatabase  = "gcp:spanner:database"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

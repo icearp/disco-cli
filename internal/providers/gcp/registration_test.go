@@ -9,6 +9,7 @@ import (
 // registered. Update this list when adding a new service scanner.
 var expectedGCPServices = []string{
 	"gcp:bigquery",
+	"gcp:bigtable",
 	"gcp:certificatemanager",
 	"gcp:cloudarmor",
 	"gcp:clouddns",
@@ -16,6 +17,7 @@ var expectedGCPServices = []string{
 	"gcp:cloudkms",
 	"gcp:cloudrun",
 	"gcp:compute",
+	"gcp:firestore",
 	"gcp:gke",
 	"gcp:iam",
 	"gcp:iam-key",
@@ -23,6 +25,7 @@ var expectedGCPServices = []string{
 	"gcp:loadbalancing",
 	"gcp:pubsub",
 	"gcp:secretmanager",
+	"gcp:spanner",
 	"gcp:sql",
 	"gcp:storage",
 }
