@@ -65,6 +65,21 @@ type Match struct {
 	Type     string      `yaml:"type"`
 	Region   string      `yaml:"region"`
 	Where    []Predicate `yaml:"where"`
+	// Related (optional) requires the resource to have at least one edge
+	// satisfying the inner Match. Single-hop traversal only — depth>1 is a
+	// future extension. The inner Match's Where predicates evaluate against
+	// the TARGET resource's attributes JSON, not the parent's.
+	Related *RelatedMatch `yaml:"related,omitempty"`
+}
+
+// RelatedMatch describes the edge-traversal predicate. Direction "out" walks
+// outbound edges (RelationshipsFrom); "in" walks inbound (RelationshipsTo).
+// Empty/missing direction defaults to "out". Kinds (optional) restricts the
+// edge kind filter (e.g. ["uses","attached-to"]); empty means any kind.
+type RelatedMatch struct {
+	Direction string   `yaml:"direction"`
+	Kinds     []string `yaml:"kinds"`
+	Target    Match    `yaml:"target"`
 }
 
 // Predicate is a single path/op/value triple evaluated against a resource's
@@ -183,24 +198,43 @@ func validateRule(r *Rule) error {
 	if _, err := ParseSeverity(string(r.Severity)); err != nil {
 		return fmt.Errorf("rule %s: %w", r.ID, err)
 	}
-	for i := range r.Match.Where {
-		p := &r.Match.Where[i]
+	if err := validateMatch(r.ID, "", &r.Match); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateMatch recursively validates a Match (predicates + nested Related
+// target). Used by validateRule for the top-level Match and by itself for
+// the inner RelatedMatch.Target.
+func validateMatch(ruleID, scope string, m *Match) error {
+	for i := range m.Where {
+		p := &m.Where[i]
 		if p.Path == "" {
-			return fmt.Errorf("rule %s: where[%d] missing path", r.ID, i)
+			return fmt.Errorf("rule %s: %swhere[%d] missing path", ruleID, scope, i)
 		}
 		if !validOps[p.Op] {
-			return fmt.Errorf("rule %s: where[%d] unknown op %q", r.ID, i, p.Op)
+			return fmt.Errorf("rule %s: %swhere[%d] unknown op %q", ruleID, scope, i, p.Op)
 		}
 		if p.Op == "matches" {
 			s, ok := p.Value.(string)
 			if !ok {
-				return fmt.Errorf("rule %s: where[%d] op=matches requires string value", r.ID, i)
+				return fmt.Errorf("rule %s: %swhere[%d] op=matches requires string value", ruleID, scope, i)
 			}
 			re, err := regexp.Compile(s)
 			if err != nil {
-				return fmt.Errorf("rule %s: where[%d] bad regex: %w", r.ID, i, err)
+				return fmt.Errorf("rule %s: %swhere[%d] bad regex: %w", ruleID, scope, i, err)
 			}
 			p.Regex = re
+		}
+	}
+	if m.Related != nil {
+		dir := m.Related.Direction
+		if dir != "" && dir != "in" && dir != "out" {
+			return fmt.Errorf("rule %s: related.direction must be 'in' or 'out' (got %q)", ruleID, dir)
+		}
+		if err := validateMatch(ruleID, "related.target.", &m.Related.Target); err != nil {
+			return err
 		}
 	}
 	return nil

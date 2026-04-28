@@ -95,6 +95,26 @@ func (s *Store) GetScan(id string) (*Scan, error) {
 	return &sc, nil
 }
 
+// LatestIncompleteScan returns the most-recent scan whose status is "running"
+// or "partial" — the candidate for `disco scan --resume` to pick up. Returns
+// (nil, nil) when no such scan exists. Status "failed" is excluded — those
+// require manual triage rather than blind resume.
+func (s *Store) LatestIncompleteScan() (*Scan, error) {
+	var sc Scan
+	err := s.db.Get(&sc, `
+		SELECT * FROM scans
+		WHERE status IN ('running','partial')
+		ORDER BY started_at DESC
+		LIMIT 1`)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(sc.ProvidersJSON), &sc.Providers); err != nil {
+		return nil, fmt.Errorf("unmarshal providers: %w", err)
+	}
+	return &sc, nil
+}
+
 // ListScans returns all scans ordered by start time descending.
 func (s *Store) ListScans() ([]Scan, error) {
 	var scans []Scan

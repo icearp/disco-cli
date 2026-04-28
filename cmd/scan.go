@@ -47,6 +47,36 @@ Examples:
 	},
 }
 
+// startOrResumeScan picks the scan_id for this run. resumeFlag values:
+//   - "" (default) — fresh scan via CreateScan.
+//   - "latest" — pick up the most-recent scan whose status is running/partial.
+//   - any other value — treated as an explicit scan_id to reuse.
+//
+// Returns (scanID, resuming, err). When resuming, callers should expect the
+// checkpoint table to carry per-service watermarks the paid incremental
+// scanner consumes; the OSS path persists fresh checkpoints from this scan_id
+// without consuming them.
+func startOrResumeScan(db *store.Store, resumeFlag string, providers []string) (string, bool, error) {
+	if resumeFlag == "" {
+		id, err := db.CreateScan(providers, map[string]any{"providers": providers})
+		if err != nil {
+			return "", false, fmt.Errorf("create scan record: %w", err)
+		}
+		return id, false, nil
+	}
+	if resumeFlag == "latest" {
+		sc, err := db.LatestIncompleteScan()
+		if err != nil {
+			return "", false, fmt.Errorf("--resume latest: no incomplete scan found: %w", err)
+		}
+		return sc.ID, true, nil
+	}
+	if _, err := db.GetScan(resumeFlag); err != nil {
+		return "", false, fmt.Errorf("--resume %s: scan not found: %w", resumeFlag, err)
+	}
+	return resumeFlag, true, nil
+}
+
 // runScan executes a scan for the given set of scanners: opens the database,
 // records a scan row, runs all scanners in parallel, then marks the scan
 // complete or failed.
@@ -68,11 +98,24 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		names[i] = s.Name()
 	}
 
-	scanID, err := db.CreateScan(names, map[string]any{"providers": names})
+	// --resume reuses a previously-started scan_id and its checkpoint set.
+	// Without it (default), a fresh scan_id is generated. The actual
+	// per-page resume hook is consumed by the paid incremental scanner;
+	// the OSS path persists checkpoints and exposes the lookup so users
+	// can swap to the paid feature without re-scanning.
+	resumeFlag, _ := cmd.Flags().GetString("resume")
+	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names)
 	if err != nil {
-		return fmt.Errorf("create scan record: %w", err)
+		return err
 	}
 	start := time.Now()
+	if resuming {
+		cps, lerr := db.ListCheckpoints(scanID)
+		if lerr == nil {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+				"Resuming scan %s with %d checkpoint(s)\n", scanID, len(cps))
+		}
+	}
 
 	// Progress goes to stderr so stdout stays clean for piping (only the
 	// final summary line and the scan ID land on stdout). --quiet silences
@@ -239,6 +282,7 @@ func init() {
 	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
 	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
+	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,

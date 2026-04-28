@@ -17,12 +17,17 @@ type providerCfg struct {
 	Accounts       []accountCfg `mapstructure:"accounts"`
 }
 
-// accountCfg is the per-account YAML entry.
+// accountCfg is the per-account YAML entry. role_arn is the single-hop
+// assume-role target; role_chain (if non-empty) takes precedence and walks
+// the slice in order, each step using the prior step's credentials as the
+// source. Use role_chain when a hub/spoke topology requires hopping through
+// an intermediate "audit" role to reach a target account.
 type accountCfg struct {
-	ID      string   `mapstructure:"id"`
-	Name    string   `mapstructure:"name"`
-	Regions []string `mapstructure:"regions"`
-	RoleARN string   `mapstructure:"role_arn"`
+	ID        string   `mapstructure:"id"`
+	Name      string   `mapstructure:"name"`
+	Regions   []string `mapstructure:"regions"`
+	RoleARN   string   `mapstructure:"role_arn"`
+	RoleChain []string `mapstructure:"role_chain"`
 }
 
 // loadAccounts parses the viper config and returns a resolved account slice.
@@ -71,8 +76,15 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string) 
 	for _, a := range cfg.Accounts {
 		acctCfg := baseCfg // value copy; safe — aws.Config is a struct
 
-		// Assume a cross-account role when role_arn is configured.
-		if a.RoleARN != "" {
+		// Multi-hop role chaining (preferred when present): walk role_chain
+		// in order, each step's STS client built from the prior step's
+		// credentials. Each AssumeRoleProvider is wrapped in a
+		// CredentialsCache so the SDK's normal token refresh kicks in
+		// independently per hop.
+		switch {
+		case len(a.RoleChain) > 0:
+			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain)
+		case a.RoleARN != "":
 			stsClient := sts.NewFromConfig(baseCfg)
 			provider := stscreds.NewAssumeRoleProvider(stsClient, a.RoleARN)
 			acctCfg.Credentials = sdkaws.NewCredentialsCache(provider)
@@ -98,4 +110,28 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string) 
 		})
 	}
 	return accounts, nil
+}
+
+// chainAssumeRoles walks roleARNs in order, building a credentials provider
+// where each hop's STS client uses the prior hop's credentials. Returns a
+// cached provider suitable for sdkaws.Config.Credentials. The first hop uses
+// baseCfg's credentials (env / shared / IRSA / etc.); each subsequent hop
+// inherits the previous AssumeRoleProvider's caller identity.
+//
+// Use cases: hub-and-spoke org topology where the runner credentials live in
+// a security account, jumping through a per-org "Audit" role into each
+// member account, then optionally into a per-account read-only role.
+func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string) *sdkaws.CredentialsCache {
+	cur := baseCfg
+	var last *sdkaws.CredentialsCache
+	for _, role := range roleARNs {
+		stsClient := sts.NewFromConfig(cur)
+		provider := stscreds.NewAssumeRoleProvider(stsClient, role)
+		cache := sdkaws.NewCredentialsCache(provider)
+		next := cur
+		next.Credentials = cache
+		cur = next
+		last = cache
+	}
+	return last
 }

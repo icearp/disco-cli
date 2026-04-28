@@ -40,6 +40,15 @@ func Evaluate(st *store.Store, rules []Rule, minSev Severity) ([]Finding, error)
 			if !matchesAll(r.Match.Where, res.AttributesJSON) {
 				continue
 			}
+			if r.Match.Related != nil {
+				ok, rerr := evalRelated(st, res.ID, r.Match.Related)
+				if rerr != nil {
+					return nil, fmt.Errorf("rule %s: related: %w", r.ID, rerr)
+				}
+				if !ok {
+					continue
+				}
+			}
 			msg := r.Description
 			if msg == "" {
 				msg = r.ID
@@ -57,6 +66,72 @@ func Evaluate(st *store.Store, rules []Rule, minSev Severity) ([]Finding, error)
 		}
 	}
 	return findings, nil
+}
+
+// evalRelated reports whether the resource at fromID has at least one edge
+// satisfying the RelatedMatch. Direction defaults to "out" (RelationshipsFrom);
+// "in" walks RelationshipsTo. Single-hop only (depth=1) — multi-hop traversal
+// is a future extension. Target.Type/Provider/Region/Where all evaluated
+// against the target resource's persisted row.
+func evalRelated(st *store.Store, fromID string, rel *RelatedMatch) (bool, error) {
+	dir := rel.Direction
+	if dir == "" {
+		dir = "out"
+	}
+	var (
+		edges []store.Relationship
+		err   error
+	)
+	switch dir {
+	case "out":
+		edges, err = st.RelationshipsFrom(fromID, rel.Kinds...)
+	case "in":
+		edges, err = st.RelationshipsTo(fromID, rel.Kinds...)
+	}
+	if err != nil {
+		return false, err
+	}
+	if len(edges) == 0 {
+		return false, nil
+	}
+	for _, e := range edges {
+		var targetID string
+		if dir == "out" {
+			targetID = e.ToID
+		} else {
+			targetID = e.FromID
+		}
+		t, err := st.GetResource(targetID)
+		if err != nil || t == nil {
+			continue
+		}
+		if rel.Target.Provider != "" && t.Provider != rel.Target.Provider {
+			continue
+		}
+		if rel.Target.Type != "" && t.Type != rel.Target.Type {
+			continue
+		}
+		if rel.Target.Region != "" {
+			if t.Region == nil || *t.Region != rel.Target.Region {
+				continue
+			}
+		}
+		if !matchesAll(rel.Target.Where, t.AttributesJSON) {
+			continue
+		}
+		// Nested Related (recursive) — multi-hop via chained traversal.
+		if rel.Target.Related != nil {
+			ok, rerr := evalRelated(st, t.ID, rel.Target.Related)
+			if rerr != nil {
+				return false, rerr
+			}
+			if !ok {
+				continue
+			}
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // matchesAll returns true when every predicate holds against attrs.

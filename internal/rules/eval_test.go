@@ -121,3 +121,106 @@ func filterID(rs []Rule, id string) []Rule {
 	}
 	return nil
 }
+
+// TestEvaluate_RelatedTraversal verifies a rule with Related fires only when
+// the resource has an outbound edge to a target matching the inner Match.
+// Models: instance -[uses]-> SG (open). Without the open SG, no finding.
+func TestEvaluate_RelatedTraversal(t *testing.T) {
+	st, scanID := newTestStore(t)
+	openSG := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:security-group",
+		NativeID: "sg-open", AttributesJSON: `{"GroupName":"open"}`, DiscoveredBy: scanID,
+	}
+	closedSG := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:security-group",
+		NativeID: "sg-closed", AttributesJSON: `{"GroupName":"closed"}`, DiscoveredBy: scanID,
+	}
+	openInst := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
+		NativeID: "i-open", AttributesJSON: `{}`, DiscoveredBy: scanID,
+	}
+	safeInst := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
+		NativeID: "i-safe", AttributesJSON: `{}`, DiscoveredBy: scanID,
+	}
+	if _, err := st.UpsertResources([]*store.Resource{openSG, closedSG, openInst, safeInst}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := st.UpsertRelationship(openInst.ID, openSG.ID, store.RelUses, "directed", nil); err != nil {
+		t.Fatalf("rel open: %v", err)
+	}
+	if err := st.UpsertRelationship(safeInst.ID, closedSG.ID, store.RelUses, "directed", nil); err != nil {
+		t.Fatalf("rel safe: %v", err)
+	}
+
+	rule := Rule{
+		ID:       "instance-with-open-sg",
+		Severity: SevHigh,
+		Match: Match{
+			Type: "aws:ec2:instance",
+			Related: &RelatedMatch{
+				Direction: "out",
+				Kinds:     []string{store.RelUses},
+				Target: Match{
+					Type: "aws:ec2:security-group",
+					Where: []Predicate{
+						{Path: "GroupName", Op: "eq", Value: "open"},
+					},
+				},
+			},
+		},
+	}
+	findings, err := Evaluate(st, []Rule{rule}, "")
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings: got %d, want 1", len(findings))
+	}
+	if findings[0].ResourceID != openInst.ID {
+		t.Errorf("wrong resource flagged: got %s want %s", findings[0].ResourceID, openInst.ID)
+	}
+}
+
+// TestEvaluate_RelatedDirection verifies "in" direction walks inbound edges.
+func TestEvaluate_RelatedDirection(t *testing.T) {
+	st, scanID := newTestStore(t)
+	parent := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc",
+		NativeID: "vpc-1", AttributesJSON: `{}`, DiscoveredBy: scanID,
+	}
+	child := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:subnet",
+		NativeID: "sub-1", AttributesJSON: `{"AvailabilityZone":"us-east-1a"}`, DiscoveredBy: scanID,
+	}
+	if _, err := st.UpsertResources([]*store.Resource{parent, child}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := st.UpsertRelationship(child.ID, parent.ID, store.RelAttachedTo, "directed", nil); err != nil {
+		t.Fatalf("rel: %v", err)
+	}
+	rule := Rule{
+		ID:       "vpc-with-az-subnet",
+		Severity: SevLow,
+		Match: Match{
+			Type: "aws:ec2:vpc",
+			Related: &RelatedMatch{
+				Direction: "in",
+				Kinds:     []string{store.RelAttachedTo},
+				Target: Match{
+					Type: "aws:ec2:subnet",
+					Where: []Predicate{
+						{Path: "AvailabilityZone", Op: "eq", Value: "us-east-1a"},
+					},
+				},
+			},
+		},
+	}
+	findings, err := Evaluate(st, []Rule{rule}, "")
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if len(findings) != 1 || findings[0].ResourceID != parent.ID {
+		t.Errorf("expected 1 finding on %s, got %+v", parent.ID, findings)
+	}
+}
