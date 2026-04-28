@@ -51,6 +51,8 @@ const (
 	// Logging / Monitoring
 	TypeLoggingSink        = "gcp:logging:sink"
 	TypeMonitoringAlertPol = "gcp:monitoring:alert-policy"
+	// Cloud Build
+	TypeCloudBuildTrigger = "gcp:cloudbuild:trigger"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

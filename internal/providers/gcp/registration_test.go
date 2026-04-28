@@ -13,6 +13,7 @@ var expectedGCPServices = []string{
 	"gcp:bigtable",
 	"gcp:certificatemanager",
 	"gcp:cloudarmor",
+	"gcp:cloudbuild",
 	"gcp:clouddns",
 	"gcp:cloudfunctions",
 	"gcp:cloudkms",

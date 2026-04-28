@@ -86,6 +86,12 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.17 GCP Cloud Build triggers (this session)
+- **GCP Cloud Build** new type `gcp:cloudbuild:trigger`. Project-scoped service `gcp:cloudbuild` runs one phase: `cloudbuild/v1` `Projects.Triggers.List`. NativeID prefers `ResourceName` field when populated (canonical `projects/{p}/locations/global/triggers/{id}`), falls back to synthesized `projects/{p}/triggers/{id}`.
+- **Resolver** `resolveCloudBuildRelationships` derives trigger -[uses]-> service-account. Trigger's `serviceAccount` field is documented as full resource name `projects/{p}/serviceAccounts/{email}` but the API sometimes returns just the email — resolver checks both forms (saIDByNative + saIDByEmail) for FK match.
+- Worker pool edges deferred — separate `cloudbuild/v1` ProjectsLocationsWorkerPools scanner (own iteration). GitHub / repo connection edges deferred — `cloudbuild/v2` Repositories scanner (own iteration).
+- Live-scan validation: 2 projects, Cloud Build API disabled in both; 0 triggers, scanner ran clean.
+
 ### R4.16 GCP Cloud Logging sinks + Monitoring alert policies (this session)
 - **GCP Cloud Logging sinks** new type `gcp:logging:sink`. Service `gcp:logging`: `logging/v2` `Projects.Sinks.List`. Synthesized NativeID `projects/{p}/sinks/{name}` because LogSink has no fully-qualified resource name in v2. Folder + organization scope sinks deferred — they're scoped above the per-project fan-out.
 - **GCP Cloud Monitoring alert policies** new type `gcp:monitoring:alert-policy`. Service `gcp:monitoring`: `monitoring/v3` `Projects.AlertPolicies.List`. NativeID is the policy resource name. Notification channels (`alert.notificationChannels[]`) deferred — separate Channels.List, alert→channel resolver follow-up.
@@ -660,7 +666,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 14. **Dataproc + Dataflow** — cluster / job; edges to network, SA. *(Composer environment scanner + CMEK/SA resolver landed via locations/- wildcard — see COMPLETED R4.14. Dataproc + Dataflow remain — both need a shared per-region fan-out helper since neither supports the locations/- wildcard pattern.)*
 15. *(removed — Artifact Registry repository scanner + repo→CMEK resolver landed via locations/- wildcard. GKE/Cloud Run → repo pull edges deferred (image-ref parsing); see COMPLETED R4.15)*
 16. *(removed — logging sink + monitoring alert-policy scanners landed; sink → GCS/BQ/PubSub destination resolver landed. Logbucket destinations + alert→notification-channel + folder/org-scope sinks deferred; see COMPLETED R4.16)*
-17. **Cloud Build triggers** — trigger → repo + worker pool.
+17. *(removed — Cloud Build trigger scanner + trigger→SA resolver landed. Worker pool + repo connection (cloudbuild/v2) deferred to own iterations; see COMPLETED R4.17)*
 18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services.
 19. **Binary Authorization** — policy, attestor. Edges: policy → KMS attestor keys.
 20. **Cloud Run Jobs, Batch** — job → SA + network.
