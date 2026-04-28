@@ -13,6 +13,15 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:ses", fn: scanSES}) }
 
+// sesv2API is the narrow set of SES v2 operations called by the scanSES
+// sub-phases.
+type sesv2API interface {
+	ListEmailIdentities(context.Context, *sesv2.ListEmailIdentitiesInput, ...func(*sesv2.Options)) (*sesv2.ListEmailIdentitiesOutput, error)
+	GetEmailIdentity(context.Context, *sesv2.GetEmailIdentityInput, ...func(*sesv2.Options)) (*sesv2.GetEmailIdentityOutput, error)
+	ListConfigurationSets(context.Context, *sesv2.ListConfigurationSetsInput, ...func(*sesv2.Options)) (*sesv2.ListConfigurationSetsOutput, error)
+	GetConfigurationSet(context.Context, *sesv2.GetConfigurationSetInput, ...func(*sesv2.Options)) (*sesv2.GetConfigurationSetOutput, error)
+}
+
 // scanSES discovers SES v2 email identities and configuration sets in one
 // region. Two phases run sequentially. Phase-level AccessDenied is tolerated
 // via skipIfAccessDenied without barring the other phase.
@@ -48,7 +57,7 @@ func sesConfigurationSetARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:ses:%s:%s:configuration-set/%s", region, accountID, name)
 }
 
-func scanSESEmailIdentities(ctx context.Context, client *sesv2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := sesv2.NewListEmailIdentitiesPaginator(client, &sesv2.ListEmailIdentitiesInput{})
 	var names []string
 	for pager.HasMorePages() {
@@ -122,7 +131,7 @@ func scanSESEmailIdentities(ctx context.Context, client *sesv2.Client, acct *acc
 	return len(batch), n, nil
 }
 
-func scanSESConfigurationSets(ctx context.Context, client *sesv2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := sesv2.NewListConfigurationSetsPaginator(client, &sesv2.ListConfigurationSetsInput{})
 	var names []string
 	for pager.HasMorePages() {

@@ -25,6 +25,15 @@ func isAuditManagerNotEnabled(err error) bool {
 
 func init() { registerService(serviceEntry{name: "aws:auditmanager", fn: scanAuditManager}) }
 
+// auditmanagerAPI is the narrow set of Audit Manager operations called by
+// the scanAuditManager sub-phases.
+type auditmanagerAPI interface {
+	ListAssessments(context.Context, *auditmanager.ListAssessmentsInput, ...func(*auditmanager.Options)) (*auditmanager.ListAssessmentsOutput, error)
+	GetAssessment(context.Context, *auditmanager.GetAssessmentInput, ...func(*auditmanager.Options)) (*auditmanager.GetAssessmentOutput, error)
+	ListAssessmentFrameworks(context.Context, *auditmanager.ListAssessmentFrameworksInput, ...func(*auditmanager.Options)) (*auditmanager.ListAssessmentFrameworksOutput, error)
+	ListControls(context.Context, *auditmanager.ListControlsInput, ...func(*auditmanager.Options)) (*auditmanager.ListControlsOutput, error)
+}
+
 // scanAuditManager discovers Audit Manager assessments, custom frameworks,
 // and custom controls in one region. Three phases run sequentially.
 //
@@ -66,7 +75,7 @@ func scanAuditManager(ctx context.Context, acct *account, region string, st *sto
 	return total, inserted, nil
 }
 
-func scanAuditManagerAssessments(ctx context.Context, client *auditmanager.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuditManagerAssessments(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := auditmanager.NewListAssessmentsPaginator(client, &auditmanager.ListAssessmentsInput{})
 	var ids []string
 	for pager.HasMorePages() {
@@ -154,7 +163,7 @@ func scanAuditManagerAssessments(ctx context.Context, client *auditmanager.Clien
 	return len(batch), n, nil
 }
 
-func scanAuditManagerFrameworks(ctx context.Context, client *auditmanager.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuditManagerFrameworks(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := auditmanager.NewListAssessmentFrameworksPaginator(client, &auditmanager.ListAssessmentFrameworksInput{
 		FrameworkType: amtypes.FrameworkTypeCustom,
 	})
@@ -200,7 +209,7 @@ func scanAuditManagerFrameworks(ctx context.Context, client *auditmanager.Client
 	return len(batch), n, nil
 }
 
-func scanAuditManagerControls(ctx context.Context, client *auditmanager.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuditManagerControls(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := auditmanager.NewListControlsPaginator(client, &auditmanager.ListControlsInput{
 		ControlType: amtypes.ControlTypeCustom,
 	})

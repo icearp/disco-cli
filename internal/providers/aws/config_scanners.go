@@ -10,12 +10,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:config", fn: scanConfig}) }
 
+// configserviceAPI is the narrow set of AWS Config operations called by
+// scanConfigAll.
+type configserviceAPI interface {
+	DescribeConfigurationRecorders(context.Context, *configservice.DescribeConfigurationRecordersInput, ...func(*configservice.Options)) (*configservice.DescribeConfigurationRecordersOutput, error)
+	DescribeDeliveryChannels(context.Context, *configservice.DescribeDeliveryChannelsInput, ...func(*configservice.Options)) (*configservice.DescribeDeliveryChannelsOutput, error)
+	DescribeConfigRules(context.Context, *configservice.DescribeConfigRulesInput, ...func(*configservice.Options)) (*configservice.DescribeConfigRulesOutput, error)
+}
+
 // scanConfig discovers AWS Config configuration recorders, delivery channels,
 // and Config rules. Recorders and delivery channels have synthesised ARNs
 // (Describe APIs return them without one); rules carry ConfigRuleArn natively.
 func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := configservice.NewFromConfig(acct.cfg, func(o *configservice.Options) { o.Region = region })
+	return scanConfigAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanConfigAll holds the testable scan body.
+func scanConfigAll(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Configuration recorders.
 	recOut, err := client.DescribeConfigurationRecorders(ctx, &configservice.DescribeConfigurationRecordersInput{})
 	if err != nil {

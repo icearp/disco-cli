@@ -17,6 +17,17 @@ func init() {
 	})
 }
 
+// organizationsAPI is the narrow set of Organizations operations called by
+// the scanOrganizations sub-phases.
+type organizationsAPI interface {
+	DescribeOrganization(context.Context, *organizations.DescribeOrganizationInput, ...func(*organizations.Options)) (*organizations.DescribeOrganizationOutput, error)
+	ListRoots(context.Context, *organizations.ListRootsInput, ...func(*organizations.Options)) (*organizations.ListRootsOutput, error)
+	ListOrganizationalUnitsForParent(context.Context, *organizations.ListOrganizationalUnitsForParentInput, ...func(*organizations.Options)) (*organizations.ListOrganizationalUnitsForParentOutput, error)
+	ListAccounts(context.Context, *organizations.ListAccountsInput, ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error)
+	ListPolicies(context.Context, *organizations.ListPoliciesInput, ...func(*organizations.Options)) (*organizations.ListPoliciesOutput, error)
+	ListParents(context.Context, *organizations.ListParentsInput, ...func(*organizations.Options)) (*organizations.ListParentsOutput, error)
+}
+
 // scanOrganizations discovers the AWS Organizations structure — organization,
 // roots, OUs, accounts, and service control policies. Only callable from the
 // management account; AccessDenied from member accounts is treated as "not the
@@ -219,7 +230,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 // used to compute the parent's stable ResourceID.
 func walkOUs(
 	ctx context.Context,
-	client *organizations.Client,
+	client organizationsAPI,
 	acct *account,
 	scanID string,
 	st *store.Store,
@@ -283,7 +294,7 @@ func walkOUs(
 // firstParentARN resolves the first parent of an account via ListParents. The
 // native parent id is mapped to its ARN via arnByID (populated during the OU
 // walk). Returns "" if the account has no resolvable parent.
-func firstParentARN(ctx context.Context, client *organizations.Client, accountID string, arnByID map[string]string) (string, error) {
+func firstParentARN(ctx context.Context, client organizationsAPI, accountID string, arnByID map[string]string) (string, error) {
 	out, err := client.ListParents(ctx, &organizations.ListParentsInput{ChildId: &accountID})
 	if err != nil {
 		if isAccessDenied(err) {

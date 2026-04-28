@@ -14,6 +14,14 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:servicecatalog", fn: scanServiceCatalog}) }
 
+// servicecatalogAPI is the narrow set of Service Catalog operations called by
+// the scanServiceCatalog sub-phases.
+type servicecatalogAPI interface {
+	ListPortfolios(context.Context, *servicecatalog.ListPortfoliosInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListPortfoliosOutput, error)
+	ListConstraintsForPortfolio(context.Context, *servicecatalog.ListConstraintsForPortfolioInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListConstraintsForPortfolioOutput, error)
+	SearchProductsAsAdmin(context.Context, *servicecatalog.SearchProductsAsAdminInput, ...func(*servicecatalog.Options)) (*servicecatalog.SearchProductsAsAdminOutput, error)
+}
+
 // scanServiceCatalog discovers Service Catalog portfolios and products
 // (admin view) in one region. Two phases: portfolios via ListPortfolios
 // paginator, products via SearchProductsAsAdmin paginator. Per-portfolio
@@ -43,7 +51,7 @@ func scanServiceCatalog(ctx context.Context, acct *account, region string, st *s
 	return total, inserted, nil
 }
 
-func scanServiceCatalogPortfolios(ctx context.Context, client *servicecatalog.Client, acct *account, region string, st *store.Store, scanID string) (portfolioIDs []string, total, inserted int, err error) {
+func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (portfolioIDs []string, total, inserted int, err error) {
 	pager := servicecatalog.NewListPortfoliosPaginator(client, &servicecatalog.ListPortfoliosInput{})
 	var details []portfolioWithConstraints
 	for pager.HasMorePages() {
@@ -172,7 +180,7 @@ type portfolioWithConstraints struct {
 	productARNs []string
 }
 
-func scanServiceCatalogProducts(ctx context.Context, client *servicecatalog.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceCatalogProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := servicecatalog.NewSearchProductsAsAdminPaginator(client, &servicecatalog.SearchProductsAsAdminInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

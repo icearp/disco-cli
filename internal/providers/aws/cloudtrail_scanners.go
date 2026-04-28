@@ -11,12 +11,28 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:cloudtrail", fn: scanCloudTrail}) }
 
+// cloudtrailAPI is the narrow set of CloudTrail operations called by
+// scanCloudTrailAll.
+type cloudtrailAPI interface {
+	DescribeTrails(context.Context, *cloudtrail.DescribeTrailsInput, ...func(*cloudtrail.Options)) (*cloudtrail.DescribeTrailsOutput, error)
+	GetTrailStatus(context.Context, *cloudtrail.GetTrailStatusInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetTrailStatusOutput, error)
+	ListTags(context.Context, *cloudtrail.ListTagsInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListTagsOutput, error)
+	ListEventDataStores(context.Context, *cloudtrail.ListEventDataStoresInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListEventDataStoresOutput, error)
+	GetEventDataStore(context.Context, *cloudtrail.GetEventDataStoreInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetEventDataStoreOutput, error)
+}
+
 // scanCloudTrail discovers CloudTrail trails in one region. DescribeTrails
 // with IncludeShadowTrails=false returns only trails whose home region matches
 // the current region, preventing duplicates across regions.
 func scanCloudTrail(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudtrail.NewFromConfig(acct.cfg, func(o *cloudtrail.Options) { o.Region = region })
+	cfg := acct.cfg
+	cfg.Region = region
+	client := cloudtrail.NewFromConfig(cfg)
+	return scanCloudTrailAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanCloudTrailAll holds the testable scan body.
+func scanCloudTrailAll(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase 1: classic trails. AccessDenied here does not bar Phase 2 — Lake
 	// event-data-store permissions are granted independently.
 	out, err := client.DescribeTrails(ctx, &cloudtrail.DescribeTrailsInput{

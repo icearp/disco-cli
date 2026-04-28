@@ -15,6 +15,15 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:controltower", fn: scanControlTower}) }
 
+// controltowerAPI is the narrow set of Control Tower operations called by
+// the scanControlTower sub-phases.
+type controltowerAPI interface {
+	ListLandingZones(context.Context, *controltower.ListLandingZonesInput, ...func(*controltower.Options)) (*controltower.ListLandingZonesOutput, error)
+	GetLandingZone(context.Context, *controltower.GetLandingZoneInput, ...func(*controltower.Options)) (*controltower.GetLandingZoneOutput, error)
+	ListEnabledBaselines(context.Context, *controltower.ListEnabledBaselinesInput, ...func(*controltower.Options)) (*controltower.ListEnabledBaselinesOutput, error)
+	ListEnabledControls(context.Context, *controltower.ListEnabledControlsInput, ...func(*controltower.Options)) (*controltower.ListEnabledControlsOutput, error)
+}
+
 // isControlTowerNotEnabled disambiguates the "Control Tower not deployed
 // in this account" state from real errors. Two surface shapes seen in
 // practice:
@@ -64,7 +73,7 @@ func scanControlTower(ctx context.Context, acct *account, region string, st *sto
 	return total, inserted, nil
 }
 
-func scanControlTowerLandingZones(ctx context.Context, client *controltower.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanControlTowerLandingZones(ctx context.Context, client controltowerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := controltower.NewListLandingZonesPaginator(client, &controltower.ListLandingZonesInput{})
 	var arns []string
 	for pager.HasMorePages() {
@@ -147,7 +156,7 @@ func scanControlTowerLandingZones(ctx context.Context, client *controltower.Clie
 // degrade to an empty slice rather than aborting the parent baseline upsert —
 // per CLAUDE.md: surface a warning, never propagate per-target errors during
 // embedded-data fan-out.
-func listEnabledControlsForTarget(ctx context.Context, client *controltower.Client, targetID string, st *store.Store, acctID, region string) ([]cttypes.EnabledControlSummary, error) {
+func listEnabledControlsForTarget(ctx context.Context, client controltowerAPI, targetID string, st *store.Store, acctID, region string) ([]cttypes.EnabledControlSummary, error) {
 	if targetID == "" {
 		return nil, nil
 	}
@@ -169,7 +178,7 @@ func listEnabledControlsForTarget(ctx context.Context, client *controltower.Clie
 	return out, nil
 }
 
-func scanControlTowerEnabledBaselines(ctx context.Context, client *controltower.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanControlTowerEnabledBaselines(ctx context.Context, client controltowerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := controltower.NewListEnabledBaselinesPaginator(client, &controltower.ListEnabledBaselinesInput{IncludeChildren: true})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

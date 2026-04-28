@@ -18,6 +18,16 @@ func init() {
 	registerService(serviceEntry{name: "aws:cloudformation", fn: scanCloudFormation})
 }
 
+// cloudformationAPI is the narrow set of CloudFormation operations called
+// by the scanCloudFormation sub-phases.
+type cloudformationAPI interface {
+	ListStacks(context.Context, *cloudformation.ListStacksInput, ...func(*cloudformation.Options)) (*cloudformation.ListStacksOutput, error)
+	ListStackResources(context.Context, *cloudformation.ListStackResourcesInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackResourcesOutput, error)
+	ListStackSets(context.Context, *cloudformation.ListStackSetsInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackSetsOutput, error)
+	ListStackInstances(context.Context, *cloudformation.ListStackInstancesInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackInstancesOutput, error)
+	DescribeStackSet(context.Context, *cloudformation.DescribeStackSetInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStackSetOutput, error)
+}
+
 // scanCloudFormation runs two phases per region:
 //  1. Stacks — ListStacks (active statuses only), then ListStackResources
 //     fan-out so each stack carries its full child resource list under
@@ -91,7 +101,7 @@ type stackSetWithInstances struct {
 	Instances []cfntypes.StackInstanceSummary `json:"Instances"`
 }
 
-func scanCloudFormationStacks(ctx context.Context, client *cloudformation.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudformation.NewListStacksPaginator(client, &cloudformation.ListStacksInput{
 		StackStatusFilter: activeStackStatuses,
 	})
@@ -165,7 +175,7 @@ func scanCloudFormationStacks(ctx context.Context, client *cloudformation.Client
 	return total, inserted, nil
 }
 
-func listAllStackResources(ctx context.Context, client *cloudformation.Client, stackName string) ([]cfntypes.StackResourceSummary, error) {
+func listAllStackResources(ctx context.Context, client cloudformationAPI, stackName string) ([]cfntypes.StackResourceSummary, error) {
 	pager := cloudformation.NewListStackResourcesPaginator(client, &cloudformation.ListStackResourcesInput{StackName: &stackName})
 	var out []cfntypes.StackResourceSummary
 	for pager.HasMorePages() {
@@ -178,7 +188,7 @@ func listAllStackResources(ctx context.Context, client *cloudformation.Client, s
 	return out, nil
 }
 
-func scanCloudFormationStackSets(ctx context.Context, client *cloudformation.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCloudFormationStackSets(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := cloudformation.NewListStackSetsPaginator(client, &cloudformation.ListStackSetsInput{
 		Status: cfntypes.StackSetStatusActive,
 	})
@@ -261,7 +271,7 @@ func scanCloudFormationStackSets(ctx context.Context, client *cloudformation.Cli
 	return total, inserted, nil
 }
 
-func listAllStackInstances(ctx context.Context, client *cloudformation.Client, stackSetName string) ([]cfntypes.StackInstanceSummary, error) {
+func listAllStackInstances(ctx context.Context, client cloudformationAPI, stackSetName string) ([]cfntypes.StackInstanceSummary, error) {
 	pager := cloudformation.NewListStackInstancesPaginator(client, &cloudformation.ListStackInstancesInput{StackSetName: &stackSetName})
 	var out []cfntypes.StackInstanceSummary
 	for pager.HasMorePages() {
