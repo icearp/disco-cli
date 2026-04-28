@@ -20,6 +20,25 @@ Member matching: only `serviceAccount:{email}` members are FK-safe today. Email 
 
 `isPermissionDenied(err)` covers 401/403. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` which calls `ReportWarning` + returns nil — never propagate 403 from a per-service scanner. Compute / GKE / IAM all enforce per-API enablement; users with disabled APIs see warnings, not failures.
 
+## Wildcard locations parent
+
+For per-location APIs that support it (`cloudfunctions/v2`, `run/v2`, future Pub/Sub regional, AI Platform), `parent = "projects/{p}/locations/-"` returns resources across every location in one paginated call. Prefer this over per-location fan-out — the API does the per-location query in parallel server-side. Helper `locationFromResourceName` (in `serverless_scanners.go`) extracts the location segment from the returned resource names for the per-resource `Region` field. Some legacy APIs (Cloud KMS, Certificate Manager) don't support `-` and require the locations-list-then-fan-out pattern instead.
+
+## Synthetic NativeIDs
+
+Some GCP resources have no API-issued canonical name. Synthesize from the parent resource path + a natural key:
+- `gcp:dns:record-set` → `{zoneNativeID}/rrsets/{type}/{name}` — `(name, type)` is the natural key (one zone can have A + AAAA for the same hostname).
+- `gcp:iam:policy` → `{scope}/policy` — IAM policy is JSON returned by `GetIamPolicy`, not a real resource.
+Stable across rescans; matches the synthetic-NativeID precedent in `internal/store/CLAUDE.md`.
+
+## Shared LB upsert helper
+
+`upsertWithProjClosure(p, st, batch)` in `loadbalancing_scanners.go` factors out the upsert + `BatchAddToHierarchyClosure` pair-fanout to `projParentID`. Reuse it from any scanner whose resources hang directly off the project (no intermediate parent). When the parent is something else (e.g. record-set → managed-zone), build the closure pairs inline instead.
+
+## AggregatedList scope-key parsing
+
+GCP Compute `*.AggregatedList` returns `map[string]ScopedList` where keys are either `"global"` or `"regions/{region}"`. Helper `scopedListRegion(scope)` in `loadbalancing_scanners.go` extracts the region segment (returns "" for global). Reuse for any new AggregatedList consumer.
+
 ## API-not-enabled noise dedup
 
 Some GCP scanners fan out over the global locations / regions catalog before hitting an API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional). When the API is disabled in the project, every fan-out unit returns 403, producing ~30 identical "API has not been used" warnings per project. Pattern: per-project `atomic.Bool`, flip on first 403 via `Swap(true)`, skip remaining units. Precedent: `kms_scanners.go` `apiDisabled`. Reuse for any future scanner with this fan-out shape.

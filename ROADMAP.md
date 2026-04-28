@@ -86,6 +86,18 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.10 GCP Cloud Functions Gen2 + Cloud Run services (this session)
+- **GCP Cloud Functions** new type `gcp:cloudfunctions:function` via `cloudfunctions/v2` `Projects.Locations.Functions.List` with the wildcard parent `projects/{p}/locations/-` (cross-location list in one paginated call — no per-location fan-out tier needed). Both Gen1 + Gen2 functions surface through v2 (Gen1 returns `environment: GEN_1`).
+- **GCP Cloud Run** new type `gcp:run:service` via `run/v2` `Projects.Locations.Services.List` with same `locations/-` wildcard. Cloud Run Jobs deferred to R4.20 (separate sibling API surface `Projects.Locations.Jobs`).
+- **Resolver** `resolveServerlessRelationships` derives three edge classes:
+  - cloudFunction -[uses]-> service-account via `serviceConfig.serviceAccountEmail`
+  - cloudFunction -[uses]-> cryptoKey via `kmsKeyName` (CMEK)
+  - run.service -[uses]-> service-account via `template.serviceAccount`
+  Reuses the per-project SA email → resource-ID index pattern from R4.1; cross-project SA refs skipped (FK-safe).
+- **New helper** `locationFromResourceName` — generic extractor for the location segment of any `projects/{p}/locations/{loc}/...` resource name; reusable across future serverless / per-location scanners.
+- Deferred: VPC-connector edges (separate `vpcaccess.googleapis.com` scanner not yet landed); EventTrigger → Pub/Sub topic / Cloud Storage bucket (Pub/Sub topic scanner is R4.11; storage edge needs `eventFilters[]` parsing); Cloud Run Jobs.
+- Live-scan validation: 2 projects, both APIs disabled; 0 resources, scanners ran clean.
+
 ### R4.9 GCP Cloud DNS — managed zones + record sets (this session)
 - **GCP Cloud DNS** new types `gcp:dns:managed-zone`, `gcp:dns:record-set`. Project-scoped service `gcp:clouddns` runs two phases: (1) `dns/v1` `ManagedZones.List` paginated; (2) per-zone `ResourceRecordSets.List` paginated, fan-out bounded by `maxConcurrentDNSZones = 10`. Hierarchy pairs: zone → project, record-set → zone.
 - **Synthetic NativeID for record sets**: `projects/{p}/managedZones/{zone}/rrsets/{type}/{name}`. Both `name` and `type` are needed because (name, type) is the natural key (one zone can have www.example.com. with both A and AAAA records). Stable across rescans.
@@ -588,7 +600,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 7. *(removed — security-policy scanner via SecurityPolicies.AggregatedList + backendService → securityPolicy/edgeSecurityPolicy resolver landed; backendBucket edge + adaptive protection deferred; see COMPLETED R4.7)*
 8. *(removed — Cert Manager scanner at global scope: certificate, certificate-map, certificate-map-entry, dns-authorization. Resolver emits mapEntry → certificate and targetHttpsProxy → certificateMap. Regional fan-out + DNS-auth → managed-cert + legacy compute SslCertificates deferred; see COMPLETED R4.8)*
 9. *(removed — Cloud DNS managed-zone + record-set scanners landed with A/AAAA → forwarding-rule resolver via IP match. CNAME chain + GeoLB routing-policy + DNSSEC + response policies deferred; see COMPLETED R4.9)*
-10. **Cloud Functions (Gen1 + Gen2) + Cloud Run** — edges: function → SA, → trigger (Pub/Sub / HTTP / storage), → VPC connector.
+10. *(removed — Cloud Functions Gen1+Gen2 (via v2 API) + Cloud Run service scanners + function/run → SA + function → KMS resolvers landed via wildcard locations/-. VPC connector + EventTrigger → Pub/Sub/Storage + Cloud Run Jobs deferred; see COMPLETED R4.10)*
 11. **Pub/Sub** — topic, subscription, schema. Edges: subscription → push endpoint, → BigQuery dataset (BigQuery subscriptions), → dead-letter topic.
 12. **BigQuery** — dataset, table, routine, model. Edges: dataset → CMEK key, → authorized views, table → external source (Storage / Drive).
 13. **Bigtable / Firestore / Spanner** — instance + database; edges to CMEK, backups.

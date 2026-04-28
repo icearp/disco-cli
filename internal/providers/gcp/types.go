@@ -28,6 +28,9 @@ const (
 	// Cloud DNS
 	TypeDNSManagedZone = "gcp:dns:managed-zone"
 	TypeDNSRecordSet   = "gcp:dns:record-set"
+	// Cloud Functions / Cloud Run
+	TypeCloudFunction = "gcp:cloudfunctions:function"
+	TypeCloudRunSvc   = "gcp:run:service"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM
