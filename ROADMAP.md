@@ -47,6 +47,13 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
   - Kinesis Data Streams: scanner + KMS resolver; Lambda ESM → Kinesis stream now resolves
   - Firehose: delivery stream scanner; → Kinesis source, → S3 destinations, → KMS
 
+### R5 cross-tenant resolvers (this session)
+- **AWS** — `resolveIAMRoleCrossAccountTrust` walks each role's `AssumeRolePolicyDocument`, emits `cross-account-trust` edge from role → synthetic `aws:iam:foreign-account` stub for any Allow-Statement `Principal.AWS` naming a different account (bare 12-digit ID or ARN form). Wildcards, self-account refs, and Deny statements skip. One stub per distinct foreign account so FK on `relationships.to_id` holds and the foreign account is visible as a graph node.
+- **Azure** — `resolveAuthorizationRelationships` extended: when role-assignment Scope's subscription differs from the assignment's owner sub, emit `cross-sub-rbac` edge → synthetic `azure:microsoft.resources:foreign-subscription` stub. Same-sub assignments retain `attached-to` behavior. Existing case-insensitive ARM-ID match preserved. Principal-side cross-sub edges still deferred (need Microsoft Graph integration).
+- **GCP** — `resolveIAMPolicyRelationships` extended: serviceAccount members from a different project resolve to the SA in the other scanned project (when present) or to a synthetic `gcp:iam:foreign-project` stub. Edge kind `cross-project-iam`. Service-agent emails (`*-system.iam.gserviceaccount.com`) skip cleanly. User/group/domain members still deferred until Workspace identity scanner lands.
+- **Edge kinds** — three new constants in `internal/store/relationships.go`: `RelCrossAccountTrust`, `RelCrossSubRBAC`, `RelCrossProjectIAM`. Distinct kinds (not one union) so graph filters keep boundary-crossed semantics honest.
+- **Cloud-to-cloud DNS dangling check** still deferred — blocks on L1 Cloudflare provider.
+
 ### R1 resolver gaps (partial, this session)
 - **DynamoDB** table → stream (`LatestStreamArn`, new type `aws:dynamodb:stream`)
 - **ECS** task-def → ECR repo (container image URI parse); task-def → log-group (awslogs driver)
@@ -692,11 +699,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 20. *(removed — Cloud Run Jobs + Batch scanners + job→SA resolver landed via locations/- wildcard. Batch network edges deferred (compute_resolvers duplication); see COMPLETED R4.20)*
 
 ### R5. Cross-service resolvers (multi-provider aware)
-Most resolvers same-provider same-service today. Add:
-- **AWS** cross-account references in `relationships` already work via account ID in ResourceID. Add explicit `aws:cross-account-trust` edges: IAM role trust policy principals → `arn:aws:iam::<other-acct>:...`.
-- **Azure** cross-subscription RBAC assignments (cross by construction).
-- **GCP** cross-project IAM (member in another project, role at higher scope).
-- **Cloud-to-cloud** (opt-in, expensive): dangling DNS records → rechecked against other clouds. Trigger condition: revisit when L1 Cloudflare provider lands (natural cross-cloud DNS surface).
+*(AWS cross-account-trust, Azure cross-sub-rbac, GCP cross-project-iam landed — see COMPLETED R5. Cloud-to-cloud DNS dangling check remains deferred until L1 Cloudflare provider lands.)*
 
 ---
 

@@ -12,16 +12,17 @@ import (
 func init() { registerResolver(resolveIAMPolicyRelationships) }
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings
-// and emits a `uses` edge from the policy to every service account named in
-// the bindings whose SA resource exists in the store. The role granted is
-// stamped on the edge attributes so downstream queries (e.g. "what roles does
-// this SA hold across the org?") can filter without re-parsing the policy.
+// and emits edges for every service-account member.
+//
+//   - same-project SA → `uses` edge (FK-checked via buildSAEmailIndex).
+//   - cross-project SA: if the SA exists in any other scanned project, emit a
+//     `cross-project-iam` edge directly to that SA. If the SA's project is not
+//     in scan scope, emit `cross-project-iam` to a synthetic
+//     gcp:iam:foreign-project stub representing the foreign project. R5.
 //
 // Members of types other than serviceAccount: (user, group, domain, allUsers,
-// allAuthenticatedUsers) are intentionally skipped — they have no resource
-// rows in the store yet, and FK-violating edges would fail the upsert. Edges
-// to those principals land when the Entra-equivalent GCP identity scanner
-// (R4 follow-up: workspace users / groups, workforce pools) lands.
+// allAuthenticatedUsers) are skipped — they live in Workspace / workforce
+// pools and have no resource rows in the store yet.
 func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMPolicy},
@@ -33,13 +34,30 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	if len(policies) == 0 {
 		return nil
 	}
+	scanID := policies[0].DiscoveredBy
 
-	// Build email → SA resource ID index so we can FK-check `serviceAccount:{email}`
-	// members before emitting edges.
 	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
 	}
+
+	// Cross-project SA index: SA email → resource ID across every project in
+	// the store. Lazily-built so single-project scans pay nothing.
+	var crossSAByEmail map[string]string
+
+	// Pre-pass: collect distinct foreign project IDs referenced by SA members
+	// not present in any scanned project. We need stubs upserted before edges.
+	type pendingCross struct {
+		fromID    string
+		role      string
+		email     string
+		projectID string
+		// targetSAID set when SA found in another scanned project; empty when
+		// only the foreign-project stub is the destination.
+		targetSAID string
+	}
+	var pending []pendingCross
+	foreignProjects := map[string]struct{}{}
 
 	for _, r := range policies {
 		var policy struct {
@@ -57,18 +75,113 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 				if !ok {
 					continue
 				}
-				saID, ok := saByEmail[email]
-				if !ok {
-					// Cross-project SA or not yet scanned — skip to keep
-					// the edge FK-safe.
+				if saID, ok := saByEmail[email]; ok {
+					attrs := mustJSON(map[string]string{"role": b.Role})
+					if err := st.UpsertRelationship(r.ID, saID, store.RelUses, "directed", &attrs); err != nil {
+						return fmt.Errorf("upsert policy→service-account: %w", err)
+					}
 					continue
 				}
-				attrs := mustJSON(map[string]string{"role": b.Role})
-				if err := st.UpsertRelationship(r.ID, saID, store.RelUses, "directed", &attrs); err != nil {
-					return fmt.Errorf("upsert policy→service-account: %w", err)
+				// Cross-project. Determine SA's home project from the email
+				// suffix; service agents (e.g. service-NNN@compute-system.iam.gserviceaccount.com)
+				// don't fit this shape and are skipped.
+				homeProject, ok := projectFromSAEmail(email)
+				if !ok {
+					continue
 				}
+				if crossSAByEmail == nil {
+					crossSAByEmail, err = buildAllProjectSAEmailIndex(st)
+					if err != nil {
+						return err
+					}
+				}
+				targetSAID := crossSAByEmail[email]
+				if targetSAID == "" {
+					foreignProjects[homeProject] = struct{}{}
+				}
+				pending = append(pending, pendingCross{
+					fromID: r.ID, role: b.Role, email: email,
+					projectID: homeProject, targetSAID: targetSAID,
+				})
 			}
 		}
 	}
+
+	if len(foreignProjects) > 0 {
+		stubs := make([]*store.Resource, 0, len(foreignProjects))
+		for proj := range foreignProjects {
+			nativeID := "projects/" + proj
+			name := proj
+			stubs = append(stubs, &store.Resource{
+				Provider:       "gcp",
+				AccountID:      proj,
+				Type:           TypeIAMForeignProject,
+				NativeID:       nativeID,
+				Name:           &name,
+				AttributesJSON: fmt.Sprintf(`{"projectId":%q,"synthetic":true}`, proj),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if _, err := st.UpsertResources(stubs); err != nil {
+			return fmt.Errorf("upsert foreign-project stubs: %w", err)
+		}
+	}
+
+	for _, e := range pending {
+		toID := e.targetSAID
+		if toID == "" {
+			toID = store.ResourceID("gcp", e.projectID, TypeIAMForeignProject, "projects/"+e.projectID)
+		}
+		attrs := mustJSON(map[string]string{
+			"role":           e.role,
+			"member-email":   e.email,
+			"member-project": e.projectID,
+		})
+		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossProjectIAM, "directed", &attrs); err != nil {
+			return fmt.Errorf("upsert cross-project-iam: %w", err)
+		}
+	}
 	return nil
+}
+
+// projectFromSAEmail extracts the project ID from a user-managed service
+// account email (`{name}@{project}.iam.gserviceaccount.com`). Returns ok=false
+// for service-agent emails (e.g. `service-NNN@compute-system.iam.gserviceaccount.com`)
+// or any malformed input.
+func projectFromSAEmail(email string) (string, bool) {
+	_, domain, ok := strings.Cut(email, "@")
+	if !ok {
+		return "", false
+	}
+	proj, ok := strings.CutSuffix(domain, ".iam.gserviceaccount.com")
+	if !ok {
+		return "", false
+	}
+	// Service agents include a hyphen-separated system name (e.g.
+	// "compute-system") rather than a project ID. Project IDs cannot contain
+	// the literal "-system" suffix per GCP naming rules.
+	if strings.HasSuffix(proj, "-system") || strings.Contains(proj, ".") {
+		return "", false
+	}
+	return proj, true
+}
+
+// buildAllProjectSAEmailIndex returns email → SA resource ID across every
+// gcp:iam:service-account in the store, regardless of project. Used to back
+// cross-project IAM edges without losing FK safety.
+func buildAllProjectSAEmailIndex(st *store.Store) (map[string]string, error) {
+	sas, err := st.ListResources(store.ResourceFilter{
+		Provider: "gcp", Types: []string{TypeIAMServiceAccount},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(sas))
+	for _, sa := range sas {
+		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
+			out[sa.NativeID[i+1:]] = sa.ID
+		}
+	}
+	return out, nil
 }

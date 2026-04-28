@@ -114,6 +114,9 @@ const (
 	TypeIAMSAMLProvider      = "aws:iam:saml-provider"
 	TypeIAMServerCertificate = "aws:iam:server-certificate"
 	TypeIAMVirtualMFADevice  = "aws:iam:virtual-mfa-device"
+	// IAM — synthetic stub for cross-account trust principals (R5).
+	// One row per foreign account ID referenced by an IAM role trust policy. NativeID = arn:aws:iam::<acct>:root.
+	TypeIAMForeignAccount = "aws:iam:foreign-account"
 	// Lambda
 	TypeLambdaFunction          = "aws:lambda:function"
 	TypeLambdaAlias             = "aws:lambda:alias"
@@ -465,6 +468,7 @@ func KnownTypes() []string {
 		TypeIAMRole, TypeIAMUser, TypeIAMGroup, TypeIAMServiceLinkedRole,
 		TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy, TypeIAMAccessKey,
 		TypeIAMInstanceProfile, TypeIAMOIDCProvider, TypeIAMSAMLProvider, TypeIAMServerCertificate, TypeIAMVirtualMFADevice,
+		TypeIAMForeignAccount,
 		TypeLambdaFunction,
 		TypeLambdaAlias, TypeLambdaCapacityProvider, TypeLambdaCodeSigningConfig,
 		TypeLambdaEventInvokeConfig, TypeLambdaESM, TypeLambdaLayerVersion,

@@ -2,6 +2,10 @@
 
 Cross-provider conventions. AWS-specific guidance: see `aws/CLAUDE.md`.
 
+## Resolver-side resource upsert (synthetic stubs)
+
+Resolvers needing to insert resources (e.g. cross-tenant stubs for R5) get scanID via `<row>.DiscoveredBy` from any resource they list — resolver signature carries no scanID. Two-phase pattern: collect pending edges + distinct stub keys in pass 1; `UpsertResources(stubs)` in pass 2; emit `UpsertRelationship` in pass 3. Pre-upsert before edge emit or FK on `relationships.to_id` blows up. Precedent: `resolveIAMRoleCrossAccountTrust` (aws), `resolveAuthorizationRelationships` (azure), `resolveIAMPolicyRelationships` (gcp).
+
 ## Persist API contract
 
 Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.BatchAddToHierarchyClosure()` to persist. Errors from all three must propagate — never silence with `_ =`.

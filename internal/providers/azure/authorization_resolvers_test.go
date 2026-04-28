@@ -120,3 +120,47 @@ func TestResolveAuthorizationRelationships_MissingRoleDef(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestResolveAuthorizationRelationships_CrossSubScope verifies that an
+// assignment whose Scope subscription differs from the assignment's owner sub
+// produces a cross-sub-rbac edge to a foreign-subscription stub. R5.
+func TestResolveAuthorizationRelationships_CrossSubScope(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription("home-sub")
+
+	asnNativeID := "/subscriptions/home-sub/providers/Microsoft.Authorization/roleAssignments/dddddddd-dddd-dddd-dddd-dddddddddddd"
+	asnAttrs := `{
+		"properties": {
+			"roleDefinitionId": "/subscriptions/home-sub/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000003",
+			"scope": "/subscriptions/other-sub/resourceGroups/RG/providers/Microsoft.Storage/storageAccounts/foo",
+			"principalId": "33333333-3333-3333-3333-333333333333"
+		}
+	}`
+	asnID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleAssignment, asnNativeID, "", asnAttrs)
+
+	if err := resolveAuthorizationRelationships(sub, st); err != nil {
+		t.Fatalf("resolveAuthorizationRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(asnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	var cross *store.Relationship
+	for i := range rels {
+		if rels[i].Kind == store.RelCrossSubRBAC {
+			cross = &rels[i]
+			break
+		}
+	}
+	if cross == nil {
+		t.Fatalf("missing cross-sub-rbac edge, got: %+v", rels)
+	}
+	wantStub := store.ResourceID("azure", "other-sub", TypeForeignSubscription, "/subscriptions/other-sub")
+	if cross.ToID != wantStub {
+		t.Errorf("cross-sub-rbac target: got %q want %q", cross.ToID, wantStub)
+	}
+	if cross.Attributes == nil {
+		t.Errorf("expected non-nil attrs on cross-sub-rbac edge")
+	}
+}

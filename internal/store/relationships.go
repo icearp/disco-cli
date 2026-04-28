@@ -20,12 +20,15 @@ type Relationship struct {
 
 // Relationship kind constants.
 const (
-	RelContains   = "contains"
-	RelAttachedTo = "attached-to"
-	RelUses       = "uses"
-	RelRoutesTo   = "routes-to"
-	RelPeer       = "peer"
-	RelAssumes    = "assumes"
+	RelContains          = "contains"
+	RelAttachedTo        = "attached-to"
+	RelUses              = "uses"
+	RelRoutesTo          = "routes-to"
+	RelPeer              = "peer"
+	RelAssumes           = "assumes"
+	RelCrossAccountTrust = "cross-account-trust" // AWS IAM role trust → foreign account/role/user
+	RelCrossSubRBAC      = "cross-sub-rbac"      // Azure RBAC assignment → resource in different sub
+	RelCrossProjectIAM   = "cross-project-iam"   // GCP IAM binding → SA in different project
 )
 
 // UpsertRelationship inserts a relationship, ignoring conflicts (idempotent).

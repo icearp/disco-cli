@@ -24,6 +24,7 @@ func init() {
 	registerResolver(resolveUserGroupMemberships)
 	registerResolver(resolveIAMRoleFederatedTrust)
 	registerResolver(resolveIAMPolicyResources)
+	registerResolver(resolveIAMRoleCrossAccountTrust)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.
@@ -938,4 +939,167 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 		})
 	}
 	return g.Wait()
+}
+
+// resolveIAMRoleCrossAccountTrust walks each role's AssumeRolePolicyDocument and
+// emits cross-account-trust edges for any Allow Statement Principal.AWS that
+// names a different AWS account. Foreign accounts are not in scan scope, so
+// we synthesize one aws:iam:foreign-account stub per distinct foreign account
+// so the FK on relationships.to_id holds and the foreign account is visible
+// as a graph node. ROADMAP R5.
+func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
+	roles, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMRole, TypeIAMServiceLinkedRole},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(roles) == 0 {
+		return nil
+	}
+	scanID := roles[0].DiscoveredBy
+
+	type pending struct {
+		fromID    string
+		principal string
+		acctID    string
+	}
+	var edges []pending
+	stubs := map[string]struct{}{}
+	for _, r := range roles {
+		var attrs struct {
+			AssumeRolePolicyDocument *string `json:"AssumeRolePolicyDocument"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.AssumeRolePolicyDocument == nil || *attrs.AssumeRolePolicyDocument == "" {
+			continue
+		}
+		doc, err := url.QueryUnescape(*attrs.AssumeRolePolicyDocument)
+		if err != nil {
+			continue
+		}
+		var parsed struct {
+			Statement statementPrincipalList `json:"Statement"`
+		}
+		if err := json.Unmarshal([]byte(doc), &parsed); err != nil {
+			continue
+		}
+		for _, stmt := range parsed.Statement {
+			if !strings.EqualFold(stmt.Effect, "Allow") {
+				continue
+			}
+			for _, p := range stmt.Principal.AWS {
+				other, ok := foreignAccountFromPrincipal(p, acct.ID)
+				if !ok {
+					continue
+				}
+				stubs[other] = struct{}{}
+				edges = append(edges, pending{fromID: r.ID, principal: p, acctID: other})
+			}
+		}
+	}
+
+	if len(edges) == 0 {
+		return nil
+	}
+
+	stubResources := make([]*store.Resource, 0, len(stubs))
+	for other := range stubs {
+		nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
+		name := other
+		stubResources = append(stubResources, &store.Resource{
+			Provider:       "aws",
+			AccountID:      other,
+			Type:           TypeIAMForeignAccount,
+			NativeID:       nativeID,
+			Name:           &name,
+			AttributesJSON: fmt.Sprintf(`{"AccountId":%q,"Synthetic":true}`, other),
+			DiscoveredBy:   scanID,
+		})
+	}
+	if _, err := st.UpsertResources(stubResources); err != nil {
+		return fmt.Errorf("upsert foreign-account stubs: %w", err)
+	}
+
+	for _, e := range edges {
+		toID := store.ResourceID("aws", e.acctID, TypeIAMForeignAccount, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
+		attrs := mustJSON(map[string]string{"principal": e.principal, "trust-account": e.acctID})
+		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossAccountTrust, "directed", &attrs); err != nil {
+			return fmt.Errorf("upsert cross-account-trust: %w", err)
+		}
+	}
+	return nil
+}
+
+// statementPrincipalList decodes Statement[] with Principal.AWS payload.
+// Mirrors statementList shape (string-or-array) but preserves the Principal
+// field that the policy-resource walker discards.
+type statementPrincipalList []principalStatement
+
+func (s *statementPrincipalList) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	if b[0] == '[' {
+		var arr []principalStatement
+		if err := json.Unmarshal(b, &arr); err != nil {
+			return err
+		}
+		*s = arr
+		return nil
+	}
+	var one principalStatement
+	if err := json.Unmarshal(b, &one); err != nil {
+		return err
+	}
+	*s = []principalStatement{one}
+	return nil
+}
+
+type principalStatement struct {
+	Effect    string `json:"Effect"`
+	Principal struct {
+		AWS principalList `json:"AWS"`
+	} `json:"Principal"`
+}
+
+// foreignAccountFromPrincipal extracts the account ID from a Principal.AWS entry
+// when it refers to an account other than self. Returns ok=true for:
+//   - bare 12-digit account IDs ("123456789012")
+//   - ARNs of form arn:aws:iam::<acct>:root | user/* | role/*
+//
+// Wildcards, self-account refs, and malformed inputs return ok=false.
+func foreignAccountFromPrincipal(p, selfAcct string) (string, bool) {
+	if p == "" || p == "*" {
+		return "", false
+	}
+	if len(p) == 12 && isAllDigits(p) {
+		if p == selfAcct {
+			return "", false
+		}
+		return p, true
+	}
+	parts := strings.SplitN(p, ":", 6)
+	if len(parts) < 6 || parts[0] != "arn" || parts[2] != "iam" {
+		return "", false
+	}
+	other := parts[4]
+	if len(other) != 12 || !isAllDigits(other) || other == selfAcct {
+		return "", false
+	}
+	return other, true
+}
+
+func isAllDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

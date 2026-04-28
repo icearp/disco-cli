@@ -7,7 +7,7 @@ SQLite persistence layer (`modernc.org/sqlite`, CGO-free). Tables, edges, scrubb
 Four: `resources`, `relationships`, `hierarchy_closure`, `scans`.
 
 - **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy via `BatchAddToHierarchyClosure(pairs)` only.
-- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list).
+- **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `BatchAddToHierarchyClosure(pairs)` (single tx) after upserting resources with `parent_id`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
 
@@ -21,6 +21,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 - `assumes` — IAM trust (function → execution role, task-def → task/exec role)
 - `routes-to` — routing edges (route table → target)
 - `peer` — bidirectional peering (VPC peering)
+- `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` — R5 cross-tenant edges. Targets are synthetic stub resources (`aws:iam:foreign-account`, `azure:microsoft.resources:foreign-subscription`, `gcp:iam:foreign-project`) when foreign tenant out of scan scope.
 
 ## Secret scrubbing
 

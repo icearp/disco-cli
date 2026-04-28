@@ -7,9 +7,10 @@ import (
 	"codeberg.org/icearp/disco/internal/store"
 )
 
-// TestResolveIAMPolicyRelationships verifies that a project IAM policy
-// emits a `uses` edge to every serviceAccount: member that has a
-// matching gcp:iam:service-account row in the store.
+// TestResolveIAMPolicyRelationships verifies that a project IAM policy emits:
+//   - a `uses` edge to every in-project serviceAccount: member whose SA row exists
+//   - a `cross-project-iam` edge to a foreign-project stub for SA members from
+//     a project not in scan scope (R5).
 func TestResolveIAMPolicyRelationships(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")
@@ -35,14 +36,30 @@ func TestResolveIAMPolicyRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	if len(rels) != 1 {
-		t.Fatalf("expected 1 edge (only the in-project SA), got %d: %+v", len(rels), rels)
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (in-project uses + cross-project-iam stub), got %d: %+v", len(rels), rels)
 	}
-	if rels[0].ToID != saID || rels[0].Kind != store.RelUses {
-		t.Errorf("unexpected edge: %+v", rels[0])
+	byKind := map[string]store.Relationship{}
+	for _, r := range rels {
+		byKind[r.Kind] = r
 	}
-	if rels[0].Attributes == nil || !strings.Contains(*rels[0].Attributes, "roles/storage.admin") {
-		t.Errorf("expected role attr roles/storage.admin, got %v", rels[0].Attributes)
+	usesEdge, ok := byKind[store.RelUses]
+	if !ok || usesEdge.ToID != saID {
+		t.Errorf("expected uses→in-project SA, got %+v", usesEdge)
+	}
+	if usesEdge.Attributes == nil || !strings.Contains(*usesEdge.Attributes, "roles/storage.admin") {
+		t.Errorf("expected role attr roles/storage.admin, got %v", usesEdge.Attributes)
+	}
+	crossEdge, ok := byKind[store.RelCrossProjectIAM]
+	if !ok {
+		t.Fatalf("missing cross-project-iam edge, got kinds: %v", byKind)
+	}
+	wantStub := store.ResourceID("gcp", "other", TypeIAMForeignProject, "projects/other")
+	if crossEdge.ToID != wantStub {
+		t.Errorf("cross-project-iam target: got %q want %q", crossEdge.ToID, wantStub)
+	}
+	if crossEdge.Attributes == nil || !strings.Contains(*crossEdge.Attributes, "other") {
+		t.Errorf("expected member-project attr 'other', got %v", crossEdge.Attributes)
 	}
 }
 

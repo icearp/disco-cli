@@ -31,6 +31,8 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 Azure stores IDs as-returned (whatever case user typed at create time). Resolvers matching scope/principal/target IDs against local resources MUST build `strings.ToLower`-keyed index and lowercase input before lookup. Precedent: `authorization_resolvers.go`, `privateendpoints_resolvers.go`, `containerapps_resolvers.go`.
 
+Helpers extracting segments from ARM IDs (subscription guid, RG name, resource name) must return the *lowercased* segment, not the original mixed-case slice — caller-side `strings.EqualFold` works but each call site is easy to miss. Precedent: `subscriptionFromScope` in `authorization_resolvers.go`.
+
 ## PE target IDs carry sub-resource suffixes
 
 `privateLinkServiceConnections[].privateLinkServiceId` often points at sub-path (e.g. `/storageAccounts/foo/blobServices/default`) not stored resource. Resolver pattern: progressively trim `/`-segments from right until one matches index. See `privateendpoints_resolvers.go::resolvePrivateEndpointRelationships`.

@@ -781,3 +781,99 @@ func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
 	}
 	assertRelationship(t, rels, policyID, fsID, store.RelUses)
 }
+
+// --- resolveIAMRoleCrossAccountTrust (R5) ---
+
+// TestResolveIAMRoleCrossAccountTrust verifies that a role whose trust policy
+// names another AWS account (both bare-ID and ARN forms) yields one
+// cross-account-trust edge per distinct foreign principal, plus a single
+// foreign-account stub resource per distinct other account.
+func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/cross-trusted"
+	trustDoc := `{
+		"Version": "2012-10-17",
+		"Statement": [
+			{"Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::222222222222:root"}, "Action": "sts:AssumeRole"},
+			{"Effect": "Allow", "Principal": {"AWS": ["333333333333", "arn:aws:iam::333333333333:user/bob"]}, "Action": "sts:AssumeRole"},
+			{"Effect": "Allow", "Principal": {"AWS": "*"}, "Action": "sts:AssumeRole"},
+			{"Effect": "Allow", "Principal": {"AWS": "` + testAccountID + `"}, "Action": "sts:AssumeRole"},
+			{"Effect": "Deny", "Principal": {"AWS": "arn:aws:iam::444444444444:root"}, "Action": "sts:AssumeRole"}
+		]
+	}`
+	encoded := url.QueryEscape(trustDoc)
+	attrs := `{"AssumeRolePolicyDocument": "` + encoded + `"}`
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", attrs)
+
+	if err := resolveIAMRoleCrossAccountTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleCrossAccountTrust: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	// Expect 2 distinct cross-account-trust edges (one per foreign account: 222 + 333).
+	// Both 333 principals target the same foreign-account stub, so the
+	// UNIQUE(from_id, to_id, kind) constraint collapses them to one edge.
+	// Wildcard, self, and Deny statements all skipped.
+	got := 0
+	for _, r := range rels {
+		if r.Kind == store.RelCrossAccountTrust {
+			got++
+		}
+	}
+	if got != 2 {
+		t.Fatalf("expected 2 cross-account-trust edges, got %d (rels=%+v)", got, rels)
+	}
+	// Verify the stub resources exist (foreign accounts 222... and 333...).
+	for _, other := range []string{"222222222222", "333333333333"} {
+		stubID := store.ResourceID("aws", other, TypeIAMForeignAccount, "arn:aws:iam::"+other+":root")
+		if _, err := st.GetResource(stubID); err != nil {
+			t.Errorf("missing foreign-account stub for %s: %v", other, err)
+		}
+	}
+}
+
+// TestResolveIAMRoleCrossAccountTrust_SameAccountOnly verifies a role whose
+// trust policy only names its own account (or service principals, or wildcard)
+// produces no cross-account-trust edges and no foreign-account stubs.
+func TestResolveIAMRoleCrossAccountTrust_SameAccountOnly(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/local-only"
+	trustDoc := `{
+		"Statement": [
+			{"Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::` + testAccountID + `:role/admin"}, "Action": "sts:AssumeRole"},
+			{"Effect": "Allow", "Principal": {"Service": "ec2.amazonaws.com"}, "Action": "sts:AssumeRole"}
+		]
+	}`
+	encoded := url.QueryEscape(trustDoc)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", `{"AssumeRolePolicyDocument": "`+encoded+`"}`)
+
+	if err := resolveIAMRoleCrossAccountTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleCrossAccountTrust: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	for _, r := range rels {
+		if r.Kind == store.RelCrossAccountTrust {
+			t.Errorf("unexpected cross-account-trust edge: %+v", r)
+		}
+	}
+}
+
+// TestResolveIAMRoleCrossAccountTrust_NoRoles verifies the resolver is a
+// no-op when no IAM roles are present in the account.
+func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	if err := resolveIAMRoleCrossAccountTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleCrossAccountTrust: %v", err)
+	}
+}
