@@ -30,6 +30,34 @@ func registerService(e serviceEntry) {
 	registeredServices = append(registeredServices, e)
 }
 
+// apiResolverEntry is a phase-2 resolver that ALSO needs to make Azure API
+// calls (i.e. cross-cutting resolvers like diagnostic-settings, which fetch
+// per-resource configuration not captured during phase-1 scanners). It runs
+// AFTER all phase-1 services have completed and BEFORE the local-only
+// resolvers in registeredResolvers, so st.ListResources returns the full
+// resource set. Errors degrade to st.ReportError + ScanService(errCount=1)
+// — never propagate.
+type apiResolverEntry struct {
+	name string
+	fn   func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store) (edges int, err error)
+}
+
+// registeredAPIResolvers is populated by *_resolvers.go init() blocks that
+// need API access. Distinct from registeredResolvers (DB-only) because the
+// signature carries ctx + cred.
+var registeredAPIResolvers []apiResolverEntry
+
+// registerAPIResolver adds an API-driven resolver to the registry.
+// Panics on duplicate name to catch copy-paste errors at init time.
+func registerAPIResolver(e apiResolverEntry) {
+	for _, r := range registeredAPIResolvers {
+		if r.name == e.name {
+			panic("disco: duplicate Azure API resolver registration: " + e.name)
+		}
+	}
+	registeredAPIResolvers = append(registeredAPIResolvers, e)
+}
+
 // resolverEntry describes a phase-2 relationship resolver.
 type resolverEntry struct {
 	fn func(sub *subscription, st *store.Store) error

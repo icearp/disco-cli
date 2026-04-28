@@ -141,6 +141,22 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 		return err
 	}
 
+	// Phase 1c: API-driven cross-cutting resolvers (e.g. diagnostic-settings)
+	// run AFTER phase-1 services so st.ListResources returns the full set.
+	// Errors degrade to ReportError; the resolve phase still proceeds.
+	for _, ar := range registeredAPIResolvers {
+		edges, aerr := ar.fn(ctx, sub, cred, st)
+		if aerr != nil {
+			st.ReportError(store.ScanError{
+				Provider: "azure", Service: ar.name, Scope: sub.ID,
+				Message: aerr.Error(),
+			})
+			st.ReportService(ar.name, 0, edges, 1, false)
+			continue
+		}
+		st.ReportService(ar.name, 0, edges, 0, false)
+	}
+
 	st.ReportResolveStart("azure")
 	var counter atomic.Int64
 	err := resolveRelationships(ctx, sub, st.WithRelCounter(&counter))

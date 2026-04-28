@@ -41,6 +41,12 @@ Helpers extracting segments from ARM IDs (subscription guid, RG name, resource n
 
 `armauthorization.RoleDefinitionsClient.List(scope=sub)` returns built-ins with sub prefix rewritten in. Each sub gets own copy — accepted because `ResourceID` hash includes account_id, so per-sub resolvers FK-match locally. Same logic applies to anything tenant-scoped that per-sub API surfaces.
 
+## API-driven cross-cutting resolvers
+
+Resolvers needing API access (not just DB reads) register via `registerAPIResolver(apiResolverEntry{name, fn})` in `services.go` — fn signature is `func(ctx, sub, cred, st) (edges int, err error)`. Runs after phase-1 services complete and BEFORE the local-only `registeredResolvers`, so `st.ListResources` returns the full resource set. Errors degrade to `ReportError` + `ReportService(errCount=1)` — never propagate. Per-resource fan-out should bound concurrency via `semaphore.NewWeighted(maxConcurrentFanout)`. Precedent: `monitor_resolvers.go` (diagnostic-settings).
+
+Cross-cutting resolvers iterate diagnosable resources via an explicit type allowlist (`diagnosableTypes` in `monitor_resolvers.go`) — calling Microsoft.Insights APIs on non-diagnosable types returns 404/400 per call. Extend the allowlist when new scanners land for diagnosable types; consult learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories for the master list.
+
 ## Identity → MSI edges centralized
 
 `managedidentity_resolvers.go::resolveManagedIdentityConsumers` walks every Azure resource's `identity.userAssignedIdentities` map. New scanners storing native SDK responses verbatim get MSI-consumer edges automatically — do NOT add per-service identity-map resolvers.
