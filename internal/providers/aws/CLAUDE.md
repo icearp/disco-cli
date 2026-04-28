@@ -160,9 +160,17 @@ Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client 
 
 **Footgun — duplicate client line**: when introducing a `scanXBody(ctx, client xAPI, ...)` wrapper around a single-fn scanner, also DELETE the original `client := <svc>.NewFromConfig(...)` line that lived inside. Forgetting it causes "no new variables on left side of :=" because the wrapper now passes the client in. Move the construction up into scanX, leave only logic in the body.
 
-**Skip criteria**: defer the lift when (a) sub-phases build per-region clients inside themselves (s3, s3control), (b) scan uses multiple SDK clients (cognito idp+identity).
+**Skip criteria**: in practice, sub-phase per-region clients (s3, s3control) and multi-SDK scanners (cognito, sso) are LIFTABLE — see precedents below. The only true defer is when a refactor exceeds a single-PR review budget.
 
 **Dispatcher function-type aliases**: when a scanner uses local `type perFnScanner func(..., *svc.Client, ...) (...)` aliases (lambda, ssm, rds), the sed propagation also needs to update those alias declarations from `*svc.Client` to `svcAPI`. Build error otherwise: "cannot use scanX as perFnScanner value".
+
+**Sub-fn-owned client construction (cloudwatch pattern)**: when each sub-fn builds its own region client (no `client *svc.Client` parameter), the lift requires (1) constructing the client in the dispatcher and (2) deleting the per-sub-fn `client := <svc>.NewFromConfig(...)` line in every sub-fn. `sed -i '/^\tclient := <svc>\.NewFromConfig/d' <file>` handles step 2 across the whole file. Run the sed BEFORE re-adding the dispatcher's `client := ...` — the dispatcher's line matches the same pattern and would also be deleted.
+
+**Shared package-level iface (ec2 pattern)**: services with 10+ scanner files and 50+ ops (only EC2 today) get ONE shared `<svc>API` in a dedicated `<svc>_iface.go` rather than per-file ifaces. New ec2 op needed by a scanner? Add the method to `ec2_iface.go` AND verify the SDK has it (`go doc github.com/aws/aws-sdk-go-v2/service/ec2.Client.<Op>`).
+
+**Paginator iface trick**: `New<Op>Paginator(client, ...)` constructors only require the underlying `<Op>` method on `client`, not a per-paginator interface. Listing the underlying `DescribeXxx` / `ListXxx` / `GetXxx` / `SearchXxx` op on `<svc>API` satisfies every paginator constructor that wraps it.
+
+**Multi-SDK service (cognito + sso pattern)**: when a scanner spans two SDK packages (Cognito = `cognitoidentityprovider` + `cognitoidentity`; SSO = `ssoadmin` + `identitystore`), declare two distinct ifaces. Wrapper constructs both clients then forwards to a `scanXAll(ctx, client1, client2, ...)` body. Don't merge into one mega-iface — each stays narrow.
 
 ## Cross-account member-row → org account edges
 
