@@ -8,6 +8,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/controltower"
+	cttypes "github.com/aws/aws-sdk-go-v2/service/controltower/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -141,6 +142,33 @@ func scanControlTowerLandingZones(ctx context.Context, client *controltower.Clie
 	return len(batch), n, nil
 }
 
+// listEnabledControlsForTarget enumerates the EnabledControls scoped to a
+// single OU/account TargetIdentifier. Per-target AccessDenied + ValidationException
+// degrade to an empty slice rather than aborting the parent baseline upsert —
+// per CLAUDE.md: surface a warning, never propagate per-target errors during
+// embedded-data fan-out.
+func listEnabledControlsForTarget(ctx context.Context, client *controltower.Client, targetID string, st *store.Store, acctID, region string) ([]cttypes.EnabledControlSummary, error) {
+	if targetID == "" {
+		return nil, nil
+	}
+	var out []cttypes.EnabledControlSummary
+	pager := controltower.NewListEnabledControlsPaginator(client, &controltower.ListEnabledControlsInput{
+		TargetIdentifier: &targetID,
+	})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isAPIErrorCode(err, "ValidationException", "ResourceNotFoundException") {
+				_ = skipIfAccessDenied(st, "controltower:ListEnabledControls", acctID, region, err)
+				return out, nil
+			}
+			return nil, fmt.Errorf("controltower:ListEnabledControls %s: %w", targetID, err)
+		}
+		out = append(out, page.EnabledControls...)
+	}
+	return out, nil
+}
+
 func scanControlTowerEnabledBaselines(ctx context.Context, client *controltower.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := controltower.NewListEnabledBaselinesPaginator(client, &controltower.ListEnabledBaselinesInput{IncludeChildren: true})
 	var batch []*store.Resource
@@ -161,15 +189,23 @@ func scanControlTowerEnabledBaselines(ctx context.Context, client *controltower.
 			if arn == "" {
 				continue
 			}
+			// Per-baseline EnabledControls fan-out keyed off TargetIdentifier
+			// (OU/account ARN). Embedded under attrs.EnabledControls so the
+			// rule engine can index by control identifier without an extra
+			// resource type. Per-target AccessDenied tolerated.
+			controls, _ := listEnabledControlsForTarget(ctx, client, sv(b.TargetIdentifier), st, acct.ID, region)
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeControlTowerEnabledBaseline,
-				NativeID:       arn,
-				Region:         &region,
-				AttributesJSON: mustJSON(b),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeControlTowerEnabledBaseline,
+				NativeID:    arn,
+				Region:      &region,
+				AttributesJSON: mustJSON(struct {
+					Baseline        cttypes.EnabledBaselineSummary  `json:"Baseline"`
+					EnabledControls []cttypes.EnabledControlSummary `json:"EnabledControls,omitempty"`
+				}{Baseline: b, EnabledControls: controls}),
+				DiscoveredBy: scanID,
 			})
 		}
 	}

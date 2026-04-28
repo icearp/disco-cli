@@ -9,7 +9,7 @@ Pick scanner shape on first read:
 - **Wildcard `locations/-`** (Cloud Functions v2, Cloud Run, Cloud Run Jobs, Batch, Composer, Artifact Registry, Cert Manager): `parent = projects/{p}/locations/-` returns every location in one paginated walk. Prefer when API supports.
 - **Per-location fan-out** (Cloud KMS): `Locations.List` → bounded fan-out via `semaphore.NewWeighted`. Pair with `apiDisabled atomic.Bool` to dedup repeat 403s when API off.
 - **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `services.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp.go`.
-- **Per-region (no wildcard)** (Dataproc clusters, Dataflow jobs, Spanner): each region listed individually. Spanner enumerates instance regions from `Config`. Dataproc + Dataflow need shared region-list helper not yet built — defer.
+- **Per-region (no wildcard)** (Dataproc clusters, Spanner): use `gcpRegions(ctx, p)` in `gcp.go` to enumerate enabled regions via `compute.Regions.List`, then `forEachItem(ctx, fanoutMed, regions, fn)` to fan out per-region calls. Permission denial / API-not-enabled returns empty + nil so partial-cred scans don't fail. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
 
 ## Org-service scope-kind dispatch
 

@@ -9,7 +9,62 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveGuardDutyRelationships) }
+func init() {
+	registerResolver(resolveGuardDutyRelationships)
+	registerResolver(resolveGuardDutyMemberOrgAccount)
+}
+
+// guardDutyMemberAttrs mirrors the verbatim Member fields used by the
+// resolver. PascalCase tags match `mustJSON(guarddutytypes.Member)`.
+type guardDutyMemberAttrs struct {
+	AccountId *string `json:"AccountId"`
+}
+
+// resolveGuardDutyMemberOrgAccount emits an `attached-to` edge from each
+// GuardDuty member row to its corresponding AWS Organizations account when
+// the org tree is also scanned. FK-safe via loadOrgTargetIndex; partial-
+// coverage scans (no Org tree) skip silently. Mirrors the Inspector v2 +
+// Detective + SSO assignment → org-account precedent.
+func resolveGuardDutyMemberOrgAccount(acct *account, st *store.Store) error {
+	members, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeGuardDutyMember},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	orgArnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	if len(orgArnByID) == 0 {
+		return nil
+	}
+	for _, m := range members {
+		var attrs guardDutyMemberAttrs
+		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		accountID := sv(attrs.AccountId)
+		if accountID == "" {
+			continue
+		}
+		orgARN, ok := orgArnByID[accountID]
+		if !ok {
+			continue
+		}
+		orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert guardduty member→org account: %w", err)
+		}
+	}
+	return nil
+}
 
 // resolveGuardDutyRelationships emits child→detector contains edges for
 // filters and IPSets, plus IPSet→S3 bucket edges when the Location is an

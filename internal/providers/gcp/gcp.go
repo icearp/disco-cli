@@ -18,6 +18,7 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	compute "google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
 )
 
@@ -214,6 +215,35 @@ func forEachItem[T any](ctx context.Context, concurrency int, items []T, fn func
 		})
 	}
 	return g.Wait()
+}
+
+// gcpRegions enumerates the compute regions enabled for a project. Used by
+// per-region fan-out scanners (Dataproc, Dataflow when not using its
+// aggregated API, Spanner instance regions). Returns empty + nil on
+// permission denial (treats lack of compute.regions.list as "no per-region
+// scope possible" rather than aborting). Cache per project via the caller —
+// list calls are cheap but each scanner shouldn't burn one.
+func gcpRegions(ctx context.Context, p *project) ([]string, error) {
+	opts := clientOptions(ctx, providerCfg{})
+	svc, err := compute.NewService(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	if err := svc.Regions.List(p.ID).Pages(ctx, func(page *compute.RegionList) error {
+		for _, r := range page.Items {
+			if r != nil && r.Name != "" {
+				out = append(out, r.Name)
+			}
+		}
+		return nil
+	}); err != nil {
+		if isPermissionDenied(err) || isAPINotEnabled(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return out, nil
 }
 
 // buildSAEmailIndex returns email → resource ID for every

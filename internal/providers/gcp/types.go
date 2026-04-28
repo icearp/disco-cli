@@ -80,4 +80,7 @@ const (
 	// Access Context Manager (VPC Service Controls — org-scoped)
 	TypeAccessPolicy     = "gcp:accesscontextmanager:access-policy"
 	TypeServicePerimeter = "gcp:accesscontextmanager:service-perimeter"
+	// Dataproc + Dataflow
+	TypeDataprocCluster = "gcp:dataproc:cluster"
+	TypeDataflowJob     = "gcp:dataflow:job"
 )

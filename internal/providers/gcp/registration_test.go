@@ -25,6 +25,8 @@ var expectedGCPServices = []string{
 	"gcp:cloudrun",
 	"gcp:cloudrunjobs",
 	"gcp:composer",
+	"gcp:dataflow",
+	"gcp:dataproc",
 	"gcp:compute",
 	"gcp:firestore",
 	"gcp:gke",

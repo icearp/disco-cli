@@ -41,6 +41,7 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 		detectorBatch []*store.Resource
 		filterBatch   []childPair
 		ipsetBatch    []childPair
+		memberBatch   []childPair
 	)
 	for _, did := range detectorIDs {
 		dArn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s", region, acct.ID, did)
@@ -94,6 +95,41 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 						Name:           fOut.Name,
 						Region:         &region,
 						AttributesJSON: mustJSON(fOut),
+						DiscoveredBy:   scanID,
+					},
+					parentARN: dArn,
+				})
+			}
+		}
+
+		// Members. Only the master/admin detector returns members; non-master
+		// accounts get empty pages. Per-detector ARN shape:
+		//   arn:aws:guardduty:{r}:{a}:detector/{did}/member/{memberAcctId}
+		// Resolver consumes Members to emit edges to the org account row.
+		mPager := guardduty.NewListMembersPaginator(client, &guardduty.ListMembersInput{DetectorId: &did})
+		for mPager.HasMorePages() {
+			mp, err := mPager.NextPage(ctx)
+			if err != nil {
+				if isAccessDenied(err) {
+					break
+				}
+				return 0, 0, fmt.Errorf("guardduty:ListMembers %s: %w", did, err)
+			}
+			for _, m := range mp.Members {
+				if m.AccountId == nil || *m.AccountId == "" {
+					continue
+				}
+				arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/member/%s", region, acct.ID, did, *m.AccountId)
+				memberBatch = append(memberBatch, childPair{
+					r: &store.Resource{
+						Provider:       "aws",
+						AccountID:      acct.ID,
+						AccountName:    &acct.Name,
+						Type:           TypeGuardDutyMember,
+						NativeID:       arn,
+						Name:           m.AccountId,
+						Region:         &region,
+						AttributesJSON: mustJSON(m),
 						DiscoveredBy:   scanID,
 					},
 					parentARN: dArn,
@@ -172,6 +208,9 @@ func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.
 		return 0, 0, err
 	}
 	if err := upsertChildren("ipsets", ipsetBatch); err != nil {
+		return 0, 0, err
+	}
+	if err := upsertChildren("members", memberBatch); err != nil {
 		return 0, 0, err
 	}
 	return total, inserted, nil

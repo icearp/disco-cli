@@ -325,6 +325,7 @@ const (
 	TypeGuardDutyDetector = "aws:guardduty:detector"
 	TypeGuardDutyFilter   = "aws:guardduty:filter"
 	TypeGuardDutyIPSet    = "aws:guardduty:ipset"
+	TypeGuardDutyMember   = "aws:guardduty:member"
 	// Config (config_scanners.go)
 	TypeConfigRecorder        = "aws:config:recorder"
 	TypeConfigDeliveryChannel = "aws:config:delivery-channel"
@@ -564,7 +565,7 @@ func KnownTypes() []string {
 		// SSM
 		TypeSSMParameter, TypeSSMDocument, TypeSSMPatchBaseline,
 		// GuardDuty
-		TypeGuardDutyDetector, TypeGuardDutyFilter, TypeGuardDutyIPSet,
+		TypeGuardDutyDetector, TypeGuardDutyFilter, TypeGuardDutyIPSet, TypeGuardDutyMember,
 		// Config
 		TypeConfigRecorder, TypeConfigDeliveryChannel, TypeConfigRule,
 		// Backup

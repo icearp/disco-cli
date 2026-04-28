@@ -154,6 +154,14 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 
 Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client wiring) + `scanXEntities(ctx, client xAPI, ...)` (testable body) + narrow `xAPI` interface listing only the SDK methods called. `*svc.Client` satisfies the interface; tests inject stubs. Precedent: `sqs_scanners.go`, `sns`, `eks`, `acm`, `kafka`, `secretsmanager`. Method signatures preserve the SDK's variadic `...func(*svc.Options)` so SDK paginators continue to compile against the interface.
 
+## Cross-account member-row → org account edges
+
+Services that model multi-account membership (Inspector v2, Detective, GuardDuty, future SecurityHub member, Macie member) get a per-member resource type (`aws:<svc>:member`) and a resolver that emits `attached-to` → `aws:organizations:account` via `loadOrgTargetIndex`. Members are scanned even when the org tree is not — the resolver short-circuits when the index is empty (no edges, no error). Precedent: `inspector_resolvers.go::resolveInspector2MemberOrgAccount`, `guardduty_resolvers.go::resolveGuardDutyMemberOrgAccount`. Member NativeID shape: `arn:aws:<svc>:{r}:{a}:detector/{id}/member/{memberAcctId}` (or analogous synthetic when no AWS-issued ARN exists).
+
+## Per-target embedded fan-out
+
+When a parent resource references N children that have no independent lifecycle (Control Tower baseline → enabled-controls per OU, Backup plan → selections, EventBridge rule → targets), fetch children at scan time and embed under a key in the parent's `AttributesJSON` (`{"Baseline": ..., "EnabledControls": [...]}`). Per-target AccessDenied / ValidationException tolerated via `skipIfAccessDenied` — never propagate per-target errors during fan-out, or one missing OU breaks the whole baseline upsert. Precedent: `controltower_scanners.go::listEnabledControlsForTarget`.
+
 ## Tag JSON helpers
 
 `awsTagsJSON[T awsTag]` (`aws.go`) is generic-union restricted. New SDK service tag types (`sesv2types.Tag`, `lakeformationtypes.Tag`, etc.) must be added to `awsTag` union AND new `case` in `switch tt := any(t).(type)` block — both edits or helper drops tags silently. For map-typed tags (Macie `map[string]string`, ECR repo tags map) use `mapTagsJSON` instead. Defer tag plumbing if scope tight; tags rarely block graph analysis and adding union touches global type list.
