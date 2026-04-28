@@ -12,12 +12,23 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:efs", fn: scanEFS}) }
 
+// efsAPI is the narrow set of EFS operations called by scanEFSAll.
+type efsAPI interface {
+	DescribeFileSystems(context.Context, *efs.DescribeFileSystemsInput, ...func(*efs.Options)) (*efs.DescribeFileSystemsOutput, error)
+	DescribeMountTargets(context.Context, *efs.DescribeMountTargetsInput, ...func(*efs.Options)) (*efs.DescribeMountTargetsOutput, error)
+	DescribeAccessPoints(context.Context, *efs.DescribeAccessPointsInput, ...func(*efs.Options)) (*efs.DescribeAccessPointsOutput, error)
+}
+
 // scanEFS discovers EFS file systems, mount targets, and access points in one
 // region. DescribeFileSystems is paginated; mount targets are fetched
 // concurrently per file system to minimise wall time.
 func scanEFS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := efs.NewFromConfig(acct.cfg, func(o *efs.Options) { o.Region = region })
+	return scanEFSAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanEFSAll holds the testable scan body.
+func scanEFSAll(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase 1: file systems
 	fsPager := efs.NewDescribeFileSystemsPaginator(client, &efs.DescribeFileSystemsInput{})
 	var fsIDs []string

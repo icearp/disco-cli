@@ -10,13 +10,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:backup", fn: scanBackup}) }
 
+// backupAPI is the narrow set of Backup operations called by scanBackupAll.
+type backupAPI interface {
+	ListBackupVaults(context.Context, *backup.ListBackupVaultsInput, ...func(*backup.Options)) (*backup.ListBackupVaultsOutput, error)
+	ListBackupPlans(context.Context, *backup.ListBackupPlansInput, ...func(*backup.Options)) (*backup.ListBackupPlansOutput, error)
+	ListBackupSelections(context.Context, *backup.ListBackupSelectionsInput, ...func(*backup.Options)) (*backup.ListBackupSelectionsOutput, error)
+}
+
 // scanBackup discovers AWS Backup vaults, plans, and per-plan selections.
 // Vaults and plans carry native ARNs from the list APIs. Selections have no
 // list-level ARN so one is synthesised from the parent plan ID + selection ID
 // for a stable NativeID across scans.
 func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
+	return scanBackupAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanBackupAll holds the testable scan body.
+func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Vaults.
 	var vaultBatch []*store.Resource
 	vPager := backup.NewListBackupVaultsPaginator(client, &backup.ListBackupVaultsInput{})
