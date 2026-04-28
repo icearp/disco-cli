@@ -86,6 +86,13 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.5 GCP VPC firewall resolver (this session)
+- **GCP VPC firewall** scanner already shipped in `compute_scanners.go` (`scanComputeFirewalls` via `Firewalls.List`); only the resolver was missing. New `firewall_resolvers.go` `resolveFirewallRelationships` derives two edge classes per firewall: (1) firewall -[attached-to]-> network via the `network` URL field; (2) firewall -[uses]-> instance for every instance whose `tags.items[]` intersects the firewall's `targetTags[]` AND whose primary NIC is on the firewall's network.
+- **Network-scoped tag intersection.** Resolver builds a per-instance `network` set from `networkInterfaces[].network` then short-circuits the tag intersection when networks don't match. Tag matching is the security-meaningful pivot — a firewall's `targetTags` only apply within its own VPC. Skipping the network check would emit cross-VPC ghost edges in shared-host setups.
+- **Skip rules with no targetTags.** Untagged firewalls apply to every instance in the network; per-instance edges would explode and add no signal beyond the firewall→network edge already in place. Reverse-graph from the network surfaces the membership.
+- Deferred: `targetServiceAccounts` → SA edges (rarer than tag-based firewall targeting; the SA email index pattern from R4.1 is reusable). `sourceTags` / `sourceServiceAccounts` (ingress source side — symmetric to target side, deferred together).
+- Live-scan validation: 2 projects, Compute API not enabled in either; 0 firewalls/instances, resolver ran clean.
+
 ### R4.4 GCP Secret Manager — secrets (this session)
 - **GCP Secret Manager** new type `gcp:secretmanager:secret`. Project-scoped service `gcp:secretmanager` runs one phase: `secretmanager/v1` `Projects.Secrets.List` paginated. NativeIDs verbatim. Hierarchy pair: secret → project. Labels copied to `tags` for `json_extract` queries.
 - **SecretVersions deferred** by design — per-secret pagination explodes cardinality on long-lived secrets and the version payload is the actual secret material; the sanitizer denylist would redact a payload anyway, so cleanest path is to skip the API call. Rotation / last-rotation-time queries pivot off the secret's `rotation` and `topics` attributes already present.
@@ -546,7 +553,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 2. *(removed — SA-key scanner + key→SA resolver landed; user-managed + Google-managed keys both captured; key public-key material redacted by sanitizer; see COMPLETED R4.2)*
 3. *(removed — KMS keyring + crypto-key scanners landed with Storage bucket → cryptoKey CMEK resolver; BigQuery / Compute disk / SQL instance / Pub/Sub / Secret Manager CMEK edges deferred to their scanner iterations; see COMPLETED R4.3)*
 4. *(removed — Secret Manager secret scanner + secret → cryptoKey CMEK resolver landed across all three replication shapes; SecretVersions skipped by design (payload + cardinality); per-secret IAM policy deferred — covered in aggregate by project-scope IAM policy from R4.1; see COMPLETED R4.4)*
-5. **VPC firewall rules** — edges: rule → VPC, rule target tags → instances.
+5. *(removed — firewall scanner already existed; resolver landed emitting firewall→network + firewall→instance via network-scoped tag intersection; targetServiceAccounts + source-side edges deferred; see COMPLETED R4.5)*
 6. **Load Balancers** (global + regional HTTP(S), TCP/SSL, internal) — forwarding rule → target proxy → URL map → backend service → backend (instance group / NEG / bucket).
 7. **Cloud Armor** — security policy → backend service attachment.
 8. **Certificate Manager** — cert, map, map entry, dns authorization.
