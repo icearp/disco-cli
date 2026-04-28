@@ -61,8 +61,10 @@ jobs:
       - name: XZ compress
         if: ${{ matrix.tarxz }}
         run: |
+          set -euo pipefail
           tar -cJf "$ARTIFACT.tar.xz" "$ARTIFACT"
-          sed -i "s|^ARTIFACT=.*|ARTIFACT=\"$ARTIFACT.tar.xz\"|" "$GITHUB_ENV" 
+          rm -f "$ARTIFACT"
+          echo "ARTIFACT=$ARTIFACT.tar.xz" >> "$GITHUB_ENV"
 
       - name: SHA256 sidecar
         run: sha256sum "$ARTIFACT" | awk '{print $1}' > "${ARTIFACT}.sha256"
