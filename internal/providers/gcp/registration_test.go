@@ -14,6 +14,7 @@ var expectedGCPServices = []string{
 	"gcp:iam",
 	"gcp:iam-key",
 	"gcp:iam-policy",
+	"gcp:secretmanager",
 	"gcp:sql",
 	"gcp:storage",
 }

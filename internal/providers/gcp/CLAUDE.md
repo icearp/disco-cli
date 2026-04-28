@@ -20,6 +20,10 @@ Member matching: only `serviceAccount:{email}` members are FK-safe today. Email 
 
 `isPermissionDenied(err)` covers 401/403. Always pair with `skipIfDenied(st, "<api>:<method>", scope, err)` which calls `ReportWarning` + returns nil — never propagate 403 from a per-service scanner. Compute / GKE / IAM all enforce per-API enablement; users with disabled APIs see warnings, not failures.
 
+## API-not-enabled noise dedup
+
+Some GCP scanners fan out over the global locations / regions catalog before hitting an API-gated endpoint (KMS keyrings, future Pub/Sub regional, Cloud Run regional). When the API is disabled in the project, every fan-out unit returns 403, producing ~30 identical "API has not been used" warnings per project. Pattern: per-project `atomic.Bool`, flip on first 403 via `Swap(true)`, skip remaining units. Precedent: `kms_scanners.go` `apiDisabled`. Reuse for any future scanner with this fan-out shape.
+
 ## Resource ID conventions
 
 NativeID = full resource name where GCP returns one (`sa.Name`, `inst.SelfLink`, `projects/{id}` for projects, `organizations/{id}` for orgs). Compute uses self-link URLs verbatim — they include project / region / zone, so the same instance scanned in two projects produces two distinct rows. For the hierarchy parent of any project-scoped resource use `store.ResourceID("gcp", p.ID, TypeProject, p.ID)` — the project's NativeID is the bare ID, not the `projects/{id}` form.

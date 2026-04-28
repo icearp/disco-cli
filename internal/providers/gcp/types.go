@@ -22,6 +22,8 @@ const (
 	// Cloud KMS
 	TypeKMSKeyRing   = "gcp:cloudkms:keyring"
 	TypeKMSCryptoKey = "gcp:cloudkms:crypto-key"
+	// Secret Manager
+	TypeSecret = "gcp:secretmanager:secret"
 	// Cloud Storage
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud SQL
