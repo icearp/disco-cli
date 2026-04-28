@@ -10,6 +10,12 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:lakeformation", fn: scanLakeFormation}) }
 
+// lakeformationAPI is the narrow set of Lake Formation operations called by
+// scanLakeFormationResources.
+type lakeformationAPI interface {
+	ListResources(context.Context, *lakeformation.ListResourcesInput, ...func(*lakeformation.Options)) (*lakeformation.ListResourcesOutput, error)
+}
+
 // scanLakeFormation discovers Lake Formation registered data locations in one
 // region. ListResources returns the full ResourceInfo body (RoleArn,
 // ResourceArn, federation flags) so no Describe fan-out needed. Permissions,
@@ -17,7 +23,11 @@ func init() { registerService(serviceEntry{name: "aws:lakeformation", fn: scanLa
 // scanned (cross-resource FK targets).
 func scanLakeFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := lakeformation.NewFromConfig(acct.cfg, func(o *lakeformation.Options) { o.Region = region })
+	return scanLakeFormationResources(ctx, client, acct, region, st, scanID)
+}
 
+// scanLakeFormationResources holds the testable scan body.
+func scanLakeFormationResources(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := lakeformation.NewListResourcesPaginator(client, &lakeformation.ListResourcesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

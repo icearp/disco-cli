@@ -12,12 +12,23 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:acm-pca", fn: scanACMPCA}) }
 
+// acmpcaAPI is the narrow set of ACM Private CA operations called by
+// scanACMPCACertificateAuthorities.
+type acmpcaAPI interface {
+	ListCertificateAuthorities(context.Context, *acmpca.ListCertificateAuthoritiesInput, ...func(*acmpca.Options)) (*acmpca.ListCertificateAuthoritiesOutput, error)
+	ListTags(context.Context, *acmpca.ListTagsInput, ...func(*acmpca.Options)) (*acmpca.ListTagsOutput, error)
+}
+
 // scanACMPCA discovers ACM Private Certificate Authorities. ListCertificateAuthorities
 // returns CA metadata including RevocationConfiguration; DescribeCertificateAuthority
 // is only needed for tag-less access, so skip it and use list output directly.
 func scanACMPCA(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := acmpca.NewFromConfig(acct.cfg, func(o *acmpca.Options) { o.Region = region })
+	return scanACMPCACertificateAuthorities(ctx, client, acct, region, st, scanID)
+}
 
+// scanACMPCACertificateAuthorities holds the testable scan body.
+func scanACMPCACertificateAuthorities(ctx context.Context, client acmpcaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := acmpca.NewListCertificateAuthoritiesPaginator(client, &acmpca.ListCertificateAuthoritiesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

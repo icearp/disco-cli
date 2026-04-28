@@ -13,6 +13,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:detective", fn: scanDetective}) }
 
+// detectiveAPI is the narrow set of Detective operations called by the
+// scanDetective sub-phases.
+type detectiveAPI interface {
+	ListGraphs(context.Context, *detective.ListGraphsInput, ...func(*detective.Options)) (*detective.ListGraphsOutput, error)
+	ListMembers(context.Context, *detective.ListMembersInput, ...func(*detective.Options)) (*detective.ListMembersOutput, error)
+}
+
 // scanDetective discovers Detective behavior graphs and their member accounts
 // in one region. Detective is regional. Accounts that are not the
 // administrator of any behavior graph in the region get an empty graph list
@@ -53,7 +60,7 @@ func detectiveMemberNativeID(graphArn, accountID string) string {
 	return fmt.Sprintf("%s/member/%s", graphArn, accountID)
 }
 
-func scanDetectiveGraphs(ctx context.Context, client *detective.Client, acct *account, region string, st *store.Store, scanID string) (graphARNs []string, total, inserted int, err error) {
+func scanDetectiveGraphs(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (graphARNs []string, total, inserted int, err error) {
 	pager := detective.NewListGraphsPaginator(client, &detective.ListGraphsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -93,7 +100,7 @@ func scanDetectiveGraphs(ctx context.Context, client *detective.Client, acct *ac
 	return graphARNs, len(batch), n, nil
 }
 
-func scanDetectiveMembers(ctx context.Context, client *detective.Client, acct *account, region string, st *store.Store, scanID string, graphARNs []string) (total, inserted int, err error) {
+func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string, graphARNs []string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex

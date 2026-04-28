@@ -13,6 +13,16 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:kms", fn: scanKMS}) }
 
+// kmsAPI is the narrow set of KMS operations called by scanKMSKeys.
+type kmsAPI interface {
+	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
+	DescribeKey(context.Context, *kms.DescribeKeyInput, ...func(*kms.Options)) (*kms.DescribeKeyOutput, error)
+	GetKeyPolicy(context.Context, *kms.GetKeyPolicyInput, ...func(*kms.Options)) (*kms.GetKeyPolicyOutput, error)
+	GetKeyRotationStatus(context.Context, *kms.GetKeyRotationStatusInput, ...func(*kms.Options)) (*kms.GetKeyRotationStatusOutput, error)
+	ListAliases(context.Context, *kms.ListAliasesInput, ...func(*kms.Options)) (*kms.ListAliasesOutput, error)
+	ListGrants(context.Context, *kms.ListGrantsInput, ...func(*kms.Options)) (*kms.ListGrantsOutput, error)
+}
+
 // kmsKeyAttrs is the stored attribute shape for a KMS key — DescribeKey metadata
 // plus the key policy and rotation status, which each require their own API call.
 // Rule predicates like "rotation disabled on customer key" read these fields.
@@ -28,6 +38,11 @@ type kmsKeyAttrs struct {
 // boilerplate and they can't be configured by the user.
 func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kms.NewFromConfig(acct.cfg, func(o *kms.Options) { o.Region = region })
+	return scanKMSKeys(ctx, client, acct, region, st, scanID)
+}
+
+// scanKMSKeys holds the testable scan body.
+func scanKMSKeys(ctx context.Context, client kmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 
 	pager := kms.NewListKeysPaginator(client, &kms.ListKeysInput{})
 	for pager.HasMorePages() {

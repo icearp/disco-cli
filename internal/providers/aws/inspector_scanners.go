@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:inspector2", fn: scanInspector2}) }
 
+// inspector2API is the narrow set of Inspector v2 operations called by the
+// scanInspector2 sub-phases.
+type inspector2API interface {
+	ListFilters(context.Context, *inspector2.ListFiltersInput, ...func(*inspector2.Options)) (*inspector2.ListFiltersOutput, error)
+	ListMembers(context.Context, *inspector2.ListMembersInput, ...func(*inspector2.Options)) (*inspector2.ListMembersOutput, error)
+}
+
 // scanInspector2 discovers Inspector v2 finding-filters and member accounts
 // (delegated-admin perspective) in one region. Two phases run sequentially.
 // Findings, coverage rows, and the singleton org-level configuration are
@@ -46,7 +53,7 @@ func inspector2MemberNativeID(region, adminAccountID, memberAccountID string) st
 	return fmt.Sprintf("arn:aws:inspector2:%s:%s:member/%s", region, adminAccountID, memberAccountID)
 }
 
-func scanInspector2Filters(ctx context.Context, client *inspector2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInspector2Filters(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := inspector2.NewListFiltersPaginator(client, &inspector2.ListFiltersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -86,7 +93,7 @@ func scanInspector2Filters(ctx context.Context, client *inspector2.Client, acct 
 	return len(batch), n, nil
 }
 
-func scanInspector2Members(ctx context.Context, client *inspector2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanInspector2Members(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := inspector2.NewListMembersPaginator(client, &inspector2.ListMembersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

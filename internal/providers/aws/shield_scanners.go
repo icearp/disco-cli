@@ -18,6 +18,14 @@ func init() {
 	})
 }
 
+// shieldAPI is the narrow set of Shield operations called by the scanShield
+// sub-phases.
+type shieldAPI interface {
+	DescribeSubscription(context.Context, *shield.DescribeSubscriptionInput, ...func(*shield.Options)) (*shield.DescribeSubscriptionOutput, error)
+	ListProtections(context.Context, *shield.ListProtectionsInput, ...func(*shield.Options)) (*shield.ListProtectionsOutput, error)
+	ListProtectionGroups(context.Context, *shield.ListProtectionGroupsInput, ...func(*shield.Options)) (*shield.ListProtectionGroupsOutput, error)
+}
+
 // scanShield discovers Shield Advanced subscription, protections, and
 // protection groups. Shield is a global service; the client always uses
 // us-east-1. Three phases run sequentially. Accounts without a Shield Advanced
@@ -70,7 +78,7 @@ func shieldSubscriptionNativeID(accountID string) string {
 	return fmt.Sprintf("arn:aws:shield::%s:subscription", accountID)
 }
 
-func scanShieldSubscription(ctx context.Context, client *shield.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShieldSubscription(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, derr := client.DescribeSubscription(ctx, &shield.DescribeSubscriptionInput{})
 	if derr != nil {
 		if isAccessDenied(derr) {
@@ -106,7 +114,7 @@ func scanShieldSubscription(ctx context.Context, client *shield.Client, acct *ac
 	return 1, n, nil
 }
 
-func scanShieldProtections(ctx context.Context, client *shield.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := shield.NewListProtectionsPaginator(client, &shield.ListProtectionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -148,7 +156,7 @@ func scanShieldProtections(ctx context.Context, client *shield.Client, acct *acc
 	return len(batch), n, nil
 }
 
-func scanShieldProtectionGroups(ctx context.Context, client *shield.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanShieldProtectionGroups(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := shield.NewListProtectionGroupsPaginator(client, &shield.ListProtectionGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

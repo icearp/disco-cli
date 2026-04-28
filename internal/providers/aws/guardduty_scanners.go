@@ -10,12 +10,27 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:guardduty", fn: scanGuardDuty}) }
 
+// guarddutyAPI is the narrow set of GuardDuty operations called by scanGuardDuty.
+type guarddutyAPI interface {
+	ListDetectors(context.Context, *guardduty.ListDetectorsInput, ...func(*guardduty.Options)) (*guardduty.ListDetectorsOutput, error)
+	GetDetector(context.Context, *guardduty.GetDetectorInput, ...func(*guardduty.Options)) (*guardduty.GetDetectorOutput, error)
+	ListFilters(context.Context, *guardduty.ListFiltersInput, ...func(*guardduty.Options)) (*guardduty.ListFiltersOutput, error)
+	GetFilter(context.Context, *guardduty.GetFilterInput, ...func(*guardduty.Options)) (*guardduty.GetFilterOutput, error)
+	ListIPSets(context.Context, *guardduty.ListIPSetsInput, ...func(*guardduty.Options)) (*guardduty.ListIPSetsOutput, error)
+	GetIPSet(context.Context, *guardduty.GetIPSetInput, ...func(*guardduty.Options)) (*guardduty.GetIPSetOutput, error)
+	ListMembers(context.Context, *guardduty.ListMembersInput, ...func(*guardduty.Options)) (*guardduty.ListMembersOutput, error)
+}
+
 // scanGuardDuty discovers GuardDuty detectors and their nested Filters and
 // IPSets. GuardDuty permits at most one detector per region, but the SDK
 // returns a list for future-proofing — we handle N defensively.
 func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := guardduty.NewFromConfig(acct.cfg, func(o *guardduty.Options) { o.Region = region })
+	return scanGuardDutyDetectors(ctx, client, acct, region, st, scanID)
+}
 
+// scanGuardDutyDetectors holds the testable scan body.
+func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// List detectors.
 	var detectorIDs []string
 	pager := guardduty.NewListDetectorsPaginator(client, &guardduty.ListDetectorsInput{})
