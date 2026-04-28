@@ -10,6 +10,30 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// apigatewayAPI is the narrow set of API Gateway v1 (REST) operations
+// called by the scanAPIGateway sub-phases.
+type apigatewayAPI interface {
+	GetRestApis(context.Context, *apigateway.GetRestApisInput, ...func(*apigateway.Options)) (*apigateway.GetRestApisOutput, error)
+	GetAccount(context.Context, *apigateway.GetAccountInput, ...func(*apigateway.Options)) (*apigateway.GetAccountOutput, error)
+	GetAuthorizers(context.Context, *apigateway.GetAuthorizersInput, ...func(*apigateway.Options)) (*apigateway.GetAuthorizersOutput, error)
+	GetDeployments(context.Context, *apigateway.GetDeploymentsInput, ...func(*apigateway.Options)) (*apigateway.GetDeploymentsOutput, error)
+	GetStages(context.Context, *apigateway.GetStagesInput, ...func(*apigateway.Options)) (*apigateway.GetStagesOutput, error)
+	GetResources(context.Context, *apigateway.GetResourcesInput, ...func(*apigateway.Options)) (*apigateway.GetResourcesOutput, error)
+	GetModels(context.Context, *apigateway.GetModelsInput, ...func(*apigateway.Options)) (*apigateway.GetModelsOutput, error)
+	GetRequestValidators(context.Context, *apigateway.GetRequestValidatorsInput, ...func(*apigateway.Options)) (*apigateway.GetRequestValidatorsOutput, error)
+	GetGatewayResponses(context.Context, *apigateway.GetGatewayResponsesInput, ...func(*apigateway.Options)) (*apigateway.GetGatewayResponsesOutput, error)
+	GetDocumentationParts(context.Context, *apigateway.GetDocumentationPartsInput, ...func(*apigateway.Options)) (*apigateway.GetDocumentationPartsOutput, error)
+	GetDocumentationVersions(context.Context, *apigateway.GetDocumentationVersionsInput, ...func(*apigateway.Options)) (*apigateway.GetDocumentationVersionsOutput, error)
+	GetApiKeys(context.Context, *apigateway.GetApiKeysInput, ...func(*apigateway.Options)) (*apigateway.GetApiKeysOutput, error)
+	GetUsagePlans(context.Context, *apigateway.GetUsagePlansInput, ...func(*apigateway.Options)) (*apigateway.GetUsagePlansOutput, error)
+	GetUsagePlanKeys(context.Context, *apigateway.GetUsagePlanKeysInput, ...func(*apigateway.Options)) (*apigateway.GetUsagePlanKeysOutput, error)
+	GetClientCertificates(context.Context, *apigateway.GetClientCertificatesInput, ...func(*apigateway.Options)) (*apigateway.GetClientCertificatesOutput, error)
+	GetDomainNames(context.Context, *apigateway.GetDomainNamesInput, ...func(*apigateway.Options)) (*apigateway.GetDomainNamesOutput, error)
+	GetDomainNameAccessAssociations(context.Context, *apigateway.GetDomainNameAccessAssociationsInput, ...func(*apigateway.Options)) (*apigateway.GetDomainNameAccessAssociationsOutput, error)
+	GetBasePathMappings(context.Context, *apigateway.GetBasePathMappingsInput, ...func(*apigateway.Options)) (*apigateway.GetBasePathMappingsOutput, error)
+	GetVpcLinks(context.Context, *apigateway.GetVpcLinksInput, ...func(*apigateway.Options)) (*apigateway.GetVpcLinksOutput, error)
+}
+
 func init() {
 	registerService(serviceEntry{name: "aws:apigateway", fn: scanAPIGateway})
 	registerService(serviceEntry{name: "aws:apigatewayv2", fn: scanAPIGatewayV2})
@@ -112,7 +136,7 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 }
 
 // scanAPIGatewayPerAPI scans all child resources of a single REST API concurrently.
-func scanAPIGatewayPerAPI(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayPerAPI(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayAuthorizers(ctx, client, acct, region, apiID, st, scanID)
@@ -146,7 +170,7 @@ func scanAPIGatewayPerAPI(ctx context.Context, client *apigateway.Client, acct *
 
 // scanAPIGatewayAuthorizers discovers authorizers for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/authorizers/{authorizerId}
-func scanAPIGatewayAuthorizers(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayAuthorizers(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.GetAuthorizers(ctx, &apigateway.GetAuthorizersInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -183,7 +207,7 @@ func scanAPIGatewayAuthorizers(ctx context.Context, client *apigateway.Client, a
 
 // scanAPIGatewayDeployments discovers deployments for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/deployments/{deploymentId}
-func scanAPIGatewayDeployments(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDeployments(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := apigateway.NewGetDeploymentsPaginator(client, &apigateway.GetDeploymentsInput{RestApiId: &apiID})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -223,7 +247,7 @@ func scanAPIGatewayDeployments(ctx context.Context, client *apigateway.Client, a
 
 // scanAPIGatewayStages discovers stages for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
-func scanAPIGatewayStages(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayStages(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.GetStages(ctx, &apigateway.GetStagesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -262,7 +286,7 @@ func scanAPIGatewayStages(ctx context.Context, client *apigateway.Client, acct *
 // scanAPIGatewayResources discovers resources and their methods for a single REST API.
 // Resources: arn:aws:apigateway:{region}::/restapis/{apiId}/resources/{resourceId}
 // Methods:   arn:aws:apigateway:{region}::/restapis/{apiId}/resources/{resourceId}/methods/{httpMethod}
-func scanAPIGatewayResources(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayResources(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// embed=methods includes the ResourceMethods map in each Resource, avoiding N+1.
 	pager := apigateway.NewGetResourcesPaginator(client, &apigateway.GetResourcesInput{
 		RestApiId: &apiID,
@@ -332,7 +356,7 @@ func scanAPIGatewayResources(ctx context.Context, client *apigateway.Client, acc
 
 // scanAPIGatewayModels discovers models for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/models/{modelName}
-func scanAPIGatewayModels(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayModels(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := apigateway.NewGetModelsPaginator(client, &apigateway.GetModelsInput{RestApiId: &apiID})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -372,7 +396,7 @@ func scanAPIGatewayModels(ctx context.Context, client *apigateway.Client, acct *
 
 // scanAPIGatewayRequestValidators discovers request validators for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/requestvalidators/{validatorId}
-func scanAPIGatewayRequestValidators(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayRequestValidators(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.GetRequestValidators(ctx, &apigateway.GetRequestValidatorsInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -409,7 +433,7 @@ func scanAPIGatewayRequestValidators(ctx context.Context, client *apigateway.Cli
 
 // scanAPIGatewayGatewayResponses discovers gateway responses for a single REST API.
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/gatewayresponses/{responseType}
-func scanAPIGatewayGatewayResponses(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayGatewayResponses(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.GetGatewayResponses(ctx, &apigateway.GetGatewayResponsesInput{RestApiId: &apiID})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -447,7 +471,7 @@ func scanAPIGatewayGatewayResponses(ctx context.Context, client *apigateway.Clie
 // scanAPIGatewayDocumentationParts discovers documentation parts for a single REST API.
 // Uses manual Position-based pagination (no built-in paginator).
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/documentation/parts/{partId}
-func scanAPIGatewayDocumentationParts(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDocumentationParts(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	input := &apigateway.GetDocumentationPartsInput{RestApiId: &apiID}
 	var batch []*store.Resource
 	for {
@@ -492,7 +516,7 @@ func scanAPIGatewayDocumentationParts(ctx context.Context, client *apigateway.Cl
 // scanAPIGatewayDocumentationVersions discovers documentation versions for a single REST API.
 // Uses manual Position-based pagination (no built-in paginator).
 // ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/documentation/versions/{version}
-func scanAPIGatewayDocumentationVersions(ctx context.Context, client *apigateway.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayDocumentationVersions(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	input := &apigateway.GetDocumentationVersionsInput{RestApiId: &apiID}
 	var batch []*store.Resource
 	for {

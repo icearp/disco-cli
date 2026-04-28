@@ -10,6 +10,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// apigatewayv2API is the narrow set of API Gateway v2 (HTTP/WebSocket)
+// operations called by the scanAPIGatewayV2 sub-phases.
+type apigatewayv2API interface {
+	GetApis(context.Context, *apigatewayv2.GetApisInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetApisOutput, error)
+	GetAuthorizers(context.Context, *apigatewayv2.GetAuthorizersInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetAuthorizersOutput, error)
+	GetDomainNames(context.Context, *apigatewayv2.GetDomainNamesInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetDomainNamesOutput, error)
+	GetApiMappings(context.Context, *apigatewayv2.GetApiMappingsInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetApiMappingsOutput, error)
+}
+
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
 func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
@@ -94,7 +103,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 
 // scanAPIGatewayV2Authorizers discovers authorizers for a single v2 (HTTP/WebSocket) API.
 // ARN format: arn:aws:apigateway:{region}::/apis/{apiId}/authorizers/{authorizerId}
-func scanAPIGatewayV2Authorizers(ctx context.Context, client *apigatewayv2.Client, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAPIGatewayV2Authorizers(ctx context.Context, client apigatewayv2API, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	input := &apigatewayv2.GetAuthorizersInput{ApiId: &apiID}
 	var batch []*store.Resource
 	for {
