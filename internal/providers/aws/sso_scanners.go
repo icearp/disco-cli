@@ -18,6 +18,23 @@ func init() {
 	registerService(serviceEntry{name: "aws:sso-admin", fn: scanSSOAdmin})
 }
 
+// ssoadminAPI is the narrow set of SSO Admin operations called by the
+// scanSSOAdmin sub-phases.
+type ssoadminAPI interface {
+	ListInstances(context.Context, *ssoadmin.ListInstancesInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListInstancesOutput, error)
+	ListPermissionSets(context.Context, *ssoadmin.ListPermissionSetsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListPermissionSetsOutput, error)
+	DescribePermissionSet(context.Context, *ssoadmin.DescribePermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.DescribePermissionSetOutput, error)
+	ListAccountsForProvisionedPermissionSet(context.Context, *ssoadmin.ListAccountsForProvisionedPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListAccountsForProvisionedPermissionSetOutput, error)
+	ListAccountAssignments(context.Context, *ssoadmin.ListAccountAssignmentsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListAccountAssignmentsOutput, error)
+}
+
+// identitystoreAPI is the narrow set of Identity Store operations called by
+// scanIdentityStoreUsersGroups.
+type identitystoreAPI interface {
+	ListUsers(context.Context, *identitystore.ListUsersInput, ...func(*identitystore.Options)) (*identitystore.ListUsersOutput, error)
+	ListGroups(context.Context, *identitystore.ListGroupsInput, ...func(*identitystore.Options)) (*identitystore.ListGroupsOutput, error)
+}
+
 // scanSSOAdmin discovers IAM Identity Center (SSO) instances, permission
 // sets, account-assignments, and the connected Identity Store's users +
 // groups. Scoped per region: ListInstances returns instances reachable
@@ -73,7 +90,7 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 	return total, inserted, nil
 }
 
-func scanSSOInstances(ctx context.Context, client *ssoadmin.Client, acct *account, region string, st *store.Store, scanID string) (instances []ssotypes.InstanceMetadata, total, inserted int, err error) {
+func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (instances []ssotypes.InstanceMetadata, total, inserted int, err error) {
 	pager := ssoadmin.NewListInstancesPaginator(client, &ssoadmin.ListInstancesInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
@@ -111,7 +128,7 @@ func scanSSOInstances(ctx context.Context, client *ssoadmin.Client, acct *accoun
 	return instances, len(batch), n, nil
 }
 
-func scanSSOPermissionSets(ctx context.Context, client *ssoadmin.Client, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	type psRef struct {
 		instanceArn string
 		psArn       string
@@ -199,7 +216,7 @@ func scanSSOPermissionSets(ctx context.Context, client *ssoadmin.Client, acct *a
 // (instance, account, permission-set) triple. Result count scales with
 // the org's overall assignment fan-out; sized for typical orgs with
 // dozens of permission sets and hundreds of accounts.
-func scanSSOAccountAssignments(ctx context.Context, client *ssoadmin.Client, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	type pair struct {
 		instanceArn string
 		psArn       string
@@ -325,7 +342,7 @@ func identityStoreGroupNativeID(ownerAccountID, identityStoreID, groupID string)
 	return "arn:aws:identitystore::" + ownerAccountID + ":group/" + identityStoreID + "/" + groupID
 }
 
-func scanIdentityStoreUsersGroups(ctx context.Context, client *identitystore.Client, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, in := range instances {
 		identityStoreID := sv(in.IdentityStoreId)
 		ownerAccountID := sv(in.OwnerAccountId)
@@ -351,7 +368,7 @@ func scanIdentityStoreUsersGroups(ctx context.Context, client *identitystore.Cli
 	return total, inserted, nil
 }
 
-func scanIdentityStoreUsers(ctx context.Context, client *identitystore.Client, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := identitystore.NewListUsersPaginator(client, &identitystore.ListUsersInput{IdentityStoreId: &identityStoreID})
 	var users []istypes.User
 	for pager.HasMorePages() {
@@ -389,7 +406,7 @@ func scanIdentityStoreUsers(ctx context.Context, client *identitystore.Client, a
 	return len(batch), n, nil
 }
 
-func scanIdentityStoreGroups(ctx context.Context, client *identitystore.Client, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIdentityStoreGroups(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := identitystore.NewListGroupsPaginator(client, &identitystore.ListGroupsInput{IdentityStoreId: &identityStoreID})
 	var groups []istypes.Group
 	for pager.HasMorePages() {
