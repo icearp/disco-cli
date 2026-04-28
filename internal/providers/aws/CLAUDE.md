@@ -161,3 +161,11 @@ Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, tr
 ## Smithy GenericAPIError string shape
 
 `(&smithy.GenericAPIError{Code:"AccessDenied",Message:"denied"}).Error()` = `"api error AccessDenied: denied"`. Tests asserting on `err.Error()` or `ScanWarning.Message` must include the `api error ` prefix.
+
+## SDK middleware test stubs — placement
+
+When stubbing SDK responses via `Stack.Initialize.Add(...)`, place with `smithymw.After` not `Before`. `RegisterServiceMetadata` is itself an Initialize middleware that populates op-name + service-id in ctx; a `Before` stub short-circuits ahead of it and `awsmw.GetOperationName(ctx)` returns `""`. Precedent: `middleware_testhelper_test.go` `stubResponses`.
+
+## Wrapper-key json tags are lowercase by design
+
+The "Scanner attribute JSON uses PascalCase keys" rule applies to fields produced by `json.Marshal` on raw SDK structs. Hand-built wrapper containers that namespace the SDK payload (`{"lb": <LB>, "type": ...}` in `elb_scanners.go`, `{"rule": ..., "Targets": [...]}` via `ruleWithTargets` in `eventbridge_scanners.go`, `{"listenerArn": ..., "cert": ...}` in `elb_scanners.go`) deliberately use lowercase / camelCase outer keys to distinguish them from SDK fields. Resolver struct tags like `json:"lb"` / `json:"listenerArn"` / `json:"deadLetterTargetArn"` are correct — do not "fix" to PascalCase, and any tag-shape lint must allowlist these.
