@@ -18,6 +18,7 @@ const (
 	// IAM
 	TypeIAMServiceAccount = "gcp:iam:service-account"
 	TypeIAMPolicy         = "gcp:iam:policy"
+	TypeIAMSAKey          = "gcp:iam:service-account-key"
 	// Cloud Storage
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud SQL

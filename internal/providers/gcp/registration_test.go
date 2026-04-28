@@ -11,6 +11,7 @@ var expectedGCPServices = []string{
 	"gcp:compute",
 	"gcp:gke",
 	"gcp:iam",
+	"gcp:iam-key",
 	"gcp:iam-policy",
 	"gcp:sql",
 	"gcp:storage",
