@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 
 	"codeberg.org/icearp/disco/internal/store"
 )
@@ -76,6 +77,14 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 		}
 		total, inserted, err := svc.fn(ctx, scopes, st, scanID)
 		if err != nil {
+			// API-not-enabled at the org scope (accesscontextmanager,
+			// org-policy, etc.) returns the errServiceDisabled sentinel —
+			// mirror scanProject and surface "(service disabled)" instead
+			// of an error.
+			if errors.Is(err, errServiceDisabled) {
+				st.ReportService(svc.name, 0, 0, 0, true)
+				continue
+			}
 			st.ReportError(store.ScanError{
 				Provider: "gcp", Service: svc.name, Scope: "org",
 				Message: err.Error(),
