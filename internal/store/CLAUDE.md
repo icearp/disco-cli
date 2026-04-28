@@ -53,3 +53,7 @@ ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`,
 ## FK constraint: resources require scan record
 
 `resources.discovered_by` + `resources.verified_by` = FKs to `scans(id)`. Any test inserting resources needs scan record in DB first. `newTestStore` (provider tests) handles — inserts scan with fixed ID `"00000000000000000000000000000000"`.
+
+## ListResources filter shape
+
+`store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`.

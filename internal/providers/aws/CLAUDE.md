@@ -153,3 +153,11 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 ## Tag JSON helpers
 
 `awsTagsJSON[T awsTag]` (`aws.go`) is generic-union restricted. New SDK service tag types (`sesv2types.Tag`, `lakeformationtypes.Tag`, etc.) must be added to `awsTag` union AND new `case` in `switch tt := any(t).(type)` block — both edits or helper drops tags silently. For map-typed tags (Macie `map[string]string`, ECR repo tags map) use `mapTagsJSON` instead. Defer tag plumbing if scope tight; tags rarely block graph analysis and adding union touches global type list.
+
+## Helper-test colocation
+
+Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, transient classifier) live in `aws_test.go`, `arn_test.go`, `errors_test.go`, `tags_test.go`. Per-service helper tests (e.g. `apprunnerImageToRepoARN`, `instanceArnFromPermissionSetArn`) live in the matching `<svc>_resolvers_test.go`. Before adding a new helper test, grep `^func Test<Helper>` across `aws/*_test.go` — duplicate `TestX` in same package fails to compile.
+
+## Smithy GenericAPIError string shape
+
+`(&smithy.GenericAPIError{Code:"AccessDenied",Message:"denied"}).Error()` = `"api error AccessDenied: denied"`. Tests asserting on `err.Error()` or `ScanWarning.Message` must include the `api error ` prefix.
