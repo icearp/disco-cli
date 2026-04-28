@@ -2,6 +2,23 @@
 
 GCP-specific scanner / resolver conventions. Cross-provider rules: `internal/providers/CLAUDE.md`.
 
+## Scoping cheat-sheet
+
+Pick the right scanner shape on first read:
+- **Per-project, no location** (Pub/Sub, BigQuery, Cloud DNS, Cloud Build): `parent = projects/{p}` — one List call, paginated.
+- **Wildcard `locations/-`** (Cloud Functions v2, Cloud Run, Cloud Run Jobs, Batch, Composer, Artifact Registry, Cert Manager): `parent = projects/{p}/locations/-` returns every location in one paginated walk. Prefer this when the API supports it.
+- **Per-location fan-out** (Cloud KMS): `Locations.List` → bounded fan-out via `semaphore.NewWeighted`. Pair with `apiDisabled atomic.Bool` to dedup repeat 403s when the API is off.
+- **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): parent above project. **No clean lane today** — needs a once-per-scan registration mechanism shared by all three. Defer until the lane lands.
+- **Per-region (no wildcard)** (Dataproc clusters, Dataflow jobs, Spanner): each region listed individually. Spanner just enumerates instance regions from `Config`. Dataproc + Dataflow need a shared region-list helper not yet built — defer.
+
+## Singleton resources via Get
+
+Some GCP services have a singleton "policy" per project with no list surface — fetch via `Get` and upsert one row. Precedent: BinAuth `Projects.GetPolicy(projects/{p}/policy)`. Don't try to list these.
+
+## Service-account email index
+
+Many resolvers need to FK-check an SA email reference (Cloud Functions, Cloud Run, Composer, Cloud Build trigger, BinAuth attestor, Cloud Run Jobs, Batch, IAM policy bindings). Build the index once per resolver: list `gcp:iam:service-account` resources, key by trailing path segment of `NativeID` (the email). For fields that may store either full resource name `projects/{p}/serviceAccounts/{email}` or just the email, build a second index keyed on the full NativeID and check both. Cross-project SA refs implicitly skip — they won't match the in-project index.
+
 ## Service registration
 
 Each `<svc>_scanners.go` file calls `registerService` from `init()`. Service `fn` runs once per project — fan-out across projects + concurrency cap (`maxConcurrentServices = 10`) handled by `scanProject`. Resolvers register via `registerResolver(fn)`; resolver fn is called once per project after all phase-1 scans land.
