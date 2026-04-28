@@ -20,18 +20,22 @@ jobs:
           - goos: linux
             goarch: amd64
             upx: true
+            tarxz: false
             ext: ''
           - goos: linux
             goarch: arm64
             upx: true
+            tarxz: false
             ext: ''
           - goos: darwin
             goarch: arm64
             upx: false
+            tarxz: true
             ext: ''
           - goos: windows
             goarch: amd64
             upx: true
+            tarxz: false
             ext: '.exe'
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +57,11 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends upx-ucl
           upx --best --lzma "$ARTIFACT"
+
+      - name: XZ compress
+        if: ${{ matrix.tarxz }}
+        run: |
+          tar -cJf "$ARTIFACT.tar.xz" "$ARTIFACT"
 
       - name: SHA256 sidecar
         run: sha256sum "$ARTIFACT" | awk '{print $1}' > "${ARTIFACT}.sha256"
