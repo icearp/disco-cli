@@ -10,6 +10,14 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:lightsail", fn: scanLightsail}) }
 
+// lightsailAPI is the narrow set of Lightsail operations called by the
+// scanLightsail sub-phases.
+type lightsailAPI interface {
+	GetInstances(context.Context, *lightsail.GetInstancesInput, ...func(*lightsail.Options)) (*lightsail.GetInstancesOutput, error)
+	GetRelationalDatabases(context.Context, *lightsail.GetRelationalDatabasesInput, ...func(*lightsail.Options)) (*lightsail.GetRelationalDatabasesOutput, error)
+	GetContainerServices(context.Context, *lightsail.GetContainerServicesInput, ...func(*lightsail.Options)) (*lightsail.GetContainerServicesOutput, error)
+}
+
 // scanLightsail discovers Lightsail instances, relational databases, and
 // container services in one region. Lightsail uses manual `pageToken`
 // pagination (no SDK paginators). Three phases run sequentially. Per-
@@ -44,7 +52,7 @@ func scanLightsail(ctx context.Context, acct *account, region string, st *store.
 	return total, inserted, nil
 }
 
-func scanLightsailInstances(ctx context.Context, client *lightsail.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLightsailInstances(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	var pageToken *string
 	for {
@@ -94,7 +102,7 @@ func scanLightsailInstances(ctx context.Context, client *lightsail.Client, acct 
 	return len(batch), n, nil
 }
 
-func scanLightsailDatabases(ctx context.Context, client *lightsail.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLightsailDatabases(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	var pageToken *string
 	for {
@@ -141,7 +149,7 @@ func scanLightsailDatabases(ctx context.Context, client *lightsail.Client, acct 
 	return len(batch), n, nil
 }
 
-func scanLightsailContainerServices(ctx context.Context, client *lightsail.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLightsailContainerServices(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, perr := client.GetContainerServices(ctx, &lightsail.GetContainerServicesInput{})
 	if perr != nil {
 		if isAccessDenied(perr) {

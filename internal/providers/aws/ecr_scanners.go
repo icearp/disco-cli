@@ -12,12 +12,22 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:ecr", fn: scanECR}) }
 
+// ecrAPI is the narrow set of ECR operations called by scanECRRepositories.
+type ecrAPI interface {
+	DescribeRepositories(context.Context, *ecr.DescribeRepositoriesInput, ...func(*ecr.Options)) (*ecr.DescribeRepositoriesOutput, error)
+	ListTagsForResource(context.Context, *ecr.ListTagsForResourceInput, ...func(*ecr.Options)) (*ecr.ListTagsForResourceOutput, error)
+}
+
 // scanECR discovers ECR repositories in one region. DescribeRepositories returns
 // full repository details in a single paginated call — no separate describe step needed.
 // Tags are fetched concurrently via ListTagsForResource (one call per repository).
 func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
+	return scanECRRepositories(ctx, client, acct, region, st, scanID)
+}
 
+// scanECRRepositories holds the testable scan body.
+func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

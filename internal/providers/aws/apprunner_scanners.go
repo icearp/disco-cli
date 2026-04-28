@@ -13,6 +13,14 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:apprunner", fn: scanAppRunner}) }
 
+// apprunnerAPI is the narrow set of App Runner operations called by the
+// scanAppRunner sub-phases.
+type apprunnerAPI interface {
+	ListServices(context.Context, *apprunner.ListServicesInput, ...func(*apprunner.Options)) (*apprunner.ListServicesOutput, error)
+	DescribeService(context.Context, *apprunner.DescribeServiceInput, ...func(*apprunner.Options)) (*apprunner.DescribeServiceOutput, error)
+	ListVpcConnectors(context.Context, *apprunner.ListVpcConnectorsInput, ...func(*apprunner.Options)) (*apprunner.ListVpcConnectorsOutput, error)
+}
+
 // scanAppRunner discovers App Runner services and VPC connectors in one
 // region. Two phases. Phase 1: ListServices (paginator, skeleton) →
 // fan-out DescribeService for full body (NetworkConfiguration,
@@ -42,7 +50,7 @@ func scanAppRunner(ctx context.Context, acct *account, region string, st *store.
 	return total, inserted, nil
 }
 
-func scanAppRunnerServices(ctx context.Context, client *apprunner.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppRunnerServices(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := apprunner.NewListServicesPaginator(client, &apprunner.ListServicesInput{})
 	var arns []string
 	for pager.HasMorePages() {
@@ -119,7 +127,7 @@ func scanAppRunnerServices(ctx context.Context, client *apprunner.Client, acct *
 	return len(batch), n, nil
 }
 
-func scanAppRunnerVPCConnectors(ctx context.Context, client *apprunner.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppRunnerVPCConnectors(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := apprunner.NewListVpcConnectorsPaginator(client, &apprunner.ListVpcConnectorsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

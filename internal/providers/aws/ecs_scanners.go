@@ -13,6 +13,16 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:ecs", fn: scanECS}) }
 
+// ecsAPI is the narrow set of ECS operations called by the scanECS sub-phases.
+type ecsAPI interface {
+	ListClusters(context.Context, *ecs.ListClustersInput, ...func(*ecs.Options)) (*ecs.ListClustersOutput, error)
+	DescribeClusters(context.Context, *ecs.DescribeClustersInput, ...func(*ecs.Options)) (*ecs.DescribeClustersOutput, error)
+	ListServices(context.Context, *ecs.ListServicesInput, ...func(*ecs.Options)) (*ecs.ListServicesOutput, error)
+	DescribeServices(context.Context, *ecs.DescribeServicesInput, ...func(*ecs.Options)) (*ecs.DescribeServicesOutput, error)
+	ListTaskDefinitions(context.Context, *ecs.ListTaskDefinitionsInput, ...func(*ecs.Options)) (*ecs.ListTaskDefinitionsOutput, error)
+	DescribeTaskDefinition(context.Context, *ecs.DescribeTaskDefinitionInput, ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
+}
+
 // scanECS discovers ECS clusters, services, and task definitions in one region.
 // Clusters are described first so their ARNs can be used for service listing.
 func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -41,7 +51,7 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 // scanECSClusters pages through ListClusters, batch-describes each page via
 // DescribeClusters (max 100 per call), and returns all cluster ARNs for use
 // by scanECSServices.
-func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total, inserted int, err error) {
+func scanECSClusters(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (clusterARNs []string, total, inserted int, err error) {
 	pager := ecs.NewListClustersPaginator(client, &ecs.ListClustersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -98,7 +108,7 @@ func scanECSClusters(ctx context.Context, client *ecs.Client, acct *account, reg
 
 // scanECSServices iterates each cluster ARN, pages through ListServices, and
 // batch-describes services via DescribeServices (max 10 per call).
-func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanECSServices(ctx context.Context, client ecsAPI, acct *account, region string, clusterARNs []string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, clusterARN := range clusterARNs {
 		var serviceARNs []string
 		pager := ecs.NewListServicesPaginator(client, &ecs.ListServicesInput{Cluster: &clusterARN})
@@ -160,7 +170,7 @@ func scanECSServices(ctx context.Context, client *ecs.Client, acct *account, reg
 
 // scanECSTaskDefinitions lists all ACTIVE task definition ARNs and describes
 // each concurrently (DescribeTaskDefinition has no batch API).
-func scanECSTaskDefinitions(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanECSTaskDefinitions(ctx context.Context, client ecsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var allARNs []string
 	pager := ecs.NewListTaskDefinitionsPaginator(client, &ecs.ListTaskDefinitionsInput{
 		Status: ecstypes.TaskDefinitionStatusActive,

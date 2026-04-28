@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:elasticbeanstalk", fn: scanElasticBeanstalk}) }
 
+// elasticbeanstalkAPI is the narrow set of Elastic Beanstalk operations
+// called by the scanElasticBeanstalk sub-phases.
+type elasticbeanstalkAPI interface {
+	DescribeApplications(context.Context, *elasticbeanstalk.DescribeApplicationsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeApplicationsOutput, error)
+	DescribeEnvironments(context.Context, *elasticbeanstalk.DescribeEnvironmentsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeEnvironmentsOutput, error)
+}
+
 // scanElasticBeanstalk discovers Beanstalk applications and environments
 // in one region. Two phases. DescribeApplications returns the full list
 // in a single call (no pagination — small per-account quota). Environments
@@ -40,7 +47,7 @@ func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st 
 	return total, inserted, nil
 }
 
-func scanBeanstalkApplications(ctx context.Context, client *elasticbeanstalk.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, perr := client.DescribeApplications(ctx, &elasticbeanstalk.DescribeApplicationsInput{})
 	if perr != nil {
 		if isAccessDenied(perr) {
@@ -81,7 +88,7 @@ func scanBeanstalkApplications(ctx context.Context, client *elasticbeanstalk.Cli
 	return len(batch), n, nil
 }
 
-func scanBeanstalkEnvironments(ctx context.Context, client *elasticbeanstalk.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBeanstalkEnvironments(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	var nextToken *string
 	for {

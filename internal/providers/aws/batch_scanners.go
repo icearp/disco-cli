@@ -10,6 +10,13 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:batch", fn: scanBatch}) }
 
+// batchAPI is the narrow set of Batch operations called by the scanBatch sub-phases.
+type batchAPI interface {
+	DescribeComputeEnvironments(context.Context, *batch.DescribeComputeEnvironmentsInput, ...func(*batch.Options)) (*batch.DescribeComputeEnvironmentsOutput, error)
+	DescribeJobQueues(context.Context, *batch.DescribeJobQueuesInput, ...func(*batch.Options)) (*batch.DescribeJobQueuesOutput, error)
+	DescribeJobDefinitions(context.Context, *batch.DescribeJobDefinitionsInput, ...func(*batch.Options)) (*batch.DescribeJobDefinitionsOutput, error)
+}
+
 // scanBatch discovers AWS Batch compute environments, job queues, and
 // active job definitions in one region. Three phases run sequentially,
 // each Describe* paginator-native with full body on List. Per-phase
@@ -44,7 +51,7 @@ func scanBatch(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-func scanBatchComputeEnvironments(ctx context.Context, client *batch.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := batch.NewDescribeComputeEnvironmentsPaginator(client, &batch.DescribeComputeEnvironmentsInput{})
 	var batchRows []*store.Resource
 	for pager.HasMorePages() {
@@ -87,7 +94,7 @@ func scanBatchComputeEnvironments(ctx context.Context, client *batch.Client, acc
 	return len(batchRows), n, nil
 }
 
-func scanBatchJobQueues(ctx context.Context, client *batch.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := batch.NewDescribeJobQueuesPaginator(client, &batch.DescribeJobQueuesInput{})
 	var batchRows []*store.Resource
 	for pager.HasMorePages() {
@@ -130,7 +137,7 @@ func scanBatchJobQueues(ctx context.Context, client *batch.Client, acct *account
 	return len(batchRows), n, nil
 }
 
-func scanBatchJobDefinitions(ctx context.Context, client *batch.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBatchJobDefinitions(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	active := "ACTIVE"
 	pager := batch.NewDescribeJobDefinitionsPaginator(client, &batch.DescribeJobDefinitionsInput{Status: &active})
 	var batchRows []*store.Resource
