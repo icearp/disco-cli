@@ -17,6 +17,7 @@ const (
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM
 	TypeIAMServiceAccount = "gcp:iam:service-account"
+	TypeIAMPolicy         = "gcp:iam:policy"
 	// Cloud Storage
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud SQL

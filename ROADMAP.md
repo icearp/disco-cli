@@ -86,6 +86,12 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.1 GCP IAM policy bindings — project scope (this session)
+- **GCP IAM policy** new type `gcp:iam:policy`. Project-scoped service `gcp:iam-policy` runs one phase: `cloudresourcemanager/v3` `Projects.GetIamPolicy` with `RequestedPolicyVersion: 3` (returns conditional bindings unfolded). One synthesized policy resource per project; NativeID `projects/{id}/policy`. Hierarchy pair: policy → project parent.
+- **Resolver** `resolveIAMPolicyRelationships` walks each policy's `bindings[].members[]` and emits `policy -[uses]-> serviceAccount` edges for every `serviceAccount:` member that has a matching `gcp:iam:service-account` row in the store. Edge attrs carry `{role: roles/...}` so downstream queries can pivot by role without re-parsing the policy. Members of types other than serviceAccount: (user, group, domain, allUsers, allAuthenticatedUsers) are skipped — there are no resource rows to FK against until the GCP identity scanner lands (workspace users / groups / workforce pools). Cross-project SAs likewise skipped to keep edges FK-safe.
+- Folder + organization scope policies deferred — scoped above the per-project fan-out used by the existing service registry; require a single-pass scanner run from `scanHierarchy` or a sibling phase. Tracked as R4.1 follow-up.
+- Live-scan validation: 2 projects, 2 policies, 0 in-store SAs (so 0 edges); scanner + resolver ran clean. Pre-existing Compute / GKE 403 warnings unrelated.
+
 ### R3.13 Azure Functions edge resolver (this session)
 - **AppService scanner extension**. The existing `WebAppsClient.NewListPager` already returns `Microsoft.Web/sites` of `Kind=functionapp` alongside web apps; iteration tags `siteEntry.isFunctionApp` from `s.Kind` (lowercase substring `functionapp`). Web-apps fan-out errgroup gains a second branch per function-app entry: `WebAppsClient.ListApplicationSettings(rg, name)` populates a per-subscription package-level sidecar via `recordFunctionAppSettings(subID, siteDiscoID, settings)`. Sidecar lives in `azure.go` (`functionAppSettings` map + `functionAppSettingsMu`) rather than as a `subscription` struct field — `subscription` passes by value in some call paths so a mutex field would break copy semantics. Fan-out shares `maxConcurrentFanout` budget with slot scans; per-app AccessDenied tolerated as best-effort enrichment (resolver tolerates missing entries).
 - **Resolver** `resolveFunctionAppRelationships` consumes the sidecar and emits two edge classes per function-app:
@@ -516,7 +522,7 @@ Current Azure (32 services): AKS, APIManagement, ApplicationGateway, AppService,
 Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQL, Storage.
 
 **Add, priority order:**
-1. **IAM policy bindings** at project/folder/org level (flagged in old roadmap). Bindings → member principals (user/group/SA/domain) + role → scope. Foundation for every cross-resource access query in GCP.
+1. *(removed — project-scope IAM policy scanner + policy → service-account resolver landed; edge attrs carry role; non-SA members + folder/org-scope policies deferred until GCP identity scanner lands; see COMPLETED R4.1)*
 2. **Service account keys** — edges: key → SA.
 3. **Cloud KMS** — keyring, cryptoKey. Edges from Storage bucket / BigQuery dataset / Compute disk CMEK references.
 4. **Secret Manager** — secret, version. Edges: secret → KMS, → IAM policy.
