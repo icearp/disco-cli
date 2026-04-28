@@ -10,11 +10,22 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:secretsmanager", fn: scanSecretsManager}) }
 
+// secretsManagerAPI is the narrow set of Secrets Manager operations called by
+// scanSecretsManagerSecrets.
+type secretsManagerAPI interface {
+	ListSecrets(context.Context, *secretsmanager.ListSecretsInput, ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error)
+}
+
 // scanSecretsManager discovers Secrets Manager secrets in one region. Secret
 // values are never fetched — only metadata (rotation config, last-rotated date,
 // KMS key binding) suitable for posture rules.
 func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := secretsmanager.NewFromConfig(acct.cfg, func(o *secretsmanager.Options) { o.Region = region })
+	return scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)
+}
+
+// scanSecretsManagerSecrets holds the testable scan body.
+func scanSecretsManagerSecrets(ctx context.Context, client secretsManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := secretsmanager.NewListSecretsPaginator(client, &secretsmanager.ListSecretsInput{})
 	return pageScan(ctx, "secretsmanager:ListSecrets", acct, region, st,
 		p.HasMorePages,

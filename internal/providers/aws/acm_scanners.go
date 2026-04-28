@@ -10,12 +10,24 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:acm", fn: scanACM}) }
 
+// acmAPI is the narrow set of ACM operations called by scanACMCertificates.
+type acmAPI interface {
+	ListCertificates(context.Context, *acm.ListCertificatesInput, ...func(*acm.Options)) (*acm.ListCertificatesOutput, error)
+	DescribeCertificate(context.Context, *acm.DescribeCertificateInput, ...func(*acm.Options)) (*acm.DescribeCertificateOutput, error)
+	ListTagsForCertificate(context.Context, *acm.ListTagsForCertificateInput, ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error)
+}
+
 // scanACM discovers ACM certificates in one region. ListCertificates returns
 // ARNs + minimal metadata; DescribeCertificate is called concurrently per cert
 // to fetch the full detail (SubjectAlternativeNames, CertificateAuthorityArn,
 // DomainValidationOptions, etc.). Tags fetched via ListTagsForCertificate.
 func scanACM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := acm.NewFromConfig(acct.cfg, func(o *acm.Options) { o.Region = region })
+	return scanACMCertificates(ctx, client, acct, region, st, scanID)
+}
+
+// scanACMCertificates holds the testable scan body.
+func scanACMCertificates(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := acm.NewListCertificatesPaginator(client, &acm.ListCertificatesInput{})
 	return pageScanConcurrent(ctx, "acm:ListCertificates", acct, region, st,
 		p.HasMorePages,

@@ -1,8 +1,11 @@
 package gcp
 
 import (
+	"context"
 	"slices"
 	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
 )
 
 // expectedGCPServices is the authoritative list of service names that must be
@@ -84,6 +87,55 @@ func TestFilteredServices_Subset(t *testing.T) {
 	if got[0].name != "gcp:compute" {
 		t.Errorf("filteredServices([gcp:compute]): got %q", got[0].name)
 	}
+}
+
+// expectedGCPOrgServices is the authoritative list of org/folder-scope service
+// names that must be registered. Update when adding a new org-service scanner
+// (e.g. VPC Service Controls, folder/org IAM policies, org Logging sinks).
+var expectedGCPOrgServices = []string{}
+
+// TestRegisteredOrgServices_NoDuplicates verifies that no two org services share the same name.
+func TestRegisteredOrgServices_NoDuplicates(t *testing.T) {
+	seen := make(map[string]bool, len(registeredOrgServices))
+	for _, svc := range registeredOrgServices {
+		if seen[svc.name] {
+			t.Errorf("duplicate org service registration: %q", svc.name)
+		}
+		seen[svc.name] = true
+	}
+}
+
+// TestRegisteredOrgServices_ExpectedNames verifies that every expected org
+// service is registered and no unrecognised ones slipped in.
+func TestRegisteredOrgServices_ExpectedNames(t *testing.T) {
+	registered := make(map[string]bool, len(registeredOrgServices))
+	for _, svc := range registeredOrgServices {
+		registered[svc.name] = true
+	}
+	for _, want := range expectedGCPOrgServices {
+		if !registered[want] {
+			t.Errorf("org service %q is not registered", want)
+		}
+	}
+	for _, svc := range registeredOrgServices {
+		if !slices.Contains(expectedGCPOrgServices, svc.name) {
+			t.Errorf("unrecognised org service %q — add it to expectedGCPOrgServices in this test", svc.name)
+		}
+	}
+}
+
+// TestRegisterOrgService_DuplicatePanics confirms the registry rejects double-registration.
+func TestRegisterOrgService_DuplicatePanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("registerOrgService accepted duplicate name without panicking")
+		}
+	}()
+	noop := func(_ context.Context, _ []orgScope, _ *store.Store, _ string) (int, int, error) {
+		return 0, 0, nil
+	}
+	registerOrgService(orgServiceEntry{name: "gcp:dup-test", fn: noop})
+	registerOrgService(orgServiceEntry{name: "gcp:dup-test", fn: noop})
 }
 
 // TestFilteredServices_Unknown verifies that an unknown service returns empty slice.

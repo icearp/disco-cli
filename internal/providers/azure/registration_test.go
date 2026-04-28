@@ -1,8 +1,12 @@
 package azure
 
 import (
+	"context"
 	"slices"
 	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 // expectedAzureServices is the authoritative list of service names that must be
@@ -97,4 +101,53 @@ func TestFilteredServices_Unknown(t *testing.T) {
 	if len(got) != 0 {
 		t.Errorf("filteredServices([azure:nonexistent]): got %d results, want 0", len(got))
 	}
+}
+
+// expectedAzureTenantServices is the authoritative list of tenant-scope
+// Azure services that must be registered. Update when adding tenant-scope
+// scanners (Entra ID users/groups/SPs/app-regs/directory-roles, etc.).
+var expectedAzureTenantServices = []string{}
+
+// TestRegisteredTenantServices_NoDuplicates verifies no duplicate names.
+func TestRegisteredTenantServices_NoDuplicates(t *testing.T) {
+	seen := make(map[string]bool, len(registeredTenantServices))
+	for _, svc := range registeredTenantServices {
+		if seen[svc.name] {
+			t.Errorf("duplicate tenant service registration: %q", svc.name)
+		}
+		seen[svc.name] = true
+	}
+}
+
+// TestRegisteredTenantServices_ExpectedNames verifies registry matches the
+// expected set in both directions.
+func TestRegisteredTenantServices_ExpectedNames(t *testing.T) {
+	registered := make(map[string]bool, len(registeredTenantServices))
+	for _, svc := range registeredTenantServices {
+		registered[svc.name] = true
+	}
+	for _, want := range expectedAzureTenantServices {
+		if !registered[want] {
+			t.Errorf("tenant service %q is not registered", want)
+		}
+	}
+	for _, svc := range registeredTenantServices {
+		if !slices.Contains(expectedAzureTenantServices, svc.name) {
+			t.Errorf("unrecognised tenant service %q — add it to expectedAzureTenantServices", svc.name)
+		}
+	}
+}
+
+// TestRegisterTenantService_DuplicatePanics confirms double-registration is rejected.
+func TestRegisterTenantService_DuplicatePanics(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("registerTenantService accepted duplicate name without panicking")
+		}
+	}()
+	noop := func(_ context.Context, _ []subscription, _ *azidentity.DefaultAzureCredential, _ *store.Store, _ string) (int, int, error) {
+		return 0, 0, nil
+	}
+	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
+	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
 }

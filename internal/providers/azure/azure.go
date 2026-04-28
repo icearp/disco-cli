@@ -85,6 +85,13 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	if err != nil {
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
+
+	// Tenant-scope services (e.g. Entra ID via Microsoft Graph) run ONCE per
+	// scan, before per-subscription fan-out. Sits above the subscription
+	// boundary so consumers can populate principal resources that per-sub
+	// resolvers (RBAC role assignments) FK-match against.
+	runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
+
 	sem := semaphore.NewWeighted(maxConcurrentSubscriptions)
 	g, gctx := errgroup.WithContext(ctx)
 	for i := range subs {

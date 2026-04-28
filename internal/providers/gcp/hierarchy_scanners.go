@@ -12,11 +12,11 @@ import (
 // scanHierarchy discovers the GCP org → folder → project tree and populates
 // the hierarchy_closure table. It must run before any project-scoped resources
 // are upserted, since projects are used as parent_id for those resources.
-func scanHierarchy(ctx context.Context, projects []project, st *store.Store, scanID string) error {
+func scanHierarchy(ctx context.Context, projects []project, st *store.Store, scanID string) ([]orgScope, error) {
 	opts := clientOptions(ctx, providerCfg{})
 	crmSvc, err := cloudresourcemanager.NewService(ctx, opts...)
 	if err != nil {
-		return fmt.Errorf("cloudresourcemanager client: %w", err)
+		return nil, fmt.Errorf("cloudresourcemanager client: %w", err)
 	}
 
 	// Fetch each project once and cache; the cached data is reused below when
@@ -24,13 +24,14 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 	projCache := make(map[string]*cloudresourcemanager.Project, len(projects))
 	seen := map[string]bool{}
 	var orgs, folders []string
+	var scopes []orgScope // org+folder scopes seen at least once; consumed by org-services
 	for _, p := range projects {
 		proj, err := crmSvc.Projects.Get(fmt.Sprintf("projects/%s", p.ID)).Context(ctx).Do()
 		if err != nil {
 			if isPermissionDenied(err) {
 				continue
 			}
-			return fmt.Errorf("cloudresourcemanager:GetProject %s: %w", p.ID, err)
+			return nil, fmt.Errorf("cloudresourcemanager:GetProject %s: %w", p.ID, err)
 		}
 		projCache[p.ID] = proj
 		parent := proj.Parent // e.g. "folders/123" or "organizations/456"
@@ -51,7 +52,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			if isPermissionDenied(err) {
 				continue
 			}
-			return fmt.Errorf("cloudresourcemanager:GetOrganization %s: %w", orgName, err)
+			return nil, fmt.Errorf("cloudresourcemanager:GetOrganization %s: %w", orgName, err)
 		}
 		id := org.Name // "organizations/123"
 		name := org.DisplayName
@@ -65,13 +66,14 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			DiscoveredBy:   scanID,
 		}
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
-			return err
+			return nil, err
 		}
 		// Organizations are roots; add self-entry to closure table.
 		orgResourceID := store.ResourceID("gcp", id, TypeOrganization, id)
 		if err := st.AddToHierarchyClosure(orgResourceID, orgResourceID); err != nil {
-			return err
+			return nil, err
 		}
+		scopes = append(scopes, orgScope{Kind: "organization", Name: id, Resource: orgResourceID})
 	}
 
 	// Upsert folders.
@@ -81,7 +83,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			if isPermissionDenied(err) {
 				continue
 			}
-			return fmt.Errorf("cloudresourcemanager:GetFolder %s: %w", folderName, err)
+			return nil, fmt.Errorf("cloudresourcemanager:GetFolder %s: %w", folderName, err)
 		}
 		id := folder.Name // "folders/123"
 		displayName := folder.DisplayName
@@ -95,15 +97,16 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			DiscoveredBy:   scanID,
 		}
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
-			return err
+			return nil, err
 		}
 		folderResourceID := store.ResourceID("gcp", id, TypeFolder, id)
 		if folder.Parent != "" {
 			parentResourceID := gcpParentResourceID(folder.Parent)
 			if err := st.AddToHierarchyClosure(folderResourceID, parentResourceID); err != nil {
-				return err
+				return nil, err
 			}
 		}
+		scopes = append(scopes, orgScope{Kind: "folder", Name: id, Resource: folderResourceID})
 	}
 
 	// Upsert projects and link them into the hierarchy.
@@ -131,15 +134,15 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			p.ParentID = gcpParentResourceID(proj.Parent)
 		}
 		if _, err := st.UpsertResources([]*store.Resource{r}); err != nil {
-			return err
+			return nil, err
 		}
 		if proj.Parent != "" {
 			if err := st.AddToHierarchyClosure(projResourceID, p.ParentID); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return scopes, nil
 }
 
 // gcpParentResourceID converts a GCP parent name ("folders/123" or

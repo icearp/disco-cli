@@ -10,6 +10,11 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:kafka", fn: scanKafka}) }
 
+// kafkaAPI is the narrow set of MSK operations called by scanKafkaClusters.
+type kafkaAPI interface {
+	ListClustersV2(context.Context, *kafka.ListClustersV2Input, ...func(*kafka.Options)) (*kafka.ListClustersV2Output, error)
+}
+
 // scanKafka discovers MSK clusters (both Provisioned and Serverless) in one
 // region. ListClustersV2 returns the full Cluster object per entry — no
 // separate Describe is needed. The Provisioned and Serverless variants are
@@ -17,6 +22,11 @@ func init() { registerService(serviceEntry{name: "aws:kafka", fn: scanKafka}) }
 // which sub-struct is populated.
 func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := kafka.NewFromConfig(acct.cfg, func(o *kafka.Options) { o.Region = region })
+	return scanKafkaClusters(ctx, client, acct, region, st, scanID)
+}
+
+// scanKafkaClusters holds the testable scan body.
+func scanKafkaClusters(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := kafka.NewListClustersV2Paginator(client, &kafka.ListClustersV2Input{})
 	return pageScan(ctx, "kafka:ListClustersV2", acct, region, st,
 		p.HasMorePages,

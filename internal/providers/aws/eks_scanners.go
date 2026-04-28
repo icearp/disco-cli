@@ -10,10 +10,22 @@ import (
 
 func init() { registerService(serviceEntry{name: "aws:eks", fn: scanEKS}) }
 
+// eksAPI is the narrow set of EKS operations called by scanEKSClusters.
+// *eks.Client satisfies; tests substitute a stub.
+type eksAPI interface {
+	ListClusters(context.Context, *eks.ListClustersInput, ...func(*eks.Options)) (*eks.ListClustersOutput, error)
+	DescribeCluster(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+}
+
 // scanEKS discovers EKS clusters in one region. ListClusters returns names
 // only; clusters are described in parallel to avoid N+1 sequential API calls.
 func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
+	return scanEKSClusters(ctx, client, acct, region, st, scanID)
+}
+
+// scanEKSClusters holds the testable scan body.
+func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := eks.NewListClustersPaginator(client, &eks.ListClustersInput{})
 	return pageScanConcurrent(ctx, "eks:ListClusters", acct, region, st,
 		p.HasMorePages,

@@ -47,7 +47,7 @@ Helpers extracting segments from ARM IDs (subscription guid, RG name, resource n
 
 ## Subscription-scoped vs tenant-scoped
 
-Every current scanner runs per-subscription via `scanSubscription`. Truly tenant-scoped services (Entra ID via Microsoft Graph SDK) need separate top-level scanner. **Hybrid pattern** (precedent: `management_scanners.go`): tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so dedup works locally. Same trick as RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
+Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, before per-sub fan-out, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `azure.go`. **Hybrid pattern** (precedent: `management_scanners.go`): tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so dedup works locally. Same trick as RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
 ## Shared helpers live in `azure.go`
 

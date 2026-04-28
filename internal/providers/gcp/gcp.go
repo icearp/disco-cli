@@ -62,9 +62,15 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 	// Phase 1a: build the org → folder → project hierarchy first so that
 	// project resources can reference their parent IDs in the closure table.
-	if err := scanHierarchy(ctx, projects, st, scanID); err != nil {
+	scopes, err := scanHierarchy(ctx, projects, st, scanID)
+	if err != nil {
 		return fmt.Errorf("gcp: hierarchy: %w", err)
 	}
+
+	// Phase 1a': run org/folder-scope services once per scan, before per-project
+	// fan-out. Targets sit above the project boundary (VPC-SC, folder/org IAM
+	// policies, org-scope Logging sinks). Skipped when no scopes were resolved.
+	runOrgServices(ctx, scopes, s.serviceFilter, st, scanID)
 
 	// Phase 1b: scan all project-scoped resources in parallel across projects.
 	filter := s.serviceFilter

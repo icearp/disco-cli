@@ -150,6 +150,10 @@ Neptune AND DocumentDB each have dedicated SDK service (`aws-sdk-go-v2/service/n
 
 Some AWS services surface implicit/managed entries in `List*` responses but reject matching `Get*`/`Describe*` call (Athena `ListDataCatalogs` returns `AwsDataCatalog` — implicit Glue catalog — but `GetDataCatalog` raises `InvalidRequestException: ... was not found`). Tolerate per-item via same pattern as `AccessDenied`: skip row, preserve sibling totals. `isAPIErrorCode(derr, "InvalidRequestException")` (or service-specific code) alongside `isAccessDenied(derr)` in per-item branch. Don't blanket-tolerate at phase level — real not-found / malformed-input still surface for normal entries.
 
+## Scanner iface lift (testability)
+
+Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client wiring) + `scanXEntities(ctx, client xAPI, ...)` (testable body) + narrow `xAPI` interface listing only the SDK methods called. `*svc.Client` satisfies the interface; tests inject stubs. Precedent: `sqs_scanners.go`, `sns`, `eks`, `acm`, `kafka`, `secretsmanager`. Method signatures preserve the SDK's variadic `...func(*svc.Options)` so SDK paginators continue to compile against the interface.
+
 ## Tag JSON helpers
 
 `awsTagsJSON[T awsTag]` (`aws.go`) is generic-union restricted. New SDK service tag types (`sesv2types.Tag`, `lakeformationtypes.Tag`, etc.) must be added to `awsTag` union AND new `case` in `switch tt := any(t).(type)` block — both edits or helper drops tags silently. For map-typed tags (Macie `map[string]string`, ECR repo tags map) use `mapTagsJSON` instead. Defer tag plumbing if scope tight; tags rarely block graph analysis and adding union touches global type list.
