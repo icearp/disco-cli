@@ -12,8 +12,13 @@ import (
 
 var cfgFile string
 
+// Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
+// Defaults to "dev" for local builds.
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:           "disco",
+	Version:       Version,
 	SilenceUsage:  true, // don't dump --help on runtime errors
 	SilenceErrors: true, // Execute() prints the error; suppress Cobra's duplicate print
 	Short:         "Cloud resource discovery tool for AWS, Azure, and GCP",

@@ -47,8 +47,11 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           set -euo pipefail
-          out="disco-${GOOS}-${GOARCH}${{ matrix.ext }}"
-          go build -ldflags "-w -s" -trimpath -o "$out" .
+          version="${GITHUB_REF_NAME}"
+          out="disco-${version}-${GOOS}-${GOARCH}${{ matrix.ext }}"
+          go build \
+            -ldflags "-w -s -X codeberg.org/icearp/disco/cmd.Version=${version}" \
+            -trimpath -o "$out" .
           echo "ARTIFACT=$out" >> "$GITHUB_ENV"
 
       - name: UPX compress
