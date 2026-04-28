@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
 // ── Load Balancer → VPC ───────────────────────────────────────────────────────
@@ -15,7 +17,7 @@ func TestResolveELBv2LBRelationships(t *testing.T) {
 
 	lbARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/my-lb/abc"
 	lbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, region,
-		`{"lb": {"VpcId": "vpc-lb-777"}}`)
+		elbv2LBAttrs(elbv2types.LoadBalancer{VpcId: sdkaws.String("vpc-lb-777")}))
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
 		ec2ARN(region, acct.ID, "vpc", "vpc-lb-777"), region, "{}")
 
@@ -211,7 +213,7 @@ func TestResolveELBv2TGRelationships(t *testing.T) {
 
 	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/my-tg/abc"
 	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region,
-		`{"TargetGroup":{"VpcId":"vpc-tg-999"}}`)
+		elbv2TargetGroupAttrs(elbv2types.TargetGroup{VpcId: sdkaws.String("vpc-tg-999")}))
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
 		ec2ARN(region, acct.ID, "vpc", "vpc-tg-999"), region, "{}")
 
@@ -257,7 +259,10 @@ func TestResolveELBv2TGRelationships_LambdaTarget(t *testing.T) {
 
 	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/lambda-tg/abc"
 	fnARN := "arn:aws:lambda:us-east-1:123456789012:function:my-fn"
-	attrs := `{"TargetGroup":{"TargetType":"lambda"},"Targets":[{"Id":"` + fnARN + `"}]}`
+	attrs := elbv2TargetGroupAttrs(
+		elbv2types.TargetGroup{TargetType: elbv2types.TargetTypeEnumLambda},
+		elbv2types.TargetDescription{Id: sdkaws.String(fnARN)},
+	)
 	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region, attrs)
 	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, region, "{}")
 
@@ -278,7 +283,10 @@ func TestResolveELBv2TGRelationships_InstanceTarget(t *testing.T) {
 
 	tgARN := "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/inst-tg/abc"
 	instID := "i-0123456789abcdef0"
-	attrs := `{"TargetGroup":{"TargetType":"instance"},"Targets":[{"Id":"` + instID + `"}]}`
+	attrs := elbv2TargetGroupAttrs(
+		elbv2types.TargetGroup{TargetType: elbv2types.TargetTypeEnumInstance},
+		elbv2types.TargetDescription{Id: sdkaws.String(instID)},
+	)
 	tgResID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2TargetGroup, tgARN, region, attrs)
 	instARN := ec2ARN(region, acct.ID, "instance", instID)
 	instResID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, instARN, region, "{}")

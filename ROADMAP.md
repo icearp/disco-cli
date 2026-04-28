@@ -791,6 +791,18 @@ N1 PartialScan landed status flag; natural follow-up is resuming a partial scan 
 - Fancy CLI TUI (`disco ui`). Web UI (L4) preferred.
 - Built-in secret scanning of resource attrs beyond key-name denylist. Out-of-scope; use dedicated tools (trufflehog etc.) upstream.
 
+### EventBridge `EventBusArn` dead resolver branch
+- `eventbridge_resolvers.go:32` reads `attrs.Rule.EventBusArn` then falls back to `EventBusName`. SDK `eventstypes.Rule` has no `EventBusArn` field and `eventbridge_scanners.go` never synthesizes one — the first branch is dead in production. Two clean-up options: (a) remove the field + branch; or (b) populate it scanner-side at line 87 (synthesize from region+account+busName so resolvers and `disco list` see the canonical ARN). Picked up while migrating EB resolver-test fixtures to SDK-typed shapes (P4); functionality unaffected because the fallback covers all real scans.
+
+### Scanner unit-test interface lift incomplete (P2)
+- `sqs_scanners.go` is the only scanner refactored to take a narrow `<svc>API` interface for testability (precedent: `sqsAPI` + `scanSQSQueues`, with stub in `sqs_scanners_test.go`). 71 other scanners still take concrete `*<svc>.Client` and have no scanner-side test coverage (only resolver tests via hand-rolled DB rows). Lift incrementally as scanners change — not a wholesale sweep. AWS SDK Go v2 unit-testing guide §"Mocking client operations".
+
+### Resolver-test SDK-typed fixture migration incomplete (P4)
+- 9 resolver tests migrated to use real SDK types via `wrapped_attrs_testhelper_test.go` (5 ELBv2, 4 EventBridge). ~75 resolver tests still build `AttributesJSON` from hand-rolled JSON strings or `map[string]any`. Hand-rolled fixtures pass on `json:"PascalCase"` mismatches that real scans would silently fail on. Continue migration whenever resolver tests are touched — extend the helper file with new `<svc><Resource>Attrs` builders for each scanner-side wrapper shape.
+
+### CFN `cfnTypeMap` shape regression test deferred
+- `cloudformation_resolvers.go` `cfnTypeMap` maps `AWS::Service::Resource` → `(disco type, physID-shape)`. Per `aws/CLAUDE.md` "CFN `PhysicalResourceId` shape varies per ResourceType", wrong synthesis silently FK-drops edges with no error. No regression test catches new entries with wrong shape. Build a table-driven test: per CFN type, fixture `PhysicalResourceId`, expected NativeID — ensures shape stays canonical when adding entries. Deferred from P1 quick wins as larger-than-quick.
+
 ---
 
 ## Verification

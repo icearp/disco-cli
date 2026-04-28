@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	eventstypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 )
 
 func TestResolveEventBridgeRelationships(t *testing.T) {
@@ -16,9 +18,13 @@ func TestResolveEventBridgeRelationships(t *testing.T) {
 	lambdaARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:my-fn", testRegion, acct.ID)
 	snsARN := fmt.Sprintf("arn:aws:sns:%s:%s:my-topic", testRegion, acct.ID)
 
-	ruleAttrs := fmt.Sprintf(
-		`{"Rule":{"EventBusArn":%q},"Targets":[{"Arn":%q},{"Arn":%q}]}`,
-		busARN, lambdaARN, snsARN,
+	// SDK Rule has no EventBusArn field — resolver synthesizes the bus ARN
+	// from EventBusName via region+account. Test fixture mirrors production
+	// SDK shape (only EventBusName is populated).
+	ruleAttrs := eventBridgeRuleAttrs(
+		eventstypes.Rule{EventBusName: sdkaws.String("my-bus")},
+		eventstypes.Target{Arn: sdkaws.String(lambdaARN)},
+		eventstypes.Target{Arn: sdkaws.String(snsARN)},
 	)
 
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
@@ -48,9 +54,11 @@ func TestResolveEventBridgeRelationships_SFNAndFirehoseTargets(t *testing.T) {
 	smARN := fmt.Sprintf("arn:aws:states:%s:%s:stateMachine:wf", testRegion, acct.ID)
 	fhARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/ds", testRegion, acct.ID)
 
-	ruleAttrs := fmt.Sprintf(
-		`{"Rule":{"EventBusArn":%q},"Targets":[{"Arn":%q},{"Arn":%q}]}`,
-		busARN, smARN, fhARN,
+	_ = busARN
+	ruleAttrs := eventBridgeRuleAttrs(
+		eventstypes.Rule{EventBusName: sdkaws.String("default")},
+		eventstypes.Target{Arn: sdkaws.String(smARN)},
+		eventstypes.Target{Arn: sdkaws.String(fhARN)},
 	)
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
 	_ = upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
@@ -76,7 +84,7 @@ func TestResolveEventBridgeRelationships_DefaultBus(t *testing.T) {
 	ruleARN := fmt.Sprintf("arn:aws:events:%s:%s:rule/default-rule", testRegion, acct.ID)
 	busARN := fmt.Sprintf("arn:aws:events:%s:%s:event-bus/default", testRegion, acct.ID)
 
-	ruleAttrs := `{"Rule":{"EventBusName":"default"},"Targets":[]}`
+	ruleAttrs := eventBridgeRuleAttrs(eventstypes.Rule{EventBusName: sdkaws.String("default")})
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
 	busID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
 
@@ -99,7 +107,11 @@ func TestResolveEventBridgeRelationships_APIDestinationTarget(t *testing.T) {
 	ruleARN := fmt.Sprintf("arn:aws:events:%s:%s:rule/r", testRegion, acct.ID)
 	destARN := fmt.Sprintf("arn:aws:events:%s:%s:api-destination/foo/uuid", testRegion, acct.ID)
 
-	ruleAttrs := fmt.Sprintf(`{"Rule":{"EventBusArn":%q},"Targets":[{"Arn":%q}]}`, busARN, destARN)
+	_ = busARN
+	ruleAttrs := eventBridgeRuleAttrs(
+		eventstypes.Rule{EventBusName: sdkaws.String("default")},
+		eventstypes.Target{Arn: sdkaws.String(destARN)},
+	)
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsRule, ruleARN, testRegion, ruleAttrs)
 	_ = upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
 	destID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsAPIDestination, destARN, testRegion, "{}")
