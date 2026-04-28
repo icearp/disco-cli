@@ -20,47 +20,40 @@ func scanCloudSQL(ctx context.Context, p *project, st *store.Store, scanID strin
 		return 0, 0, fmt.Errorf("sqladmin client: %w", err)
 	}
 
-	err = svc.Instances.List(p.ID).Pages(ctx, func(page *sqladmin.InstancesListResponse) error {
-		var batch []*store.Resource
-		for _, inst := range page.Items {
-			name := inst.Name
-			region := inst.Region
-			status := inst.State
-			r := &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeSQLInstance,
-				NativeID:       fmt.Sprintf("projects/%s/instances/%s", p.ID, name),
-				Name:           &name,
-				Region:         &region,
-				CreatedAt:      strp(inst.CreateTime),
-				Status:         &status,
-				AttributesJSON: mustJSON(inst),
-				DiscoveredBy:   scanID,
+	return runPaginated(ctx, st, p, "sqladmin:instances.list",
+		svc.Instances.List(p.ID),
+		func(page *sqladmin.InstancesListResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Items))
+			for _, inst := range page.Items {
+				name := inst.Name
+				region := inst.Region
+				status := inst.State
+				r := &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeSQLInstance,
+					NativeID:       fmt.Sprintf("projects/%s/instances/%s", p.ID, name),
+					Name:           &name,
+					Region:         &region,
+					CreatedAt:      strp(inst.CreateTime),
+					Status:         &status,
+					AttributesJSON: mustJSON(inst),
+					DiscoveredBy:   scanID,
+				}
+				if len(inst.Settings.UserLabels) > 0 {
+					s := mustJSON(inst.Settings.UserLabels)
+					r.TagsJSON = &s
+				}
+				batch = append(batch, r)
 			}
-			if len(inst.Settings.UserLabels) > 0 {
-				s := mustJSON(inst.Settings.UserLabels)
-				r.TagsJSON = &s
+			if len(batch) == 0 {
+				return 0, 0, nil
 			}
-			batch = append(batch, r)
-		}
-		if len(batch) == 0 {
-			return nil
-		}
-		n, e := st.UpsertResources(batch)
-		if e != nil {
-			return fmt.Errorf("upsert Cloud SQL instances: %w", e)
-		}
-		total += len(batch)
-		inserted += n
-		return nil
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "sqladmin:instances.list", p.ID, err)
-		}
-		return 0, 0, fmt.Errorf("sqladmin:instances.list %s: %w", p.ID, err)
-	}
-	return total, inserted, nil
+			n, e := st.UpsertResources(batch)
+			if e != nil {
+				return 0, 0, fmt.Errorf("upsert Cloud SQL instances: %w", e)
+			}
+			return len(batch), n, nil
+		})
 }

@@ -19,41 +19,33 @@ func scanIAMServiceAccounts(ctx context.Context, p *project, st *store.Store, sc
 	}
 
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	req := svc.Projects.ServiceAccounts.List(parent)
-	if err := req.Pages(ctx, func(page *iam.ListServiceAccountsResponse) error {
-		var batch []*store.Resource
-		for _, sa := range page.Accounts {
-			name := sa.DisplayName
-			if name == "" {
-				name = sa.Email
+	return runPaginated(ctx, st, p, "iam:serviceAccounts.list",
+		svc.Projects.ServiceAccounts.List(parent),
+		func(page *iam.ListServiceAccountsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Accounts))
+			for _, sa := range page.Accounts {
+				name := sa.DisplayName
+				if name == "" {
+					name = sa.Email
+				}
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeIAMServiceAccount,
+					NativeID:       sa.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(sa),
+					DiscoveredBy:   scanID,
+				})
 			}
-			r := &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeIAMServiceAccount,
-				NativeID:       sa.Name,
-				Name:           &name,
-				AttributesJSON: mustJSON(sa),
-				DiscoveredBy:   scanID,
+			if len(batch) == 0 {
+				return 0, 0, nil
 			}
-			batch = append(batch, r)
-		}
-		if len(batch) == 0 {
-			return nil
-		}
-		n, e := st.UpsertResources(batch)
-		if e != nil {
-			return fmt.Errorf("upsert IAM service accounts: %w", e)
-		}
-		total += len(batch)
-		inserted += n
-		return nil
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "iam:serviceAccounts.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+			n, e := st.UpsertResources(batch)
+			if e != nil {
+				return 0, 0, fmt.Errorf("upsert IAM service accounts: %w", e)
+			}
+			return len(batch), n, nil
+		})
 }

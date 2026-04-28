@@ -23,34 +23,26 @@ func scanArtifactRegistry(ctx context.Context, p *project, st *store.Store, scan
 		return 0, 0, fmt.Errorf("artifactregistry client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	err = svc.Projects.Locations.Repositories.List(parent).Pages(ctx, func(page *artifactregistry.ListRepositoriesResponse) error {
-		var batch []*store.Resource
-		for _, r := range page.Repositories {
-			name := lastSegment(r.Name)
-			region := locationFromResourceName(r.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeArtifactRepository,
-				NativeID:       r.Name,
-				Name:           &name,
-				Region:         strp(region),
-				CreatedAt:      strp(r.CreateTime),
-				AttributesJSON: mustJSON(r),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "artifactregistry:repositories.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "artifactregistry:repositories.list",
+		svc.Projects.Locations.Repositories.List(parent),
+		func(page *artifactregistry.ListRepositoriesResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Repositories))
+			for _, r := range page.Repositories {
+				name := lastSegment(r.Name)
+				region := locationFromResourceName(r.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeArtifactRepository,
+					NativeID:       r.Name,
+					Name:           &name,
+					Region:         strp(region),
+					CreatedAt:      strp(r.CreateTime),
+					AttributesJSON: mustJSON(r),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }

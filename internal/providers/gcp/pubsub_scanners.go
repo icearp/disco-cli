@@ -22,86 +22,80 @@ func scanPubSub(ctx context.Context, p *project, st *store.Store, scanID string)
 	parent := fmt.Sprintf("projects/%s", p.ID)
 
 	// Topics.
-	if err := svc.Projects.Topics.List(parent).Pages(ctx, func(page *pubsub.ListTopicsResponse) error {
-		var batch []*store.Resource
-		for _, t := range page.Topics {
-			name := lastSegment(t.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypePubSubTopic,
-				NativeID:       t.Name,
-				Name:           &name,
-				Status:         strp(t.State),
-				AttributesJSON: mustJSON(t),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "pubsub:topics.list", p.ID, err)
-		}
-		return 0, 0, err
+	t, n, err := runPaginated(ctx, st, p, "pubsub:topics.list",
+		svc.Projects.Topics.List(parent),
+		func(page *pubsub.ListTopicsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Topics))
+			for _, t := range page.Topics {
+				name := lastSegment(t.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypePubSubTopic,
+					NativeID:       t.Name,
+					Name:           &name,
+					Status:         strp(t.State),
+					AttributesJSON: mustJSON(t),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
 	}
 
 	// Subscriptions.
-	if err := svc.Projects.Subscriptions.List(parent).Pages(ctx, func(page *pubsub.ListSubscriptionsResponse) error {
-		var batch []*store.Resource
-		for _, s := range page.Subscriptions {
-			name := lastSegment(s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypePubSubSubscription,
-				NativeID:       s.Name,
-				Name:           &name,
-				Status:         strp(s.State),
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "pubsub:subscriptions.list", p.ID, err)
-		}
+	t, n, err = runPaginated(ctx, st, p, "pubsub:subscriptions.list",
+		svc.Projects.Subscriptions.List(parent),
+		func(page *pubsub.ListSubscriptionsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Subscriptions))
+			for _, s := range page.Subscriptions {
+				name := lastSegment(s.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypePubSubSubscription,
+					NativeID:       s.Name,
+					Name:           &name,
+					Status:         strp(s.State),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += t
+	inserted += n
+	if err != nil {
 		return total, inserted, err
 	}
 
 	// Schemas.
-	if err := svc.Projects.Schemas.List(parent).Pages(ctx, func(page *pubsub.ListSchemasResponse) error {
-		var batch []*store.Resource
-		for _, s := range page.Schemas {
-			name := lastSegment(s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypePubSubSchema,
-				NativeID:       s.Name,
-				Name:           &name,
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "pubsub:schemas.list", p.ID, err)
-		}
-		return total, inserted, err
-	}
-	return total, inserted, nil
+	t, n, err = runPaginated(ctx, st, p, "pubsub:schemas.list",
+		svc.Projects.Schemas.List(parent),
+		func(page *pubsub.ListSchemasResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Schemas))
+			for _, s := range page.Schemas {
+				name := lastSegment(s.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypePubSubSchema,
+					NativeID:       s.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += t
+	inserted += n
+	return total, inserted, err
 }

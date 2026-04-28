@@ -24,35 +24,27 @@ func scanComposer(ctx context.Context, p *project, st *store.Store, scanID strin
 		return 0, 0, fmt.Errorf("composer client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	err = svc.Projects.Locations.Environments.List(parent).Pages(ctx, func(page *composer.ListEnvironmentsResponse) error {
-		var batch []*store.Resource
-		for _, e := range page.Environments {
-			name := lastSegment(e.Name)
-			region := locationFromResourceName(e.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeComposerEnv,
-				NativeID:       e.Name,
-				Name:           &name,
-				Region:         strp(region),
-				CreatedAt:      strp(e.CreateTime),
-				Status:         strp(e.State),
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, ce := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return ce
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "composer:environments.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "composer:environments.list",
+		svc.Projects.Locations.Environments.List(parent),
+		func(page *composer.ListEnvironmentsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Environments))
+			for _, e := range page.Environments {
+				name := lastSegment(e.Name)
+				region := locationFromResourceName(e.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeComposerEnv,
+					NativeID:       e.Name,
+					Name:           &name,
+					Region:         strp(region),
+					CreatedAt:      strp(e.CreateTime),
+					Status:         strp(e.State),
+					AttributesJSON: mustJSON(e),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }

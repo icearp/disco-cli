@@ -56,21 +56,20 @@ func scanBigQuery(ctx context.Context, p *project, st *store.Store, scanID strin
 		projectID string
 	}
 	var datasets []dsRef
-	if err := svc.Datasets.List(p.ID).Pages(ctx, func(page *bigquery.DatasetList) error {
-		for _, d := range page.Datasets {
-			if d.DatasetReference == nil {
-				continue
+	if _, _, err := runPaginated(ctx, st, p, "bigquery:datasets.list",
+		svc.Datasets.List(p.ID),
+		func(page *bigquery.DatasetList) (int, int, error) {
+			for _, d := range page.Datasets {
+				if d.DatasetReference == nil {
+					continue
+				}
+				datasets = append(datasets, dsRef{
+					datasetID: d.DatasetReference.DatasetId,
+					projectID: d.DatasetReference.ProjectId,
+				})
 			}
-			datasets = append(datasets, dsRef{
-				datasetID: d.DatasetReference.DatasetId,
-				projectID: d.DatasetReference.ProjectId,
-			})
-		}
-		return nil
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "bigquery:datasets.list", p.ID, err)
-		}
+			return 0, 0, nil
+		}); err != nil {
 		return 0, 0, err
 	}
 

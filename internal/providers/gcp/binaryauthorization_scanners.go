@@ -49,31 +49,26 @@ func scanBinaryAuthorization(ctx context.Context, p *project, st *store.Store, s
 	}
 
 	// Attestors.
-	err = svc.Projects.Attestors.List(fmt.Sprintf("projects/%s", p.ID)).Pages(ctx, func(page *binaryauthorization.ListAttestorsResponse) error {
-		var batch []*store.Resource
-		for _, a := range page.Attestors {
-			name := lastSegment(a.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeBinAuthAttestor,
-				NativeID:       a.Name,
-				Name:           &name,
-				AttributesJSON: mustJSON(a),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, ae := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return ae
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return total, inserted, skipIfDenied(st, "binaryauthorization:attestors.list", p.ID, err)
-		}
-		return total, inserted, err
-	}
-	return total, inserted, nil
+	at, an, aerr := runPaginated(ctx, st, p, "binaryauthorization:attestors.list",
+		svc.Projects.Attestors.List(fmt.Sprintf("projects/%s", p.ID)),
+		func(page *binaryauthorization.ListAttestorsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Attestors))
+			for _, a := range page.Attestors {
+				name := lastSegment(a.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeBinAuthAttestor,
+					NativeID:       a.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(a),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += at
+	inserted += an
+	return total, inserted, aerr
 }

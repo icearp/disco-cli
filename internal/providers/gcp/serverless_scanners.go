@@ -26,37 +26,29 @@ func scanCloudFunctions(ctx context.Context, p *project, st *store.Store, scanID
 		return 0, 0, fmt.Errorf("cloudfunctions client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	err = svc.Projects.Locations.Functions.List(parent).Pages(ctx, func(page *cloudfunctions.ListFunctionsResponse) error {
-		var batch []*store.Resource
-		for _, f := range page.Functions {
-			name := lastSegment(f.Name)
-			region := locationFromResourceName(f.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeCloudFunction,
-				NativeID:       f.Name,
-				Name:           &name,
-				Region:         strp(region),
-				CreatedAt:      strp(f.CreateTime),
-				Status:         strp(f.State),
-				AttributesJSON: mustJSON(f),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudfunctions:functions.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "cloudfunctions:functions.list",
+		svc.Projects.Locations.Functions.List(parent),
+		func(page *cloudfunctions.ListFunctionsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Functions))
+			for _, f := range page.Functions {
+				name := lastSegment(f.Name)
+				region := locationFromResourceName(f.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeCloudFunction,
+					NativeID:       f.Name,
+					Name:           &name,
+					Region:         strp(region),
+					CreatedAt:      strp(f.CreateTime),
+					Status:         strp(f.State),
+					AttributesJSON: mustJSON(f),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }
 
 // scanCloudRun discovers Cloud Run v2 services. Same wildcard-location
@@ -69,36 +61,28 @@ func scanCloudRun(ctx context.Context, p *project, st *store.Store, scanID strin
 		return 0, 0, fmt.Errorf("run client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s/locations/-", p.ID)
-	err = svc.Projects.Locations.Services.List(parent).Pages(ctx, func(page *run.GoogleCloudRunV2ListServicesResponse) error {
-		var batch []*store.Resource
-		for _, s := range page.Services {
-			name := lastSegment(s.Name)
-			region := locationFromResourceName(s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeCloudRunSvc,
-				NativeID:       s.Name,
-				Name:           &name,
-				Region:         strp(region),
-				CreatedAt:      strp(s.CreateTime),
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "run:services.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "run:services.list",
+		svc.Projects.Locations.Services.List(parent),
+		func(page *run.GoogleCloudRunV2ListServicesResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Services))
+			for _, s := range page.Services {
+				name := lastSegment(s.Name)
+				region := locationFromResourceName(s.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeCloudRunSvc,
+					NativeID:       s.Name,
+					Name:           &name,
+					Region:         strp(region),
+					CreatedAt:      strp(s.CreateTime),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }
 
 // locationFromResourceName extracts the location segment from any

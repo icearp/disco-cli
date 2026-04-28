@@ -43,33 +43,32 @@ func scanCloudDNS(ctx context.Context, p *project, st *store.Store, scanID strin
 		name     string
 	}
 	var zones []zoneRef
-	if err := svc.ManagedZones.List(p.ID).Pages(ctx, func(page *dns.ManagedZonesListResponse) error {
-		var batch []*store.Resource
-		for _, z := range page.ManagedZones {
-			zid := fmt.Sprintf("projects/%s/managedZones/%s", p.ID, z.Name)
-			zname := z.Name
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeDNSManagedZone,
-				NativeID:       zid,
-				Name:           &zname,
-				CreatedAt:      strp(z.CreationTime),
-				AttributesJSON: mustJSON(z),
-				DiscoveredBy:   scanID,
-			})
-			zones = append(zones, zoneRef{nativeID: zid, name: z.Name})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "dns:managedZones.list", p.ID, err)
-		}
-		return 0, 0, err
+	t, n, err := runPaginated(ctx, st, p, "dns:managedZones.list",
+		svc.ManagedZones.List(p.ID),
+		func(page *dns.ManagedZonesListResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.ManagedZones))
+			for _, z := range page.ManagedZones {
+				zid := fmt.Sprintf("projects/%s/managedZones/%s", p.ID, z.Name)
+				zname := z.Name
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeDNSManagedZone,
+					NativeID:       zid,
+					Name:           &zname,
+					CreatedAt:      strp(z.CreationTime),
+					AttributesJSON: mustJSON(z),
+					DiscoveredBy:   scanID,
+				})
+				zones = append(zones, zoneRef{nativeID: zid, name: z.Name})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
 	}
 
 	// Phase 2: per-zone record sets.

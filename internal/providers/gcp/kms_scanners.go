@@ -38,15 +38,14 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 	// Phase 1: locations.
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var locations []string
-	if err := svc.Projects.Locations.List(parent).Pages(ctx, func(page *cloudkms.ListLocationsResponse) error {
-		for _, loc := range page.Locations {
-			locations = append(locations, loc.Name)
-		}
-		return nil
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "cloudkms:projects.locations.list", p.ID, err)
-		}
+	if _, _, err := runPaginated(ctx, st, p, "cloudkms:projects.locations.list",
+		svc.Projects.Locations.List(parent),
+		func(page *cloudkms.ListLocationsResponse) (int, int, error) {
+			for _, loc := range page.Locations {
+				locations = append(locations, loc.Name)
+			}
+			return 0, 0, nil
+		}); err != nil {
 		return 0, 0, err
 	}
 

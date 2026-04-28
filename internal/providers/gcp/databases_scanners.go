@@ -154,34 +154,33 @@ func scanSpanner(ctx context.Context, p *project, st *store.Store, scanID string
 	}
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var instances []*spanner.Instance
-	if err := svc.Projects.Instances.List(parent).Pages(ctx, func(page *spanner.ListInstancesResponse) error {
-		var batch []*store.Resource
-		for _, inst := range page.Instances {
-			instances = append(instances, inst)
-			name := lastSegment(inst.Name)
-			region := lastSegment(inst.Config) // config = "projects/{p}/instanceConfigs/{region-or-multi}"
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeSpannerInstance,
-				NativeID:       inst.Name,
-				Name:           &name,
-				Region:         strp(region),
-				Status:         strp(inst.State),
-				AttributesJSON: mustJSON(inst),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "spanner:instances.list", p.ID, err)
-		}
-		return 0, 0, err
+	t, n, err := runPaginated(ctx, st, p, "spanner:instances.list",
+		svc.Projects.Instances.List(parent),
+		func(page *spanner.ListInstancesResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Instances))
+			for _, inst := range page.Instances {
+				instances = append(instances, inst)
+				name := lastSegment(inst.Name)
+				region := lastSegment(inst.Config) // "projects/{p}/instanceConfigs/{region-or-multi}"
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeSpannerInstance,
+					NativeID:       inst.Name,
+					Name:           &name,
+					Region:         strp(region),
+					Status:         strp(inst.State),
+					AttributesJSON: mustJSON(inst),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
+	total += t
+	inserted += n
+	if err != nil {
+		return total, inserted, err
 	}
 
 	// Per-instance databases.

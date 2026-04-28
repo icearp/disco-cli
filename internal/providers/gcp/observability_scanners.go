@@ -24,37 +24,29 @@ func scanLoggingSinks(ctx context.Context, p *project, st *store.Store, scanID s
 		return 0, 0, fmt.Errorf("logging client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	err = svc.Projects.Sinks.List(parent).Pages(ctx, func(page *logging.ListSinksResponse) error {
-		var batch []*store.Resource
-		for _, s := range page.Sinks {
-			name := s.Name
-			// Sinks have no fully-qualified resource name — synthesize
-			// `projects/{p}/sinks/{name}` for stable NativeID.
-			nativeID := fmt.Sprintf("projects/%s/sinks/%s", p.ID, s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeLoggingSink,
-				NativeID:       nativeID,
-				Name:           &name,
-				CreatedAt:      strp(s.CreateTime),
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "logging:sinks.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "logging:sinks.list",
+		svc.Projects.Sinks.List(parent),
+		func(page *logging.ListSinksResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Sinks))
+			for _, s := range page.Sinks {
+				name := s.Name
+				// Sinks have no fully-qualified resource name — synthesize
+				// `projects/{p}/sinks/{name}` for stable NativeID.
+				nativeID := fmt.Sprintf("projects/%s/sinks/%s", p.ID, s.Name)
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeLoggingSink,
+					NativeID:       nativeID,
+					Name:           &name,
+					CreatedAt:      strp(s.CreateTime),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }
 
 // scanMonitoringAlertPolicies discovers Cloud Monitoring alert policies.
@@ -68,31 +60,23 @@ func scanMonitoringAlertPolicies(ctx context.Context, p *project, st *store.Stor
 		return 0, 0, fmt.Errorf("monitoring client: %w", err)
 	}
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	err = svc.Projects.AlertPolicies.List(parent).Pages(ctx, func(page *monitoring.ListAlertPoliciesResponse) error {
-		var batch []*store.Resource
-		for _, a := range page.AlertPolicies {
-			name := a.DisplayName
-			batch = append(batch, &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeMonitoringAlertPol,
-				NativeID:       a.Name,
-				Name:           &name,
-				AttributesJSON: mustJSON(a),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "monitoring:alertPolicies.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+	return runPaginated(ctx, st, p, "monitoring:alertPolicies.list",
+		svc.Projects.AlertPolicies.List(parent),
+		func(page *monitoring.ListAlertPoliciesResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.AlertPolicies))
+			for _, a := range page.AlertPolicies {
+				name := a.DisplayName
+				batch = append(batch, &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeMonitoringAlertPol,
+					NativeID:       a.Name,
+					Name:           &name,
+					AttributesJSON: mustJSON(a),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return upsertWithProjClosure(p, st, batch)
+		})
 }

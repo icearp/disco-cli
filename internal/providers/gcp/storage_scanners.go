@@ -18,44 +18,37 @@ func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string
 		return 0, 0, fmt.Errorf("storage client: %w", err)
 	}
 
-	req := svc.Buckets.List(p.ID)
-	if err := req.Pages(ctx, func(page *storage.Buckets) error {
-		var batch []*store.Resource
-		for _, b := range page.Items {
-			name := b.Name
-			region := b.Location
-			r := &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeStorageBucket,
-				NativeID:       b.SelfLink,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(b),
-				DiscoveredBy:   scanID,
+	return runPaginated(ctx, st, p, "storage:buckets.list",
+		svc.Buckets.List(p.ID),
+		func(page *storage.Buckets) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Items))
+			for _, b := range page.Items {
+				name := b.Name
+				region := b.Location
+				r := &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeStorageBucket,
+					NativeID:       b.SelfLink,
+					Name:           &name,
+					Region:         &region,
+					AttributesJSON: mustJSON(b),
+					DiscoveredBy:   scanID,
+				}
+				if len(b.Labels) > 0 {
+					s := mustJSON(b.Labels)
+					r.TagsJSON = &s
+				}
+				batch = append(batch, r)
 			}
-			if len(b.Labels) > 0 {
-				s := mustJSON(b.Labels)
-				r.TagsJSON = &s
+			if len(batch) == 0 {
+				return 0, 0, nil
 			}
-			batch = append(batch, r)
-		}
-		if len(batch) == 0 {
-			return nil
-		}
-		n, e := st.UpsertResources(batch)
-		if e != nil {
-			return fmt.Errorf("upsert GCS buckets: %w", e)
-		}
-		total += len(batch)
-		inserted += n
-		return nil
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "storage:buckets.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+			n, e := st.UpsertResources(batch)
+			if e != nil {
+				return 0, 0, fmt.Errorf("upsert GCS buckets: %w", e)
+			}
+			return len(batch), n, nil
+		})
 }

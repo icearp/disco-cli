@@ -25,51 +25,29 @@ func scanSecrets(ctx context.Context, p *project, st *store.Store, scanID string
 	}
 
 	parent := fmt.Sprintf("projects/%s", p.ID)
-	if err := svc.Projects.Secrets.List(parent).Pages(ctx, func(page *secretmanager.ListSecretsResponse) error {
-		var batch []*store.Resource
-		for _, s := range page.Secrets {
-			name := lastSegment(s.Name)
-			r := &store.Resource{
-				Provider:       "gcp",
-				AccountID:      p.ID,
-				AccountName:    &p.Name,
-				Type:           TypeSecret,
-				NativeID:       s.Name,
-				Name:           &name,
-				CreatedAt:      strp(s.CreateTime),
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
+	return runPaginated(ctx, st, p, "secretmanager:secrets.list",
+		svc.Projects.Secrets.List(parent),
+		func(page *secretmanager.ListSecretsResponse) (int, int, error) {
+			batch := make([]*store.Resource, 0, len(page.Secrets))
+			for _, s := range page.Secrets {
+				name := lastSegment(s.Name)
+				r := &store.Resource{
+					Provider:       "gcp",
+					AccountID:      p.ID,
+					AccountName:    &p.Name,
+					Type:           TypeSecret,
+					NativeID:       s.Name,
+					Name:           &name,
+					CreatedAt:      strp(s.CreateTime),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				}
+				if len(s.Labels) > 0 {
+					lj := mustJSON(s.Labels)
+					r.TagsJSON = &lj
+				}
+				batch = append(batch, r)
 			}
-			if len(s.Labels) > 0 {
-				lj := mustJSON(s.Labels)
-				r.TagsJSON = &lj
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) == 0 {
-			return nil
-		}
-		n, e := st.UpsertResources(batch)
-		if e != nil {
-			return fmt.Errorf("upsert secrets: %w", e)
-		}
-		total += len(batch)
-		inserted += n
-
-		projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
-		var pairs [][2]string
-		for _, r := range batch {
-			pairs = append(pairs, [2]string{
-				store.ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID),
-				projParentID,
-			})
-		}
-		return st.BatchAddToHierarchyClosure(pairs)
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "secretmanager:secrets.list", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+			return upsertWithProjClosure(p, st, batch)
+		})
 }

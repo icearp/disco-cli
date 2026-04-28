@@ -35,15 +35,14 @@ func scanIAMServiceAccountKeys(ctx context.Context, p *project, st *store.Store,
 	// API as the SA scanner so this scanner doesn't depend on scan order.
 	parent := fmt.Sprintf("projects/%s", p.ID)
 	var saNames []string
-	if err := svc.Projects.ServiceAccounts.List(parent).Pages(ctx, func(page *iam.ListServiceAccountsResponse) error {
-		for _, sa := range page.Accounts {
-			saNames = append(saNames, sa.Name)
-		}
-		return nil
-	}); err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "iam:serviceAccounts.list", p.ID, err)
-		}
+	if _, _, err := runPaginated(ctx, st, p, "iam:serviceAccounts.list",
+		svc.Projects.ServiceAccounts.List(parent),
+		func(page *iam.ListServiceAccountsResponse) (int, int, error) {
+			for _, sa := range page.Accounts {
+				saNames = append(saNames, sa.Name)
+			}
+			return 0, 0, nil
+		}); err != nil {
 		return 0, 0, err
 	}
 

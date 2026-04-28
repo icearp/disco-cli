@@ -152,6 +152,44 @@ func filteredServices(filter []string) []serviceEntry {
 
 // — shared helpers —
 
+// pager is the structural interface satisfied by every *.List() call result in
+// google.golang.org/api/*. Every Discovery-generated client exposes
+// Pages(ctx, fn) on its List request structs — generics let one helper drive
+// every paginated walk in this provider.
+type pager[P any] interface {
+	Pages(context.Context, func(*P) error) error
+}
+
+// runPaginated drives a paginated List call with the boilerplate every GCP
+// scanner phase repeats: invoke req.Pages with a page handler that returns
+// (pageTotal, pageInserted, err), accumulate the totals, then classify the
+// final error via isPermissionDenied / skipIfDenied. Behavior:
+//
+//   - API-not-enabled (`isAPINotEnabled`) → returns the wrapped errServiceDisabled
+//     sentinel so the dispatch loop renders "(service disabled)".
+//   - Real permission denial → records a ScanWarning, returns nil.
+//   - Other errors → propagated unwrapped.
+//
+// `action` is the per-API label used in any ScanWarning
+// (e.g. "pubsub:topics.list"). `pageHandler` builds and persists the batch
+// from each page and reports its own counts; counts are summed across pages.
+func runPaginated[P any](ctx context.Context, st *store.Store, p *project, action string,
+	req pager[P], pageHandler func(*P) (int, int, error)) (total, inserted int, err error) {
+	err = req.Pages(ctx, func(page *P) error {
+		t, n, e := pageHandler(page)
+		total += t
+		inserted += n
+		return e
+	})
+	if err != nil {
+		if isPermissionDenied(err) {
+			return total, inserted, skipIfDenied(st, action, p.ID, err)
+		}
+		return total, inserted, err
+	}
+	return total, inserted, nil
+}
+
 // project holds a resolved GCP project with its parent hierarchy IDs.
 type project struct {
 	ID       string // GCP project ID (e.g. "my-project-123")

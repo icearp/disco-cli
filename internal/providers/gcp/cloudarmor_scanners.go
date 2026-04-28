@@ -22,36 +22,28 @@ func scanCloudArmor(ctx context.Context, p *project, st *store.Store, scanID str
 	if err != nil {
 		return 0, 0, fmt.Errorf("compute client: %w", err)
 	}
-	err = svc.SecurityPolicies.AggregatedList(p.ID).Pages(ctx, func(page *compute.SecurityPoliciesAggregatedList) error {
-		var batch []*store.Resource
-		for scope, items := range page.Items {
-			region := scopedListRegion(scope)
-			for _, sp := range items.SecurityPolicies {
-				name := sp.Name
-				batch = append(batch, &store.Resource{
-					Provider:       "gcp",
-					AccountID:      p.ID,
-					AccountName:    &p.Name,
-					Type:           TypeComputeSecurityPolicy,
-					NativeID:       sp.SelfLink,
-					Name:           &name,
-					Region:         strp(region),
-					CreatedAt:      strp(sp.CreationTimestamp),
-					AttributesJSON: mustJSON(sp),
-					DiscoveredBy:   scanID,
-				})
+	return runPaginated(ctx, st, p, "compute:securityPolicies.aggregatedList",
+		svc.SecurityPolicies.AggregatedList(p.ID),
+		func(page *compute.SecurityPoliciesAggregatedList) (int, int, error) {
+			var batch []*store.Resource
+			for scope, items := range page.Items {
+				region := scopedListRegion(scope)
+				for _, sp := range items.SecurityPolicies {
+					name := sp.Name
+					batch = append(batch, &store.Resource{
+						Provider:       "gcp",
+						AccountID:      p.ID,
+						AccountName:    &p.Name,
+						Type:           TypeComputeSecurityPolicy,
+						NativeID:       sp.SelfLink,
+						Name:           &name,
+						Region:         strp(region),
+						CreatedAt:      strp(sp.CreationTimestamp),
+						AttributesJSON: mustJSON(sp),
+						DiscoveredBy:   scanID,
+					})
+				}
 			}
-		}
-		t, n, e := upsertWithProjClosure(p, st, batch)
-		total += t
-		inserted += n
-		return e
-	})
-	if err != nil {
-		if isPermissionDenied(err) {
-			return 0, 0, skipIfDenied(st, "compute:securityPolicies.aggregatedList", p.ID, err)
-		}
-		return 0, 0, err
-	}
-	return total, inserted, nil
+			return upsertWithProjClosure(p, st, batch)
+		})
 }
