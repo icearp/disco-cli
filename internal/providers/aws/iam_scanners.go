@@ -25,6 +25,29 @@ func init() {
 	})
 }
 
+// iamAPI is the narrow set of IAM operations called by the scanIAM sub-phases.
+type iamAPI interface {
+	ListRoles(context.Context, *iam.ListRolesInput, ...func(*iam.Options)) (*iam.ListRolesOutput, error)
+	ListUsers(context.Context, *iam.ListUsersInput, ...func(*iam.Options)) (*iam.ListUsersOutput, error)
+	ListGroups(context.Context, *iam.ListGroupsInput, ...func(*iam.Options)) (*iam.ListGroupsOutput, error)
+	ListPolicies(context.Context, *iam.ListPoliciesInput, ...func(*iam.Options)) (*iam.ListPoliciesOutput, error)
+	ListInstanceProfiles(context.Context, *iam.ListInstanceProfilesInput, ...func(*iam.Options)) (*iam.ListInstanceProfilesOutput, error)
+	ListOpenIDConnectProviders(context.Context, *iam.ListOpenIDConnectProvidersInput, ...func(*iam.Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
+	GetOpenIDConnectProvider(context.Context, *iam.GetOpenIDConnectProviderInput, ...func(*iam.Options)) (*iam.GetOpenIDConnectProviderOutput, error)
+	ListSAMLProviders(context.Context, *iam.ListSAMLProvidersInput, ...func(*iam.Options)) (*iam.ListSAMLProvidersOutput, error)
+	GetSAMLProvider(context.Context, *iam.GetSAMLProviderInput, ...func(*iam.Options)) (*iam.GetSAMLProviderOutput, error)
+	ListServerCertificates(context.Context, *iam.ListServerCertificatesInput, ...func(*iam.Options)) (*iam.ListServerCertificatesOutput, error)
+	ListVirtualMFADevices(context.Context, *iam.ListVirtualMFADevicesInput, ...func(*iam.Options)) (*iam.ListVirtualMFADevicesOutput, error)
+	ListAccessKeys(context.Context, *iam.ListAccessKeysInput, ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error)
+	ListRolePolicies(context.Context, *iam.ListRolePoliciesInput, ...func(*iam.Options)) (*iam.ListRolePoliciesOutput, error)
+	GetRolePolicy(context.Context, *iam.GetRolePolicyInput, ...func(*iam.Options)) (*iam.GetRolePolicyOutput, error)
+	ListUserPolicies(context.Context, *iam.ListUserPoliciesInput, ...func(*iam.Options)) (*iam.ListUserPoliciesOutput, error)
+	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
+	ListGroupPolicies(context.Context, *iam.ListGroupPoliciesInput, ...func(*iam.Options)) (*iam.ListGroupPoliciesOutput, error)
+	GetGroupPolicy(context.Context, *iam.GetGroupPolicyInput, ...func(*iam.Options)) (*iam.GetGroupPolicyOutput, error)
+	GetPolicyVersion(context.Context, *iam.GetPolicyVersionInput, ...func(*iam.Options)) (*iam.GetPolicyVersionOutput, error)
+}
+
 // scanIAM discovers all IAM resources. Phase 1 scans standalone resources in
 // parallel; phase 2 scans per-principal resources that depend on phase 1 being
 // in the DB first. IAM is a global service scanned once per account.
@@ -72,7 +95,7 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 
 // scanIAMRoles lists all IAM roles, splitting service-linked roles (path prefix
 // /aws-service-role/) into TypeIAMServiceLinkedRole.
-func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMRoles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -114,7 +137,7 @@ func scanIAMRoles(ctx context.Context, client *iam.Client, acct *account, st *st
 	return
 }
 
-func scanIAMUsers(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMUsers(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListUsersPaginator(client, &iam.ListUsersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -151,7 +174,7 @@ func scanIAMUsers(ctx context.Context, client *iam.Client, acct *account, st *st
 	return
 }
 
-func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMGroups(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListGroupsPaginator(client, &iam.ListGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -193,7 +216,7 @@ func scanIAMGroups(ctx context.Context, client *iam.Client, acct *account, st *s
 // required by resolveIAMPolicyResources to walk Statement[].Resource and emit
 // edges to KMS / S3 / Secrets / DynamoDB targets; ListPolicies alone does not
 // return it.
-func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	// PolicyScopeTypeLocal returns only customer-managed policies. PolicyScopeTypeAll
 	// also returns ~1,500+ AWS-managed policies, which are public/static and not
 	// useful for per-account discovery — and make IAM scanning ~15x slower.
@@ -274,7 +297,7 @@ func scanIAMPolicies(ctx context.Context, client *iam.Client, acct *account, st 
 	return
 }
 
-func scanIAMInstanceProfiles(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListInstanceProfilesPaginator(client, &iam.ListInstanceProfilesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -312,7 +335,7 @@ func scanIAMInstanceProfiles(ctx context.Context, client *iam.Client, acct *acco
 }
 
 // scanIAMOIDCProviders fetches OIDC provider ARNs then describes each concurrently.
-func scanIAMOIDCProviders(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -371,7 +394,7 @@ func scanIAMOIDCProviders(ctx context.Context, client *iam.Client, acct *account
 }
 
 // scanIAMSAMLProviders fetches SAML provider ARNs then describes each concurrently.
-func scanIAMSAMLProviders(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMSAMLProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
 	if err != nil {
 		if isAccessDenied(err) {
@@ -429,7 +452,7 @@ func scanIAMSAMLProviders(ctx context.Context, client *iam.Client, acct *account
 	return len(batch), n, nil
 }
 
-func scanIAMServerCertificates(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListServerCertificatesPaginator(client, &iam.ListServerCertificatesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -467,7 +490,7 @@ func scanIAMServerCertificates(ctx context.Context, client *iam.Client, acct *ac
 }
 
 // scanIAMVirtualMFADevices lists virtual MFA devices. SerialNumber is the ARN.
-func scanIAMVirtualMFADevices(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := iam.NewListVirtualMFADevicesPaginator(client, &iam.ListVirtualMFADevicesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -507,7 +530,7 @@ func scanIAMVirtualMFADevices(ctx context.Context, client *iam.Client, acct *acc
 
 // scanIAMAccessKeys iterates all users in the DB and lists their access keys.
 // NativeID format: {userARN}/access-key/{keyID} — used by resolvers to link keys to users.
-func scanIAMAccessKeys(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMAccessKeys(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	users, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
 		AccountID: acct.ID,
@@ -573,7 +596,7 @@ func scanIAMAccessKeys(ctx context.Context, client *iam.Client, acct *account, s
 
 // scanIAMRolePolicies iterates all roles/service-linked roles and lists their inline policies.
 // NativeID format: {roleARN}/policy/{policyName} — used by resolvers to link policies to roles.
-func scanIAMRolePolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMRolePolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	roles, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
 		AccountID: acct.ID,
@@ -649,7 +672,7 @@ func scanIAMRolePolicies(ctx context.Context, client *iam.Client, acct *account,
 
 // scanIAMUserPolicies iterates all users and lists their inline policies.
 // NativeID format: {userARN}/policy/{policyName}.
-func scanIAMUserPolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMUserPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	users, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
 		AccountID: acct.ID,
@@ -725,7 +748,7 @@ func scanIAMUserPolicies(ctx context.Context, client *iam.Client, acct *account,
 
 // scanIAMGroupPolicies iterates all groups and lists their inline policies.
 // NativeID format: {groupARN}/policy/{policyName}.
-func scanIAMGroupPolicies(ctx context.Context, client *iam.Client, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIAMGroupPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	groups, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
 		AccountID: acct.ID,
