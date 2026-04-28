@@ -11,7 +11,7 @@ import (
 )
 
 // scanEC2IPAM discovers all IPAM-related EC2 resources in parallel.
-func scanEC2IPAM(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) { return scanIPAMs(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
@@ -35,7 +35,7 @@ func scanEC2IPAM(ctx context.Context, client *ec2.Client, acct *account, region 
 	)
 }
 
-func scanIPAMs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeIpams", acct, region, st,
 		ec2.NewDescribeIpamsPaginator(client, &ec2.DescribeIpamsInput{}),
 		func(page *ec2.DescribeIpamsOutput) []*store.Resource {
@@ -61,7 +61,7 @@ func scanIPAMs(ctx context.Context, client *ec2.Client, acct *account, region st
 	)
 }
 
-func scanIPAMScopes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMScopes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeIpamScopes", acct, region, st,
 		ec2.NewDescribeIpamScopesPaginator(client, &ec2.DescribeIpamScopesInput{}),
 		func(page *ec2.DescribeIpamScopesOutput) []*store.Resource {
@@ -87,7 +87,7 @@ func scanIPAMScopes(ctx context.Context, client *ec2.Client, acct *account, regi
 	)
 }
 
-func scanIPAMPools(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMPools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeIpamPools", acct, region, st,
 		ec2.NewDescribeIpamPoolsPaginator(client, &ec2.DescribeIpamPoolsInput{}),
 		func(page *ec2.DescribeIpamPoolsOutput) []*store.Resource {
@@ -115,7 +115,7 @@ func scanIPAMPools(ctx context.Context, client *ec2.Client, acct *account, regio
 
 // scanIPAMPoolCIDRs fetches all IPAM pool IDs, then fans out concurrently to
 // retrieve CIDRs for each pool.
-func scanIPAMPoolCIDRs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMPoolCIDRs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -160,7 +160,7 @@ func scanIPAMPoolCIDRs(ctx context.Context, client *ec2.Client, acct *account, r
 
 // scanIPAMAllocations fetches all IPAM pool IDs, then fans out concurrently to
 // retrieve allocations for each pool.
-func scanIPAMAllocations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMAllocations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -202,7 +202,7 @@ func scanIPAMAllocations(ctx context.Context, client *ec2.Client, acct *account,
 	return int(t.Load()), int(n.Load()), err
 }
 
-func scanIPAMResourceDiscoveries(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMResourceDiscoveries(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeIpamResourceDiscoveries", acct, region, st,
 		ec2.NewDescribeIpamResourceDiscoveriesPaginator(client, &ec2.DescribeIpamResourceDiscoveriesInput{}),
 		func(page *ec2.DescribeIpamResourceDiscoveriesOutput) []*store.Resource {
@@ -228,7 +228,7 @@ func scanIPAMResourceDiscoveries(ctx context.Context, client *ec2.Client, acct *
 	)
 }
 
-func scanIPAMResourceDiscoveryAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIPAMResourceDiscoveryAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeIpamResourceDiscoveryAssociations", acct, region, st,
 		ec2.NewDescribeIpamResourceDiscoveryAssociationsPaginator(client, &ec2.DescribeIpamResourceDiscoveryAssociationsInput{}),
 		func(page *ec2.DescribeIpamResourceDiscoveryAssociationsOutput) []*store.Resource {
@@ -254,7 +254,7 @@ func scanIPAMResourceDiscoveryAssociations(ctx context.Context, client *ec2.Clie
 }
 
 // listIPAMPoolIDs returns all IPAM pool IDs in this region; used by nested scanners.
-func listIPAMPoolIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
+func listIPAMPoolIDs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store) ([]string, error) {
 	var poolIDs []string
 	pager := ec2.NewDescribeIpamPoolsPaginator(client, &ec2.DescribeIpamPoolsInput{})
 	for pager.HasMorePages() {

@@ -9,7 +9,7 @@ import (
 )
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.
-func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2VPN(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomerGateways(ctx, client, acct, region, st, scanID)
@@ -23,7 +23,7 @@ func scanEC2VPN(ctx context.Context, client *ec2.Client, acct *account, region s
 	)
 }
 
-func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCustomerGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeCustomerGateways has no paginator; all results returned in one call.
 	out, err := client.DescribeCustomerGateways(ctx, &ec2.DescribeCustomerGatewaysInput{})
 	if err != nil {
@@ -60,7 +60,7 @@ func scanCustomerGateways(ctx context.Context, client *ec2.Client, acct *account
 	return
 }
 
-func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPNGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeVpnGateways has no paginator; all results returned in one call.
 	out, err := client.DescribeVpnGateways(ctx, &ec2.DescribeVpnGatewaysInput{})
 	if err != nil {
@@ -97,7 +97,7 @@ func scanVPNGateways(ctx context.Context, client *ec2.Client, acct *account, reg
 	return
 }
 
-func scanVPNConnections(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVPNConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	// DescribeVpnConnections has no paginator; all results returned in one call.
 	out, err := client.DescribeVpnConnections(ctx, &ec2.DescribeVpnConnectionsInput{})
 	if err != nil {

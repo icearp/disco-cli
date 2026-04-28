@@ -11,7 +11,7 @@ import (
 )
 
 // scanEC2ClientVPN discovers all Client VPN resources in parallel.
-func scanEC2ClientVPN(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2ClientVPN(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanClientVPNEndpoints(ctx, client, acct, region, st, scanID)
@@ -28,7 +28,7 @@ func scanEC2ClientVPN(ctx context.Context, client *ec2.Client, acct *account, re
 	)
 }
 
-func scanClientVPNEndpoints(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanClientVPNEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeClientVpnEndpoints", acct, region, st,
 		ec2.NewDescribeClientVpnEndpointsPaginator(client, &ec2.DescribeClientVpnEndpointsInput{}),
 		func(page *ec2.DescribeClientVpnEndpointsOutput) []*store.Resource {
@@ -57,7 +57,7 @@ func scanClientVPNEndpoints(ctx context.Context, client *ec2.Client, acct *accou
 }
 
 // scanClientVPNAuthorizationRules fans out per Client VPN endpoint.
-func scanClientVPNAuthorizationRules(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanClientVPNAuthorizationRules(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -107,7 +107,7 @@ func scanClientVPNAuthorizationRules(ctx context.Context, client *ec2.Client, ac
 }
 
 // scanClientVPNRoutes fans out per Client VPN endpoint.
-func scanClientVPNRoutes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanClientVPNRoutes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -157,7 +157,7 @@ func scanClientVPNRoutes(ctx context.Context, client *ec2.Client, acct *account,
 }
 
 // scanClientVPNTargetNetworkAssociations fans out per Client VPN endpoint.
-func scanClientVPNTargetNetworkAssociations(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanClientVPNTargetNetworkAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	endpointIDs, err := listClientVPNEndpointIDs(ctx, client, acct, region, st)
 	if err != nil {
 		return
@@ -205,7 +205,7 @@ func scanClientVPNTargetNetworkAssociations(ctx context.Context, client *ec2.Cli
 }
 
 // listClientVPNEndpointIDs returns all Client VPN endpoint IDs in this region.
-func listClientVPNEndpointIDs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store) ([]string, error) {
+func listClientVPNEndpointIDs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store) ([]string, error) {
 	var ids []string
 	pager := ec2.NewDescribeClientVpnEndpointsPaginator(client, &ec2.DescribeClientVpnEndpointsInput{})
 	for pager.HasMorePages() {

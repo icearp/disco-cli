@@ -9,7 +9,7 @@ import (
 
 // scanEC2Observability discovers observability and policy types: flow logs,
 // managed prefix lists, and all Network Insights resources.
-func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEC2Observability(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanFlowLogs(ctx, client, acct, region, st, scanID)
@@ -32,7 +32,7 @@ func scanEC2Observability(ctx context.Context, client *ec2.Client, acct *account
 	)
 }
 
-func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInsightsPaths(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsPaths", acct, region, st,
 		ec2.NewDescribeNetworkInsightsPathsPaginator(client, &ec2.DescribeNetworkInsightsPathsInput{}),
 		func(page *ec2.DescribeNetworkInsightsPathsOutput) []*store.Resource {
@@ -56,7 +56,7 @@ func scanNetworkInsightsPaths(ctx context.Context, client *ec2.Client, acct *acc
 	)
 }
 
-func scanNetworkInsightsAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInsightsAnalyses(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAnalyses", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAnalysesPaginator(client, &ec2.DescribeNetworkInsightsAnalysesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAnalysesOutput) []*store.Resource {
@@ -80,7 +80,7 @@ func scanNetworkInsightsAnalyses(ctx context.Context, client *ec2.Client, acct *
 	)
 }
 
-func scanNetworkInsightsAccessScopes(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInsightsAccessScopes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAccessScopes", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAccessScopesPaginator(client, &ec2.DescribeNetworkInsightsAccessScopesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAccessScopesOutput) []*store.Resource {
@@ -104,7 +104,7 @@ func scanNetworkInsightsAccessScopes(ctx context.Context, client *ec2.Client, ac
 	)
 }
 
-func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeNetworkInsightsAccessScopeAnalyses", acct, region, st,
 		ec2.NewDescribeNetworkInsightsAccessScopeAnalysesPaginator(client, &ec2.DescribeNetworkInsightsAccessScopeAnalysesInput{}),
 		func(page *ec2.DescribeNetworkInsightsAccessScopeAnalysesOutput) []*store.Resource {
@@ -128,7 +128,7 @@ func scanNetworkInsightsAccessScopeAnalyses(ctx context.Context, client *ec2.Cli
 	)
 }
 
-func scanFlowLogs(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFlowLogs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeFlowLogs", acct, region, st,
 		ec2.NewDescribeFlowLogsPaginator(client, &ec2.DescribeFlowLogsInput{}),
 		func(page *ec2.DescribeFlowLogsOutput) []*store.Resource {
@@ -154,7 +154,7 @@ func scanFlowLogs(ctx context.Context, client *ec2.Client, acct *account, region
 	)
 }
 
-func scanPrefixLists(ctx context.Context, client *ec2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPrefixLists(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(ctx, "ec2:DescribeManagedPrefixLists", acct, region, st,
 		ec2.NewDescribeManagedPrefixListsPaginator(client, &ec2.DescribeManagedPrefixListsInput{}),
 		func(page *ec2.DescribeManagedPrefixListsOutput) []*store.Resource {
