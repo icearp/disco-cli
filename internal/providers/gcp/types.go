@@ -77,4 +77,7 @@ const (
 	TypeStorageBucket = "gcp:storage:bucket"
 	// Cloud SQL
 	TypeSQLInstance = "gcp:sqladmin:instance"
+	// Access Context Manager (VPC Service Controls — org-scoped)
+	TypeAccessPolicy     = "gcp:accesscontextmanager:access-policy"
+	TypeServicePerimeter = "gcp:accesscontextmanager:service-perimeter"
 )

@@ -92,7 +92,11 @@ func TestFilteredServices_Subset(t *testing.T) {
 // expectedGCPOrgServices is the authoritative list of org/folder-scope service
 // names that must be registered. Update when adding a new org-service scanner
 // (e.g. VPC Service Controls, folder/org IAM policies, org Logging sinks).
-var expectedGCPOrgServices = []string{}
+var expectedGCPOrgServices = []string{
+	"gcp:iam-policy-org",
+	"gcp:logging-org",
+	"gcp:vpcsc",
+}
 
 // TestRegisteredOrgServices_NoDuplicates verifies that no two org services share the same name.
 func TestRegisteredOrgServices_NoDuplicates(t *testing.T) {

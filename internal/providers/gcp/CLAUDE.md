@@ -11,6 +11,10 @@ Pick scanner shape on first read:
 - **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `services.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp.go`.
 - **Per-region (no wildcard)** (Dataproc clusters, Dataflow jobs, Spanner): each region listed individually. Spanner enumerates instance regions from `Config`. Dataproc + Dataflow need shared region-list helper not yet built — defer.
 
+## Org-service scope-kind dispatch
+
+Org-services receiving `[]orgScope` typically dispatch on `sc.Kind` ("organization" / "folder") to pick the matching SDK sub-service (`svc.Organizations.X` vs `svc.Folders.X`) — bodies are otherwise identical. Keep the dispatch in a tiny helper (e.g. `getOrgScopePolicy`, `pages := func(handler) { switch sc.Kind { ... } }`) so the per-scope batch+upsert+closure code stays single-pathed. VPC-SC is org-only — skip folder scopes silently. Precedent: `iampolicy_org_scanners.go` (CRM), `observability_org_scanners.go` (Logging), `vpcsc_scanners.go` (org-only).
+
 ## Singleton resources via Get
 
 Some GCP services have singleton "policy" per project, no list surface — fetch via `Get`, upsert one row. Precedent: BinAuth `Projects.GetPolicy(projects/{p}/policy)`. Don't list these.
