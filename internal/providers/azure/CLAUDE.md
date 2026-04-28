@@ -41,6 +41,10 @@ Helpers extracting segments from ARM IDs (subscription guid, RG name, resource n
 
 `armauthorization.RoleDefinitionsClient.List(scope=sub)` returns built-ins with sub prefix rewritten in. Each sub gets own copy — accepted because `ResourceID` hash includes account_id, so per-sub resolvers FK-match locally. Same logic applies to anything tenant-scoped that per-sub API surfaces.
 
+## Microsoft Graph (Entra ID) via msgraph-sdk-go
+
+Tenant-scope identity scanners use `github.com/microsoftgraph/msgraph-sdk-go` (kiota-generated) — typed models, retry, batching. Auth via `msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{"https://graph.microsoft.com/.default"})` reusing the existing `azidentity.DefaultAzureCredential`. Pagination via `msgraphcore.NewPageIterator[T]` then `pi.Iterate(ctx, callback)`. Tenant ID resolved by issuing a Graph token and parsing the `tid` claim from the JWT (`tenantIDFromCred`) — `azidentity` exposes no tenant getter. Permission failures surface as `ScanWarning` (Authorization_RequestDenied / Insufficient privileges / 401 / 403); other errors as `ScanError`. AttributesJSON stores a CURATED struct (e.g. `userAttrs`), not the raw Graph payload — kiota models don't round-trip cleanly to JSON. Extend curated structs as resolvers need new fields. Precedent: `entra_scanners.go`.
+
 ## API-driven cross-cutting resolvers
 
 Resolvers needing API access (not just DB reads) register via `registerAPIResolver(apiResolverEntry{name, fn})` in `services.go` — fn signature is `func(ctx, sub, cred, st) (edges int, err error)`. Runs after phase-1 services complete and BEFORE the local-only `registeredResolvers`, so `st.ListResources` returns the full resource set. Errors degrade to `ReportError` + `ReportService(errCount=1)` — never propagate. Per-resource fan-out should bound concurrency via `semaphore.NewWeighted(maxConcurrentFanout)`. Precedent: `monitor_resolvers.go` (diagnostic-settings).

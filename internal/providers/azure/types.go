@@ -12,6 +12,11 @@ const (
 	TypeForeignSubscription = "azure:microsoft.resources:foreign-subscription"
 	// Management Groups (tenant scope)
 	TypeManagementGroup = "azure:microsoft.management:management-group"
+	// Entra ID (Microsoft Graph — tenant scope)
+	TypeEntraUser             = "azure:entra:user"
+	TypeEntraGroup            = "azure:entra:group"
+	TypeEntraServicePrincipal = "azure:entra:service-principal"
+	TypeEntraApplication      = "azure:entra:application"
 	// Microsoft Defender for Cloud
 	TypeSecurityPricing = "azure:microsoft.security:pricing"
 	// Authorization (RBAC)
