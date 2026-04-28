@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
 // TestResolveSnapshotSourceRelationships verifies that a snapshot's source disk
@@ -15,9 +17,13 @@ func TestResolveSnapshotSourceRelationships(t *testing.T) {
 	diskNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/disks/my-disk"
 	snapNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/snapshots/my-snap"
 
-	attrsJSON := `{"properties":{"creationData":{"sourceResourceId":"` + diskNativeID + `"}}}`
+	snap := armcompute.Snapshot{
+		Properties: &armcompute.SnapshotProperties{
+			CreationData: &armcompute.CreationData{SourceResourceID: to.Ptr(diskNativeID)},
+		},
+	}
 
-	snapID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeSnapshot, snapNativeID, "eastus", attrsJSON)
+	snapID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeSnapshot, snapNativeID, "eastus", marshalAttrs(t, snap))
 	diskID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeManagedDisk, diskNativeID, "eastus", "{}")
 
 	if err := resolveSnapshotSourceRelationships(sub, st); err != nil {
@@ -55,9 +61,13 @@ func TestResolveDiskEncryptionSetRelationships(t *testing.T) {
 	desNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/diskEncryptionSets/my-des"
 	diskNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/disks/my-disk"
 
-	attrsJSON := `{"properties":{"encryption":{"diskEncryptionSetId":"` + desNativeID + `"}}}`
+	disk := armcompute.Disk{
+		Properties: &armcompute.DiskProperties{
+			Encryption: &armcompute.Encryption{DiskEncryptionSetID: to.Ptr(desNativeID)},
+		},
+	}
 
-	diskID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeManagedDisk, diskNativeID, "eastus", attrsJSON)
+	diskID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeManagedDisk, diskNativeID, "eastus", marshalAttrs(t, disk))
 	desID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeDiskEncryptionSet, desNativeID, "eastus", "{}")
 
 	if err := resolveDiskEncryptionSetRelationships(sub, st); err != nil {
@@ -99,9 +109,13 @@ func TestResolveDiskSourceRelationships_FromSnapshot(t *testing.T) {
 	snapNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/snapshots/my-snap"
 	diskNativeID := "/subscriptions/sub-abc-123/resourceGroups/rg1/providers/Microsoft.Compute/disks/my-disk"
 
-	attrsJSON := `{"properties":{"creationData":{"sourceResourceId":"` + snapNativeID + `"}}}`
+	disk := armcompute.Disk{
+		Properties: &armcompute.DiskProperties{
+			CreationData: &armcompute.CreationData{SourceResourceID: to.Ptr(snapNativeID)},
+		},
+	}
 
-	diskID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeManagedDisk, diskNativeID, "eastus", attrsJSON)
+	diskID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeManagedDisk, diskNativeID, "eastus", marshalAttrs(t, disk))
 	snapID := upsertTestResource(t, st, "azure", sub.ID, TypeComputeSnapshot, snapNativeID, "eastus", "{}")
 
 	if err := resolveDiskSourceRelationships(sub, st); err != nil {

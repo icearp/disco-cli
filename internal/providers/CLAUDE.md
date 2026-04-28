@@ -76,6 +76,10 @@ Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.
 
 Always add "no attrs / empty case" test alongside happy-path — guards nil-pointer panics on missing JSON fields.
 
+### SDK-typed attrs builders over hand-rolled JSON
+
+Resolver tests should construct attrs via `json.Marshal` of the real SDK struct, not hand-rolled JSON literals. Azure `arm*` types use custom `MarshalJSON` with `populate("camelCaseKey", ...)` — JSON shape is invisible on struct tags, so a string literal that drifts from the SDK silently passes. Helper: `marshalAttrs(t, v)` in `internal/providers/azure/attrs_testhelper_test.go`. AWS equivalent: `wrapped_attrs_testhelper_test.go`.
+
 ### Registration tests
 
 `<provider>/registration_test.go` holds `expectedAWSServices` / `expectedAzureServices` / `expectedGCPServices` — authoritative list of registered service names. **Update when adding new service scanner.** Test fails if service registered but not listed, or listed but not registered.

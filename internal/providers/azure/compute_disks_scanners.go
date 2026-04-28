@@ -14,6 +14,12 @@ func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDisksClient: %w", err)
 	}
+	return scanDisksWithClient(ctx, sub, st, scanID, client)
+}
+
+// scanDisksWithClient is the body of scanDisks split out so tests can inject a
+// fake-transport-backed *armcompute.DisksClient (see compute_disks_scanners_test.go).
+func scanDisksWithClient(ctx context.Context, sub *subscription, st *store.Store, scanID string, client *armcompute.DisksClient) (total, inserted int, err error) {
 	return azSimpleScan(ctx, "armcompute:Disks.List", TypeComputeManagedDisk, sub, st, scanID,
 		client.NewListPager(nil),
 		func(p armcompute.DisksClientListResponse) []*armcompute.Disk { return p.Value },

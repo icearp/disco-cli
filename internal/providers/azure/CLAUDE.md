@@ -61,6 +61,12 @@ Cross-service helpers (`azPageScan`, `azSimpleScan`, `azTrackedRows`, `azTagsJSO
 
 Every RG-scoped resource must emit `rgHierarchyPair` (resource → RG closure). `azSimpleScan` does this automatically. When hand-rolling callback, do not omit pairs — peers without pairs were oversights, not design.
 
+## Scanner-level tests via SDK fake transport
+
+Each `arm*` module ships generated `fake.<Type>Server` (e.g. `armcomputefake.DisksServer`) plus `NewXServerTransport`. Pattern: split scanner into `scanX(ctx, sub, cred, st, scanID)` (production wrapper) + `scanXWithClient(ctx, sub, st, scanID, client)` (testable body). Test constructs client via `armcompute.NewDisksClient(subID, fakeCred(), fakeClientOptions(t, transport))` and calls the body directly. Helpers in `fake_testhelper_test.go`: `fakeCred()` returns `*azfake.TokenCredential{}`, `fakeClientOptions` collapses retries (MaxRetries=0). Precedent: `compute_disks_scanners_test.go` covers happy path, multi-page pagination, 403 AccessDenied.
+
+For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbidden, "AuthorizationFailed")` — produces an `azcore.ResponseError` the `isAccessDenied` check recognises.
+
 ## Lint gotchas
 
 - `forvar` (Go 1.22+): drop `i, x := i, x` shadows in goroutines — per-iteration scope built-in.
