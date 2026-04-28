@@ -13,6 +13,19 @@ func init() {
 	registerService(serviceEntry{name: "aws:elasticloadbalancingv2", fn: scanELBv2})
 }
 
+// elbv2API is the narrow set of ELBv2 operations called by the scanELBv2
+// sub-phases.
+type elbv2API interface {
+	DescribeLoadBalancers(context.Context, *elasticloadbalancingv2.DescribeLoadBalancersInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeLoadBalancersOutput, error)
+	DescribeListeners(context.Context, *elasticloadbalancingv2.DescribeListenersInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeListenersOutput, error)
+	DescribeRules(context.Context, *elasticloadbalancingv2.DescribeRulesInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeRulesOutput, error)
+	DescribeListenerCertificates(context.Context, *elasticloadbalancingv2.DescribeListenerCertificatesInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeListenerCertificatesOutput, error)
+	DescribeTargetGroups(context.Context, *elasticloadbalancingv2.DescribeTargetGroupsInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeTargetGroupsOutput, error)
+	DescribeTargetHealth(context.Context, *elasticloadbalancingv2.DescribeTargetHealthInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeTargetHealthOutput, error)
+	DescribeTrustStores(context.Context, *elasticloadbalancingv2.DescribeTrustStoresInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeTrustStoresOutput, error)
+	DescribeTrustStoreRevocations(context.Context, *elasticloadbalancingv2.DescribeTrustStoreRevocationsInput, ...func(*elasticloadbalancingv2.Options)) (*elasticloadbalancingv2.DescribeTrustStoreRevocationsOutput, error)
+}
+
 // scanELBv2 discovers all ELBv2 resource types in one region:
 // load balancers, listeners, listener rules, listener certificates,
 // target groups, trust stores, and trust store revocations.
@@ -80,7 +93,7 @@ func scanELBv2(ctx context.Context, acct *account, region string, st *store.Stor
 
 // scanELBv2LoadBalancers pages through all ALBs, NLBs, and GLBs.
 // Returns the list of ARNs for downstream listener enumeration.
-func scanELBv2LoadBalancers(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
+func scanELBv2LoadBalancers(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -125,7 +138,7 @@ func scanELBv2LoadBalancers(ctx context.Context, client *elasticloadbalancingv2.
 
 // scanELBv2Listeners pages through listeners for one load balancer.
 // Returns listener ARNs for rule/certificate enumeration.
-func scanELBv2Listeners(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region, lbARN string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
+func scanELBv2Listeners(ctx context.Context, client elbv2API, acct *account, region, lbARN string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeListenersPaginator(client, &elasticloadbalancingv2.DescribeListenersInput{
 		LoadBalancerArn: &lbARN,
 	})
@@ -167,7 +180,7 @@ func scanELBv2Listeners(ctx context.Context, client *elasticloadbalancingv2.Clie
 
 // scanELBv2ListenerRules pages through rules for one listener.
 // The Rule struct omits the listener ARN, so we inject it into the stored attrs.
-func scanELBv2ListenerRules(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanELBv2ListenerRules(ctx context.Context, client elbv2API, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeRulesPaginator(client, &elasticloadbalancingv2.DescribeRulesInput{
 		ListenerArn: &listenerARN,
 	})
@@ -208,7 +221,7 @@ func scanELBv2ListenerRules(ctx context.Context, client *elasticloadbalancingv2.
 
 // scanELBv2ListenerCertificates pages through certificates for one listener.
 // ListenerCertificate has no dedicated ARN; we synthesise one as listenerARN+":cert/"+CertificateArn.
-func scanELBv2ListenerCertificates(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanELBv2ListenerCertificates(ctx context.Context, client elbv2API, acct *account, region, listenerARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeListenerCertificatesPaginator(client, &elasticloadbalancingv2.DescribeListenerCertificatesInput{
 		ListenerArn: &listenerARN,
 	})
@@ -248,7 +261,7 @@ func scanELBv2ListenerCertificates(ctx context.Context, client *elasticloadbalan
 }
 
 // scanELBv2TargetGroups pages through all target groups (independent of LBs).
-func scanELBv2TargetGroups(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanELBv2TargetGroups(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeTargetGroupsPaginator(client, &elasticloadbalancingv2.DescribeTargetGroupsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -303,7 +316,7 @@ func scanELBv2TargetGroups(ctx context.Context, client *elasticloadbalancingv2.C
 
 // scanELBv2TrustStores pages through all MTLS trust stores.
 // Returns ARNs for revocation enumeration.
-func scanELBv2TrustStores(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
+func scanELBv2TrustStores(ctx context.Context, client elbv2API, acct *account, region string, st *store.Store, scanID string) (arns []string, total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeTrustStoresPaginator(client, &elasticloadbalancingv2.DescribeTrustStoresInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -345,7 +358,7 @@ func scanELBv2TrustStores(ctx context.Context, client *elasticloadbalancingv2.Cl
 
 // scanELBv2TrustStoreRevocations pages through revocations for one trust store.
 // TrustStoreRevocation has no dedicated ARN; NativeID = tsARN+":rev/"+RevocationId.
-func scanELBv2TrustStoreRevocations(ctx context.Context, client *elasticloadbalancingv2.Client, acct *account, region, tsARN string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanELBv2TrustStoreRevocations(ctx context.Context, client elbv2API, acct *account, region, tsARN string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := elasticloadbalancingv2.NewDescribeTrustStoreRevocationsPaginator(client, &elasticloadbalancingv2.DescribeTrustStoreRevocationsInput{
 		TrustStoreArn: &tsARN,
 	})
