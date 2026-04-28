@@ -37,6 +37,7 @@ oss-sync:
 
 dist:
 	$(GO) GOOS=linux   GOARCH=amd64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-linux-amd64 . && upx --best --lzma $(DIST_DIR)/$(BINARY)-linux-amd64
+	$(GO) GOOS=linux   GOARCH=arm64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-linux-arm64 . && upx --best --lzma $(DIST_DIR)/$(BINARY)-linux-arm64
 	$(GO) GOOS=darwin  GOARCH=arm64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-darwin-arm64 .
 	$(GO) GOOS=windows GOARCH=amd64  go build -ldflags "-w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-windows-amd64.exe . && upx --best --lzma $(DIST_DIR)/$(BINARY)-windows-amd64.exe
 

@@ -1,0 +1,67 @@
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-go-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: CGO_ENABLED=0 go test ./...
+
+      - name: Install UPX
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends upx-ucl
+
+      - name: Cross-platform build
+        run: make dist
+
+      - name: Per-asset SHA256 sidecars
+        run: |
+          set -euo pipefail
+          cd dist
+          for f in disco-*; do
+            sha256sum "$f" | awk '{print $1}' > "$f.sha256"
+          done
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          prev=$(git tag --sort=-creatordate | grep -vxF "${VERSION}" | head -n1 || true)
+          {
+            echo 'body<<DISCO_EOF'
+            if [ -n "$prev" ]; then
+              echo "Changes since ${prev}:"
+              echo
+              git log --pretty='* %s (%h)' "${prev}..${VERSION}"
+            else
+              echo "Initial release."
+              echo
+              git log --pretty='* %s (%h)' "${VERSION}"
+            fi
+            echo DISCO_EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish draft release
+        uses: actions/forgejo-release@v2
+        with:
+          direction: upload
+          url: https://codeberg.org
+          repo: ${{ github.repository }}
+          tag: ${{ env.VERSION }}
+          release-dir: dist
+          release-notes: ${{ steps.notes.outputs.body }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          override: true
+          prerelease: false
+          draft: true
