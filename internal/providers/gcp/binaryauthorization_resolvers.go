@@ -3,7 +3,6 @@ package gcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -35,18 +34,9 @@ func resolveBinaryAuthorizationRelationships(p *project, st *store.Store) error 
 	if len(atts) == 0 {
 		return nil
 	}
-	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
-		Limit: util.AllResources,
-	})
+	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
-	}
-	saByEmail := make(map[string]string, len(sas))
-	for _, sa := range sas {
-		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
-			saByEmail[sa.NativeID[i+1:]] = sa.ID
-		}
 	}
 	for _, att := range atts {
 		var a struct {

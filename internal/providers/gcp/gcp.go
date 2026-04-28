@@ -210,6 +210,29 @@ func forEachItem[T any](ctx context.Context, concurrency int, items []T, fn func
 	return g.Wait()
 }
 
+// buildSAEmailIndex returns email → resource ID for every
+// gcp:iam:service-account in the project. Used by every resolver that
+// FK-checks a runtime SA email against the project's discovered SAs (Cloud
+// Functions, Cloud Run, Composer, Cloud Build, BinAuth attestor, Cloud Run
+// Jobs, Batch, IAM-policy bindings). Cross-project SA refs implicitly skip
+// — won't match in-project index.
+func buildSAEmailIndex(p *project, st *store.Store) (map[string]string, error) {
+	sas, err := st.ListResources(store.ResourceFilter{
+		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(sas))
+	for _, sa := range sas {
+		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
+			out[sa.NativeID[i+1:]] = sa.ID
+		}
+	}
+	return out, nil
+}
+
 // project holds a resolved GCP project with its parent hierarchy IDs.
 type project struct {
 	ID       string // GCP project ID (e.g. "my-project-123")

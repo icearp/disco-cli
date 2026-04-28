@@ -17,7 +17,9 @@ Some GCP services have singleton "policy" per project, no list surface — fetch
 
 ## Service-account email index
 
-Many resolvers FK-check SA email ref (Cloud Functions, Cloud Run, Composer, Cloud Build trigger, BinAuth attestor, Cloud Run Jobs, Batch, IAM policy bindings). Build index once per resolver: list `gcp:iam:service-account` resources, key by trailing path segment of `NativeID` (email). For fields that may store full resource name `projects/{p}/serviceAccounts/{email}` or just email, build second index keyed on full NativeID, check both. Cross-project SA refs implicitly skip — won't match in-project index.
+Many resolvers FK-check SA email ref (Cloud Functions, Cloud Run, Composer, BinAuth attestor, Cloud Run Jobs, Batch, IAM policy bindings). Use `buildSAEmailIndex(p, st)` in `gcp.go` — returns `map[email]ResourceID` over all in-project `gcp:iam:service-account` resources. Cross-project SA refs implicitly skip (won't match in-project index).
+
+For fields that may store either full resource name `projects/{p}/serviceAccounts/{email}` or bare email (Cloud Build trigger), keep the inline two-map pattern: `saIDByNative` + `saIDByEmail`, check native first, fall back to email. `cloudbuild_resolvers.go` is the canonical site.
 
 ## Service registration
 

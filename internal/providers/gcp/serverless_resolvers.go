@@ -3,7 +3,6 @@ package gcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -25,20 +24,9 @@ func init() { registerResolver(resolveServerlessRelationships) }
 // EventTrigger.eventFilters[]. SA edges land now because the SA index
 // shape from R4.1 is reused.
 func resolveServerlessRelationships(p *project, st *store.Store) error {
-	// Build the per-project SA email → resource ID index (mirrors the
-	// pattern from R4.1's IAM-policy resolver).
-	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
-		Limit: util.AllResources,
-	})
+	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
-	}
-	saByEmail := make(map[string]string, len(sas))
-	for _, sa := range sas {
-		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
-			saByEmail[sa.NativeID[i+1:]] = sa.ID
-		}
 	}
 
 	// KMS index for function CMEK.

@@ -34,23 +34,11 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 		return nil
 	}
 
-	// Build a set of service-account resource IDs that exist in the store so
-	// we can FK-check before emitting an edge. SA NativeID = full resource
-	// name "projects/{id}/serviceAccounts/{email}".
-	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
-		Limit: util.AllResources,
-	})
+	// Build email → SA resource ID index so we can FK-check `serviceAccount:{email}`
+	// members before emitting edges.
+	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
-	}
-	saByEmail := make(map[string]string, len(sas)) // email → resource ID
-	for _, sa := range sas {
-		// NativeID example: "projects/foo/serviceAccounts/svc@foo.iam.gserviceaccount.com"
-		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
-			email := sa.NativeID[i+1:]
-			saByEmail[email] = sa.ID
-		}
 	}
 
 	for _, r := range policies {

@@ -3,7 +3,6 @@ package gcp
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -44,18 +43,9 @@ func resolveComposerRelationships(p *project, st *store.Store) error {
 		keyIDByNative[k.NativeID] = k.ID
 	}
 
-	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
-		Limit: util.AllResources,
-	})
+	saByEmail, err := buildSAEmailIndex(p, st)
 	if err != nil {
 		return err
-	}
-	saByEmail := make(map[string]string, len(sas))
-	for _, sa := range sas {
-		if i := strings.LastIndex(sa.NativeID, "/"); i >= 0 {
-			saByEmail[sa.NativeID[i+1:]] = sa.ID
-		}
 	}
 
 	for _, e := range envs {
