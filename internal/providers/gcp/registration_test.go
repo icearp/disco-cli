@@ -10,6 +10,7 @@ import (
 var expectedGCPServices = []string{
 	"gcp:artifactregistry",
 	"gcp:bigquery",
+	"gcp:batch",
 	"gcp:bigtable",
 	"gcp:binaryauthorization",
 	"gcp:certificatemanager",
@@ -19,6 +20,7 @@ var expectedGCPServices = []string{
 	"gcp:cloudfunctions",
 	"gcp:cloudkms",
 	"gcp:cloudrun",
+	"gcp:cloudrunjobs",
 	"gcp:composer",
 	"gcp:compute",
 	"gcp:firestore",

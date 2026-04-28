@@ -56,6 +56,9 @@ const (
 	// Binary Authorization
 	TypeBinAuthPolicy   = "gcp:binaryauthorization:policy"
 	TypeBinAuthAttestor = "gcp:binaryauthorization:attestor"
+	// Cloud Run Jobs / Batch
+	TypeCloudRunJob = "gcp:run:job"
+	TypeBatchJob    = "gcp:batch:job"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

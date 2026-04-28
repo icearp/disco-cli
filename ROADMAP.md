@@ -86,6 +86,17 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - Out of scope: VirtualNetworkGatewayConnection (`armnetwork.VirtualNetworkGatewayConnectionsClient` — its own ARM type), VPN connections, ER connections, BGP info routes, P2S routes, gateway IPsec policies, virtual-network-gateway nat rules, custom routes.
 - Live-scan validation: 1 sub, 0 VNGs / 0 ERGs, scanner ran clean. Live scan now takes ~8s (vs 4s pre-iter) reflecting the RG enumeration + per-RG fan-out cost on a 0-resource sub; this is the floor cost for any RG-fanout scanner.
 
+### R4.20 GCP Cloud Run Jobs + Batch (this session)
+- **GCP Cloud Run Jobs** new type `gcp:run:job`. Service `gcp:cloudrunjobs`: `run/v2` `Projects.Locations.Jobs.List` with locations/- wildcard. Sibling surface to Cloud Run services from R4.10.
+- **GCP Batch** new type `gcp:batch:job`. Service `gcp:batch`: `batch/v1` `Projects.Locations.Jobs.List` with locations/- wildcard.
+- **Resolver** `resolveJobsRelationships` derives:
+  - run.job -[uses]-> service-account via `template.template.serviceAccount`
+  - batch.job -[uses]-> service-account via `allocationPolicy.serviceAccount.email`
+  Cross-project SA refs skipped.
+- Deferred: batch.job network edges via `allocationPolicy.network.networkInterfaces[]` (same shape as compute_resolvers — duplicated work without strong demand); per-task data + executions (runtime artifacts).
+- Live-scan validation: 2 projects, both APIs disabled; 0 resources, scanners ran clean.
+- **All R4 numeric items now closed (R4.1–R4.20).** R4.18 VPC-SC remains explicitly deferred pending the once-per-scan org-scoped registration mechanism (also blocking folder/org-scope IAM policies + Logging sinks). R4.14 stragglers remain: Dataproc + Dataflow (need shared per-region fan-out helper).
+
 ### R4.19 GCP Binary Authorization — policy + attestors (this session)
 - **GCP Binary Authorization** new types `gcp:binaryauthorization:policy`, `gcp:binaryauthorization:attestor`. Project-scoped service `gcp:binaryauthorization` runs two phases: (1) `binaryauthorization/v1` `Projects.GetPolicy` for the singleton project policy (`projects/{p}/policy` — there's no list surface, exactly one policy per project); (2) `Projects.Attestors.List` paginated.
 - **Resolver** `resolveBinaryAuthorizationRelationships` derives attestor -[uses]-> service-account via `userOwnedGrafeasNote.delegationServiceAccountEmail`. The delegation SA is the principal the attestor uses to read attestation occurrences from Container Analysis — security-meaningful for "who can validate signatures on behalf of this attestor".
@@ -678,7 +689,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 17. *(removed — Cloud Build trigger scanner + trigger→SA resolver landed. Worker pool + repo connection (cloudbuild/v2) deferred to own iterations; see COMPLETED R4.17)*
 18. **VPC Service Controls** — perimeter, bridge. Edges: perimeter → projects + services. *(Deferred — org-scoped, blocks on once-per-scan registration mechanism shared with folder/org-scope IAM policies (R4.1) and Logging sinks (R4.16). See COMPLETED R4.18 for the explicit deferral note.)*
 19. *(removed — BinAuth policy + attestor scanners + attestor→delegation-SA resolver landed. KMS-backed attestor keys (v1beta1) + policy→cluster admission rules deferred; see COMPLETED R4.19)*
-20. **Cloud Run Jobs, Batch** — job → SA + network.
+20. *(removed — Cloud Run Jobs + Batch scanners + job→SA resolver landed via locations/- wildcard. Batch network edges deferred (compute_resolvers duplication); see COMPLETED R4.20)*
 
 ### R5. Cross-service resolvers (multi-provider aware)
 Most resolvers same-provider same-service today. Add:
