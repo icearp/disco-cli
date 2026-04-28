@@ -9,10 +9,16 @@ const (
 	TypeFolder       = "gcp:cloudresourcemanager:folder"
 	TypeProject      = "gcp:cloudresourcemanager:project"
 	// Compute Engine
-	TypeComputeInstance = "gcp:compute:instance"
-	TypeComputeNetwork  = "gcp:compute:network"
-	TypeComputeSubnet   = "gcp:compute:subnetwork"
-	TypeComputeFirewall = "gcp:compute:firewall"
+	TypeComputeInstance         = "gcp:compute:instance"
+	TypeComputeNetwork          = "gcp:compute:network"
+	TypeComputeSubnet           = "gcp:compute:subnetwork"
+	TypeComputeFirewall         = "gcp:compute:firewall"
+	TypeComputeForwardingRule   = "gcp:compute:forwarding-rule"
+	TypeComputeTargetHTTPProxy  = "gcp:compute:target-http-proxy"
+	TypeComputeTargetHTTPSProxy = "gcp:compute:target-https-proxy"
+	TypeComputeURLMap           = "gcp:compute:url-map"
+	TypeComputeBackendService   = "gcp:compute:backend-service"
+	TypeComputeBackendBucket    = "gcp:compute:backend-bucket"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM
