@@ -25,6 +25,9 @@ const (
 	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
 	TypeCertManagerMapEntry    = "gcp:certificatemanager:certificate-map-entry"
 	TypeCertManagerDNSAuth     = "gcp:certificatemanager:dns-authorization"
+	// Cloud DNS
+	TypeDNSManagedZone = "gcp:dns:managed-zone"
+	TypeDNSRecordSet   = "gcp:dns:record-set"
 	// GKE
 	TypeGKECluster = "gcp:container:cluster"
 	// IAM

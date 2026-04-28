@@ -10,6 +10,7 @@ import (
 var expectedGCPServices = []string{
 	"gcp:certificatemanager",
 	"gcp:cloudarmor",
+	"gcp:clouddns",
 	"gcp:cloudkms",
 	"gcp:compute",
 	"gcp:gke",
