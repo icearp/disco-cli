@@ -3,35 +3,89 @@ on:
     tags: ['v*']
 
 jobs:
-  release:
+  test:
     runs-on: ubuntu-go-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: CGO_ENABLED=0 go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-go-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            upx: true
+            ext: ''
+          - goos: linux
+            goarch: arm64
+            upx: true
+            ext: ''
+          - goos: darwin
+            goarch: arm64
+            upx: false
+            ext: ''
+          - goos: windows
+            goarch: amd64
+            upx: true
+            ext: '.exe'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          set -euo pipefail
+          out="disco-${GOOS}-${GOARCH}${{ matrix.ext }}"
+          go build -ldflags "-w -s" -trimpath -o "$out" .
+          echo "ARTIFACT=$out" >> "$GITHUB_ENV"
+
+      - name: UPX compress
+        if: ${{ matrix.upx }}
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends upx-ucl
+          upx --best --lzma "$ARTIFACT"
+
+      - name: SHA256 sidecar
+        run: sha256sum "$ARTIFACT" | awk '{print $1}' > "${ARTIFACT}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT }}.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-go-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Resolve version
         run: echo "VERSION=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
 
-      - name: Unit tests
-        run: CGO_ENABLED=0 go test ./...
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist-tmp
 
-      - name: Install UPX
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends upx-ucl
-
-      - name: Cross-platform build
-        run: make dist
-
-      - name: Per-asset SHA256 sidecars
+      - name: Flatten artifacts
         run: |
           set -euo pipefail
-          cd dist
-          for f in disco-*; do
-            sha256sum "$f" | awk '{print $1}' > "$f.sha256"
-          done
+          mkdir -p dist
+          find dist-tmp -type f -exec cp -t dist {} +
 
       - name: Generate release notes
         id: notes
