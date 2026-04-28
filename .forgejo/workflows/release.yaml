@@ -88,12 +88,10 @@ jobs:
           find dist-tmp -type f -exec cp -t dist {} +
 
       - name: Generate release notes
-        id: notes
         run: |
           set -euo pipefail
           prev=$(git tag --sort=-creatordate | grep -vxF "${VERSION}" | head -n1 || true)
           {
-            echo 'body<<DISCO_EOF'
             if [ -n "$prev" ]; then
               echo "Changes since ${prev}:"
               echo
@@ -103,8 +101,7 @@ jobs:
               echo
               git log --pretty='* %s (%h)' "${VERSION}"
             fi
-            echo DISCO_EOF
-          } >> "$GITHUB_OUTPUT"
+          } > release-notes.md
 
       - name: Publish draft release
         uses: actions/forgejo-release@v2
@@ -114,7 +111,7 @@ jobs:
           repo: ${{ github.repository }}
           tag: ${{ env.VERSION }}
           release-dir: dist
-          release-notes: ${{ steps.notes.outputs.body }}
+          release-notes-file: release-notes.md
           token: ${{ secrets.GITHUB_TOKEN }}
           override: true
           prerelease: false
