@@ -126,6 +126,67 @@ func TestGraphWalk_UnknownSeed(t *testing.T) {
 	}
 }
 
+// TestGraphWalk_ManagedTerminal asserts provider-managed nodes appear as
+// edge endpoints when reached, but BFS does NOT expand through them. With
+// IncludeManaged=true the walk traverses normally.
+//
+//	A --uses--> B(managed) --uses--> C
+func TestGraphWalk_ManagedTerminal(t *testing.T) {
+	st := openTestStore(t)
+	mk := func(native string, managed bool) string {
+		r := &Resource{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
+			NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
+			ManagedByProvider: managed,
+		}
+		if _, err := st.UpsertResource(r); err != nil {
+			t.Fatalf("upsert %s: %v", native, err)
+		}
+		return r.ID
+	}
+	a, b, c := mk("i-A", false), mk("i-B", true), mk("i-C", false)
+	for _, e := range [][2]string{{a, b}, {b, c}} {
+		if err := st.UpsertRelationship(e[0], e[1], RelUses, "directed", nil); err != nil {
+			t.Fatalf("rel: %v", err)
+		}
+	}
+
+	// Default: B is terminal — C must NOT appear, but B must.
+	g, err := st.GraphWalk(a, GraphWalkOpts{MaxDepth: 5, Direction: DirOut})
+	if err != nil {
+		t.Fatalf("GraphWalk: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, n := range g.Nodes {
+		ids[n.Resource.ID] = true
+	}
+	if !ids[a] || !ids[b] {
+		t.Errorf("seed/managed-terminal missing: nodes=%v", ids)
+	}
+	if ids[c] {
+		t.Errorf("C reached past managed B without IncludeManaged: nodes=%v", ids)
+	}
+	if len(g.Edges) != 1 || g.Edges[0].FromID != a || g.Edges[0].ToID != b {
+		t.Errorf("expected single A->B edge, got %+v", g.Edges)
+	}
+
+	// IncludeManaged: full walk reaches C.
+	g, err = st.GraphWalk(a, GraphWalkOpts{MaxDepth: 5, Direction: DirOut, IncludeManaged: true})
+	if err != nil {
+		t.Fatalf("GraphWalk include: %v", err)
+	}
+	ids = map[string]bool{}
+	for _, n := range g.Nodes {
+		ids[n.Resource.ID] = true
+	}
+	if !ids[a] || !ids[b] || !ids[c] {
+		t.Errorf("IncludeManaged missing nodes: %v", ids)
+	}
+	if len(g.Edges) != 2 {
+		t.Errorf("IncludeManaged edges: got %d, want 2", len(g.Edges))
+	}
+}
+
 // TestResolveResource covers the native-id/hex-id resolution helper.
 func TestResolveResource(t *testing.T) {
 	st := openTestStore(t)

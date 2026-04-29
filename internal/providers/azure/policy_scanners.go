@@ -31,12 +31,15 @@ func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.Default
 					continue
 				}
 				name := sv(d.Name)
+				managed := d.Properties != nil && d.Properties.PolicyType != nil &&
+					*d.Properties.PolicyType == armpolicy.PolicyTypeBuiltIn
 				batch = append(batch, &store.Resource{
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypePolicyDefinition, NativeID: sv(d.ID),
-					Name:           &name,
-					AttributesJSON: mustJSON(d),
-					DiscoveredBy:   scanID,
+					Name:              &name,
+					AttributesJSON:    mustJSON(d),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: managed,
 				})
 			}
 			return batch, nil
@@ -60,12 +63,15 @@ func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.Default
 					continue
 				}
 				name := sv(d.Name)
+				managed := d.Properties != nil && d.Properties.PolicyType != nil &&
+					*d.Properties.PolicyType == armpolicy.PolicyTypeBuiltIn
 				batch = append(batch, &store.Resource{
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypePolicySetDefinition, NativeID: sv(d.ID),
-					Name:           &name,
-					AttributesJSON: mustJSON(d),
-					DiscoveredBy:   scanID,
+					Name:              &name,
+					AttributesJSON:    mustJSON(d),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: managed,
 				})
 			}
 			return batch, nil

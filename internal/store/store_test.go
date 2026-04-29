@@ -316,6 +316,53 @@ func TestListResources_ByRegion(t *testing.T) {
 	}
 }
 
+// TestListResources_HidesManagedByDefault verifies provider-managed resources
+// are filtered out unless IncludeManaged is set, and that the flag round-trips.
+func TestListResources_HidesManagedByDefault(t *testing.T) {
+	st := openTestStore(t)
+
+	user := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:prefix-list",
+		NativeID: "pl-user", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}
+	managed := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:prefix-list",
+		NativeID: "pl-aws", AttributesJSON: "{}", DiscoveredBy: testScanID,
+		ManagedByProvider: true,
+	}
+	if _, err := st.UpsertResources([]*Resource{user, managed}); err != nil {
+		t.Fatalf("UpsertResources: %v", err)
+	}
+
+	got, err := st.ListResources(ResourceFilter{Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources default: %v", err)
+	}
+	if len(got) != 1 || got[0].NativeID != "pl-user" {
+		t.Errorf("default list: got %+v, want only user resource", got)
+	}
+	if got[0].ManagedByProvider {
+		t.Errorf("user resource should not be flagged managed: %+v", got[0])
+	}
+
+	got, err = st.ListResources(ResourceFilter{Limit: 100, IncludeManaged: true})
+	if err != nil {
+		t.Fatalf("ListResources include: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("IncludeManaged: got %d, want 2", len(got))
+	}
+	var sawManaged bool
+	for _, r := range got {
+		if r.NativeID == "pl-aws" && r.ManagedByProvider {
+			sawManaged = true
+		}
+	}
+	if !sawManaged {
+		t.Errorf("managed flag did not round-trip: %+v", got)
+	}
+}
+
 // TestListResources_ByTagKeyValue verifies json_extract-based tag filtering.
 func TestListResources_ByTagKeyValue(t *testing.T) {
 	st := openTestStore(t)

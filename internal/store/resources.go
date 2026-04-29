@@ -33,6 +33,11 @@ type Resource struct {
 	DiscoveredBy   string  `db:"discovered_by"`
 	VerifiedAt     *string `db:"verified_at"` // updated each time the resource is seen in a scan
 	VerifiedBy     *string `db:"verified_by"` // scan ID that last verified this resource
+	// ManagedByProvider marks resources owned by the cloud provider rather
+	// than the user (Azure built-in policy/role definitions, AWS-owned
+	// managed prefix lists, IAM service-linked roles). Hidden by default in
+	// list/graph output; opt-in via --include-managed.
+	ManagedByProvider bool `db:"managed_by_provider"`
 }
 
 // idHashBytes is the number of SHA-256 prefix bytes used in a resource ID.
@@ -94,17 +99,18 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		if _, err := tx.NamedExec(`
 			INSERT INTO resources
 				(id, provider, account_id, account_name, type, native_id, name,
-				 region, zone, status, tags, attributes, created_at, discovered_at, discovered_by, verified_at, verified_by)
+				 region, zone, status, tags, attributes, created_at, discovered_at, discovered_by, verified_at, verified_by, managed_by_provider)
 			VALUES
 				(:id, :provider, :account_id, :account_name, :type, :native_id, :name,
-				 :region, :zone, :status, :tags, :attributes, :created_at, :discovered_at, :discovered_by, :verified_at, :verified_by)
+				 :region, :zone, :status, :tags, :attributes, :created_at, :discovered_at, :discovered_by, :verified_at, :verified_by, :managed_by_provider)
 			ON CONFLICT(id) DO UPDATE SET
-				name        = excluded.name,
-				status      = excluded.status,
-				tags        = excluded.tags,
-				attributes  = excluded.attributes,
-				verified_at = excluded.verified_at,
-				verified_by = excluded.verified_by`, r); err != nil {
+				name                = excluded.name,
+				status              = excluded.status,
+				tags                = excluded.tags,
+				attributes          = excluded.attributes,
+				verified_at         = excluded.verified_at,
+				verified_by         = excluded.verified_by,
+				managed_by_provider = excluded.managed_by_provider`, r); err != nil {
 			return 0, fmt.Errorf("upsert resource %s: %w", r.ID, err)
 		}
 	}
@@ -123,6 +129,9 @@ type ResourceFilter struct {
 	TagValue     string
 	Limit        uint64
 	Offset       uint64
+	// IncludeManaged when false hides provider-managed resources (built-in
+	// roles, AWS-owned prefix lists, etc.). Defaults false at the SQL layer.
+	IncludeManaged bool
 }
 
 // ListResources returns resources matching the given filters.
@@ -151,6 +160,9 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 		q = q.Where("json_extract(tags, ?) = ?", "$."+f.TagKey, f.TagValue)
 	} else if f.TagKey != "" {
 		q = q.Where("json_extract(tags, ?) IS NOT NULL", "$."+f.TagKey)
+	}
+	if !f.IncludeManaged {
+		q = q.Where(sq.Eq{"managed_by_provider": false})
 	}
 
 	limit := f.Limit

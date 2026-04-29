@@ -10,6 +10,10 @@ Resolvers needing to insert resources (e.g. cross-tenant stubs for R5) get scanI
 
 Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.BatchAddToHierarchyClosure()` to persist. Errors from all three must propagate — never silence with `_ =`.
 
+## Provider-managed resources
+
+Resources owned by the cloud (Azure built-in policy/role definitions, AWS-managed IAM policies, AWS-owned prefix lists, IAM service-linked roles, AuditMgr Standard frameworks/controls) set `store.Resource.ManagedByProvider=true`. Hidden from `disco list` / `disco graph` by default; `--include-managed` opts in. In `graph`, managed nodes are terminal — appear when reached via direct edge but BFS does not expand through them. Detection lives at scan time, reads typed SDK field (e.g. `OwnerId == "AWS"`, `PolicyType == BuiltIn`, `RoleType == "BuiltInRole"`, role path `/aws-service-role/`). Where the SDK exposes a scope/type filter (IAM `PolicyScope`, AuditMgr `FrameworkType`/`ControlType`), loop both values in a single scanner and flag the managed pass — precedent: `scanIAMPolicies`, `scanAuditManagerFrameworks`, `scanAuditManagerControls`.
+
 ## Errors never abort scan
 
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:

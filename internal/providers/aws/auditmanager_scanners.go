@@ -40,10 +40,10 @@ type auditmanagerAPI interface {
 // Phase 1: ListAssessments (paginator, skeleton) → fan-out GetAssessment
 // (errgroup + fanoutMed) for full Assessment body — needed for framework
 // ARN, role list, and S3 reports destination edges.
-// Phase 2: ListAssessmentFrameworks(type=Custom). Standard frameworks
-// (PCI-DSS, HIPAA, etc.) deliberately skipped — AWS-managed catalogue,
-// huge volume, low graph value.
-// Phase 3: ListControls(type=Custom). Standard controls likewise skipped.
+// Phase 2: ListAssessmentFrameworks for both Custom and Standard. Standard
+// frameworks (PCI-DSS, HIPAA, etc.) are AWS-managed catalogue — flagged
+// ManagedByProvider=true so they hide from default list/graph output.
+// Phase 3: ListControls for both Custom and Standard, same flag.
 //
 // Per-phase AccessDenied tolerated. Assessment reports, share requests,
 // delegations, and evidence collection deferred — event/state data, not
@@ -164,93 +164,105 @@ func scanAuditManagerAssessments(ctx context.Context, client auditmanagerAPI, ac
 }
 
 func scanAuditManagerFrameworks(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := auditmanager.NewListAssessmentFrameworksPaginator(client, &auditmanager.ListAssessmentFrameworksInput{
-		FrameworkType: amtypes.FrameworkTypeCustom,
-	})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAuditManagerNotEnabled(perr) {
-				return 0, 0, markServiceDisabled(perr)
+	for _, ft := range []amtypes.FrameworkType{amtypes.FrameworkTypeCustom, amtypes.FrameworkTypeStandard} {
+		managed := ft == amtypes.FrameworkTypeStandard
+		pager := auditmanager.NewListAssessmentFrameworksPaginator(client, &auditmanager.ListAssessmentFrameworksInput{
+			FrameworkType: ft,
+		})
+		var batch []*store.Resource
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAuditManagerNotEnabled(perr) {
+					return total, inserted, markServiceDisabled(perr)
+				}
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "auditmanager:ListAssessmentFrameworks", acct.ID, region, perr)
+					return total, inserted, nil
+				}
+				return total, inserted, fmt.Errorf("auditmanager:ListAssessmentFrameworks: %w", perr)
 			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "auditmanager:ListAssessmentFrameworks", acct.ID, region, perr)
-				return 0, 0, nil
+			for _, f := range out.FrameworkMetadataList {
+				arn := sv(f.Arn)
+				if arn == "" {
+					continue
+				}
+				name := sv(f.Name)
+				batch = append(batch, &store.Resource{
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeAuditManagerFramework,
+					NativeID:          arn,
+					Name:              &name,
+					Region:            &region,
+					AttributesJSON:    mustJSON(f),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: managed,
+				})
 			}
-			return 0, 0, fmt.Errorf("auditmanager:ListAssessmentFrameworks: %w", perr)
 		}
-		for _, f := range out.FrameworkMetadataList {
-			arn := sv(f.Arn)
-			if arn == "" {
-				continue
-			}
-			name := sv(f.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAuditManagerFramework,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(f),
-				DiscoveredBy:   scanID,
-			})
+		if len(batch) == 0 {
+			continue
 		}
+		n, uerr := st.UpsertResources(batch)
+		if uerr != nil {
+			return total, inserted, fmt.Errorf("upsert auditmanager frameworks: %w", uerr)
+		}
+		total += len(batch)
+		inserted += n
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert auditmanager frameworks: %w", uerr)
-	}
-	return len(batch), n, nil
+	return total, inserted, nil
 }
 
 func scanAuditManagerControls(ctx context.Context, client auditmanagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := auditmanager.NewListControlsPaginator(client, &auditmanager.ListControlsInput{
-		ControlType: amtypes.ControlTypeCustom,
-	})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAuditManagerNotEnabled(perr) {
-				return 0, 0, markServiceDisabled(perr)
+	for _, ct := range []amtypes.ControlType{amtypes.ControlTypeCustom, amtypes.ControlTypeStandard} {
+		managed := ct == amtypes.ControlTypeStandard
+		pager := auditmanager.NewListControlsPaginator(client, &auditmanager.ListControlsInput{
+			ControlType: ct,
+		})
+		var batch []*store.Resource
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAuditManagerNotEnabled(perr) {
+					return total, inserted, markServiceDisabled(perr)
+				}
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "auditmanager:ListControls", acct.ID, region, perr)
+					return total, inserted, nil
+				}
+				return total, inserted, fmt.Errorf("auditmanager:ListControls: %w", perr)
 			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "auditmanager:ListControls", acct.ID, region, perr)
-				return 0, 0, nil
+			for _, c := range out.ControlMetadataList {
+				arn := sv(c.Arn)
+				if arn == "" {
+					continue
+				}
+				name := sv(c.Name)
+				batch = append(batch, &store.Resource{
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeAuditManagerControl,
+					NativeID:          arn,
+					Name:              &name,
+					Region:            &region,
+					AttributesJSON:    mustJSON(c),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: managed,
+				})
 			}
-			return 0, 0, fmt.Errorf("auditmanager:ListControls: %w", perr)
 		}
-		for _, c := range out.ControlMetadataList {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			name := sv(c.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAuditManagerControl,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			})
+		if len(batch) == 0 {
+			continue
 		}
+		n, uerr := st.UpsertResources(batch)
+		if uerr != nil {
+			return total, inserted, fmt.Errorf("upsert auditmanager controls: %w", uerr)
+		}
+		total += len(batch)
+		inserted += n
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert auditmanager controls: %w", uerr)
-	}
-	return len(batch), n, nil
+	return total, inserted, nil
 }

@@ -51,7 +51,7 @@ SQL files in `migrations/` embedded at compile time via `//go:embed`. Names must
 
 ## UpsertResources ON CONFLICT scope
 
-ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch.
+ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`, `managed_by_provider`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch. Adding a new mutable column = three edits: INSERT col list, VALUES placeholder, ON CONFLICT SET.
 
 ## FK constraint: resources require scan record
 

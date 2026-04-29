@@ -37,6 +37,10 @@ type GraphWalkOpts struct {
 	MaxDepth  int      // inclusive; 0 = seed only
 	Kinds     []string // empty = all relationship kinds
 	Direction string   // "out", "in", "both" (default: "both")
+	// IncludeManaged when false treats provider-managed resources as terminal:
+	// they appear as edge endpoints when reached from a non-managed node, but
+	// BFS does not expand through them. The seed itself is never filtered.
+	IncludeManaged bool
 }
 
 // GraphWalk does a bounded BFS starting at seedID, following edges in the
@@ -115,15 +119,23 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 		if err != nil {
 			return nil, err
 		}
+		nextFrontier := make([]string, 0, len(newRes))
 		for _, r := range newRes {
 			if _, ok := visited[r.ID]; ok {
 				continue
 			}
 			visited[r.ID] = depth + 1
 			nodes = append(nodes, GraphNode{Resource: r, Depth: depth + 1})
+			// Provider-managed nodes are terminal unless explicitly included:
+			// they show up as endpoints of the edge that reached them, but we
+			// do not expand outward from them on the next BFS step.
+			if !opts.IncludeManaged && r.ManagedByProvider {
+				continue
+			}
+			nextFrontier = append(nextFrontier, r.ID)
 		}
 
-		frontier = newIDs
+		frontier = nextFrontier
 	}
 
 	sort.Slice(nodes, func(i, j int) bool {

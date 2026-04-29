@@ -12,13 +12,14 @@ import (
 )
 
 var (
-	graphProvider  string
-	graphType      string
-	graphAccount   string
-	graphDepth     int
-	graphKinds     []string
-	graphDirection string
-	graphOutputFmt string
+	graphProvider       string
+	graphType           string
+	graphAccount        string
+	graphDepth          int
+	graphKinds          []string
+	graphDirection      string
+	graphOutputFmt      string
+	graphIncludeManaged bool
 )
 
 var graphCmd = &cobra.Command{
@@ -54,9 +55,10 @@ Examples:
 		}
 
 		g, err := db.GraphWalk(seed.ID, store.GraphWalkOpts{
-			MaxDepth:  graphDepth,
-			Kinds:     graphKinds,
-			Direction: graphDirection,
+			MaxDepth:       graphDepth,
+			Kinds:          graphKinds,
+			Direction:      graphDirection,
+			IncludeManaged: graphIncludeManaged,
 		})
 		if err != nil {
 			return err
@@ -133,5 +135,6 @@ func init() {
 	graphCmd.Flags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all)")
 	graphCmd.Flags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
 	graphCmd.Flags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, json, dot")
+	graphCmd.Flags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
 	rootCmd.AddCommand(graphCmd)
 }

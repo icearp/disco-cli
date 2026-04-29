@@ -36,12 +36,15 @@ func scanAuthorization(ctx context.Context, sub *subscription, cred *azidentity.
 				if rd.Properties != nil && rd.Properties.RoleName != nil {
 					name = *rd.Properties.RoleName
 				}
+				managed := rd.Properties != nil && rd.Properties.RoleType != nil &&
+					*rd.Properties.RoleType == "BuiltInRole"
 				batch = append(batch, &store.Resource{
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypeAuthorizationRoleDefinition, NativeID: sv(rd.ID),
-					Name:           &name,
-					AttributesJSON: mustJSON(rd),
-					DiscoveredBy:   scanID,
+					Name:              &name,
+					AttributesJSON:    mustJSON(rd),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: managed,
 				})
 			}
 			return batch, nil

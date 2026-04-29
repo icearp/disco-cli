@@ -109,20 +109,22 @@ func scanIAMRoles(ctx context.Context, client iamAPI, acct *account, st *store.S
 		for _, role := range page.Roles {
 			name := sv(role.RoleName)
 			rt := TypeIAMRole
-			if strings.HasPrefix(sv(role.Path), "/aws-service-role/") {
+			isSLR := strings.HasPrefix(sv(role.Path), "/aws-service-role/")
+			if isSLR {
 				rt = TypeIAMServiceLinkedRole
 			}
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           rt,
-				NativeID:       sv(role.Arn),
-				Name:           &name,
-				CreatedAt:      tp(role.CreateDate),
-				TagsJSON:       awsTagsJSON(role.Tags),
-				AttributesJSON: mustJSON(role),
-				DiscoveredBy:   scanID,
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              rt,
+				NativeID:          sv(role.Arn),
+				Name:              &name,
+				CreatedAt:         tp(role.CreateDate),
+				TagsJSON:          awsTagsJSON(role.Tags),
+				AttributesJSON:    mustJSON(role),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: isSLR,
 			})
 		}
 		if len(batch) > 0 {
@@ -211,16 +213,32 @@ func scanIAMGroups(ctx context.Context, client iamAPI, acct *account, st *store.
 	return
 }
 
-// scanIAMPolicies lists all IAM customer-managed policies and enriches each
-// with its default-version document via GetPolicyVersion. The document body is
-// required by resolveIAMPolicyResources to walk Statement[].Resource and emit
-// edges to KMS / S3 / Secrets / DynamoDB targets; ListPolicies alone does not
-// return it.
+// scanIAMPolicies lists all IAM policies (customer-managed + AWS-managed) and
+// enriches each with its default-version document via GetPolicyVersion. The
+// document body is required by resolveIAMPolicyResources to walk
+// Statement[].Resource and emit edges to KMS / S3 / Secrets / DynamoDB targets;
+// ListPolicies alone does not return it.
+//
+// AWS-managed policies (~1,500+ public/static catalogue) are scanned and
+// flagged ManagedByProvider=true so they are hidden from default list/graph
+// output but remain available for attachment resolvers and explicit lookup.
 func scanIAMPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	// PolicyScopeTypeLocal returns only customer-managed policies. PolicyScopeTypeAll
-	// also returns ~1,500+ AWS-managed policies, which are public/static and not
-	// useful for per-account discovery — and make IAM scanning ~15x slower.
-	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{Scope: iamtypes.PolicyScopeTypeLocal})
+	for _, scope := range []iamtypes.PolicyScopeType{iamtypes.PolicyScopeTypeLocal, iamtypes.PolicyScopeTypeAws} {
+		t, n, ferr := scanIAMPoliciesScope(ctx, client, acct, st, scanID, scope)
+		total += t
+		inserted += n
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanIAMPoliciesScope runs the policy scan for a single PolicyScopeType.
+// AWS-scoped policies (managed catalogue) are flagged ManagedByProvider=true.
+func scanIAMPoliciesScope(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, scope iamtypes.PolicyScopeType) (total, inserted int, err error) {
+	managed := scope == iamtypes.PolicyScopeTypeAws
+	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{Scope: scope})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -274,15 +292,16 @@ func scanIAMPolicies(ctx context.Context, client iamAPI, acct *account, st *stor
 				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
 			}{Policy: p, PolicyVersion: versions[i]}
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeIAMPolicy,
-				NativeID:       sv(p.Arn),
-				Name:           &name,
-				CreatedAt:      tp(p.CreateDate),
-				AttributesJSON: mustJSON(wrapped),
-				DiscoveredBy:   scanID,
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              TypeIAMPolicy,
+				NativeID:          sv(p.Arn),
+				Name:              &name,
+				CreatedAt:         tp(p.CreateDate),
+				AttributesJSON:    mustJSON(wrapped),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: managed,
 			})
 		}
 		if len(batch) > 0 {

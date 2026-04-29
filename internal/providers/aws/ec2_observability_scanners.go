@@ -162,17 +162,18 @@ func scanPrefixLists(ctx context.Context, client ec2API, acct *account, region s
 			for _, pl := range page.PrefixLists {
 				status := string(pl.State)
 				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2PrefixList,
-					NativeID:       sv(pl.PrefixListArn),
-					Name:           pl.PrefixListName,
-					Region:         &region,
-					Status:         &status,
-					TagsJSON:       awsTagsJSON(pl.Tags),
-					AttributesJSON: mustJSON(pl),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeEC2PrefixList,
+					NativeID:          sv(pl.PrefixListArn),
+					Name:              pl.PrefixListName,
+					Region:            &region,
+					Status:            &status,
+					TagsJSON:          awsTagsJSON(pl.Tags),
+					AttributesJSON:    mustJSON(pl),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: sv(pl.OwnerId) == "AWS",
 				})
 			}
 			return out

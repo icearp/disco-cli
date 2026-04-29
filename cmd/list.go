@@ -28,14 +28,15 @@ func resourceRow(r *store.Resource) []string {
 }
 
 var (
-	listProvider  string
-	listType      string
-	listRegion    string
-	listStatus    string
-	listTagKey    string
-	listTagValue  string
-	listOutputFmt string
-	listLimit     uint64
+	listProvider       string
+	listType           string
+	listRegion         string
+	listStatus         string
+	listTagKey         string
+	listTagValue       string
+	listOutputFmt      string
+	listLimit          uint64
+	listIncludeManaged bool
 )
 
 var listCmd = &cobra.Command{
@@ -65,13 +66,14 @@ Examples:
 		}
 
 		f := store.ResourceFilter{
-			Provider: listProvider,
-			Types:    types,
-			Regions:  regions,
-			Status:   listStatus,
-			TagKey:   listTagKey,
-			TagValue: listTagValue,
-			Limit:    listLimit,
+			Provider:       listProvider,
+			Types:          types,
+			Regions:        regions,
+			Status:         listStatus,
+			TagKey:         listTagKey,
+			TagValue:       listTagValue,
+			Limit:          listLimit,
+			IncludeManaged: listIncludeManaged,
 		}
 
 		resources, err := db.ListResources(f)
@@ -130,5 +132,6 @@ func init() {
 	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (requires --tag-key)")
 	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
 	listCmd.Flags().Uint64Var(&listLimit, "limit", 500, "Maximum number of results")
+	listCmd.Flags().BoolVar(&listIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
 	rootCmd.AddCommand(listCmd)
 }
