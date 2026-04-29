@@ -1,11 +1,10 @@
-//go:build paid
-
-// Package policy is the paid-only Rego policy engine for `disco check`.
-// Resources from the local store are handed to a prepared Rego query; the
-// query is expected to bind `data.disco.deny` to a set of finding objects.
+// Package policy is the Rego policy engine for `disco check`. Resources
+// from the local store are handed to a prepared Rego query; the query is
+// expected to bind `data.disco.deny` to a set of finding objects.
 //
-// This is a scaffold — no first-party policies ship yet. Real policy bundles
-// (Conftest AWS, regula, internal CIS packs) are loaded via NewEngine paths.
+// The engine ships in OSS — bring your own policies (Conftest AWS, regula,
+// in-house bundles) via the `--rules` flag. Curated first-party compliance
+// packs (NIST 800-53, CIS, PCI-DSS, Well-Architected) are a paid add-on.
 package policy
 
 import (

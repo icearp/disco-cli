@@ -91,7 +91,22 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 
 After adding a heavy dep behind `//go:build paid`, confirm OSS build doesn't pull it: `go list -deps . | grep <module>` should be empty; `go list -tags paid -deps . | grep <module>` should be non-empty. Every importer of the dep must carry the `paid` build tag, otherwise the OSS binary still links it.
 
+### Demoting a paid feature to OSS
+
+Mirror of promotion. Four touches: (1) rename `*_paid.go` → drop `_paid` suffix; (2) strip `//go:build paid` line; (3) delete the `license.Require()` block at top of `RunE`; (4) `go mod tidy` (flips formerly-paid deps from `// indirect` to direct OSS). Also un-tag any `internal/<pkg>/*.go` + `*_test.go` the command imports. Verify both `go test ./...` and `go test -tags paid ./...` still green.
+
+After build-tag edits, gopls may report stale `BrokenImport` diagnostics — trust `go build` / `go test` output, not the LSP.
+
 ## Go lint conventions
+
+### gocognit threshold = 80
+
+`.golangci.yaml` enables `gocognit` at `min-complexity: 80`. Most resolver/scanner funcs are linear "for each resource → check field A, field B, ..." walks — complexity scales with edge-kind count, not nesting. Splitting them into per-branch helpers hides the walk. Refactor only outliers above the bar. Precedents: `store.GraphWalk`, `aws.classifyPolicyResource`, `aws.resolveOpenSearchDomainTargets`, `gcp.resolveIAMPolicyRelationships`, `azure.resolveDiagnosticSettings`.
+
+### golangci-lint flags
+
+- v2 config (`version: "2"` at top of `.golangci.yaml`) — schema renamed in v2; missing version yields `unsupported version of the configuration`.
+- Default caps output at 50 issues per linter. For a full survey: `golangci-lint run --max-issues-per-linter 0 --max-same-issues 0`.
 
 ### Go 1.25 modernizer lint
 

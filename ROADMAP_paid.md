@@ -11,6 +11,9 @@ Tier headings mirror the OSS roadmap (NEXT — quarter; LATER — 6–12mo / v1.
 ### G3. Incremental / resumable scans (paid feature)
 (Moved from prior roadmap — still outstanding.) Per-service watermark, `disco scan --resume <scanID>`. Migration `002_service_progress.sql`, `internal/store/scans.go`, `cmd/scan.go`.
 
+### G10. `disco scan --resume` (paid feature)
+N1 PartialScan landed status flag; natural follow-up is resuming a partial scan from last successful service rather than restarting from zero. Big-account scan timeouts the obvious driver. Requires per-(scan, service) progress checkpoint in scans table. Overlaps with G3 above — fold together at implementation time.
+
 ### G6. `disco diff` (paid feature)
 Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across two scan timestamps is the primary paid value-add for compliance teams running scheduled scans — pairs with G3 (incremental scans) and L6 (continuous mode). Base `--type`, `--provider`, `--kind added|removed|changed`, `--region`, `--account` filters ship as part of the paid surface. License check shared with other paid commands; OSS build returns "diff requires a license" with link.
 
@@ -33,8 +36,11 @@ Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across t
 ### L6. Continuous mode (paid feature)
 - `disco watch` — cron-driven scan + diff + webhook on drift. Local daemon, systemd unit.
 
-### L7. Policy-as-code (OPA/Rego) (paid feature)
-- Scaffold landed: `disco check` is paid-gated and runs `github.com/open-policy-agent/opa/v1/rego` (`internal/policy/`). `--rules` accepts `.rego` files or directories. No first-party policies ship; module must populate `data.disco.deny` with finding objects (Conftest convention). Follow-ups: (a) ingest a public pack (Conftest AWS) end-to-end; (b) wire `disco.relationships_from/_to` Rego builtins to `store.RelationshipsFrom/To`; (c) per-rule ID filter once a stable ID convention is picked; (d) compliance-tag query surface (CIS / NIST mapping read from Rego rule metadata annotations).
+### L7. Compliance framework Rego packs (paid feature)
+- `disco check` command + Rego engine (`internal/policy/`) ship in OSS — engine, BYO `--rules` flow, and Conftest-compatible `data.disco.deny` shape are all free. Paid value-add: curated, audited first-party policy bundles for compliance teams.
+- Target packs: NIST SP 800-53, CIS Benchmarks (AWS / Azure / GCP Foundations), PCI-DSS v4, AWS / Azure / GCP Well-Architected pillars. Each pack is a Rego module set populating `data.disco.deny` with the existing `Finding` shape; severity calibrated; mapped via `tags.compliance.control` (e.g. `CIS-AWS-1.20`, `NIST-AC-2`). Remediation copy + ref URLs included.
+- Distribution: embedded in the paid binary via `embed.FS`. New `--pack <name>` flag (additive to `--rules`) selects bundled packs by name; `--pack list` enumerates available bundles. Behind `//go:build paid`, license-gated at command entry — engine runs unmodified.
+- Engine follow-ups (any tier): (a) `disco.relationships_from/_to` Rego builtins wired to `store.RelationshipsFrom/To`; (b) per-rule ID filter once a stable convention lands; (c) `--format sarif` for GitHub/GitLab integration (tracked in OSS G7).
 
 ### L10. Remote MCP server (paid feature)
 - `disco mcp serve` — Model Context Protocol server exposing the resource graph, rule findings, and edge traversal as tools an AI agent (Claude, ChatGPT, IDE assistants) can call. Lets users query "blast radius from compromised role X" or "find every internet-exposed RDS in prod" via natural language without bespoke glue.

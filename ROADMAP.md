@@ -729,7 +729,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 
 ### G4. Rule engine expansion
 - *(removed — graph-aware rules landed: `Match.Related` block in DSL with `direction: in|out` + `kinds: [...]` + recursive nested `Target`. Eval via `evalRelated` in `internal/rules/eval.go`. Three internet-exposure builtins ship as the canonical multi-hop example: `aws-eni-internet-exposed`, `azure-nic-internet-exposed`, `gcp-instance-internet-exposed`.)*
-- **Severity / compliance profiles** — partial: `Tags map[string][]string` + `Category` + `Remediation` + `RefURL` fields land on `Rule` and propagate onto `Finding`; `disco check --tag k=v` filters findings post-eval. **Pack YAMLs (CIS / NIST 800-53 / PCI-DSS) still deferred** — load via `disco check --rules internal/rules/cis-aws/` once shipped; embed reserved for the always-on cross-cloud baseline.
+- **Severity / compliance profiles** — partial: `Tags map[string][]string` + `Category` + `Remediation` + `RefURL` fields land on `Rule` and propagate onto `Finding`; `disco check --tag k=v` filters findings post-eval. **First-party CIS / NIST 800-53 / PCI-DSS / Well-Architected packs moved to the paid roadmap (ROADMAP_paid.md L7)** — OSS engine ships without bundled content; users load their own bundles via `--rules`.
 - **Suppression** — `disco check --suppress suppressions.yaml` (by resource ID or rule ID + scope).
 - **Baseline diff** — `disco check --baseline findings.json` reports only new findings since baseline.
 
@@ -741,9 +741,6 @@ SARIF v2.1.0 output for GitHub / GitLab code-scanning integration. Extends exist
 
 ### G8. `disco export` / `disco import`
 Portable DB snapshots: export resources + relationships + scans to single JSONL bundle, re-importable into fresh DB. Distinct from L5 SIEM sinks — this for offline analysis, airgapped reviews, support dumps.
-
-### G10. `disco scan --resume`
-N1 PartialScan landed status flag; natural follow-up is resuming a partial scan from last successful service rather than restarting from zero. Big-account scan timeouts the obvious driver. Requires per-(scan, service) progress checkpoint in scans table.
 
 ### G9. Redaction verification + deprecation registry
 - `disco audit --redaction` — re-runs `scrubAttributes` over stored rows, flags entries written before denylist update.

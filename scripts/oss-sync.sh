@@ -4,7 +4,7 @@
 # Strips every file whose first non-empty line is `//go:build paid` (and the
 # matching `_paid.go` / `_paid_test.go` files by name) so the OSS repo never
 # sees paid code. Run from inside the upstream repo. The OSS clone is
-# expected at ../disco-oss (override with $OSS_DIR).
+# expected at ../disco (override with $OSS_DIR).
 #
 # Usage:
 #   scripts/oss-sync.sh                  # writes to $OSS_DIR, prints summary
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-OSS_DIR="${OSS_DIR:-../disco-oss}"
+OSS_DIR="${OSS_DIR:-../disco}"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 

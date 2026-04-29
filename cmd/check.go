@@ -1,5 +1,3 @@
-//go:build paid
-
 package cmd
 
 import (
@@ -9,7 +7,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"codeberg.org/icearp/disco/internal/license"
 	"codeberg.org/icearp/disco/internal/policy"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
@@ -35,17 +32,15 @@ data.disco.deny set with finding objects shaped:
   {"id": "...", "severity": "low|medium|high|critical", "message": "...",
    "tags": {...}, "remediation": "...", "ref_url": "..."}
 
-No first-party policies ship today — this command is a Rego-runtime scaffold
-for ingesting public packs (Conftest AWS, regula) or in-house bundles.
+The engine ships in OSS — bring your own policies (Conftest AWS, regula,
+in-house bundles). Curated compliance packs (NIST, CIS, PCI-DSS,
+Well-Architected) are a paid add-on.
 
 Examples:
   disco check --rules ./policies
   disco check --rules ./policies --severity high -o jsonl
   disco check --rules ./policies --exit-nonzero`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := license.Require(); err != nil {
-			return err
-		}
 		if len(checkRulePaths) == 0 {
 			return fmt.Errorf("--rules is required (path to .rego file or directory)")
 		}

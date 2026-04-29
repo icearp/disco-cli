@@ -2,6 +2,10 @@
 
 Cross-provider conventions. AWS-specific guidance: see `aws/CLAUDE.md`.
 
+## Splitting high-complexity resolvers/scanners
+
+When a resolver/scanner trips gocognit (>80) and the shape is "for each resource → emit edges per N target families", extract one helper per family and bundle the per-type id sets in a single `*TargetSets` struct rather than passing many maps. Main loop only dispatches; mutation lives in each helper. Precedents: `openSearchTargetSets` (aws/opensearch_resolvers.go), `diagTargetIndexes` (azure/monitor_resolvers.go).
+
 ## Resolver-side resource upsert (synthetic stubs)
 
 Resolvers needing to insert resources (e.g. cross-tenant stubs for R5) get scanID via `<row>.DiscoveredBy` from any resource they list — resolver signature carries no scanID. Two-phase pattern: collect pending edges + distinct stub keys in pass 1; `UpsertResources(stubs)` in pass 2; emit `UpsertRelationship` in pass 3. Pre-upsert before edge emit or FK on `relationships.to_id` blows up. Precedent: `resolveIAMRoleCrossAccountTrust` (aws), `resolveAuthorizationRelationships` (azure), `resolveIAMPolicyRelationships` (gcp).
