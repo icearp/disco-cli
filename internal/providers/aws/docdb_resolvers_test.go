@@ -70,9 +70,9 @@ func TestResolveDocDBInstanceCluster(t *testing.T) {
 
 	// Seed the cluster self-entry in the closure so the parent's
 	// ancestry chain exists when the resolver wires the instance under
-	// it (BatchAddToHierarchyClosure inherits ancestors from the parent's
+	// it (RecordHierarchyBatch inherits ancestors from the parent's
 	// existing closure rows).
-	if err := st.AddToHierarchyClosure(clusterID, clusterID); err != nil {
+	if err := st.RecordHierarchy(clusterID, clusterID); err != nil {
 		t.Fatalf("seed cluster closure: %v", err)
 	}
 

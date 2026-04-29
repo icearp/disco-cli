@@ -446,7 +446,7 @@ func azPageScan[P any](
 		total += len(batch)
 		inserted += n
 		if len(pairs) > 0 {
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return total, inserted, fmt.Errorf("closure %s: %w", action, err)
 			}
 		}
@@ -604,7 +604,7 @@ func azRGFanoutScan[T any, P any](
 		return 0, 0, fmt.Errorf("upsert %s: %w", action, err)
 	}
 	if len(allPairs) > 0 {
-		if err := st.BatchAddToHierarchyClosure(allPairs); err != nil {
+		if err := st.RecordHierarchyBatch(allPairs); err != nil {
 			return len(allBatch), n, fmt.Errorf("closure %s: %w", action, err)
 		}
 	}

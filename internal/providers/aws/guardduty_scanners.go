@@ -226,7 +226,7 @@ func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *acco
 			pid := store.ResourceID("aws", acct.ID, TypeGuardDutyDetector, c.parentARN)
 			pairs[i] = [2]string{c.r.ID, pid}
 		}
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return fmt.Errorf("closure GuardDuty %s: %w", kind, err)
 		}
 		return nil

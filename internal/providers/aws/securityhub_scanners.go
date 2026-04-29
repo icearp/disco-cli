@@ -267,7 +267,7 @@ func upsertSecurityHubChildren(st *store.Store, hubARN string, acct *account, ba
 	for i, c := range batch {
 		pairs[i] = [2]string{c.ID, parentID}
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, fmt.Errorf("closure securityhub %s: %w", kind, err)
 	}
 	return n, nil

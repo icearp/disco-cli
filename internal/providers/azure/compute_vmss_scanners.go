@@ -99,7 +99,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 		}
 		total += len(vmssBatch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(vmssPairs); err != nil {
+		if err := st.RecordHierarchyBatch(vmssPairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure VMSS: %w", err)
 		}
 	}
@@ -228,7 +228,7 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure VMSS extensions %s: %w", v.name, err)
 		}
 	}
@@ -293,7 +293,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure Azure VMSS VMs %s: %w", v.name, err)
 		}
 	}
@@ -343,7 +343,7 @@ func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred *azidenti
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure VMSS VM extensions: %w", err)
 		}
 	}

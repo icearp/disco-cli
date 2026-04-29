@@ -23,6 +23,14 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 	iID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyIPSet, ipsetARN, testRegion, ipsetAttrs)
 	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket, "", "{}")
 
+	// Mimic guardduty_scanners.go: closure pairs (filter, detector) and
+	// (ipset, detector). Unified closure writer emits the matching
+	// parent→child contains rows; resolver only handles ipset→bucket.
+	if err := st.RecordHierarchyBatch([][2]string{
+		{fID, detID}, {iID, detID},
+	}); err != nil {
+		t.Fatalf("RecordHierarchyBatch: %v", err)
+	}
 	if err := resolveGuardDutyRelationships(acct, st); err != nil {
 		t.Fatalf("resolveGuardDutyRelationships: %v", err)
 	}

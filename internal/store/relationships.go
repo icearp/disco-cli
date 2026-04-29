@@ -2,11 +2,21 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 )
+
+// hierarchyMissingWarn is the canonical message ReportWarning fires when
+// RecordHierarchy can't write the depth-1 `contains` relationship row
+// because an endpoint isn't in `resources`. Closure rows still go down
+// (caller intent — descendants of an unscanned parent stay meaningful).
+// Operators see the warning in scan output; tests attach OnWarn to
+// detect drift. Returning an error instead would force ~50 call sites
+// to add `errors.Is` boilerplate for what is normally a benign skip.
+const hierarchyMissingWarn = "hierarchy endpoint missing — relationship row skipped"
 
 // Relationship represents a directed edge between two resources.
 type Relationship struct {
@@ -139,80 +149,104 @@ func (s *Store) NeighboursOf(id string) ([]Resource, error) {
 	return results, err
 }
 
-// AddToHierarchyClosure inserts closure table entries for a new child resource.
-// Must be called after upserting any resource that has a parent_id set.
+// RecordHierarchy writes both halves of a parent/child relationship in a
+// single transaction:
 //
-// A closure table stores every ancestor→descendant pair at every depth, enabling
-// O(1) "all descendants of X" queries via a single JOIN instead of a recursive CTE.
-// For example, given org→folder→project, the table holds:
+//   - the child's self-entry in hierarchy_closure (depth 0) plus one
+//     closure row per ancestor of parent extending depth + 1, so the
+//     transitive closure stays O(1) for "all descendants of X" queries
+//     (org→folder→project shape produces nine rows: each node's self
+//     entry plus org→folder, org→project, folder→project);
+//   - a depth-1 `parent → child contains` row in `relationships` so
+//     GraphWalk (which reads only `relationships`) sees the hierarchy
+//     edge. This unification is what makes Azure/GCP hierarchy visible
+//     in `disco graph` — those providers record hierarchy via closure
+//     only.
 //
-//	(org, org, 0), (org, folder, 1), (org, project, 2)
-//	(folder, folder, 0), (folder, project, 1)
-//	(project, project, 0)
-//
-// The INSERT...SELECT derives new rows by walking all existing ancestors of parentID
-// and extending their depth by 1 to reach childID.
-func (s *Store) AddToHierarchyClosure(childID, parentID string) error {
+// Missing endpoints (a pair referring to a resource not in `resources`,
+// e.g. an Azure RG not scanned in this pass) skip the relationship row
+// and emit a ScanWarning via ReportWarning — operators see the drift,
+// callers stay simple. Closure rows always go down regardless.
+func (s *Store) RecordHierarchy(childID, parentID string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := addClosureTx(tx, childID, parentID); err != nil {
+	missing, err := recordHierarchyTx(tx, childID, parentID)
+	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if missing {
+		s.ReportWarning(ScanWarning{
+			Provider: "store", Service: "hierarchy",
+			Scope: childID + "→" + parentID, Message: hierarchyMissingWarn,
+		})
+	}
+	return nil
 }
 
-// addClosureTx is the per-pair body shared by AddToHierarchyClosure and
-// BatchAddToHierarchyClosure. It writes:
-//
-//   - the child's self-entry in hierarchy_closure (depth 0)
-//   - one closure row per ancestor of parent, extending depth + 1
-//   - a parent→child `contains` row in relationships (when child != parent)
-//
-// The relationship row makes hierarchy edges visible to GraphWalk, which
-// reads only `relationships`. Without this, Azure/GCP scanners that
-// recorded hierarchy via closure alone produced flat-looking graphs in
-// `disco graph`. INSERT OR IGNORE keeps the call idempotent across
-// re-scans and tolerates AWS resolvers that still emit the row directly.
-func addClosureTx(tx *sql.Tx, childID, parentID string) error {
+// recordHierarchyTx is the per-pair body shared by RecordHierarchy and
+// RecordHierarchyBatch. Closure rows go down unconditionally; the
+// relationship row is gated on both endpoints existing in `resources`.
+// Returns (missing=true, nil) when the gate fails — caller fires a
+// ScanWarning so operators see the drift without each scanner needing
+// `errors.Is` boilerplate. Real DB errors propagate normally.
+func recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing bool, err error) {
 	if _, err := tx.Exec(`
 		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		VALUES (?, ?, 0)`, childID, childID); err != nil {
-		return fmt.Errorf("closure self-entry %s: %w", childID, err)
+		return false, fmt.Errorf("closure self-entry %s: %w", childID, err)
 	}
 	if _, err := tx.Exec(`
 		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		SELECT hc.ancestor_id, ?, hc.depth + 1
 		FROM hierarchy_closure hc
 		WHERE hc.descendant_id = ?`, childID, parentID); err != nil {
-		return fmt.Errorf("closure ancestor entries %s: %w", childID, err)
+		return false, fmt.Errorf("closure ancestor entries %s: %w", childID, err)
 	}
-	if childID != parentID {
-		// Guard with EXISTS so missing-resource pairs (e.g. tests that
-		// don't upsert the parent, or scanners emitting pairs for RGs
-		// that aren't independently scanned) silently skip the
-		// relationship row instead of FK-erroring. modernc/sqlite
-		// surfaces FK violations through INSERT OR IGNORE, unlike the
-		// closure inserts above which conveniently swallow them.
-		if _, err := tx.Exec(`
-			INSERT OR IGNORE INTO relationships (from_id, to_id, kind, direction, discovered_at)
-			SELECT ?, ?, 'contains', 'directed', ?
-			WHERE EXISTS (SELECT 1 FROM resources WHERE id = ?)
-			  AND EXISTS (SELECT 1 FROM resources WHERE id = ?)`,
-			parentID, childID, time.Now().UTC().Format(time.RFC3339Nano),
-			parentID, childID); err != nil {
-			return fmt.Errorf("closure relationship row %s→%s: %w", parentID, childID, err)
-		}
+	if childID == parentID {
+		return false, nil
 	}
-	return nil
+	parentExists, err := resourceExistsTx(tx, parentID)
+	if err != nil {
+		return false, fmt.Errorf("check parent %s: %w", parentID, err)
+	}
+	childExists, err := resourceExistsTx(tx, childID)
+	if err != nil {
+		return false, fmt.Errorf("check child %s: %w", childID, err)
+	}
+	if !parentExists || !childExists {
+		return true, nil
+	}
+	if _, err := tx.Exec(`
+		INSERT OR IGNORE INTO relationships (from_id, to_id, kind, direction, discovered_at)
+		VALUES (?, ?, 'contains', 'directed', ?)`,
+		parentID, childID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return false, fmt.Errorf("hierarchy relationship row %s→%s: %w", parentID, childID, err)
+	}
+	return false, nil
 }
 
-// BatchAddToHierarchyClosure inserts closure entries for multiple child→parent
-// pairs in a single transaction. Prefer this over repeated AddToHierarchyClosure
-// calls when processing a batch of resources.
-func (s *Store) BatchAddToHierarchyClosure(pairs [][2]string) error {
+func resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
+	var n int
+	if err := tx.QueryRow("SELECT 1 FROM resources WHERE id = ? LIMIT 1", id).Scan(&n); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// RecordHierarchyBatch is the multi-pair form of RecordHierarchy. Pairs
+// are `[2]string{childID, parentID}`. Missing-endpoint pairs collect
+// into a single ScanWarning at the end so one warning per call surfaces
+// the drift without spamming on busy scans.
+func (s *Store) RecordHierarchyBatch(pairs [][2]string) error {
 	if len(pairs) == 0 {
 		return nil
 	}
@@ -221,12 +255,31 @@ func (s *Store) BatchAddToHierarchyClosure(pairs [][2]string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	var missingCount int
+	var firstMissingScope string
 	for _, p := range pairs {
-		if err := addClosureTx(tx, p[0], p[1]); err != nil {
+		missing, err := recordHierarchyTx(tx, p[0], p[1])
+		if err != nil {
 			return err
 		}
+		if missing {
+			if missingCount == 0 {
+				firstMissingScope = p[0] + "→" + p[1]
+			}
+			missingCount++
+		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if missingCount > 0 {
+		s.ReportWarning(ScanWarning{
+			Provider: "store", Service: "hierarchy",
+			Scope:   firstMissingScope,
+			Message: fmt.Sprintf("%s (and %d more)", hierarchyMissingWarn, missingCount-1),
+		})
+	}
+	return nil
 }
 
 // sqlxIn expands slice args for IN clauses using sqlx.In and rebinds for SQLite.

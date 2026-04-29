@@ -66,7 +66,7 @@ func TestResolveNeptuneInstanceCluster(t *testing.T) {
 		testNeptuneInst, testNeptuneCluster)
 	instID := upsertTestResource(t, st, "aws", acct.ID, TypeNeptuneInstance, instARN, testRegion, instAttrs)
 
-	if err := st.AddToHierarchyClosure(clusterID, clusterID); err != nil {
+	if err := st.RecordHierarchy(clusterID, clusterID); err != nil {
 		t.Fatalf("seed cluster closure: %v", err)
 	}
 

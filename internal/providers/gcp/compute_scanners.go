@@ -93,7 +93,7 @@ func scanComputeInstances(ctx context.Context, svc *compute.Service, p *project,
 					projParentID,
 				})
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return len(batch), n, fmt.Errorf("closure compute instances: %w", err)
 			}
 			return len(batch), n, nil

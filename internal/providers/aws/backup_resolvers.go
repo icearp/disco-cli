@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -61,17 +60,10 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range sels {
-		// Parent plan ARN: NativeID format
-		// arn:aws:backup:{r}:{a}:backup-plan:{planId}/selection/{selId}
-		// Strip "/selection/{selId}" → parent plan ARN.
-		idx := strings.Index(r.NativeID, "/selection/")
-		if idx > 0 {
-			parentARN := r.NativeID[:idx]
-			pid := store.ResourceID("aws", acct.ID, TypeBackupPlan, parentARN)
-			if err := st.UpsertRelationship(pid, r.ID, store.RelContains, "directed", nil); err != nil {
-				return fmt.Errorf("upsert backup-plan→selection: %w", err)
-			}
-		}
+		// Plan→selection containment is recorded by backup_scanners.go via
+		// RecordHierarchyBatch; the unified closure writer emits the
+		// matching `contains` row to relationships, so no UpsertRelationship
+		// call is needed here. Resolver only handles the IAM role edge.
 		var attrs struct {
 			IamRoleArn *string `json:"IamRoleArn"`
 		}

@@ -168,7 +168,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 	if uerr != nil {
 		return 0, 0, fmt.Errorf("upsert glue tables: %w", uerr)
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, 0, fmt.Errorf("closure glue tables: %w", err)
 	}
 	return len(batch), n, nil

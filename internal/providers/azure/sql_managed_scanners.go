@@ -104,7 +104,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 			for _, b := range batch {
 				pairs = append(pairs, rgHierarchyPair(sub, TypeSQLManagedInstance, b.NativeID))
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return 0, 0, fmt.Errorf("closure managed instances: %w", err)
 			}
 		}
@@ -532,7 +532,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred *azidenti
 		}
 		total += len(batch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure managed databases: %w", err)
 		}
 	}

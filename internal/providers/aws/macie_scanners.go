@@ -390,7 +390,7 @@ func upsertMacieChildren(st *store.Store, acct *account, region string, batch []
 	for i, c := range batch {
 		pairs[i] = [2]string{c.ID, parentID}
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, fmt.Errorf("closure macie %s: %w", kind, err)
 	}
 	return n, nil

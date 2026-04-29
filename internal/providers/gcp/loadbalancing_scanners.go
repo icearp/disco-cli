@@ -94,7 +94,7 @@ func upsertWithParent(st *store.Store, batch []*store.Resource, parentID string)
 			parentID,
 		})
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return len(batch), n, err
 	}
 	return len(batch), n, nil

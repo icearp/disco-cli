@@ -86,7 +86,7 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 		}
 		total += len(batch)
 		inserted += n
-		if cErr := st.BatchAddToHierarchyClosure(pairs); cErr != nil {
+		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure org logging sinks: %w", cErr)
 		}
 		return nil

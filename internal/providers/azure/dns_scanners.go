@@ -158,7 +158,7 @@ func scanDNS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 		total += len(r.batch)
 		inserted += n
 		if len(r.pairs) > 0 {
-			if err := st.BatchAddToHierarchyClosure(r.pairs); err != nil {
+			if err := st.RecordHierarchyBatch(r.pairs); err != nil {
 				return total, inserted, fmt.Errorf("closure vnet links: %w", err)
 			}
 		}
@@ -347,7 +347,7 @@ func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription,
 		total += len(r.batch)
 		inserted += n
 		if len(r.pairs) > 0 {
-			if err := st.BatchAddToHierarchyClosure(r.pairs); err != nil {
+			if err := st.RecordHierarchyBatch(r.pairs); err != nil {
 				return total, inserted, fmt.Errorf("closure %s: %w", action, err)
 			}
 		}

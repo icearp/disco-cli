@@ -84,7 +84,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		}
 		// Organizations are roots; add self-entry to closure table.
 		orgResourceID := store.ResourceID("gcp", id, TypeOrganization, id)
-		if err := st.AddToHierarchyClosure(orgResourceID, orgResourceID); err != nil {
+		if err := st.RecordHierarchy(orgResourceID, orgResourceID); err != nil {
 			return nil, err
 		}
 		scopes = append(scopes, orgScope{Kind: "organization", Name: id, Resource: orgResourceID})
@@ -116,7 +116,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 		folderResourceID := store.ResourceID("gcp", id, TypeFolder, id)
 		if folder.Parent != "" {
 			parentResourceID := gcpParentResourceID(folder.Parent)
-			if err := st.AddToHierarchyClosure(folderResourceID, parentResourceID); err != nil {
+			if err := st.RecordHierarchy(folderResourceID, parentResourceID); err != nil {
 				return nil, err
 			}
 		}
@@ -151,7 +151,7 @@ func scanHierarchy(ctx context.Context, projects []project, st *store.Store, sca
 			return nil, err
 		}
 		if proj.Parent != "" {
-			if err := st.AddToHierarchyClosure(projResourceID, p.ParentID); err != nil {
+			if err := st.RecordHierarchy(projResourceID, p.ParentID); err != nil {
 				return nil, err
 			}
 		}

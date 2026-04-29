@@ -88,6 +88,10 @@ Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.
 
 Always add "no attrs / empty case" test alongside happy-path — guards nil-pointer panics on missing JSON fields.
 
+When the production scanner emits a `RecordHierarchyBatch` pair that the resolver under test depends on (or relies on for `contains` row coverage post `recordHierarchyTx` unification), seed the same pair in the test before invoking the resolver: `st.RecordHierarchyBatch([][2]string{{childID, parentID}})`. The unified closure writer emits the matching `parent → child contains` row so existing `RelationshipsFrom(parentID)` assertions still pass. Precedent: `backup_resolvers_test.go::TestResolveBackupRelationships`, `guardduty_resolvers_test.go::TestResolveGuardDutyRelationships`.
+
+`newTestStore` (each provider) registers a `t.Cleanup` that fails the test if any reversed `contains` edge leaks (`store.ReversedContainsEdges`). Ensures a future scanner emitting child→parent direction breaks tests immediately rather than silently producing flipped graphs. Pattern generalises: when you ship a store-level invariant query (returns rows that should never exist), wire it into `newTestStore`'s cleanup so every provider test guards it for free.
+
 ### SDK-typed attrs builders over hand-rolled JSON
 
 Resolver tests should construct attrs via `json.Marshal` of the real SDK struct, not hand-rolled JSON literals. Azure `arm*` types use custom `MarshalJSON` with `populate("camelCaseKey", ...)` — JSON shape is invisible on struct tags, so a string literal that drifts from the SDK silently passes. Helper: `marshalAttrs(t, v)` in `internal/providers/azure/attrs_testhelper_test.go`. AWS equivalent: `wrapped_attrs_testhelper_test.go`.

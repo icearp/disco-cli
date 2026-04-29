@@ -106,7 +106,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		}
 		total += len(galBatch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(galPairs); err != nil {
+		if err := st.RecordHierarchyBatch(galPairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure galleries: %w", err)
 		}
 	}
@@ -290,7 +290,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure Azure gallery images %s: %w", gal.name, err)
 		}
 	}
@@ -355,7 +355,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azide
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure Azure gallery applications %s: %w", gal.name, err)
 		}
 	}
@@ -420,7 +420,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentit
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure Azure gallery inVMACPs %s: %w", gal.name, err)
 		}
 	}
@@ -478,7 +478,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azid
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure gallery image versions %s: %w", img.childName, err)
 		}
 	}
@@ -536,7 +536,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure gallery application versions %s: %w", app.childName, err)
 		}
 	}
@@ -594,7 +594,7 @@ func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred *az
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure gallery inVMACP versions %s: %w", prof.profileName, err)
 		}
 	}

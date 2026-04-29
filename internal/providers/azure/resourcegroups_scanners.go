@@ -73,7 +73,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity
 				rgID := store.ResourceID("azure", sub.ID, TypeResourcesResourceGroup, r.NativeID)
 				pairs[i] = [2]string{rgID, rgID}
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return fmt.Errorf("closure resource groups: %w", err)
 			}
 		}

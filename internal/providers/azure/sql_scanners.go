@@ -281,7 +281,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		}
 		total += len(batch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, nil, fmt.Errorf("closure SQL databases: %w", err)
 		}
 	}
@@ -389,7 +389,7 @@ func sqlUpsert(st *store.Store, batch []*store.Resource, pairs [][2]string, labe
 		return 0, 0, fmt.Errorf("upsert %s: %w", label, err)
 	}
 	if len(pairs) > 0 {
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure %s: %w", label, err)
 		}
 	}

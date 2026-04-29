@@ -157,7 +157,7 @@ func scanCloudKMS(ctx context.Context, p *project, st *store.Store, scanID strin
 			pairs = append(pairs, [2]string{id, parentID})
 		}
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return len(batch), n, fmt.Errorf("closure KMS: %w", err)
 	}
 	return len(batch), n, nil

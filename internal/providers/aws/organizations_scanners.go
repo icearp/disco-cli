@@ -243,7 +243,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	}
 
 	// Build the closure table now that every resource is in place.
-	if err := st.BatchAddToHierarchyClosure(closurePairs); err != nil {
+	if err := st.RecordHierarchyBatch(closurePairs); err != nil {
 		return total, inserted, fmt.Errorf("org hierarchy closure: %w", err)
 	}
 	return total, inserted, nil

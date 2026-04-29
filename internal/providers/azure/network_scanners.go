@@ -260,7 +260,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 			}
 			total += len(subnetBatch)
 			inserted += n
-			if err := st.BatchAddToHierarchyClosure(subnetPairs); err != nil {
+			if err := st.RecordHierarchyBatch(subnetPairs); err != nil {
 				return 0, 0, fmt.Errorf("closure subnets: %w", err)
 			}
 		}
@@ -340,7 +340,7 @@ func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *ar
 		return 0, 0, fmt.Errorf("upsert ExpressRouteGateways: %w", err)
 	}
 	if len(pairs) > 0 {
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return len(batch), n, fmt.Errorf("closure ExpressRouteGateways: %w", err)
 		}
 	}

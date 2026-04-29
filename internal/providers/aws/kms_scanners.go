@@ -123,7 +123,7 @@ func scanKMSKeyPage(ctx context.Context, client kmsAPI, acct *account, region st
 		}
 		total += len(grantBatch)
 		inserted += n
-		if cerr := st.BatchAddToHierarchyClosure(grantPairs); cerr != nil {
+		if cerr := st.RecordHierarchyBatch(grantPairs); cerr != nil {
 			return total, inserted, fmt.Errorf("closure KMS grants: %w", cerr)
 		}
 	}

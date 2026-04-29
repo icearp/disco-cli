@@ -82,7 +82,7 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 		}
 		total += len(batch)
 		inserted += n
-		if cErr := st.BatchAddToHierarchyClosure(pairs); cErr != nil {
+		if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 			return fmt.Errorf("closure access policies: %w", cErr)
 		}
 		// Per-policy service perimeters fan-out.
@@ -144,7 +144,7 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 			}
 			total += len(batch)
 			inserted += n
-			if cErr := st.BatchAddToHierarchyClosure(pairs); cErr != nil {
+			if cErr := st.RecordHierarchyBatch(pairs); cErr != nil {
 				return fmt.Errorf("closure perimeters: %w", cErr)
 			}
 			return nil

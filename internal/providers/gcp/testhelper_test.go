@@ -22,6 +22,17 @@ func newTestStore(t *testing.T) *store.Store {
 	if _, err := st.DB().Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
 		t.Fatalf("newTestStore: insert test scan: %v", err)
 	}
+	// Direction invariant — see aws_testhelper_test.go for rationale.
+	t.Cleanup(func() {
+		rows, err := st.ReversedContainsEdges()
+		if err != nil {
+			t.Errorf("ReversedContainsEdges: %v", err)
+			return
+		}
+		if len(rows) > 0 {
+			t.Errorf("reversed contains edges leaked: %d rows; first %+v", len(rows), rows[0])
+		}
+	})
 	return st
 }
 

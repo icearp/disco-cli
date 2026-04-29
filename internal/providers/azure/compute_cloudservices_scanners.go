@@ -93,7 +93,7 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred *azident
 		}
 		total += len(csBatch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(csPairs); err != nil {
+		if err := st.RecordHierarchyBatch(csPairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure cloud services: %w", err)
 		}
 	}
@@ -186,7 +186,7 @@ func scanCloudServiceRoles(ctx context.Context, sub *subscription, client *armco
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure cloud service roles %s: %w", cs.name, err)
 		}
 	}
@@ -233,7 +233,7 @@ func scanCloudServiceRoleInstances(ctx context.Context, sub *subscription, clien
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure cloud service role instances %s: %w", cs.name, err)
 		}
 	}

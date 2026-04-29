@@ -151,7 +151,7 @@ func resolveDocDBInstanceCluster(acct *account, st *store.Store) error {
 	if len(pairs) == 0 {
 		return nil
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return fmt.Errorf("closure docdb instance→cluster: %w", err)
 	}
 	return nil

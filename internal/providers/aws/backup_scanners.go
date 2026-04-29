@@ -176,7 +176,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			parentID := store.ResourceID("aws", acct.ID, TypeBackupPlan, p.parentARN)
 			pairs[i] = [2]string{p.r.ID, parentID}
 		}
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Backup selections: %w", err)
 		}
 	}

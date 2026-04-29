@@ -145,7 +145,7 @@ func scanHostGroupChain(ctx context.Context, sub *subscription, cred *azidentity
 		}
 		total += len(hgBatch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(hgPairs); err != nil {
+		if err := st.RecordHierarchyBatch(hgPairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure host groups: %w", err)
 		}
 	}
@@ -235,7 +235,7 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure dedicated hosts %s: %w", hg.name, err)
 		}
 	}
@@ -303,7 +303,7 @@ func scanCRGChain(ctx context.Context, sub *subscription, cred *azidentity.Defau
 		}
 		total += len(crgBatch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(crgPairs); err != nil {
+		if err := st.RecordHierarchyBatch(crgPairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure capacity reservation groups: %w", err)
 		}
 	}
@@ -393,7 +393,7 @@ func scanCapacityReservations(ctx context.Context, sub *subscription, client *ar
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure capacity reservations %s: %w", crg.name, err)
 		}
 	}

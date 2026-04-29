@@ -524,7 +524,7 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 					logGroupNativeIDFromName(acct.ID, region, lgName))
 				pairs = append(pairs, [2]string{r.ID, parentID})
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return total, inserted, fmt.Errorf("hierarchy closure for metric filters: %w", err)
 			}
 			total += len(batch)
@@ -759,7 +759,7 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 			for _, r := range batch {
 				pairs = append(pairs, [2]string{r.ID, grp.ID})
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return total, inserted, fmt.Errorf("hierarchy closure for log streams (%s): %w", lgName, err)
 			}
 			total += len(batch)
@@ -846,7 +846,7 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 			for _, r := range batch {
 				pairs = append(pairs, [2]string{r.ID, grp.ID})
 			}
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return total, inserted, fmt.Errorf("hierarchy closure for subscription filters (%s): %w", lgName, err)
 			}
 			total += len(batch)
@@ -929,7 +929,7 @@ func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, 
 		if err != nil {
 			return int(t.Load()), int(n.Load()), fmt.Errorf("upsert transformers: %w", err)
 		}
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return int(t.Load()), int(n.Load()), fmt.Errorf("hierarchy closure for transformers: %w", err)
 		}
 		n.Add(int64(ins))

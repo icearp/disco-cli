@@ -66,7 +66,7 @@ func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID st
 	// Closure: policy → project parent.
 	policyID := store.ResourceID("gcp", p.ID, TypeIAMPolicy, nativeID)
 	projParentID := store.ResourceID("gcp", p.ID, TypeProject, p.ID)
-	if err := st.AddToHierarchyClosure(policyID, projParentID); err != nil {
+	if err := st.RecordHierarchy(policyID, projParentID); err != nil {
 		return total, inserted, fmt.Errorf("closure IAM policy: %w", err)
 	}
 	return total, inserted, nil

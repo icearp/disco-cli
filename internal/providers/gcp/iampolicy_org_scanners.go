@@ -86,7 +86,7 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 		inserted += n
 
 		policyID := store.ResourceID("gcp", sc.Name, TypeIAMPolicy, nativeID)
-		if cErr := st.AddToHierarchyClosure(policyID, sc.Resource); cErr != nil {
+		if cErr := st.RecordHierarchy(policyID, sc.Resource); cErr != nil {
 			return total, inserted, fmt.Errorf("closure org IAM policy %s: %w", sc.Name, cErr)
 		}
 	}

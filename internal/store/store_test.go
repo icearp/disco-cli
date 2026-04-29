@@ -492,10 +492,10 @@ func TestRelationshipsTo(t *testing.T) {
 
 // --- Hierarchy closure tests ---
 
-// TestBatchAddToHierarchyClosure verifies multi-level ancestor derivation.
+// TestRecordHierarchyBatch verifies multi-level ancestor derivation.
 // Given org → folder → project, DescendantsOf(org) must return both folder
 // and project; DescendantsOf(folder) must return only project.
-func TestBatchAddToHierarchyClosure(t *testing.T) {
+func TestRecordHierarchyBatch(t *testing.T) {
 	st := openTestStore(t)
 
 	orgID := insertResource(t, st, "gcp", "p1", "gcp:cloudresourcemanager:organization", "org-1")
@@ -508,8 +508,8 @@ func TestBatchAddToHierarchyClosure(t *testing.T) {
 		{folderID, orgID},  // folder → org
 		{projID, folderID}, // project → folder
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
-		t.Fatalf("BatchAddToHierarchyClosure: %v", err)
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		t.Fatalf("RecordHierarchyBatch: %v", err)
 	}
 
 	// Descendants of org should include folder and project.
@@ -540,20 +540,20 @@ func TestBatchAddToHierarchyClosure(t *testing.T) {
 	}
 }
 
-// TestAddToHierarchyClosure_TypeFilter verifies that DescendantsOf type filter works.
-func TestAddToHierarchyClosure_TypeFilter(t *testing.T) {
+// TestRecordHierarchy_TypeFilter verifies that DescendantsOf type filter works.
+func TestRecordHierarchy_TypeFilter(t *testing.T) {
 	st := openTestStore(t)
 
 	parentID := insertResource(t, st, "gcp", "p1", "gcp:cloudresourcemanager:folder", "f-1")
 	childA := insertResource(t, st, "gcp", "p1", "gcp:compute:instance", "inst-1")
 	childB := insertResource(t, st, "gcp", "p1", "gcp:storage:bucket", "bucket-1")
 
-	if err := st.BatchAddToHierarchyClosure([][2]string{
+	if err := st.RecordHierarchyBatch([][2]string{
 		{parentID, parentID},
 		{childA, parentID},
 		{childB, parentID},
 	}); err != nil {
-		t.Fatalf("BatchAddToHierarchyClosure: %v", err)
+		t.Fatalf("RecordHierarchyBatch: %v", err)
 	}
 
 	results, err := st.DescendantsOf(parentID, ResourceFilter{Types: []string{"gcp:compute:instance"}})
@@ -653,11 +653,11 @@ func TestReversedContainsEdges_DetectsAndIgnores(t *testing.T) {
 	// Seed parent's self-entry first (depth 0) so the child→parent
 	// closure walk has something to extend; matches scan-time order
 	// where parent's closure entry lands before each child's.
-	if err := st.AddToHierarchyClosure(parentID, parentID); err != nil {
+	if err := st.RecordHierarchy(parentID, parentID); err != nil {
 		t.Fatalf("seed parent closure: %v", err)
 	}
-	if err := st.AddToHierarchyClosure(childID, parentID); err != nil {
-		t.Fatalf("AddToHierarchyClosure: %v", err)
+	if err := st.RecordHierarchy(childID, parentID); err != nil {
+		t.Fatalf("RecordHierarchy: %v", err)
 	}
 
 	// Reversed edge: from=child, to=parent. ReversedContainsEdges must
@@ -678,11 +678,11 @@ func TestReversedContainsEdges_DetectsAndIgnores(t *testing.T) {
 	// row remains the only flagged result.
 	parent2 := insertResource(t, st, "aws", "acct", "aws:s3:bucket", "b-1")
 	child2 := insertResource(t, st, "aws", "acct", "aws:s3:bucket-policy", "p-1")
-	if err := st.AddToHierarchyClosure(parent2, parent2); err != nil {
+	if err := st.RecordHierarchy(parent2, parent2); err != nil {
 		t.Fatalf("seed parent2 closure: %v", err)
 	}
-	if err := st.AddToHierarchyClosure(child2, parent2); err != nil {
-		t.Fatalf("AddToHierarchyClosure 2: %v", err)
+	if err := st.RecordHierarchy(child2, parent2); err != nil {
+		t.Fatalf("RecordHierarchy 2: %v", err)
 	}
 	mustUpsertRel(t, st, parent2, child2, RelContains) // correct direction
 	got, _ = st.ReversedContainsEdges()
@@ -691,21 +691,21 @@ func TestReversedContainsEdges_DetectsAndIgnores(t *testing.T) {
 	}
 }
 
-// TestAddToHierarchyClosure_WritesRelationshipRow asserts the unified
+// TestRecordHierarchy_WritesRelationshipRow asserts the unified
 // closure writer also records a parent→child contains row. Without this,
 // `disco graph` walks (which read only `relationships`) miss every Azure
 // or GCP hierarchy edge.
-func TestAddToHierarchyClosure_WritesRelationshipRow(t *testing.T) {
+func TestRecordHierarchy_WritesRelationshipRow(t *testing.T) {
 	st := openTestStore(t)
 
 	parentID := insertResource(t, st, "azure", "sub", "azure:microsoft.resources:resource-group", "rg-1")
 	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-1")
 
-	if err := st.AddToHierarchyClosure(parentID, parentID); err != nil {
+	if err := st.RecordHierarchy(parentID, parentID); err != nil {
 		t.Fatalf("seed parent: %v", err)
 	}
-	if err := st.AddToHierarchyClosure(childID, parentID); err != nil {
-		t.Fatalf("AddToHierarchyClosure: %v", err)
+	if err := st.RecordHierarchy(childID, parentID); err != nil {
+		t.Fatalf("RecordHierarchy: %v", err)
 	}
 
 	rels, err := st.RelationshipsFrom(parentID, RelContains)
@@ -717,22 +717,28 @@ func TestAddToHierarchyClosure_WritesRelationshipRow(t *testing.T) {
 	}
 }
 
-// TestAddToHierarchyClosure_SkipsMissingResource confirms the EXISTS guard
-// — when parent resource isn't upserted, closure entries still write
-// (consistent with prior behaviour) but the relationship row is silently
-// skipped to avoid FK violations.
-func TestAddToHierarchyClosure_SkipsMissingResource(t *testing.T) {
+// TestRecordHierarchy_SkipsMissingResource confirms the EXISTS guard:
+// when parent resource isn't upserted, closure entries still write and
+// no relationship row is created. A ScanWarning fires so operators see
+// the drift instead of it being a silent no-op.
+func TestRecordHierarchy_SkipsMissingResource(t *testing.T) {
 	st := openTestStore(t)
+
+	var warns []ScanWarning
+	st.OnWarn = func(w ScanWarning) { warns = append(warns, w) }
 
 	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-orphan")
 	missingParentID := "deadbeef00000000000000000000000a"
 
-	if err := st.AddToHierarchyClosure(childID, missingParentID); err != nil {
-		t.Fatalf("AddToHierarchyClosure: %v", err)
+	if err := st.RecordHierarchy(childID, missingParentID); err != nil {
+		t.Fatalf("RecordHierarchy: %v", err)
 	}
 
 	rels, _ := st.RelationshipsTo(childID, RelContains)
 	if len(rels) != 0 {
 		t.Errorf("expected no relationship row when parent absent, got %+v", rels)
+	}
+	if len(warns) != 1 || warns[0].Service != "hierarchy" {
+		t.Errorf("expected one hierarchy warning, got %+v", warns)
 	}
 }

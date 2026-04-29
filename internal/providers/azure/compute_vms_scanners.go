@@ -76,7 +76,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 			}
 			total += len(batch)
 			inserted += n
-			if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+			if err := st.RecordHierarchyBatch(pairs); err != nil {
 				return 0, 0, fmt.Errorf("closure Azure VMs: %w", err)
 			}
 		}
@@ -180,7 +180,7 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred *azidentity.D
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure VM extensions: %w", err)
 		}
 	}

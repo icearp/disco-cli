@@ -171,7 +171,7 @@ func scanDetectiveMembers(ctx context.Context, client detectiveAPI, acct *accoun
 	if uerr != nil {
 		return 0, 0, fmt.Errorf("upsert detective members: %w", uerr)
 	}
-	if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return 0, 0, fmt.Errorf("closure detective members: %w", err)
 	}
 	return len(batch), n, nil

@@ -229,7 +229,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 		}
 		total += len(batch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure web apps: %w", err)
 		}
 	}
@@ -354,7 +354,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure web app slots %s: %w", site.name, err)
 		}
 	}
@@ -424,7 +424,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred *azident
 		}
 		total += len(batch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure App Service Environments: %w", err)
 		}
 	}
@@ -540,7 +540,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure ASE pools %s: %w", ase.name, err)
 		}
 	}
@@ -639,7 +639,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred *azidenti
 		}
 		total += len(batch)
 		inserted += n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure Static Sites: %w", err)
 		}
 	}
@@ -721,7 +721,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 		}
 		total = len(batch)
 		inserted = n
-		if err := st.BatchAddToHierarchyClosure(pairs); err != nil {
+		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return 0, 0, fmt.Errorf("closure Azure Static Site builds %s: %w", ss.name, err)
 		}
 	}
