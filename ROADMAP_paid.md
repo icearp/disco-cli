@@ -24,6 +24,9 @@ Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across t
 ### L3. API server mode (paid feature)
 - `disco serve` — read-only REST + gRPC over store. Enables dashboards, Slackbots, CI gates.
 
+### L4. Web UI (paid feature, separate repo)
+- Graph visualizer + rule results. Consumes L3 API.
+
 ### L5. SIEM/SOAR sinks (paid feature)
 - `disco export --sink splunk|elastic|sentinel|panther`. Resources + findings.
 

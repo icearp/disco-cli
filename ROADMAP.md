@@ -755,9 +755,6 @@ N1 PartialScan landed status flag; natural follow-up is resuming a partial scan 
 - Kubernetes (kubeconfig-driven; feed pods/services/secrets/ingresses into graph; bridges EKS/AKS/GKE context).
 - Oracle Cloud, DigitalOcean, Cloudflare (DNS/WAF adjacent).
 
-### L4. Web UI (separate repo)
-- Graph visualizer + rule results. Consumes L3 API.
-
 ### L8. Query language
 - `disco query 'provider=aws type=kms:key upstream=lambda:function'` — unified over list + graph. Stretch; revisit after G1 stabilizes.
 
@@ -788,7 +785,7 @@ N1 PartialScan landed status flag; natural follow-up is resuming a partial scan 
 
 ### Not worth building (for now)
 - Real-time streaming scan (SQS/EventBridge-driven). Batch fine.
-- Fancy CLI TUI (`disco ui`). Web UI (L4) preferred.
+- Fancy CLI TUI (`disco ui`).
 - Built-in secret scanning of resource attrs beyond key-name denylist. Out-of-scope; use dedicated tools (trufflehog etc.) upstream.
 
 ### EventBridge `EventBusArn` dead resolver branch
