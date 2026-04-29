@@ -97,6 +97,16 @@ func resolveOpenSearchDomainTargets(acct *account, st *store.Store) error {
 		return err
 	}
 
+	sets := openSearchTargetSets{
+		vpcIDs:          vpcIDs,
+		subnetIDs:       subnetIDs,
+		sgIDs:           sgIDs,
+		userPoolIDs:     userPoolIDs,
+		identityPoolIDs: identityPoolIDs,
+		roleIDs:         roleIDs,
+		logGroupIDs:     logGroupIDs,
+		kmsIdx:          kmsIdx,
+	}
 	for _, d := range domains {
 		var attrs opensearchDomainAttrs
 		if err := json.Unmarshal([]byte(d.AttributesJSON), &attrs); err != nil {
@@ -106,92 +116,136 @@ func resolveOpenSearchDomainTargets(acct *account, st *store.Store) error {
 		if d.Region != nil {
 			region = *d.Region
 		}
+		if err := emitOpenSearchVPCEdges(st, acct, d, region, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitOpenSearchKMSEdge(st, acct, d, region, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitOpenSearchCognitoEdges(st, acct, d, region, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitOpenSearchLogGroupEdges(st, acct, d, attrs, sets); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-		if attrs.VPCOptions != nil {
-			if vpcID := sv(attrs.VPCOptions.VPCId); vpcID != "" {
-				vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
-				vID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
-				if _, ok := vpcIDs[vID]; ok {
-					if err := st.UpsertRelationship(d.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→vpc: %w", err)
-					}
-				}
-			}
-			for _, sn := range attrs.VPCOptions.SubnetIds {
-				if sn == "" {
-					continue
-				}
-				sARN := ec2ARN(region, acct.ID, "subnet", sn)
-				sID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
-				if _, ok := subnetIDs[sID]; ok {
-					if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→subnet: %w", err)
-					}
-				}
-			}
-			for _, sg := range attrs.VPCOptions.SecurityGroupIds {
-				if sg == "" {
-					continue
-				}
-				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-				sID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
-				if _, ok := sgIDs[sID]; ok {
-					if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→sg: %w", err)
-					}
-				}
+// openSearchTargetSets bundles the FK-safe target id sets so the per-domain
+// helpers below take a single struct rather than eight maps.
+type openSearchTargetSets struct {
+	vpcIDs          map[string]struct{}
+	subnetIDs       map[string]struct{}
+	sgIDs           map[string]struct{}
+	userPoolIDs     map[string]struct{}
+	identityPoolIDs map[string]struct{}
+	roleIDs         map[string]struct{}
+	logGroupIDs     map[string]struct{}
+	kmsIdx          *kmsResolveIndex
+}
+
+func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, region string, attrs opensearchDomainAttrs, sets openSearchTargetSets) error {
+	if attrs.VPCOptions == nil {
+		return nil
+	}
+	if vpcID := sv(attrs.VPCOptions.VPCId); vpcID != "" {
+		vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
+		vID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+		if _, ok := sets.vpcIDs[vID]; ok {
+			if err := st.UpsertRelationship(d.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→vpc: %w", err)
 			}
 		}
-
-		if attrs.EncryptionAtRestOptions != nil {
-			if keyRef := sv(attrs.EncryptionAtRestOptions.KmsKeyId); keyRef != "" {
-				if keyID, ok := kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID); ok {
-					if err := st.UpsertRelationship(d.ID, keyID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→kms: %w", err)
-					}
-				}
+	}
+	for _, sn := range attrs.VPCOptions.SubnetIds {
+		if sn == "" {
+			continue
+		}
+		sARN := ec2ARN(region, acct.ID, "subnet", sn)
+		sID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+		if _, ok := sets.subnetIDs[sID]; ok {
+			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→subnet: %w", err)
 			}
 		}
-
-		if attrs.CognitoOptions != nil {
-			if upID := sv(attrs.CognitoOptions.UserPoolId); upID != "" {
-				upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, upID)
-				uID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
-				if _, ok := userPoolIDs[uID]; ok {
-					if err := st.UpsertRelationship(d.ID, uID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→user-pool: %w", err)
-					}
-				}
-			}
-			if ipID := sv(attrs.CognitoOptions.IdentityPoolId); ipID != "" {
-				ipARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
-				iID := store.ResourceID("aws", acct.ID, TypeCognitoIdentityPool, ipARN)
-				if _, ok := identityPoolIDs[iID]; ok {
-					if err := st.UpsertRelationship(d.ID, iID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→identity-pool: %w", err)
-					}
-				}
-			}
-			if roleARN := sv(attrs.CognitoOptions.RoleArn); roleARN != "" {
-				rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
-				if _, ok := roleIDs[rID]; ok {
-					if err := st.UpsertRelationship(d.ID, rID, store.RelAssumes, "directed", nil); err != nil {
-						return fmt.Errorf("upsert opensearch domain→iam role: %w", err)
-					}
-				}
+	}
+	for _, sg := range attrs.VPCOptions.SecurityGroupIds {
+		if sg == "" {
+			continue
+		}
+		sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+		sID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
+		if _, ok := sets.sgIDs[sID]; ok {
+			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→sg: %w", err)
 			}
 		}
+	}
+	return nil
+}
 
-		for _, lp := range attrs.LogPublishingOptions {
-			arn := strings.TrimSuffix(sv(lp.CloudWatchLogsLogGroupArn), ":*")
-			if arn == "" {
-				continue
+func emitOpenSearchKMSEdge(st *store.Store, acct *account, d store.Resource, region string, attrs opensearchDomainAttrs, sets openSearchTargetSets) error {
+	if attrs.EncryptionAtRestOptions == nil {
+		return nil
+	}
+	keyRef := sv(attrs.EncryptionAtRestOptions.KmsKeyId)
+	if keyRef == "" {
+		return nil
+	}
+	keyID, ok := sets.kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID)
+	if !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(d.ID, keyID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert opensearch domain→kms: %w", err)
+	}
+	return nil
+}
+
+func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource, region string, attrs opensearchDomainAttrs, sets openSearchTargetSets) error {
+	if attrs.CognitoOptions == nil {
+		return nil
+	}
+	if upID := sv(attrs.CognitoOptions.UserPoolId); upID != "" {
+		upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, upID)
+		uID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+		if _, ok := sets.userPoolIDs[uID]; ok {
+			if err := st.UpsertRelationship(d.ID, uID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→user-pool: %w", err)
 			}
-			lID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, arn)
-			if _, ok := logGroupIDs[lID]; ok {
-				if err := st.UpsertRelationship(d.ID, lID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert opensearch domain→log-group: %w", err)
-				}
+		}
+	}
+	if ipID := sv(attrs.CognitoOptions.IdentityPoolId); ipID != "" {
+		ipARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
+		iID := store.ResourceID("aws", acct.ID, TypeCognitoIdentityPool, ipARN)
+		if _, ok := sets.identityPoolIDs[iID]; ok {
+			if err := st.UpsertRelationship(d.ID, iID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→identity-pool: %w", err)
+			}
+		}
+	}
+	if roleARN := sv(attrs.CognitoOptions.RoleArn); roleARN != "" {
+		rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		if _, ok := sets.roleIDs[rID]; ok {
+			if err := st.UpsertRelationship(d.ID, rID, store.RelAssumes, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→iam role: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func emitOpenSearchLogGroupEdges(st *store.Store, acct *account, d store.Resource, attrs opensearchDomainAttrs, sets openSearchTargetSets) error {
+	for _, lp := range attrs.LogPublishingOptions {
+		arn := strings.TrimSuffix(sv(lp.CloudWatchLogsLogGroupArn), ":*")
+		if arn == "" {
+			continue
+		}
+		lID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, arn)
+		if _, ok := sets.logGroupIDs[lID]; ok {
+			if err := st.UpsertRelationship(d.ID, lID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert opensearch domain→log-group: %w", err)
 			}
 		}
 	}

@@ -111,10 +111,10 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred *azi
 		return 0, err
 	}
 
+	idx := diagTargetIndexes{workspace: workspaceIdx, storage: storageIdx, eventHubNS: ehNamespaceIdx}
 	var (
-		edgeCount    atomic.Int64
-		denialCount  atomic.Int64
-		warnedDenial atomic.Bool
+		edgeCount   atomic.Int64
+		denialCount atomic.Int64
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gctx := errgroup.WithContext(ctx)
@@ -124,64 +124,13 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred *azi
 				return err
 			}
 			defer sem.Release(1)
-			pager := client.NewListPager(r.NativeID, nil)
-			for pager.More() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) || isDiagSettingsBenign(err) {
-						denialCount.Add(1)
-						return nil
-					}
-					return fmt.Errorf("monitor:DiagnosticSettings.list %s: %w", r.NativeID, err)
-				}
-				for _, ds := range page.Value {
-					if ds == nil || ds.Properties == nil {
-						continue
-					}
-					name := ""
-					if ds.Name != nil {
-						name = *ds.Name
-					}
-					emitDiagEdge := func(targetID, kind string) {
-						attrs := mustJSON(map[string]string{
-							"via":         "diagnostic-settings",
-							"name":        name,
-							"destination": kind,
-						})
-						if err := st.UpsertRelationship(r.ID, targetID, store.RelRoutesTo, "directed", &attrs); err == nil {
-							edgeCount.Add(1)
-						}
-					}
-					props := ds.Properties
-					if id := strLower(props.WorkspaceID); id != "" {
-						if tID, ok := workspaceIdx[id]; ok {
-							emitDiagEdge(tID, "log-analytics")
-						}
-					}
-					if id := strLower(props.StorageAccountID); id != "" {
-						if tID, ok := storageIdx[id]; ok {
-							emitDiagEdge(tID, "storage-account")
-						}
-					}
-					if id := strLower(props.EventHubAuthorizationRuleID); id != "" {
-						// Auth rule shape:
-						//   /subscriptions/.../namespaces/{ns}/authorizationRules/{rule}
-						// Trim back to the namespace ARM ID.
-						if ns, ok := eventHubNamespaceFromAuthRule(id); ok {
-							if tID, ok := ehNamespaceIdx[ns]; ok {
-								emitDiagEdge(tID, "event-hub")
-							}
-						}
-					}
-				}
-			}
-			return nil
+			return scanDiagnosticSettingsForResource(gctx, client, st, r, idx, &edgeCount, &denialCount)
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return int(edgeCount.Load()), err
 	}
-	if denialCount.Load() > 0 && !warnedDenial.Load() {
+	if denialCount.Load() > 0 {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure",
 			Service:  "azure:diagnostic-settings",
@@ -190,6 +139,81 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred *azi
 		})
 	}
 	return int(edgeCount.Load()), nil
+}
+
+// diagTargetIndexes bundles the destination ARM-ID → resource-ID lookup tables
+// so the per-resource helper takes one struct rather than three maps.
+type diagTargetIndexes struct {
+	workspace  map[string]string
+	storage    map[string]string
+	eventHubNS map[string]string
+}
+
+// scanDiagnosticSettingsForResource pages the diagnostic-settings list for a
+// single source resource and emits one routes-to edge per matched destination.
+// AccessDenied / unsupported-type failures bump denialCount and return nil so
+// siblings keep going.
+func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.DiagnosticSettingsClient, st *store.Store, r store.Resource, idx diagTargetIndexes, edgeCount, denialCount *atomic.Int64) error {
+	pager := client.NewListPager(r.NativeID, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isDiagSettingsBenign(err) {
+				denialCount.Add(1)
+				return nil
+			}
+			return fmt.Errorf("monitor:DiagnosticSettings.list %s: %w", r.NativeID, err)
+		}
+		for _, ds := range page.Value {
+			emitDiagSettingEdges(st, r.ID, ds, idx, edgeCount)
+		}
+	}
+	return nil
+}
+
+// emitDiagSettingEdges fans the three known destination kinds (workspace,
+// storage account, event-hub namespace) into routes-to edges. Per-edge upsert
+// errors are intentionally swallowed — partial-edge progress is preferable to
+// failing the whole resolver.
+func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.DiagnosticSettingsResource, idx diagTargetIndexes, edgeCount *atomic.Int64) {
+	if ds == nil || ds.Properties == nil {
+		return
+	}
+	name := ""
+	if ds.Name != nil {
+		name = *ds.Name
+	}
+	emit := func(targetID, kind string) {
+		attrs := mustJSON(map[string]string{
+			"via":         "diagnostic-settings",
+			"name":        name,
+			"destination": kind,
+		})
+		if err := st.UpsertRelationship(fromID, targetID, store.RelRoutesTo, "directed", &attrs); err == nil {
+			edgeCount.Add(1)
+		}
+	}
+	props := ds.Properties
+	if id := strLower(props.WorkspaceID); id != "" {
+		if tID, ok := idx.workspace[id]; ok {
+			emit(tID, "log-analytics")
+		}
+	}
+	if id := strLower(props.StorageAccountID); id != "" {
+		if tID, ok := idx.storage[id]; ok {
+			emit(tID, "storage-account")
+		}
+	}
+	if id := strLower(props.EventHubAuthorizationRuleID); id != "" {
+		// Auth rule shape:
+		//   /subscriptions/.../namespaces/{ns}/authorizationRules/{rule}
+		// Trim back to the namespace ARM ID.
+		if ns, ok := eventHubNamespaceFromAuthRule(id); ok {
+			if tID, ok := idx.eventHubNS[ns]; ok {
+				emit(tID, "event-hub")
+			}
+		}
+	}
 }
 
 // buildLowerIDIndex returns a map[lower(NativeID)] → resource.ID for every

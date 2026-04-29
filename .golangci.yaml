@@ -1,0 +1,14 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - gocognit
+  settings:
+    gocognit:
+      # Most scanner/resolver funcs are linear "for each resource → check
+      # field A, field B, ..." walks whose complexity scales with the number
+      # of edge kinds, not nesting. Splitting them into helpers tends to hide
+      # that walk rather than clarify it. Threshold of 80 catches genuinely
+      # hard-to-follow outliers without churning the routine N-edge shape.
+      min-complexity: 80

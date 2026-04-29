@@ -66,17 +66,6 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	// the store. Lazily-built so single-project scans pay nothing.
 	var crossSAByEmail map[string]string
 
-	// Pre-pass: collect distinct foreign project IDs referenced by SA members
-	// not present in any scanned project. We need stubs upserted before edges.
-	type pendingCross struct {
-		fromID    string
-		role      string
-		email     string
-		projectID string
-		// targetSAID set when SA found in another scanned project; empty when
-		// only the foreign-project stub is the destination.
-		targetSAID string
-	}
 	var pending []pendingCross
 	foreignProjects := map[string]struct{}{}
 
@@ -92,68 +81,19 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 		}
 		for _, b := range policy.Bindings {
 			for _, m := range b.Members {
-				if email, ok := strings.CutPrefix(m, "user:"); ok {
-					if userByEmail == nil {
-						userByEmail, err = buildWorkspaceUserEmailIndex(st)
-						if err != nil {
-							return err
-						}
-					}
-					if uid, ok := userByEmail[strings.ToLower(email)]; ok {
-						attrs := mustJSON(map[string]string{"role": b.Role})
-						if err := st.UpsertRelationship(r.ID, uid, store.RelUses, "directed", &attrs); err != nil {
-							return fmt.Errorf("upsert policy→workspace user: %w", err)
-						}
-					}
+				if handled, err := emitUserMemberEdge(st, r.ID, b.Role, m, &userByEmail); err != nil {
+					return err
+				} else if handled {
 					continue
 				}
-				if email, ok := strings.CutPrefix(m, "group:"); ok {
-					if groupByEmail == nil {
-						groupByEmail, err = buildCloudIdentityGroupEmailIndex(st)
-						if err != nil {
-							return err
-						}
-					}
-					if gid, ok := groupByEmail[strings.ToLower(email)]; ok {
-						attrs := mustJSON(map[string]string{"role": b.Role})
-						if err := st.UpsertRelationship(r.ID, gid, store.RelUses, "directed", &attrs); err != nil {
-							return fmt.Errorf("upsert policy→cloud-identity group: %w", err)
-						}
-					}
+				if handled, err := emitGroupMemberEdge(st, r.ID, b.Role, m, &groupByEmail); err != nil {
+					return err
+				} else if handled {
 					continue
 				}
-				email, ok := strings.CutPrefix(m, "serviceAccount:")
-				if !ok {
-					continue
+				if err := classifySAMember(st, saByEmail, &crossSAByEmail, foreignProjects, &pending, r.ID, b.Role, m); err != nil {
+					return err
 				}
-				if saID, ok := saByEmail[email]; ok {
-					attrs := mustJSON(map[string]string{"role": b.Role})
-					if err := st.UpsertRelationship(r.ID, saID, store.RelUses, "directed", &attrs); err != nil {
-						return fmt.Errorf("upsert policy→service-account: %w", err)
-					}
-					continue
-				}
-				// Cross-project. Determine SA's home project from the email
-				// suffix; service agents (e.g. service-NNN@compute-system.iam.gserviceaccount.com)
-				// don't fit this shape and are skipped.
-				homeProject, ok := projectFromSAEmail(email)
-				if !ok {
-					continue
-				}
-				if crossSAByEmail == nil {
-					crossSAByEmail, err = buildAllProjectSAEmailIndex(st)
-					if err != nil {
-						return err
-					}
-				}
-				targetSAID := crossSAByEmail[email]
-				if targetSAID == "" {
-					foreignProjects[homeProject] = struct{}{}
-				}
-				pending = append(pending, pendingCross{
-					fromID: r.ID, role: b.Role, email: email,
-					projectID: homeProject, targetSAID: targetSAID,
-				})
 			}
 		}
 	}
@@ -192,6 +132,107 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 			return fmt.Errorf("upsert cross-project-iam: %w", err)
 		}
 	}
+	return nil
+}
+
+// pendingCross carries one cross-project SA member edge whose stub-target
+// (foreign-project) row may not yet exist when the binding is first walked.
+// targetSAID is set when the SA was found in another scanned project; empty
+// when only the foreign-project stub is the destination.
+type pendingCross struct {
+	fromID     string
+	role       string
+	email      string
+	projectID  string
+	targetSAID string
+}
+
+// emitUserMemberEdge handles `user:{email}` bindings. Lazily builds the
+// workspace-user index on first non-SA member encountered. Returns
+// handled=true when the member matched the user prefix (regardless of whether
+// an edge was emitted), so the caller can skip the SA path.
+func emitUserMemberEdge(st *store.Store, fromID, role, member string, userByEmail *map[string]string) (bool, error) {
+	email, ok := strings.CutPrefix(member, "user:")
+	if !ok {
+		return false, nil
+	}
+	if *userByEmail == nil {
+		idx, err := buildWorkspaceUserEmailIndex(st)
+		if err != nil {
+			return true, err
+		}
+		*userByEmail = idx
+	}
+	uid, ok := (*userByEmail)[strings.ToLower(email)]
+	if !ok {
+		return true, nil
+	}
+	attrs := mustJSON(map[string]string{"role": role})
+	if err := st.UpsertRelationship(fromID, uid, store.RelUses, "directed", &attrs); err != nil {
+		return true, fmt.Errorf("upsert policy→workspace user: %w", err)
+	}
+	return true, nil
+}
+
+// emitGroupMemberEdge handles `group:{email}` bindings. Mirrors emitUserMemberEdge.
+func emitGroupMemberEdge(st *store.Store, fromID, role, member string, groupByEmail *map[string]string) (bool, error) {
+	email, ok := strings.CutPrefix(member, "group:")
+	if !ok {
+		return false, nil
+	}
+	if *groupByEmail == nil {
+		idx, err := buildCloudIdentityGroupEmailIndex(st)
+		if err != nil {
+			return true, err
+		}
+		*groupByEmail = idx
+	}
+	gid, ok := (*groupByEmail)[strings.ToLower(email)]
+	if !ok {
+		return true, nil
+	}
+	attrs := mustJSON(map[string]string{"role": role})
+	if err := st.UpsertRelationship(fromID, gid, store.RelUses, "directed", &attrs); err != nil {
+		return true, fmt.Errorf("upsert policy→cloud-identity group: %w", err)
+	}
+	return true, nil
+}
+
+// classifySAMember handles `serviceAccount:{email}` bindings. Same-project
+// matches emit a `uses` edge directly; cross-project matches accumulate into
+// pending so the foreign-project stubs can be upserted before edges fire.
+// Non-SA members fall through silently.
+func classifySAMember(st *store.Store, saByEmail map[string]string, crossSAByEmail *map[string]string, foreignProjects map[string]struct{}, pending *[]pendingCross, fromID, role, member string) error {
+	email, ok := strings.CutPrefix(member, "serviceAccount:")
+	if !ok {
+		return nil
+	}
+	if saID, ok := saByEmail[email]; ok {
+		attrs := mustJSON(map[string]string{"role": role})
+		if err := st.UpsertRelationship(fromID, saID, store.RelUses, "directed", &attrs); err != nil {
+			return fmt.Errorf("upsert policy→service-account: %w", err)
+		}
+		return nil
+	}
+	homeProject, ok := projectFromSAEmail(email)
+	if !ok {
+		return nil
+	}
+	if *crossSAByEmail == nil {
+		idx, err := buildAllProjectSAEmailIndex(st)
+		if err != nil {
+			return err
+		}
+		*crossSAByEmail = idx
+	}
+	targetSAID := (*crossSAByEmail)[email]
+	if targetSAID == "" {
+		foreignProjects[homeProject] = struct{}{}
+	}
+	*pending = append(*pending, pendingCross{
+		fromID: fromID, role: role, email: email,
+		projectID: homeProject, targetSAID: targetSAID,
+	})
 	return nil
 }
 

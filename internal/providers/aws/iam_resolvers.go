@@ -621,6 +621,21 @@ func loadPolicyResourceSets(acct *account, st *store.Store) (*policyResourceSets
 	return s, nil
 }
 
+// lookupTargetID returns the stored resource ID for ref under rtype, gated on
+// wildcard-free input and presence in the per-type id set. Shared by the
+// straightforward classifyPolicyResource branches that just need a wildcard
+// guard + map lookup.
+func lookupTargetID(ref, rtype, acctID string, set map[string]struct{}) (string, bool) {
+	if strings.ContainsAny(ref, "*?") {
+		return "", false
+	}
+	id := store.ResourceID("aws", acctID, rtype, ref)
+	if _, ok := set[id]; ok {
+		return id, true
+	}
+	return "", false
+}
+
 // classifyPolicyResource maps a Resource ARN to a stored resource ID via the
 // per-type id sets. Returns ok=false for unrecognized services, wildcard ARNs,
 // and cross-account / unscanned targets — the caller emits no edge.
@@ -634,194 +649,41 @@ func classifyPolicyResource(ref, region, acctID string, sets *policyResourceSets
 		}
 		return sets.kms.resolveKMSKeyID(ref, region, acctID)
 	case strings.HasPrefix(ref, "arn:aws:s3:::"):
-		// Strip object-key suffix: arn:aws:s3:::bucket/path → arn:aws:s3:::bucket.
-		// "/*" after the bucket name means "all objects in this bucket" — still a
-		// concrete bucket grant. A wildcard inside the bucket-name segment itself
-		// (e.g. "prod-*") is a name pattern; skip.
-		bucketARN := ref
-		if i := strings.Index(ref[len("arn:aws:s3:::"):], "/"); i >= 0 {
-			bucketARN = ref[:len("arn:aws:s3:::")+i]
-		}
-		if strings.ContainsAny(bucketARN, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeS3Bucket, bucketARN)
-		if _, ok := sets.buckets[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifyS3Resource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:secretsmanager:") && strings.Contains(ref, ":secret:"):
-		// Trim version-stage / version-id tail: keep first 7 colon-separated segments.
-		parts := strings.SplitN(ref, ":", 8)
-		if len(parts) < 7 {
-			return "", false
-		}
-		secretARN := strings.Join(parts[:7], ":")
-		if strings.ContainsAny(secretARN, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeSecretsManagerSecret, secretARN)
-		if _, ok := sets.secrets[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifySecretResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:dynamodb:") && strings.Contains(ref, ":table/"):
-		// Trim child suffixes: /index/..., /stream/..., /backup/..., /export/....
-		tableARN := ref
-		base := strings.Index(ref, ":table/")
-		if base >= 0 {
-			rest := ref[base+len(":table/"):]
-			if slash := strings.Index(rest, "/"); slash >= 0 {
-				tableARN = ref[:base+len(":table/")+slash]
-			}
-		}
-		if strings.ContainsAny(tableARN, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeDynamoDBTable, tableARN)
-		if _, ok := sets.tables[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifyDynamoDBResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:lambda:") && strings.Contains(ref, ":function:"):
-		// Lambda function ARNs: arn:aws:lambda:r:a:function:NAME[:VERSION|ALIAS].
-		// Scanner stores the unqualified ARN (first 7 colon segments) as NativeID.
-		parts := strings.SplitN(ref, ":", 8)
-		if len(parts) < 7 {
-			return "", false
-		}
-		fnARN := strings.Join(parts[:7], ":")
-		if strings.ContainsAny(fnARN, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeLambdaFunction, fnARN)
-		if _, ok := sets.lambdas[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifyLambdaResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:logs:") && strings.Contains(ref, ":log-group:"):
-		// Log group ARNs: arn:aws:logs:r:a:log-group:NAME[:*][:log-stream:...].
-		// Scanner NativeID has no ":*" tail; trim everything from the first ":"
-		// after the name segment.
-		base := strings.Index(ref, ":log-group:")
-		nameStart := base + len(":log-group:")
-		nameEnd := len(ref)
-		if i := strings.Index(ref[nameStart:], ":"); i >= 0 {
-			nameEnd = nameStart + i
-		}
-		groupARN := ref[:nameEnd]
-		if strings.ContainsAny(groupARN, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeLogsLogGroup, groupARN)
-		if _, ok := sets.logGroups[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifyLogGroupResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:sns:"):
-		// Topic ARN is whole ref. Subscription ARNs have an extra colon-separated
-		// subscription-id segment past the topic name; reject those (no scanned
-		// type for subscriptions today).
+		// Topic ARN is whole ref. Subscription ARNs add a 6th colon segment past
+		// the topic name; reject those (no scanned type for subscriptions today).
 		if strings.Count(ref, ":") != 5 {
 			return "", false
 		}
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeSNSTopic, ref)
-		if _, ok := sets.topics[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeSNSTopic, acctID, sets.topics)
 	case strings.HasPrefix(ref, "arn:aws:sqs:"):
-		// Queue ARN is whole ref (NativeID switched URL→ARN per aws/CLAUDE.md).
 		if strings.Count(ref, ":") != 5 {
 			return "", false
 		}
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeSQSQueue, ref)
-		if _, ok := sets.queues[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeSQSQueue, acctID, sets.queues)
 	case strings.HasPrefix(ref, "arn:aws:ssm:") && strings.Contains(ref, ":parameter"):
-		// Parameter ARN whole ref. Bare param names are skipped — policy docs
-		// carry no region context, so synthesizing an ARN would silently target
-		// the wrong region. Full-ARN refs are unambiguous.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeSSMParameter, ref)
-		if _, ok := sets.parameters[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeSSMParameter, acctID, sets.parameters)
 	case strings.HasPrefix(ref, "arn:aws:kinesis:") && strings.Contains(ref, ":stream/"):
-		// Stream ARNs: arn:aws:kinesis:r:a:stream/NAME. Stream consumers carry
-		// an extra "/consumer/NAME:TS" tail and have no scanned type — reject.
 		_, after, _ := strings.Cut(ref, ":stream/")
 		if strings.Contains(after, "/") {
 			return "", false
 		}
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeKinesisStream, ref)
-		if _, ok := sets.streams[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeKinesisStream, acctID, sets.streams)
 	case strings.HasPrefix(ref, "arn:aws:ecr:") && strings.Contains(ref, ":repository/"):
-		// Repository ARN whole ref. Image-tag refs would have an extra path
-		// segment past the repo name; ECR doesn't surface those via Resource
-		// in practice, so accept whole ref and let FK guard handle anything odd.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeECRRepository, ref)
-		if _, ok := sets.repositories[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeECRRepository, acctID, sets.repositories)
 	case strings.HasPrefix(ref, "arn:aws:iam:") && strings.Contains(ref, ":role/"):
-		// Role ARN whole ref. Service-linked roles live under "/aws-service-role/"
-		// — they're a distinct resource type with its own NativeID hash.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		rtype := TypeIAMRole
-		bag := sets.roles
-		if strings.Contains(ref, "/aws-service-role/") {
-			rtype = TypeIAMServiceLinkedRole
-			bag = sets.serviceLinked
-		}
-		id := store.ResourceID("aws", acctID, rtype, ref)
-		if _, ok := bag[id]; ok {
-			return id, true
-		}
-		return "", false
+		return classifyIAMRoleResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:rds:"):
-		// RDS ARNs use colon separators: arn:aws:rds:r:a:db:NAME, :cluster:NAME.
-		// Snapshot / parameter-group / subnet-group share the prefix but live
-		// under their own resource segments — match only :db: and :cluster:.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		switch {
-		case strings.Contains(ref, ":db:"):
-			id := store.ResourceID("aws", acctID, TypeRDSDBInstance, ref)
-			if _, ok := sets.rdsInstances[id]; ok {
-				return id, true
-			}
-		case strings.Contains(ref, ":cluster:"):
-			id := store.ResourceID("aws", acctID, TypeRDSDBCluster, ref)
-			if _, ok := sets.rdsClusters[id]; ok {
-				return id, true
-			}
-		}
-		return "", false
+		return classifyRDSResource(ref, acctID, sets)
 	case strings.HasPrefix(ref, "arn:aws:states:") && strings.Contains(ref, ":stateMachine:"):
 		// Step Functions service-integration ARNs (arn:aws:states:::lambda:invoke
 		// etc.) carry empty region+account; reject before id lookup so they
@@ -830,47 +692,94 @@ func classifyPolicyResource(ref, region, acctID string, sets *policyResourceSets
 		if strings.Contains(ref, ":::") {
 			return "", false
 		}
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeSFNStateMachine, ref)
-		if _, ok := sets.stateMachines[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeSFNStateMachine, acctID, sets.stateMachines)
 	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":event-bus/"):
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeEventsEventBus, ref)
-		if _, ok := sets.eventBuses[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeEventsEventBus, acctID, sets.eventBuses)
 	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":rule/"):
-		// Rule ARNs: default bus → arn:aws:events:r:a:rule/NAME; custom bus →
-		// arn:aws:events:r:a:rule/BUS/NAME. Scanner stores the API-returned ARN
-		// verbatim, so the whole ref matches NativeID directly.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeEventsRule, ref)
-		if _, ok := sets.eventRules[id]; ok {
-			return id, true
-		}
-		return "", false
+		return lookupTargetID(ref, TypeEventsRule, acctID, sets.eventRules)
 	case strings.HasPrefix(ref, "arn:aws:elasticfilesystem:") && strings.Contains(ref, ":file-system/"):
-		// File-system ARN whole ref. Mount-target / access-point ARNs use
-		// different resource segments and have their own scanned types; this
-		// case intentionally only matches file-system.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
-		}
-		id := store.ResourceID("aws", acctID, TypeEFSFileSystem, ref)
-		if _, ok := sets.efsFS[id]; ok {
-			return id, true
-		}
+		return lookupTargetID(ref, TypeEFSFileSystem, acctID, sets.efsFS)
+	}
+	return "", false
+}
+
+// classifyS3Resource trims object-key suffix to the bucket ARN before lookup.
+// "bucket/*" means "all objects in this bucket" — still concrete bucket grant.
+func classifyS3Resource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	bucketARN := ref
+	if i := strings.Index(ref[len("arn:aws:s3:::"):], "/"); i >= 0 {
+		bucketARN = ref[:len("arn:aws:s3:::")+i]
+	}
+	return lookupTargetID(bucketARN, TypeS3Bucket, acctID, sets.buckets)
+}
+
+// classifySecretResource trims version-stage / version-id tail (keep first 7
+// colon segments) before lookup.
+func classifySecretResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	parts := strings.SplitN(ref, ":", 8)
+	if len(parts) < 7 {
 		return "", false
+	}
+	return lookupTargetID(strings.Join(parts[:7], ":"), TypeSecretsManagerSecret, acctID, sets.secrets)
+}
+
+// classifyDynamoDBResource trims table-child suffixes (/index/..., /stream/...,
+// /backup/..., /export/...) before lookup.
+func classifyDynamoDBResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	tableARN := ref
+	base := strings.Index(ref, ":table/")
+	if base >= 0 {
+		rest := ref[base+len(":table/"):]
+		if slash := strings.Index(rest, "/"); slash >= 0 {
+			tableARN = ref[:base+len(":table/")+slash]
+		}
+	}
+	return lookupTargetID(tableARN, TypeDynamoDBTable, acctID, sets.tables)
+}
+
+// classifyLambdaResource trims qualifier suffix (`:VERSION|ALIAS`) — scanner
+// stores the unqualified ARN (first 7 colon segments).
+func classifyLambdaResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	parts := strings.SplitN(ref, ":", 8)
+	if len(parts) < 7 {
+		return "", false
+	}
+	return lookupTargetID(strings.Join(parts[:7], ":"), TypeLambdaFunction, acctID, sets.lambdas)
+}
+
+// classifyLogGroupResource trims `:*` and `:log-stream:...` tails — scanner
+// NativeID stops at the group name.
+func classifyLogGroupResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	base := strings.Index(ref, ":log-group:")
+	nameStart := base + len(":log-group:")
+	nameEnd := len(ref)
+	if i := strings.Index(ref[nameStart:], ":"); i >= 0 {
+		nameEnd = nameStart + i
+	}
+	return lookupTargetID(ref[:nameEnd], TypeLogsLogGroup, acctID, sets.logGroups)
+}
+
+// classifyIAMRoleResource splits service-linked roles (under
+// `/aws-service-role/`) into their own scanned type.
+func classifyIAMRoleResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	rtype := TypeIAMRole
+	bag := sets.roles
+	if strings.Contains(ref, "/aws-service-role/") {
+		rtype = TypeIAMServiceLinkedRole
+		bag = sets.serviceLinked
+	}
+	return lookupTargetID(ref, rtype, acctID, bag)
+}
+
+// classifyRDSResource matches only `:db:` and `:cluster:` segments — snapshot,
+// parameter-group, subnet-group share the prefix but live under different
+// scanned types.
+func classifyRDSResource(ref, acctID string, sets *policyResourceSets) (string, bool) {
+	switch {
+	case strings.Contains(ref, ":db:"):
+		return lookupTargetID(ref, TypeRDSDBInstance, acctID, sets.rdsInstances)
+	case strings.Contains(ref, ":cluster:"):
+		return lookupTargetID(ref, TypeRDSDBCluster, acctID, sets.rdsClusters)
 	}
 	return "", false
 }

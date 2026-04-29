@@ -99,38 +99,11 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 
 	frontier := []string{seedID}
 	for depth := 0; depth < opts.MaxDepth && len(frontier) > 0; depth++ {
-		// Phase 1: collect candidate edges + new endpoint IDs from the frontier.
-		var candidates []GraphEdge
-		next := map[string]struct{}{}
-		for _, id := range frontier {
-			if dir == DirOut || dir == DirBoth {
-				rels, err := s.RelationshipsFrom(id, opts.Kinds...)
-				if err != nil {
-					return nil, err
-				}
-				for _, r := range rels {
-					candidates = append(candidates, GraphEdge{FromID: r.FromID, ToID: r.ToID, Kind: r.Kind})
-					if _, ok := visited[r.ToID]; !ok {
-						next[r.ToID] = struct{}{}
-					}
-				}
-			}
-			if dir == DirIn || dir == DirBoth {
-				rels, err := s.RelationshipsTo(id, opts.Kinds...)
-				if err != nil {
-					return nil, err
-				}
-				for _, r := range rels {
-					candidates = append(candidates, GraphEdge{FromID: r.FromID, ToID: r.ToID, Kind: r.Kind})
-					if _, ok := visited[r.FromID]; !ok {
-						next[r.FromID] = struct{}{}
-					}
-				}
-			}
+		candidates, next, err := s.collectFrontierEdges(frontier, dir, opts.Kinds, visited)
+		if err != nil {
+			return nil, err
 		}
 
-		// Phase 2: fetch new endpoints in one IN query and classify them
-		// (excluded vs admissible) before deciding which edges/nodes to keep.
 		newIDs := make([]string, 0, len(next))
 		for id := range next {
 			newIDs = append(newIDs, id)
@@ -144,23 +117,7 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 			newResByID[r.ID] = r
 		}
 
-		// excluded[id] = true means the endpoint is filtered out — drop both
-		// the node and any edge that touches it. Seed is never excluded.
-		excluded := map[string]bool{}
-		for id, r := range newResByID {
-			if id == seedID {
-				continue
-			}
-			if matchTypeGlob(opts.ExcludeTypes, r.Type) {
-				excluded[id] = true
-				result.ExcludedTypes++
-				continue
-			}
-			if r.Region != nil && slices.Contains(opts.ExcludeRegions, *r.Region) {
-				excluded[id] = true
-				result.ExcludedRegions++
-			}
-		}
+		excluded := classifyExcluded(newResByID, seedID, opts, result)
 
 		// Edges: drop ones whose endpoint is excluded; respect MaxEdges cap.
 		for _, e := range candidates {
@@ -224,6 +181,61 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 	})
 
 	return result, nil
+}
+
+// collectFrontierEdges walks each frontier node in the requested direction(s)
+// and returns the candidate edges plus the set of unvisited endpoint IDs.
+func (s *Store) collectFrontierEdges(frontier []string, dir string, kinds []string, visited map[string]int) ([]GraphEdge, map[string]struct{}, error) {
+	var candidates []GraphEdge
+	next := map[string]struct{}{}
+	addRels := func(rels []Relationship, endpointKey func(Relationship) string) {
+		for _, r := range rels {
+			candidates = append(candidates, GraphEdge{FromID: r.FromID, ToID: r.ToID, Kind: r.Kind})
+			if id := endpointKey(r); id != "" {
+				if _, ok := visited[id]; !ok {
+					next[id] = struct{}{}
+				}
+			}
+		}
+	}
+	for _, id := range frontier {
+		if dir == DirOut || dir == DirBoth {
+			rels, err := s.RelationshipsFrom(id, kinds...)
+			if err != nil {
+				return nil, nil, err
+			}
+			addRels(rels, func(r Relationship) string { return r.ToID })
+		}
+		if dir == DirIn || dir == DirBoth {
+			rels, err := s.RelationshipsTo(id, kinds...)
+			if err != nil {
+				return nil, nil, err
+			}
+			addRels(rels, func(r Relationship) string { return r.FromID })
+		}
+	}
+	return candidates, next, nil
+}
+
+// classifyExcluded marks endpoints filtered out by ExcludeTypes / ExcludeRegions
+// and bumps the matching counters on result. Seed is never excluded.
+func classifyExcluded(newResByID map[string]Resource, seedID string, opts GraphWalkOpts, result *GraphResult) map[string]bool {
+	excluded := map[string]bool{}
+	for id, r := range newResByID {
+		if id == seedID {
+			continue
+		}
+		if matchTypeGlob(opts.ExcludeTypes, r.Type) {
+			excluded[id] = true
+			result.ExcludedTypes++
+			continue
+		}
+		if r.Region != nil && slices.Contains(opts.ExcludeRegions, *r.Region) {
+			excluded[id] = true
+			result.ExcludedRegions++
+		}
+	}
+	return excluded
 }
 
 // GraphPathOpts configures GraphPath. Direction defaults to "both" (treats the
