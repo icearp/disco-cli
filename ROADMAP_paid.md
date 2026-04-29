@@ -34,7 +34,7 @@ Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across t
 - `disco watch` — cron-driven scan + diff + webhook on drift. Local daemon, systemd unit.
 
 ### L7. Policy-as-code (OPA/Rego) (paid feature)
-- Alternative to G4 for teams with existing Rego libraries. Resources table → Rego input documents.
+- Scaffold landed: `disco check` is paid-gated and runs `github.com/open-policy-agent/opa/v1/rego` (`internal/policy/`). `--rules` accepts `.rego` files or directories. No first-party policies ship; module must populate `data.disco.deny` with finding objects (Conftest convention). Follow-ups: (a) ingest a public pack (Conftest AWS) end-to-end; (b) wire `disco.relationships_from/_to` Rego builtins to `store.RelationshipsFrom/To`; (c) per-rule ID filter once a stable ID convention is picked; (d) compliance-tag query surface (CIS / NIST mapping read from Rego rule metadata annotations).
 
 ### L10. Remote MCP server (paid feature)
 - `disco mcp serve` — Model Context Protocol server exposing the resource graph, rule findings, and edge traversal as tools an AI agent (Claude, ChatGPT, IDE assistants) can call. Lets users query "blast radius from compromised role X" or "find every internet-exposed RDS in prod" via natural language without bespoke glue.

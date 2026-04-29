@@ -1,6 +1,6 @@
 # disco code structure
 
-Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural conventions live in path-scoped `CLAUDE.md` files (cmd/, internal/store/, internal/providers/, internal/providers/aws/, internal/rules/) — this doc routes you to them.
+Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural conventions live in path-scoped `CLAUDE.md` files (cmd/, internal/store/, internal/providers/, internal/providers/aws/) — this doc routes you to them.
 
 ## Top-level flow
 
@@ -8,19 +8,17 @@ Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural co
 cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlite (~/.disco/disco.db)
  (cobra CLI)      (scanners + resolvers)         (sqlx + squirrel)
                             ↓                            ↑
-                   internal/rules/ (check, eval)  ───────┘
                    cmd/graph, cmd/list, cmd/diff  ───────┘
 ```
 
 - **`cmd/`** — cobra subcommands. `cmd/providers.go` blank-imports provider packages so `init()` registration runs. CLI-flag + lifecycle detail: `cmd/CLAUDE.md`.
 - **`internal/providers/<name>/`** — AWS / Azure / GCP scanners. Two-phase: resources, then relationships. Conventions: `internal/providers/CLAUDE.md`. AWS specifics: `internal/providers/aws/CLAUDE.md`.
 - **`internal/store/`** — sqlite layer (`modernc.org/sqlite` CGO-free, `sqlx`, `squirrel`). Tables (`resources`, `relationships`, `hierarchy_closure`, `scans`), edge kinds, scrubbing, IDs, migrations: `internal/store/CLAUDE.md`.
-- **`internal/rules/`** — rule DSL + evaluator. `builtin.go` packaged rules, `rules.go` loader, `eval.go` runner, `finding.go` matches. `cmd/check` consumes. Detail: `internal/rules/CLAUDE.md`.
 - **`internal/util/`** — `MustJSON`, `Sv`, `TimeRFC3339`, `AllResources`.
 
 Edge kinds + relationship semantics: `internal/store/CLAUDE.md` "Edge kinds".
 
-CLI subcommand surface (`scan`, `list`, `diff`, `graph`, `check`) + flags: `cmd/CLAUDE.md`.
+CLI subcommand surface (`scan`, `list`, `diff`, `graph`) + flags: `cmd/CLAUDE.md`. (`check` is paid-only — `internal/policy/` Rego engine.)
 
 ---
 

@@ -10,7 +10,7 @@ Cobra command layer.
 - `disco list` — query local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
 - `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
-- `disco check --rules rules.yaml --builtins --severity high --exit-nonzero` — runs security rules against store
+- `disco check --rules ./policies --severity high --exit-nonzero` — **paid only.** Runs OPA Rego policies against store. `--rules` takes `.rego` files or directories (recursive). Engine in `internal/policy/` (paid-tagged); ships no first-party policies — bring your own bundle (Conftest AWS, regula, in-house CIS pack). Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
 
 ## Resume
 

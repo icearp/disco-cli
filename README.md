@@ -7,7 +7,6 @@
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
 - `resolve` runs after scanning and connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`).
 - `list` and `graph` query the local DB without going back to the cloud.
-- `check` runs rules against stored state and prints findings.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
@@ -40,7 +39,6 @@ disco scan gcp    --org <org-id>
 # Query
 disco list  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
-disco check
 ```
 
 Resource types follow the pattern `cloud:service:kind`, lowercase. So `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`, and so on.

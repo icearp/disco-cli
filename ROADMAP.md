@@ -22,9 +22,8 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **N2** Progress reporting (`OnServiceComplete`/`OnResolve*` → stderr, `--quiet` flag)
 - **N3** `disco diff <scanA> <scanB>` (`cmd/diff.go`)
 - **N4** CSV + JSONL export (`cmd/list.go`)
-- **N5** `cmd/` test coverage (list/diff/graph/check tests)
+- **N5** `cmd/` test coverage (list/diff/graph tests)
 - **X1** Graph query (`cmd/graph.go` — `--depth`, `--kinds`, `--direction`, `--output table|json|dot`)
-- **X2** Rule engine (`internal/rules/*` + `cmd/check.go`)
 - **Secret scrub** at store boundary (`internal/store/sanitize.go`)
 
 ### AWS resolver expansion (tiers 1–3)
