@@ -10,20 +10,28 @@ import (
 
 // dotTheme drives all DOT styling. One *dotTheme per --dot-theme value;
 // rendering code reads attrs from here, never inlines color literals — so
-// adding a new palette is one new entry in themes, not edits across
-// renderGraphDot.
+// adding a new palette is one new themePalette literal + one buildTheme
+// call, not edits across renderGraphDot.
+//
+// "Mono" output (no per-node fills, minimal header) is expressed as a
+// theme with empty NodePresets / EdgePresets / Graph rather than a flag —
+// renderGraphDot's normal path already emits nothing for empty maps.
 type dotTheme struct {
-	Name           string
-	Graph          map[string]string // bgcolor, splines, nodesep, ranksep, fontname, pad
-	NodeDefaults   map[string]string
-	EdgeDefaults   map[string]string
-	NodePresets    map[nodePreset]map[string]string
-	EdgePresets    map[string]map[string]string // keyed by store.Rel* kind
-	ClusterPalette []clusterStyle               // round-robin per cluster index
-	// Mono signals "current pre-theme output" — renderGraphDot takes a
-	// fast path and emits no per-node attribute blocks. Byte-for-byte
-	// stable for diff-piping into automation.
-	Mono bool
+	// Graph holds digraph-level attributes (bgcolor, splines, nodesep, ...).
+	Graph map[string]string
+	// NodeDefaults / EdgeDefaults are the `node [...]` / `edge [...]`
+	// header blocks; per-node and per-edge presets layer overrides on top.
+	NodeDefaults map[string]string
+	EdgeDefaults map[string]string
+	// NodePresets keyed by nodePreset; renderer looks up by presetForResource.
+	NodePresets map[nodePreset]map[string]string
+	// EdgePresets keyed by store.Rel* kind. Edge kinds without an entry
+	// fall through to EdgeDefaults only.
+	EdgePresets map[string]map[string]string
+	// ClusterPalette rotates by cluster index. Cycles silently for graphs
+	// with more clusters than entries — five distinct hues is plenty in
+	// practice and beats picking a sixth that clashes.
+	ClusterPalette []clusterStyle
 }
 
 type nodePreset string
@@ -42,39 +50,58 @@ type clusterStyle struct {
 	Border  string
 }
 
-// presetForResource maps a resource to a preset by type-segment heuristic.
-// Type strings are "<provider>:<service>:<kind>" — service segment is the
-// pivot. ManagedByProvider always wins (returns Muted) regardless of type
-// so foreign / cloud-owned nodes read as terminal across every theme.
+// serviceToPreset is the data half of presetForResource — the type's
+// second colon-delimited segment maps to a preset. Adding a new service
+// is one entry here, not a switch-case edit.
+//
+// Note: Azure's "service segment" is the full ARM RP namespace
+// (e.g. `microsoft.authorization`), not a short name like AWS's `s3`.
+// Both styles intentionally coexist below.
+var serviceToPreset = map[string]nodePreset{
+	// storage / data
+	"s3": presetStorage, "rds": presetStorage, "ebs": presetStorage,
+	"efs": presetStorage, "dynamodb": presetStorage, "fsx": presetStorage,
+	"elasticache": presetStorage, "storage": presetStorage, "sql": presetStorage,
+	"cosmosdb": presetStorage, "redis": presetStorage,
+	"bigquery": presetStorage, "spanner": presetStorage,
+	"firestore": presetStorage, "filestore": presetStorage,
+
+	// identity / IAM
+	"iam": presetIdentity, "sso": presetIdentity, "aad": presetIdentity,
+	"iam-policy": presetIdentity, "iam-key": presetIdentity, "rbac": presetIdentity,
+	"microsoft.authorization":   presetIdentity,
+	"microsoft.managedidentity": presetIdentity,
+
+	// compute / runtime
+	"ec2": presetPrimary, "lambda": presetPrimary, "ecs": presetPrimary,
+	"eks": presetPrimary, "batch": presetPrimary, "compute": presetPrimary,
+	"appservice": presetPrimary, "containerservice": presetPrimary,
+	"run": presetPrimary, "functions": presetPrimary,
+	"cloudfunctions": presetPrimary, "container": presetPrimary,
+}
+
+// presetForResource maps a resource to a preset. ManagedByProvider always
+// wins (returns Muted) regardless of type so foreign / cloud-owned nodes
+// read as terminal across every theme. Unmapped services fall back to
+// Secondary (the catch-all "structural / glue" look).
 func presetForResource(r *store.Resource) nodePreset {
 	if r.ManagedByProvider {
 		return presetMuted
 	}
-	parts := strings.Split(r.Type, ":")
+	parts := strings.SplitN(r.Type, ":", 3)
 	if len(parts) < 2 {
 		return presetSecondary
 	}
-	switch parts[1] {
-	case "s3", "rds", "ebs", "efs", "dynamodb", "fsx", "elasticache",
-		"storage", "sql", "cosmosdb", "redis",
-		"bigquery", "spanner", "firestore", "filestore":
-		return presetStorage
-	case "iam", "sso", "aad", "iam-policy", "iam-key", "rbac",
-		"microsoft.authorization", "microsoft.managedidentity":
-		return presetIdentity
-	case "ec2", "lambda", "ecs", "eks", "batch",
-		"compute", "appservice", "containerservice",
-		"run", "functions", "cloudfunctions", "container":
-		return presetPrimary
-	default:
-		return presetSecondary
+	if p, ok := serviceToPreset[parts[1]]; ok {
+		return p
 	}
+	return presetSecondary
 }
 
 // renderAttrs builds a `k=v, k=v` block (no surrounding brackets), keys
-// sorted for stable diffs. Values are quoted unless they look like a bare
-// identifier — DOT accepts both, quoting matches Graphviz docs and dodges
-// "rounded,filled" comma parsing.
+// sorted for stable diffs. All values quoted via %q — DOT accepts both
+// quoted and bare-identifier forms; over-quoting is harmless and dodges
+// "rounded,filled" comma-parsing surprises.
 func renderAttrs(m map[string]string) string {
 	if len(m) == 0 {
 		return ""
@@ -118,102 +145,43 @@ func dotThemeNames() []string {
 	return out
 }
 
-// lightTheme is the default — pastel fills with darker accent borders, ortho
-// edges, white background. Reads cleanly on white-paper PDFs / GitHub light.
-func lightTheme() *dotTheme {
-	return &dotTheme{
-		Name: "light",
-		Graph: map[string]string{
-			"bgcolor":  "white",
-			"splines":  "ortho",
-			"nodesep":  "0.4",
-			"ranksep":  "0.6",
-			"fontname": "Helvetica",
-			"pad":      "0.3",
-		},
-		NodeDefaults: map[string]string{
-			"shape":    "box",
-			"style":    "rounded,filled",
-			"fontname": "Helvetica",
-			"fontsize": "10",
-			"penwidth": "1.2",
-		},
-		EdgeDefaults: map[string]string{
-			"fontname":  "Helvetica",
-			"fontsize":  "9",
-			"color":     "#616161",
-			"fontcolor": "#616161",
-		},
-		NodePresets: map[nodePreset]map[string]string{
-			presetPrimary: {
-				"shape":     "box",
-				"fillcolor": "#E3F2FD",
-				"color":     "#1976D2",
-				"fontcolor": "#0D47A1",
-			},
-			presetSecondary: {
-				"shape":     "component",
-				"fillcolor": "#F5F5F5",
-				"color":     "#616161",
-				"fontcolor": "#212121",
-			},
-			presetStorage: {
-				"shape":     "cylinder",
-				"fillcolor": "#FFF3E0",
-				"color":     "#E65100",
-				"fontcolor": "#BF360C",
-			},
-			presetIdentity: {
-				"shape":     "note",
-				"fillcolor": "#F3E5F5",
-				"color":     "#6A1B9A",
-				"fontcolor": "#4A148C",
-			},
-			presetMuted: {
-				"shape":     "box",
-				"style":     "rounded,dashed",
-				"fillcolor": "#FAFAFA",
-				"color":     "#BDBDBD",
-				"fontcolor": "#9E9E9E",
-			},
-			presetError: {
-				"shape":     "box",
-				"fillcolor": "#FFEBEE",
-				"color":     "#C62828",
-				"fontcolor": "#B71C1C",
-				"penwidth":  "2",
-			},
-		},
-		EdgePresets: map[string]map[string]string{
-			store.RelContains:          {"penwidth": "1.6", "color": "#212121"},
-			store.RelAttachedTo:        {"color": "#424242"},
-			store.RelUses:              {"style": "dashed", "color": "#1976D2"},
-			store.RelAssumes:           {"color": "#6A1B9A"},
-			store.RelRoutesTo:          {"color": "#388E3C"},
-			store.RelPeer:              {"style": "dotted", "dir": "both", "color": "#00796B"},
-			store.RelBoundedBy:         {"style": "dashed", "color": "#E65100"},
-			store.RelCrossAccountTrust: {"style": "dotted", "color": "#C62828"},
-			store.RelCrossSubRBAC:      {"style": "dotted", "color": "#C62828"},
-			store.RelCrossProjectIAM:   {"style": "dotted", "color": "#C62828"},
-		},
-		ClusterPalette: []clusterStyle{
-			{BGColor: "#FAFAFA", Border: "#9E9E9E"},
-			{BGColor: "#E8F5E9", Border: "#66BB6A"},
-			{BGColor: "#E1F5FE", Border: "#29B6F6"},
-			{BGColor: "#FFF3E0", Border: "#FFA726"},
-			{BGColor: "#F3E5F5", Border: "#AB47BC"},
-		},
-	}
+// presetColors is the three-tone slot a preset reads from a palette:
+// fill (background), border (stroke), text (label foreground).
+type presetColors struct {
+	Fill, Border, Text string
 }
 
-// darkTheme inverts lightTheme for dark-mode renderers (GitHub dark, VS Code
-// embedded preview, terminal-rendered SVG viewers). Same shape/color-family
-// mapping, brighter foreground, near-black background.
-func darkTheme() *dotTheme {
+// themePalette holds every semantic color a theme needs. light/dark
+// supply different hex literals for the same slots; buildTheme stamps
+// them into the structurally-identical attribute maps.
+type themePalette struct {
+	BG          string // graph bgcolor
+	NodeFG      string // default node fontcolor (used when preset doesn't override)
+	EdgeFG      string // default edge stroke
+	EdgeFGLabel string // default edge label fontcolor
+
+	Primary, Secondary, Storage, Identity, Muted, Errored presetColors
+
+	EdgeContains    string // hierarchy edges — bold accent
+	EdgeAttachedTo  string // structural membership
+	EdgeUses        string // runtime dependency (dashed)
+	EdgeAssumes     string // IAM trust
+	EdgeRoutesTo    string // routing
+	EdgePeer        string // peering (dotted bidirectional)
+	EdgeBoundedBy   string // permission boundary (dashed)
+	EdgeCrossTenant string // cross-account/sub/project (dotted, single color)
+
+	Cluster []clusterStyle
+}
+
+// buildTheme stamps a palette into the standard preset / edge / cluster
+// shape. Both themed themes (light, dark) flow through here so adding a
+// new theme is one palette literal + one buildTheme call.
+func buildTheme(p themePalette) *dotTheme {
+	crossTenant := map[string]string{"style": "dotted", "color": p.EdgeCrossTenant}
 	return &dotTheme{
-		Name: "dark",
 		Graph: map[string]string{
-			"bgcolor":  "#1E1E1E",
+			"bgcolor":  p.BG,
 			"splines":  "ortho",
 			"nodesep":  "0.4",
 			"ranksep":  "0.6",
@@ -225,86 +193,147 @@ func darkTheme() *dotTheme {
 			"style":     "rounded,filled",
 			"fontname":  "Helvetica",
 			"fontsize":  "10",
-			"fontcolor": "#ECEFF1",
+			"fontcolor": p.NodeFG,
 			"penwidth":  "1.2",
 		},
 		EdgeDefaults: map[string]string{
 			"fontname":  "Helvetica",
 			"fontsize":  "9",
-			"color":     "#9E9E9E",
-			"fontcolor": "#BDBDBD",
+			"color":     p.EdgeFG,
+			"fontcolor": p.EdgeFGLabel,
 		},
 		NodePresets: map[nodePreset]map[string]string{
-			presetPrimary: {
-				"shape":     "box",
-				"fillcolor": "#0D47A1",
-				"color":     "#64B5F6",
-				"fontcolor": "#E3F2FD",
-			},
-			presetSecondary: {
-				"shape":     "component",
-				"fillcolor": "#37474F",
-				"color":     "#90A4AE",
-				"fontcolor": "#ECEFF1",
-			},
-			presetStorage: {
-				"shape":     "cylinder",
-				"fillcolor": "#BF360C",
-				"color":     "#FFAB91",
-				"fontcolor": "#FFF3E0",
-			},
-			presetIdentity: {
-				"shape":     "note",
-				"fillcolor": "#4A148C",
-				"color":     "#CE93D8",
-				"fontcolor": "#F3E5F5",
-			},
-			presetMuted: {
-				"shape":     "box",
-				"style":     "rounded,dashed",
-				"fillcolor": "#2E2E2E",
-				"color":     "#616161",
-				"fontcolor": "#9E9E9E",
-			},
-			presetError: {
-				"shape":     "box",
-				"fillcolor": "#B71C1C",
-				"color":     "#EF9A9A",
-				"fontcolor": "#FFEBEE",
-				"penwidth":  "2",
-			},
+			presetPrimary:   filledPreset("box", p.Primary),
+			presetSecondary: filledPreset("component", p.Secondary),
+			presetStorage:   filledPreset("cylinder", p.Storage),
+			presetIdentity:  filledPreset("note", p.Identity),
+			presetMuted:     mutedPreset(p.Muted),
+			presetError:     errorPreset(p.Errored),
 		},
 		EdgePresets: map[string]map[string]string{
-			store.RelContains:          {"penwidth": "1.6", "color": "#ECEFF1"},
-			store.RelAttachedTo:        {"color": "#B0BEC5"},
-			store.RelUses:              {"style": "dashed", "color": "#64B5F6"},
-			store.RelAssumes:           {"color": "#CE93D8"},
-			store.RelRoutesTo:          {"color": "#81C784"},
-			store.RelPeer:              {"style": "dotted", "dir": "both", "color": "#4DB6AC"},
-			store.RelBoundedBy:         {"style": "dashed", "color": "#FFAB91"},
-			store.RelCrossAccountTrust: {"style": "dotted", "color": "#EF9A9A"},
-			store.RelCrossSubRBAC:      {"style": "dotted", "color": "#EF9A9A"},
-			store.RelCrossProjectIAM:   {"style": "dotted", "color": "#EF9A9A"},
+			store.RelContains:          {"penwidth": "1.6", "color": p.EdgeContains},
+			store.RelAttachedTo:        {"color": p.EdgeAttachedTo},
+			store.RelUses:              {"style": "dashed", "color": p.EdgeUses},
+			store.RelAssumes:           {"color": p.EdgeAssumes},
+			store.RelRoutesTo:          {"color": p.EdgeRoutesTo},
+			store.RelPeer:              {"style": "dotted", "dir": "both", "color": p.EdgePeer},
+			store.RelBoundedBy:         {"style": "dashed", "color": p.EdgeBoundedBy},
+			store.RelCrossAccountTrust: crossTenant,
+			store.RelCrossSubRBAC:      crossTenant,
+			store.RelCrossProjectIAM:   crossTenant,
 		},
-		ClusterPalette: []clusterStyle{
+		ClusterPalette: p.Cluster,
+	}
+}
+
+func filledPreset(shape string, c presetColors) map[string]string {
+	return map[string]string{
+		"shape":     shape,
+		"fillcolor": c.Fill,
+		"color":     c.Border,
+		"fontcolor": c.Text,
+	}
+}
+
+// mutedPreset adds dashed border alongside the rounded/filled default;
+// `filled` stays so fillcolor renders.
+func mutedPreset(c presetColors) map[string]string {
+	return map[string]string{
+		"shape":     "box",
+		"style":     "rounded,filled,dashed",
+		"fillcolor": c.Fill,
+		"color":     c.Border,
+		"fontcolor": c.Text,
+	}
+}
+
+// errorPreset is filledPreset with a thicker border to make findings pop.
+func errorPreset(c presetColors) map[string]string {
+	return map[string]string{
+		"shape":     "box",
+		"fillcolor": c.Fill,
+		"color":     c.Border,
+		"fontcolor": c.Text,
+		"penwidth":  "2",
+	}
+}
+
+// lightTheme — pastel fills with darker accent borders, ortho edges,
+// white background. Reads cleanly on white-paper PDFs / GitHub light.
+func lightTheme() *dotTheme {
+	return buildTheme(themePalette{
+		BG:          "white",
+		NodeFG:      "#212121",
+		EdgeFG:      "#616161",
+		EdgeFGLabel: "#616161",
+
+		Primary:   presetColors{"#E3F2FD", "#1976D2", "#0D47A1"},
+		Secondary: presetColors{"#F5F5F5", "#616161", "#212121"},
+		Storage:   presetColors{"#FFF3E0", "#E65100", "#BF360C"},
+		Identity:  presetColors{"#F3E5F5", "#6A1B9A", "#4A148C"},
+		Muted:     presetColors{"#FAFAFA", "#BDBDBD", "#9E9E9E"},
+		Errored:   presetColors{"#FFEBEE", "#C62828", "#B71C1C"},
+
+		EdgeContains:    "#212121",
+		EdgeAttachedTo:  "#424242",
+		EdgeUses:        "#1976D2",
+		EdgeAssumes:     "#6A1B9A",
+		EdgeRoutesTo:    "#388E3C",
+		EdgePeer:        "#00796B",
+		EdgeBoundedBy:   "#E65100",
+		EdgeCrossTenant: "#C62828",
+
+		Cluster: []clusterStyle{
+			{BGColor: "#FAFAFA", Border: "#9E9E9E"},
+			{BGColor: "#E8F5E9", Border: "#66BB6A"},
+			{BGColor: "#E1F5FE", Border: "#29B6F6"},
+			{BGColor: "#FFF3E0", Border: "#FFA726"},
+			{BGColor: "#F3E5F5", Border: "#AB47BC"},
+		},
+	})
+}
+
+// darkTheme inverts lightTheme for dark-mode renderers.
+func darkTheme() *dotTheme {
+	return buildTheme(themePalette{
+		BG:          "#1E1E1E",
+		NodeFG:      "#ECEFF1",
+		EdgeFG:      "#9E9E9E",
+		EdgeFGLabel: "#BDBDBD",
+
+		Primary:   presetColors{"#0D47A1", "#64B5F6", "#E3F2FD"},
+		Secondary: presetColors{"#37474F", "#90A4AE", "#ECEFF1"},
+		Storage:   presetColors{"#5D4037", "#FFAB91", "#FFF3E0"},
+		Identity:  presetColors{"#4A148C", "#CE93D8", "#F3E5F5"},
+		Muted:     presetColors{"#2E2E2E", "#616161", "#9E9E9E"},
+		Errored:   presetColors{"#B71C1C", "#EF9A9A", "#FFEBEE"},
+
+		EdgeContains:    "#ECEFF1",
+		EdgeAttachedTo:  "#B0BEC5",
+		EdgeUses:        "#64B5F6",
+		EdgeAssumes:     "#CE93D8",
+		EdgeRoutesTo:    "#81C784",
+		EdgePeer:        "#4DB6AC",
+		EdgeBoundedBy:   "#FFAB91",
+		EdgeCrossTenant: "#EF9A9A",
+
+		Cluster: []clusterStyle{
 			{BGColor: "#263238", Border: "#546E7A"},
 			{BGColor: "#1B5E20", Border: "#388E3C"},
 			{BGColor: "#0D47A1", Border: "#1976D2"},
 			{BGColor: "#E65100", Border: "#F57C00"},
 			{BGColor: "#4A148C", Border: "#7B1FA2"},
 		},
-	}
+	})
 }
 
-// monoTheme reproduces pre-theme output: only the original `node` global
-// block, no per-node fills, no edge colors. Selected for diff-stable piping
-// into Git-tracked artifacts or downstream tooling that re-themes itself.
+// monoTheme is the diff-stable minimal theme: only a `node` header with
+// shape + fontname so legacy `dot` consumers see something. Empty Graph
+// / EdgePresets / NodePresets / ClusterPalette mean renderGraphDot
+// emits no per-node fills, no edge colors, no cluster styling — exactly
+// the pre-theme output shape (modulo Graphviz attribute key ordering).
 func monoTheme() *dotTheme {
 	return &dotTheme{
-		Name: "mono",
-		Mono: true,
-		// NodeDefaults intentionally matches the legacy single-line emit
-		// in renderGraphDot — keeps byte-for-byte output stability.
 		NodeDefaults: map[string]string{
 			"shape":    "box",
 			"fontname": "Helvetica",

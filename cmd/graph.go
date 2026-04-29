@@ -30,7 +30,14 @@ var (
 	graphCluster        string
 	graphLabelTemplate  string
 	graphDotTheme       string
+	graphRankdir        string
 )
+
+// validRankdirs are the four DOT layout directions. LR (left-to-right) is
+// the default; RL inverts horizontally — useful when edges in the DB are
+// emitted child→parent (some hierarchy scanners do) and you want parent
+// on the left visually. TB / BT give a vertical tree layout.
+var validRankdirs = map[string]bool{"LR": true, "RL": true, "TB": true, "BT": true}
 
 // graphOutputFormats is the set of values accepted by --output across all
 // graph subcommands. Kept in one place so help text stays in sync.
@@ -218,6 +225,9 @@ func renderGraph(g *store.GraphResult, blast bool) error {
 		if _, ok := themes[graphDotTheme]; !ok {
 			return fmt.Errorf("unknown --dot-theme %q (supported: %s)", graphDotTheme, strings.Join(dotThemeNames(), ", "))
 		}
+		if !validRankdirs[graphRankdir] {
+			return fmt.Errorf("unknown --rankdir %q (supported: LR, RL, TB, BT)", graphRankdir)
+		}
 		return renderGraphDot(g)
 	case "mermaid":
 		return renderGraphMermaid(g)
@@ -295,7 +305,7 @@ func nodeLabel(r store.Resource) (string, error) {
 	if graphLabelTemplate == "" {
 		label := r.Type
 		if r.Name != nil && *r.Name != "" {
-			label = r.Type + `\n` + *r.Name
+			label = r.Type + "\n" + *r.Name
 		}
 		return label, nil
 	}
@@ -352,22 +362,19 @@ func renderGraphDot(g *store.GraphResult) error {
 
 	var b strings.Builder
 	b.WriteString("digraph disco {\n")
-	b.WriteString("  rankdir=LR;\n")
+	fmt.Fprintf(&b, "  rankdir=%s;\n", graphRankdir)
 
-	// Theme header. Mono path stays single-line for byte-stability with
-	// legacy output; themed paths emit graph/node/edge attribute blocks.
-	if theme.Mono {
-		b.WriteString("  node [shape=box, fontname=\"Helvetica\"];\n")
-	} else {
-		if attrs := renderAttrs(theme.Graph); attrs != "" {
-			fmt.Fprintf(&b, "  graph [%s];\n", attrs)
-		}
-		if attrs := renderAttrs(theme.NodeDefaults); attrs != "" {
-			fmt.Fprintf(&b, "  node [%s];\n", attrs)
-		}
-		if attrs := renderAttrs(theme.EdgeDefaults); attrs != "" {
-			fmt.Fprintf(&b, "  edge [%s];\n", attrs)
-		}
+	// Theme header — emits only the blocks the theme populates. Mono
+	// theme has empty Graph + EdgePresets so no `graph [...]` / `edge [...]`
+	// lines appear; themed themes emit all three.
+	if attrs := renderAttrs(theme.Graph); attrs != "" {
+		fmt.Fprintf(&b, "  graph [%s];\n", attrs)
+	}
+	if attrs := renderAttrs(theme.NodeDefaults); attrs != "" {
+		fmt.Fprintf(&b, "  node [%s];\n", attrs)
+	}
+	if attrs := renderAttrs(theme.EdgeDefaults); attrs != "" {
+		fmt.Fprintf(&b, "  edge [%s];\n", attrs)
 	}
 
 	emitNode := func(indent string, n store.GraphNode) error {
@@ -375,12 +382,7 @@ func renderGraphDot(g *store.GraphResult) error {
 		if err != nil {
 			return err
 		}
-		if theme.Mono {
-			fmt.Fprintf(&b, "%s%q [label=%q];\n", indent, n.Resource.ID, label)
-			return nil
-		}
-		preset := theme.NodePresets[presetForResource(&n.Resource)]
-		extra := renderAttrs(preset)
+		extra := renderAttrs(theme.NodePresets[presetForResource(&n.Resource)])
 		if extra != "" {
 			fmt.Fprintf(&b, "%s%q [label=%q, %s];\n", indent, n.Resource.ID, label, extra)
 		} else {
@@ -411,8 +413,8 @@ func renderGraphDot(g *store.GraphResult) error {
 			fmt.Fprintf(&b, "    label=%q;\n", k)
 			// Cluster styling rotates through the palette so adjacent
 			// clusters never share a fill — keeps a 3+ cluster graph
-			// scannable. Mono skips this entirely.
-			if !theme.Mono && len(theme.ClusterPalette) > 0 {
+			// scannable. Mono / palette-less themes skip the block.
+			if len(theme.ClusterPalette) > 0 {
 				cs := theme.ClusterPalette[i%len(theme.ClusterPalette)]
 				fmt.Fprintf(&b, "    style=\"rounded,filled\";\n")
 				fmt.Fprintf(&b, "    bgcolor=%q;\n", cs.BGColor)
@@ -427,16 +429,16 @@ func renderGraphDot(g *store.GraphResult) error {
 		}
 	}
 
+	// xlabel (external label) — themed graphs use splines=ortho, which
+	// drops standard edge labels with a Graphviz warning. xlabel floats
+	// the text alongside without breaking the route. Mono uses xlabel
+	// too — harmless when splines aren't set.
 	for _, e := range g.Edges {
-		if theme.Mono {
-			fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
-			continue
-		}
 		extra := renderAttrs(theme.EdgePresets[e.Kind])
 		if extra != "" {
-			fmt.Fprintf(&b, "  %q -> %q [label=%q, %s];\n", e.FromID, e.ToID, e.Kind, extra)
+			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q, %s];\n", e.FromID, e.ToID, e.Kind, extra)
 		} else {
-			fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
+			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q];\n", e.FromID, e.ToID, e.Kind)
 		}
 	}
 	b.WriteString("}\n")
@@ -520,6 +522,7 @@ func init() {
 	graphCmd.PersistentFlags().StringVar(&graphCluster, "cluster", "", "Cluster nodes in dot/mermaid output by: provider, region, account")
 	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
 	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", ")+" (mono = byte-stable legacy output)")
-	graphCmd.AddCommand(graphPathCmd, graphBlastCmd)
+	graphCmd.PersistentFlags().StringVar(&graphRankdir, "rankdir", "LR", "DOT layout direction: LR, RL, TB, BT (RL inverts horizontally — handy when edges flow child→parent)")
+	graphCmd.AddCommand(graphPathCmd, graphBlastCmd, graphCompleteCmd)
 	rootCmd.AddCommand(graphCmd)
 }
