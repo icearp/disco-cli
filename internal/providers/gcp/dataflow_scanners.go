@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/dataflow/v1b3"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:dataflow", fn: scanDataflow}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:dataflow",
+		fn:   scanDataflow,
+		emits: []coverage.TypeDecl{
+			{Service: "dataflow", DiscoType: TypeDataflowJob},
+		},
+	})
+}
 
 // scanDataflow discovers Dataflow jobs across all locations using the
 // aggregated `Projects.Jobs.Aggregated` endpoint — no per-region fan-out

@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/sqladmin/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:sql", fn: scanCloudSQL}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:sql",
+		fn:   scanCloudSQL,
+		emits: []coverage.TypeDecl{
+			{Service: "sqladmin", DiscoType: TypeSQLInstance},
+		},
+	})
+}
 
 // scanCloudSQL discovers Cloud SQL instances for a project. Uses Pages() so
 // that projects with many instances are not silently truncated at the default

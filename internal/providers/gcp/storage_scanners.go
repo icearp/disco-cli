@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/storage/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:storage", fn: scanStorage}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:storage",
+		fn:   scanStorage,
+		emits: []coverage.TypeDecl{
+			{Service: "storage", DiscoType: TypeStorageBucket},
+		},
+	})
+}
 
 // scanStorage discovers Cloud Storage buckets for a project.
 func scanStorage(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {

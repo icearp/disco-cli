@@ -5,13 +5,21 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 )
 
 func init() {
-	registerOrgService(orgServiceEntry{name: "gcp:cloudidentity", fn: scanCloudIdentity})
+	registerOrgService(orgServiceEntry{
+		name: "gcp:cloudidentity",
+		fn:   scanCloudIdentity,
+		emits: []coverage.TypeDecl{
+			{Service: "admin", DiscoType: TypeWorkspaceUser},
+			{Service: "cloudidentity", DiscoType: TypeCloudIdentityGroup},
+		},
+	})
 }
 
 // scanCloudIdentity discovers Workspace Directory users + Cloud Identity

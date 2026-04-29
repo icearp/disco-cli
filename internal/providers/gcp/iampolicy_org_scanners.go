@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
 func init() {
-	registerOrgService(orgServiceEntry{name: "gcp:iam-policy-org", fn: scanIAMPoliciesOrg})
+	registerOrgService(orgServiceEntry{
+		name: "gcp:iam-policy-org",
+		fn:   scanIAMPoliciesOrg,
+		emits: []coverage.TypeDecl{
+			// IAM policy is a per-resource synthetic — no upstream Discovery
+			// resource collection (GetIamPolicy is a method on every parent
+			// scope, not its own resource).
+			{Service: "iam", DiscoType: TypeIAMPolicy, Synthetic: true},
+		},
+	})
 }
 
 // scanIAMPoliciesOrg fetches the IAM policy attached to each org+folder scope

@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:iam-policy", fn: scanIAMPolicies}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:iam-policy",
+		fn:   scanIAMPolicies,
+		emits: []coverage.TypeDecl{
+			{Service: "iam", DiscoType: TypeIAMPolicy, Synthetic: true},
+		},
+	})
+}
 
 // scanIAMPolicies fetches the IAM policy attached to the project scope.
 // One synthesized gcp:iam:policy resource per project carries every binding

@@ -5,9 +5,23 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudresourcemanager/v3"
 )
+
+func init() {
+	// scanHierarchy is invoked direct from gcp.go (not via registerService)
+	// because it runs once before per-project fan-out and emits the project /
+	// folder / organization rows that downstream resolvers anchor against.
+	// Its emits are declared via registerExtraEmits so the coverage matrix
+	// still picks them up.
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeOrganization},
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeFolder},
+		coverage.TypeDecl{Service: "cloudresourcemanager", DiscoType: TypeProject},
+	)
+}
 
 // scanHierarchy discovers the GCP org → folder → project tree and populates
 // the hierarchy_closure table. It must run before any project-scoped resources

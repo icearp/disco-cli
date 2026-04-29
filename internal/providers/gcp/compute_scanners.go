@@ -5,11 +5,23 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/compute/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:compute", fn: scanCompute}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:compute",
+		fn:   scanCompute,
+		emits: []coverage.TypeDecl{
+			{Service: "compute", DiscoType: TypeComputeInstance},
+			{Service: "compute", DiscoType: TypeComputeNetwork},
+			{Service: "compute", DiscoType: TypeComputeSubnet},
+			{Service: "compute", DiscoType: TypeComputeFirewall},
+		},
+	})
+}
 
 // scanCompute discovers Compute Engine instances, VPC networks, subnetworks,
 // and firewalls. Uses AggregatedList for instances/subnetworks so all zones

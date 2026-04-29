@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/bigtableadmin/v2"
 	"google.golang.org/api/firestore/v1"
@@ -11,9 +12,29 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:bigtable", fn: scanBigtable})
-	registerService(serviceEntry{name: "gcp:firestore", fn: scanFirestore})
-	registerService(serviceEntry{name: "gcp:spanner", fn: scanSpanner})
+	registerService(serviceEntry{
+		name: "gcp:bigtable",
+		fn:   scanBigtable,
+		emits: []coverage.TypeDecl{
+			{Service: "bigtableadmin", DiscoType: TypeBigtableInstance},
+			{Service: "bigtableadmin", DiscoType: TypeBigtableCluster},
+		},
+	})
+	registerService(serviceEntry{
+		name: "gcp:firestore",
+		fn:   scanFirestore,
+		emits: []coverage.TypeDecl{
+			{Service: "firestore", DiscoType: TypeFirestoreDB},
+		},
+	})
+	registerService(serviceEntry{
+		name: "gcp:spanner",
+		fn:   scanSpanner,
+		emits: []coverage.TypeDecl{
+			{Service: "spanner", DiscoType: TypeSpannerInstance},
+			{Service: "spanner", DiscoType: TypeSpannerDatabase},
+		},
+	})
 }
 
 // scanBigtable discovers Bigtable instances and their clusters. Tables and

@@ -4,14 +4,27 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/batch/v1"
 	"google.golang.org/api/run/v2"
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:cloudrunjobs", fn: scanCloudRunJobs})
-	registerService(serviceEntry{name: "gcp:batch", fn: scanBatchJobs})
+	registerService(serviceEntry{
+		name: "gcp:cloudrunjobs",
+		fn:   scanCloudRunJobs,
+		emits: []coverage.TypeDecl{
+			{Service: "run", DiscoType: TypeCloudRunJob},
+		},
+	})
+	registerService(serviceEntry{
+		name: "gcp:batch",
+		fn:   scanBatchJobs,
+		emits: []coverage.TypeDecl{
+			{Service: "batch", DiscoType: TypeBatchJob},
+		},
+	})
 }
 
 // scanCloudRunJobs discovers Cloud Run v2 Jobs (sibling surface to Cloud Run

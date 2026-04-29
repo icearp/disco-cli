@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/artifactregistry/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:artifactregistry", fn: scanArtifactRegistry}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:artifactregistry",
+		fn:   scanArtifactRegistry,
+		emits: []coverage.TypeDecl{
+			{Service: "artifactregistry", DiscoType: TypeArtifactRepository},
+		},
+	})
+}
 
 // scanArtifactRegistry discovers Artifact Registry repositories across every
 // location via the `locations/-` wildcard. Repositories carry the package

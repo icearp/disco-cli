@@ -4,12 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/accesscontextmanager/v1"
 )
 
 func init() {
-	registerOrgService(orgServiceEntry{name: "gcp:vpcsc", fn: scanVPCSC})
+	registerOrgService(orgServiceEntry{
+		name: "gcp:vpcsc",
+		fn:   scanVPCSC,
+		emits: []coverage.TypeDecl{
+			{Service: "accesscontextmanager", DiscoType: TypeAccessPolicy},
+			{Service: "accesscontextmanager", DiscoType: TypeServicePerimeter},
+		},
+	})
 }
 
 // scanVPCSC discovers Access Context Manager access policies and the service

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/bigquery/v2"
 )
@@ -22,7 +23,16 @@ func msToRFC3339(ms int64) *string {
 	return &s
 }
 
-func init() { registerService(serviceEntry{name: "gcp:bigquery", fn: scanBigQuery}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:bigquery",
+		fn:   scanBigQuery,
+		emits: []coverage.TypeDecl{
+			{Service: "bigquery", DiscoType: TypeBQDataset},
+			{Service: "bigquery", DiscoType: TypeBQTable},
+		},
+	})
+}
 
 // maxConcurrentBQDatasets caps per-project dataset fan-out for the
 // per-dataset Get + Tables.List pair.

@@ -4,11 +4,25 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/compute/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:loadbalancing", fn: scanLoadBalancing}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:loadbalancing",
+		fn:   scanLoadBalancing,
+		emits: []coverage.TypeDecl{
+			{Service: "compute", DiscoType: TypeComputeForwardingRule},
+			{Service: "compute", DiscoType: TypeComputeTargetHTTPProxy},
+			{Service: "compute", DiscoType: TypeComputeTargetHTTPSProxy},
+			{Service: "compute", DiscoType: TypeComputeURLMap},
+			{Service: "compute", DiscoType: TypeComputeBackendService},
+			{Service: "compute", DiscoType: TypeComputeBackendBucket},
+		},
+	})
+}
 
 // scanLoadBalancing discovers the global GCP load-balancer hot path:
 // forwarding rules (global + every region via AggregatedList), the four

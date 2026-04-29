@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/secretmanager/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:secretmanager", fn: scanSecrets}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:secretmanager",
+		fn:   scanSecrets,
+		emits: []coverage.TypeDecl{
+			{Service: "secretmanager", DiscoType: TypeSecret},
+		},
+	})
+}
 
 // scanSecrets discovers Secret Manager secrets for a project. SecretVersions
 // are intentionally not scanned: per-secret version pagination explodes

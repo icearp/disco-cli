@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/composer/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:composer", fn: scanComposer}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:composer",
+		fn:   scanComposer,
+		emits: []coverage.TypeDecl{
+			{Service: "composer", DiscoType: TypeComposerEnv},
+		},
+	})
+}
 
 // scanComposer discovers Cloud Composer environments. Uses the
 // `locations/-` wildcard parent (supported by composer/v1) so all

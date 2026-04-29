@@ -4,14 +4,27 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/logging/v2"
 	"google.golang.org/api/monitoring/v3"
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:logging", fn: scanLoggingSinks})
-	registerService(serviceEntry{name: "gcp:monitoring", fn: scanMonitoringAlertPolicies})
+	registerService(serviceEntry{
+		name: "gcp:logging",
+		fn:   scanLoggingSinks,
+		emits: []coverage.TypeDecl{
+			{Service: "logging", DiscoType: TypeLoggingSink},
+		},
+	})
+	registerService(serviceEntry{
+		name: "gcp:monitoring",
+		fn:   scanMonitoringAlertPolicies,
+		emits: []coverage.TypeDecl{
+			{Service: "monitoring", DiscoType: TypeMonitoringAlertPol},
+		},
+	})
 }
 
 // scanLoggingSinks discovers Cloud Logging sinks. Folder + organization

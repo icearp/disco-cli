@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/logging/v2"
 )
 
 func init() {
-	registerOrgService(orgServiceEntry{name: "gcp:logging-org", fn: scanLoggingSinksOrg})
+	registerOrgService(orgServiceEntry{
+		name: "gcp:logging-org",
+		fn:   scanLoggingSinksOrg,
+		emits: []coverage.TypeDecl{
+			{Service: "logging", DiscoType: TypeLoggingSink},
+		},
+	})
 }
 
 // scanLoggingSinksOrg discovers Cloud Logging sinks defined at organization

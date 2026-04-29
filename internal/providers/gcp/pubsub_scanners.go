@@ -4,11 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/pubsub/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:pubsub", fn: scanPubSub}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:pubsub",
+		fn:   scanPubSub,
+		emits: []coverage.TypeDecl{
+			{Service: "pubsub", DiscoType: TypePubSubTopic},
+			{Service: "pubsub", DiscoType: TypePubSubSubscription},
+			{Service: "pubsub", DiscoType: TypePubSubSchema},
+		},
+	})
+}
 
 // scanPubSub discovers Pub/Sub topics, subscriptions, and schemas. All three
 // list APIs are project-scoped (no per-location fan-out — Pub/Sub is global

@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/container/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:gke", fn: scanGKE}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:gke",
+		fn:   scanGKE,
+		emits: []coverage.TypeDecl{
+			{Service: "container", DiscoType: TypeGKECluster},
+		},
+	})
+}
 
 // scanGKE discovers GKE clusters for a project across all locations.
 func scanGKE(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {

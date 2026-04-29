@@ -7,11 +7,21 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudkms/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:cloudkms", fn: scanCloudKMS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:cloudkms",
+		fn:   scanCloudKMS,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudkms", DiscoType: TypeKMSKeyRing},
+			{Service: "cloudkms", DiscoType: TypeKMSCryptoKey},
+		},
+	})
+}
 
 // maxConcurrentKMSLocations caps per-project location fan-out for KMS list calls.
 const maxConcurrentKMSLocations = 10

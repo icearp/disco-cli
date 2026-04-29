@@ -4,12 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/binaryauthorization/v1"
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:binaryauthorization", fn: scanBinaryAuthorization})
+	registerService(serviceEntry{
+		name: "gcp:binaryauthorization",
+		fn:   scanBinaryAuthorization,
+		emits: []coverage.TypeDecl{
+			{Service: "binaryauthorization", DiscoType: TypeBinAuthPolicy},
+			{Service: "binaryauthorization", DiscoType: TypeBinAuthAttestor},
+		},
+	})
 }
 
 // scanBinaryAuthorization discovers the project's BinAuth policy (singleton

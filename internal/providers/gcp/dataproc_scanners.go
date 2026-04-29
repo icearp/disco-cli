@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/dataproc/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:dataproc", fn: scanDataproc}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:dataproc",
+		fn:   scanDataproc,
+		emits: []coverage.TypeDecl{
+			{Service: "dataproc", DiscoType: TypeDataprocCluster},
+		},
+	})
+}
 
 // scanDataproc discovers Dataproc clusters in every enabled region of the
 // project. Dataproc has no aggregated/wildcard endpoint, so we delegate

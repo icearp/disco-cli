@@ -4,13 +4,20 @@ import (
 	"context"
 	"errors"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 )
 
 // serviceEntry describes a scannable GCP service (scoped to one project).
+//
+// emits enumerates every disco type the scanner upserts. Coverage truth
+// source — the matrix in `disco coverage` is built from these decls
+// aggregated across registeredServices + registeredOrgServices +
+// extraEmits (hierarchy_scanners + resolver-side synthetic stubs).
 type serviceEntry struct {
-	name string
-	fn   func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
+	name  string
+	fn    func(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error)
+	emits []coverage.TypeDecl
 }
 
 // registeredServices is populated by each *_scanners.go file's init().
@@ -43,8 +50,48 @@ type orgScope struct {
 // scope discovered by scanHierarchy. Targets: VPC Service Controls, folder/org
 // IAM policies, org-scope Logging sinks. Empty scopes => fn is skipped.
 type orgServiceEntry struct {
-	name string
-	fn   func(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error)
+	name  string
+	fn    func(ctx context.Context, scopes []orgScope, st *store.Store, scanID string) (total, inserted int, err error)
+	emits []coverage.TypeDecl
+}
+
+// extraEmits accumulates disco-type decls for code paths that do NOT
+// flow through registerService / registerOrgService — namely:
+//   - hierarchy_scanners.go (called direct from gcp.go's scanHierarchy)
+//   - resolver-side synthetic stubs (e.g. TypeIAMForeignProject in
+//     iampolicy_resolvers.go).
+//
+// CollectEmits unions registeredServices + registeredOrgServices +
+// extraEmits and dedupes by DiscoType.
+var extraEmits []coverage.TypeDecl
+
+// registerExtraEmits is for non-serviceEntry sources of disco types.
+// Call from init() in the file that owns the upsert site.
+func registerExtraEmits(decls ...coverage.TypeDecl) {
+	extraEmits = append(extraEmits, decls...)
+}
+
+// CollectEmits returns the deduped union of every emits decl registered
+// across the GCP package. Consumed by the coverage.Provider impl.
+func CollectEmits() []coverage.TypeDecl {
+	out := make([]coverage.TypeDecl, 0, 64)
+	out = append(out, extraEmits...)
+	for _, s := range registeredServices {
+		out = append(out, s.emits...)
+	}
+	for _, s := range registeredOrgServices {
+		out = append(out, s.emits...)
+	}
+	seen := make(map[string]bool, len(out))
+	deduped := out[:0]
+	for _, d := range out {
+		if seen[d.DiscoType] {
+			continue
+		}
+		seen[d.DiscoType] = true
+		deduped = append(deduped, d)
+	}
+	return deduped
 }
 
 // registeredOrgServices is populated by org-scope *_scanners.go files' init().

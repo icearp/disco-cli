@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveIAMPolicyRelationships) }
+func init() {
+	registerResolver(resolveIAMPolicyRelationships)
+	// Synthetic stub for cross-project SA refs whose owning project is out of
+	// scan scope (R5). Pure disco bookkeeping — no upstream registry entry.
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignProject, Synthetic: true},
+	)
+}
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings
 // and emits edges for every service-account / user / group member.

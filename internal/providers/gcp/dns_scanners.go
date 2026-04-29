@@ -5,11 +5,21 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/dns/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:clouddns", fn: scanCloudDNS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:clouddns",
+		fn:   scanCloudDNS,
+		emits: []coverage.TypeDecl{
+			{Service: "dns", DiscoType: TypeDNSManagedZone},
+			{Service: "dns", DiscoType: TypeDNSRecordSet},
+		},
+	})
+}
 
 // maxConcurrentDNSZones caps the per-project zone fan-out for record-set
 // listing. Cloud DNS quotas are per-minute project-level — keep modest.

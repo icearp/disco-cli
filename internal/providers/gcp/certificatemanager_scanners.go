@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/certificatemanager/v1"
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:certificatemanager", fn: scanCertificateManager})
+	registerService(serviceEntry{
+		name: "gcp:certificatemanager",
+		fn:   scanCertificateManager,
+		emits: []coverage.TypeDecl{
+			{Service: "certificatemanager", DiscoType: TypeCertManagerCertificate},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerMap},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerMapEntry},
+			{Service: "certificatemanager", DiscoType: TypeCertManagerDNSAuth},
+		},
+	})
 }
 
 // scanCertificateManager discovers Certificate Manager resources at the

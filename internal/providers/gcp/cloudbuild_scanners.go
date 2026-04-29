@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudbuild/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:cloudbuild", fn: scanCloudBuildTriggers}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:cloudbuild",
+		fn:   scanCloudBuildTriggers,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudbuild", DiscoType: TypeCloudBuildTrigger},
+		},
+	})
+}
 
 // scanCloudBuildTriggers discovers Cloud Build triggers. Worker pools +
 // connection (Cloud Build → GitHub/GitLab) deferred — separate sibling APIs

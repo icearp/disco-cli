@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/compute/v1"
 )
 
-func init() { registerService(serviceEntry{name: "gcp:cloudarmor", fn: scanCloudArmor}) }
+func init() {
+	registerService(serviceEntry{
+		name: "gcp:cloudarmor",
+		fn:   scanCloudArmor,
+		emits: []coverage.TypeDecl{
+			{Service: "compute", DiscoType: TypeComputeSecurityPolicy},
+		},
+	})
+}
 
 // scanCloudArmor discovers Cloud Armor security policies. Uses
 // AggregatedList so global + every regional policy come back in one

@@ -5,14 +5,27 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"google.golang.org/api/cloudfunctions/v2"
 	"google.golang.org/api/run/v2"
 )
 
 func init() {
-	registerService(serviceEntry{name: "gcp:cloudfunctions", fn: scanCloudFunctions})
-	registerService(serviceEntry{name: "gcp:cloudrun", fn: scanCloudRun})
+	registerService(serviceEntry{
+		name: "gcp:cloudfunctions",
+		fn:   scanCloudFunctions,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudfunctions", DiscoType: TypeCloudFunction},
+		},
+	})
+	registerService(serviceEntry{
+		name: "gcp:cloudrun",
+		fn:   scanCloudRun,
+		emits: []coverage.TypeDecl{
+			{Service: "run", DiscoType: TypeCloudRunSvc},
+		},
+	})
 }
 
 // scanCloudFunctions discovers Cloud Functions Gen1 + Gen2 (the v2 API

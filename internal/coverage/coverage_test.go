@@ -14,10 +14,12 @@ type fakeProvider struct {
 	aliases  map[string]string
 }
 
-func (f *fakeProvider) Name() string                                                  { return f.name }
-func (f *fakeProvider) Fetch(_ context.Context, _ FetchOptions) ([]UpstreamType, error) { return f.upstream, nil }
-func (f *fakeProvider) Emits() []TypeDecl                                              { return f.emits }
-func (f *fakeProvider) Aliases() map[string]string                                     { return f.aliases }
+func (f *fakeProvider) Name() string { return f.name }
+func (f *fakeProvider) Fetch(_ context.Context, _ FetchOptions) ([]UpstreamType, error) {
+	return f.upstream, nil
+}
+func (f *fakeProvider) Emits() []TypeDecl          { return f.emits }
+func (f *fakeProvider) Aliases() map[string]string { return f.aliases }
 
 func TestBuild_BucketAssignment(t *testing.T) {
 	emits := []TypeDecl{
@@ -119,10 +121,10 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 
 func TestPascalToKebab(t *testing.T) {
 	cases := map[string]string{
-		"Instance":    "instance",
+		"Instance":     "instance",
 		"LoadBalancer": "load-balancer",
-		"DBInstance":  "db-instance",
-		"":            "",
+		"DBInstance":   "db-instance",
+		"":             "",
 	}
 	for in, want := range cases {
 		if got := PascalToKebab(in); got != want {
