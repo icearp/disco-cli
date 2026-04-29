@@ -58,7 +58,7 @@ func runTenantServices(ctx context.Context, subs []subscription, cred *azidentit
 		if err != nil {
 			st.ReportError(store.ScanError{
 				Provider: "azure", Service: svc.name, Scope: "tenant",
-				Message: err.Error(),
+				Message: formatAzureError(err),
 			})
 			st.ReportService(svc.name, total, inserted, 1, false)
 			continue

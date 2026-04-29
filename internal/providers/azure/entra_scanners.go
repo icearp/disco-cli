@@ -45,7 +45,7 @@ func scanEntra(ctx context.Context, subs []subscription, cred *azidentity.Defaul
 	if terr != nil {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "azure:entra", Scope: "tenant",
-			Message: "could not resolve tenant id: " + terr.Error(),
+			Message: "could not resolve tenant id: " + formatAzureError(terr),
 		})
 		return 0, 0, nil
 	}
@@ -105,7 +105,7 @@ func scanEntraUsers(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 		}
 		n, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "users", Message: uerr.Error()})
+			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "users", Message: formatAzureError(uerr)})
 			batch = batch[:0]
 			return
 		}
@@ -177,7 +177,7 @@ func scanEntraGroups(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 		}
 		n, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "groups", Message: uerr.Error()})
+			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "groups", Message: formatAzureError(uerr)})
 			batch = batch[:0]
 			return
 		}
@@ -248,7 +248,7 @@ func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphSer
 		}
 		n, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "servicePrincipals", Message: uerr.Error()})
+			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "servicePrincipals", Message: formatAzureError(uerr)})
 			batch = batch[:0]
 			return
 		}
@@ -317,7 +317,7 @@ func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceC
 		}
 		n, uerr := st.UpsertResources(batch)
 		if uerr != nil {
-			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "applications", Message: uerr.Error()})
+			st.ReportError(store.ScanError{Provider: "azure", Service: "azure:entra", Scope: "applications", Message: formatAzureError(uerr)})
 			batch = batch[:0]
 			return
 		}
@@ -359,10 +359,14 @@ func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceC
 // Kiota wraps API errors as graphmodels/odataerrors.* — the message is the
 // most useful signal for the simple classifier below.
 func reportEntraErr(st *store.Store, scope string, err error) {
-	msg := err.Error()
-	if strings.Contains(msg, "Authorization_RequestDenied") ||
-		strings.Contains(msg, "Insufficient privileges") ||
-		strings.Contains(msg, "401") || strings.Contains(msg, "403") {
+	// Classify against the raw error string (SDK error text + JSON body) so
+	// substring matches still hit. Persist the narrowed `formatAzureError`
+	// shape so end-of-scan rendering matches AWS/GCP brevity.
+	raw := err.Error()
+	msg := formatAzureError(err)
+	if strings.Contains(raw, "Authorization_RequestDenied") ||
+		strings.Contains(raw, "Insufficient privileges") ||
+		strings.Contains(raw, "401") || strings.Contains(raw, "403") {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "azure:entra", Scope: scope, Message: msg,
 		})

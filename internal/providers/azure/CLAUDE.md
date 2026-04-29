@@ -77,6 +77,10 @@ Each `arm*` module ships generated `fake.<Type>Server` (e.g. `armcomputefake.Dis
 
 For error injection use `azfake.PagerResponder.AddResponseError(http.StatusForbidden, "AuthorizationFailed")` — produces an `azcore.ResponseError` the `isAccessDenied` check recognises.
 
+## Error formatting — always `formatAzureError`
+
+`azcore.ResponseError.Error()` dumps the entire HTTP request+response (preamble, headers, full ARM error body) — multi-KB per warning. **Never** pass `err.Error()` directly into `store.ScanWarning.Message` / `store.ScanError.Message`. Use `formatAzureError(err)` (in `azure.go`) — narrows to `"{statusCode} {errorCode}: {message}"` matching AWS/GCP brevity. Falls back to `err.Error()` for non-`*azcore.ResponseError` (store / JSON / I/O errors), so it's safe at every site. Existing call sites: `skipIfAccessDenied`, `runTenantServices`, `runAPIResolvers` dispatch, `reportEntraErr` + Entra storage-error sites.
+
 ## Lint gotchas
 
 - `forvar` (Go 1.22+): drop `i, x := i, x` shadows in goroutines — per-iteration scope built-in.

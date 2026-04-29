@@ -1,0 +1,99 @@
+package azure
+
+import (
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+)
+
+// TestFormatAzureError covers the three branches of formatAzureError:
+// (1) azcore.ResponseError with parseable ARM body → narrow shape;
+// (2) ResponseError with unparseable body → status+code only;
+// (3) non-ResponseError → fallback to err.Error().
+//
+// Mirrors the GCP `skipIfDenied` test pattern and ensures Azure scan
+// warnings render at AWS/GCP brevity.
+func TestFormatAzureError(t *testing.T) {
+	t.Run("ResponseError with parseable ARM body", func(t *testing.T) {
+		body := `{"error":{"code":"AuthorizationFailed","message":"The client 'x' does not have permission to perform action 'Microsoft.Compute/virtualMachines/read' on resource '/subscriptions/y/providers/Microsoft.Compute/virtualMachines/z' or the scope is invalid."}}`
+		respErr := &azcore.ResponseError{
+			ErrorCode:  "AuthorizationFailed",
+			StatusCode: http.StatusForbidden,
+			RawResponse: &http.Response{
+				StatusCode: http.StatusForbidden,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			},
+		}
+		got := formatAzureError(respErr)
+		want := "403 AuthorizationFailed: The client 'x' does not have permission to perform action 'Microsoft.Compute/virtualMachines/read' on resource '/subscriptions/y/providers/Microsoft.Compute/virtualMachines/z' or the scope is invalid."
+		if got != want {
+			t.Errorf("got %q\nwant %q", got, want)
+		}
+	})
+
+	t.Run("ResponseError with unparseable body", func(t *testing.T) {
+		respErr := &azcore.ResponseError{
+			ErrorCode:  "InternalError",
+			StatusCode: http.StatusInternalServerError,
+			RawResponse: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       io.NopCloser(strings.NewReader("not-json-html-page")),
+			},
+		}
+		got := formatAzureError(respErr)
+		want := "500 InternalError"
+		if got != want {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
+
+	t.Run("ResponseError with empty body", func(t *testing.T) {
+		respErr := &azcore.ResponseError{
+			ErrorCode:  "ResourceNotFound",
+			StatusCode: http.StatusNotFound,
+			RawResponse: &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(strings.NewReader("")),
+			},
+		}
+		got := formatAzureError(respErr)
+		want := "404 ResourceNotFound"
+		if got != want {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
+
+	t.Run("ResponseError missing ErrorCode falls back to status text", func(t *testing.T) {
+		respErr := &azcore.ResponseError{
+			StatusCode: http.StatusForbidden,
+			RawResponse: &http.Response{
+				StatusCode: http.StatusForbidden,
+				Body:       io.NopCloser(strings.NewReader("")),
+			},
+		}
+		got := formatAzureError(respErr)
+		want := "403 Forbidden"
+		if got != want {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
+
+	t.Run("plain error falls back to err.Error()", func(t *testing.T) {
+		err := errors.New("upsert failed: foreign key constraint")
+		got := formatAzureError(err)
+		want := "upsert failed: foreign key constraint"
+		if got != want {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
+
+	t.Run("nil returns empty", func(t *testing.T) {
+		if got := formatAzureError(nil); got != "" {
+			t.Errorf("got %q want empty", got)
+		}
+	})
+}
