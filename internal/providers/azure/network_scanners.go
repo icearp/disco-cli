@@ -21,6 +21,8 @@ func init() {
 			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet},
 			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityGroup},
 			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPAddress},
+			// Application Gateway (consolidated from former azure:applicationgateway).
+			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationGateway},
 			// Enterprise networking (consolidated from former azure:wan).
 			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteCircuit},
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualWAN},
@@ -77,6 +79,10 @@ func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	ergClient, err := armnetwork.NewExpressRouteGatewaysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetwork:NewExpressRouteGatewaysClient: %w", err)
+	}
+	agwClient, err := armnetwork.NewApplicationGatewaysClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armnetwork:NewApplicationGatewaysClient: %w", err)
 	}
 
 	var (
@@ -145,6 +151,15 @@ func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 		// call, no pager). Inline.
 		func() (int, int, error) {
 			return scanExpressRouteGateways(ctx, sub, ergClient, st, scanID)
+		},
+		// Application Gateways — sub-wide ListAll.
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armnetwork:ApplicationGateways.ListAll", TypeNetworkApplicationGateway, sub, st, scanID,
+				agwClient.NewListAllPager(nil),
+				func(p armnetwork.ApplicationGatewaysClientListAllResponse) []*armnetwork.ApplicationGateway {
+					return p.Value
+				},
+				agwToBase)
 		},
 	}
 
@@ -361,5 +376,9 @@ func vngToBase(g *armnetwork.VirtualNetworkGateway) azTrackedBase {
 }
 
 func ergToBase(g *armnetwork.ExpressRouteGateway) azTrackedBase {
+	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+}
+
+func agwToBase(g *armnetwork.ApplicationGateway) azTrackedBase {
 	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
 }

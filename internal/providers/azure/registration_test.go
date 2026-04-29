@@ -13,7 +13,6 @@ import (
 // registered. Update this list when adding a new service scanner.
 var expectedAzureServices = []string{
 	"azure:aks",
-	"azure:applicationgateway",
 	"azure:apimanagement",
 	"azure:appservice",
 	"azure:authorization",
