@@ -26,11 +26,11 @@ func init() {
 }
 
 // iamAPI is the narrow set of IAM operations called by the scanIAM sub-phases.
+// `GetAccountAuthorizationDetails` consolidates what used to be 7 separate
+// list/describe calls (roles, users, groups, policies + per-policy version,
+// per-principal inline policies).
 type iamAPI interface {
-	ListRoles(context.Context, *iam.ListRolesInput, ...func(*iam.Options)) (*iam.ListRolesOutput, error)
-	ListUsers(context.Context, *iam.ListUsersInput, ...func(*iam.Options)) (*iam.ListUsersOutput, error)
-	ListGroups(context.Context, *iam.ListGroupsInput, ...func(*iam.Options)) (*iam.ListGroupsOutput, error)
-	ListPolicies(context.Context, *iam.ListPoliciesInput, ...func(*iam.Options)) (*iam.ListPoliciesOutput, error)
+	GetAccountAuthorizationDetails(context.Context, *iam.GetAccountAuthorizationDetailsInput, ...func(*iam.Options)) (*iam.GetAccountAuthorizationDetailsOutput, error)
 	ListInstanceProfiles(context.Context, *iam.ListInstanceProfilesInput, ...func(*iam.Options)) (*iam.ListInstanceProfilesOutput, error)
 	ListOpenIDConnectProviders(context.Context, *iam.ListOpenIDConnectProvidersInput, ...func(*iam.Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
 	GetOpenIDConnectProvider(context.Context, *iam.GetOpenIDConnectProviderInput, ...func(*iam.Options)) (*iam.GetOpenIDConnectProviderOutput, error)
@@ -39,29 +39,29 @@ type iamAPI interface {
 	ListServerCertificates(context.Context, *iam.ListServerCertificatesInput, ...func(*iam.Options)) (*iam.ListServerCertificatesOutput, error)
 	ListVirtualMFADevices(context.Context, *iam.ListVirtualMFADevicesInput, ...func(*iam.Options)) (*iam.ListVirtualMFADevicesOutput, error)
 	ListAccessKeys(context.Context, *iam.ListAccessKeysInput, ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error)
-	ListRolePolicies(context.Context, *iam.ListRolePoliciesInput, ...func(*iam.Options)) (*iam.ListRolePoliciesOutput, error)
-	GetRolePolicy(context.Context, *iam.GetRolePolicyInput, ...func(*iam.Options)) (*iam.GetRolePolicyOutput, error)
-	ListUserPolicies(context.Context, *iam.ListUserPoliciesInput, ...func(*iam.Options)) (*iam.ListUserPoliciesOutput, error)
-	GetUserPolicy(context.Context, *iam.GetUserPolicyInput, ...func(*iam.Options)) (*iam.GetUserPolicyOutput, error)
-	ListGroupPolicies(context.Context, *iam.ListGroupPoliciesInput, ...func(*iam.Options)) (*iam.ListGroupPoliciesOutput, error)
-	GetGroupPolicy(context.Context, *iam.GetGroupPolicyInput, ...func(*iam.Options)) (*iam.GetGroupPolicyOutput, error)
-	GetPolicyVersion(context.Context, *iam.GetPolicyVersionInput, ...func(*iam.Options)) (*iam.GetPolicyVersionOutput, error)
 }
 
-// scanIAM discovers all IAM resources. Phase 1 scans standalone resources in
-// parallel; phase 2 scans per-principal resources that depend on phase 1 being
-// in the DB first. IAM is a global service scanned once per account.
+// scanIAM discovers all IAM resources. Phase 1 fans out the independent
+// scanners in parallel:
+//
+//   - scanIAMAuthDetails: paginated GetAccountAuthorizationDetails returning
+//     users + roles + groups + managed policies (Local + AWS scope) + their
+//     attached managed policies + inline policies + permission boundaries in
+//     one call. Replaces the historical 7-scanner phase split.
+//   - scanIAMInstanceProfiles, scanIAMOIDCProviders, scanIAMSAMLProviders,
+//     scanIAMServerCertificates, scanIAMVirtualMFADevices: independent APIs.
+//
+// Phase 2: scanIAMAccessKeys (per-user fan-out — needs users in DB).
+//
+// IAM is a global service scanned once per account.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := iam.NewFromConfig(acct.cfg)
 	var t, n atomic.Int64
 	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
 
-	// Phase 1: standalone resources — all parallel.
+	// Phase 1: independent scanners in parallel.
 	g1, ctx1 := errgroup.WithContext(ctx)
-	g1.Go(func() error { tt, nn, e := scanIAMRoles(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMUsers(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMGroups(ctx1, client, acct, st, scanID); add(tt, nn); return e })
-	g1.Go(func() error { tt, nn, e := scanIAMPolicies(ctx1, client, acct, st, scanID); add(tt, nn); return e })
+	g1.Go(func() error { tt, nn, e := scanIAMAuthDetails(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error {
 		tt, nn, e := scanIAMInstanceProfiles(ctx1, client, acct, st, scanID)
 		add(tt, nn)
@@ -83,33 +83,51 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 		return int(t.Load()), int(n.Load()), err
 	}
 
-	// Phase 2: per-principal resources — depend on phase 1 results being in DB.
-	g2, ctx2 := errgroup.WithContext(ctx)
-	g2.Go(func() error { tt, nn, e := scanIAMAccessKeys(ctx2, client, acct, st, scanID); add(tt, nn); return e })
-	g2.Go(func() error { tt, nn, e := scanIAMRolePolicies(ctx2, client, acct, st, scanID); add(tt, nn); return e })
-	g2.Go(func() error { tt, nn, e := scanIAMUserPolicies(ctx2, client, acct, st, scanID); add(tt, nn); return e })
-	g2.Go(func() error { tt, nn, e := scanIAMGroupPolicies(ctx2, client, acct, st, scanID); add(tt, nn); return e })
-	err = g2.Wait()
-	return int(t.Load()), int(n.Load()), err
+	// Phase 2: scanIAMAccessKeys depends on user list being in the DB.
+	tt, nn, e := scanIAMAccessKeys(ctx, client, acct, st, scanID)
+	add(tt, nn)
+	return int(t.Load()), int(n.Load()), e
 }
 
-// scanIAMRoles lists all IAM roles, splitting service-linked roles (path prefix
-// /aws-service-role/) into TypeIAMServiceLinkedRole.
-func scanIAMRoles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := iam.NewListRolesPaginator(client, &iam.ListRolesInput{})
+// scanIAMAuthDetails paginates iam:GetAccountAuthorizationDetails to upsert
+// users + roles + groups + managed policies (Local + AWS scope) + their
+// inline policies in a single API call sequence. Replaces the previous
+// 7-scanner phase split (ListRoles, ListUsers, ListGroups, ListPolicies +
+// per-policy GetPolicyVersion fan-out, plus ListRolePolicies / ListUserPolicies
+// / ListGroupPolicies + per-name Get*Policy fan-outs). MaxItems=1000 (API
+// ceiling) cuts page count.
+//
+// Filter requests all five entity types in one call. AccessDenied degrades
+// to a single warning and an empty scan — no per-entity-type fallback.
+func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	maxItems := int32(1000)
+	pager := iam.NewGetAccountAuthorizationDetailsPaginator(client, &iam.GetAccountAuthorizationDetailsInput{
+		Filter: []iamtypes.EntityType{
+			iamtypes.EntityTypeUser,
+			iamtypes.EntityTypeRole,
+			iamtypes.EntityTypeGroup,
+			iamtypes.EntityTypeLocalManagedPolicy,
+			iamtypes.EntityTypeAWSManagedPolicy,
+		},
+		MaxItems: &maxItems,
+	})
 	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListRoles", acct.ID, "global", err)
+		page, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "iam:GetAccountAuthorizationDetails", acct.ID, "global", perr)
 			}
-			return total, inserted, fmt.Errorf("iam:ListRoles: %w", err)
+			return total, inserted, fmt.Errorf("iam:GetAccountAuthorizationDetails: %w", perr)
 		}
+
 		var batch []*store.Resource
-		for _, role := range page.Roles {
-			name := sv(role.RoleName)
+
+		// Roles + their inline policies. Service-linked roles split off via
+		// the `/aws-service-role/` path prefix, same as the legacy scanner.
+		for _, r := range page.RoleDetailList {
+			name := sv(r.RoleName)
 			rt := TypeIAMRole
-			isSLR := strings.HasPrefix(sv(role.Path), "/aws-service-role/")
+			isSLR := strings.HasPrefix(sv(r.Path), "/aws-service-role/")
 			if isSLR {
 				rt = TypeIAMServiceLinkedRole
 			}
@@ -118,189 +136,73 @@ func scanIAMRoles(ctx context.Context, client iamAPI, acct *account, st *store.S
 				AccountID:         acct.ID,
 				AccountName:       &acct.Name,
 				Type:              rt,
-				NativeID:          sv(role.Arn),
+				NativeID:          sv(r.Arn),
 				Name:              &name,
-				CreatedAt:         tp(role.CreateDate),
-				TagsJSON:          awsTagsJSON(role.Tags),
-				AttributesJSON:    mustJSON(role),
+				CreatedAt:         tp(r.CreateDate),
+				TagsJSON:          awsTagsJSON(r.Tags),
+				AttributesJSON:    mustJSON(r),
 				DiscoveredBy:      scanID,
 				ManagedByProvider: isSLR,
 			})
+			batch = append(batch, inlinePolicyRows(r.RolePolicyList, sv(r.Arn), TypeIAMRolePolicy, acct, scanID)...)
 		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM roles/service-linked-roles: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
 
-func scanIAMUsers(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := iam.NewListUsersPaginator(client, &iam.ListUsersInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListUsers", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("iam:ListUsers: %w", err)
-		}
-		var batch []*store.Resource
-		for _, user := range page.Users {
-			name := sv(user.UserName)
+		// Users + their inline policies. PermissionsBoundary, GroupList, and
+		// Tags ride along on UserDetail; downstream resolvers consume them
+		// from the same JSON shape as before.
+		for _, u := range page.UserDetailList {
+			name := sv(u.UserName)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeIAMUser,
-				NativeID:       sv(user.Arn),
+				NativeID:       sv(u.Arn),
 				Name:           &name,
-				CreatedAt:      tp(user.CreateDate),
-				AttributesJSON: mustJSON(user),
+				CreatedAt:      tp(u.CreateDate),
+				TagsJSON:       awsTagsJSON(u.Tags),
+				AttributesJSON: mustJSON(u),
 				DiscoveredBy:   scanID,
 			})
+			batch = append(batch, inlinePolicyRows(u.UserPolicyList, sv(u.Arn), TypeIAMUserPolicy, acct, scanID)...)
 		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM users: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
 
-func scanIAMGroups(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := iam.NewListGroupsPaginator(client, &iam.ListGroupsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListGroups", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("iam:ListGroups: %w", err)
-		}
-		var batch []*store.Resource
-		for _, group := range page.Groups {
-			name := sv(group.GroupName)
+		// Groups + their inline policies.
+		for _, gr := range page.GroupDetailList {
+			name := sv(gr.GroupName)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeIAMGroup,
-				NativeID:       sv(group.Arn),
+				NativeID:       sv(gr.Arn),
 				Name:           &name,
-				CreatedAt:      tp(group.CreateDate),
-				AttributesJSON: mustJSON(group),
+				CreatedAt:      tp(gr.CreateDate),
+				AttributesJSON: mustJSON(gr),
 				DiscoveredBy:   scanID,
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM groups: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
-// scanIAMPolicies lists all IAM policies (customer-managed + AWS-managed) and
-// enriches each with its default-version document via GetPolicyVersion. The
-// document body is required by resolveIAMPolicyResources to walk
-// Statement[].Resource and emit edges to KMS / S3 / Secrets / DynamoDB targets;
-// ListPolicies alone does not return it.
-//
-// AWS-managed policies (~1,500+ public/static catalogue) are scanned and
-// flagged ManagedByProvider=true so they are hidden from default list/graph
-// output but remain available for attachment resolvers and explicit lookup.
-func scanIAMPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, scope := range []iamtypes.PolicyScopeType{iamtypes.PolicyScopeTypeLocal, iamtypes.PolicyScopeTypeAws} {
-		t, n, ferr := scanIAMPoliciesScope(ctx, client, acct, st, scanID, scope)
-		total += t
-		inserted += n
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-	}
-	return total, inserted, nil
-}
-
-// scanIAMPoliciesScope runs the policy scan for a single PolicyScopeType.
-// AWS-scoped policies (managed catalogue) are flagged ManagedByProvider=true.
-func scanIAMPoliciesScope(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, scope iamtypes.PolicyScopeType) (total, inserted int, err error) {
-	managed := scope == iamtypes.PolicyScopeTypeAws
-	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{Scope: scope})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "iam:ListPolicies", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("iam:ListPolicies: %w", err)
+			batch = append(batch, inlinePolicyRows(gr.GroupPolicyList, sv(gr.Arn), TypeIAMGroupPolicy, acct, scanID)...)
 		}
 
-		// Fetch each default policy version concurrently. Per-policy AccessDenied
-		// degrades to "no document"; the row still lands in the store, the walker
-		// just emits no edges for it. `fanoutMed` (10) intentionally sits below
-		// AWS IAM's sustained TPS threshold — bumping higher trips throttling
-		// retries and explodes scan wall-time across the ~1100 managed-policy
-		// catalogue (see ROADMAP / commit log for the GAAD consolidation that
-		// removes this fan-out entirely).
-		versions := make([]*iamtypes.PolicyVersion, len(page.Policies))
-		sem := semaphore.NewWeighted(fanoutMed)
-		g, gctx := errgroup.WithContext(ctx)
-		for i, p := range page.Policies {
-			if p.Arn == nil || p.DefaultVersionId == nil {
-				continue
-			}
-			g.Go(func() error {
-				if err := sem.Acquire(gctx, 1); err != nil {
-					return err
-				}
-				defer sem.Release(1)
-				out, err := client.GetPolicyVersion(gctx, &iam.GetPolicyVersionInput{
-					PolicyArn: p.Arn,
-					VersionId: p.DefaultVersionId,
-				})
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:GetPolicyVersion %s: %w", sv(p.Arn), err)
-				}
-				versions[i] = out.PolicyVersion
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return total, inserted, err
-		}
-
-		var batch []*store.Resource
-		for i, p := range page.Policies {
+		// Managed policies. PolicyVersionList carries every version; pick the
+		// IsDefaultVersion=true entry to populate the wrapped `PolicyVersion`
+		// field that resolveIAMPolicyResources reads. AWS-managed catalogue
+		// detected via the `arn:aws:iam::aws:` prefix (canonical AWS-curated
+		// scope marker); GAAD does not expose scope per-policy.
+		for _, p := range page.Policies {
+			arn := sv(p.Arn)
 			name := sv(p.PolicyName)
-			// Wrap shape per CLAUDE.md "embedding child data": preserve Policy verbatim,
-			// add sibling PolicyVersion (URL-encoded Document field). resolveManagedPolicyAttachments
-			// consumes only NativeID, so wrapping is safe.
+			managed := strings.HasPrefix(arn, "arn:aws:iam::aws:")
 			wrapped := struct {
-				Policy        iamtypes.Policy         `json:"Policy"`
-				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
-			}{Policy: p, PolicyVersion: versions[i]}
+				Policy        iamtypes.ManagedPolicyDetail `json:"Policy"`
+				PolicyVersion *iamtypes.PolicyVersion      `json:"PolicyVersion,omitempty"`
+			}{Policy: p, PolicyVersion: defaultPolicyVersion(p)}
 			batch = append(batch, &store.Resource{
 				Provider:          "aws",
 				AccountID:         acct.ID,
 				AccountName:       &acct.Name,
 				Type:              TypeIAMPolicy,
-				NativeID:          sv(p.Arn),
+				NativeID:          arn,
 				Name:              &name,
 				CreatedAt:         tp(p.CreateDate),
 				AttributesJSON:    mustJSON(wrapped),
@@ -308,16 +210,60 @@ func scanIAMPoliciesScope(ctx context.Context, client iamAPI, acct *account, st 
 				ManagedByProvider: managed,
 			})
 		}
+
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert IAM managed policies: %w", err)
+				return total, inserted, fmt.Errorf("upsert IAM auth details: %w", err)
 			}
 			total += len(batch)
 			inserted += n
 		}
 	}
-	return
+	return total, inserted, nil
+}
+
+// inlinePolicyRows projects a slice of GAAD-embedded inline policies into
+// store.Resource rows. NativeID format `{parentARN}/policy/{policyName}` is
+// preserved from the legacy scanIAM{Role,User,Group}Policies output so the
+// inline-policy resolvers (parent-link extraction in resolveInlinePolicyParents)
+// keep working unchanged.
+func inlinePolicyRows(list []iamtypes.PolicyDetail, parentARN, rtype string, acct *account, scanID string) []*store.Resource {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]*store.Resource, 0, len(list))
+	for _, ip := range list {
+		policyName := sv(ip.PolicyName)
+		if policyName == "" {
+			continue
+		}
+		out = append(out, &store.Resource{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           rtype,
+			NativeID:       parentARN + "/policy/" + policyName,
+			Name:           &policyName,
+			AttributesJSON: mustJSON(ip),
+			DiscoveredBy:   scanID,
+		})
+	}
+	return out
+}
+
+// defaultPolicyVersion picks the IsDefaultVersion=true entry from a managed
+// policy's PolicyVersionList. The walker reads `PolicyVersion.Document`; we
+// keep the wrap shape compatible with the legacy ListPolicies +
+// GetPolicyVersion path so resolveIAMPolicyResources needs no changes.
+func defaultPolicyVersion(p iamtypes.ManagedPolicyDetail) *iamtypes.PolicyVersion {
+	for i := range p.PolicyVersionList {
+		v := &p.PolicyVersionList[i]
+		if v.IsDefaultVersion {
+			return v
+		}
+	}
+	return nil
 }
 
 func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -613,234 +559,6 @@ func scanIAMAccessKeys(ctx context.Context, client iamAPI, acct *account, st *st
 	n, err := st.UpsertResources(batch)
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert IAM access keys: %w", err)
-	}
-	return len(batch), n, nil
-}
-
-// scanIAMRolePolicies iterates all roles/service-linked roles and lists their inline policies.
-// NativeID format: {roleARN}/policy/{policyName} — used by resolvers to link policies to roles.
-func scanIAMRolePolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	roles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMRole, TypeIAMServiceLinkedRole},
-		Limit:     util.AllResources,
-	})
-	if err != nil {
-		return 0, 0, fmt.Errorf("list IAM roles for role policy scan: %w", err)
-	}
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, role := range roles {
-		roleARN := role.NativeID
-		roleName := sv(role.Name)
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			pager := iam.NewListRolePoliciesPaginator(client, &iam.ListRolePoliciesInput{RoleName: &roleName})
-			var local []*store.Resource
-			for pager.HasMorePages() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:ListRolePolicies %s: %w", roleName, err)
-				}
-				for _, policyName := range page.PolicyNames {
-					detail, err := client.GetRolePolicy(gctx, &iam.GetRolePolicyInput{
-						RoleName: &roleName, PolicyName: &policyName,
-					})
-					if err != nil {
-						if isAccessDenied(err) {
-							continue
-						}
-						return fmt.Errorf("iam:GetRolePolicy %s/%s: %w", roleName, policyName, err)
-					}
-					nativeID := roleARN + "/policy/" + policyName
-					local = append(local, &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeIAMRolePolicy,
-						NativeID:       nativeID,
-						Name:           &policyName,
-						AttributesJSON: mustJSON(detail),
-						DiscoveredBy:   scanID,
-					})
-				}
-			}
-			mu.Lock()
-			batch = append(batch, local...)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert IAM role policies: %w", err)
-	}
-	return len(batch), n, nil
-}
-
-// scanIAMUserPolicies iterates all users and lists their inline policies.
-// NativeID format: {userARN}/policy/{policyName}.
-func scanIAMUserPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	users, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMUser},
-		Limit:     util.AllResources,
-	})
-	if err != nil {
-		return 0, 0, fmt.Errorf("list IAM users for user policy scan: %w", err)
-	}
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, u := range users {
-		userARN := u.NativeID
-		userName := sv(u.Name)
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			pager := iam.NewListUserPoliciesPaginator(client, &iam.ListUserPoliciesInput{UserName: &userName})
-			var local []*store.Resource
-			for pager.HasMorePages() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:ListUserPolicies %s: %w", userName, err)
-				}
-				for _, policyName := range page.PolicyNames {
-					detail, err := client.GetUserPolicy(gctx, &iam.GetUserPolicyInput{
-						UserName: &userName, PolicyName: &policyName,
-					})
-					if err != nil {
-						if isAccessDenied(err) {
-							continue
-						}
-						return fmt.Errorf("iam:GetUserPolicy %s/%s: %w", userName, policyName, err)
-					}
-					nativeID := userARN + "/policy/" + policyName
-					local = append(local, &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeIAMUserPolicy,
-						NativeID:       nativeID,
-						Name:           &policyName,
-						AttributesJSON: mustJSON(detail),
-						DiscoveredBy:   scanID,
-					})
-				}
-			}
-			mu.Lock()
-			batch = append(batch, local...)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert IAM user policies: %w", err)
-	}
-	return len(batch), n, nil
-}
-
-// scanIAMGroupPolicies iterates all groups and lists their inline policies.
-// NativeID format: {groupARN}/policy/{policyName}.
-func scanIAMGroupPolicies(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMGroup},
-		Limit:     util.AllResources,
-	})
-	if err != nil {
-		return 0, 0, fmt.Errorf("list IAM groups for group policy scan: %w", err)
-	}
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, grp := range groups {
-		groupARN := grp.NativeID
-		groupName := sv(grp.Name)
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			pager := iam.NewListGroupPoliciesPaginator(client, &iam.ListGroupPoliciesInput{GroupName: &groupName})
-			var local []*store.Resource
-			for pager.HasMorePages() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:ListGroupPolicies %s: %w", groupName, err)
-				}
-				for _, policyName := range page.PolicyNames {
-					detail, err := client.GetGroupPolicy(gctx, &iam.GetGroupPolicyInput{
-						GroupName: &groupName, PolicyName: &policyName,
-					})
-					if err != nil {
-						if isAccessDenied(err) {
-							continue
-						}
-						return fmt.Errorf("iam:GetGroupPolicy %s/%s: %w", groupName, policyName, err)
-					}
-					nativeID := groupARN + "/policy/" + policyName
-					local = append(local, &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeIAMGroupPolicy,
-						NativeID:       nativeID,
-						Name:           &policyName,
-						AttributesJSON: mustJSON(detail),
-						DiscoveredBy:   scanID,
-					})
-				}
-			}
-			mu.Lock()
-			batch = append(batch, local...)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert IAM group policies: %w", err)
 	}
 	return len(batch), n, nil
 }
