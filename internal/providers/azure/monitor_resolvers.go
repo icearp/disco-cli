@@ -48,6 +48,19 @@ var diagnosableTypes = []string{
 	TypeOpInsightsWorkspace,
 	TypeDatabricksWorkspace,
 	TypeSynapseWorkspace,
+	// R3.25 allowlist extension — newer/secondary diagnosable types.
+	TypePostgreSQLFlexibleServer,
+	TypeMySQLFlexibleServer,
+	TypeContainerInstanceContainerGroup,
+	TypeEventGridTopic,
+	TypeEventGridSystemTopic,
+	TypeEventGridDomain,
+	TypeDataFactoryFactory,
+	TypeLogicWorkflow,
+	TypeAPIManagementService,
+	TypeNetworkTrafficManagerProfile,
+	TypeCDNProfile,
+	TypeSQLManagedInstance,
 }
 
 // resolveDiagnosticSettings is a cross-service API resolver that walks every
