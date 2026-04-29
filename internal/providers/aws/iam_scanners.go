@@ -250,13 +250,13 @@ func scanIAMPoliciesScope(ctx context.Context, client iamAPI, acct *account, st 
 
 		// Fetch each default policy version concurrently. Per-policy AccessDenied
 		// degrades to "no document"; the row still lands in the store, the walker
-		// just emits no edges for it.
-		// fanoutHigh chosen here over fanoutMed because IAM is global (single
-		// endpoint, no per-region splitting) and the AWS-managed catalogue is
-		// ~1100 policies — the GetPolicyVersion fan-out dominates IAM scan
-		// wall-time and benefits from the higher concurrency cap.
+		// just emits no edges for it. `fanoutMed` (10) intentionally sits below
+		// AWS IAM's sustained TPS threshold — bumping higher trips throttling
+		// retries and explodes scan wall-time across the ~1100 managed-policy
+		// catalogue (see ROADMAP / commit log for the GAAD consolidation that
+		// removes this fan-out entirely).
 		versions := make([]*iamtypes.PolicyVersion, len(page.Policies))
-		sem := semaphore.NewWeighted(fanoutHigh)
+		sem := semaphore.NewWeighted(fanoutMed)
 		g, gctx := errgroup.WithContext(ctx)
 		for i, p := range page.Policies {
 			if p.Arn == nil || p.DefaultVersionId == nil {
