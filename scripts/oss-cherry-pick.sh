@@ -58,7 +58,7 @@ git format-patch -1 --stdout "$FULL_SHA" >"$PATCH_IN"
 name_excluded() {
   local p="$1"
   case "$p" in
-    *_paid.go|*_paid_test.go) return 0 ;;
+    *_paid.go|*_paid_test.go|*_paid.md) return 0 ;;
     scripts/oss-sync.sh|scripts/oss-cherry-pick.sh) return 0 ;;
     README.upstream.md) return 0 ;;
   esac
