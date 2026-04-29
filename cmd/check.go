@@ -39,6 +39,7 @@ Well-Architected) are a paid add-on.
 Examples:
   disco check --rules ./policies
   disco check --rules ./policies --severity high -o jsonl
+  disco check --rules ./policies -o sarif > findings.sarif
   disco check --rules ./policies --exit-nonzero`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(checkRulePaths) == 0 {
@@ -89,12 +90,16 @@ Examples:
 					return err
 				}
 			}
+		case "sarif":
+			if err := renderCheckSARIF(findings, os.Stdout); err != nil {
+				return err
+			}
 		case "table", "":
 			if err := renderCheckTable(findings); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl)", checkOutputFmt)
+			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, sarif)", checkOutputFmt)
 		}
 
 		if checkExitNonZero && len(findings) > 0 {
@@ -172,7 +177,7 @@ func dashIfEmpty(s string) string {
 func init() {
 	checkCmd.Flags().StringSliceVar(&checkRulePaths, "rules", nil, "Rego policy file or directory (repeatable; directories walked for *.rego)")
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
-	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl")
+	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, sarif")
 	checkCmd.Flags().BoolVar(&checkExitNonZero, "exit-nonzero", false, "Exit 1 if any finding reported")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
 	rootCmd.AddCommand(checkCmd)

@@ -93,7 +93,7 @@ After adding a heavy dep behind `//go:build paid`, confirm OSS build doesn't pul
 
 ### Demoting a paid feature to OSS
 
-Mirror of promotion. Four touches: (1) rename `*_paid.go` → drop `_paid` suffix; (2) strip `//go:build paid` line; (3) delete the `license.Require()` block at top of `RunE`; (4) `go mod tidy` (flips formerly-paid deps from `// indirect` to direct OSS). Also un-tag any `internal/<pkg>/*.go` + `*_test.go` the command imports. Verify both `go test ./...` and `go test -tags paid ./...` still green.
+Mirror of promotion. Four touches: (1) rename `*_paid.go` **and any `*_paid_test.go` sibling** → drop `_paid` suffix; (2) strip `//go:build paid` line from each; (3) delete the `license.Require()` block at top of `RunE`; (4) `go mod tidy` (flips formerly-paid deps from `// indirect` to direct OSS). Also un-tag any `internal/<pkg>/*.go` + `*_test.go` the command imports. Easy miss: leaving the test file tagged silently drops OSS coverage — `go test ./...` still passes because the tests just don't compile in. Verify both `go test ./...` and `go test -tags paid ./...` green.
 
 After build-tag edits, gopls may report stale `BrokenImport` diagnostics — trust `go build` / `go test` output, not the LSP.
 

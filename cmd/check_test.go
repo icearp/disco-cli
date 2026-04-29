@@ -1,5 +1,3 @@
-//go:build paid
-
 package cmd
 
 import (
@@ -105,6 +103,83 @@ func TestCheckCmd_ExitNonZero(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "finding") {
 		t.Errorf("want findings error, got %v", err)
+	}
+}
+
+// TestCheckCmd_SARIF asserts -o sarif emits a valid v2.1.0 doc with the
+// EBS finding mapped to a SARIF result + driver rule descriptor.
+func TestCheckCmd_SARIF(t *testing.T) {
+	seedCheckDB(t)
+	resetCheckFlags()
+	dir := writePolicy(t)
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "sarif"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+
+	var doc sarifLog
+	if jerr := json.Unmarshal([]byte(out), &doc); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if doc.Version != "2.1.0" {
+		t.Errorf("version: want 2.1.0, got %q", doc.Version)
+	}
+	if len(doc.Runs) != 1 {
+		t.Fatalf("runs: want 1, got %d", len(doc.Runs))
+	}
+	run := doc.Runs[0]
+	if run.Tool.Driver.Name != "disco" {
+		t.Errorf("driver.name: %q", run.Tool.Driver.Name)
+	}
+	if len(run.Tool.Driver.Rules) != 1 || run.Tool.Driver.Rules[0].ID != "ebs-unencrypted" {
+		t.Errorf("driver.rules: %+v", run.Tool.Driver.Rules)
+	}
+	if len(run.Results) != 1 {
+		t.Fatalf("results: want 1, got %d", len(run.Results))
+	}
+	r := run.Results[0]
+	if r.RuleID != "ebs-unencrypted" {
+		t.Errorf("ruleId: %q", r.RuleID)
+	}
+	if r.Level != "error" {
+		t.Errorf("level: want error (high → error), got %q", r.Level)
+	}
+	if len(r.Locations) != 1 || len(r.Locations[0].LogicalLocations) != 1 {
+		t.Fatalf("locations: %+v", r.Locations)
+	}
+	if r.Locations[0].LogicalLocations[0].FullyQualifiedName == "" {
+		t.Errorf("logicalLocation.fullyQualifiedName empty")
+	}
+}
+
+// TestCheckCmd_SARIF_Empty asserts an empty-findings run still produces a
+// valid SARIF doc with results: [] — code-scanning ingesters use that to
+// clear stale findings on subsequent green runs.
+func TestCheckCmd_SARIF_Empty(t *testing.T) {
+	seedTestDB(t) // no unencrypted volume — policy won't match
+	resetCheckFlags()
+	dir := writePolicy(t)
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "sarif"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+
+	var doc sarifLog
+	if jerr := json.Unmarshal([]byte(out), &doc); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if len(doc.Runs) != 1 || len(doc.Runs[0].Results) != 0 {
+		t.Errorf("want 1 run with 0 results, got %+v", doc.Runs)
 	}
 }
 
