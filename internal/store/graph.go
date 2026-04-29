@@ -417,6 +417,122 @@ func reconstructPath(s *Store, src, dest string, parent map[string]bfsEdge, srcR
 	return out, nil
 }
 
+// GraphAllOpts configures GraphAll. No traversal knobs (depth/kinds/direction)
+// since GraphAll is store-dump style — every relationship in the DB is a
+// candidate edge. Filter knobs mirror GraphWalk so the cmd layer reuses
+// flag plumbing.
+type GraphAllOpts struct {
+	// IncludeManaged: when false (default), provider-managed resources only
+	// appear if they have at least one edge to a customer-managed resource;
+	// orphan managed resources (e.g. unused AWS-managed policies, built-in
+	// Azure role definitions) drop out. When true, every resource is
+	// included regardless of edges.
+	IncludeManaged bool
+	ExcludeTypes   []string
+	ExcludeRegions []string
+	MaxNodes       int
+	MaxEdges       int
+}
+
+// GraphAll returns the whole resource graph in one shot — every customer
+// resource plus every provider-managed resource that has at least one edge
+// touching a customer resource. Edges are kept only when both endpoints
+// survive filtering. SeedID is empty since there is no traversal seed.
+//
+// Prefer GraphWalk / GraphPath for seeded queries; GraphAll's working set
+// scales with the full resource + relationship table.
+func (s *Store) GraphAll(opts GraphAllOpts) (*GraphResult, error) {
+	// Always pull managed + paginate past the default 500 cap. GraphAll
+	// owns the customer-vs-managed inclusion decision below; the SQL
+	// layer must hand over every row regardless.
+	const pageSize = 5000
+	var all []Resource
+	for offset := uint64(0); ; offset += pageSize {
+		page, err := s.ListResources(ResourceFilter{
+			IncludeManaged: true,
+			Limit:          pageSize,
+			Offset:         offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if uint64(len(page)) < pageSize {
+			break
+		}
+	}
+	rels, err := s.ListRelationships()
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]Resource, len(all))
+	for _, r := range all {
+		byID[r.ID] = r
+	}
+
+	// connectsToCustomer[id] = true once we've seen a relationship where the
+	// other endpoint is a customer (unmanaged) resource that exists in the
+	// store. Self-loops on managed resources don't promote inclusion.
+	connectsToCustomer := make(map[string]bool, len(byID))
+	for _, rel := range rels {
+		from, fromOK := byID[rel.FromID]
+		to, toOK := byID[rel.ToID]
+		if !fromOK || !toOK {
+			continue
+		}
+		if !from.ManagedByProvider {
+			connectsToCustomer[rel.ToID] = true
+		}
+		if !to.ManagedByProvider {
+			connectsToCustomer[rel.FromID] = true
+		}
+	}
+
+	result := &GraphResult{}
+	included := make(map[string]bool, len(byID))
+	for _, r := range all {
+		if !opts.IncludeManaged && r.ManagedByProvider && !connectsToCustomer[r.ID] {
+			continue
+		}
+		if matchTypeGlob(opts.ExcludeTypes, r.Type) {
+			result.ExcludedTypes++
+			continue
+		}
+		if r.Region != nil && slices.Contains(opts.ExcludeRegions, *r.Region) {
+			result.ExcludedRegions++
+			continue
+		}
+		if opts.MaxNodes > 0 && len(included) >= opts.MaxNodes {
+			result.TruncatedNodes++
+			continue
+		}
+		included[r.ID] = true
+		result.Nodes = append(result.Nodes, GraphNode{Resource: r, Depth: 0})
+	}
+
+	// Stable node order for diff-friendly output. ListResources orders by
+	// upsert/scan timestamp — sort by ID so two scans over the same data
+	// produce identical graphs.
+	sort.Slice(result.Nodes, func(i, j int) bool {
+		return result.Nodes[i].Resource.ID < result.Nodes[j].Resource.ID
+	})
+
+	for _, rel := range rels {
+		if !included[rel.FromID] || !included[rel.ToID] {
+			continue
+		}
+		if opts.MaxEdges > 0 && len(result.Edges) >= opts.MaxEdges {
+			result.TruncatedEdges++
+			continue
+		}
+		result.Edges = append(result.Edges, GraphEdge{
+			FromID: rel.FromID, ToID: rel.ToID, Kind: rel.Kind,
+		})
+	}
+	return result, nil
+}
+
 // matchTypeGlob returns true if t matches any pattern. Patterns are literal
 // or suffix-glob ("aws:iam:*"); a single trailing "*" is the only wildcard
 // form recognised. Empty pattern list = no match.

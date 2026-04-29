@@ -58,6 +58,7 @@ ambiguous across providers, types, or accounts, pass --provider / --type /
 Subcommands:
   graph path <A> <B>   shortest path between two resources
   graph blast <id>     outbound reachability with per-distance rings
+  graph complete       dump every customer resource + connected managed
 
 Examples:
   disco graph i-0abc123 --provider aws --depth 3
@@ -205,6 +206,48 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			return err
 		}
 		return renderGraph(g, true)
+	},
+}
+
+// graphCompleteCmd implements `disco graph complete` — dump the entire
+// stored graph in one shot. Customer-managed resources always included;
+// provider-managed resources kept only when they share an edge with a
+// customer resource (set --include-managed to keep orphan managed nodes too).
+//
+// Traversal flags (--depth/--kinds/--direction) are ignored since this is
+// not a seeded walk; --exclude-types/--exclude-regions/--max-* honoured.
+var graphCompleteCmd = &cobra.Command{
+	Use:   "complete",
+	Short: "Render the full discovered graph (all customer resources + connected managed)",
+	Long: `Emit every resource in the store plus every relationship between them.
+
+Provider-managed resources (e.g. AWS-managed IAM policies, Azure built-in
+role definitions, GCP foreign-project stubs) are kept only when they have
+at least one edge to a customer-managed resource — orphan managed nodes
+drop out by default. Pass --include-managed to keep them all.
+
+--depth, --kinds, and --direction are ignored (no seed, no BFS). Other
+filter flags (--exclude-types, --exclude-regions, --max-nodes, --max-edges)
+work as for the seeded subcommands.`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := store.Open(defaultDBPath())
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		g, err := db.GraphAll(store.GraphAllOpts{
+			IncludeManaged: graphIncludeManaged,
+			ExcludeTypes:   graphExcludeTypes,
+			ExcludeRegions: graphExcludeRegions,
+			MaxNodes:       graphMaxNodes,
+			MaxEdges:       graphMaxEdges,
+		})
+		if err != nil {
+			return err
+		}
+		return renderGraph(g, false)
 	},
 }
 
