@@ -4,13 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 )
 
-func init() { registerService(serviceEntry{name: "azure:management", fn: scanManagement}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:management",
+		fn:   scanManagement,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.management", DiscoType: TypeManagementGroup},
+			{Service: "microsoft.resources", DiscoType: TypeSubscription},
+		},
+	})
+}
 
 // scanManagement discovers tenant-scoped governance entities: Azure Management
 // Groups and the subscription itself as a first-class resource. Both are

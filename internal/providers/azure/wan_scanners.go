@@ -4,12 +4,27 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
-func init() { registerService(serviceEntry{name: "azure:wan", fn: scanWAN}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:wan",
+		fn:   scanWAN,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteCircuit},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualWAN},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualHub},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVPNGateway},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVPNSite},
+			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteGateway},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkGW},
+		},
+	})
+}
 
 // scanWAN discovers Azure enterprise networking resources that have
 // subscription-wide list APIs (ExpressRoute circuits, Virtual WANs, Virtual

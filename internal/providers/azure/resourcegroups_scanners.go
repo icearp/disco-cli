@@ -4,10 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
+
+func init() {
+	// scanResourceGroups runs once per subscription invoked direct from
+	// azure.go (not via registerService) since it pre-seeds RG parents
+	// every other scanner depends on. Emits declared via registerExtraEmits.
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "resources", DiscoType: TypeResourcesResourceGroup},
+	)
+}
 
 // scanResourceGroups discovers all resource groups in a subscription and
 // upserts them as parent resources. All other Azure resources use the resource

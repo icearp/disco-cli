@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
@@ -17,7 +18,18 @@ import (
 // Database sub-resource scanners live in sql_database_child_scanners.go.
 // Managed instance + managed database scanners live in sql_managed_scanners.go.
 
-func init() { registerService(serviceEntry{name: "azure:sql", fn: scanSQL}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:sql",
+		fn:   scanSQL,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.sql", DiscoType: TypeSQLServer},
+			{Service: "microsoft.sql", DiscoType: TypeSQLDatabase},
+			{Service: "microsoft.sql", DiscoType: TypeSQLVirtualCluster},
+			{Service: "microsoft.sql", DiscoType: TypeSQLInstancePool},
+		},
+	})
+}
 
 // sqlServer holds the fields we need after listing servers.
 type sqlServer struct {

@@ -6,13 +6,22 @@ import (
 	"fmt"
 	"net/http"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/security/armsecurity"
 )
 
-func init() { registerService(serviceEntry{name: "azure:security", fn: scanSecurity}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:security",
+		fn:   scanSecurity,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.security", DiscoType: TypeSecurityPricing},
+		},
+	})
+}
 
 // scanSecurity discovers Microsoft Defender for Cloud per-resource-type
 // pricing (plan-tier) settings for the subscription. Each pricing entry

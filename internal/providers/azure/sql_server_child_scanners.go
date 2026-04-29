@@ -4,10 +4,32 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLElasticPool},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLFailoverGroup},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLJobAgent},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLRestorableDroppedDB},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLEncryptionProtector},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAdministrator},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerKey},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAdvancedThreatProt},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerSecurityAlert},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerVulnAssessment},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAuditingSettings},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerExtAuditingSettings},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDevOpsAuditSettings},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDNSAlias},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncAgent},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLVirtualNetworkRule},
+	)
+}
 
 // sqlChildExtract is the per-item shape returned by each child scanner's
 // extractor: identity (id, name) and optional tracked-resource fields

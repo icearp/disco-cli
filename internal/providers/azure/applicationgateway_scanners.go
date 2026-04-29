@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
 func init() {
-	registerService(serviceEntry{name: "azure:applicationgateway", fn: scanApplicationGateway})
+	registerService(serviceEntry{
+		name: "azure:applicationgateway",
+		fn:   scanApplicationGateway,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationGateway},
+		},
+	})
 }
 
 // scanApplicationGateway discovers Azure Application Gateways subscription-wide.

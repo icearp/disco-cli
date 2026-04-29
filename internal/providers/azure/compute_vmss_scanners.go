@@ -5,12 +5,22 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSS},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSExtension},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSVM},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMSSVMExtension},
+	)
+}
 
 // vmssEntry holds the identifying fields of a VMSS, used to fan out child scans.
 type vmssEntry struct {

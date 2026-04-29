@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -21,7 +22,19 @@ import (
 )
 
 func init() {
-	registerTenantService(tenantServiceEntry{name: "azure:entra", fn: scanEntra})
+	// Entra ID types come from Microsoft Graph — ARM Providers/List doesn't
+	// surface them, so they're synthetic from the coverage matrix
+	// perspective (no upstream ARM resource type).
+	registerTenantService(tenantServiceEntry{
+		name: "azure:entra",
+		fn:   scanEntra,
+		emits: []coverage.TypeDecl{
+			{Service: "graph", DiscoType: TypeEntraUser, Synthetic: true},
+			{Service: "graph", DiscoType: TypeEntraGroup, Synthetic: true},
+			{Service: "graph", DiscoType: TypeEntraServicePrincipal, Synthetic: true},
+			{Service: "graph", DiscoType: TypeEntraApplication, Synthetic: true},
+		},
+	})
 }
 
 const graphScope = "https://graph.microsoft.com/.default"

@@ -10,7 +10,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "azure:compute", fn: scanCompute}) }
+func init() {
+	// Compute emits are declared per category file via registerExtraEmits
+	// (compute_vms, compute_vmss, compute_disks, compute_galleries,
+	// compute_dedicated, compute_infra, compute_cloudservices). The scanCompute
+	// orchestrator itself upserts no resources.
+	registerService(serviceEntry{name: "azure:compute", fn: scanCompute})
+}
 
 // scanCompute discovers Azure Compute resources across all sub-groups: VMs, disks,
 // images, VMSS, galleries, dedicated infrastructure, and cloud services.

@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 )
 
-func init() { registerService(serviceEntry{name: "azure:authorization", fn: scanAuthorization}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:authorization",
+		fn:   scanAuthorization,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleAssignment},
+			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleDefinition},
+		},
+	})
+}
 
 // scanAuthorization discovers Azure RBAC role assignments and role definitions
 // scoped to (or visible from) the subscription. Built-in role definitions are

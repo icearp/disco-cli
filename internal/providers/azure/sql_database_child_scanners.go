@@ -4,10 +4,26 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBTransparentDataEnc},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBVulnAssessment},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBSecurityAlert},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBAdvancedThreatProt},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLDBAuditingSettings},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLGeoBackupPolicy},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLLedgerDigestUpload},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLReplicationLink},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncGroup},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLWorkloadGroup},
+	)
+}
 
 // dbChildScanners returns one closure per database sub-resource type.
 func dbChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) []func() (int, int, error) {

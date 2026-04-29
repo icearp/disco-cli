@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
-func init() { registerService(serviceEntry{name: "azure:privateendpoints", fn: scanPrivateEndpoints}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:privateendpoints",
+		fn:   scanPrivateEndpoints,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.network", DiscoType: TypeNetworkPrivateEndpoint},
+		},
+	})
+}
 
 // scanPrivateEndpoints discovers Azure Private Endpoints subscription-wide.
 // Each PE binds a target resource (storage account, sql server, key vault,

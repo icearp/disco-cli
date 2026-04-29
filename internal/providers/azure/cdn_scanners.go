@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn"
 )
 
-func init() { registerService(serviceEntry{name: "azure:cdn", fn: scanCDN}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:cdn",
+		fn:   scanCDN,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.cdn", DiscoType: TypeCDNProfile},
+		},
+	})
+}
 
 // scanCDN discovers Azure Front Door + classic CDN profiles. Both surface
 // under `Microsoft.Cdn/profiles`; the SKU.Name field differentiates Front

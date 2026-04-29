@@ -4,12 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 )
 
-func init() { registerService(serviceEntry{name: "azure:policy", fn: scanPolicy}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:policy",
+		fn:   scanPolicy,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.authorization", DiscoType: TypePolicyDefinition},
+			{Service: "microsoft.authorization", DiscoType: TypePolicySetDefinition},
+			{Service: "microsoft.authorization", DiscoType: TypePolicyAssignment},
+		},
+	})
+}
 
 // scanPolicy discovers Azure Policy definitions, set definitions, and
 // assignments. Mirrors the RBAC pattern (definitions then assignments) so

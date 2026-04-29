@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
@@ -12,7 +13,19 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "azure:dns", fn: scanDNS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:dns",
+		fn:   scanDNS,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.network", DiscoType: TypeDNSZone},
+			{Service: "microsoft.network", DiscoType: TypeDNSRecordSet},
+			{Service: "microsoft.network", DiscoType: TypeDNSPrivateZone},
+			{Service: "microsoft.network", DiscoType: TypeDNSPrivateRecordSet},
+			{Service: "microsoft.network", DiscoType: TypeDNSPrivateZoneVNetLink},
+		},
+	})
+}
 
 // scanDNS discovers Azure public DNS zones, private DNS zones, and the
 // virtual-network links per private zone. Record sets are intentionally

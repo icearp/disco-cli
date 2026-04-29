@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 )
 
-func init() { registerService(serviceEntry{name: "azure:storage", fn: scanStorage}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:storage",
+		fn:   scanStorage,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.storage", DiscoType: TypeStorageStorageAccount},
+		},
+	})
+}
 
 // scanStorage discovers Azure storage accounts.
 func scanStorage(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {

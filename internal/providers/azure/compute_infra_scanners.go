@@ -4,10 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeAvailabilitySet},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeImage},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeProximityPlacementGroup},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeRestorePointCollection},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeSSHPublicKey},
+	)
+}
 
 func scanAvailabilitySets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewAvailabilitySetsClient(sub.ID, cred, azClientOptions)

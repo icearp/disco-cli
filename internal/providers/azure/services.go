@@ -3,14 +3,50 @@ package azure
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
+// extraEmits accumulates disco-type decls for non-serviceEntry sources —
+// child scanner files of multi-file services (compute_*, sql_*, dns_*) and
+// resolver-side synthetic stubs.
+var extraEmits []coverage.TypeDecl
+
+// registerExtraEmits is for non-serviceEntry sources of disco types. Call
+// from init() in the file that owns the upsert site.
+func registerExtraEmits(decls ...coverage.TypeDecl) {
+	extraEmits = append(extraEmits, decls...)
+}
+
+// CollectEmits returns the deduped union of every emits decl registered
+// across the Azure package. Consumed by the coverage.Provider impl.
+func CollectEmits() []coverage.TypeDecl {
+	out := make([]coverage.TypeDecl, 0, 128)
+	out = append(out, extraEmits...)
+	for _, s := range registeredServices {
+		out = append(out, s.emits...)
+	}
+	for _, s := range registeredTenantServices {
+		out = append(out, s.emits...)
+	}
+	seen := make(map[string]bool, len(out))
+	deduped := out[:0]
+	for _, d := range out {
+		if seen[d.DiscoType] {
+			continue
+		}
+		seen[d.DiscoType] = true
+		deduped = append(deduped, d)
+	}
+	return deduped
+}
+
 // serviceEntry describes a scannable Azure service (scoped to one subscription).
 type serviceEntry struct {
-	name string
-	fn   func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	name  string
+	fn    func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	emits []coverage.TypeDecl
 }
 
 // registeredServices is populated by each *_scanners.go file's init().

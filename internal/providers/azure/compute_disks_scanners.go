@@ -4,10 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeManagedDisk},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeSnapshot},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeDiskAccess},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeDiskEncryptionSet},
+	)
+}
 
 func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewDisksClient(sub.ID, cred, azClientOptions)

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
@@ -13,7 +14,24 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "azure:appservice", fn: scanAppService}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:appservice",
+		fn:   scanAppService,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.web", DiscoType: TypeAppServiceServerFarm},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceSite},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceSiteSlot},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironment},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironmentWorkerPool},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceEnvironmentMultiRolePool},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceKubeEnvironment},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceStaticSite},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceStaticSiteBuild},
+			{Service: "microsoft.web", DiscoType: TypeAppServiceCertificate},
+		},
+	})
+}
 
 // siteEntry holds the identifying fields of a web app for slot fanout.
 type siteEntry struct {

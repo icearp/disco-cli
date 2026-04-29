@@ -4,13 +4,25 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "azure:network", fn: scanNetwork}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:network",
+		fn:   scanNetwork,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetwork},
+			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet},
+			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityGroup},
+			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPAddress},
+		},
+	})
+}
 
 // scanNetwork discovers VNets, subnets, NSGs, and public IP addresses in parallel.
 func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {

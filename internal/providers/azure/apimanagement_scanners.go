@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement"
 )
 
-func init() { registerService(serviceEntry{name: "azure:apimanagement", fn: scanAPIManagement}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:apimanagement",
+		fn:   scanAPIManagement,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.apimanagement", DiscoType: TypeAPIManagementService},
+		},
+	})
+}
 
 // scanAPIManagement discovers Azure API Management service instances. APIs,
 // products, policies, subscriptions, named values, certificates, backends,

@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 )
 
-func init() { registerService(serviceEntry{name: "azure:cosmos", fn: scanCosmos}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:cosmos",
+		fn:   scanCosmos,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.documentdb", DiscoType: TypeCosmosDatabaseAccount},
+		},
+	})
+}
 
 // scanCosmos discovers Azure Cosmos DB database accounts. Per-API child
 // resources (SQL/Mongo/Cassandra/Gremlin/Table databases + containers/graphs)

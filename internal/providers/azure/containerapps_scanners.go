@@ -4,13 +4,24 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 )
 
-func init() { registerService(serviceEntry{name: "azure:containerapps", fn: scanContainerApps}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:containerapps",
+		fn:   scanContainerApps,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.app", DiscoType: TypeAppContainersManagedEnvironment},
+			{Service: "microsoft.app", DiscoType: TypeAppContainersContainerApp},
+			{Service: "microsoft.containerinstance", DiscoType: TypeContainerInstanceContainerGroup},
+		},
+	})
+}
 
 // scanContainerApps discovers Azure Container Apps managed environments + apps
 // and Azure Container Instances container groups. Three resource types in one

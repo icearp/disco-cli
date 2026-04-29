@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks"
 )
 
-func init() { registerService(serviceEntry{name: "azure:databricks", fn: scanDatabricks}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:databricks",
+		fn:   scanDatabricks,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.databricks", DiscoType: TypeDatabricksWorkspace},
+		},
+	})
+}
 
 // scanDatabricks discovers Azure Databricks workspaces. Per-workspace VNet
 // peerings, private endpoint connections, and access connectors deferred —

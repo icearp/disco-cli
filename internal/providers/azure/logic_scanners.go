@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/logic/armlogic"
 )
 
-func init() { registerService(serviceEntry{name: "azure:logic", fn: scanLogic}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:logic",
+		fn:   scanLogic,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.logic", DiscoType: TypeLogicWorkflow},
+		},
+	})
+}
 
 // scanLogic discovers Azure Logic Apps workflows. Triggers, actions,
 // integration accounts, and API connections deferred — connection refs in

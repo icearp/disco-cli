@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -12,6 +13,13 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVirtualMachine},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeVMExtension},
+	)
+}
 
 func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachinesClient(sub.ID, cred, azClientOptions)

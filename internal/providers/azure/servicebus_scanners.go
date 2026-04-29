@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicebus/armservicebus"
 )
 
-func init() { registerService(serviceEntry{name: "azure:servicebus", fn: scanServiceBus}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:servicebus",
+		fn:   scanServiceBus,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.servicebus", DiscoType: TypeServiceBusNamespace},
+		},
+	})
+}
 
 // scanServiceBus discovers Azure Service Bus namespaces. Queues, topics,
 // subscriptions, rules, authorization rules, network rule sets, DR configs,

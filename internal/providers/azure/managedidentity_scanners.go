@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 )
 
-func init() { registerService(serviceEntry{name: "azure:managedidentity", fn: scanManagedIdentity}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:managedidentity",
+		fn:   scanManagedIdentity,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.managedidentity", DiscoType: TypeManagedIdentityUserAssigned},
+		},
+	})
+}
 
 // scanManagedIdentity discovers Azure user-assigned managed identities.
 // System-assigned identities are not standalone resources — they live as a

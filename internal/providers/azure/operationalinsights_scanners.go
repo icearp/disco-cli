@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights"
 )
 
 func init() {
-	registerService(serviceEntry{name: "azure:operationalinsights", fn: scanOperationalInsights})
+	registerService(serviceEntry{
+		name: "azure:operationalinsights",
+		fn:   scanOperationalInsights,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.operationalinsights", DiscoType: TypeOpInsightsWorkspace},
+		},
+	})
 }
 
 // scanOperationalInsights discovers Azure Log Analytics workspaces.

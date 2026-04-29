@@ -4,12 +4,24 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
 )
 
-func init() { registerService(serviceEntry{name: "azure:eventgrid", fn: scanEventGrid}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:eventgrid",
+		fn:   scanEventGrid,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridTopic},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridSystemTopic},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridDomain},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridEventSubscription},
+		},
+	})
+}
 
 // scanEventGrid discovers Event Grid topics, system topics, domains, and
 // global-scope event subscriptions. Per-topic / per-domain / per-system-topic

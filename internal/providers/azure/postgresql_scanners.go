@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 )
 
-func init() { registerService(serviceEntry{name: "azure:postgresql", fn: scanPostgreSQL}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:postgresql",
+		fn:   scanPostgreSQL,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLFlexibleServer},
+		},
+	})
+}
 
 // scanPostgreSQL discovers Azure Database for PostgreSQL flexible servers.
 // Single Server (deprecated tier) deferred — Microsoft recommends migration

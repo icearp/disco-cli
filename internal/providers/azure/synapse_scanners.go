@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/synapse/armsynapse"
 )
 
-func init() { registerService(serviceEntry{name: "azure:synapse", fn: scanSynapse}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:synapse",
+		fn:   scanSynapse,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.synapse", DiscoType: TypeSynapseWorkspace},
+		},
+	})
+}
 
 // scanSynapse discovers Azure Synapse Analytics workspaces. SQL pools, Spark
 // pools, integration runtimes, private endpoint connections, and managed

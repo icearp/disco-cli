@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 )
 
-func init() { registerService(serviceEntry{name: "azure:mysql", fn: scanMySQL}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:mysql",
+		fn:   scanMySQL,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.dbformysql", DiscoType: TypeMySQLFlexibleServer},
+		},
+	})
+}
 
 // scanMySQL discovers Azure Database for MySQL flexible servers. Single
 // Server (deprecated tier) deferred — see postgresql_scanners.go rationale.

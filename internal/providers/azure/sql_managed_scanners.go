@@ -5,12 +5,29 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstance},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabase},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseSecAlert},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseTDE},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseVA},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceAdmin},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceEP},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceKey},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstancePEC},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceVA},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedServerSecurityAlert},
+	)
+}
 
 // sqlManagedInstance holds the fields we need after listing managed instances.
 type sqlManagedInstance struct {

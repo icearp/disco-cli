@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datafactory/armdatafactory"
 )
 
-func init() { registerService(serviceEntry{name: "azure:datafactory", fn: scanDataFactory}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:datafactory",
+		fn:   scanDataFactory,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.datafactory", DiscoType: TypeDataFactoryFactory},
+		},
+	})
+}
 
 // scanDataFactory discovers Azure Data Factory factories. Linked services,
 // pipelines, datasets, dataflows, triggers, integration runtimes, and managed

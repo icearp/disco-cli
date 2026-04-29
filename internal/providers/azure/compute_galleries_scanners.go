@@ -5,12 +5,25 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGallery},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryImage},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryImageVersion},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryApplication},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryApplicationVersion},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryInVMACP},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeGalleryInVMACPVersion},
+	)
+}
 
 // galleryEntry holds the identifying fields of a gallery for child scans.
 type galleryEntry struct {

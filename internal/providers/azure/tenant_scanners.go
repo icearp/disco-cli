@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
@@ -21,8 +22,9 @@ import (
 // collected (e.g. resolve Graph object IDs against subscription role
 // assignments). Subscriptions are read-only here — never mutate.
 type tenantServiceEntry struct {
-	name string
-	fn   func(ctx context.Context, subs []subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	name  string
+	fn    func(ctx context.Context, subs []subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	emits []coverage.TypeDecl
 }
 
 // registeredTenantServices is populated by each tenant-scope *_scanners.go

@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudService},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudServiceRole},
+		coverage.TypeDecl{Service: "microsoft.compute", DiscoType: TypeComputeCloudServiceRoleInstance},
+	)
+}
 
 // cloudServiceEntry holds the identifying fields of a cloud service for child scans.
 type cloudServiceEntry struct {

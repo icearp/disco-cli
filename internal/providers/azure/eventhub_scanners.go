@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventhub/armeventhub"
 )
 
-func init() { registerService(serviceEntry{name: "azure:eventhub", fn: scanEventHub}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:eventhub",
+		fn:   scanEventHub,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.eventhub", DiscoType: TypeEventHubNamespace},
+		},
+	})
+}
 
 // scanEventHub discovers Azure Event Hubs namespaces. Per-namespace event
 // hubs (queues), consumer groups, authorization rules, schema groups,

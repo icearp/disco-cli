@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
 )
 
 func init() {
-	registerService(serviceEntry{name: "azure:containerregistry", fn: scanContainerRegistry})
+	registerService(serviceEntry{
+		name: "azure:containerregistry",
+		fn:   scanContainerRegistry,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.containerregistry", DiscoType: TypeContainerRegistryRegistry},
+		},
+	})
 }
 
 // scanContainerRegistry discovers Azure Container Registry (ACR) registries.

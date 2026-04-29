@@ -4,12 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis"
 )
 
-func init() { registerService(serviceEntry{name: "azure:redis", fn: scanRedis}) }
+func init() {
+	registerService(serviceEntry{
+		name: "azure:redis",
+		fn:   scanRedis,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.cache", DiscoType: TypeRedisCache},
+		},
+	})
+}
 
 // scanRedis discovers Azure Cache for Redis instances. Firewall rules, patch
 // schedules, linked servers, private endpoint connections, and access keys
