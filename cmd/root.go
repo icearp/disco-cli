@@ -52,9 +52,9 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		fmt.Sprintf("config file (default: %s)", filepath.Join(discoDir(), "config.yaml")))
+		fmt.Sprintf("config file (default: %s)", filepath.Join(configDir(), "config.yaml")))
 	rootCmd.PersistentFlags().String("db", "",
-		fmt.Sprintf("database path (default: %s)", filepath.Join(discoDir(), "disco.db")))
+		fmt.Sprintf("database path (default: %s)", filepath.Join(dataDir(), "disco.db")))
 	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 
@@ -62,7 +62,7 @@ func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
-		viper.AddConfigPath(discoDir())
+		viper.AddConfigPath(configDir())
 		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
 	}
@@ -81,5 +81,5 @@ func defaultDBPath() string {
 	if p := viper.GetString("db"); p != "" {
 		return p
 	}
-	return filepath.Join(discoDir(), "disco.db")
+	return filepath.Join(dataDir(), "disco.db")
 }

@@ -87,7 +87,7 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 
 // configFilePath returns the path where the config file should be written.
 // Priority: viper already loaded a file → use that path; --config flag set → use that;
-// fallback → platform default (discoDir()/config.yaml).
+// fallback → platform default (configDir()/config.yaml).
 func configFilePath() string {
 	if p := viper.ConfigFileUsed(); p != "" {
 		return p
@@ -95,5 +95,5 @@ func configFilePath() string {
 	if cfgFile != "" {
 		return cfgFile
 	}
-	return filepath.Join(discoDir(), "config.yaml")
+	return filepath.Join(configDir(), "config.yaml")
 }
