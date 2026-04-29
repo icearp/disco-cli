@@ -12,9 +12,9 @@ Cobra command layer.
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
 - `disco check --rules ./policies --severity high --exit-nonzero` — **paid only.** Runs OPA Rego policies against store. `--rules` takes `.rego` files or directories (recursive). Engine in `internal/policy/` (paid-tagged); ships no first-party policies — bring your own bundle (Conftest AWS, regula, in-house CIS pack). Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
 
-## `disco coverage` (replacing `disco types`)
+## `disco coverage`
 
-`disco coverage` is the source-of-truth coverage cmd (ROADMAP G5). Currently wired for GCP only; AWS + Azure providers register in `internal/coverage` once their scanner-emits sweeps land. Until then, `disco types aws|azure` still lives but cannot be trusted (drift between `KnownTypes()` and what scanners emit). Don't extend `cmd/types_*.go` — the files get deleted when the AWS/Azure sweeps land. Add new coverage-related flags to `cmd/coverage.go`.
+Source-of-truth coverage cmd (ROADMAP G5). Wired for AWS, Azure, and GCP. Reads scanner-declared `emits []coverage.TypeDecl` (NOT `KnownTypes()`, which has been deleted) and matches against live upstream registries (CFN ListTypes / ARM Providers/List / GCP Discovery API). Add new coverage-related flags in `cmd/coverage.go`. Provider-side glue lives at `internal/providers/<p>/coverage.go`.
 
 ## Resume
 

@@ -20,7 +20,7 @@ func init() { registerResolver(resolveAuthorizationRelationships) }
 //
 // Principal edges (assignment -[uses]-> entra:user|group|service-principal)
 // are emitted when the assignment's PrincipalID matches an in-store Entra row.
-// The Entra scanner (azure:entra) populates user/group/SP rows under the
+// The Entra scanner (azure:microsoft.entra) populates user/group/SP rows under the
 // tenant AccountID; this resolver builds a tenant-wide GUID index once and
 // FK-checks each assignment's principalId. Managed identities still get their
 // edge via resolveManagedIdentityAssignmentPrincipals (different index path —

@@ -655,10 +655,10 @@ Deferred within services already landed:
 - **GuardDuty detector** → member accounts via `loadOrgTargetIndex` (pattern proven in Detective / Inspector2 / SSO resolvers; FK-safe across accounts when Org tree scanned).
 
 ### R3. Azure scanner expansion
-Current Azure (32 services): AKS, APIManagement, ApplicationGateway, AppService, Authorization (RBAC), CDN/FrontDoor, Compute (VMs/VMSS/Disks/Galleries/Dedicated/CloudServices/Infra), ContainerApps + ContainerInstance, ContainerRegistry, Cosmos, Databricks, DataFactory, DNS (public + private), EventHub, KeyVault, Logic, ManagedIdentity, Management (mgmt-groups + subscriptions), MySQL flexible-server, Network, OperationalInsights (Log Analytics), Policy, PostgreSQL flexible-server, PrivateEndpoints, Redis, ResourceGroups, Security (Defender pricings), ServiceBus, SQL (Database/Server + children + Managed), Storage, Synapse, TrafficManager, WAN (ER circuits + vWAN + VPN). Authoritative list: `KnownTypes()` per provider — see G5 `disco coverage`.
+Current Azure (32 services): AKS, APIManagement, ApplicationGateway, AppService, Authorization (RBAC), CDN/FrontDoor, Compute (VMs/VMSS/Disks/Galleries/Dedicated/CloudServices/Infra), ContainerApps + ContainerInstance, ContainerRegistry, Cosmos, Databricks, DataFactory, DNS (public + private), EventHub, KeyVault, Logic, ManagedIdentity, Management (mgmt-groups + subscriptions), MySQL flexible-server, Network, OperationalInsights (Log Analytics), Policy, PostgreSQL flexible-server, PrivateEndpoints, Redis, ResourceGroups, Security (Defender pricings), ServiceBus, SQL (Database/Server + children + Managed), Storage, Synapse, TrafficManager, WAN (ER circuits + vWAN + VPN). Authoritative list: scanner `emits` decls per provider — surface via `disco coverage --provider azure`.
 
 **Add, priority order:**
-1. *(removed — Entra ID tenant scanner landed in `entra_scanners.go` covering `azure:entra:user`, `azure:entra:group`, `azure:entra:service-principal`, `azure:entra:application` via `msgraphsdk.GraphServiceClient`. Auth shares `DefaultAzureCredential` with ARM; tenant ID resolved from token JWT `tid` claim. **RBAC resolver upgrade still pending**: `authorization_resolvers.go` does not yet consume the new principal rows to upgrade cross-sub assignment edges past `foreign-subscription` stubs — tracked under R3.24)*
+1. *(removed — Entra ID tenant scanner landed in `entra_scanners.go` covering `azure:microsoft.entra:user`, `azure:microsoft.entra:group`, `azure:microsoft.entra:service-principal`, `azure:microsoft.entra:application` via `msgraphsdk.GraphServiceClient`. Auth shares `DefaultAzureCredential` with ARM; tenant ID resolved from token JWT `tid` claim. **RBAC resolver upgrade still pending**: `authorization_resolvers.go` does not yet consume the new principal rows to upgrade cross-sub assignment edges past `foreign-subscription` stubs — tracked under R3.24)*
 2. *(removed — RBAC role assignments + role definitions scanner + assignment→def / assignment→scope resolvers landed; principal edges deferred to R3.1 Entra ID; see COMPLETED R3.2)*
 3. *(removed — user-assigned MSI scanner + assignment→MSI (via principalId match) + consumer→MSI (via identity.userAssignedIdentities map) resolvers landed; system-assigned MSIs intentionally left as host attributes; see COMPLETED R3.3)*
 4. *(removed — Log Analytics workspace scanner landed; solutions/DCRs/diagnostic-settings resolver deferred — see COMPLETED R3.4)*
@@ -681,7 +681,7 @@ Current Azure (32 services): AKS, APIManagement, ApplicationGateway, AppService,
 21. *(removed — diagnostic settings cross-service resolver shipped via `monitor_resolvers.go` `azure:diagnostic-settings` API-resolver; iterates `diagnosableTypes` allowlist (19 types initial), batch GETs `armmonitor.DiagnosticSettingsClient.NewListPager` per resource, emits `routes-to` edges to workspace / storage / event-hub destinations. Per-resource fan-out bounded by `maxConcurrentFanout=50`. Allowlist coverage extension tracked under R3.25)*
 22. *(removed — sanitizer KV reference-URI allowlist landed; AGW → KeyVault edge re-enabled via the unblocked sslCertificates[].keyVaultSecretId; downstream scanners (AppService config refs, AKS CSI, Logic Apps named values) now have the same path available — see COMPLETED R3.22 + R3.15)*
 23. *(removed — `azRGFanoutScan` generic helper landed in `azure.go` + first consumer (classic VirtualNetworkGateways) shipping under R3.18; helper queries RGs via ARM `armresources.ResourceGroupsClient.NewListPager` directly so it does not depend on `azure:resourcegroups` scan order. Available now for Front Door endpoints (R3.15), Logic Apps connections (R3.14), Data Factory linked services (R3.19), Cosmos per-API children (R3.9) — see COMPLETED R3.23)*
-24. **RBAC Entra principal wiring** — `authorization_resolvers.go` synthesizes `foreign-subscription` stubs but does not yet upgrade `roleAssignment.principalId` matches against the Entra-scanned `azure:entra:user|group|service-principal|application` rows. Build per-tenant `principalId → resource-ID` index; emit `assignment -[uses]-> principal` edges. Closes the residual leg of R3.1.
+24. **RBAC Entra principal wiring** — `authorization_resolvers.go` synthesizes `foreign-subscription` stubs but does not yet upgrade `roleAssignment.principalId` matches against the Entra-scanned `azure:microsoft.entra:user|group|service-principal|application` rows. Build per-tenant `principalId → resource-ID` index; emit `assignment -[uses]-> principal` edges. Closes the residual leg of R3.1.
 25. **Diagnostic-settings allowlist extension** — `diagnosableTypes` covers the high-frequency types but lacks ~12 newer/secondary diagnosable types: PostgreSQL/MySQL flexible-server, ACI, Event Grid (topic/system-topic/domain), Data Factory, Logic Apps, API Management, Traffic Manager, CDN profile, SQL Managed Instance. Append to slice; no logic change.
 
 ### R4. GCP scanner expansion
@@ -734,7 +734,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 - **Baseline diff** — `disco check --baseline findings.json` reports only new findings since baseline.
 
 ### G5. `disco coverage`
-New command: prints coverage matrix vs CloudFormation / ARM / GCP Asset Inventory registries. Uses `KnownTypes()` per provider. Markdown output for README inclusion.
+- *(removed — `disco coverage` cmd shipped for AWS, Azure, GCP. Live registry fetch per provider: CFN ListTypes (Public / Resource), ARM Providers/List?$expand=resourceTypes, GCP Discovery API. Coverage truth source = scanner-declared `emits []coverage.TypeDecl` aggregated via `CollectEmits()` per provider — replaces the old `KnownTypes()` shape, which has been deleted along with `disco types`. Per-provider alias map handles disco↔upstream mismatches; algorithmic fallback for cleanly-mapping types. Synthetic disco-only types tagged `Synthetic: true` (no upstream entry expected — KMS grants, Macie session, IAM foreign-account / foreign-project stubs, GuardDuty / Detective / Inspector members, Entra identities). `--check-strict` exits non-zero on `upstream-missing` rows (alias-map drift). Output formats: markdown (default, README-suitable), table, json. Provider impl in `internal/providers/<p>/coverage.go`; engine in `internal/coverage/`.)*
 
 ### G7. `disco check --output sarif`
 SARIF v2.1.0 output for GitHub / GitLab code-scanning integration. Extends existing `--output`/`-o` flag (currently `table|json|jsonl` per `cmd/check.go`). Rule ID → SARIF ruleId, severity → level, resource ID → result.locations. Enables PR-gate workflows without custom glue.
@@ -747,7 +747,7 @@ N1 PartialScan landed status flag; natural follow-up is resuming a partial scan 
 
 ### G9. Redaction verification + deprecation registry
 - `disco audit --redaction` — re-runs `scrubAttributes` over stored rows, flags entries written before denylist update.
-- Type-deprecation registry — `KnownTypes()` entries marked deprecated; list / graph annotate affected rows.
+- Type-deprecation registry — `emits []coverage.TypeDecl` entries marked deprecated; list / graph annotate affected rows.
 
 ---
 
@@ -768,7 +768,7 @@ N1 PartialScan landed status flag; natural follow-up is resuming a partial scan 
 - **Multi-account AWS role chaining** — codify cross-account `AssumeRole` workflow for scanning N accounts from one runner (config shape, credential cache, per-account scan record). Companion to R5 cross-account-trust edges.
 - **Performance** — benchmark harness (`go test -bench`) with fake provider emitting N resources. Target: 10k resources/sec UpsertResources, 100k edges/sec for closure inserts.
 - **Observability** — slog with `scan_id` correlation throughout. Redirect provider SDK logs behind flag.
-- **Docs** — `go generate`-produced `docs/coverage.md` (supersedes `disco coverage` command or complements it).
+- **Docs** — `disco coverage --output markdown > docs/coverage.md` regen via CI workflow (PR auto-refresh) — `disco coverage` already produces README-fit markdown; the workflow piece is the only thing missing.
 - **CI** — coverage budget enforcement per-package. (Per-provider test gates dropped — current CI runs `go test ./...` + `go test -tags paid ./...`; "per-provider gate" had no concrete meaning beyond build tags. Reintroduce only if cred-required live-scan tests added behind a tag.)
 - **Release** — goreleaser pipeline (linux/darwin/windows amd64+arm64), signed binaries.
 

@@ -13,10 +13,10 @@ const (
 	// Management Groups (tenant scope)
 	TypeManagementGroup = "azure:microsoft.management:management-group"
 	// Entra ID (Microsoft Graph — tenant scope)
-	TypeEntraUser             = "azure:entra:user"
-	TypeEntraGroup            = "azure:entra:group"
-	TypeEntraServicePrincipal = "azure:entra:service-principal"
-	TypeEntraApplication      = "azure:entra:application"
+	TypeEntraUser             = "azure:microsoft.entra:user"
+	TypeEntraGroup            = "azure:microsoft.entra:group"
+	TypeEntraServicePrincipal = "azure:microsoft.entra:service-principal"
+	TypeEntraApplication      = "azure:microsoft.entra:application"
 	// Microsoft Defender for Cloud
 	TypeSecurityPricing = "azure:microsoft.security:pricing"
 	// Authorization (RBAC)
@@ -337,22 +337,4 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.web/staticsites":                        TypeAppServiceStaticSite,
 	"microsoft.web/staticsites/builds":                 TypeAppServiceStaticSiteBuild,
 	"microsoft.web/certificates":                       TypeAppServiceCertificate,
-}
-
-// KnownTypes returns all disco type strings currently covered by this provider.
-// Used by the types command for gap-analysis against the Azure provider registry.
-func KnownTypes() []string {
-	types := make([]string, 0, len(azureAPITypeMap))
-	for _, v := range azureAPITypeMap {
-		types = append(types, v)
-	}
-	return types
-}
-
-// LookupAzureType returns the disco type string for a given lowercase Azure
-// provider resource-type key (e.g. "microsoft.compute/virtualmachines") and
-// whether it is covered by disco.
-func LookupAzureType(key string) (string, bool) {
-	v, ok := azureAPITypeMap[key]
-	return v, ok
 }

@@ -49,13 +49,9 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 `util.MustJSON(v any) string`, `util.Sv(p *string) string`, `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider keeps unexported one-liner wrappers (`mustJSON`, `sv`) delegating to `util` — call sites clean, logic centralized.
 
-## New `Type*` constant → append to `KnownTypes()`
-
-New `Type*` const in `<provider>_types.go` must append to `KnownTypes()` slice same file. Coverage command + types gap-analysis use it. AWS + Azure rely on review to catch omissions; GCP has an AST-based test (`types_test.go::TestKnownTypes_NoOmissions`) that parses the const block and fails on drift — port the same test to AWS/Azure if drift bugs surface.
-
 ## Scanner `emits []coverage.TypeDecl` is coverage truth source
 
-Every `registerService` / `registerOrgService` / `registerTenantService` / `registerAPIResolver` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Synthetic}}`. Coverage matrix (`disco coverage`) reads this — NOT `KnownTypes()`. Disco-only types (no upstream registry entry — IAM policy synth, foreign-project stubs, KMS grants, EFS mount-targets, SSO assignments) get `Synthetic: true`. Non-serviceEntry upsert sites (hierarchy scanners, resolver-side stubs) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl. Shipped today: GCP. AWS + Azure pending.
+Every `registerService` / `registerOrgService` / `registerTenantService` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Synthetic}}`. Coverage matrix (`disco coverage`) reads this. `KnownTypes()` no longer exists — emits + alias map are the source of truth. Disco-only types (no upstream registry entry — IAM policy synth, foreign-project / foreign-account stubs, KMS grants, Macie session, GuardDuty / Detective / Inspector members, Entra identities) get `Synthetic: true`. Non-serviceEntry upsert sites (hierarchy scanners, ec2_*/compute_*/sql_* child files, resolver-side stubs) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl.
 
 ## Embedding child data in parent attributes
 
@@ -71,7 +67,7 @@ Pattern for edges needing non-resource config: stash on `account` struct during 
 
 ## Synthetic-resource removal audit
 
-Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`BatchAddToHierarchyClosure` callers), (3) rules / sidecar reads. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, `KnownTypes()` slice, scanner upsert call, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
+Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`BatchAddToHierarchyClosure` callers), (3) rules / sidecar reads, (4) `emits` decls + alias maps in `coverage.go`. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, scanner upsert call, scanner's `emits` decl, alias-map entry in `<provider>/coverage.go`, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
 
 ## Testing
 
