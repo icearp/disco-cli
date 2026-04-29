@@ -477,11 +477,20 @@ func renderGraphDot(g *store.GraphResult) error {
 	// the text alongside without breaking the route. Mono uses xlabel
 	// too — harmless when splines aren't set.
 	for _, e := range g.Edges {
-		extra := renderAttrs(theme.EdgePresets[e.Kind])
+		preset := theme.EdgePresets[e.Kind]
+		// dir=back means "lay out tail→head reversed": swap endpoints so
+		// Graphviz ranks the head on the left (under rankdir=LR) while
+		// dir=back keeps the arrowhead at the original tail. Without the
+		// swap, dir only re-renders arrows; rank still flows source→target.
+		from, to := e.FromID, e.ToID
+		if preset["dir"] == "back" {
+			from, to = to, from
+		}
+		extra := renderAttrs(preset)
 		if extra != "" {
-			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q, %s];\n", e.FromID, e.ToID, e.Kind, extra)
+			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q, %s];\n", from, to, e.Kind, extra)
 		} else {
-			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q];\n", e.FromID, e.ToID, e.Kind)
+			fmt.Fprintf(&b, "  %q -> %q [xlabel=%q];\n", from, to, e.Kind)
 		}
 	}
 	b.WriteString("}\n")

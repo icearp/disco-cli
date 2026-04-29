@@ -212,7 +212,7 @@ func buildTheme(p themePalette) *dotTheme {
 		},
 		EdgePresets: map[string]map[string]string{
 			store.RelContains:          {"penwidth": "1.6", "color": p.EdgeContains},
-			store.RelAttachedTo:        {"color": p.EdgeAttachedTo},
+			store.RelAttachedTo:        {"dir": "back", "color": p.EdgeAttachedTo},
 			store.RelUses:              {"style": "dashed", "color": p.EdgeUses},
 			store.RelAssumes:           {"color": p.EdgeAssumes},
 			store.RelRoutesTo:          {"color": p.EdgeRoutesTo},

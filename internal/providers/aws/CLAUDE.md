@@ -227,3 +227,7 @@ The "Scanner attribute JSON uses PascalCase keys" rule applies to fields produce
 ## Wrapper-shape test fixtures — `wrapped_attrs_testhelper_test.go`
 
 Scanner-side wrapper containers (`{"lb": <LB>, "type": ...}` in `elb_scanners.go`, `tgWithTargets`, `ruleWithTargets`, etc.) are declared as function-local types so tests cannot reuse them directly. Build resolver-test `AttributesJSON` via the helpers in `wrapped_attrs_testhelper_test.go` (`elbv2LBAttrs`, `elbv2TargetGroupAttrs`, `eventBridgeRuleAttrs`) — they take real SDK types so wrapping-shape drift surfaces in tests rather than as silent zero-value resolutions in production. New wrappers go here, named `<svc><Resource>Attrs`.
+
+## VPC subtree wired via `attached-to`, not `contains`
+
+`ec2_networking_resolvers.go` emits `child → vpc` `RelAttachedTo` for subnet, IGW, route-table, NAT gateway, VPC endpoint, network ACL, peering. No `RecordHierarchyBatch` call wires VPC as a closure parent — VPC has zero `contains` rows. Graphs and `disco list --hierarchy` see VPC only via the reverse `attached-to` edges. Add hierarchy wiring deliberately if a feature needs VPC→child closure traversal.
