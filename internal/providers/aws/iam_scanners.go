@@ -31,6 +31,7 @@ func init() {
 // per-principal inline policies).
 type iamAPI interface {
 	GetAccountAuthorizationDetails(context.Context, *iam.GetAccountAuthorizationDetailsInput, ...func(*iam.Options)) (*iam.GetAccountAuthorizationDetailsOutput, error)
+	ListPolicies(context.Context, *iam.ListPoliciesInput, ...func(*iam.Options)) (*iam.ListPoliciesOutput, error)
 	ListInstanceProfiles(context.Context, *iam.ListInstanceProfilesInput, ...func(*iam.Options)) (*iam.ListInstanceProfilesOutput, error)
 	ListOpenIDConnectProviders(context.Context, *iam.ListOpenIDConnectProvidersInput, ...func(*iam.Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
 	GetOpenIDConnectProvider(context.Context, *iam.GetOpenIDConnectProviderInput, ...func(*iam.Options)) (*iam.GetOpenIDConnectProviderOutput, error)
@@ -99,7 +100,25 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 //
 // Filter requests all five entity types in one call. AccessDenied degrades
 // to a single warning and an empty scan — no per-entity-type fallback.
+//
+// **AWS-managed catalogue gotcha**: GAAD's `AWSManagedPolicy` filter returns
+// only AWS-managed policies *currently attached* to a principal, NOT the
+// full ~1500-policy catalogue. To preserve the legacy "scan every AWS-
+// managed policy" behaviour, scanIAMAuthDetails first runs a stub
+// `ListPolicies(Scope=AWS)` pass (metadata only, no document enrichment —
+// avoids the GetPolicyVersion fan-out that triggered IAM throttling). The
+// subsequent GAAD pass overwrites attached managed-policy rows with their
+// full PolicyVersion-enriched form. Unattached catalogue policies keep
+// their stub row — they exist as FK targets for resolveManagedPolicyAttachments
+// and the walker silently skips no-document rows.
 func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	t0, n0, err := scanIAMAWSManagedCatalogue(ctx, client, acct, st, scanID)
+	total += t0
+	inserted += n0
+	if err != nil {
+		return total, inserted, err
+	}
+
 	maxItems := int32(1000)
 	pager := iam.NewGetAccountAuthorizationDetailsPaginator(client, &iam.GetAccountAuthorizationDetailsInput{
 		Filter: []iamtypes.EntityType{
@@ -215,6 +234,60 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 			n, err := st.UpsertResources(batch)
 			if err != nil {
 				return total, inserted, fmt.Errorf("upsert IAM auth details: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanIAMAWSManagedCatalogue lists every AWS-managed policy ARN
+// (`Scope=AWS`) and upserts a stub row per policy. No GetPolicyVersion
+// enrichment — those rows carry metadata only. The subsequent GAAD pass
+// overwrites attached entries with version-enriched rows; unattached
+// entries keep their stub form. ListPolicies returns ~1500 entries across
+// ~15 paginated calls — cheap, no per-policy fan-out, no throttling risk.
+func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{
+		Scope: iamtypes.PolicyScopeTypeAws,
+	})
+	for pager.HasMorePages() {
+		page, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "iam:ListPolicies", acct.ID, "global", perr)
+			}
+			return total, inserted, fmt.Errorf("iam:ListPolicies(AWS): %w", perr)
+		}
+		var batch []*store.Resource
+		for _, p := range page.Policies {
+			arn := sv(p.Arn)
+			name := sv(p.PolicyName)
+			// Wrap shape mirrors the GAAD-pass output so resolvers see one
+			// consistent JSON shape regardless of whether the policy was
+			// attached. PolicyVersion is omitted (no enrichment).
+			wrapped := struct {
+				Policy        iamtypes.Policy         `json:"Policy"`
+				PolicyVersion *iamtypes.PolicyVersion `json:"PolicyVersion,omitempty"`
+			}{Policy: p}
+			batch = append(batch, &store.Resource{
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              TypeIAMPolicy,
+				NativeID:          arn,
+				Name:              &name,
+				CreatedAt:         tp(p.CreateDate),
+				AttributesJSON:    mustJSON(wrapped),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: true,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert AWS-managed policy catalogue: %w", err)
 			}
 			total += len(batch)
 			inserted += n
