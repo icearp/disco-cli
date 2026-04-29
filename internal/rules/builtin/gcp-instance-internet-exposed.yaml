@@ -1,0 +1,29 @@
+version: 1
+rules:
+  - id: gcp-instance-internet-exposed
+    description: Compute instance has an external NAT IP and a VPC firewall rule allows 0.0.0.0/0 ingress
+    severity: high
+    category: Networking
+    tags:
+      custom: ["network-exposure"]
+      nist-800-53: ["AC-3", "SC-7(2)"]
+    remediation: Restrict the firewall rule's sourceRanges, or remove the access config carrying the external IP.
+    ref_url: https://cloud.google.com/vpc/docs/firewalls
+    match:
+      provider: gcp
+      type: gcp:compute:instance
+      where:
+        - path: "networkInterfaces.#.accessConfigs.#.natIP"
+          op: exists
+      related:
+        direction: in
+        kinds: [uses]
+        target:
+          type: gcp:compute:firewall
+          where:
+            - path: "sourceRanges"
+              op: contains
+              value: "0.0.0.0/0"
+            - path: "direction"
+              op: eq
+              value: "INGRESS"

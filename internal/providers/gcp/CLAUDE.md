@@ -20,6 +20,10 @@ Pick scanner shape on first read:
 
 Org-services receiving `[]orgScope` typically dispatch on `sc.Kind` ("organization" / "folder") to pick the matching SDK sub-service (`svc.Organizations.X` vs `svc.Folders.X`) — bodies are otherwise identical. Keep the dispatch in a tiny helper (e.g. `getOrgScopePolicy`, `pages := func(handler) { switch sc.Kind { ... } }`) so the per-scope batch+upsert+closure code stays single-pathed. VPC-SC is org-only — skip folder scopes silently. Precedent: `iampolicy_org_scanners.go` (CRM), `observability_org_scanners.go` (Logging), `vpcsc_scanners.go` (org-only).
 
+## Firewall edge direction (R4.5)
+
+`firewall_resolvers.go::resolveFirewallRelationships` emits `firewall -[uses]-> instance` (firewall is the FROM side). Rule authors writing exposure rules anchored on instances must walk inbound (`direction: in` in `Related`) to reach the firewall — see `builtin/gcp-instance-internet-exposed.yaml`. Mirrors AWS where SG→ENI also flows from policy to consumer; differs from intuition that "instance has firewall".
+
 ## Singleton resources via Get
 
 Some GCP services have singleton "policy" per project, no list surface — fetch via `Get`, upsert one row. Precedent: BinAuth `Projects.GetPolicy(projects/{p}/policy)`. Don't list these.

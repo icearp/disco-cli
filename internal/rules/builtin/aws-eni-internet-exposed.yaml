@@ -1,0 +1,26 @@
+version: 1
+rules:
+  - id: aws-eni-internet-exposed
+    description: ENI has public IP and is attached to a security group allowing 0.0.0.0/0 inbound
+    severity: high
+    category: Networking
+    tags:
+      custom: ["network-exposure"]
+      nist-800-53: ["AC-3", "SC-7(2)"]
+    remediation: Restrict the SG ingress rule to known CIDRs, or remove the public IP if not required.
+    ref_url: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_SecurityGroups.html
+    match:
+      provider: aws
+      type: aws:ec2:network-interface
+      where:
+        - path: "Association.PublicIp"
+          op: exists
+      related:
+        direction: out
+        kinds: [uses]
+        target:
+          type: aws:ec2:security-group
+          where:
+            - path: "IpPermissions.#.IpRanges.#.CidrIp"
+              op: contains
+              value: "0.0.0.0/0"
