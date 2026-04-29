@@ -7,6 +7,8 @@ import (
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -25,6 +27,7 @@ type organizationsAPI interface {
 	ListOrganizationalUnitsForParent(context.Context, *organizations.ListOrganizationalUnitsForParentInput, ...func(*organizations.Options)) (*organizations.ListOrganizationalUnitsForParentOutput, error)
 	ListAccounts(context.Context, *organizations.ListAccountsInput, ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error)
 	ListPolicies(context.Context, *organizations.ListPoliciesInput, ...func(*organizations.Options)) (*organizations.ListPoliciesOutput, error)
+	DescribePolicy(context.Context, *organizations.DescribePolicyInput, ...func(*organizations.Options)) (*organizations.DescribePolicyOutput, error)
 	ListParents(context.Context, *organizations.ListParentsInput, ...func(*organizations.Options)) (*organizations.ListParentsOutput, error)
 }
 
@@ -182,6 +185,11 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	}
 
 	// SCPs — policies, no parent in the hierarchy. Resolver fills in targets.
+	// Phase 1: list summaries; Phase 2: per-policy DescribePolicy fan-out to
+	// fetch the policy document Content (not present in ListPolicies output).
+	// Storing Content lets rule-engine evaluate "does any SCP deny X?" without
+	// a second pass.
+	var summaries []types.PolicySummary
 	policyPager := organizations.NewListPoliciesPaginator(client, &organizations.ListPoliciesInput{
 		Filter: types.PolicyTypeServiceControlPolicy,
 	})
@@ -193,20 +201,29 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 			}
 			return total, inserted, fmt.Errorf("organizations:ListPolicies: %w", err)
 		}
+		summaries = append(summaries, page.Policies...)
+	}
+	if len(summaries) > 0 {
+		policies, derr := describeSCPs(ctx, client, summaries, acct, st)
+		if derr != nil {
+			return total, inserted, derr
+		}
 		var batch []*store.Resource
-		for _, p := range page.Policies {
-			arn := sv(p.Arn)
-			r := &store.Resource{
+		for _, p := range policies {
+			if p == nil || p.PolicySummary == nil {
+				continue
+			}
+			arn := sv(p.PolicySummary.Arn)
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeOrganizationsSCP,
 				NativeID:       arn,
-				Name:           p.Name,
+				Name:           p.PolicySummary.Name,
 				AttributesJSON: mustJSON(p),
 				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
+			})
 		}
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
@@ -308,4 +325,42 @@ func firstParentARN(ctx context.Context, client organizationsAPI, accountID stri
 		}
 	}
 	return "", nil
+}
+
+// describeSCPs fans out DescribePolicy across the listed SCP summaries to
+// fetch each policy's full body (Content + PolicySummary). Per-policy
+// AccessDenied tolerated via skipIfAccessDenied (warn + continue) so a
+// single permission gap on one SCP doesn't drop sibling SCPs. Concurrency
+// bounded by fanoutMed.
+func describeSCPs(ctx context.Context, client organizationsAPI, summaries []types.PolicySummary, acct *account, st *store.Store) ([]*types.Policy, error) {
+	out := make([]*types.Policy, len(summaries))
+	sem := semaphore.NewWeighted(fanoutMed)
+	g, gctx := errgroup.WithContext(ctx)
+	for i, s := range summaries {
+		if s.Id == nil {
+			continue
+		}
+		g.Go(func() error {
+			if err := sem.Acquire(gctx, 1); err != nil {
+				return err
+			}
+			defer sem.Release(1)
+			resp, err := client.DescribePolicy(gctx, &organizations.DescribePolicyInput{PolicyId: s.Id})
+			if err != nil {
+				if isAccessDenied(err) {
+					_ = skipIfAccessDenied(st, "organizations:DescribePolicy", acct.ID, sv(s.Id), err)
+					return nil
+				}
+				return fmt.Errorf("organizations:DescribePolicy %s: %w", sv(s.Id), err)
+			}
+			if resp != nil && resp.Policy != nil {
+				out[i] = resp.Policy
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
