@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -184,6 +185,112 @@ func TestGraphWalk_ManagedTerminal(t *testing.T) {
 	}
 	if len(g.Edges) != 2 {
 		t.Errorf("IncludeManaged edges: got %d, want 2", len(g.Edges))
+	}
+}
+
+// TestGraphPath_Reachable: shortest path A→D in the diamond is A→B→D or
+// A→C→D (BFS picks one deterministically based on iteration order); both
+// have length 2.
+func TestGraphPath_Reachable(t *testing.T) {
+	st := openTestStore(t)
+	a, _, _, d := seedDiamond(t, st)
+
+	g, err := st.GraphPath(a, d, GraphPathOpts{Direction: DirOut})
+	if err != nil {
+		t.Fatalf("GraphPath: %v", err)
+	}
+	if len(g.Nodes) != 3 || len(g.Edges) != 2 {
+		t.Errorf("path len: got %d nodes %d edges, want 3/2", len(g.Nodes), len(g.Edges))
+	}
+	if g.Nodes[0].Resource.ID != a || g.Nodes[len(g.Nodes)-1].Resource.ID != d {
+		t.Errorf("path endpoints: got %s..%s want %s..%s",
+			g.Nodes[0].Resource.ID, g.Nodes[len(g.Nodes)-1].Resource.ID, a, d)
+	}
+}
+
+// TestGraphPath_Unreachable: B and C are not directly connected; an
+// out-only walk from B cannot reach C without going back through A.
+func TestGraphPath_Unreachable(t *testing.T) {
+	st := openTestStore(t)
+	_, b, c, _ := seedDiamond(t, st)
+
+	_, err := st.GraphPath(b, c, GraphPathOpts{Direction: DirOut})
+	if !errors.Is(err, ErrNoPath) {
+		t.Errorf("want ErrNoPath, got %v", err)
+	}
+}
+
+// TestGraphPath_SameNode: A→A returns just the seed with no edges.
+func TestGraphPath_SameNode(t *testing.T) {
+	st := openTestStore(t)
+	a, _, _, _ := seedDiamond(t, st)
+
+	g, err := st.GraphPath(a, a, GraphPathOpts{Direction: DirOut})
+	if err != nil {
+		t.Fatalf("GraphPath: %v", err)
+	}
+	if len(g.Nodes) != 1 || len(g.Edges) != 0 {
+		t.Errorf("self-path: got %d/%d, want 1/0", len(g.Nodes), len(g.Edges))
+	}
+}
+
+// TestGraphWalk_ExcludeTypes drops nodes whose Type matches the suffix-glob
+// pattern, transitively pruning their downstream too.
+func TestGraphWalk_ExcludeTypes(t *testing.T) {
+	st := openTestStore(t)
+	mk := func(native, typ string) string {
+		r := &Resource{
+			Provider: "aws", AccountID: "111", Type: typ,
+			NativeID: native, AttributesJSON: "{}", DiscoveredBy: testScanID,
+		}
+		if _, err := st.UpsertResource(r); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+		return r.ID
+	}
+	a := mk("i-A", "aws:ec2:instance")
+	b := mk("k-B", "aws:iam:role") // excluded
+	c := mk("i-C", "aws:ec2:instance")
+	for _, e := range [][2]string{{a, b}, {b, c}} {
+		if err := st.UpsertRelationship(e[0], e[1], RelUses, "directed", nil); err != nil {
+			t.Fatalf("rel: %v", err)
+		}
+	}
+
+	g, err := st.GraphWalk(a, GraphWalkOpts{
+		MaxDepth: 5, Direction: DirOut,
+		ExcludeTypes: []string{"aws:iam:*"},
+	})
+	if err != nil {
+		t.Fatalf("GraphWalk: %v", err)
+	}
+	for _, n := range g.Nodes {
+		if n.Resource.ID == b {
+			t.Errorf("excluded role still present in nodes")
+		}
+	}
+	if len(g.Edges) != 0 {
+		t.Errorf("edges should be dropped when endpoint excluded; got %d", len(g.Edges))
+	}
+	if g.ExcludedTypes != 1 {
+		t.Errorf("ExcludedTypes counter: got %d want 1", g.ExcludedTypes)
+	}
+}
+
+// TestGraphWalk_MaxNodes caps additions and reports drops in TruncatedNodes.
+func TestGraphWalk_MaxNodes(t *testing.T) {
+	st := openTestStore(t)
+	a, _, _, _ := seedDiamond(t, st)
+
+	g, err := st.GraphWalk(a, GraphWalkOpts{MaxDepth: 5, Direction: DirOut, MaxNodes: 2})
+	if err != nil {
+		t.Fatalf("GraphWalk: %v", err)
+	}
+	if len(g.Nodes) != 2 {
+		t.Errorf("Nodes: got %d, want 2 (capped)", len(g.Nodes))
+	}
+	if g.TruncatedNodes == 0 {
+		t.Errorf("TruncatedNodes: got 0, want >0")
 	}
 }
 

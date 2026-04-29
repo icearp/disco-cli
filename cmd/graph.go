@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
+	"text/template"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
@@ -20,7 +23,17 @@ var (
 	graphDirection      string
 	graphOutputFmt      string
 	graphIncludeManaged bool
+	graphExcludeTypes   []string
+	graphExcludeRegions []string
+	graphMaxNodes       int
+	graphMaxEdges       int
+	graphCluster        string
+	graphLabelTemplate  string
 )
+
+// graphOutputFormats is the set of values accepted by --output across all
+// graph subcommands. Kept in one place so help text stays in sync.
+var graphOutputFormats = []string{"table", "json", "dot", "mermaid"}
 
 var graphCmd = &cobra.Command{
 	Use:   "graph <name|native-id|resource-id>",
@@ -33,6 +46,10 @@ The seed may be a resource name, a native ID (e.g. i-0abc123, bucket name,
 project ID), or the opaque 32-hex-char resource ID. If the identifier is
 ambiguous across providers, types, or accounts, pass --provider / --type /
 --account to disambiguate.
+
+Subcommands:
+  graph path <A> <B>   shortest path between two resources
+  graph blast <id>     outbound reachability with per-distance rings
 
 Examples:
   disco graph i-0abc123 --provider aws --depth 3
@@ -59,24 +76,156 @@ Examples:
 			Kinds:          graphKinds,
 			Direction:      graphDirection,
 			IncludeManaged: graphIncludeManaged,
+			ExcludeTypes:   graphExcludeTypes,
+			ExcludeRegions: graphExcludeRegions,
+			MaxNodes:       graphMaxNodes,
+			MaxEdges:       graphMaxEdges,
 		})
 		if err != nil {
 			return err
 		}
-
-		switch graphOutputFmt {
-		case "json":
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(g)
-		case "dot":
-			return renderGraphDot(g)
-		case "table", "":
-			return renderGraphTable(g)
-		default:
-			return fmt.Errorf("unknown --output format %q (supported: table, json, dot)", graphOutputFmt)
-		}
+		return renderGraph(g, false)
 	},
+}
+
+// graphPathCmd implements `disco graph path <A> <B>`.
+var graphPathCmd = &cobra.Command{
+	Use:   "path <A> <B>",
+	Short: "Shortest path between two resources",
+	Long: `Find the shortest edge sequence between two resource identifiers using
+BFS over relationships. Honors --kinds / --direction / --exclude-types /
+--exclude-regions / --include-managed. Default --depth for path is 8.
+
+Returns exit code 1 (with no output) if the two resources are not connected
+within the configured constraints.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := store.Open(defaultDBPath())
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		from, err := db.ResolveResource(args[0], graphProvider, graphType, graphAccount)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", args[0], err)
+		}
+		to, err := db.ResolveResource(args[1], graphProvider, graphType, graphAccount)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", args[1], err)
+		}
+
+		// `graph` parent passes --depth=2 by default which is too tight for
+		// path queries; the spec says default 8 unless the user explicitly
+		// overrode the flag.
+		depth := graphDepth
+		if !cmd.Flags().Changed("depth") && !cmd.Parent().PersistentFlags().Changed("depth") {
+			depth = 8
+		}
+
+		g, err := db.GraphPath(from.ID, to.ID, store.GraphPathOpts{
+			MaxDepth:       depth,
+			Kinds:          graphKinds,
+			Direction:      graphDirection,
+			IncludeManaged: graphIncludeManaged,
+			ExcludeTypes:   graphExcludeTypes,
+			ExcludeRegions: graphExcludeRegions,
+		})
+		if err != nil {
+			if errors.Is(err, store.ErrNoPath) {
+				// Silence cobra's usage + error printing so the shell sees a
+				// clean exit code 1. Execute() also detects ErrNoPath and
+				// suppresses the trailing error message.
+				cmd.SilenceErrors = true
+				cmd.SilenceUsage = true
+			}
+			return err
+		}
+		return renderGraph(g, false)
+	},
+}
+
+// graphBlastCmd implements `disco graph blast <id>`.
+var graphBlastCmd = &cobra.Command{
+	Use:   "blast <id>",
+	Short: "Outbound reachability (blast radius) from a seed",
+	Long: `Walk all nodes reachable from the seed via outbound edges, grouping
+results by distance ring. Default kind-set excludes 'contains' so hierarchy
+fan-out does not dominate the radius. Default --depth for blast is 3.
+
+Caps via --max-nodes / --max-edges report truncation to stderr.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := store.Open(defaultDBPath())
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		seed, err := db.ResolveResource(args[0], graphProvider, graphType, graphAccount)
+		if err != nil {
+			return err
+		}
+
+		// Default kind-set: all relationship kinds except 'contains', so a
+		// noun like "VPC" doesn't drag in every subnet/sg as blast targets.
+		// User may override with --kinds.
+		kinds := graphKinds
+		if len(kinds) == 0 {
+			kinds = []string{
+				store.RelAttachedTo, store.RelUses, store.RelRoutesTo, store.RelPeer,
+				store.RelAssumes, store.RelCrossAccountTrust, store.RelCrossSubRBAC,
+				store.RelCrossProjectIAM,
+			}
+		}
+		depth := graphDepth
+		if !cmd.Flags().Changed("depth") && !cmd.Parent().PersistentFlags().Changed("depth") {
+			depth = 3
+		}
+
+		g, err := db.GraphWalk(seed.ID, store.GraphWalkOpts{
+			MaxDepth:       depth,
+			Kinds:          kinds,
+			Direction:      store.DirOut,
+			IncludeManaged: graphIncludeManaged,
+			ExcludeTypes:   graphExcludeTypes,
+			ExcludeRegions: graphExcludeRegions,
+			MaxNodes:       graphMaxNodes,
+			MaxEdges:       graphMaxEdges,
+		})
+		if err != nil {
+			return err
+		}
+		return renderGraph(g, true)
+	},
+}
+
+// renderGraph dispatches on graphOutputFmt. blast=true switches the table
+// renderer to its ring-grouped variant. Truncation totals are emitted to
+// stderr regardless of format so they survive `-o json | jq`.
+func renderGraph(g *store.GraphResult, blast bool) error {
+	if g.TruncatedNodes > 0 || g.TruncatedEdges > 0 {
+		fmt.Fprintf(os.Stderr, "truncated: %d nodes, %d edges (raise --max-nodes/--max-edges)\n",
+			g.TruncatedNodes, g.TruncatedEdges)
+	}
+	switch graphOutputFmt {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(g)
+	case "dot":
+		return renderGraphDot(g)
+	case "mermaid":
+		return renderGraphMermaid(g)
+	case "table", "":
+		if blast {
+			return renderGraphBlastTable(g)
+		}
+		return renderGraphTable(g)
+	default:
+		return fmt.Errorf("unknown --output format %q (supported: %s)",
+			graphOutputFmt, strings.Join(graphOutputFormats, ", "))
+	}
 }
 
 // renderGraphTable prints a NODES section and an EDGES section, both using
@@ -104,21 +253,132 @@ func renderGraphTable(g *store.GraphResult) error {
 	return w.Flush()
 }
 
-// renderGraphDot emits a Graphviz digraph so users can pipe into `dot -Tpng`.
-// Node labels combine type and name; edge labels carry the relationship kind.
+// renderGraphBlastTable groups nodes into per-distance rings — the natural
+// shape for blast-radius analysis. Edges section unchanged from explore mode.
+func renderGraphBlastTable(g *store.GraphResult) error {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(w, "Seed: %s\nReachable: %d nodes, %d edges\n",
+		short(g.SeedID), len(g.Nodes), len(g.Edges))
+
+	// Bucket by depth so each ring renders contiguously.
+	rings := map[int][]store.GraphNode{}
+	maxDepth := 0
+	for _, n := range g.Nodes {
+		rings[n.Depth] = append(rings[n.Depth], n)
+		if n.Depth > maxDepth {
+			maxDepth = n.Depth
+		}
+	}
+	for d := 0; d <= maxDepth; d++ {
+		ns := rings[d]
+		if len(ns) == 0 {
+			continue
+		}
+		_, _ = fmt.Fprintf(w, "\nRing %d (%d):\n", d, len(ns))
+		_, _ = fmt.Fprintln(w, "ID\tPROVIDER\tTYPE\tNAME\tREGION")
+		for _, n := range ns {
+			r := n.Resource
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				short(r.ID), r.Provider, r.Type, ptrOrDash(r.Name), ptrOrDash(r.Region))
+		}
+	}
+	return w.Flush()
+}
+
+// nodeLabel renders a node's display label. If --label-template is set, the
+// template is applied; otherwise the default "type\nname" shape is used.
+func nodeLabel(r store.Resource) (string, error) {
+	if graphLabelTemplate == "" {
+		label := r.Type
+		if r.Name != nil && *r.Name != "" {
+			label = r.Type + `\n` + *r.Name
+		}
+		return label, nil
+	}
+	tpl, err := template.New("label").Parse(graphLabelTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parse --label-template: %w", err)
+	}
+	ctx := map[string]string{
+		"Name":     ptrOrEmpty(r.Name),
+		"Type":     r.Type,
+		"Provider": r.Provider,
+		"Account":  r.AccountID,
+		"Region":   ptrOrEmpty(r.Region),
+		"NativeID": r.NativeID,
+	}
+	var b strings.Builder
+	if err := tpl.Execute(&b, ctx); err != nil {
+		return "", fmt.Errorf("execute --label-template: %w", err)
+	}
+	return b.String(), nil
+}
+
+// ptrOrEmpty mirrors ptrOrDash but returns "" instead of "-" — required for
+// template execution where "-" would leak into rendered labels.
+func ptrOrEmpty(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// clusterKey returns the value used by --cluster to bucket a resource into a
+// dot/mermaid subgraph. Empty cluster value disables grouping.
+func clusterKey(r store.Resource) string {
+	switch graphCluster {
+	case "provider":
+		return r.Provider
+	case "region":
+		return ptrOrEmpty(r.Region)
+	case "account":
+		return r.AccountID
+	default:
+		return ""
+	}
+}
+
+// renderGraphDot emits a Graphviz digraph. When --cluster is set, nodes are
+// wrapped in `subgraph cluster_<key>` blocks so big graphs stay readable.
 func renderGraphDot(g *store.GraphResult) error {
 	var b strings.Builder
 	b.WriteString("digraph disco {\n")
 	b.WriteString("  rankdir=LR;\n")
 	b.WriteString("  node [shape=box, fontname=\"Helvetica\"];\n")
-	for _, n := range g.Nodes {
-		r := n.Resource
-		label := r.Type
-		if r.Name != nil && *r.Name != "" {
-			label = r.Type + `\n` + *r.Name
+
+	if graphCluster == "" {
+		for _, n := range g.Nodes {
+			label, err := nodeLabel(n.Resource)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(&b, "  %q [label=%q];\n", n.Resource.ID, label)
 		}
-		fmt.Fprintf(&b, "  %q [label=%q];\n", r.ID, label)
+	} else {
+		// Group nodes by cluster key, emit a subgraph block per cluster.
+		groups := map[string][]store.GraphNode{}
+		for _, n := range g.Nodes {
+			groups[clusterKey(n.Resource)] = append(groups[clusterKey(n.Resource)], n)
+		}
+		keys := make([]string, 0, len(groups))
+		for k := range groups {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i, k := range keys {
+			fmt.Fprintf(&b, "  subgraph cluster_%d {\n", i)
+			fmt.Fprintf(&b, "    label=%q;\n", k)
+			for _, n := range groups[k] {
+				label, err := nodeLabel(n.Resource)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(&b, "    %q [label=%q];\n", n.Resource.ID, label)
+			}
+			b.WriteString("  }\n")
+		}
 	}
+
 	for _, e := range g.Edges {
 		fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
 	}
@@ -127,14 +387,81 @@ func renderGraphDot(g *store.GraphResult) error {
 	return err
 }
 
+// renderGraphMermaid emits a Mermaid flowchart for embedding in markdown
+// (GitHub/GitLab/docs render natively; Slack does not). Node IDs are 8-char
+// shortened so the source stays readable; full IDs round-trip through json.
+func renderGraphMermaid(g *store.GraphResult) error {
+	var b strings.Builder
+	b.WriteString("flowchart LR\n")
+
+	emitNode := func(indent string, n store.GraphNode) error {
+		label, err := nodeLabel(n.Resource)
+		if err != nil {
+			return err
+		}
+		// Mermaid uses `\n` literal for line breaks inside the quoted label;
+		// our default label template already emits that escape.
+		fmt.Fprintf(&b, "%s%s[%q]\n", indent, mermaidNodeID(n.Resource.ID), label)
+		return nil
+	}
+
+	if graphCluster == "" {
+		for _, n := range g.Nodes {
+			if err := emitNode("  ", n); err != nil {
+				return err
+			}
+		}
+	} else {
+		groups := map[string][]store.GraphNode{}
+		for _, n := range g.Nodes {
+			groups[clusterKey(n.Resource)] = append(groups[clusterKey(n.Resource)], n)
+		}
+		keys := make([]string, 0, len(groups))
+		for k := range groups {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for i, k := range keys {
+			fmt.Fprintf(&b, "  subgraph c%d[%q]\n", i, k)
+			for _, n := range groups[k] {
+				if err := emitNode("    ", n); err != nil {
+					return err
+				}
+			}
+			b.WriteString("  end\n")
+		}
+	}
+
+	for _, e := range g.Edges {
+		fmt.Fprintf(&b, "  %s -- %q --> %s\n",
+			mermaidNodeID(e.FromID), e.Kind, mermaidNodeID(e.ToID))
+	}
+	_, err := os.Stdout.WriteString(b.String())
+	return err
+}
+
+// mermaidNodeID maps a 32-hex resource ID to a Mermaid-safe node identifier.
+// Mermaid IDs cannot start with a digit cleanly in all renderers, so prefix
+// with "n".
+func mermaidNodeID(id string) string {
+	return "n" + short(id)
+}
+
 func init() {
-	graphCmd.Flags().StringVar(&graphProvider, "provider", "", "Disambiguate native ID by provider")
-	graphCmd.Flags().StringVar(&graphType, "type", "", "Disambiguate native ID by resource type")
-	graphCmd.Flags().StringVar(&graphAccount, "account", "", "Disambiguate native ID by account/subscription/project")
-	graphCmd.Flags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only)")
-	graphCmd.Flags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all)")
-	graphCmd.Flags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
-	graphCmd.Flags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, json, dot")
-	graphCmd.Flags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
+	graphCmd.PersistentFlags().StringVar(&graphProvider, "provider", "", "Disambiguate native ID by provider")
+	graphCmd.PersistentFlags().StringVar(&graphType, "type", "", "Disambiguate native ID by resource type")
+	graphCmd.PersistentFlags().StringVar(&graphAccount, "account", "", "Disambiguate native ID by account/subscription/project")
+	graphCmd.PersistentFlags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only; defaults: explore=2, path=8, blast=3)")
+	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all; blast: all except 'contains')")
+	graphCmd.PersistentFlags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
+	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, json, dot, mermaid")
+	graphCmd.PersistentFlags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
+	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeTypes, "exclude-types", nil, "Drop nodes whose type matches; literal or suffix-glob (e.g. 'aws:iam:*')")
+	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeRegions, "exclude-regions", nil, "Drop nodes whose region matches exactly")
+	graphCmd.PersistentFlags().IntVar(&graphMaxNodes, "max-nodes", 0, "Cap nodes (0 = unlimited); BFS halts adding once hit, drops reported on stderr")
+	graphCmd.PersistentFlags().IntVar(&graphMaxEdges, "max-edges", 0, "Cap edges (0 = unlimited)")
+	graphCmd.PersistentFlags().StringVar(&graphCluster, "cluster", "", "Cluster nodes in dot/mermaid output by: provider, region, account")
+	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
+	graphCmd.AddCommand(graphPathCmd, graphBlastCmd)
 	rootCmd.AddCommand(graphCmd)
 }

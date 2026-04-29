@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -31,6 +33,11 @@ Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP 
 func Execute() {
 	cmd, err := rootCmd.ExecuteC()
 	if err != nil {
+		// `graph path` exits 1 silently when the two resources are unreachable
+		// — the absence of a path is a query result, not an error to print.
+		if errors.Is(err, store.ErrNoPath) {
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		// Unknown command / subcommand: print the matched parent's usage so
 		// the user sees the available subcommands inline with the error.

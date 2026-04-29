@@ -47,6 +47,16 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
   - Kinesis Data Streams: scanner + KMS resolver; Lambda ESM → Kinesis stream now resolves
   - Firehose: delivery stream scanner; → Kinesis source, → S3 destinations, → KMS
 
+### G1 graph subcommands + filter flags (this session)
+- **`disco graph path <A> <B>`** — shortest-path BFS (`store.GraphPath`, parent-pointer reconstruction). Returns `store.ErrNoPath` sentinel on no path; `cmd/root.go` `Execute()` matches via `errors.Is` and exits 1 silently. Default depth 8.
+- **`disco graph blast <id>`** — outbound reachability with per-distance rings; default kind-set excludes `contains` so hierarchy fan-out does not dominate. Default depth 3. Reuses `GraphWalk` with `Direction=DirOut`; renderer groups nodes by depth ring.
+- **Mermaid output** — `--output mermaid` (`flowchart LR`). Replaces the proposed separate `--format` flag.
+- **Cluster + label** — `--cluster provider|region|account` wraps dot/mermaid nodes in `subgraph cluster_X` blocks. `--label-template` is a `text/template` over `{Name, Type, Provider, Account, Region, NativeID}` (dot/mermaid only).
+- **Traversal filters** — `--exclude-types` (literal or suffix-glob, e.g. `aws:iam:*`), `--exclude-regions`, `--max-nodes`, `--max-edges`. `GraphResult` now reports `TruncatedNodes/Edges` + `ExcludedTypes/Regions` counters; cmd surfaces truncation totals on stderr.
+- **Persistent flags** — all G1 flags defined on parent `graph` cmd so `path` / `blast` inherit. Per-subcommand depth defaults applied via `cmd.Flags().Changed("depth")`.
+- **Out of scope (still NEXT)** — `source_resolver` schema migration owned by G2; incremental traversal cache deferred until benchmarks justify; graph-diff between two scans folded into `disco diff` if pursued.
+- **Tests** — `cmd/graph_test.go` + `internal/store/graph_test.go` cover reachable/unreachable path, exclude-types prune, max-nodes cap, blast rings, mermaid render. `resetGraphFlags()` helper added since cobra package-level flag vars persist across invocations of shared `rootCmd`.
+
 ### R5 cross-tenant resolvers (this session)
 - **AWS** — `resolveIAMRoleCrossAccountTrust` walks each role's `AssumeRolePolicyDocument`, emits `cross-account-trust` edge from role → synthetic `aws:iam:foreign-account` stub for any Allow-Statement `Principal.AWS` naming a different account (bare 12-digit ID or ARN form). Wildcards, self-account refs, and Deny statements skip. One stub per distinct foreign account so FK on `relationships.to_id` holds and the foreign account is visible as a graph node.
 - **Azure** — `resolveAuthorizationRelationships` extended: when role-assignment Scope's subscription differs from the assignment's owner sub, emit `cross-sub-rbac` edge → synthetic `azure:microsoft.resources:foreign-subscription` stub. Same-sub assignments retain `attached-to` behavior. Existing case-insensitive ARM-ID match preserved. Principal-side cross-sub edges still deferred (need Microsoft Graph integration).
@@ -706,38 +716,7 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 ## NEXT — this quarter
 
 ### G1. Graph subcommands + filter flags
-Current: `disco graph <id> --depth N --kinds X --direction both --output table|json|dot`. Extend.
-
-**Subcommands**
-
-- **`disco graph path <A> <B>`** — shortest-path BFS between two resource IDs, bounded by `--depth` (default 8); honors `--kinds`/`--direction`. Exit 1 on no path. Output: edge list (table/json) or dot subgraph. Answers "can this IAM role reach this bucket?"
-- **`disco graph blast <id>`** — outbound reachability with per-distance rings. Default kind-set = all non-`contains`. Caps via `--depth` (default 3) and `--max-nodes`. Output adds `distance` column. Rule-engine hook: predicate `blast(id, depth=N) > threshold`.
-- *(`graph reverse` dropped — already covered by `--direction in`.)*
-
-**Rendering**
-
-- Extend **`--output`** with `mermaid` (GitHub/GitLab/markdown embeds; Slack does not render natively). Replaces the proposed separate `--format` flag.
-- **`--cluster provider|region|account`** — dot/mermaid `subgraph cluster_X` layout hints so big graphs stay readable.
-- **`--label-template '{{.Name}}\n{{.Type}}'`** — `text/template` over `{Name, Type, Provider, Account, Region, NativeID}`. Dot/mermaid only.
-- Render `source_resolver` on edge tooltips when the column (see G2) is populated.
-
-**Traversal filters**
-
-- **`--exclude-types <glob,...>`** — drop nodes whose type matches; suffix-`*` glob, case-sensitive, comma list.
-- **`--exclude-regions <region,...>`** — drop nodes by region. Comma list.
-- **`--max-nodes 500`** / **`--max-edges 2000`** — BFS halts when frontier would exceed; truncation count to stderr; exit code unchanged.
-
-**Acceptance**
-
-- `graph path` / `graph blast` covered in `cmd/graph_test.go` with reachable + unreachable fixtures; output stable across runs.
-- All new flags carry `--help` doc lines and round-trip through `-o json`.
-- All of G1 is OSS — no `_paid.go` files.
-
-**Out of scope this quarter**
-
-- Incremental traversal cache (revisit after benchmarks justify it).
-- Graph diff between two scans (fold into `disco diff` if pursued).
-- `source_resolver` schema migration — owned by G2; G1 only consumes the column.
+*(landed — see COMPLETED "G1 graph subcommands + filter flags". Edge `source_resolver` tooltip render still pending G2 schema column.)*
 
 ### G2. Relationships table evolution
 - Add `source_resolver TEXT` column (migration) populated from resolver name via context.
