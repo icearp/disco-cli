@@ -54,7 +54,7 @@ Resolver targets type with unscanned members (public/Marketplace AMIs, cross-acc
 
 ## Ownership-filtered AWS scanners
 
-AWS Describe* with ownership filter (`Owners=["self"]` for AMIs/snapshots/FPGA images) — scan self-owned only. Public/Marketplace/shared sets unbounded + not ours to audit. Cross-account refs from scanned resources (instance → public AMI) handled via FK-safe lookup above.
+AWS Describe* with ownership filter (`Owners=["self"]` for AMIs/snapshots/FPGA images) — scan self-owned only. Public/Marketplace/shared sets unbounded + not ours to audit (third-party, not AWS-managed — distinct from the `ManagedByProvider` flag in `internal/providers/CLAUDE.md`, which covers AWS-owned catalogue resources like managed prefix lists, IAM AWS-managed policies, IAM service-linked roles, AuditMgr Standard frameworks/controls). Cross-account refs from scanned resources (instance → public AMI) handled via FK-safe lookup above.
 
 ## AWS service-integration ARNs use `:::`
 
