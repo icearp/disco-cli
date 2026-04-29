@@ -26,7 +26,7 @@ var rootCmd = &cobra.Command{
 	Short:         "Cloud resource discovery tool for AWS, Azure, and GCP",
 	Long: `disco scans cloud accounts and resolves relationships between discovered resources.
 
-Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders).`,
+Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders/projects).`,
 }
 
 // Execute runs the root command.
