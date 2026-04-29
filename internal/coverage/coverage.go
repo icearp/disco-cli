@@ -1,0 +1,272 @@
+// Package coverage builds the disco-vs-upstream type coverage matrix for
+// every registered cloud provider. Each provider implements Provider and
+// registers itself via init() — see internal/providers/<p>/coverage.go.
+//
+// Coverage truth source = the emits []TypeDecl declared on each scanner's
+// serviceEntry, aggregated through the provider's Emits() method. Upstream
+// truth source = a live registry call (CFN ListTypes / ARM Providers/List /
+// GCP Discovery API) executed at command time. The matching engine reconciles
+// the two sets via per-provider alias maps to produce the final matrix.
+package coverage
+
+import (
+	"context"
+	"sort"
+	"strings"
+	"sync"
+	"unicode"
+)
+
+// TypeDecl is one disco resource type declared by a scanner's emits field.
+type TypeDecl struct {
+	Service   string // disco's service segment (e.g. "ec2", "compute", "microsoft.compute")
+	DiscoType string // canonical disco type, e.g. "aws:ec2:instance"
+	Synthetic bool   // true = no upstream registry entry expected (disco-only)
+}
+
+// UpstreamType is one entry returned by a provider's live registry Fetch.
+type UpstreamType struct {
+	Key     string // canonical upstream identifier, provider-specific shape
+	Service string // grouping bucket for matrix rendering
+}
+
+// FetchOptions carry per-invocation knobs from the cmd. Each provider reads
+// only the fields it cares about — AWS uses Region/Profile, Azure uses
+// Subscription, GCP ignores all three.
+type FetchOptions struct {
+	Region       string
+	Profile      string
+	Subscription string
+}
+
+// Provider is implemented by each cloud provider package. Aggregates emits
+// from registeredServices, exposes the live Fetch, and supplies the alias map
+// + an algorithmic fallback used when a disco-type has no explicit alias.
+type Provider interface {
+	Name() string
+	Fetch(ctx context.Context, opts FetchOptions) ([]UpstreamType, error)
+	Emits() []TypeDecl
+	Aliases() map[string]string             // disco-type -> upstream key (overrides)
+	AlgorithmicKey(discoType string) string // fallback when no alias entry exists
+}
+
+// Bucket classifies a single matrix row.
+type Bucket string
+
+const (
+	BucketCovered         Bucket = "covered"
+	BucketUncovered       Bucket = "uncovered"
+	BucketSynthetic       Bucket = "synthetic"
+	BucketUpstreamMissing Bucket = "upstream-missing"
+)
+
+// Row is one entry in the coverage matrix.
+type Row struct {
+	Provider    string `json:"provider"`
+	Service     string `json:"service"`
+	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered)
+	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is synthetic
+	Bucket      Bucket `json:"bucket"`
+}
+
+// Matrix groups rows by provider for rendering.
+type Matrix struct {
+	Provider string `json:"provider"`
+	Rows     []Row  `json:"rows"`
+}
+
+var (
+	mu       sync.RWMutex
+	registry = map[string]Provider{}
+)
+
+// Register adds a Provider to the global registry. Called from each
+// provider package's init().
+func Register(p Provider) {
+	mu.Lock()
+	defer mu.Unlock()
+	if _, ok := registry[p.Name()]; ok {
+		panic("disco: duplicate coverage provider registration: " + p.Name())
+	}
+	registry[p.Name()] = p
+}
+
+// Get returns the registered Provider by name.
+func Get(name string) (Provider, bool) {
+	mu.RLock()
+	defer mu.RUnlock()
+	p, ok := registry[name]
+	return p, ok
+}
+
+// All returns every registered Provider, sorted by Name.
+func All() []Provider {
+	mu.RLock()
+	defer mu.RUnlock()
+	out := make([]Provider, 0, len(registry))
+	for _, p := range registry {
+		out = append(out, p)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name() < out[j].Name() })
+	return out
+}
+
+// Names returns the sorted names of every registered provider.
+func Names() []string {
+	mu.RLock()
+	defer mu.RUnlock()
+	out := make([]string, 0, len(registry))
+	for n := range registry {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Build assembles the coverage matrix for one provider. emits and upstream
+// are deduped by their canonical keys (DiscoType / UpstreamKey) before
+// matching. A disco-type marked Synthetic short-circuits to BucketSynthetic
+// regardless of upstream presence; a non-synthetic disco-type whose alias
+// resolves to an upstream key not in the live registry produces
+// BucketUpstreamMissing — the drift signal called out in ROADMAP G5.
+func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType) Matrix {
+	if algorithmic == nil {
+		algorithmic = AlgorithmicUpstreamKey
+	}
+	// De-dupe emits by DiscoType, preserving the first occurrence's Service.
+	dedupedEmits := make([]TypeDecl, 0, len(emits))
+	seen := make(map[string]int, len(emits))
+	for _, t := range emits {
+		if _, ok := seen[t.DiscoType]; ok {
+			continue
+		}
+		seen[t.DiscoType] = len(dedupedEmits)
+		dedupedEmits = append(dedupedEmits, t)
+	}
+
+	// Index upstream by key (lowercased for case-insensitive lookup; Azure
+	// stores ARM IDs case-insensitively, AWS CFN names are case-sensitive but
+	// alias maps may carry typo'd casing — lowercasing is forgiving without
+	// loss because every provider has a unique key namespace).
+	upstreamByKey := make(map[string]UpstreamType, len(upstream))
+	for _, u := range upstream {
+		upstreamByKey[strings.ToLower(u.Key)] = u
+	}
+
+	// Track which upstream keys were matched so we can emit the leftover
+	// "uncovered" rows after walking emits.
+	matched := make(map[string]bool, len(upstream))
+
+	rows := make([]Row, 0, len(dedupedEmits)+len(upstream))
+
+	for _, t := range dedupedEmits {
+		if t.Synthetic {
+			rows = append(rows, Row{
+				Provider:  providerName,
+				Service:   t.Service,
+				DiscoType: t.DiscoType,
+				Bucket:    BucketSynthetic,
+			})
+			continue
+		}
+
+		upstreamKey, ok := aliases[t.DiscoType]
+		if !ok {
+			upstreamKey = algorithmic(t.DiscoType)
+		}
+		lookup := strings.ToLower(upstreamKey)
+		if u, hit := upstreamByKey[lookup]; hit {
+			matched[lookup] = true
+			rows = append(rows, Row{
+				Provider:    providerName,
+				Service:     t.Service,
+				DiscoType:   t.DiscoType,
+				UpstreamKey: u.Key,
+				Bucket:      BucketCovered,
+			})
+			continue
+		}
+		rows = append(rows, Row{
+			Provider:    providerName,
+			Service:     t.Service,
+			DiscoType:   t.DiscoType,
+			UpstreamKey: upstreamKey,
+			Bucket:      BucketUpstreamMissing,
+		})
+	}
+
+	// Leftover upstream entries become uncovered rows.
+	for k, u := range upstreamByKey {
+		if matched[k] {
+			continue
+		}
+		rows = append(rows, Row{
+			Provider:    providerName,
+			Service:     u.Service,
+			UpstreamKey: u.Key,
+			Bucket:      BucketUncovered,
+		})
+	}
+
+	// Stable sort: bucket order, then service, then disco / upstream key.
+	bucketOrder := map[Bucket]int{
+		BucketCovered: 0, BucketUncovered: 1, BucketSynthetic: 2, BucketUpstreamMissing: 3,
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if bucketOrder[rows[i].Bucket] != bucketOrder[rows[j].Bucket] {
+			return bucketOrder[rows[i].Bucket] < bucketOrder[rows[j].Bucket]
+		}
+		if rows[i].Service != rows[j].Service {
+			return rows[i].Service < rows[j].Service
+		}
+		ki, kj := rows[i].DiscoType, rows[j].DiscoType
+		if ki == "" {
+			ki = rows[i].UpstreamKey
+		}
+		if kj == "" {
+			kj = rows[j].UpstreamKey
+		}
+		return ki < kj
+	})
+
+	return Matrix{Provider: providerName, Rows: rows}
+}
+
+// AlgorithmicUpstreamKey is the fallback mapping used when no alias is
+// registered for a given disco-type. Today this is just the lowercased
+// disco-type itself — alias maps are the source of truth for accurate
+// matching, and the fallback exists only so that providers whose
+// upstream-key shape happens to equal the disco-type can omit alias entries.
+//
+// Per-provider algorithmic conversions (CFN PascalCase, ARM camelCase, GCP
+// resource-collection forms) live in the provider's coverage.go alias-map
+// builder, where the disco<->upstream rules are visible alongside the
+// provider's other quirks.
+func AlgorithmicUpstreamKey(discoType string) string {
+	return strings.ToLower(discoType)
+}
+
+// PascalToKebab converts a PascalCase or mixed-case identifier to kebab-case.
+// Lifted from cmd/types_aws.go so per-provider alias-map builders can reuse
+// it. Inserts '-' at lower→upper transitions and before the trailing capital
+// of an acronym run (e.g. "DBInstance" → "db-instance").
+func PascalToKebab(s string) string {
+	if s == "" {
+		return ""
+	}
+	runes := []rune(s)
+	var b strings.Builder
+	b.WriteRune(unicode.ToLower(runes[0]))
+	for i := 1; i < len(runes); i++ {
+		cur, prev := runes[i], runes[i-1]
+		if unicode.IsUpper(cur) {
+			if unicode.IsLower(prev) {
+				b.WriteByte('-')
+			} else if i+1 < len(runes) && unicode.IsLower(runes[i+1]) {
+				b.WriteByte('-')
+			}
+		}
+		b.WriteRune(unicode.ToLower(cur))
+	}
+	return b.String()
+}
