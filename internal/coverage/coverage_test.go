@@ -2,24 +2,9 @@ package coverage
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 )
-
-type fakeProvider struct {
-	name     string
-	upstream []UpstreamType
-	emits    []TypeDecl
-	aliases  map[string]string
-}
-
-func (f *fakeProvider) Name() string { return f.name }
-func (f *fakeProvider) Fetch(_ context.Context, _ FetchOptions) ([]UpstreamType, error) {
-	return f.upstream, nil
-}
-func (f *fakeProvider) Emits() []TypeDecl          { return f.emits }
-func (f *fakeProvider) Aliases() map[string]string { return f.aliases }
 
 func TestBuild_BucketAssignment(t *testing.T) {
 	emits := []TypeDecl{

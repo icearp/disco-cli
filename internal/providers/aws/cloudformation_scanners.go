@@ -242,7 +242,7 @@ func scanCloudFormationStackSets(ctx context.Context, client cloudformationAPI, 
 			}
 			instances, ierr := listAllStackInstances(gctx, client, sv(s.StackSetName))
 			if ierr != nil {
-				if !(isAccessDenied(ierr) || isStackValidationError(ierr)) {
+				if !isAccessDenied(ierr) && !isStackValidationError(ierr) {
 					return fmt.Errorf("cloudformation:ListStackInstances %s: %w", sv(s.StackSetName), ierr)
 				}
 				instances = nil
