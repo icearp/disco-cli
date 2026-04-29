@@ -293,34 +293,41 @@ func init() {
 			Use:   s.Name(),
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
 		}
-		subcmd.Flags().StringSlice("services", nil,
-			fmt.Sprintf("comma-separated services to scan (e.g. %s:ec2,%s:iam); omit to scan all", s.Name(), s.Name()))
-		subcmd.Flags().StringSlice("regions", nil,
-			"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
-		subcmd.Flags().StringSlice("region", nil, "alias for --regions")
-		_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
-		subcmd.Flags().String("profile", "",
-			"named credential profile (e.g. a profile defined in ~/.aws/config)")
+		// Register optional flags only when the provider implements the matching
+		// capability interface — keeps --help honest (no flags listed that would
+		// be silently ignored).
+		if _, ok := s.(providers.ServiceFilterer); ok {
+			example := serviceFilterExample(s.Name())
+			subcmd.Flags().StringSlice("services", nil,
+				fmt.Sprintf("comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
+		}
+		if _, ok := s.(providers.RegionOverrider); ok {
+			subcmd.Flags().StringSlice("regions", nil,
+				"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
+			subcmd.Flags().StringSlice("region", nil, "alias for --regions")
+			_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
+		}
+		if _, ok := s.(providers.ProfileOverrider); ok {
+			subcmd.Flags().String("profile", "",
+				"named credential profile (e.g. a profile defined in ~/.aws/config)")
+		}
 		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
-			svcs, _ := cmd.Flags().GetStringSlice("services")
-			if len(svcs) > 0 {
-				// Apply filter if the provider supports it.
-				if sf, ok := s.(providers.ServiceFilterer); ok {
+			if sf, ok := s.(providers.ServiceFilterer); ok {
+				if svcs, _ := cmd.Flags().GetStringSlice("services"); len(svcs) > 0 {
 					sf.SetServiceFilter(svcs)
 				}
 			}
-			regions, _ := cmd.Flags().GetStringSlice("regions")
-			if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
-				regions = legacy
-			}
-			if len(regions) > 0 {
-				if ro, ok := s.(providers.RegionOverrider); ok {
+			if ro, ok := s.(providers.RegionOverrider); ok {
+				regions, _ := cmd.Flags().GetStringSlice("regions")
+				if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
+					regions = legacy
+				}
+				if len(regions) > 0 {
 					ro.SetRegionOverride(regions)
 				}
 			}
-			profile, _ := cmd.Flags().GetString("profile")
-			if profile != "" {
-				if po, ok := s.(providers.ProfileOverrider); ok {
+			if po, ok := s.(providers.ProfileOverrider); ok {
+				if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 					po.SetProfile(profile)
 				}
 			}
@@ -329,4 +336,20 @@ func init() {
 		scanCmd.AddCommand(subcmd)
 	}
 	rootCmd.AddCommand(scanCmd)
+}
+
+// serviceFilterExample returns a representative pair of service prefixes
+// for the given provider, used in --services flag help. Falls back to a
+// generic placeholder for unknown providers.
+func serviceFilterExample(provider string) string {
+	switch provider {
+	case "aws":
+		return "aws:ec2,aws:s3"
+	case "azure":
+		return "azure:compute,azure:network"
+	case "gcp":
+		return "gcp:compute,gcp:storage"
+	default:
+		return provider + ":<service>"
+	}
 }
