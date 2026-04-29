@@ -3,9 +3,21 @@ package aws
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2FlowLog},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PrefixList},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsPath},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAnalysis},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScope},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScopeAnalysis},
+	)
+}
 
 // scanEC2Observability discovers observability and policy types: flow logs,
 // managed prefix lists, and all Network Insights resources.

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/controltower"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/controltower/types"
@@ -13,7 +14,16 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:controltower", fn: scanControlTower}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:controltower",
+		fn:   scanControlTower,
+		emits: []coverage.TypeDecl{
+			{Service: "controltower", DiscoType: TypeControlTowerLandingZone},
+			{Service: "controltower", DiscoType: TypeControlTowerEnabledBaseline},
+		},
+	})
+}
 
 // controltowerAPI is the narrow set of Control Tower operations called by
 // the scanControlTower sub-phases.

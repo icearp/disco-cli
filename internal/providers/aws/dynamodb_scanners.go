@@ -5,12 +5,22 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:dynamodb", fn: scanDynamoDB}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:dynamodb",
+		fn:   scanDynamoDB,
+		emits: []coverage.TypeDecl{
+			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
+			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
+		},
+	})
+}
 
 // dynamodbAPI is the narrow set of DynamoDB operations called by the
 // scanDynamoDB sub-phases.

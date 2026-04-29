@@ -5,11 +5,31 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"golang.org/x/sync/errgroup"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayAttachment},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnect},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnectPeer},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastDomain},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastDomainAssociation},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastGroupMember},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMulticastGroupSource},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayPeeringAttachment},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRoute},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTable},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTableAssociation},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayRouteTablePropagation},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayVPCAttachment},
+	)
+}
 
 // scanEC2TGW discovers all Transit Gateway resource types in parallel: core
 // gateways and attachments, plus extended sub-resources.

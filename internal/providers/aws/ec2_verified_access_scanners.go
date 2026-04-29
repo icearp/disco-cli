@@ -3,9 +3,19 @@ package aws
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessTrustProvider},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessInstance},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessGroup},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessEndpoint},
+	)
+}
 
 // scanEC2VerifiedAccess discovers all Verified Access resources in parallel.
 func scanEC2VerifiedAccess(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

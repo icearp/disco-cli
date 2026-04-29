@@ -3,12 +3,21 @@ package aws
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 )
 
-func init() { registerService(serviceEntry{name: "aws:secretsmanager", fn: scanSecretsManager}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:secretsmanager",
+		fn:   scanSecretsManager,
+		emits: []coverage.TypeDecl{
+			{Service: "secretsmanager", DiscoType: TypeSecretsManagerSecret},
+		},
+	})
+}
 
 // secretsManagerAPI is the narrow set of Secrets Manager operations called by
 // scanSecretsManagerSecrets.

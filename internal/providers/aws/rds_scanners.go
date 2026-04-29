@@ -6,13 +6,36 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:rds", fn: scanRDS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:rds",
+		fn:   scanRDS,
+		emits: []coverage.TypeDecl{
+			{Service: "rds", DiscoType: TypeRDSDBCluster},
+			{Service: "rds", DiscoType: TypeRDSDBInstance},
+			{Service: "rds", DiscoType: TypeRDSGlobalCluster},
+			{Service: "rds", DiscoType: TypeRDSDBClusterParameterGroup},
+			{Service: "rds", DiscoType: TypeRDSDBParameterGroup},
+			{Service: "rds", DiscoType: TypeRDSDBSubnetGroup},
+			{Service: "rds", DiscoType: TypeRDSDBSecurityGroup},
+			{Service: "rds", DiscoType: TypeRDSOptionGroup},
+			{Service: "rds", DiscoType: TypeRDSEventSubscription},
+			{Service: "rds", DiscoType: TypeRDSIntegration},
+			{Service: "rds", DiscoType: TypeRDSDBProxy},
+			{Service: "rds", DiscoType: TypeRDSDBProxyEndpoint},
+			{Service: "rds", DiscoType: TypeRDSDBProxyTargetGroup},
+			{Service: "rds", DiscoType: TypeRDSDBShardGroup},
+			{Service: "rds", DiscoType: TypeRDSCustomDBEngineVersion},
+		},
+	})
+}
 
 // rdsAPI is the narrow set of RDS operations called by the scanRDS sub-phases.
 type rdsAPI interface {

@@ -5,13 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:network-firewall", fn: scanNetworkFirewall}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:network-firewall",
+		fn:   scanNetworkFirewall,
+		emits: []coverage.TypeDecl{
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewall},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewallPolicy},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallRuleGroup},
+		},
+	})
+}
 
 // networkfirewallAPI is the narrow set of Network Firewall operations
 // called by the scanNetworkFirewall sub-phases.

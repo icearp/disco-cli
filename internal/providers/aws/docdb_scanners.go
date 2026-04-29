@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
 )
 
-func init() { registerService(serviceEntry{name: "aws:docdb", fn: scanDocDB}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:docdb",
+		fn:   scanDocDB,
+		emits: []coverage.TypeDecl{
+			{Service: "docdb", DiscoType: TypeDocDBCluster},
+			{Service: "docdb", DiscoType: TypeDocDBInstance},
+		},
+	})
+}
 
 // docdbAPI is the narrow set of DocumentDB operations called by the
 // scanDocDB sub-phases.

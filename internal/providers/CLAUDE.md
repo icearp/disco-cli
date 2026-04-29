@@ -53,6 +53,10 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 New `Type*` const in `<provider>_types.go` must append to `KnownTypes()` slice same file. Coverage command + types gap-analysis use it. AWS + Azure rely on review to catch omissions; GCP has an AST-based test (`types_test.go::TestKnownTypes_NoOmissions`) that parses the const block and fails on drift — port the same test to AWS/Azure if drift bugs surface.
 
+## Scanner `emits []coverage.TypeDecl` is coverage truth source
+
+Every `registerService` / `registerOrgService` / `registerTenantService` / `registerAPIResolver` call must declare the disco types it upserts via `emits []coverage.TypeDecl{{Service, DiscoType, Synthetic}}`. Coverage matrix (`disco coverage`) reads this — NOT `KnownTypes()`. Disco-only types (no upstream registry entry — IAM policy synth, foreign-project stubs, KMS grants, EFS mount-targets, SSO assignments) get `Synthetic: true`. Non-serviceEntry upsert sites (hierarchy scanners, resolver-side stubs) declare via `registerExtraEmits(coverage.TypeDecl{...})` from the same file's init(). Per-provider `CollectEmits()` aggregates and dedupes for the `coverage.Provider` impl. Shipped today: GCP. AWS + Azure pending.
+
 ## Embedding child data in parent attributes
 
 Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaningful only via parent — fetch child at scan time, embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data, no extra API calls.

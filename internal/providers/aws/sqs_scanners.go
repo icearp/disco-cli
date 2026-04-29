@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -12,7 +13,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:sqs", fn: scanSQS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:sqs",
+		fn:   scanSQS,
+		emits: []coverage.TypeDecl{
+			{Service: "sqs", DiscoType: TypeSQSQueue},
+		},
+	})
+}
 
 // sqsAPI is the narrow set of SQS operations called by scanSQSQueues. The
 // SDK's *sqs.Client satisfies this interface; tests supply a hand-rolled

@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
 )
 
-func init() { registerService(serviceEntry{name: "aws:acm", fn: scanACM}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:acm",
+		fn:   scanACM,
+		emits: []coverage.TypeDecl{
+			{Service: "acm", DiscoType: TypeACMCertificate},
+		},
+	})
+}
 
 // acmAPI is the narrow set of ACM operations called by scanACMCertificates.
 type acmAPI interface {

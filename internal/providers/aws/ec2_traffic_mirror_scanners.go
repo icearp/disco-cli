@@ -4,9 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorTarget},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilter},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilterRule},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorSession},
+	)
+}
 
 // scanEC2TrafficMirror discovers all Traffic Mirror resources in parallel.
 func scanEC2TrafficMirror(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

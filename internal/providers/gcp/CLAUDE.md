@@ -5,7 +5,12 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 ## GCP-specific registration quirks
 
 - New `Type*` const must be appended to both the const block in `types.go` AND the `KnownTypes()` slice in the same file. `types_test.go` `TestKnownTypes_NoOmissions` parses the const block via go/ast and fails if the slice drifts.
+- New `Type*` const ALSO needs `emits []coverage.TypeDecl` entry on its scanner's `registerService` / `registerOrgService`. Resolver-side synthetic stubs (e.g. `TypeIAMForeignProject`) declare via `registerExtraEmits` in `iampolicy_resolvers.go`. `CollectEmits()` in `services.go` unions all three sources for the `coverage.Provider` impl in `coverage.go`.
 - `registration_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
+
+## Discover what's not yet covered
+
+`disco coverage --provider gcp --filter uncovered` — diff GCP Discovery API vs scanner emits. Works credless (Discovery is public). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on `upstream-missing` rows (alias-map drift signal) — wire into CI to catch alias/scanner drift.
 
 ## Scoping cheat-sheet
 

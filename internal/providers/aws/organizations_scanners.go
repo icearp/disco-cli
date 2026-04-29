@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -16,6 +17,12 @@ func init() {
 		name:   "aws:organizations",
 		global: true,
 		fn:     scanOrganizations,
+		emits: []coverage.TypeDecl{
+			{Service: "organizations", DiscoType: TypeOrganization},
+			{Service: "organizations", DiscoType: TypeOrganizationsAccount},
+			{Service: "organizations", DiscoType: TypeOrganizationsOU},
+			{Service: "organizations", DiscoType: TypeOrganizationsSCP},
+		},
 	})
 }
 

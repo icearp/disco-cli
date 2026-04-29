@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -26,6 +27,12 @@ func init() {
 	registerResolver(resolveIAMPolicyResources)
 	registerResolver(resolveIAMRoleCrossAccountTrust)
 	registerResolver(resolveIAMPermissionBoundaries)
+	// Synthetic stub for cross-account trust principals whose owning account
+	// is out of scan scope (R5). Pure disco bookkeeping — no upstream
+	// CloudFormation resource type.
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignAccount, Synthetic: true},
+	)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.

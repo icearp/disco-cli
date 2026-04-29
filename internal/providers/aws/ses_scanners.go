@@ -5,13 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:ses", fn: scanSES}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:ses",
+		fn:   scanSES,
+		emits: []coverage.TypeDecl{
+			{Service: "ses", DiscoType: TypeSESEmailIdentity},
+			{Service: "ses", DiscoType: TypeSESConfigurationSet},
+		},
+	})
+}
 
 // sesv2API is the narrow set of SES v2 operations called by the scanSES
 // sub-phases.

@@ -4,11 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 )
 
-func init() { registerService(serviceEntry{name: "aws:guardduty", fn: scanGuardDuty}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:guardduty",
+		fn:   scanGuardDuty,
+		emits: []coverage.TypeDecl{
+			{Service: "guardduty", DiscoType: TypeGuardDutyDetector},
+			{Service: "guardduty", DiscoType: TypeGuardDutyFilter},
+			{Service: "guardduty", DiscoType: TypeGuardDutyIPSet},
+			{Service: "guardduty", DiscoType: TypeGuardDutyMember, Synthetic: true},
+		},
+	})
+}
 
 // guarddutyAPI is the narrow set of GuardDuty operations called by scanGuardDuty.
 type guarddutyAPI interface {

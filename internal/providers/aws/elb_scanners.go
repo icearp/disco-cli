@@ -5,12 +5,25 @@ import (
 	"fmt"
 	"strconv"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 )
 
 func init() {
-	registerService(serviceEntry{name: "aws:elasticloadbalancingv2", fn: scanELBv2})
+	registerService(serviceEntry{
+		name: "aws:elasticloadbalancingv2",
+		fn:   scanELBv2,
+		emits: []coverage.TypeDecl{
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2LoadBalancer},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2Listener},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerCertificate},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerRule},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TargetGroup},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStore},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStoreRevocation},
+		},
+	})
 }
 
 // elbv2API is the narrow set of ELBv2 operations called by the scanELBv2

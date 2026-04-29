@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/auditmanager"
 	amtypes "github.com/aws/aws-sdk-go-v2/service/auditmanager/types"
@@ -23,7 +24,17 @@ func isAuditManagerNotEnabled(err error) bool {
 	return isAccessDenied(err) && strings.Contains(err.Error(), "complete AWS Audit Manager setup")
 }
 
-func init() { registerService(serviceEntry{name: "aws:auditmanager", fn: scanAuditManager}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:auditmanager",
+		fn:   scanAuditManager,
+		emits: []coverage.TypeDecl{
+			{Service: "auditmanager", DiscoType: TypeAuditManagerAssessment},
+			{Service: "auditmanager", DiscoType: TypeAuditManagerControl},
+			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework},
+		},
+	})
+}
 
 // auditmanagerAPI is the narrow set of Audit Manager operations called by
 // the scanAuditManager sub-phases.

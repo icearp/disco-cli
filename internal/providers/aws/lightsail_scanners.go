@@ -4,11 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
 )
 
-func init() { registerService(serviceEntry{name: "aws:lightsail", fn: scanLightsail}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:lightsail",
+		fn:   scanLightsail,
+		emits: []coverage.TypeDecl{
+			{Service: "lightsail", DiscoType: TypeLightsailInstance},
+			{Service: "lightsail", DiscoType: TypeLightsailDatabase},
+			{Service: "lightsail", DiscoType: TypeLightsailContainerService},
+		},
+	})
+}
 
 // lightsailAPI is the narrow set of Lightsail operations called by the
 // scanLightsail sub-phases.

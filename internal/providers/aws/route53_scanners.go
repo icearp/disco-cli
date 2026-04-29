@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
@@ -27,6 +28,14 @@ func init() {
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanRoute53(ctx, acct, st, scanID)
+		},
+		emits: []coverage.TypeDecl{
+			{Service: "route53", DiscoType: TypeRoute53HostedZone},
+			{Service: "route53", DiscoType: TypeRoute53RecordSet},
+			{Service: "route53", DiscoType: TypeRoute53HealthCheck},
+			{Service: "route53", DiscoType: TypeRoute53DNSSEC},
+			{Service: "route53", DiscoType: TypeRoute53KeySigningKey},
+			{Service: "route53", DiscoType: TypeRoute53CIDRCollection},
 		},
 	})
 }

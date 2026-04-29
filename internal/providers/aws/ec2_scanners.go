@@ -11,7 +11,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:ec2", fn: scanEC2}) }
+func init() {
+	// EC2 emits are declared per category file via registerExtraEmits — the
+	// scanEC2 dispatcher itself upserts no resources, only fans out to the
+	// category scanners (compute_mgmt, networking, ipam, tgw, …).
+	registerService(serviceEntry{name: "aws:ec2", fn: scanEC2})
+}
 
 // scanEC2 discovers all EC2 resource types in one region by running all
 // category scanners in parallel. Each category scanner fans out to its own

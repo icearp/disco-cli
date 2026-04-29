@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
-func init() { registerService(serviceEntry{name: "aws:sns", fn: scanSNS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:sns",
+		fn:   scanSNS,
+		emits: []coverage.TypeDecl{
+			{Service: "sns", DiscoType: TypeSNSTopic},
+		},
+	})
+}
 
 // snsAPI is the narrow set of SNS operations called by scanSNSTopics. The
 // SDK's *sns.Client satisfies this interface; tests supply a hand-rolled

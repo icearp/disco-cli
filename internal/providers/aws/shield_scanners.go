@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/shield"
 )
@@ -14,6 +15,10 @@ func init() {
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanShield(ctx, acct, st, scanID)
+		},
+		emits: []coverage.TypeDecl{
+			{Service: "shield", DiscoType: TypeShieldProtection},
+			{Service: "shield", DiscoType: TypeShieldProtectionGroup},
 		},
 	})
 }

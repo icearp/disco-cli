@@ -4,11 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
 )
 
-func init() { registerService(serviceEntry{name: "aws:config", fn: scanConfig}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:config",
+		fn:   scanConfig,
+		emits: []coverage.TypeDecl{
+			{Service: "config", DiscoType: TypeConfigRule},
+			{Service: "config", DiscoType: TypeConfigRecorder},
+			{Service: "config", DiscoType: TypeConfigDeliveryChannel},
+		},
+	})
+}
 
 // configserviceAPI is the narrow set of AWS Config operations called by
 // scanConfigAll.

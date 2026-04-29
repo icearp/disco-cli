@@ -3,12 +3,21 @@ package aws
 import (
 	"context"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
 	kafkatypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 )
 
-func init() { registerService(serviceEntry{name: "aws:kafka", fn: scanKafka}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:kafka",
+		fn:   scanKafka,
+		emits: []coverage.TypeDecl{
+			{Service: "msk", DiscoType: TypeMSKCluster},
+		},
+	})
+}
 
 // kafkaAPI is the narrow set of MSK operations called by scanKafkaClusters.
 type kafkaAPI interface {

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -21,6 +22,22 @@ func init() {
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanIAM(ctx, acct, st, scanID)
+		},
+		emits: []coverage.TypeDecl{
+			{Service: "iam", DiscoType: TypeIAMUser},
+			{Service: "iam", DiscoType: TypeIAMGroup},
+			{Service: "iam", DiscoType: TypeIAMRole},
+			{Service: "iam", DiscoType: TypeIAMServiceLinkedRole},
+			{Service: "iam", DiscoType: TypeIAMPolicy},
+			{Service: "iam", DiscoType: TypeIAMRolePolicy},
+			{Service: "iam", DiscoType: TypeIAMUserPolicy},
+			{Service: "iam", DiscoType: TypeIAMGroupPolicy},
+			{Service: "iam", DiscoType: TypeIAMAccessKey},
+			{Service: "iam", DiscoType: TypeIAMInstanceProfile},
+			{Service: "iam", DiscoType: TypeIAMOIDCProvider},
+			{Service: "iam", DiscoType: TypeIAMSAMLProvider},
+			{Service: "iam", DiscoType: TypeIAMServerCertificate},
+			{Service: "iam", DiscoType: TypeIAMVirtualMFADevice},
 		},
 	})
 }

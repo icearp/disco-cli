@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
@@ -15,7 +16,14 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{name: "aws:cloudformation", fn: scanCloudFormation})
+	registerService(serviceEntry{
+		name: "aws:cloudformation",
+		fn:   scanCloudFormation,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudformation", DiscoType: TypeCloudFormationStack},
+			{Service: "cloudformation", DiscoType: TypeCloudFormationStackSet},
+		},
+	})
 }
 
 // cloudformationAPI is the narrow set of CloudFormation operations called

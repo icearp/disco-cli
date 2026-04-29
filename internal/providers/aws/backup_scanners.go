@@ -4,11 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:backup", fn: scanBackup}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:backup",
+		fn:   scanBackup,
+		emits: []coverage.TypeDecl{
+			{Service: "backup", DiscoType: TypeBackupVault},
+			{Service: "backup", DiscoType: TypeBackupPlan},
+			{Service: "backup", DiscoType: TypeBackupSelection},
+		},
+	})
+}
 
 // backupAPI is the narrow set of Backup operations called by scanBackupAll.
 type backupAPI interface {

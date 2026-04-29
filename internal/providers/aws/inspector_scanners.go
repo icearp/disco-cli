@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
 )
 
-func init() { registerService(serviceEntry{name: "aws:inspector2", fn: scanInspector2}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:inspector2",
+		fn:   scanInspector2,
+		emits: []coverage.TypeDecl{
+			{Service: "inspectorv2", DiscoType: TypeInspector2Filter},
+			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Synthetic: true},
+		},
+	})
+}
 
 // inspector2API is the narrow set of Inspector v2 operations called by the
 // scanInspector2 sub-phases.

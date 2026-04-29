@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
 )
 
-func init() { registerService(serviceEntry{name: "aws:elasticbeanstalk", fn: scanElasticBeanstalk}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:elasticbeanstalk",
+		fn:   scanElasticBeanstalk,
+		emits: []coverage.TypeDecl{
+			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplication},
+			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkEnvironment},
+		},
+	})
+}
 
 // elasticbeanstalkAPI is the narrow set of Elastic Beanstalk operations
 // called by the scanElasticBeanstalk sub-phases.

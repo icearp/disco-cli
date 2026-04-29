@@ -5,13 +5,22 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:opensearch", fn: scanOpenSearch}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:opensearch",
+		fn:   scanOpenSearch,
+		emits: []coverage.TypeDecl{
+			{Service: "opensearchservice", DiscoType: TypeOpenSearchDomain},
+		},
+	})
+}
 
 // opensearchAPI is the narrow set of OpenSearch operations called by
 // scanOpenSearchDomains.

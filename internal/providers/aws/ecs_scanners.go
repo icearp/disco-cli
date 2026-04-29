@@ -5,13 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:ecs", fn: scanECS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:ecs",
+		fn:   scanECS,
+		emits: []coverage.TypeDecl{
+			{Service: "ecs", DiscoType: TypeECSCluster},
+			{Service: "ecs", DiscoType: TypeECSService},
+			{Service: "ecs", DiscoType: TypeECSTaskDefinition},
+		},
+	})
+}
 
 // ecsAPI is the narrow set of ECS operations called by the scanECS sub-phases.
 type ecsAPI interface {

@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/neptune"
 )
 
-func init() { registerService(serviceEntry{name: "aws:neptune", fn: scanNeptune}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:neptune",
+		fn:   scanNeptune,
+		emits: []coverage.TypeDecl{
+			{Service: "neptune", DiscoType: TypeNeptuneCluster},
+			{Service: "neptune", DiscoType: TypeNeptuneInstance},
+		},
+	})
+}
 
 // neptuneAPI is the narrow set of Neptune operations called by the
 // scanNeptune sub-phases.

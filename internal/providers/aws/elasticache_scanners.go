@@ -5,12 +5,29 @@ import (
 	"errors"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	smithy "github.com/aws/smithy-go"
 )
 
-func init() { registerService(serviceEntry{name: "aws:elasticache", fn: scanElastiCache}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:elasticache",
+		fn:   scanElastiCache,
+		emits: []coverage.TypeDecl{
+			{Service: "elasticache", DiscoType: TypeElastiCacheCacheCluster},
+			{Service: "elasticache", DiscoType: TypeElastiCacheReplicationGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheGlobalReplicationGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheServerlessCache},
+			{Service: "elasticache", DiscoType: TypeElastiCacheParameterGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheSecurityGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheSubnetGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheUser},
+			{Service: "elasticache", DiscoType: TypeElastiCacheUserGroup},
+		},
+	})
+}
 
 // elasticacheAPI is the narrow set of ElastiCache operations called by the
 // scanElastiCache sub-phases.

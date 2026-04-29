@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:ecr", fn: scanECR}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:ecr",
+		fn:   scanECR,
+		emits: []coverage.TypeDecl{
+			{Service: "ecr", DiscoType: TypeECRRepository},
+		},
+	})
+}
 
 // ecrAPI is the narrow set of ECR operations called by scanECRRepositories.
 type ecrAPI interface {

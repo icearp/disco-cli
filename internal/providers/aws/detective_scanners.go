@@ -5,13 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/detective"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:detective", fn: scanDetective}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:detective",
+		fn:   scanDetective,
+		emits: []coverage.TypeDecl{
+			{Service: "detective", DiscoType: TypeDetectiveGraph},
+			{Service: "detective", DiscoType: TypeDetectiveMember, Synthetic: true},
+		},
+	})
+}
 
 // detectiveAPI is the narrow set of Detective operations called by the
 // scanDetective sub-phases.

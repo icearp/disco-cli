@@ -4,12 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 )
 
-func init() { registerService(serviceEntry{name: "aws:cloudtrail", fn: scanCloudTrail}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:cloudtrail",
+		fn:   scanCloudTrail,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailTrail},
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailEventDataStore},
+		},
+	})
+}
 
 // cloudtrailAPI is the narrow set of CloudTrail operations called by
 // scanCloudTrailAll.

@@ -5,12 +5,22 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:sfn", fn: scanSFN}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:sfn",
+		fn:   scanSFN,
+		emits: []coverage.TypeDecl{
+			{Service: "stepfunctions", DiscoType: TypeSFNStateMachine},
+			{Service: "stepfunctions", DiscoType: TypeSFNActivity},
+		},
+	})
+}
 
 // sfnAPI is the narrow set of Step Functions operations called by
 // scanSFNStateMachines.

@@ -5,12 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:efs", fn: scanEFS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:efs",
+		fn:   scanEFS,
+		emits: []coverage.TypeDecl{
+			{Service: "efs", DiscoType: TypeEFSFileSystem},
+			{Service: "efs", DiscoType: TypeEFSAccessPoint},
+			{Service: "efs", DiscoType: TypeEFSMountTarget},
+		},
+	})
+}
 
 // efsAPI is the narrow set of EFS operations called by scanEFSAll.
 type efsAPI interface {

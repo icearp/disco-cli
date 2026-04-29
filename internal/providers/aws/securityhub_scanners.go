@@ -4,11 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 )
 
-func init() { registerService(serviceEntry{name: "aws:securityhub", fn: scanSecurityHub}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:securityhub",
+		fn:   scanSecurityHub,
+		emits: []coverage.TypeDecl{
+			{Service: "securityhub", DiscoType: TypeSecurityHubHub},
+			{Service: "securityhub", DiscoType: TypeSecurityHubInsight},
+			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
+			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription},
+		},
+	})
+}
 
 // securityhubAPI is the narrow set of Security Hub operations called by the
 // scanSecurityHub sub-phases.

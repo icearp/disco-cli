@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	s3ctypes "github.com/aws/aws-sdk-go-v2/service/s3control/types"
@@ -31,6 +32,16 @@ func init() {
 		name:   "aws:s3control",
 		global: false,
 		fn:     scanS3Control,
+		emits: []coverage.TypeDecl{
+			{Service: "s3", DiscoType: TypeS3AccessGrantsInstance},
+			{Service: "s3", DiscoType: TypeS3AccessGrantsLocation},
+			{Service: "s3", DiscoType: TypeS3AccessGrant},
+			{Service: "s3", DiscoType: TypeS3AccessPoint},
+			{Service: "s3", DiscoType: TypeS3MultiRegionAccessPoint},
+			{Service: "s3", DiscoType: TypeS3MultiRegionAccessPointPolicy},
+			{Service: "s3", DiscoType: TypeS3StorageLens},
+			{Service: "s3", DiscoType: TypeS3StorageLensGroup},
+		},
 	})
 }
 

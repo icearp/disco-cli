@@ -5,13 +5,26 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:kms", fn: scanKMS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:kms",
+		fn:   scanKMS,
+		emits: []coverage.TypeDecl{
+			{Service: "kms", DiscoType: TypeKMSKey},
+			{Service: "kms", DiscoType: TypeKMSAlias},
+			// KMS grants have no CloudFormation type — synthetic NativeID,
+			// disco-only resource.
+			{Service: "kms", DiscoType: TypeKMSGrant, Synthetic: true},
+		},
+	})
+}
 
 // kmsAPI is the narrow set of KMS operations called by scanKMSKeys.
 type kmsAPI interface {

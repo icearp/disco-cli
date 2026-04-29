@@ -4,12 +4,23 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
-func init() { registerService(serviceEntry{name: "aws:ssm", fn: scanSSM}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:ssm",
+		fn:   scanSSM,
+		emits: []coverage.TypeDecl{
+			{Service: "ssm", DiscoType: TypeSSMDocument},
+			{Service: "ssm", DiscoType: TypeSSMParameter},
+			{Service: "ssm", DiscoType: TypeSSMPatchBaseline},
+		},
+	})
+}
 
 // ssmAPI is the narrow set of SSM operations called by scanSSMAll.
 type ssmAPI interface {

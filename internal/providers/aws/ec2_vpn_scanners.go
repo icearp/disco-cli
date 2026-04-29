@@ -4,9 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CustomerGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConnection},
+	)
+}
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.
 func scanEC2VPN(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

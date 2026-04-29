@@ -4,11 +4,28 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 )
 
-func init() { registerService(serviceEntry{name: "aws:lambda", fn: scanLambda}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:lambda",
+		fn:   scanLambda,
+		emits: []coverage.TypeDecl{
+			{Service: "lambda", DiscoType: TypeLambdaFunction},
+			{Service: "lambda", DiscoType: TypeLambdaAlias},
+			{Service: "lambda", DiscoType: TypeLambdaVersion},
+			{Service: "lambda", DiscoType: TypeLambdaURL},
+			{Service: "lambda", DiscoType: TypeLambdaESM},
+			{Service: "lambda", DiscoType: TypeLambdaLayerVersion},
+			{Service: "lambda", DiscoType: TypeLambdaCodeSigningConfig},
+			{Service: "lambda", DiscoType: TypeLambdaEventInvokeConfig},
+			{Service: "lambda", DiscoType: TypeLambdaCapacityProvider},
+		},
+	})
+}
 
 // lambdaAPI is the narrow set of Lambda operations called by the scanLambda
 // sub-phases. Lambda has the largest iface in the codebase (10 paginators)

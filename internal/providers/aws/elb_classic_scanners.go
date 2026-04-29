@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 )
 
 func init() {
-	registerService(serviceEntry{name: "aws:elasticloadbalancing", fn: scanELBClassic})
+	registerService(serviceEntry{
+		name: "aws:elasticloadbalancing",
+		fn:   scanELBClassic,
+		emits: []coverage.TypeDecl{
+			{Service: "elasticloadbalancing", DiscoType: TypeELBClassicLoadBalancer},
+		},
+	})
 }
 
 // elbClassicAPI is the narrow set of Classic ELB operations called by

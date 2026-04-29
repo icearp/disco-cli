@@ -5,13 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/apprunner"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:apprunner", fn: scanAppRunner}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:apprunner",
+		fn:   scanAppRunner,
+		emits: []coverage.TypeDecl{
+			{Service: "apprunner", DiscoType: TypeAppRunnerService},
+			{Service: "apprunner", DiscoType: TypeAppRunnerVPCConnector},
+		},
+	})
+}
 
 // apprunnerAPI is the narrow set of App Runner operations called by the
 // scanAppRunner sub-phases.

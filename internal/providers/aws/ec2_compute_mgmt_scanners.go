@@ -4,9 +4,30 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Instance},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroup},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroupVPCAssociation},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Volume},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2KeyPair},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LaunchTemplate},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PlacementGroup},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Image},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Host},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SpotFleet},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Fleet},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservation},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservationFleet},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InstanceConnectEndpoint},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SnapshotBlockPublicAccess},
+	)
+}
 
 // scanEC2ComputeMgmt discovers all compute resources: instances, security groups,
 // volumes, launch templates, key pairs, placement groups, spot fleets, dedicated

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
 	cwlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -16,7 +17,29 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:logs", fn: scanLogs}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:logs",
+		fn:   scanLogs,
+		emits: []coverage.TypeDecl{
+			{Service: "logs", DiscoType: TypeLogsLogGroup},
+			{Service: "logs", DiscoType: TypeLogsLogStream},
+			{Service: "logs", DiscoType: TypeLogsMetricFilter},
+			{Service: "logs", DiscoType: TypeLogsSubscriptionFilter},
+			{Service: "logs", DiscoType: TypeLogsQueryDefinition},
+			{Service: "logs", DiscoType: TypeLogsScheduledQuery},
+			{Service: "logs", DiscoType: TypeLogsResourcePolicy},
+			{Service: "logs", DiscoType: TypeLogsAccountPolicy},
+			{Service: "logs", DiscoType: TypeLogsDestination},
+			{Service: "logs", DiscoType: TypeLogsDelivery},
+			{Service: "logs", DiscoType: TypeLogsDeliverySource},
+			{Service: "logs", DiscoType: TypeLogsDeliveryDest},
+			{Service: "logs", DiscoType: TypeLogsLogAnomalyDetector},
+			{Service: "logs", DiscoType: TypeLogsTransformer},
+			{Service: "logs", DiscoType: TypeLogsIntegration},
+		},
+	})
+}
 
 // cwlogsAPI is the narrow set of CloudWatch Logs operations called by the
 // scanLogs sub-phases.

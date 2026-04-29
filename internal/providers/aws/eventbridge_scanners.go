@@ -5,12 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:events", fn: scanEventBridge}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:events",
+		fn:   scanEventBridge,
+		emits: []coverage.TypeDecl{
+			{Service: "events", DiscoType: TypeEventsEventBus},
+			{Service: "events", DiscoType: TypeEventsRule},
+			{Service: "events", DiscoType: TypeEventsConnection},
+			{Service: "events", DiscoType: TypeEventsAPIDestination},
+		},
+	})
+}
 
 // eventbridgeAPI is the narrow set of EventBridge operations called by
 // scanEventBridgeAll.

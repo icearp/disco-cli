@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 )
 
-func init() { registerService(serviceEntry{name: "aws:eks", fn: scanEKS}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:eks",
+		fn:   scanEKS,
+		emits: []coverage.TypeDecl{
+			{Service: "eks", DiscoType: TypeEKSCluster},
+		},
+	})
+}
 
 // eksAPI is the narrow set of EKS operations called by scanEKSClusters.
 // *eks.Client satisfies; tests substitute a stub.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
@@ -12,7 +13,17 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:cognito", fn: scanCognito}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:cognito",
+		fn:   scanCognito,
+		emits: []coverage.TypeDecl{
+			{Service: "cognito", DiscoType: TypeCognitoUserPool},
+			{Service: "cognito", DiscoType: TypeCognitoAppClient},
+			{Service: "cognito", DiscoType: TypeCognitoIdentityPool},
+		},
+	})
+}
 
 // cognitoidpAPI is the narrow set of Cognito Identity Provider operations
 // called by scanCognito. Distinct from cognitoidentityAPI — Cognito uses

@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:kinesis", fn: scanKinesis}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:kinesis",
+		fn:   scanKinesis,
+		emits: []coverage.TypeDecl{
+			{Service: "kinesis", DiscoType: TypeKinesisStream},
+		},
+	})
+}
 
 // kinesisAPI is the narrow set of Kinesis operations called by
 // scanKinesisStreams. *kinesis.Client satisfies; tests inject a stub.

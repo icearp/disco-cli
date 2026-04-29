@@ -5,13 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:athena", fn: scanAthena}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:athena",
+		fn:   scanAthena,
+		emits: []coverage.TypeDecl{
+			{Service: "athena", DiscoType: TypeAthenaWorkgroup},
+			{Service: "athena", DiscoType: TypeAthenaDataCatalog},
+		},
+	})
+}
 
 // athenaAPI is the narrow set of Athena operations called by the scanAthena
 // sub-phases.

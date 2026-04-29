@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	istypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
@@ -15,7 +16,21 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{name: "aws:sso-admin", fn: scanSSOAdmin})
+	registerService(serviceEntry{
+		name: "aws:sso-admin",
+		fn:   scanSSOAdmin,
+		emits: []coverage.TypeDecl{
+			{Service: "sso", DiscoType: TypeSSOInstance},
+			{Service: "sso", DiscoType: TypeSSOPermissionSet},
+			// SSO assignments + Identity Store users/groups have AWS API
+			// surfaces but no AWS-issued ARN; disco synthesizes NativeIDs.
+			// CFN does have AWS::SSO::Assignment / AWS::IdentityStore::Group,
+			// so these are NOT synthetic in coverage terms.
+			{Service: "sso", DiscoType: TypeSSOAccountAssignment},
+			{Service: "identitystore", DiscoType: TypeIdentityStoreUser},
+			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup},
+		},
+	})
 }
 
 // ssoadminAPI is the narrow set of SSO Admin operations called by the

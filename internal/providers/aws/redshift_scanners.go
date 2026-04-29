@@ -4,11 +4,21 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 )
 
-func init() { registerService(serviceEntry{name: "aws:redshift", fn: scanRedshift}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:redshift",
+		fn:   scanRedshift,
+		emits: []coverage.TypeDecl{
+			{Service: "redshift", DiscoType: TypeRedshiftCluster},
+			{Service: "redshift", DiscoType: TypeRedshiftSubnetGroup},
+		},
+	})
+}
 
 // redshiftAPI is the narrow set of Redshift operations called by the
 // scanRedshift sub-phases.

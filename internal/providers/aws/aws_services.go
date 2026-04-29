@@ -6,14 +6,52 @@ import (
 	"runtime"
 	"strings"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 )
 
 // serviceEntry describes a scannable AWS service.
+//
+// emits enumerates every disco type the scanner upserts. Coverage truth
+// source — `disco coverage` reads aggregated emits via CollectEmits(),
+// NOT KnownTypes().
 type serviceEntry struct {
 	name   string
 	global bool // global = once per account (region ignored); regional = once per region
 	fn     func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)
+	emits  []coverage.TypeDecl
+}
+
+// extraEmits accumulates disco-type decls for code paths that do NOT flow
+// through registerService — namely resolver-side synthetic stubs (e.g.
+// cross-account-trust foreign-account, AWS-managed-policy catalogue stubs)
+// declared from the file that owns the upsert site.
+var extraEmits []coverage.TypeDecl
+
+// registerExtraEmits is for non-serviceEntry sources of disco types. Call
+// from init() in the file that owns the upsert site.
+func registerExtraEmits(decls ...coverage.TypeDecl) {
+	extraEmits = append(extraEmits, decls...)
+}
+
+// CollectEmits returns the deduped union of every emits decl registered
+// across the AWS package. Consumed by the coverage.Provider impl.
+func CollectEmits() []coverage.TypeDecl {
+	out := make([]coverage.TypeDecl, 0, 256)
+	out = append(out, extraEmits...)
+	for _, s := range registeredServices {
+		out = append(out, s.emits...)
+	}
+	seen := make(map[string]bool, len(out))
+	deduped := out[:0]
+	for _, d := range out {
+		if seen[d.DiscoType] {
+			continue
+		}
+		seen[d.DiscoType] = true
+		deduped = append(deduped, d)
+	}
+	return deduped
 }
 
 // registeredServices is populated by each *_scanners.go file's init().

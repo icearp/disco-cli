@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -12,7 +13,21 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:cloudwatch", fn: scanCloudWatch}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:cloudwatch",
+		fn:   scanCloudWatch,
+		emits: []coverage.TypeDecl{
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarm},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchCompositeAlarm},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarmMuteRule},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchAnomalyDetector},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchDashboard},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchInsightRule},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchMetricStream},
+		},
+	})
+}
 
 // cloudwatchAPI is the narrow set of CloudWatch operations called by the
 // scanCloudWatch sub-phases.

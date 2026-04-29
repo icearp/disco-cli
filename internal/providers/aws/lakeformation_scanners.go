@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/lakeformation"
 )
 
-func init() { registerService(serviceEntry{name: "aws:lakeformation", fn: scanLakeFormation}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:lakeformation",
+		fn:   scanLakeFormation,
+		emits: []coverage.TypeDecl{
+			{Service: "lakeformation", DiscoType: TypeLakeFormationResource},
+		},
+	})
+}
 
 // lakeformationAPI is the narrow set of Lake Formation operations called by
 // scanLakeFormationResources.

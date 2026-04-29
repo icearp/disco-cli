@@ -5,12 +5,37 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"golang.org/x/sync/errgroup"
 )
+
+func init() {
+	registerExtraEmits(
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPC},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Subnet},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InternetGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EgressOnlyIGW},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NatGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteTable},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterface},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterfacePermission},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkACL},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EIP},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2DHCPOptions},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CarrierGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpoint},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointService},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointServicePermissions},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointConnectionNotification},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCPeeringConnection},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessOptions},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessExclusion},
+	)
+}
 
 // scanEC2Networking discovers all networking resources: VPCs, subnets, internet
 // gateways, NAT gateways, route tables, EIPs, ENIs, NACLs, VPC endpoints, VPC

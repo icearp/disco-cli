@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/apigateway"
 	"golang.org/x/sync/errgroup"
@@ -35,8 +36,42 @@ type apigatewayAPI interface {
 }
 
 func init() {
-	registerService(serviceEntry{name: "aws:apigateway", fn: scanAPIGateway})
-	registerService(serviceEntry{name: "aws:apigatewayv2", fn: scanAPIGatewayV2})
+	registerService(serviceEntry{
+		name: "aws:apigateway",
+		fn:   scanAPIGateway,
+		emits: []coverage.TypeDecl{
+			{Service: "apigateway", DiscoType: TypeAPIGatewayAccount},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayAPIKey},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayAuthorizer},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayBasePathMapping},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayClientCertificate},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayDeployment},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayDocumentationPart},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayDocumentationVersion},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainName},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainNameAccessAssoc},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayGatewayResponse},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayMethod},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayModel},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayRequestValidator},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayResource},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayRestAPI},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayStage},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayUsagePlan},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayUsagePlanKey},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayVpcLink},
+		},
+	})
+	registerService(serviceEntry{
+		name: "aws:apigatewayv2",
+		fn:   scanAPIGatewayV2,
+		emits: []coverage.TypeDecl{
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2API},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Authorizer},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayDomainNameV2},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayBasePathMappingV2},
+		},
+	})
 }
 
 // scanAPIGateway is the orchestrator for all API Gateway v1 (REST) resource types.

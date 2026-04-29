@@ -4,11 +4,22 @@ import (
 	"context"
 	"fmt"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
 )
 
-func init() { registerService(serviceEntry{name: "aws:batch", fn: scanBatch}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:batch",
+		fn:   scanBatch,
+		emits: []coverage.TypeDecl{
+			{Service: "batch", DiscoType: TypeBatchComputeEnvironment},
+			{Service: "batch", DiscoType: TypeBatchJobQueue},
+			{Service: "batch", DiscoType: TypeBatchJobDefinition},
+		},
+	})
+}
 
 // batchAPI is the narrow set of Batch operations called by the scanBatch sub-phases.
 type batchAPI interface {

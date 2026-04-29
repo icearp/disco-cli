@@ -5,13 +5,23 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:glue", fn: scanGlue}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:glue",
+		fn:   scanGlue,
+		emits: []coverage.TypeDecl{
+			{Service: "glue", DiscoType: TypeGlueDatabase},
+			{Service: "glue", DiscoType: TypeGlueTable},
+		},
+	})
+}
 
 // glueAPI is the narrow set of Glue operations called by the scanGlue
 // sub-phases.

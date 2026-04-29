@@ -5,12 +5,21 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:firehose", fn: scanFirehose}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:firehose",
+		fn:   scanFirehose,
+		emits: []coverage.TypeDecl{
+			{Service: "kinesisfirehose", DiscoType: TypeFirehoseDeliveryStream},
+		},
+	})
+}
 
 // firehoseAPI is the narrow set of Firehose operations called by
 // scanFirehoseDeliveryStreams.

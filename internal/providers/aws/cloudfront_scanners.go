@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
@@ -44,6 +45,28 @@ func init() {
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 			return scanCloudFront(ctx, acct, st, scanID)
+		},
+		emits: []coverage.TypeDecl{
+			{Service: "cloudfront", DiscoType: TypeCloudFrontDistribution},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontStreamingDistribution},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontDistributionTenant},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontOAI},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontOriginAccessControl},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontConnectionFunction},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontConnectionGroup},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontKeyValueStore},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontPublicKey},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontTrustStore},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontAnycastIpList},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontCachePolicy},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontContinuousDeploymentPolicy},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontFunction},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontKeyGroup},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontOriginRequestPolicy},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontRealtimeLogConfig},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontResponseHeadersPolicy},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontVpcOrigin},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontMonitoringSubscription},
 		},
 	})
 }

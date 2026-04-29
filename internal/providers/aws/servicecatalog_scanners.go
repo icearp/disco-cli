@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicecatalog"
 	sctypes "github.com/aws/aws-sdk-go-v2/service/servicecatalog/types"
@@ -12,7 +13,16 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func init() { registerService(serviceEntry{name: "aws:servicecatalog", fn: scanServiceCatalog}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:servicecatalog",
+		fn:   scanServiceCatalog,
+		emits: []coverage.TypeDecl{
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolio},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogProduct},
+		},
+	})
+}
 
 // servicecatalogAPI is the narrow set of Service Catalog operations called by
 // the scanServiceCatalog sub-phases.

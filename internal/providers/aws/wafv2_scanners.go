@@ -5,13 +5,24 @@ import (
 	"fmt"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 	"golang.org/x/sync/errgroup"
 )
 
-func init() { registerService(serviceEntry{name: "aws:wafv2", fn: scanWAFv2}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:wafv2",
+		fn:   scanWAFv2,
+		emits: []coverage.TypeDecl{
+			{Service: "wafv2", DiscoType: TypeWAFv2WebACL},
+			{Service: "wafv2", DiscoType: TypeWAFv2RuleGroup},
+			{Service: "wafv2", DiscoType: TypeWAFv2IPSet},
+		},
+	})
+}
 
 // wafv2API is the narrow set of WAFv2 operations called by scanWAFv2Scope.
 type wafv2API interface {

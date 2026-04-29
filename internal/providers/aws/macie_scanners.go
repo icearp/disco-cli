@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/macie2"
 	"golang.org/x/sync/errgroup"
@@ -22,7 +23,20 @@ func isMacieNotEnabled(err error) bool {
 	return isAccessDenied(err) && strings.Contains(err.Error(), "Macie is not enabled")
 }
 
-func init() { registerService(serviceEntry{name: "aws:macie", fn: scanMacie}) }
+func init() {
+	registerService(serviceEntry{
+		name: "aws:macie",
+		fn:   scanMacie,
+		emits: []coverage.TypeDecl{
+			// Macie session is a per-(account,region) singleton config — no
+			// CloudFormation type. Synthetic NativeID; treat as disco-only.
+			{Service: "macie", DiscoType: TypeMacieSession, Synthetic: true},
+			{Service: "macie", DiscoType: TypeMacieClassificationJob},
+			{Service: "macie", DiscoType: TypeMacieAllowList},
+			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier},
+		},
+	})
+}
 
 // macie2API is the narrow set of Macie operations called by the scanMacie
 // sub-phases.

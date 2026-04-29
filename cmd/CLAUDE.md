@@ -12,6 +12,10 @@ Cobra command layer.
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot` — walks `relationships` + `hierarchy_closure`
 - `disco check --rules ./policies --severity high --exit-nonzero` — **paid only.** Runs OPA Rego policies against store. `--rules` takes `.rego` files or directories (recursive). Engine in `internal/policy/` (paid-tagged); ships no first-party policies — bring your own bundle (Conftest AWS, regula, in-house CIS pack). Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
 
+## `disco coverage` (replacing `disco types`)
+
+`disco coverage` is the source-of-truth coverage cmd (ROADMAP G5). Currently wired for GCP only; AWS + Azure providers register in `internal/coverage` once their scanner-emits sweeps land. Until then, `disco types aws|azure` still lives but cannot be trusted (drift between `KnownTypes()` and what scanners emit). Don't extend `cmd/types_*.go` — the files get deleted when the AWS/Azure sweeps land. Add new coverage-related flags to `cmd/coverage.go`.
+
 ## Resume
 
 `disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. The OSS path persists per-(scan, service, scope) checkpoints (`store.SaveCheckpoint`); the paid incremental scanner consumes them on the next `--resume` to skip already-listed pages. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`, behaviour matches pre-Phase-3 — fresh scan_id, no checkpoint reuse.
