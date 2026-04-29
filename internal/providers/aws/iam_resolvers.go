@@ -25,6 +25,7 @@ func init() {
 	registerResolver(resolveIAMRoleFederatedTrust)
 	registerResolver(resolveIAMPolicyResources)
 	registerResolver(resolveIAMRoleCrossAccountTrust)
+	registerResolver(resolveIAMPermissionBoundaries)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.
@@ -1102,4 +1103,66 @@ func isAllDigits(s string) bool {
 		}
 	}
 	return true
+}
+
+// resolveIAMPermissionBoundaries emits `bounded-by` edges from each IAM role
+// or user to its permission-boundary policy. AWS SDK serializes the boundary
+// as `{"PermissionsBoundary": {"PermissionsBoundaryArn": "...",
+// "PermissionsBoundaryType": "Policy"}}` on the principal's stored attrs.
+//
+// FK-safe: builds an in-account `TypeIAMPolicy` ID set once, skips emit when
+// the boundary's policy is not in scan scope (cross-account boundary, or
+// account hasn't scanned policies). Cross-account boundary ARNs short-circuit
+// because the rebuilt ResourceID uses our account, never the foreign one.
+func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
+	principals, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMRole, TypeIAMUser},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(principals) == 0 {
+		return nil
+	}
+
+	policies, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMPolicy},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	policyIDSet := make(map[string]struct{}, len(policies))
+	for _, p := range policies {
+		policyIDSet[p.ID] = struct{}{}
+	}
+
+	for _, r := range principals {
+		var attrs struct {
+			PermissionsBoundary *struct {
+				PermissionsBoundaryArn  *string `json:"PermissionsBoundaryArn"`
+				PermissionsBoundaryType *string `json:"PermissionsBoundaryType"`
+			} `json:"PermissionsBoundary"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.PermissionsBoundary == nil || sv(attrs.PermissionsBoundary.PermissionsBoundaryArn) == "" {
+			continue
+		}
+		boundaryARN := sv(attrs.PermissionsBoundary.PermissionsBoundaryArn)
+		toID := store.ResourceID("aws", acct.ID, TypeIAMPolicy, boundaryARN)
+		if _, ok := policyIDSet[toID]; !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, toID, store.RelBoundedBy, "directed", nil); err != nil {
+			return fmt.Errorf("upsert principal→boundary: %w", err)
+		}
+	}
+	return nil
 }

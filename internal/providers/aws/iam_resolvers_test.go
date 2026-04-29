@@ -877,3 +877,42 @@ func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
 		t.Fatalf("resolveIAMRoleCrossAccountTrust: %v", err)
 	}
 }
+
+// TestResolveIAMPermissionBoundaries — role + user with PermissionsBoundary set
+// emit `bounded-by` edge to in-scope policy. Boundary pointing at unscanned
+// policy skips silently. No-boundary skips cleanly.
+func TestResolveIAMPermissionBoundaries(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	policyARN := "arn:aws:iam::123456789012:policy/MyBoundary"
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", "{}")
+
+	roleARN := "arn:aws:iam::123456789012:role/with-boundary"
+	roleAttrs := `{"PermissionsBoundary":{"PermissionsBoundaryArn":"` + policyARN + `","PermissionsBoundaryType":"Policy"}}`
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", roleAttrs)
+
+	userARN := "arn:aws:iam::123456789012:user/no-boundary"
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMUser, userARN, "", "{}")
+
+	roleARNUnscanned := "arn:aws:iam::123456789012:role/unscanned-boundary"
+	roleAttrsUnscanned := `{"PermissionsBoundary":{"PermissionsBoundaryArn":"arn:aws:iam::123456789012:policy/Unscanned","PermissionsBoundaryType":"Policy"}}`
+	roleIDUnscanned := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARNUnscanned, "", roleAttrsUnscanned)
+
+	if err := resolveIAMPermissionBoundaries(acct, st); err != nil {
+		t.Fatalf("resolveIAMPermissionBoundaries: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != policyID || rels[0].Kind != string(store.RelBoundedBy) {
+		t.Errorf("role bounded-by edge wrong: %+v", rels)
+	}
+
+	relsUnscanned, _ := st.RelationshipsFrom(roleIDUnscanned)
+	if len(relsUnscanned) != 0 {
+		t.Errorf("unscanned-boundary role should emit zero edges, got %+v", relsUnscanned)
+	}
+}
