@@ -705,20 +705,39 @@ Current GCP: Compute (incl. some networking), GKE, Hierarchy, IAM (SA-level), SQ
 
 ## NEXT — this quarter
 
-### G1. Graph command enhancements
-Current: `disco graph <id> --depth N --kinds X --direction both --output table|json|dot`. Extend:
+### G1. Graph subcommands + filter flags
+Current: `disco graph <id> --depth N --kinds X --direction both --output table|json|dot`. Extend.
 
-- **`disco graph path <A> <B>`** — shortest-path BFS between two resource IDs. Output edge list or dot subgraph. Answers "can this IAM role reach this bucket?"
-- **`disco graph blast <id>`** — blast radius. All reachable nodes by distance; default kinds = all. Emit rings (distance 1, 2, 3). Ties to rule engine: flag blast-radius outliers.
-- **`disco graph reverse <id>`** — inbound-only traversal. Answers "what references this KMS key?"
-- **`--format mermaid`** — Mermaid output for docs + Slack embeds.
-- **`--prune-types aws:iam:*`** — skip noisy types from traversal.
-- **`--prune-regions us-east-1`** — constrain traversal by region.
-- **`--cluster by=provider|region|account`** — dot output layout hints (`subgraph cluster_X`) so big graphs readable.
-- **`--label-template '{{.Name}}\n{{.Type}}'`** — custom node labels.
-- **`--max-nodes 500`** — soft cap with truncation summary.
-- **Path provenance** — store `source_resolver` on each relationship row (migration) so graph output can annotate "emitted by: resolveLambdaRelationships". Debuggability win.
-- **Incremental traversal** — cache closure walk for hot IDs (likely premature; revisit after benchmarks).
+**Subcommands**
+
+- **`disco graph path <A> <B>`** — shortest-path BFS between two resource IDs, bounded by `--depth` (default 8); honors `--kinds`/`--direction`. Exit 1 on no path. Output: edge list (table/json) or dot subgraph. Answers "can this IAM role reach this bucket?"
+- **`disco graph blast <id>`** — outbound reachability with per-distance rings. Default kind-set = all non-`contains`. Caps via `--depth` (default 3) and `--max-nodes`. Output adds `distance` column. Rule-engine hook: predicate `blast(id, depth=N) > threshold`.
+- *(`graph reverse` dropped — already covered by `--direction in`.)*
+
+**Rendering**
+
+- Extend **`--output`** with `mermaid` (GitHub/GitLab/markdown embeds; Slack does not render natively). Replaces the proposed separate `--format` flag.
+- **`--cluster provider|region|account`** — dot/mermaid `subgraph cluster_X` layout hints so big graphs stay readable.
+- **`--label-template '{{.Name}}\n{{.Type}}'`** — `text/template` over `{Name, Type, Provider, Account, Region, NativeID}`. Dot/mermaid only.
+- Render `source_resolver` on edge tooltips when the column (see G2) is populated.
+
+**Traversal filters**
+
+- **`--exclude-types <glob,...>`** — drop nodes whose type matches; suffix-`*` glob, case-sensitive, comma list.
+- **`--exclude-regions <region,...>`** — drop nodes by region. Comma list.
+- **`--max-nodes 500`** / **`--max-edges 2000`** — BFS halts when frontier would exceed; truncation count to stderr; exit code unchanged.
+
+**Acceptance**
+
+- `graph path` / `graph blast` covered in `cmd/graph_test.go` with reachable + unreachable fixtures; output stable across runs.
+- All new flags carry `--help` doc lines and round-trip through `-o json`.
+- All of G1 is OSS — no `_paid.go` files.
+
+**Out of scope this quarter**
+
+- Incremental traversal cache (revisit after benchmarks justify it).
+- Graph diff between two scans (fold into `disco diff` if pursued).
+- `source_resolver` schema migration — owned by G2; G1 only consumes the column.
 
 ### G2. Relationships table evolution
 - Add `source_resolver TEXT` column (migration) populated from resolver name via context.
