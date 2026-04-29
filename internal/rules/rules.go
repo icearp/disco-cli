@@ -54,7 +54,21 @@ type Rule struct {
 	ID          string   `yaml:"id"`
 	Description string   `yaml:"description"`
 	Severity    Severity `yaml:"severity"`
-	Match       Match    `yaml:"match"`
+	// Tags maps a tag namespace to one or more values, e.g.
+	// {cis-aws: ["5.3"], nist-800-53: ["AC-3"], pci: ["1.2"]}. Free-form keys
+	// — engine treats values as opaque metadata + propagates onto Finding.
+	// Enables compliance-pack mapping and `disco check --tag k=v` filtering.
+	Tags map[string][]string `yaml:"tags,omitempty"`
+	// Category is a coarse grouping (e.g. "Networking", "IAM", "Encryption")
+	// used for human-facing report grouping.
+	Category string `yaml:"category,omitempty"`
+	// Remediation describes how to address the finding. Plain text, surfaced
+	// on Finding for downstream consumers.
+	Remediation string `yaml:"remediation,omitempty"`
+	// RefURL points at upstream guidance (CIS control page, NIST control,
+	// vendor doc).
+	RefURL string `yaml:"ref_url,omitempty"`
+	Match  Match  `yaml:"match"`
 	// Source tracks where the rule was loaded from (file path or "<builtin>").
 	Source string `yaml:"-"`
 }

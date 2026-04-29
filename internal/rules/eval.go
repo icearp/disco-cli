@@ -54,14 +54,18 @@ func Evaluate(st *store.Store, rules []Rule, minSev Severity) ([]Finding, error)
 				msg = r.ID
 			}
 			findings = append(findings, Finding{
-				RuleID:     r.ID,
-				Severity:   r.Severity,
-				ResourceID: res.ID,
-				Provider:   res.Provider,
-				Type:       res.Type,
-				Name:       res.Name,
-				Region:     res.Region,
-				Message:    msg,
+				RuleID:      r.ID,
+				Severity:    r.Severity,
+				ResourceID:  res.ID,
+				Provider:    res.Provider,
+				Type:        res.Type,
+				Name:        res.Name,
+				Region:      res.Region,
+				Message:     msg,
+				Tags:        r.Tags,
+				Category:    r.Category,
+				Remediation: r.Remediation,
+				RefURL:      r.RefURL,
 			})
 		}
 	}

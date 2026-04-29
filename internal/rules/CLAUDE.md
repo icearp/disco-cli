@@ -21,3 +21,7 @@ match:
 ```
 
 Single-hop only at each level — multi-hop is achieved by nesting `Related` inside `Target`. Recursion is bounded only by file-load (no runtime guard), so deeply nested DSL graphs blow the stack — keep depth ≤4. Eval logic: `evalRelated` in `eval.go`. Direction validation lives in `validateMatch`.
+
+## Rule metadata fields (tags / category / remediation / ref_url)
+
+Rules carry optional `tags: map[string][]string`, `category`, `remediation`, `ref_url` for compliance-pack mapping and human reporting. All four propagate onto `Finding`. `disco check --tag k=v` (or bare `--tag k`) filters findings post-eval — multiple `--tag` flags are OR'd. Use `tags` namespaces consistently across packs (`cis-aws`, `nist-800-53`, `pci`, `owasp`) so cross-pack queries work.

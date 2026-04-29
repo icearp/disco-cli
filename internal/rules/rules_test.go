@@ -42,6 +42,60 @@ rules:
 	}
 }
 
+// TestLoad_TagsAndMetadata round-trips the W5 fields: Tags map, Category,
+// Remediation, RefURL. Ensures the YAML loader populates them and that the
+// Finding.HasTag predicate matches both `key=value` and bare-key forms.
+func TestLoad_TagsAndMetadata(t *testing.T) {
+	dir := t.TempDir()
+	p := writeYAML(t, dir, "r.yaml", `
+version: 1
+rules:
+  - id: tagged
+    description: tagged rule
+    severity: high
+    tags:
+      cis-aws: ["5.3"]
+      nist-800-53: ["AC-3", "SC-7(2)"]
+    category: Networking
+    remediation: Remove 0.0.0.0/0 ingress.
+    ref_url: https://example.com/cis/5.3
+    match:
+      type: aws:ec2:security-group
+      where:
+        - path: GroupName
+          op: exists
+`)
+	rs, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(rs) != 1 {
+		t.Fatalf("want 1 rule, got %d", len(rs))
+	}
+	r := rs[0]
+	if got := r.Tags["cis-aws"]; len(got) != 1 || got[0] != "5.3" {
+		t.Errorf("cis-aws tag: got %v", got)
+	}
+	if got := r.Tags["nist-800-53"]; len(got) != 2 || got[0] != "AC-3" || got[1] != "SC-7(2)" {
+		t.Errorf("nist-800-53 tag: got %v", got)
+	}
+	if r.Category != "Networking" || r.Remediation == "" || r.RefURL == "" {
+		t.Errorf("metadata fields not populated: %+v", r)
+	}
+
+	// HasTag round-trip via Finding shape.
+	f := Finding{Tags: r.Tags}
+	if !f.HasTag("cis-aws", "5.3") {
+		t.Error("HasTag(cis-aws, 5.3) false")
+	}
+	if !f.HasTag("nist-800-53", "") {
+		t.Error("HasTag(nist-800-53, <any>) false")
+	}
+	if f.HasTag("pci", "1.2") {
+		t.Error("HasTag(pci, 1.2) true on missing tag")
+	}
+}
+
 // TestLoad_BadVersion asserts unknown schema version is rejected — guards
 // against silently evaluating a file whose schema we don't understand.
 func TestLoad_BadVersion(t *testing.T) {

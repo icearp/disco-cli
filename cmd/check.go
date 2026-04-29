@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"codeberg.org/icearp/disco/internal/rules"
@@ -18,6 +19,7 @@ var (
 	checkRuleIDs     []string
 	checkOutputFmt   string
 	checkExitNonZero bool
+	checkTagFilters  []string
 )
 
 var checkCmd = &cobra.Command{
@@ -71,6 +73,10 @@ Examples:
 			return err
 		}
 
+		if len(checkTagFilters) > 0 {
+			findings = filterByTags(findings, checkTagFilters)
+		}
+
 		switch checkOutputFmt {
 		case "json":
 			enc := json.NewEncoder(os.Stdout)
@@ -98,6 +104,24 @@ Examples:
 		}
 		return nil
 	},
+}
+
+// filterByTags keeps only findings matching at least one of the supplied
+// `key=value` (or bare `key`) tag filters. Multiple filters are OR'd — a
+// finding tagged `cis-aws=5.3` passes either `--tag cis-aws=5.3` or
+// `--tag cis-aws`.
+func filterByTags(fs []rules.Finding, filters []string) []rules.Finding {
+	out := fs[:0:0]
+	for _, f := range fs {
+		for _, filter := range filters {
+			key, value, _ := strings.Cut(filter, "=")
+			if f.HasTag(key, value) {
+				out = append(out, f)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // filterByIDs returns only rules whose ID is in ids.
@@ -137,5 +161,6 @@ func init() {
 	checkCmd.Flags().StringSliceVar(&checkRuleIDs, "rule", nil, "Run only named rule(s) (repeatable)")
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl")
 	checkCmd.Flags().BoolVar(&checkExitNonZero, "exit-nonzero", false, "Exit 1 if any finding reported")
+	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose rule has tag k=v (repeatable; bare k matches any value)")
 	rootCmd.AddCommand(checkCmd)
 }
