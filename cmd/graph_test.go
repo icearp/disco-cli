@@ -19,6 +19,7 @@ func resetGraphFlags() {
 	graphExcludeTypes, graphExcludeRegions = nil, nil
 	graphMaxNodes, graphMaxEdges = 0, 0
 	graphCluster, graphLabelTemplate = "", ""
+	graphDotTheme = "light"
 }
 
 // TestGraphCmd_JSON exercises the end-to-end JSON rendering path using the
@@ -213,5 +214,128 @@ func TestGraphCmd_ExcludeTypes(t *testing.T) {
 	}
 	if g.ExcludedTypes != 1 {
 		t.Errorf("ExcludedTypes counter: got %d, want 1", g.ExcludedTypes)
+	}
+}
+
+// TestGraphCmd_DotLightTheme exercises the default light theme: assert per-
+// preset attrs land on the right nodes (cylinder for S3, primary fill for
+// EC2) and that the edge picks up its kind-specific style.
+func TestGraphCmd_DotLightTheme(t *testing.T) {
+	st := seedTestDB(t)
+	rs, err := st.ListResources(store.ResourceFilter{})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if err := st.UpsertRelationship(rs[0].ID, rs[1].ID, store.RelAttachedTo, "directed", nil); err != nil {
+		t.Fatalf("upsert rel: %v", err)
+	}
+
+	resetGraphFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"graph", rs[0].ID, "-o", "dot", "--dot-theme", "light"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("graph dot: %v", err)
+	}
+
+	want := []string{
+		`digraph disco {`,
+		`graph [`, // theme global block
+		`bgcolor="white"`,
+		`splines="ortho"`,
+		`shape="cylinder"`,    // S3 bucket → storage preset
+		`fillcolor="#FFF3E0"`, // storage fillcolor
+		`fillcolor="#E3F2FD"`, // primary (EC2) fillcolor
+	}
+	for _, w := range want {
+		if !strings.Contains(out, w) {
+			t.Errorf("light theme output missing %q\n%s", w, out)
+		}
+	}
+}
+
+// TestGraphCmd_DotMonoBackcompat asserts --dot-theme=mono reproduces the
+// pre-theme byte-for-byte output: only the legacy `node [shape=box, ...]`
+// header, no fillcolor/edge colors.
+func TestGraphCmd_DotMonoBackcompat(t *testing.T) {
+	st := seedTestDB(t)
+	rs, err := st.ListResources(store.ResourceFilter{})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if err := st.UpsertRelationship(rs[0].ID, rs[1].ID, store.RelAttachedTo, "directed", nil); err != nil {
+		t.Fatalf("upsert rel: %v", err)
+	}
+
+	resetGraphFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"graph", rs[0].ID, "-o", "dot", "--dot-theme", "mono"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("graph dot mono: %v", err)
+	}
+
+	if strings.Contains(out, "fillcolor") {
+		t.Errorf("mono should emit no fillcolor:\n%s", out)
+	}
+	if strings.Contains(out, "splines") {
+		t.Errorf("mono should emit no splines (legacy header only):\n%s", out)
+	}
+	want := `node [shape=box, fontname="Helvetica"];`
+	if !strings.Contains(out, want) {
+		t.Errorf("mono missing legacy node header %q\n%s", want, out)
+	}
+}
+
+// TestGraphCmd_DotUnknownTheme confirms the flag validator rejects unknown
+// theme names with a friendly error rather than silently falling back.
+func TestGraphCmd_DotUnknownTheme(t *testing.T) {
+	st := seedTestDB(t)
+	rs, err := st.ListResources(store.ResourceFilter{})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+
+	resetGraphFlags()
+	_, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"graph", rs[0].ID, "-o", "dot", "--dot-theme", "neon"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown --dot-theme") {
+		t.Errorf("want unknown-theme error, got %v", err)
+	}
+}
+
+// TestPresetForResource is a table-driven sanity check on the type→preset
+// heuristic so adding a new resource service to the switch can't silently
+// regress an existing mapping.
+func TestPresetForResource(t *testing.T) {
+	cases := []struct {
+		typ     string
+		managed bool
+		want    nodePreset
+	}{
+		{"aws:ec2:instance", false, presetPrimary},
+		{"aws:lambda:function", false, presetPrimary},
+		{"aws:s3:bucket", false, presetStorage},
+		{"aws:rds:instance", false, presetStorage},
+		{"aws:iam:role", false, presetIdentity},
+		{"gcp:bigquery:dataset", false, presetStorage},
+		{"azure:microsoft.authorization:role-definition", false, presetIdentity},
+		{"aws:ec2:vpc", false, presetPrimary}, // ec2 service segment hits primary
+		{"aws:iam:policy", true, presetMuted}, // managed wins over identity
+		{"weird", false, presetSecondary},     // no service segment
+	}
+	for _, c := range cases {
+		r := &store.Resource{Type: c.typ, ManagedByProvider: c.managed}
+		got := presetForResource(r)
+		if got != c.want {
+			t.Errorf("%s (managed=%v): got %s, want %s", c.typ, c.managed, got, c.want)
+		}
 	}
 }

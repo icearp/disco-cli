@@ -29,6 +29,7 @@ var (
 	graphMaxEdges       int
 	graphCluster        string
 	graphLabelTemplate  string
+	graphDotTheme       string
 )
 
 // graphOutputFormats is the set of values accepted by --output across all
@@ -214,6 +215,9 @@ func renderGraph(g *store.GraphResult, blast bool) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(g)
 	case "dot":
+		if _, ok := themes[graphDotTheme]; !ok {
+			return fmt.Errorf("unknown --dot-theme %q (supported: %s)", graphDotTheme, strings.Join(dotThemeNames(), ", "))
+		}
 		return renderGraphDot(g)
 	case "mermaid":
 		return renderGraphMermaid(g)
@@ -338,21 +342,58 @@ func clusterKey(r store.Resource) string {
 	}
 }
 
-// renderGraphDot emits a Graphviz digraph. When --cluster is set, nodes are
-// wrapped in `subgraph cluster_<key>` blocks so big graphs stay readable.
+// renderGraphDot emits a Graphviz digraph. Styling lives in cmd/graph_theme.go;
+// this function just walks nodes/edges and looks up preset attribute blocks.
+// When --cluster is set, nodes are wrapped in `subgraph cluster_<key>` blocks
+// so big graphs stay readable. When --dot-theme=mono, output is byte-for-byte
+// identical to the pre-theme implementation for diff-stable piping.
 func renderGraphDot(g *store.GraphResult) error {
+	theme := themeByName(graphDotTheme)
+
 	var b strings.Builder
 	b.WriteString("digraph disco {\n")
 	b.WriteString("  rankdir=LR;\n")
-	b.WriteString("  node [shape=box, fontname=\"Helvetica\"];\n")
+
+	// Theme header. Mono path stays single-line for byte-stability with
+	// legacy output; themed paths emit graph/node/edge attribute blocks.
+	if theme.Mono {
+		b.WriteString("  node [shape=box, fontname=\"Helvetica\"];\n")
+	} else {
+		if attrs := renderAttrs(theme.Graph); attrs != "" {
+			fmt.Fprintf(&b, "  graph [%s];\n", attrs)
+		}
+		if attrs := renderAttrs(theme.NodeDefaults); attrs != "" {
+			fmt.Fprintf(&b, "  node [%s];\n", attrs)
+		}
+		if attrs := renderAttrs(theme.EdgeDefaults); attrs != "" {
+			fmt.Fprintf(&b, "  edge [%s];\n", attrs)
+		}
+	}
+
+	emitNode := func(indent string, n store.GraphNode) error {
+		label, err := nodeLabel(n.Resource)
+		if err != nil {
+			return err
+		}
+		if theme.Mono {
+			fmt.Fprintf(&b, "%s%q [label=%q];\n", indent, n.Resource.ID, label)
+			return nil
+		}
+		preset := theme.NodePresets[presetForResource(&n.Resource)]
+		extra := renderAttrs(preset)
+		if extra != "" {
+			fmt.Fprintf(&b, "%s%q [label=%q, %s];\n", indent, n.Resource.ID, label, extra)
+		} else {
+			fmt.Fprintf(&b, "%s%q [label=%q];\n", indent, n.Resource.ID, label)
+		}
+		return nil
+	}
 
 	if graphCluster == "" {
 		for _, n := range g.Nodes {
-			label, err := nodeLabel(n.Resource)
-			if err != nil {
+			if err := emitNode("  ", n); err != nil {
 				return err
 			}
-			fmt.Fprintf(&b, "  %q [label=%q];\n", n.Resource.ID, label)
 		}
 	} else {
 		// Group nodes by cluster key, emit a subgraph block per cluster.
@@ -368,19 +409,35 @@ func renderGraphDot(g *store.GraphResult) error {
 		for i, k := range keys {
 			fmt.Fprintf(&b, "  subgraph cluster_%d {\n", i)
 			fmt.Fprintf(&b, "    label=%q;\n", k)
+			// Cluster styling rotates through the palette so adjacent
+			// clusters never share a fill — keeps a 3+ cluster graph
+			// scannable. Mono skips this entirely.
+			if !theme.Mono && len(theme.ClusterPalette) > 0 {
+				cs := theme.ClusterPalette[i%len(theme.ClusterPalette)]
+				fmt.Fprintf(&b, "    style=\"rounded,filled\";\n")
+				fmt.Fprintf(&b, "    bgcolor=%q;\n", cs.BGColor)
+				fmt.Fprintf(&b, "    color=%q;\n", cs.Border)
+			}
 			for _, n := range groups[k] {
-				label, err := nodeLabel(n.Resource)
-				if err != nil {
+				if err := emitNode("    ", n); err != nil {
 					return err
 				}
-				fmt.Fprintf(&b, "    %q [label=%q];\n", n.Resource.ID, label)
 			}
 			b.WriteString("  }\n")
 		}
 	}
 
 	for _, e := range g.Edges {
-		fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
+		if theme.Mono {
+			fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
+			continue
+		}
+		extra := renderAttrs(theme.EdgePresets[e.Kind])
+		if extra != "" {
+			fmt.Fprintf(&b, "  %q -> %q [label=%q, %s];\n", e.FromID, e.ToID, e.Kind, extra)
+		} else {
+			fmt.Fprintf(&b, "  %q -> %q [label=%q];\n", e.FromID, e.ToID, e.Kind)
+		}
 	}
 	b.WriteString("}\n")
 	_, err := os.Stdout.WriteString(b.String())
@@ -462,6 +519,7 @@ func init() {
 	graphCmd.PersistentFlags().IntVar(&graphMaxEdges, "max-edges", 0, "Cap edges (0 = unlimited)")
 	graphCmd.PersistentFlags().StringVar(&graphCluster, "cluster", "", "Cluster nodes in dot/mermaid output by: provider, region, account")
 	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
+	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", ")+" (mono = byte-stable legacy output)")
 	graphCmd.AddCommand(graphPathCmd, graphBlastCmd)
 	rootCmd.AddCommand(graphCmd)
 }

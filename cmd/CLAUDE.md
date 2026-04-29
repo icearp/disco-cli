@@ -42,6 +42,8 @@ Paid subcommands live in `cmd/<name>_paid.go` with `//go:build paid`. `init()` s
 
 `ptrOrDash(*string) string`, `short(id string) string` (8-char ID prefix), `renderMessages(w, label, []messageRow, quiet)` (column-aligned grouped block used by `renderErrors`/`renderWarnings` in `scan.go`). New commands rendering tabular output should reuse these instead of redefining.
 
+Output styling: per-format theme modules (`cmd/graph_theme.go` for DOT) own all attribute blocks + a preset map keyed by an enum. Renderers look up presets, never inline color/shape literals. New themes = one entry in the `themes` map; new resource→preset rules = one switch case in `presetForResource`. Always include a `mono` theme that reproduces pre-theme output byte-for-byte for diff-stable piping.
+
 ## Shared test helpers (`list_test.go`)
 
 Reused by `graph_test.go`, `check_test.go`, `diff_paid_test.go`:
