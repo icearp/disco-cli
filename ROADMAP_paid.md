@@ -36,6 +36,23 @@ Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across t
 ### L7. Policy-as-code (OPA/Rego) (paid feature)
 - Alternative to G4 for teams with existing Rego libraries. Resources table → Rego input documents.
 
+### L10. Remote MCP server (paid feature)
+- `disco mcp serve` — Model Context Protocol server exposing the resource graph, rule findings, and edge traversal as tools an AI agent (Claude, ChatGPT, IDE assistants) can call. Lets users query "blast radius from compromised role X" or "find every internet-exposed RDS in prod" via natural language without bespoke glue.
+- Tool surface: `list_resources(filter)`, `get_resource(id)`, `graph_blast(id, depth)`, `graph_path(from, to)`, `check_findings(rule, severity, tag)`, `coverage_matrix()`. Read-only — no scan-trigger, no DB writes.
+- Transport: stdio for local IDE integrations + SSE/HTTP for hosted deployments. Auth via license token + per-tenant API key on the HTTP path.
+- Pairs with L3 (API server) — the MCP layer is a thin adapter over the same read-only REST surface, so both consume the L2 store interface uniformly. Pairs with L4 (Web UI) for human-facing parity.
+- Pricing rationale: the MCP layer multiplies disco's value for AI-augmented SecOps without exposing scan internals; gates the surface that customers will integrate into their LLM workflows.
+
+### L11. IaC drift (paid feature)
+- `disco drift <iac-source>` — compare the live cloud scan against the declared infrastructure state. Sources:
+  - Terraform: `terraform show -json <plan|state>` consumed via `tfjson` schema; resource address → cloud ARN/ID via `id` attribute (most providers' tfstate carries it; rest derive via type-specific projection).
+  - CloudFormation: walk every `aws:cloudformation:stack` resource's `StackResourceSummary.PhysicalResourceId` (already scanned) — diff against in-store `aws:*` rows. Re-uses `cfnTypeMap` from `cloudformation_resolvers.go` for type → disco-type translation.
+  - Bicep / ARM: parse deployment JSON for `Microsoft.<Provider>/<type>` + resource name, lookup in `azureAPITypeMap`.
+- Output kinds: `unmanaged` (in cloud, not in code — shadow infra), `missing` (in code, not in cloud — failed deploy), `drifted` (in both, attribute mismatch). Severity gradient maps to `Finding.Severity` so existing `disco check` consumers reuse the surface.
+- Pairs with G6 (`disco diff`) — temporal drift between two scans vs. policy drift between scan and code. Output formats overlap: `--output table|json|sarif`.
+- Pricing rationale: drift answers "what's in cloud but not in our IaC" — the canonical posture-and-compliance question that drives platform-team adoption. Rule-engine queries (CIS / NIST / PCI tags) compose with drift filters: "find unmanaged S3 buckets that fail CIS 2.2".
+- Out of scope for v1: bidirectional reconciliation, plan-mode dry-run, multi-source merge (Terraform + CloudFormation in one repo). Single source per invocation.
+
 ### L9. MITRE ATT&CK assessment (paid feature)
 - Map discovered resources + edges to ATT&CK Cloud matrix techniques (T1078 Valid Accounts, T1190 Exploit Public-Facing App, T1526 Cloud Service Discovery, T1530 Data from Cloud Storage Object, T1537 Transfer Data to Cloud Account, T1580 Cloud Infrastructure Discovery, T1538 Cloud Service Dashboard, T1098.001/.003 Account Manipulation, T1199 Trusted Relationship, T1496 Resource Hijacking, etc.).
 - Implemented via `disco check` — no new top-level command. Reuses rule eval + existing `Related` graph traversal (already single-hop with nestable depth).
