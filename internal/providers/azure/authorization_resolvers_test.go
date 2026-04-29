@@ -164,3 +164,50 @@ func TestResolveAuthorizationRelationships_CrossSubScope(t *testing.T) {
 		t.Errorf("expected non-nil attrs on cross-sub-rbac edge")
 	}
 }
+
+// TestResolveAuthorizationRelationships_EntraPrincipal verifies that a role
+// assignment whose principalId matches an in-store Entra row emits a
+// `uses` edge to that principal. Tenant-wide GUID match (case-insensitive).
+func TestResolveAuthorizationRelationships_EntraPrincipal(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription("sub-123")
+	const tenantID = "tenant-abc"
+	const userGUID = "55555555-5555-5555-5555-555555555555"
+
+	// Entra user lives under tenant AccountID, NativeID = object GUID.
+	userResID := upsertTestResource(t, st, "azure", tenantID, TypeEntraUser, userGUID, "", `{"id":"`+userGUID+`","displayName":"Alice"}`)
+
+	asnNativeID := "/subscriptions/sub-123/providers/Microsoft.Authorization/roleAssignments/eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+	// principalId mixed-case — verify lowercased lookup still matches.
+	asnAttrs := `{
+		"properties": {
+			"roleDefinitionId": "/subscriptions/sub-123/providers/Microsoft.Authorization/roleDefinitions/00000000-0000-0000-0000-000000000004",
+			"scope": "/subscriptions/sub-123",
+			"principalId": "55555555-5555-5555-5555-555555555555",
+			"principalType": "User"
+		}
+	}`
+	asnID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleAssignment, asnNativeID, "", asnAttrs)
+
+	if err := resolveAuthorizationRelationships(sub, st); err != nil {
+		t.Fatalf("resolveAuthorizationRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(asnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	var hit *store.Relationship
+	for i := range rels {
+		if rels[i].Kind == store.RelUses && rels[i].ToID == userResID {
+			hit = &rels[i]
+			break
+		}
+	}
+	if hit == nil {
+		t.Fatalf("missing assignment→entra-user uses edge, got: %+v", rels)
+	}
+	if hit.Attributes == nil {
+		t.Errorf("expected non-nil attrs on principal edge")
+	}
+}

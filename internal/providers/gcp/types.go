@@ -83,4 +83,73 @@ const (
 	// Dataproc + Dataflow
 	TypeDataprocCluster = "gcp:dataproc:cluster"
 	TypeDataflowJob     = "gcp:dataflow:job"
+	// Workspace Directory + Cloud Identity (tenant-scope identity)
+	TypeWorkspaceUser      = "gcp:admin:user"
+	TypeCloudIdentityGroup = "gcp:cloudidentity:group"
 )
+
+// KnownTypes returns all disco type strings currently covered by this provider.
+// Consumed by `disco coverage` (planned, ROADMAP G5) and the cross-provider
+// coverage matrix. New Type* const above MUST be added here — the AST-based
+// test in types_test.go fails the build if any const is missing.
+func KnownTypes() []string {
+	return []string{
+		TypeOrganization,
+		TypeFolder,
+		TypeProject,
+		TypeComputeInstance,
+		TypeComputeNetwork,
+		TypeComputeSubnet,
+		TypeComputeFirewall,
+		TypeComputeForwardingRule,
+		TypeComputeTargetHTTPProxy,
+		TypeComputeTargetHTTPSProxy,
+		TypeComputeURLMap,
+		TypeComputeBackendService,
+		TypeComputeBackendBucket,
+		TypeComputeSecurityPolicy,
+		TypeCertManagerCertificate,
+		TypeCertManagerMap,
+		TypeCertManagerMapEntry,
+		TypeCertManagerDNSAuth,
+		TypeDNSManagedZone,
+		TypeDNSRecordSet,
+		TypeCloudFunction,
+		TypeCloudRunSvc,
+		TypePubSubTopic,
+		TypePubSubSubscription,
+		TypePubSubSchema,
+		TypeBQDataset,
+		TypeBQTable,
+		TypeBigtableInstance,
+		TypeBigtableCluster,
+		TypeFirestoreDB,
+		TypeSpannerInstance,
+		TypeSpannerDatabase,
+		TypeComposerEnv,
+		TypeArtifactRepository,
+		TypeLoggingSink,
+		TypeMonitoringAlertPol,
+		TypeCloudBuildTrigger,
+		TypeBinAuthPolicy,
+		TypeBinAuthAttestor,
+		TypeCloudRunJob,
+		TypeBatchJob,
+		TypeGKECluster,
+		TypeIAMServiceAccount,
+		TypeIAMPolicy,
+		TypeIAMSAKey,
+		TypeIAMForeignProject,
+		TypeKMSKeyRing,
+		TypeKMSCryptoKey,
+		TypeSecret,
+		TypeStorageBucket,
+		TypeSQLInstance,
+		TypeAccessPolicy,
+		TypeServicePerimeter,
+		TypeDataprocCluster,
+		TypeDataflowJob,
+		TypeWorkspaceUser,
+		TypeCloudIdentityGroup,
+	}
+}

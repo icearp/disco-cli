@@ -51,7 +51,7 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 ## New `Type*` constant → append to `KnownTypes()`
 
-New `Type*` const in `<provider>_types.go` must append to `KnownTypes()` slice same file. Coverage command + types gap-analysis use it. No test catches omission.
+New `Type*` const in `<provider>_types.go` must append to `KnownTypes()` slice same file. Coverage command + types gap-analysis use it. AWS + Azure rely on review to catch omissions; GCP has an AST-based test (`types_test.go::TestKnownTypes_NoOmissions`) that parses the const block and fails on drift — port the same test to AWS/Azure if drift bugs surface.
 
 ## Embedding child data in parent attributes
 
@@ -91,3 +91,7 @@ Resolver tests should construct attrs via `json.Marshal` of the real SDK struct,
 ### Registration tests
 
 `<provider>/registration_test.go` holds `expectedAWSServices` / `expectedAzureServices` / `expectedGCPServices` — authoritative list of registered service names. **Update when adding new service scanner.** Test fails if service registered but not listed, or listed but not registered.
+
+### Test-seam pattern for helpers that build their own clients
+
+Production helpers that internally construct API clients (via ADC / `clientOptions` / `azidentity.DefaultAzureCredential`) can't be aimed at httptest fakes or SDK fake transports. Split into thin outer wrapper + inner `*In` / `*WithClient` core that takes the pre-resolved values (region list, client, customer ID). Tests call the inner core directly; production code uses the outer wrapper. Precedent: `gcpRegionFanoutScan` / `gcpRegionFanoutScanIn` in `gcp/gcp.go`; Azure `scanX` / `scanXWithClient` in `compute_disks_scanners.go`.

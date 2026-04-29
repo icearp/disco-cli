@@ -2,6 +2,10 @@
 
 Guide Claude Code (claude.ai/code) in repo.
 
+## ROADMAP.md is historical, not authoritative
+
+Open-section bullets and per-session COMPLETED notes describe state at time of writing. Before treating an item as "deferred", grep for the named files / type constants — items often ship without the open-section bullet getting flipped.
+
 ## Commands
 
 Primary branch: `dev` (origin no `main`). Feature branches fork from `dev`, merge back to `dev`.

@@ -95,6 +95,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 // names that must be registered. Update when adding a new org-service scanner
 // (e.g. VPC Service Controls, folder/org IAM policies, org Logging sinks).
 var expectedGCPOrgServices = []string{
+	"gcp:cloudidentity",
 	"gcp:iam-policy-org",
 	"gcp:logging-org",
 	"gcp:vpcsc",

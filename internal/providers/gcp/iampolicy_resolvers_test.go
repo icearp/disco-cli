@@ -63,6 +63,58 @@ func TestResolveIAMPolicyRelationships(t *testing.T) {
 	}
 }
 
+// TestResolveIAMPolicyRelationships_NonSAMembers verifies that user: and
+// group: members emit `uses` edges to in-store Workspace user / Cloud
+// Identity group rows when the emails match (case-insensitive). domain: and
+// allUsers still skip with no resource rows.
+func TestResolveIAMPolicyRelationships_NonSAMembers(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+	const customerID = "C03az79cb"
+
+	// Workspace user under the customer AccountID (tenant-scope) with primaryEmail.
+	userID := upsertTestResource(t, st, "gcp", customerID, TypeWorkspaceUser, "users/12345",
+		"", `{"id":"12345","primaryEmail":"alice@example.com"}`)
+	// Cloud Identity group keyed on email.
+	groupID := upsertTestResource(t, st, "gcp", customerID, TypeCloudIdentityGroup, "groups/g1",
+		"", `{"name":"groups/g1","groupKey":{"id":"eng@example.com"}}`)
+
+	// Mixed binding: same user + group + an unknown domain (skipped) + allUsers (skipped).
+	policyAttrs := `{
+		"bindings": [
+			{"role": "roles/viewer", "members": [
+				"user:Alice@Example.com",
+				"group:eng@example.com",
+				"domain:example.com",
+				"allUsers"
+			]}
+		]
+	}`
+	policyID := upsertTestResource(t, st, "gcp", p.ID, TypeIAMPolicy,
+		"projects/my-project/policy", "", policyAttrs)
+
+	if err := resolveIAMPolicyRelationships(p, st); err != nil {
+		t.Fatalf("resolveIAMPolicyRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(policyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 edges (user + group), got %d: %+v", len(rels), rels)
+	}
+	hits := map[string]bool{}
+	for _, r := range rels {
+		hits[r.ToID] = true
+	}
+	if !hits[userID] {
+		t.Errorf("missing edge to workspace user %q; got %+v", userID, rels)
+	}
+	if !hits[groupID] {
+		t.Errorf("missing edge to cloud-identity group %q; got %+v", groupID, rels)
+	}
+}
+
 // TestResolveIAMPolicyRelationships_NoBindings verifies that a policy with no
 // bindings produces no edges and no errors.
 func TestResolveIAMPolicyRelationships_NoBindings(t *testing.T) {

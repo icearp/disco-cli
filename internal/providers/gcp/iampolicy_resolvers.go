@@ -12,17 +12,22 @@ import (
 func init() { registerResolver(resolveIAMPolicyRelationships) }
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings
-// and emits edges for every service-account member.
+// and emits edges for every service-account / user / group member.
 //
 //   - same-project SA → `uses` edge (FK-checked via buildSAEmailIndex).
 //   - cross-project SA: if the SA exists in any other scanned project, emit a
 //     `cross-project-iam` edge directly to that SA. If the SA's project is not
 //     in scan scope, emit `cross-project-iam` to a synthetic
 //     gcp:iam:foreign-project stub representing the foreign project. R5.
+//   - `user:{email}` → `uses` edge to a gcp:admin:user row when the
+//     Cloud Identity / Workspace Directory scanner has populated one with the
+//     same primary email.
+//   - `group:{email}` → `uses` edge to a gcp:cloudidentity:group row when the
+//     scanner has populated one with the same group-key email.
 //
-// Members of types other than serviceAccount: (user, group, domain, allUsers,
-// allAuthenticatedUsers) are skipped — they live in Workspace / workforce
-// pools and have no resource rows in the store yet.
+// `domain:`, `allUsers`, `allAuthenticatedUsers` still skip — no resource
+// rows. Workforce/Workload identity-pool federation members will land via a
+// follow-up resolver once the pool scanners ship.
 func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMPolicy},
@@ -40,6 +45,14 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+
+	// Tenant-wide identity indexes (workspace users + Cloud Identity groups).
+	// Lazily populated on first non-SA member encountered so single-project
+	// scans without an Entra-equivalent identity scan pay nothing.
+	var (
+		userByEmail  map[string]string
+		groupByEmail map[string]string
+	)
 
 	// Cross-project SA index: SA email → resource ID across every project in
 	// the store. Lazily-built so single-project scans pay nothing.
@@ -71,6 +84,36 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 		}
 		for _, b := range policy.Bindings {
 			for _, m := range b.Members {
+				if email, ok := strings.CutPrefix(m, "user:"); ok {
+					if userByEmail == nil {
+						userByEmail, err = buildWorkspaceUserEmailIndex(st)
+						if err != nil {
+							return err
+						}
+					}
+					if uid, ok := userByEmail[strings.ToLower(email)]; ok {
+						attrs := mustJSON(map[string]string{"role": b.Role})
+						if err := st.UpsertRelationship(r.ID, uid, store.RelUses, "directed", &attrs); err != nil {
+							return fmt.Errorf("upsert policy→workspace user: %w", err)
+						}
+					}
+					continue
+				}
+				if email, ok := strings.CutPrefix(m, "group:"); ok {
+					if groupByEmail == nil {
+						groupByEmail, err = buildCloudIdentityGroupEmailIndex(st)
+						if err != nil {
+							return err
+						}
+					}
+					if gid, ok := groupByEmail[strings.ToLower(email)]; ok {
+						attrs := mustJSON(map[string]string{"role": b.Role})
+						if err := st.UpsertRelationship(r.ID, gid, store.RelUses, "directed", &attrs); err != nil {
+							return fmt.Errorf("upsert policy→cloud-identity group: %w", err)
+						}
+					}
+					continue
+				}
 				email, ok := strings.CutPrefix(m, "serviceAccount:")
 				if !ok {
 					continue
@@ -164,6 +207,60 @@ func projectFromSAEmail(email string) (string, bool) {
 		return "", false
 	}
 	return proj, true
+}
+
+// buildWorkspaceUserEmailIndex returns lowercased primary-email → resource
+// ID for every gcp:admin:user in the store. Workspace user attrs carry
+// `primaryEmail` (from the admin/directory SDK serialization).
+func buildWorkspaceUserEmailIndex(st *store.Store) (map[string]string, error) {
+	users, err := st.ListResources(store.ResourceFilter{
+		Provider: "gcp", Types: []string{TypeWorkspaceUser},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(users))
+	for _, u := range users {
+		var attrs struct {
+			PrimaryEmail string `json:"primaryEmail"`
+		}
+		if err := json.Unmarshal([]byte(u.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.PrimaryEmail != "" {
+			out[strings.ToLower(attrs.PrimaryEmail)] = u.ID
+		}
+	}
+	return out, nil
+}
+
+// buildCloudIdentityGroupEmailIndex returns lowercased group-email → resource
+// ID for every gcp:cloudidentity:group in the store. Group key id is the
+// canonical email under cloudidentity/v1's Group.GroupKey shape.
+func buildCloudIdentityGroupEmailIndex(st *store.Store) (map[string]string, error) {
+	groups, err := st.ListResources(store.ResourceFilter{
+		Provider: "gcp", Types: []string{TypeCloudIdentityGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(groups))
+	for _, g := range groups {
+		var attrs struct {
+			GroupKey *struct {
+				ID string `json:"id"`
+			} `json:"groupKey"`
+		}
+		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.GroupKey != nil && attrs.GroupKey.ID != "" {
+			out[strings.ToLower(attrs.GroupKey.ID)] = g.ID
+		}
+	}
+	return out, nil
 }
 
 // buildAllProjectSAEmailIndex returns email → SA resource ID across every

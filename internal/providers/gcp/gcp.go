@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -244,6 +245,93 @@ func gcpRegions(ctx context.Context, p *project) ([]string, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// gcpRegionFanoutScan drives the per-region fan-out pattern shared by
+// GCP services that have no aggregated/wildcard list endpoint (Dataproc,
+// future per-region Spanner, AI Platform regional, etc.). It enumerates
+// enabled regions via gcpRegions, fans out one paginated list call per
+// region (concurrency-bounded by `concurrency`), accumulates resources
+// across all regions under a mutex, and finally upserts + closure-pairs
+// the batch with the project as parent.
+//
+// Per-region permission-denied + API-not-enabled are tolerated silently
+// per region (caller's region scope might be restricted) — other errors
+// propagate. action is the label fed to skipIfDenied for the warning
+// path. pagerFn returns a fresh pager per region. pageItems projects a
+// page into items. itemToResource shapes each item; returning nil skips.
+//
+// Generic over Page (P) and Item (T) — works against any
+// google.golang.org/api List request that exposes Pages(ctx, fn).
+func gcpRegionFanoutScan[P any, T any](
+	ctx context.Context,
+	p *project,
+	st *store.Store,
+	concurrency int,
+	action string,
+	pagerFn func(region string) pager[P],
+	pageItems func(*P) []T,
+	itemToResource func(item T, region string) *store.Resource,
+) (total, inserted int, err error) {
+	regions, err := gcpRegions(ctx, p)
+	if err != nil {
+		return 0, 0, err
+	}
+	return gcpRegionFanoutScanIn(ctx, p, st, concurrency, regions, action, pagerFn, pageItems, itemToResource)
+}
+
+// gcpRegionFanoutScanIn is the testable core of gcpRegionFanoutScan: same
+// fan-out + accumulate + upsert pipeline, but takes a pre-resolved region
+// slice instead of calling gcpRegions. Lets unit tests inject an arbitrary
+// region list (and skip the compute.Regions.List dependency).
+func gcpRegionFanoutScanIn[P any, T any](
+	ctx context.Context,
+	p *project,
+	st *store.Store,
+	concurrency int,
+	regions []string,
+	action string,
+	pagerFn func(region string) pager[P],
+	pageItems func(*P) []T,
+	itemToResource func(item T, region string) *store.Resource,
+) (total, inserted int, err error) {
+	if len(regions) == 0 {
+		return 0, 0, nil
+	}
+	var (
+		mu    sync.Mutex
+		batch []*store.Resource
+	)
+	if err := forEachItem(ctx, concurrency, regions, func(gctx context.Context, region string) error {
+		err := pagerFn(region).Pages(gctx, func(page *P) error {
+			items := pageItems(page)
+			local := make([]*store.Resource, 0, len(items))
+			for _, it := range items {
+				if r := itemToResource(it, region); r != nil {
+					local = append(local, r)
+				}
+			}
+			if len(local) > 0 {
+				mu.Lock()
+				batch = append(batch, local...)
+				mu.Unlock()
+			}
+			return nil
+		})
+		if err != nil {
+			if isPermissionDenied(err) {
+				return skipIfDenied(st, action, p.ID+"/"+region, err)
+			}
+			return err
+		}
+		return nil
+	}); err != nil {
+		return 0, 0, err
+	}
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	return upsertWithProjClosure(p, st, batch)
 }
 
 // buildSAEmailIndex returns email → resource ID for every

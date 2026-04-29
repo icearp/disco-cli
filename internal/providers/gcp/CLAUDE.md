@@ -2,6 +2,11 @@
 
 GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAUDE.md`.
 
+## GCP-specific registration quirks
+
+- New `Type*` const must be appended to both the const block in `types.go` AND the `KnownTypes()` slice in the same file. `types_test.go` `TestKnownTypes_NoOmissions` parses the const block via go/ast and fails if the slice drifts.
+- `registration_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
+
 ## Scoping cheat-sheet
 
 Pick scanner shape on first read:
@@ -9,7 +14,7 @@ Pick scanner shape on first read:
 - **Wildcard `locations/-`** (Cloud Functions v2, Cloud Run, Cloud Run Jobs, Batch, Composer, Artifact Registry, Cert Manager): `parent = projects/{p}/locations/-` returns every location in one paginated walk. Prefer when API supports.
 - **Per-location fan-out** (Cloud KMS): `Locations.List` → bounded fan-out via `semaphore.NewWeighted`. Pair with `apiDisabled atomic.Bool` to dedup repeat 403s when API off.
 - **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `services.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp.go`.
-- **Per-region (no wildcard)** (Dataproc clusters, Spanner): use `gcpRegions(ctx, p)` in `gcp.go` to enumerate enabled regions via `compute.Regions.List`, then `forEachItem(ctx, fanoutMed, regions, fn)` to fan out per-region calls. Permission denial / API-not-enabled returns empty + nil so partial-cred scans don't fail. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
+- **Per-region (no wildcard)** (Dataproc clusters, future Spanner regional, AI Platform regional): use `gcpRegionFanoutScan[P,T]` in `gcp.go` — generic helper that enumerates regions via `gcpRegions`, fans out per-region paginated lists bounded by `concurrency`, accumulates a mutex-protected batch, and finally calls `upsertWithProjClosure`. Per-region 403 / API-not-enabled tolerated silently. Caller supplies pagerFn (region → pager), pageItems (page → items), itemToResource (item, region → *store.Resource or nil to skip). Test seam: `gcpRegionFanoutScanIn` takes a pre-resolved region slice (skips `gcpRegions`) so unit tests inject regions directly. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
 
 ## Org-service scope-kind dispatch
 

@@ -74,7 +74,14 @@ func loadProjects(ctx context.Context) ([]project, error) {
 // clientOptions returns google.golang.org/api option.ClientOption values for
 // the configured credential type. Defaults to Application Default Credentials.
 func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
-	scopes := []string{"https://www.googleapis.com/auth/cloud-platform.read-only"}
+	scopes := []string{
+		"https://www.googleapis.com/auth/cloud-platform.read-only",
+		// Workspace Directory + Cloud Identity for the tenant identity scanner
+		// (cloudidentity_scanners.go). Scope-additive; APIs only request the
+		// scopes they need, so projects without Workspace tenants are unaffected.
+		"https://www.googleapis.com/auth/admin.directory.user.readonly",
+		"https://www.googleapis.com/auth/cloud-identity.groups.readonly",
+	}
 
 	if cfg.ServiceAccountFile != "" {
 		return []option.ClientOption{

@@ -18,10 +18,13 @@ func init() { registerResolver(resolveAuthorizationRelationships) }
 //   - assignment -[cross-sub-rbac]-> foreign subscription stub (when Scope
 //     points at a subscription other than the assignment's owner sub) — R5
 //
-// Principal edges are intentionally deferred: principals (users / groups /
-// service principals / managed identities) live in Microsoft Graph and are not
-// scanned by disco yet. The PrincipalID is preserved in attributes so that a
-// future Entra ID resolver can backfill these edges.
+// Principal edges (assignment -[uses]-> entra:user|group|service-principal)
+// are emitted when the assignment's PrincipalID matches an in-store Entra row.
+// The Entra scanner (azure:entra) populates user/group/SP rows under the
+// tenant AccountID; this resolver builds a tenant-wide GUID index once and
+// FK-checks each assignment's principalId. Managed identities still get their
+// edge via resolveManagedIdentityAssignmentPrincipals (different index path —
+// MSI rows live under the sub, not the tenant).
 func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error {
 	assignments, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
@@ -48,6 +51,23 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 	scopeIndex := make(map[string]string, len(all))
 	for _, r := range all {
 		scopeIndex[strings.ToLower(r.NativeID)] = r.ID
+	}
+
+	// Tenant-wide principal index (Entra users / groups / service-principals).
+	// Keyed by lowercased object GUID — RBAC's principalId is the same GUID
+	// shape Graph returns. Application registrations excluded — RBAC binds to
+	// the SP companion, not the application.
+	entra, err := st.ListResources(store.ResourceFilter{
+		Provider: "azure",
+		Types:    []string{TypeEntraUser, TypeEntraGroup, TypeEntraServicePrincipal},
+		Limit:    util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	principalIndex := make(map[string]store.Resource, len(entra))
+	for _, r := range entra {
+		principalIndex[strings.ToLower(r.NativeID)] = r
 	}
 
 	// Pre-pass: collect distinct foreign subscription IDs referenced by Scope
@@ -88,6 +108,7 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 				RoleDefinitionID *string `json:"roleDefinitionId"`
 				Scope            *string `json:"scope"`
 				PrincipalID      *string `json:"principalId"`
+				PrincipalType    *string `json:"principalType"`
 			} `json:"properties"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -95,6 +116,24 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 		}
 		if attrs.Properties == nil {
 			continue
+		}
+
+		// Edge → Entra principal (user / group / service-principal). Tenant-wide
+		// FK on lowercased object GUID — same GUID shape Graph returns and RBAC
+		// stores. Skips MSIs (separate resolver covers them) and unknown
+		// principals (orphan-deleted directory objects, or principals from
+		// another tenant via guest-user invitations not yet scanned).
+		if attrs.Properties.PrincipalID != nil {
+			pidLow := strings.ToLower(*attrs.Properties.PrincipalID)
+			if pr, ok := principalIndex[pidLow]; ok {
+				edgeAttrs := mustJSON(map[string]string{
+					"role-definition-id": ptrOr(attrs.Properties.RoleDefinitionID, ""),
+					"principal-type":     ptrOr(attrs.Properties.PrincipalType, ""),
+				})
+				if err := st.UpsertRelationship(r.ID, pr.ID, store.RelUses, "directed", &edgeAttrs); err != nil {
+					return fmt.Errorf("upsert role-assignment→entra principal: %w", err)
+				}
+			}
 		}
 
 		// Edge → role definition (FK: same-sub role-definition with matching NativeID).
