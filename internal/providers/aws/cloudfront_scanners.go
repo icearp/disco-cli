@@ -7,6 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
+	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -376,8 +377,10 @@ func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, clien
 
 // --- Cache Policies ---
 
-// scanCloudFrontCachePolicies discovers customer-owned cache policies.
-// No Type filter is set, which returns only CUSTOM (account-owned) policies.
+// scanCloudFrontCachePolicies discovers cache policies (custom + AWS-managed
+// catalogue). Each summary carries `Type=managed|custom`; managed entries
+// flag ManagedByProvider=true so they're hidden from default list/graph
+// output but available for explicit lookup + edge resolution.
 func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListCachePolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListCachePoliciesOutput, *string, error) {
@@ -405,15 +408,16 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 					name = cp.CachePolicyConfig.Name
 				}
 				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeCloudFrontCachePolicy,
-					NativeID:       sv(cp.Id),
-					Name:           name,
-					CreatedAt:      tp(cp.LastModifiedTime),
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeCloudFrontCachePolicy,
+					NativeID:          sv(cp.Id),
+					Name:              name,
+					CreatedAt:         tp(cp.LastModifiedTime),
+					AttributesJSON:    mustJSON(s),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: s.Type == cftypes.CachePolicyTypeManaged,
 				})
 			}
 			if len(batch) > 0 {
@@ -430,7 +434,9 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 
 // --- Origin Request Policies ---
 
-// scanCloudFrontOriginRequestPolicies discovers customer-owned origin request policies.
+// scanCloudFrontOriginRequestPolicies discovers origin-request policies
+// (custom + AWS-managed catalogue). Managed entries flag
+// ManagedByProvider=true via the per-summary Type field.
 func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListOriginRequestPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListOriginRequestPoliciesOutput, *string, error) {
@@ -458,15 +464,16 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 					name = p.OriginRequestPolicyConfig.Name
 				}
 				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeCloudFrontOriginRequestPolicy,
-					NativeID:       sv(p.Id),
-					Name:           name,
-					CreatedAt:      tp(p.LastModifiedTime),
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeCloudFrontOriginRequestPolicy,
+					NativeID:          sv(p.Id),
+					Name:              name,
+					CreatedAt:         tp(p.LastModifiedTime),
+					AttributesJSON:    mustJSON(s),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: s.Type == cftypes.OriginRequestPolicyTypeManaged,
 				})
 			}
 			if len(batch) > 0 {
@@ -483,7 +490,9 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 
 // --- Response Headers Policies ---
 
-// scanCloudFrontResponseHeadersPolicies discovers customer-owned response headers policies.
+// scanCloudFrontResponseHeadersPolicies discovers response-headers policies
+// (custom + AWS-managed catalogue). Managed entries flag
+// ManagedByProvider=true via the per-summary Type field.
 func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListResponseHeadersPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListResponseHeadersPoliciesOutput, *string, error) {
@@ -511,15 +520,16 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 					name = p.ResponseHeadersPolicyConfig.Name
 				}
 				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeCloudFrontResponseHeadersPolicy,
-					NativeID:       sv(p.Id),
-					Name:           name,
-					CreatedAt:      tp(p.LastModifiedTime),
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
+					Provider:          "aws",
+					AccountID:         acct.ID,
+					AccountName:       &acct.Name,
+					Type:              TypeCloudFrontResponseHeadersPolicy,
+					NativeID:          sv(p.Id),
+					Name:              name,
+					CreatedAt:         tp(p.LastModifiedTime),
+					AttributesJSON:    mustJSON(s),
+					DiscoveredBy:      scanID,
+					ManagedByProvider: s.Type == cftypes.ResponseHeadersPolicyTypeManaged,
 				})
 			}
 			if len(batch) > 0 {
