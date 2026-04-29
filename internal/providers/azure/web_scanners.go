@@ -16,7 +16,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:appservice",
+		name: "azure:web",
 		fn:   scanAppService,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.web", DiscoType: TypeAppServiceServerFarm},

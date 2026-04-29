@@ -14,7 +14,6 @@ import (
 var expectedAzureServices = []string{
 	"azure:aks",
 	"azure:apimanagement",
-	"azure:appservice",
 	"azure:authorization",
 	"azure:cdn",
 	"azure:compute",
@@ -43,6 +42,7 @@ var expectedAzureServices = []string{
 	"azure:storage",
 	"azure:synapse",
 	"azure:trafficmanager",
+	"azure:web",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the same name.
