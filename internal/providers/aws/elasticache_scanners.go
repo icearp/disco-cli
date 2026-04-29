@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -225,16 +226,17 @@ func scanElastiCacheParameterGroups(ctx context.Context, client elasticacheAPI, 
 				tagsJSON = awsTagsJSON(tagsOut.TagList)
 			}
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeElastiCacheParameterGroup,
-				NativeID:       arn,
-				Name:           pg.CacheParameterGroupName,
-				Region:         &region,
-				AttributesJSON: mustJSON(pg),
-				TagsJSON:       tagsJSON,
-				DiscoveredBy:   scanID,
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              TypeElastiCacheParameterGroup,
+				NativeID:          arn,
+				Name:              pg.CacheParameterGroupName,
+				Region:            &region,
+				AttributesJSON:    mustJSON(pg),
+				TagsJSON:          tagsJSON,
+				DiscoveredBy:      scanID,
+				ManagedByProvider: isDefaultElastiCachePG(sv(pg.CacheParameterGroupName)),
 			})
 		}
 		if len(batch) > 0 {
@@ -483,4 +485,15 @@ func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct 
 		}
 	}
 	return
+}
+
+// isDefaultElastiCachePG reports whether a CacheParameterGroupName matches
+// AWS's pre-created defaults — names like "default.redis6.x",
+// "default.memcached1.6", "default.valkey7". AWS creates one per supported
+// engine/version, immutable by the customer; treating them as managed hides
+// them from `disco list` / `disco graph` defaults. Customer PGs may also
+// start with "default" but never embed a "." (forbidden in user-supplied
+// names alongside the "default" prefix), so the two-part check is reliable.
+func isDefaultElastiCachePG(name string) bool {
+	return strings.HasPrefix(name, "default") && strings.Contains(name, ".")
 }

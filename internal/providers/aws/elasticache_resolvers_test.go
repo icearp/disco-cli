@@ -366,3 +366,27 @@ func TestResolveElastiCacheServerlessCacheToUserGroup_Empty(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+// TestIsDefaultElastiCachePG covers the AWS pre-created parameter-group
+// name shape (default + version-tagged) and the customer-name fallthrough.
+func TestIsDefaultElastiCachePG(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"default.redis6.x", true},
+		{"default.memcached1.6", true},
+		{"default.valkey7", true},
+		{"default", false},              // bare prefix, no version → customer-allowed
+		{"default-prod", false},         // dash, no period
+		{"my-default.cluster", false},   // doesn't start with "default"
+		{"default.custom-suffix", true}, // exotic future engine still managed
+		{"production-cluster-pg", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := isDefaultElastiCachePG(c.name); got != c.want {
+			t.Errorf("isDefaultElastiCachePG(%q) = %v, want %v", c.name, got, c.want)
+		}
+	}
+}

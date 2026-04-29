@@ -230,17 +230,34 @@ func scanEntraGroups(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 }
 
 type spAttrs struct {
-	ID                   string `json:"id"`
-	AppID                string `json:"appId,omitempty"`
-	DisplayName          string `json:"displayName"`
-	ServicePrincipalType string `json:"servicePrincipalType,omitempty"`
-	AccountEnabled       *bool  `json:"accountEnabled,omitempty"`
+	ID                     string `json:"id"`
+	AppID                  string `json:"appId,omitempty"`
+	DisplayName            string `json:"displayName"`
+	ServicePrincipalType   string `json:"servicePrincipalType,omitempty"`
+	AccountEnabled         *bool  `json:"accountEnabled,omitempty"`
+	AppOwnerOrganizationID string `json:"appOwnerOrganizationId,omitempty"`
+}
+
+// microsoftFirstPartyTenants are the Entra tenants Microsoft uses to host
+// first-party / built-in service principals (Microsoft Graph, Azure CLI,
+// Office 365 apps, etc.). A service-principal whose appOwnerOrganizationId
+// matches is provider-managed: it appears automatically when the customer
+// tenant consents to or uses the corresponding Microsoft service. Customer-
+// authored apps (in their own tenant) and managed-identities (no
+// appOwnerOrganizationId) fall through unmanaged.
+var microsoftFirstPartyTenants = map[string]bool{
+	"f8cdef31-a31e-4b4a-93e4-5f571e91255a": true, // Microsoft Services tenant — most first-party app SPs
+	"72f988bf-86f1-41af-91ab-2d7cd011db47": true, // Microsoft corporate tenant
+}
+
+func isMicrosoftFirstPartySP(appOwnerTenantID string) bool {
+	return microsoftFirstPartyTenants[strings.ToLower(appOwnerTenantID)]
 }
 
 func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphServiceClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
 	cfg := &graphsps.ServicePrincipalsRequestBuilderGetRequestConfiguration{
 		QueryParameters: &graphsps.ServicePrincipalsRequestBuilderGetQueryParameters{
-			Select: []string{"id", "appId", "displayName", "servicePrincipalType", "accountEnabled"},
+			Select: []string{"id", "appId", "displayName", "servicePrincipalType", "accountEnabled", "appOwnerOrganizationId"},
 		},
 	}
 	resp, err := client.ServicePrincipals().Get(ctx, cfg)
@@ -275,18 +292,24 @@ func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphSer
 			return true
 		}
 		name := strDeref(sp.GetDisplayName())
+		var ownerTenant string
+		if u := sp.GetAppOwnerOrganizationId(); u != nil {
+			ownerTenant = u.String()
+		}
 		attrs := spAttrs{
-			ID:                   id,
-			AppID:                strDeref(sp.GetAppId()),
-			DisplayName:          name,
-			ServicePrincipalType: strDeref(sp.GetServicePrincipalType()),
-			AccountEnabled:       sp.GetAccountEnabled(),
+			ID:                     id,
+			AppID:                  strDeref(sp.GetAppId()),
+			DisplayName:            name,
+			ServicePrincipalType:   strDeref(sp.GetServicePrincipalType()),
+			AccountEnabled:         sp.GetAccountEnabled(),
+			AppOwnerOrganizationID: ownerTenant,
 		}
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
 			Type: TypeEntraServicePrincipal, NativeID: id,
 			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
-			DiscoveredBy: scanID,
+			DiscoveredBy:      scanID,
+			ManagedByProvider: isMicrosoftFirstPartySP(ownerTenant),
 		})
 		if len(batch) >= 500 {
 			flush()

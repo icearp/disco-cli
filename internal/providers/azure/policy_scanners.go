@@ -42,8 +42,10 @@ func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.Default
 					continue
 				}
 				name := sv(d.Name)
-				managed := d.Properties != nil && d.Properties.PolicyType != nil &&
-					*d.Properties.PolicyType == armpolicy.PolicyTypeBuiltIn
+				var managed bool
+				if d.Properties != nil {
+					managed = isManagedPolicyType(d.Properties.PolicyType)
+				}
 				batch = append(batch, &store.Resource{
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypePolicyDefinition, NativeID: sv(d.ID),
@@ -74,8 +76,10 @@ func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.Default
 					continue
 				}
 				name := sv(d.Name)
-				managed := d.Properties != nil && d.Properties.PolicyType != nil &&
-					*d.Properties.PolicyType == armpolicy.PolicyTypeBuiltIn
+				var managed bool
+				if d.Properties != nil {
+					managed = isManagedPolicyType(d.Properties.PolicyType)
+				}
 				batch = append(batch, &store.Resource{
 					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
 					Type: TypePolicySetDefinition, NativeID: sv(d.ID),
@@ -119,4 +123,22 @@ func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.Default
 	total += at
 	inserted += ai
 	return total, inserted, err
+}
+
+// managedPolicyTypes is the PolicyType value set disco treats as
+// provider-owned: BuiltIn (Microsoft-shipped), Static (Defender / system-
+// emitted), and NotSpecified (undefined — hide conservatively, customer
+// opts in via --include-managed). Custom is the only customer-authored
+// kind, so it falls through unmanaged.
+var managedPolicyTypes = map[armpolicy.PolicyType]bool{
+	armpolicy.PolicyTypeBuiltIn:      true,
+	armpolicy.PolicyTypeStatic:       true,
+	armpolicy.PolicyTypeNotSpecified: true,
+}
+
+func isManagedPolicyType(t *armpolicy.PolicyType) bool {
+	if t == nil {
+		return false
+	}
+	return managedPolicyTypes[*t]
 }
