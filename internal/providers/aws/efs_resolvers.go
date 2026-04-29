@@ -72,8 +72,8 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 		if fsID := sv(attrs.FileSystemId); fsID != "" {
 			fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)
 			fsResID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, fsARN)
-			if err := st.UpsertRelationship(r.ID, fsResID, store.RelContains, "directed", nil); err != nil {
-				return fmt.Errorf("upsert efs-mt→fs: %w", err)
+			if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
+				return fmt.Errorf("upsert efs-fs→mt: %w", err)
 			}
 		}
 		if snID := sv(attrs.SubnetId); snID != "" {
@@ -111,8 +111,8 @@ func resolveEFSAccessPointRelationships(acct *account, st *store.Store) error {
 		}
 		fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)
 		fsResID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, fsARN)
-		if err := st.UpsertRelationship(r.ID, fsResID, store.RelContains, "directed", nil); err != nil {
-			return fmt.Errorf("upsert efs-ap→fs: %w", err)
+		if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert efs-fs→ap: %w", err)
 		}
 	}
 	return nil

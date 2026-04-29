@@ -68,8 +68,8 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 		if idx > 0 {
 			parentARN := r.NativeID[:idx]
 			pid := store.ResourceID("aws", acct.ID, TypeBackupPlan, parentARN)
-			if err := st.UpsertRelationship(r.ID, pid, store.RelContains, "directed", nil); err != nil {
-				return fmt.Errorf("upsert backup-selection→plan: %w", err)
+			if err := st.UpsertRelationship(pid, r.ID, store.RelContains, "directed", nil); err != nil {
+				return fmt.Errorf("upsert backup-plan→selection: %w", err)
 			}
 		}
 		var attrs struct {

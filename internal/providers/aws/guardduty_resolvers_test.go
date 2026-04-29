@@ -27,11 +27,11 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 		t.Fatalf("resolveGuardDutyRelationships: %v", err)
 	}
 
-	fRels, _ := st.RelationshipsFrom(fID)
-	assertRelationship(t, fRels, fID, detID, store.RelContains)
+	detRels, _ := st.RelationshipsFrom(detID)
+	assertRelationship(t, detRels, detID, fID, store.RelContains)
+	assertRelationship(t, detRels, detID, iID, store.RelContains)
 
 	iRels, _ := st.RelationshipsFrom(iID)
-	assertRelationship(t, iRels, iID, detID, store.RelContains)
 	assertRelationship(t, iRels, iID, bID, store.RelUses)
 }
 

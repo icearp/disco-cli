@@ -104,8 +104,8 @@ func resolveGuardDutyChildContains(acct *account, st *store.Store, childType str
 		}
 		parentARN := r.NativeID[:idx]
 		pid := store.ResourceID("aws", acct.ID, TypeGuardDutyDetector, parentARN)
-		if err := st.UpsertRelationship(r.ID, pid, store.RelContains, "directed", nil); err != nil {
-			return fmt.Errorf("upsert guardduty %s→detector: %w", childType, err)
+		if err := st.UpsertRelationship(pid, r.ID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert guardduty detector→%s: %w", childType, err)
 		}
 	}
 	return nil

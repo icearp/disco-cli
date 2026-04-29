@@ -639,3 +639,100 @@ func TestOpen_DBFilePermissions(t *testing.T) {
 		t.Errorf("DB file perms: got %o, want 0600", got)
 	}
 }
+
+// TestReversedContainsEdges_DetectsAndIgnores covers the two cases the
+// invariant query must handle: a reversed contains row (child→parent
+// matches the closure ancestor pair) is returned; a properly-directed
+// row is not. Edges with no closure pairing are ignored.
+func TestReversedContainsEdges_DetectsAndIgnores(t *testing.T) {
+	st := openTestStore(t)
+
+	parentID := insertResource(t, st, "aws", "acct", "aws:elasticfilesystem:file-system", "fs-1")
+	childID := insertResource(t, st, "aws", "acct", "aws:elasticfilesystem:mount-target", "fsmt-1")
+
+	// Seed parent's self-entry first (depth 0) so the child→parent
+	// closure walk has something to extend; matches scan-time order
+	// where parent's closure entry lands before each child's.
+	if err := st.AddToHierarchyClosure(parentID, parentID); err != nil {
+		t.Fatalf("seed parent closure: %v", err)
+	}
+	if err := st.AddToHierarchyClosure(childID, parentID); err != nil {
+		t.Fatalf("AddToHierarchyClosure: %v", err)
+	}
+
+	// Reversed edge: from=child, to=parent. ReversedContainsEdges must
+	// surface it.
+	mustUpsertRel(t, st, childID, parentID, RelContains)
+	got, err := st.ReversedContainsEdges()
+	if err != nil {
+		t.Fatalf("ReversedContainsEdges: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("reversed: got %d rows, want 1", len(got))
+	}
+	if got[0].FromID != childID || got[0].ToID != parentID {
+		t.Errorf("row mismatch: %+v", got[0])
+	}
+
+	// Add a second pair with the canonical direction; existing reversed
+	// row remains the only flagged result.
+	parent2 := insertResource(t, st, "aws", "acct", "aws:s3:bucket", "b-1")
+	child2 := insertResource(t, st, "aws", "acct", "aws:s3:bucket-policy", "p-1")
+	if err := st.AddToHierarchyClosure(parent2, parent2); err != nil {
+		t.Fatalf("seed parent2 closure: %v", err)
+	}
+	if err := st.AddToHierarchyClosure(child2, parent2); err != nil {
+		t.Fatalf("AddToHierarchyClosure 2: %v", err)
+	}
+	mustUpsertRel(t, st, parent2, child2, RelContains) // correct direction
+	got, _ = st.ReversedContainsEdges()
+	if len(got) != 1 {
+		t.Errorf("after canonical add: got %d rows, want still 1", len(got))
+	}
+}
+
+// TestAddToHierarchyClosure_WritesRelationshipRow asserts the unified
+// closure writer also records a parent→child contains row. Without this,
+// `disco graph` walks (which read only `relationships`) miss every Azure
+// or GCP hierarchy edge.
+func TestAddToHierarchyClosure_WritesRelationshipRow(t *testing.T) {
+	st := openTestStore(t)
+
+	parentID := insertResource(t, st, "azure", "sub", "azure:microsoft.resources:resource-group", "rg-1")
+	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-1")
+
+	if err := st.AddToHierarchyClosure(parentID, parentID); err != nil {
+		t.Fatalf("seed parent: %v", err)
+	}
+	if err := st.AddToHierarchyClosure(childID, parentID); err != nil {
+		t.Fatalf("AddToHierarchyClosure: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(parentID, RelContains)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != childID {
+		t.Errorf("want 1 contains row parent→child, got %+v", rels)
+	}
+}
+
+// TestAddToHierarchyClosure_SkipsMissingResource confirms the EXISTS guard
+// — when parent resource isn't upserted, closure entries still write
+// (consistent with prior behaviour) but the relationship row is silently
+// skipped to avoid FK violations.
+func TestAddToHierarchyClosure_SkipsMissingResource(t *testing.T) {
+	st := openTestStore(t)
+
+	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-orphan")
+	missingParentID := "deadbeef00000000000000000000000a"
+
+	if err := st.AddToHierarchyClosure(childID, missingParentID); err != nil {
+		t.Fatalf("AddToHierarchyClosure: %v", err)
+	}
+
+	rels, _ := st.RelationshipsTo(childID, RelContains)
+	if len(rels) != 0 {
+		t.Errorf("expected no relationship row when parent absent, got %+v", rels)
+	}
+}

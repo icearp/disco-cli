@@ -35,8 +35,9 @@ func TestResolveBackupRelationships(t *testing.T) {
 	vRels, _ := st.RelationshipsFrom(vID)
 	assertRelationship(t, vRels, vID, kID, store.RelUses)
 
+	pRels, _ := st.RelationshipsFrom(pID)
+	assertRelationship(t, pRels, pID, sID, store.RelContains)
 	sRels, _ := st.RelationshipsFrom(sID)
-	assertRelationship(t, sRels, sID, pID, store.RelContains)
 	assertRelationship(t, sRels, sID, rID, store.RelAssumes)
 }
 

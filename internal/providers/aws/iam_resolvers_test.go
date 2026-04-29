@@ -24,14 +24,14 @@ func TestResolveInstanceProfileRoles(t *testing.T) {
 		t.Fatalf("resolveInstanceProfileRoles: %v", err)
 	}
 
-	rels, err := st.RelationshipsFrom(profileID)
+	rels, err := st.RelationshipsFrom(roleID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
 	if len(rels) != 1 {
 		t.Fatalf("expected 1 relationship, got %d", len(rels))
 	}
-	assertRelationship(t, rels, profileID, roleID, "contains")
+	assertRelationship(t, rels, roleID, profileID, "contains")
 }
 
 func TestResolveInstanceProfileRoles_NoRoles(t *testing.T) {

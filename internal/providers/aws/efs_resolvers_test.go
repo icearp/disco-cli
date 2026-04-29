@@ -67,12 +67,16 @@ func TestResolveEFSMountTargetRelationships(t *testing.T) {
 		t.Fatalf("resolveEFSMountTargetRelationships: %v", err)
 	}
 
-	rels, err := st.RelationshipsFrom(mtResID)
+	mtRels, err := st.RelationshipsFrom(mtResID)
 	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
+		t.Fatalf("RelationshipsFrom mt: %v", err)
 	}
-	assertRelationship(t, rels, mtResID, fsResID, store.RelContains)
-	assertRelationship(t, rels, mtResID, subnetResID, store.RelAttachedTo)
+	assertRelationship(t, mtRels, mtResID, subnetResID, store.RelAttachedTo)
+	fsRels, err := st.RelationshipsFrom(fsResID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom fs: %v", err)
+	}
+	assertRelationship(t, fsRels, fsResID, mtResID, store.RelContains)
 }
 
 func TestResolveEFSAccessPointRelationships(t *testing.T) {
@@ -91,9 +95,9 @@ func TestResolveEFSAccessPointRelationships(t *testing.T) {
 		t.Fatalf("resolveEFSAccessPointRelationships: %v", err)
 	}
 
-	rels, err := st.RelationshipsFrom(apResID)
+	rels, err := st.RelationshipsFrom(fsResID)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	assertRelationship(t, rels, apResID, fsResID, store.RelContains)
+	assertRelationship(t, rels, fsResID, apResID, store.RelContains)
 }

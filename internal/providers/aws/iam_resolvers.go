@@ -57,8 +57,8 @@ func resolveInstanceProfileRoles(acct *account, st *store.Store) error {
 			continue
 		}
 		roleID := store.ResourceID("aws", acct.ID, TypeIAMRole, *attrs.Roles[0].Arn)
-		if err := st.UpsertRelationship(r.ID, roleID, store.RelContains, "directed", nil); err != nil {
-			return fmt.Errorf("upsert instance-profile→role: %w", err)
+		if err := st.UpsertRelationship(roleID, r.ID, store.RelContains, "directed", nil); err != nil {
+			return fmt.Errorf("upsert role→instance-profile: %w", err)
 		}
 	}
 	return nil

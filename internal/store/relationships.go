@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -53,6 +54,39 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 		s.activeCounter.Add(1)
 	}
 	return nil
+}
+
+// ReversedContainsEdges returns `contains` rows where `to_id` is an
+// ancestor of `from_id` per hierarchy_closure — i.e. the edge points
+// child→parent instead of the canonical parent→child. Always-empty result
+// is the invariant; non-empty means a scanner regressed and is emitting
+// reversed direction. Used by the store-side test that guards future
+// drift; CI fails on any non-empty return.
+func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
+	const q = `
+		SELECT r.*
+		  FROM relationships r
+		  JOIN hierarchy_closure hc
+		    ON hc.descendant_id = r.from_id
+		   AND hc.ancestor_id   = r.to_id
+		   AND hc.depth >= 1
+		 WHERE r.kind = 'contains'`
+	var rs []Relationship
+	if err := s.db.Select(&rs, q); err != nil {
+		return nil, fmt.Errorf("reversed contains edges: %w", err)
+	}
+	return rs, nil
+}
+
+// ListRelationships returns every edge in the store. Used by GraphAll for
+// the unfiltered "complete graph" subcommand; per-seed walks should prefer
+// RelationshipsFrom / RelationshipsTo so they don't pull the whole table.
+func (s *Store) ListRelationships() ([]Relationship, error) {
+	var rs []Relationship
+	if err := s.db.Select(&rs, "SELECT * FROM relationships ORDER BY from_id, kind, to_id"); err != nil {
+		return nil, fmt.Errorf("list relationships: %w", err)
+	}
+	return rs, nil
 }
 
 // RelationshipsFrom returns all edges originating from a resource.
@@ -124,24 +158,55 @@ func (s *Store) AddToHierarchyClosure(childID, parentID string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := addClosureTx(tx, childID, parentID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
-	// Every node is its own ancestor at depth 0.
+// addClosureTx is the per-pair body shared by AddToHierarchyClosure and
+// BatchAddToHierarchyClosure. It writes:
+//
+//   - the child's self-entry in hierarchy_closure (depth 0)
+//   - one closure row per ancestor of parent, extending depth + 1
+//   - a parent→child `contains` row in relationships (when child != parent)
+//
+// The relationship row makes hierarchy edges visible to GraphWalk, which
+// reads only `relationships`. Without this, Azure/GCP scanners that
+// recorded hierarchy via closure alone produced flat-looking graphs in
+// `disco graph`. INSERT OR IGNORE keeps the call idempotent across
+// re-scans and tolerates AWS resolvers that still emit the row directly.
+func addClosureTx(tx *sql.Tx, childID, parentID string) error {
 	if _, err := tx.Exec(`
 		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		VALUES (?, ?, 0)`, childID, childID); err != nil {
-		return fmt.Errorf("closure self-entry: %w", err)
+		return fmt.Errorf("closure self-entry %s: %w", childID, err)
 	}
-
-	// For every ancestor of parentID (including itself), insert ancestor→child at depth+1.
 	if _, err := tx.Exec(`
 		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		SELECT hc.ancestor_id, ?, hc.depth + 1
 		FROM hierarchy_closure hc
 		WHERE hc.descendant_id = ?`, childID, parentID); err != nil {
-		return fmt.Errorf("closure ancestor entries: %w", err)
+		return fmt.Errorf("closure ancestor entries %s: %w", childID, err)
 	}
-
-	return tx.Commit()
+	if childID != parentID {
+		// Guard with EXISTS so missing-resource pairs (e.g. tests that
+		// don't upsert the parent, or scanners emitting pairs for RGs
+		// that aren't independently scanned) silently skip the
+		// relationship row instead of FK-erroring. modernc/sqlite
+		// surfaces FK violations through INSERT OR IGNORE, unlike the
+		// closure inserts above which conveniently swallow them.
+		if _, err := tx.Exec(`
+			INSERT OR IGNORE INTO relationships (from_id, to_id, kind, direction, discovered_at)
+			SELECT ?, ?, 'contains', 'directed', ?
+			WHERE EXISTS (SELECT 1 FROM resources WHERE id = ?)
+			  AND EXISTS (SELECT 1 FROM resources WHERE id = ?)`,
+			parentID, childID, time.Now().UTC().Format(time.RFC3339Nano),
+			parentID, childID); err != nil {
+			return fmt.Errorf("closure relationship row %s→%s: %w", parentID, childID, err)
+		}
+	}
+	return nil
 }
 
 // BatchAddToHierarchyClosure inserts closure entries for multiple child→parent
@@ -157,18 +222,8 @@ func (s *Store) BatchAddToHierarchyClosure(pairs [][2]string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	for _, p := range pairs {
-		childID, parentID := p[0], p[1]
-		if _, err := tx.Exec(`
-			INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
-			VALUES (?, ?, 0)`, childID, childID); err != nil {
-			return fmt.Errorf("closure self-entry %s: %w", childID, err)
-		}
-		if _, err := tx.Exec(`
-			INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
-			SELECT hc.ancestor_id, ?, hc.depth + 1
-			FROM hierarchy_closure hc
-			WHERE hc.descendant_id = ?`, childID, parentID); err != nil {
-			return fmt.Errorf("closure ancestor entries %s: %w", childID, err)
+		if err := addClosureTx(tx, p[0], p[1]); err != nil {
+			return err
 		}
 	}
 	return tx.Commit()
