@@ -100,6 +100,10 @@ Resolver sees KMS ref in four shapes: full key ARN, alias ARN, `alias/foo`, bare
 
 Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) trim object/version/index suffixes before checking for `*?`. `arn:aws:s3:::bucket/*` is real bucket-level grant; only wildcards inside canonical segment (`prod-*` in bucket name, `*` as whole ref) skip. Same for `:function:NAME:*`, `:secret:NAME:*`, `:table/NAME/*`, `:log-group:NAME:*`.
 
+## Phase 1 globals + regionals run concurrently
+
+`scanAccount` (`aws.go`) launches global services and per-region fan-out into a single `WaitGroup` — no barrier between them. Don't reintroduce the `wg0.Wait()` between phases: scanners only upsert (no reads); resolvers in phase 2 are the readers and gate behind the combined wait. Slow globals (IAM with its managed-policy catalogue enrichment) blocked the entire regional fleet under the old gated shape.
+
 ## Per-call concurrency constants
 
 `concurrency.go` exports `fanoutHigh` (20), `fanoutMed` (10), `fanoutLow` (2) for `semaphore.NewWeighted(...)` inside scanner/resolver fan-out loops. Distinct from `maxConcurrentServices` (`aws.go`) which caps top-level service scanners. Do not redeclare `const maxConcurrent` inside individual scanners — pick fanout tier.

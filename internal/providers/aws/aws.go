@@ -101,20 +101,28 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // account. Errors are reported via st.ReportError and never propagate — a
 // service failure does not abort sibling services or the relationship phase.
 func scanAccount(ctx context.Context, acct *account, services []string, st *store.Store, scanID string) {
-	// Phase 1a: global services (once per account, region is irrelevant).
-	// Use a plain WaitGroup with a semaphore — errgroup would cancel siblings
-	// on first error, which we explicitly do not want anymore.
-	sem := semaphore.NewWeighted(maxConcurrentServices)
-	var wg0 sync.WaitGroup
+	// Phase 1: global + regional services run CONCURRENTLY. Globals had
+	// historically gated regionals via a wg.Wait() barrier, but phase-1
+	// scanners only upsert (no DB reads); resolvers in phase 2 are the only
+	// readers and they're already gated by the combined wait below. Letting
+	// regionals start immediately means slow globals (IAM with its
+	// ~1100-policy enrichment) no longer stall the rest of the scan.
+	//
+	// Plain WaitGroups + semaphores rather than errgroup — sibling
+	// cancellation on first error is explicitly unwanted.
+	globalSem := semaphore.NewWeighted(maxConcurrentServices)
+	regionSem := semaphore.NewWeighted(maxConcurrentRegions)
+	var wg sync.WaitGroup
+
 	for _, svc := range filteredServices(services) {
 		if !svc.global {
 			continue
 		}
-		wg0.Go(func() {
-			if err := sem.Acquire(ctx, 1); err != nil {
+		wg.Go(func() {
+			if err := globalSem.Acquire(ctx, 1); err != nil {
 				return
 			}
-			defer sem.Release(1)
+			defer globalSem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
@@ -137,16 +145,9 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 			st.ReportService(svc.name, total, inserted, 0, false)
 		})
 	}
-	wg0.Wait()
 
-	// Phase 1b: regional services — regions in parallel (capped by
-	// maxConcurrentRegions), services in parallel within each region (capped
-	// by maxConcurrentServices). Per-region failures are reported independently
-	// and never abort siblings.
-	regionSem := semaphore.NewWeighted(maxConcurrentRegions)
-	var wg1 sync.WaitGroup
 	for _, region := range acct.Regions {
-		wg1.Go(func() {
+		wg.Go(func() {
 			if err := regionSem.Acquire(ctx, 1); err != nil {
 				return
 			}
@@ -154,7 +155,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 			scanRegion(ctx, acct, region, services, st, scanID)
 		})
 	}
-	wg1.Wait()
+	wg.Wait()
 
 	// Phase 2: derive relationships now that all resources exist in the DB.
 	st.ReportResolveStart("aws")
