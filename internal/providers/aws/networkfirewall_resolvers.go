@@ -19,9 +19,9 @@ func init() {
 type nfFirewallAttrs struct {
 	Firewall *struct {
 		FirewallPolicyArn *string `json:"FirewallPolicyArn"`
-		VpcId             *string `json:"VpcId"`
+		VpcID             *string `json:"VpcID"`
 		SubnetMappings    []struct {
-			SubnetId *string `json:"SubnetId"`
+			SubnetID *string `json:"SubnetID"`
 		} `json:"SubnetMappings"`
 	} `json:"Firewall"`
 }
@@ -80,7 +80,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 			}
 		}
 
-		if vpc := sv(attrs.Firewall.VpcId); vpc != "" {
+		if vpc := sv(attrs.Firewall.VpcID); vpc != "" {
 			vpcARN := ec2ARN(region, acct.ID, "vpc", vpc)
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if known[vpcID] {
@@ -91,7 +91,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 		}
 
 		for _, m := range attrs.Firewall.SubnetMappings {
-			sn := sv(m.SubnetId)
+			sn := sv(m.SubnetID)
 			if sn == "" {
 				continue
 			}

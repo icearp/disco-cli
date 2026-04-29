@@ -46,17 +46,21 @@ func scanShield(ctx context.Context, acct *account, st *store.Store, scanID stri
 	}
 
 	// Phase 2: protections.
-	if t, i, ferr := scanShieldProtections(ctx, client, acct, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanShieldProtections(ctx, client, acct, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	// Phase 3: protection groups.
-	if t, i, ferr := scanShieldProtectionGroups(ctx, client, acct, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanShieldProtectionGroups(ctx, client, acct, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

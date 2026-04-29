@@ -50,9 +50,11 @@ func scanServiceCatalog(ctx context.Context, acct *account, region string, st *s
 	total += t
 	inserted += i
 
-	if t, i, ferr := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

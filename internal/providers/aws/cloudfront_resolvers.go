@@ -76,9 +76,9 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 
 	// Minimal shape of a DistributionSummary covering only the fields we need.
 	type behavior struct {
-		CachePolicyId           *string `json:"CachePolicyId"`
-		OriginRequestPolicyId   *string `json:"OriginRequestPolicyId"`
-		ResponseHeadersPolicyId *string `json:"ResponseHeadersPolicyId"`
+		CachePolicyID           *string `json:"CachePolicyID"`
+		OriginRequestPolicyID   *string `json:"OriginRequestPolicyID"`
+		ResponseHeadersPolicyID *string `json:"ResponseHeadersPolicyID"`
 		RealtimeLogConfigArn    *string `json:"RealtimeLogConfigArn"`
 		TrustedKeyGroups        *struct {
 			Items []string `json:"Items"`
@@ -135,13 +135,13 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 		}
 
 		for _, b := range behaviors {
-			if err := upsert(TypeCloudFrontCachePolicy, sv(b.CachePolicyId)); err != nil {
+			if err := upsert(TypeCloudFrontCachePolicy, sv(b.CachePolicyID)); err != nil {
 				return err
 			}
-			if err := upsert(TypeCloudFrontOriginRequestPolicy, sv(b.OriginRequestPolicyId)); err != nil {
+			if err := upsert(TypeCloudFrontOriginRequestPolicy, sv(b.OriginRequestPolicyID)); err != nil {
 				return err
 			}
-			if err := upsert(TypeCloudFrontResponseHeadersPolicy, sv(b.ResponseHeadersPolicyId)); err != nil {
+			if err := upsert(TypeCloudFrontResponseHeadersPolicy, sv(b.ResponseHeadersPolicyID)); err != nil {
 				return err
 			}
 			if err := upsert(TypeCloudFrontRealtimeLogConfig, sv(b.RealtimeLogConfigArn)); err != nil {
@@ -187,7 +187,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 
 	type origin struct {
 		DomainName            *string `json:"DomainName"`
-		OriginAccessControlId *string `json:"OriginAccessControlId"`
+		OriginAccessControlID *string `json:"OriginAccessControlID"`
 		S3OriginConfig        *struct {
 			// Format: "origin-access-identity/cloudfront/<ID>" or empty string.
 			OriginAccessIdentity *string `json:"OriginAccessIdentity"`
@@ -226,7 +226,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 		}
 
 		for _, o := range attrs.Origins.Items {
-			if err := upsert(TypeCloudFrontOriginAccessControl, sv(o.OriginAccessControlId)); err != nil {
+			if err := upsert(TypeCloudFrontOriginAccessControl, sv(o.OriginAccessControlID)); err != nil {
 				return err
 			}
 			if o.S3OriginConfig != nil {
@@ -252,7 +252,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 }
 
 // resolveDistributionTenants emits "uses" edges from each distribution tenant
-// to its parent distribution. The DistributionId field on the tenant is used to
+// to its parent distribution. The DistributionID field on the tenant is used to
 // reconstruct the distribution ARN (the NativeID used by the distribution scanner).
 func resolveDistributionTenants(acct *account, st *store.Store) error {
 	tenants, err := st.ListResources(store.ResourceFilter{
@@ -265,12 +265,12 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 
 	for _, t := range tenants {
 		var attrs struct {
-			DistributionId *string `json:"DistributionId"`
+			DistributionID *string `json:"DistributionID"`
 		}
 		if err := json.Unmarshal([]byte(t.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		distID := sv(attrs.DistributionId)
+		distID := sv(attrs.DistributionID)
 		if distID == "" {
 			continue
 		}

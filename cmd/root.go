@@ -1,3 +1,5 @@
+// Package cmd contains the cobra-rooted CLI for `disco`. Each file
+// hosts one subcommand; cross-cutting helpers live in helpers.go.
 package cmd
 
 import (

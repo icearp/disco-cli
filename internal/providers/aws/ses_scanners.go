@@ -38,16 +38,20 @@ type sesv2API interface {
 func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sesv2.NewFromConfig(acct.cfg, func(o *sesv2.Options) { o.Region = region })
 
-	if t, i, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanSESConfigurationSets(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSESConfigurationSets(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

@@ -37,16 +37,20 @@ type redshiftAPI interface {
 func scanRedshift(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := redshift.NewFromConfig(acct.cfg, func(o *redshift.Options) { o.Region = region })
 
-	if t, i, ferr := scanRedshiftClusters(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanRedshiftClusters(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanRedshiftClusterSubnetGroups(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanRedshiftClusterSubnetGroups(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

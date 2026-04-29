@@ -21,14 +21,14 @@ type kafkaClusterAttrs struct {
 		} `json:"BrokerNodeGroupInfo"`
 		EncryptionInfo *struct {
 			EncryptionAtRest *struct {
-				DataVolumeKMSKeyId *string `json:"DataVolumeKMSKeyId"`
+				DataVolumeKMSKeyID *string `json:"DataVolumeKMSKeyID"`
 			} `json:"EncryptionAtRest"`
 		} `json:"EncryptionInfo"`
 	} `json:"Provisioned"`
 	Serverless *struct {
 		VpcConfigs []struct {
-			SubnetIds        []string `json:"SubnetIds"`
-			SecurityGroupIds []string `json:"SecurityGroupIds"`
+			SubnetIDs        []string `json:"SubnetIDs"`
+			SecurityGroupIDs []string `json:"SecurityGroupIDs"`
 		} `json:"VpcConfigs"`
 	} `json:"Serverless"`
 }
@@ -75,12 +75,12 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 				sgs = bng.SecurityGroups
 			}
 			if ei := attrs.Provisioned.EncryptionInfo; ei != nil && ei.EncryptionAtRest != nil {
-				kmsRef = sv(ei.EncryptionAtRest.DataVolumeKMSKeyId)
+				kmsRef = sv(ei.EncryptionAtRest.DataVolumeKMSKeyID)
 			}
 		case attrs.Serverless != nil:
 			for _, v := range attrs.Serverless.VpcConfigs {
-				subnets = append(subnets, v.SubnetIds...)
-				sgs = append(sgs, v.SecurityGroupIds...)
+				subnets = append(subnets, v.SubnetIDs...)
+				sgs = append(sgs, v.SecurityGroupIDs...)
 			}
 		}
 

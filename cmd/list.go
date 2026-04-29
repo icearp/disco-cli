@@ -49,7 +49,7 @@ Examples:
   disco list --provider aws --type aws:ec2:instance
   disco list --provider gcp --region us-central1 --status running
   disco list --tag-key env --tag-value production -o json`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)

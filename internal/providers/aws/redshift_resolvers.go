@@ -17,10 +17,10 @@ func init() {
 // resolver. PascalCase tags match mustJSON of the SDK v2 struct.
 type redshiftClusterAttrs struct {
 	ClusterSubnetGroupName *string `json:"ClusterSubnetGroupName"`
-	KmsKeyId               *string `json:"KmsKeyId"`
-	VpcId                  *string `json:"VpcId"`
+	KmsKeyID               *string `json:"KmsKeyID"`
+	VpcID                  *string `json:"VpcID"`
 	VpcSecurityGroups      []struct {
-		VpcSecurityGroupId *string `json:"VpcSecurityGroupId"`
+		VpcSecurityGroupID *string `json:"VpcSecurityGroupID"`
 	} `json:"VpcSecurityGroups"`
 	IamRoles []struct {
 		IamRoleArn *string `json:"IamRoleArn"`
@@ -29,8 +29,8 @@ type redshiftClusterAttrs struct {
 
 // resolveRedshiftClusterTargets emits the cluster's outbound edges:
 //   - cluster → subnet-group (uses)
-//   - cluster → KMS key (uses) via KmsKeyId
-//   - cluster → VPC (attached-to) via VpcId
+//   - cluster → KMS key (uses) via KmsKeyID
+//   - cluster → VPC (attached-to) via VpcID
 //   - cluster → security group (uses) per VpcSecurityGroups[]
 //   - cluster → IAM role (assumes) per IamRoles[]
 //
@@ -91,7 +91,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 			}
 		}
 
-		if vpcID := sv(attrs.VpcId); vpcID != "" {
+		if vpcID := sv(attrs.VpcID); vpcID != "" {
 			vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
 			vID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if _, ok := vpcIDs[vID]; ok {
@@ -102,7 +102,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 		}
 
 		for _, sg := range attrs.VpcSecurityGroups {
-			id := sv(sg.VpcSecurityGroupId)
+			id := sv(sg.VpcSecurityGroupID)
 			if id == "" {
 				continue
 			}
@@ -128,7 +128,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 			}
 		}
 
-		if keyRef := sv(attrs.KmsKeyId); keyRef != "" {
+		if keyRef := sv(attrs.KmsKeyID); keyRef != "" {
 			if keyID, ok := kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID); ok {
 				if err := st.UpsertRelationship(c.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert redshift cluster→kms: %w", err)
@@ -142,7 +142,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 // redshiftSubnetGroupAttrs mirrors the verbatim ClusterSubnetGroup fields
 // used by the resolver.
 type redshiftSubnetGroupAttrs struct {
-	VpcId   *string `json:"VpcId"`
+	VpcID   *string `json:"VpcID"`
 	Subnets []struct {
 		SubnetIdentifier *string `json:"SubnetIdentifier"`
 	} `json:"Subnets"`
@@ -184,7 +184,7 @@ func resolveRedshiftSubnetGroupTargets(acct *account, st *store.Store) error {
 			region = *g.Region
 		}
 
-		if vpcID := sv(attrs.VpcId); vpcID != "" {
+		if vpcID := sv(attrs.VpcID); vpcID != "" {
 			vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
 			vID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if _, ok := vpcIDs[vID]; ok {

@@ -38,23 +38,29 @@ type batchAPI interface {
 func scanBatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := batch.NewFromConfig(acct.cfg, func(o *batch.Options) { o.Region = region })
 
-	if t, i, ferr := scanBatchComputeEnvironments(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanBatchComputeEnvironments(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanBatchJobQueues(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanBatchJobQueues(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanBatchJobDefinitions(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanBatchJobDefinitions(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

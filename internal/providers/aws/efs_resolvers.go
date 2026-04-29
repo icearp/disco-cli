@@ -34,15 +34,15 @@ func resolveEFSFileSystemRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range fss {
 		var attrs struct {
-			KmsKeyId *string `json:"KmsKeyId"`
+			KmsKeyID *string `json:"KmsKeyID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if sv(attrs.KmsKeyId) == "" {
+		if sv(attrs.KmsKeyID) == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyId)
+		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyID)
 		if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert efs-fs→kms: %w", err)
 		}
@@ -63,20 +63,20 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 	for _, r := range mts {
 		region := sv(r.Region)
 		var attrs struct {
-			FileSystemId *string `json:"FileSystemId"`
-			SubnetId     *string `json:"SubnetId"`
+			FileSystemID *string `json:"FileSystemID"`
+			SubnetID     *string `json:"SubnetID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if fsID := sv(attrs.FileSystemId); fsID != "" {
+		if fsID := sv(attrs.FileSystemID); fsID != "" {
 			fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)
 			fsResID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, fsARN)
 			if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-fs→mt: %w", err)
 			}
 		}
-		if snID := sv(attrs.SubnetId); snID != "" {
+		if snID := sv(attrs.SubnetID); snID != "" {
 			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", snID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-mt→subnet: %w", err)
@@ -99,14 +99,14 @@ func resolveEFSAccessPointRelationships(acct *account, st *store.Store) error {
 	for _, r := range aps {
 		region := sv(r.Region)
 		var attrs struct {
-			FileSystemId *string `json:"FileSystemId"`
+			FileSystemID *string `json:"FileSystemID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		fsID := sv(attrs.FileSystemId)
+		fsID := sv(attrs.FileSystemID)
 		if fsID == "" {
-			// FileSystemId is not embedded in access point ARN; attrs required.
+			// FileSystemID is not embedded in access point ARN; attrs required.
 			continue
 		}
 		fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acct.ID, fsID)

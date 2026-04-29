@@ -4,6 +4,7 @@ linters:
   default: standard
   enable:
     - gocognit
+    - revive
   settings:
     gocognit:
       # Most scanner/resolver funcs are linear "for each resource → check

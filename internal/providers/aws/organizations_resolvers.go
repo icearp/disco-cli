@@ -90,13 +90,13 @@ func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[s
 		}
 		for _, r := range rs {
 			var a struct {
-				Id *string `json:"Id"`
+				ID *string `json:"ID"`
 			}
-			if jerr := json.Unmarshal([]byte(r.AttributesJSON), &a); jerr != nil || a.Id == nil {
+			if jerr := json.Unmarshal([]byte(r.AttributesJSON), &a); jerr != nil || a.ID == nil {
 				continue
 			}
-			arnByID[*a.Id] = r.NativeID
-			typeByID[*a.Id] = r.Type
+			arnByID[*a.ID] = r.NativeID
+			typeByID[*a.ID] = r.Type
 		}
 	}
 	return arnByID, typeByID, nil

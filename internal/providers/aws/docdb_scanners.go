@@ -37,16 +37,20 @@ type docdbAPI interface {
 func scanDocDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := docdb.NewFromConfig(acct.cfg, func(o *docdb.Options) { o.Region = region })
 
-	if t, i, ferr := scanDocDBClusters(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanDocDBClusters(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanDocDBInstances(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanDocDBInstances(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

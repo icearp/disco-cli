@@ -24,15 +24,15 @@ func resolveVerifiedAccessGroupRelationships(acct *account, st *store.Store) err
 	}
 	for _, r := range groups {
 		var attrs struct {
-			VerifiedAccessInstanceId *string `json:"VerifiedAccessInstanceId"`
+			VerifiedAccessInstanceID *string `json:"VerifiedAccessInstanceID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.VerifiedAccessInstanceId != nil {
+		if attrs.VerifiedAccessInstanceID != nil {
 			instID := store.ResourceID("aws", acct.ID, TypeEC2VerifiedAccessInstance,
-				ec2ARN(region, acct.ID, "verified-access-instance", *attrs.VerifiedAccessInstanceId))
+				ec2ARN(region, acct.ID, "verified-access-instance", *attrs.VerifiedAccessInstanceID))
 			if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert verified-access-group→instance relationship: %w", err)
 			}
@@ -52,15 +52,15 @@ func resolveVerifiedAccessEndpointRelationships(acct *account, st *store.Store) 
 	}
 	for _, r := range eps {
 		var attrs struct {
-			VerifiedAccessGroupId *string `json:"VerifiedAccessGroupId"`
+			VerifiedAccessGroupID *string `json:"VerifiedAccessGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.VerifiedAccessGroupId != nil {
+		if attrs.VerifiedAccessGroupID != nil {
 			groupID := store.ResourceID("aws", acct.ID, TypeEC2VerifiedAccessGroup,
-				ec2ARN(region, acct.ID, "verified-access-group", *attrs.VerifiedAccessGroupId))
+				ec2ARN(region, acct.ID, "verified-access-group", *attrs.VerifiedAccessGroupID))
 			if err := st.UpsertRelationship(r.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert verified-access-endpoint→group relationship: %w", err)
 			}

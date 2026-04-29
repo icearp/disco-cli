@@ -56,7 +56,7 @@ func resolveElastiCacheRelationships(acct *account, st *store.Store) error {
 
 // --- lookup map builders ---
 
-// buildElastiCacheRGMap returns a map of ReplicationGroupId → store resource ID.
+// buildElastiCacheRGMap returns a map of ReplicationGroupID → store resource ID.
 func buildElastiCacheRGMap(acct *account, st *store.Store) (map[string]string, error) {
 	rgs, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
@@ -68,13 +68,13 @@ func buildElastiCacheRGMap(acct *account, st *store.Store) (map[string]string, e
 	m := make(map[string]string, len(rgs))
 	for _, r := range rgs {
 		var attrs struct {
-			ReplicationGroupId *string `json:"ReplicationGroupId"`
+			ReplicationGroupID *string `json:"ReplicationGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ReplicationGroupId != nil {
-			m[*attrs.ReplicationGroupId] = r.ID
+		if attrs.ReplicationGroupID != nil {
+			m[*attrs.ReplicationGroupID] = r.ID
 		}
 	}
 	return m, nil
@@ -128,7 +128,7 @@ func buildElastiCacheParameterGroupMap(acct *account, st *store.Store) (map[stri
 	return m, nil
 }
 
-// buildElastiCacheUserGroupMap returns a map of UserGroupId → store resource ID.
+// buildElastiCacheUserGroupMap returns a map of UserGroupID → store resource ID.
 func buildElastiCacheUserGroupMap(acct *account, st *store.Store) (map[string]string, error) {
 	ugs, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheUserGroup},
@@ -140,13 +140,13 @@ func buildElastiCacheUserGroupMap(acct *account, st *store.Store) (map[string]st
 	m := make(map[string]string, len(ugs))
 	for _, r := range ugs {
 		var attrs struct {
-			UserGroupId *string `json:"UserGroupId"`
+			UserGroupID *string `json:"UserGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.UserGroupId != nil {
-			m[*attrs.UserGroupId] = r.ID
+		if attrs.UserGroupID != nil {
+			m[*attrs.UserGroupID] = r.ID
 		}
 	}
 	return m, nil
@@ -155,7 +155,7 @@ func buildElastiCacheUserGroupMap(acct *account, st *store.Store) (map[string]st
 // --- resolver functions ---
 
 // resolveClusterToReplicationGroup links each cache cluster (Redis) to its parent
-// replication group. Memcached clusters have no ReplicationGroupId and are skipped.
+// replication group. Memcached clusters have no ReplicationGroupID and are skipped.
 func resolveClusterToReplicationGroup(acct *account, st *store.Store, rgMap map[string]string) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
@@ -166,15 +166,15 @@ func resolveClusterToReplicationGroup(acct *account, st *store.Store, rgMap map[
 	}
 	for _, r := range clusters {
 		var attrs struct {
-			ReplicationGroupId *string `json:"ReplicationGroupId"`
+			ReplicationGroupID *string `json:"ReplicationGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ReplicationGroupId == nil || *attrs.ReplicationGroupId == "" {
+		if attrs.ReplicationGroupID == nil || *attrs.ReplicationGroupID == "" {
 			continue
 		}
-		rgID, ok := rgMap[*attrs.ReplicationGroupId]
+		rgID, ok := rgMap[*attrs.ReplicationGroupID]
 		if !ok {
 			continue
 		}
@@ -289,12 +289,12 @@ func resolveReplicationGroupToUserGroups(acct *account, st *store.Store, ugMap m
 	}
 	for _, r := range rgs {
 		var attrs struct {
-			UserGroupIds []string `json:"UserGroupIds"`
+			UserGroupIDs []string `json:"UserGroupIDs"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		for _, ugID := range attrs.UserGroupIds {
+		for _, ugID := range attrs.UserGroupIDs {
 			storeID, ok := ugMap[ugID]
 			if !ok {
 				continue
@@ -320,17 +320,17 @@ func resolveGlobalRGToReplicationGroups(acct *account, st *store.Store, rgMap ma
 	for _, r := range grgs {
 		var attrs struct {
 			Members []struct {
-				ReplicationGroupId *string `json:"ReplicationGroupId"`
+				ReplicationGroupID *string `json:"ReplicationGroupID"`
 			} `json:"Members"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		for _, m := range attrs.Members {
-			if m.ReplicationGroupId == nil {
+			if m.ReplicationGroupID == nil {
 				continue
 			}
-			rgID, ok := rgMap[*m.ReplicationGroupId]
+			rgID, ok := rgMap[*m.ReplicationGroupID]
 			if !ok {
 				continue // member may belong to a different account
 			}
@@ -344,7 +344,7 @@ func resolveGlobalRGToReplicationGroups(acct *account, st *store.Store, rgMap ma
 
 // resolveUserGroupToUsers links each user group to its member users.
 func resolveUserGroupToUsers(acct *account, st *store.Store) error {
-	// Build a map of UserId → store resource ID.
+	// Build a map of UserID → store resource ID.
 	users, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheUser},
 		Limit: util.AllResources,
@@ -355,13 +355,13 @@ func resolveUserGroupToUsers(acct *account, st *store.Store) error {
 	userMap := make(map[string]string, len(users))
 	for _, r := range users {
 		var attrs struct {
-			UserId *string `json:"UserId"`
+			UserID *string `json:"UserID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.UserId != nil {
-			userMap[*attrs.UserId] = r.ID
+		if attrs.UserID != nil {
+			userMap[*attrs.UserID] = r.ID
 		}
 	}
 
@@ -374,12 +374,12 @@ func resolveUserGroupToUsers(acct *account, st *store.Store) error {
 	}
 	for _, r := range ugs {
 		var attrs struct {
-			UserIds []string `json:"UserIds"`
+			UserIDs []string `json:"UserIDs"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		for _, uid := range attrs.UserIds {
+		for _, uid := range attrs.UserIDs {
 			userID, ok := userMap[uid]
 			if !ok {
 				continue
@@ -403,15 +403,15 @@ func resolveServerlessCacheToUserGroup(acct *account, st *store.Store, ugMap map
 	}
 	for _, r := range scs {
 		var attrs struct {
-			UserGroupId *string `json:"UserGroupId"`
+			UserGroupID *string `json:"UserGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.UserGroupId == nil || *attrs.UserGroupId == "" {
+		if attrs.UserGroupID == nil || *attrs.UserGroupID == "" {
 			continue
 		}
-		ugID, ok := ugMap[*attrs.UserGroupId]
+		ugID, ok := ugMap[*attrs.UserGroupID]
 		if !ok {
 			continue
 		}

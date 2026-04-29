@@ -16,24 +16,24 @@ func init() {
 
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.
 type instanceAttrs struct {
-	InstanceId         *string `json:"InstanceId"`
-	ImageId            *string `json:"ImageId"`
-	VpcId              *string `json:"VpcId"`
-	SubnetId           *string `json:"SubnetId"`
+	InstanceID         *string `json:"InstanceID"`
+	ImageID            *string `json:"ImageID"`
+	VpcID              *string `json:"VpcID"`
+	SubnetID           *string `json:"SubnetID"`
 	KeyName            *string `json:"KeyName"`
 	IamInstanceProfile *struct {
 		Arn *string `json:"Arn"`
 	} `json:"IamInstanceProfile"`
 	SecurityGroups []struct {
-		GroupId *string `json:"GroupId"`
+		GroupID *string `json:"GroupID"`
 	} `json:"SecurityGroups"`
 	BlockDeviceMappings []struct {
 		Ebs *struct {
-			VolumeId *string `json:"VolumeId"`
+			VolumeID *string `json:"VolumeID"`
 		} `json:"Ebs"`
 	} `json:"BlockDeviceMappings"`
 	NetworkInterfaces []struct {
-		NetworkInterfaceId *string `json:"NetworkInterfaceId"`
+		NetworkInterfaceID *string `json:"NetworkInterfaceID"`
 	} `json:"NetworkInterfaces"`
 }
 
@@ -82,23 +82,23 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		// Instance → VPC
-		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+		if attrs.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→vpc relationship: %w", err)
 			}
 		}
 		// Instance → Subnet
-		if attrs.SubnetId != nil {
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetId))
+		if attrs.SubnetID != nil {
+			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→subnet relationship: %w", err)
 			}
 		}
 		// Instance → Security Groups
 		for _, sg := range attrs.SecurityGroups {
-			if sg.GroupId != nil {
-				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", *sg.GroupId))
+			if sg.GroupID != nil {
+				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", *sg.GroupID))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→security-group relationship: %w", err)
 				}
@@ -106,8 +106,8 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		}
 		// Instance → EBS Volumes (from block device mappings)
 		for _, bdm := range attrs.BlockDeviceMappings {
-			if bdm.Ebs != nil && bdm.Ebs.VolumeId != nil {
-				volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeId))
+			if bdm.Ebs != nil && bdm.Ebs.VolumeID != nil {
+				volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeID))
 				if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert instance→volume relationship: %w", err)
 				}
@@ -129,7 +129,7 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		// Instance → AMI (self-owned only; public/Marketplace AMIs skipped).
-		if id := sv(attrs.ImageId); id != "" {
+		if id := sv(attrs.ImageID); id != "" {
 			amiID := store.ResourceID("aws", acct.ID, TypeEC2Image, ec2ARN(region, acct.ID, "image", id))
 			if _, ok := imageByID[amiID]; ok {
 				if err := st.UpsertRelationship(r.ID, amiID, store.RelUses, "directed", nil); err != nil {
@@ -139,11 +139,11 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 		}
 		// Instance → Network Interfaces
 		for _, eni := range attrs.NetworkInterfaces {
-			if sv(eni.NetworkInterfaceId) == "" {
+			if sv(eni.NetworkInterfaceID) == "" {
 				continue
 			}
 			eniID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface,
-				ec2ARN(region, acct.ID, "network-interface", *eni.NetworkInterfaceId))
+				ec2ARN(region, acct.ID, "network-interface", *eni.NetworkInterfaceID))
 			if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance→eni relationship: %w", err)
 			}
@@ -163,23 +163,23 @@ func resolveSecurityGroupVPCAssociationRelationships(acct *account, st *store.St
 	}
 	for _, r := range assocs {
 		var attrs struct {
-			GroupId *string `json:"GroupId"`
-			VpcId   *string `json:"VpcId"`
+			GroupID *string `json:"GroupID"`
+			VpcID   *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.GroupId != nil {
+		if attrs.GroupID != nil {
 			sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup,
-				ec2ARN(region, acct.ID, "security-group", *attrs.GroupId))
+				ec2ARN(region, acct.ID, "security-group", *attrs.GroupID))
 			if err := st.UpsertRelationship(r.ID, sgID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sg-vpc-assoc→sg relationship: %w", err)
 			}
 		}
-		if attrs.VpcId != nil {
+		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert sg-vpc-assoc→vpc relationship: %w", err)
 			}
@@ -198,21 +198,21 @@ func resolveInstanceConnectEndpointRelationships(acct *account, st *store.Store)
 	}
 	for _, r := range ices {
 		var attrs struct {
-			SubnetId *string `json:"SubnetId"`
-			VpcId    *string `json:"VpcId"`
+			SubnetID *string `json:"SubnetID"`
+			VpcID    *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.SubnetId != nil {
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetId))
+		if attrs.SubnetID != nil {
+			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance-connect-endpoint→subnet relationship: %w", err)
 			}
 		}
-		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+		if attrs.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert instance-connect-endpoint→vpc relationship: %w", err)
 			}

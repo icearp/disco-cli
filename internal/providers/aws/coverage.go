@@ -239,7 +239,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCloudFrontKeyValueStore:              "AWS::CloudFront::KeyValueStore",
 		TypeCloudFrontPublicKey:                  "AWS::CloudFront::PublicKey",
 		TypeCloudFrontTrustStore:                 "AWS::CloudFront::TrustStore",
-		TypeCloudFrontAnycastIpList:              "AWS::CloudFront::AnycastIpList",
+		TypeCloudFrontAnycastIPList:              "AWS::CloudFront::AnycastIpList",
 		TypeCloudFrontCachePolicy:                "AWS::CloudFront::CachePolicy",
 		TypeCloudFrontContinuousDeploymentPolicy: "AWS::CloudFront::ContinuousDeploymentPolicy",
 		TypeCloudFrontFunction:                   "AWS::CloudFront::Function",

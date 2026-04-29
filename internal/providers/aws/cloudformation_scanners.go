@@ -50,16 +50,20 @@ type cloudformationAPI interface {
 func scanCloudFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloudformation.NewFromConfig(acct.cfg, func(o *cloudformation.Options) { o.Region = region })
 
-	if t, i, ferr := scanCloudFormationStacks(ctx, client, acct, region, st, scanID); ferr != nil {
-		return 0, 0, ferr
-	} else {
+	{
+		t, i, ferr := scanCloudFormationStacks(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return 0, 0, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanCloudFormationStackSets(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanCloudFormationStackSets(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

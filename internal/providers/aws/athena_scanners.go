@@ -39,16 +39,20 @@ type athenaAPI interface {
 func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
 
-	if t, i, ferr := scanAthenaWorkGroups(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanAthenaWorkGroups(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanAthenaDataCatalogs(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanAthenaDataCatalogs(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

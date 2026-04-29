@@ -49,9 +49,11 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 		return total, inserted, nil
 	}
 
-	if t, i, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

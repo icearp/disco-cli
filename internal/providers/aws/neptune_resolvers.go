@@ -16,9 +16,9 @@ func init() {
 // neptuneClusterAttrs mirrors the verbatim DBCluster fields used by
 // the resolver. PascalCase tags match mustJSON of the SDK v2 struct.
 type neptuneClusterAttrs struct {
-	KmsKeyId          *string `json:"KmsKeyId"`
+	KmsKeyID          *string `json:"KmsKeyID"`
 	VpcSecurityGroups []struct {
-		VpcSecurityGroupId *string `json:"VpcSecurityGroupId"`
+		VpcSecurityGroupID *string `json:"VpcSecurityGroupID"`
 	} `json:"VpcSecurityGroups"`
 }
 
@@ -62,7 +62,7 @@ func resolveNeptuneClusterTargets(acct *account, st *store.Store) error {
 			region = *c.Region
 		}
 
-		if keyRef := sv(attrs.KmsKeyId); keyRef != "" {
+		if keyRef := sv(attrs.KmsKeyID); keyRef != "" {
 			if keyID, ok := kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID); ok {
 				if err := st.UpsertRelationship(c.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert neptune cluster→kms: %w", err)
@@ -71,7 +71,7 @@ func resolveNeptuneClusterTargets(acct *account, st *store.Store) error {
 		}
 
 		for _, sg := range attrs.VpcSecurityGroups {
-			id := sv(sg.VpcSecurityGroupId)
+			id := sv(sg.VpcSecurityGroupID)
 			if id == "" {
 				continue
 			}

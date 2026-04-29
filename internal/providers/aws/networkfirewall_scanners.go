@@ -44,25 +44,31 @@ func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *
 	client := networkfirewall.NewFromConfig(acct.cfg, func(o *networkfirewall.Options) { o.Region = region })
 
 	// Phase 1: firewalls
-	if t, i, ferr := scanNetworkFirewalls(ctx, client, acct, region, st, scanID); ferr != nil {
-		return 0, 0, ferr
-	} else {
+	{
+		t, i, ferr := scanNetworkFirewalls(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return 0, 0, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	// Phase 2: firewall policies
-	if t, i, ferr := scanNetworkFirewallPolicies(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanNetworkFirewallPolicies(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	// Phase 3: rule groups
-	if t, i, ferr := scanNetworkFirewallRuleGroups(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanNetworkFirewallRuleGroups(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

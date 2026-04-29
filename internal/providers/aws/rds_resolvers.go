@@ -38,10 +38,10 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		var attrs struct {
 			DBClusterIdentifier *string `json:"DBClusterIdentifier"`
 			DBSubnetGroup       *struct {
-				VpcId            *string `json:"VpcId"`
+				VpcID            *string `json:"VpcID"`
 				DBSubnetGroupArn *string `json:"DBSubnetGroupArn"`
 			} `json:"DBSubnetGroup"`
-			KmsKeyId               *string `json:"KmsKeyId"`
+			KmsKeyID               *string `json:"KmsKeyID"`
 			OptionGroupMemberships []struct {
 				OptionGroupName *string `json:"OptionGroupName"`
 			} `json:"OptionGroupMemberships"`
@@ -54,8 +54,8 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		// Instance → VPC (via subnet group)
-		if attrs.DBSubnetGroup != nil && attrs.DBSubnetGroup.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.DBSubnetGroup.VpcId))
+		if attrs.DBSubnetGroup != nil && attrs.DBSubnetGroup.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.DBSubnetGroup.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→vpc relationship: %w", err)
 			}
@@ -77,7 +77,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		}
 		// Instance → KMS key. resolveKMSKeyID handles ARN/alias/bare-id and
 		// returns ok=false when the target wasn't scanned.
-		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), region, acct.ID); ok {
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), region, acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→kms relationship: %w", err)
 			}
@@ -125,7 +125,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 		var attrs struct {
 			DBSubnetGroup           *string `json:"DBSubnetGroup"`
 			DBClusterParameterGroup *string `json:"DBClusterParameterGroup"`
-			KmsKeyId                *string `json:"KmsKeyId"`
+			KmsKeyID                *string `json:"KmsKeyID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -147,7 +147,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 		}
 		// Cluster → KMS key. resolveKMSKeyID normalizes ref shape and skips
 		// when target was not scanned.
-		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), sv(r.Region), acct.ID); ok {
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-cluster→kms relationship: %w", err)
 			}
@@ -167,13 +167,13 @@ func resolveDBSubnetGroupRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range sngs {
 		var attrs struct {
-			VpcId *string `json:"VpcId"`
+			VpcID *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
+		if attrs.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-subnet-group→vpc relationship: %w", err)
 			}
@@ -193,13 +193,13 @@ func resolveDBProxyRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range proxies {
 		var attrs struct {
-			VpcId *string `json:"VpcId"`
+			VpcID *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcId))
+		if attrs.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-proxy→vpc relationship: %w", err)
 			}

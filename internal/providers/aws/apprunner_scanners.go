@@ -43,16 +43,20 @@ type apprunnerAPI interface {
 func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apprunner.NewFromConfig(acct.cfg, func(o *apprunner.Options) { o.Region = region })
 
-	if t, i, ferr := scanAppRunnerServices(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanAppRunnerServices(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanAppRunnerVPCConnectors(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanAppRunnerVPCConnectors(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

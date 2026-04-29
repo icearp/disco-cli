@@ -57,20 +57,20 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 		var attrs struct {
 			AliasName   *string `json:"AliasName"`
 			AliasArn    *string `json:"AliasArn"`
-			TargetKeyId *string `json:"TargetKeyId"`
+			TargetKeyID *string `json:"TargetKeyID"`
 		}
 		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.AliasName == nil || attrs.TargetKeyId == nil {
+		if attrs.AliasName == nil || attrs.TargetKeyID == nil {
 			continue
 		}
 		region := ""
 		if a.Region != nil {
 			region = *a.Region
 		}
-		// TargetKeyId is the bare key UUID; build the canonical key ARN.
-		keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, acct.ID, *attrs.TargetKeyId)
+		// TargetKeyID is the bare key UUID; build the canonical key ARN.
+		keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, acct.ID, *attrs.TargetKeyID)
 		idx.aliasToKeyARN[*attrs.AliasName] = keyARN
 		if attrs.AliasArn != nil {
 			idx.aliasToKeyARN[*attrs.AliasArn] = keyARN

@@ -26,7 +26,7 @@ func resolveSSMRelationships(acct *account, st *store.Store) error {
 		return err
 	}
 	type attrs struct {
-		KeyId *string `json:"KeyId"`
+		KeyID *string `json:"KeyID"`
 		Type  string  `json:"Type"`
 	}
 	for _, r := range params {
@@ -41,7 +41,7 @@ func resolveSSMRelationships(acct *account, st *store.Store) error {
 		if r.Region != nil {
 			region = *r.Region
 		}
-		keyID, ok := kmsIdx.resolveKMSKeyID(sv(a.KeyId), region, acct.ID)
+		keyID, ok := kmsIdx.resolveKMSKeyID(sv(a.KeyID), region, acct.ID)
 		if !ok {
 			continue
 		}

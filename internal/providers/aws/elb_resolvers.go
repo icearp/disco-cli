@@ -31,16 +31,16 @@ func resolveELBv2LBRelationships(acct *account, st *store.Store) error {
 	for _, r := range lbs {
 		var attrs struct {
 			Lb *struct {
-				VpcId *string `json:"VpcId"`
+				VpcID *string `json:"VpcID"`
 			} `json:"lb"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.Lb == nil || attrs.Lb.VpcId == nil {
+		if attrs.Lb == nil || attrs.Lb.VpcID == nil {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcId))
+		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcID))
 		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lb→vpc relationship: %w", err)
 		}
@@ -160,19 +160,19 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 		// Scanner wraps TG details as {"TargetGroup":{...},"Targets":[...]}.
 		var attrs struct {
 			TargetGroup struct {
-				VpcId      *string `json:"VpcId"`
+				VpcID      *string `json:"VpcID"`
 				TargetType *string `json:"TargetType"`
 			} `json:"TargetGroup"`
 			Targets []struct {
-				Id *string `json:"Id"`
+				ID *string `json:"ID"`
 			} `json:"Targets"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TargetGroup.VpcId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcId))
+		if attrs.TargetGroup.VpcID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert target-group→vpc relationship: %w", err)
 			}
@@ -180,7 +180,7 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 		// Target group → registered targets (lambda or instance).
 		tType := sv(attrs.TargetGroup.TargetType)
 		for _, tgt := range attrs.Targets {
-			id := sv(tgt.Id)
+			id := sv(tgt.ID)
 			if id == "" {
 				continue
 			}

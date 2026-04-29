@@ -23,23 +23,23 @@ func resolveTrafficMirrorSessionRelationships(acct *account, st *store.Store) er
 	}
 	for _, r := range sessions {
 		var attrs struct {
-			TrafficMirrorFilterId *string `json:"TrafficMirrorFilterId"`
-			TrafficMirrorTargetId *string `json:"TrafficMirrorTargetId"`
+			TrafficMirrorFilterID *string `json:"TrafficMirrorFilterID"`
+			TrafficMirrorTargetID *string `json:"TrafficMirrorTargetID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TrafficMirrorFilterId != nil {
+		if attrs.TrafficMirrorFilterID != nil {
 			filterID := store.ResourceID("aws", acct.ID, TypeEC2TrafficMirrorFilter,
-				ec2ARN(region, acct.ID, "traffic-mirror-filter", *attrs.TrafficMirrorFilterId))
+				ec2ARN(region, acct.ID, "traffic-mirror-filter", *attrs.TrafficMirrorFilterID))
 			if err := st.UpsertRelationship(r.ID, filterID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert traffic-mirror-session→filter relationship: %w", err)
 			}
 		}
-		if attrs.TrafficMirrorTargetId != nil {
+		if attrs.TrafficMirrorTargetID != nil {
 			targetID := store.ResourceID("aws", acct.ID, TypeEC2TrafficMirrorTarget,
-				ec2ARN(region, acct.ID, "traffic-mirror-target", *attrs.TrafficMirrorTargetId))
+				ec2ARN(region, acct.ID, "traffic-mirror-target", *attrs.TrafficMirrorTargetID))
 			if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert traffic-mirror-session→target relationship: %w", err)
 			}

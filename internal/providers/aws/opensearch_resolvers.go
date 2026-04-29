@@ -18,17 +18,17 @@ func init() {
 type opensearchDomainAttrs struct {
 	VPCOptions *struct {
 		VPCId            *string  `json:"VPCId"`
-		SubnetIds        []string `json:"SubnetIds"`
-		SecurityGroupIds []string `json:"SecurityGroupIds"`
+		SubnetIDs        []string `json:"SubnetIDs"`
+		SecurityGroupIDs []string `json:"SecurityGroupIDs"`
 	} `json:"VPCOptions"`
 	EncryptionAtRestOptions *struct {
 		Enabled  *bool   `json:"Enabled"`
-		KmsKeyId *string `json:"KmsKeyId"`
+		KmsKeyID *string `json:"KmsKeyID"`
 	} `json:"EncryptionAtRestOptions"`
 	CognitoOptions *struct {
 		Enabled        *bool   `json:"Enabled"`
-		UserPoolId     *string `json:"UserPoolId"`
-		IdentityPoolId *string `json:"IdentityPoolId"`
+		UserPoolID     *string `json:"UserPoolID"`
+		IdentityPoolID *string `json:"IdentityPoolID"`
 		RoleArn        *string `json:"RoleArn"`
 	} `json:"CognitoOptions"`
 	LogPublishingOptions map[string]struct {
@@ -39,11 +39,11 @@ type opensearchDomainAttrs struct {
 
 // resolveOpenSearchDomainTargets emits the domain's outbound edges:
 //   - domain → VPC (attached-to) via VPCOptions.VPCId
-//   - domain → subnet (uses) per VPCOptions.SubnetIds[]
-//   - domain → security group (uses) per VPCOptions.SecurityGroupIds[]
-//   - domain → KMS key (uses) via EncryptionAtRestOptions.KmsKeyId
-//   - domain → Cognito user-pool (uses) via CognitoOptions.UserPoolId
-//   - domain → Cognito identity-pool (uses) via CognitoOptions.IdentityPoolId
+//   - domain → subnet (uses) per VPCOptions.SubnetIDs[]
+//   - domain → security group (uses) per VPCOptions.SecurityGroupIDs[]
+//   - domain → KMS key (uses) via EncryptionAtRestOptions.KmsKeyID
+//   - domain → Cognito user-pool (uses) via CognitoOptions.UserPoolID
+//   - domain → Cognito identity-pool (uses) via CognitoOptions.IdentityPoolID
 //   - domain → IAM role (assumes) via CognitoOptions.RoleArn
 //   - domain → CloudWatch log-group (uses) per
 //     LogPublishingOptions[*].CloudWatchLogsLogGroupArn
@@ -158,7 +158,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 			}
 		}
 	}
-	for _, sn := range attrs.VPCOptions.SubnetIds {
+	for _, sn := range attrs.VPCOptions.SubnetIDs {
 		if sn == "" {
 			continue
 		}
@@ -170,7 +170,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 			}
 		}
 	}
-	for _, sg := range attrs.VPCOptions.SecurityGroupIds {
+	for _, sg := range attrs.VPCOptions.SecurityGroupIDs {
 		if sg == "" {
 			continue
 		}
@@ -189,7 +189,7 @@ func emitOpenSearchKMSEdge(st *store.Store, acct *account, d store.Resource, reg
 	if attrs.EncryptionAtRestOptions == nil {
 		return nil
 	}
-	keyRef := sv(attrs.EncryptionAtRestOptions.KmsKeyId)
+	keyRef := sv(attrs.EncryptionAtRestOptions.KmsKeyID)
 	if keyRef == "" {
 		return nil
 	}
@@ -207,7 +207,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 	if attrs.CognitoOptions == nil {
 		return nil
 	}
-	if upID := sv(attrs.CognitoOptions.UserPoolId); upID != "" {
+	if upID := sv(attrs.CognitoOptions.UserPoolID); upID != "" {
 		upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, upID)
 		uID := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
 		if _, ok := sets.userPoolIDs[uID]; ok {
@@ -216,7 +216,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 			}
 		}
 	}
-	if ipID := sv(attrs.CognitoOptions.IdentityPoolId); ipID != "" {
+	if ipID := sv(attrs.CognitoOptions.IdentityPoolID); ipID != "" {
 		ipARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
 		iID := store.ResourceID("aws", acct.ID, TypeCognitoIdentityPool, ipARN)
 		if _, ok := sets.identityPoolIDs[iID]; ok {

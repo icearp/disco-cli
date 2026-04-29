@@ -18,7 +18,7 @@ func init() {
 type macieJobAttrs struct {
 	S3JobDefinition *struct {
 		BucketDefinitions []struct {
-			AccountId *string  `json:"AccountId"`
+			AccountID *string  `json:"AccountID"`
 			Buckets   []string `json:"Buckets"`
 		} `json:"BucketDefinitions"`
 	} `json:"S3JobDefinition"`

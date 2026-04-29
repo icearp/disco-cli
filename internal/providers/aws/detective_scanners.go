@@ -51,9 +51,11 @@ func scanDetective(ctx context.Context, acct *account, region string, st *store.
 	}
 
 	// Phase 2: member accounts per graph (paginator + fan-out).
-	if t, i, ferr := scanDetectiveMembers(ctx, client, acct, region, st, scanID, graphARNs); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanDetectiveMembers(ctx, client, acct, region, st, scanID, graphARNs)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

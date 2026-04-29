@@ -66,16 +66,20 @@ func isControlTowerNotEnabled(err error) bool {
 func scanControlTower(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := controltower.NewFromConfig(acct.cfg, func(o *controltower.Options) { o.Region = region })
 
-	if t, i, ferr := scanControlTowerLandingZones(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanControlTowerLandingZones(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanControlTowerEnabledBaselines(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanControlTowerEnabledBaselines(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

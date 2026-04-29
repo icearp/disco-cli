@@ -27,9 +27,9 @@ func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range atts {
 		var attrs struct {
-			TransitGatewayId  *string `json:"TransitGatewayId"`
+			TransitGatewayID  *string `json:"TransitGatewayID"`
 			TransitGatewayArn *string `json:"TransitGatewayArn"`
-			ResourceId        *string `json:"ResourceId"`   // VPC ID when ResourceType == "vpc"
+			ResourceID        *string `json:"ResourceID"`   // VPC ID when ResourceType == "vpc"
 			ResourceType      *string `json:"ResourceType"` // "vpc", "vpn", "peering", etc.
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -42,15 +42,15 @@ func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-attachment→transit-gateway relationship: %w", err)
 			}
-		} else if attrs.TransitGatewayId != nil {
-			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayId))
+		} else if attrs.TransitGatewayID != nil {
+			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-attachment→transit-gateway relationship: %w", err)
 			}
 		}
 		// Attachment → VPC (only when ResourceType is "vpc").
-		if attrs.ResourceType != nil && *attrs.ResourceType == "vpc" && attrs.ResourceId != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.ResourceId))
+		if attrs.ResourceType != nil && *attrs.ResourceType == "vpc" && attrs.ResourceID != nil {
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.ResourceID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-attachment→vpc relationship: %w", err)
 			}
@@ -71,15 +71,15 @@ func resolveTGWConnectRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range conns {
 		var attrs struct {
-			TransitGatewayId *string `json:"TransitGatewayId"`
+			TransitGatewayID *string `json:"TransitGatewayID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TransitGatewayId != nil {
+		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayId))
+				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-connect→tgw relationship: %w", err)
 			}
@@ -99,15 +99,15 @@ func resolveTGWConnectPeerRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range peers {
 		var attrs struct {
-			TransitGatewayAttachmentId *string `json:"TransitGatewayAttachmentId"`
+			TransitGatewayAttachmentID *string `json:"TransitGatewayAttachmentID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TransitGatewayAttachmentId != nil {
+		if attrs.TransitGatewayAttachmentID != nil {
 			connID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayConnect,
-				ec2ARN(region, acct.ID, "transit-gateway-connect", *attrs.TransitGatewayAttachmentId))
+				ec2ARN(region, acct.ID, "transit-gateway-connect", *attrs.TransitGatewayAttachmentID))
 			if err := st.UpsertRelationship(r.ID, connID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-connect-peer→tgw-connect relationship: %w", err)
 			}
@@ -127,15 +127,15 @@ func resolveTGWMulticastDomainRelationships(acct *account, st *store.Store) erro
 	}
 	for _, r := range domains {
 		var attrs struct {
-			TransitGatewayId *string `json:"TransitGatewayId"`
+			TransitGatewayID *string `json:"TransitGatewayID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TransitGatewayId != nil {
+		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayId))
+				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-mcast-domain→tgw relationship: %w", err)
 			}
@@ -155,15 +155,15 @@ func resolveTGWRouteTableRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range rts {
 		var attrs struct {
-			TransitGatewayId *string `json:"TransitGatewayId"`
+			TransitGatewayID *string `json:"TransitGatewayID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TransitGatewayId != nil {
+		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayId))
+				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-route-table→tgw relationship: %w", err)
 			}
@@ -183,23 +183,23 @@ func resolveTGWVPCAttachmentRelationships(acct *account, st *store.Store) error 
 	}
 	for _, r := range atts {
 		var attrs struct {
-			TransitGatewayId *string `json:"TransitGatewayId"`
-			VpcId            *string `json:"VpcId"`
+			TransitGatewayID *string `json:"TransitGatewayID"`
+			VpcID            *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if attrs.TransitGatewayId != nil {
+		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayId))
+				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-vpc-att→tgw relationship: %w", err)
 			}
 		}
-		if attrs.VpcId != nil {
+		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-vpc-att→vpc relationship: %w", err)
 			}

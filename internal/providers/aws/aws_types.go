@@ -220,7 +220,7 @@ const (
 	TypeElastiCacheUserGroup              = "aws:elasticache:user-group"
 	// CloudFront
 	TypeCloudFrontDistribution               = "aws:cloudfront:distribution"
-	TypeCloudFrontAnycastIpList              = "aws:cloudfront:anycast-ip-list"
+	TypeCloudFrontAnycastIPList              = "aws:cloudfront:anycast-ip-list"
 	TypeCloudFrontCachePolicy                = "aws:cloudfront:cache-policy"
 	TypeCloudFrontOAI                        = "aws:cloudfront:cloud-front-origin-access-identity"
 	TypeCloudFrontConnectionFunction         = "aws:cloudfront:connection-function"

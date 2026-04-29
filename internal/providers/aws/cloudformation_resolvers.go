@@ -18,8 +18,8 @@ func init() {
 // Only the fields the resolver consumes are listed.
 type cfnStackAttrs struct {
 	Resources []struct {
-		LogicalResourceId  *string `json:"LogicalResourceId"`
-		PhysicalResourceId *string `json:"PhysicalResourceId"`
+		LogicalResourceID  *string `json:"LogicalResourceID"`
+		PhysicalResourceID *string `json:"PhysicalResourceID"`
 		ResourceType       *string `json:"ResourceType"`
 		ResourceStatus     string  `json:"ResourceStatus"`
 	} `json:"Resources"`
@@ -28,14 +28,14 @@ type cfnStackAttrs struct {
 // cfnStackSetAttrs mirrors stackSetWithInstances.
 type cfnStackSetAttrs struct {
 	Instances []struct {
-		StackId *string `json:"StackId"`
+		StackID *string `json:"StackID"`
 		Account *string `json:"Account"`
 		Region  *string `json:"Region"`
 	} `json:"Instances"`
 }
 
 // cfnTypeBinding maps one CloudFormation ResourceType to a disco type plus
-// the function that turns the CloudFormation PhysicalResourceId (which varies
+// the function that turns the CloudFormation PhysicalResourceID (which varies
 // in shape per service — sometimes the ARN, sometimes a bare name or ID)
 // into the disco NativeID. Returning empty string skips this row, used for
 // shapes like custom-bus EventBridge rules where physID alone can't rebuild
@@ -46,14 +46,14 @@ type cfnTypeBinding struct {
 }
 
 // passthrough returns the physID verbatim, used for services where CloudFormation
-// PhysicalResourceId already matches disco NativeID (full ARNs).
+// PhysicalResourceID already matches disco NativeID (full ARNs).
 func passthrough(physID, _, _ string) string { return physID }
 
 // cfnTypeMap is the dispatch table from `AWS::Service::Resource` to disco type
 // + NativeID synthesis. Adding a new service edge is one row here, no
 // resolver-level changes needed.
 //
-// Most AWS services return PhysicalResourceId = full ARN — those use
+// Most AWS services return PhysicalResourceID = full ARN — those use
 // passthrough. The rest synthesize from a name or ID using the same ARN
 // shape the corresponding disco scanner stores.
 var cfnTypeMap = map[string]cfnTypeBinding{
@@ -85,7 +85,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		},
 	},
 	"AWS::IAM::ManagedPolicy": {
-		// Managed policies set PhysicalResourceId to the full policy ARN.
+		// Managed policies set PhysicalResourceID to the full policy ARN.
 		discoType: TypeIAMPolicy, toNativeID: passthrough,
 	},
 	"AWS::Lambda::Function": {
@@ -98,7 +98,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		},
 	},
 	"AWS::Lambda::LayerVersion": {
-		// PhysicalResourceId for layer versions is the full layer-version ARN.
+		// PhysicalResourceID for layer versions is the full layer-version ARN.
 		discoType: TypeLambdaLayerVersion, toNativeID: passthrough,
 	},
 	"AWS::EC2::Instance": {
@@ -148,7 +148,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::SNS::Topic": {discoType: TypeSNSTopic, toNativeID: passthrough},
 	"AWS::SQS::Queue": {
-		// PhysicalResourceId for SQS is the queue URL —
+		// PhysicalResourceID for SQS is the queue URL —
 		// https://sqs.{region}.amazonaws.com/{acct}/{name} — but disco's
 		// queue NativeID is the ARN. Take the trailing path segment as the
 		// queue name; region/acct come from the stack row itself, not the URL.
@@ -203,7 +203,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::StepFunctions::StateMachine": {discoType: TypeSFNStateMachine, toNativeID: passthrough},
 	"AWS::Events::Rule": {
-		// Custom-bus rules set PhysicalResourceId to a bare name with no
+		// Custom-bus rules set PhysicalResourceID to a bare name with no
 		// embedded bus reference, so we cannot reconstruct the canonical
 		// ARN. Skip those (return empty); only default-bus rules resolve.
 		// Default-bus name is just the rule name; custom-bus shows up as
@@ -253,7 +253,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		},
 	},
 	"AWS::SSM::Parameter": {
-		// CloudFormation's PhysicalResourceId for SSM parameters drops the
+		// CloudFormation's PhysicalResourceID for SSM parameters drops the
 		// leading slash that bare names have in the API. Disco's SSM scanner
 		// stores the canonical ARN with `parameter/{name}` (no double slash).
 		discoType: TypeSSMParameter,
@@ -285,7 +285,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		},
 	},
 	"AWS::CloudFormation::Stack": {
-		// Nested-stack PhysicalResourceId is the child stack's full ARN.
+		// Nested-stack PhysicalResourceID is the child stack's full ARN.
 		discoType: TypeCloudFormationStack, toNativeID: passthrough,
 	},
 }
@@ -330,7 +330,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 		}
 		region := sv(s.Region)
 		for _, res := range attrs.Resources {
-			physID := sv(res.PhysicalResourceId)
+			physID := sv(res.PhysicalResourceID)
 			rtype := sv(res.ResourceType)
 			if physID == "" || rtype == "" {
 				continue
@@ -359,7 +359,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 }
 
 // resolveCloudFormationStackSetInstances emits a `contains` edge from each
-// stack-set to every deployed stack instance whose StackId is in the scan.
+// stack-set to every deployed stack instance whose StackID is in the scan.
 // Cross-account / cross-region instances skip silently — the deployed stack
 // only exists in disco's graph if the scanner credentials covered that
 // account+region.
@@ -387,7 +387,7 @@ func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) erro
 			continue
 		}
 		for _, inst := range attrs.Instances {
-			arn := sv(inst.StackId)
+			arn := sv(inst.StackID)
 			instAcct := sv(inst.Account)
 			if arn == "" || instAcct == "" {
 				continue

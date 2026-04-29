@@ -50,14 +50,14 @@ type sqlDatabase struct {
 // Servers, instance pools, virtual clusters, and managed instances are scanned in parallel.
 func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
-		mu     sync.Mutex
-		total_ int
-		ins_   int
+		mu  sync.Mutex
+		tot int
+		ins int
 	)
 	add := func(t, i int) {
 		mu.Lock()
-		total_ += t
-		ins_ += i
+		tot += t
+		ins += i
 		mu.Unlock()
 	}
 
@@ -85,7 +85,7 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	if err := g.Wait(); err != nil {
 		return 0, 0, err
 	}
-	return total_, ins_, nil
+	return tot, ins, nil
 }
 
 // scanSQLServersAndChildren lists servers, then fans out concurrently to databases

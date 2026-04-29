@@ -57,7 +57,7 @@ func init() {
 			{Service: "cloudfront", DiscoType: TypeCloudFrontKeyValueStore},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontPublicKey},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontTrustStore},
-			{Service: "cloudfront", DiscoType: TypeCloudFrontAnycastIpList},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontAnycastIPList},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontCachePolicy},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontContinuousDeploymentPolicy},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontFunction},
@@ -129,7 +129,7 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 			return scanCloudFrontConnectionGroups(ctx, acct, client, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontAnycastIpLists(ctx, acct, client, st, scanID)
+			return scanCloudFrontAnycastIPLists(ctx, acct, client, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID)
@@ -1042,8 +1042,8 @@ func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client c
 
 // --- Anycast IP Lists ---
 
-// scanCloudFrontAnycastIpLists discovers Anycast static IP lists.
-func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanCloudFrontAnycastIPLists discovers Anycast static IP lists.
+func scanCloudFrontAnycastIPLists(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	return cfMarkerScan(ctx, "cloudfront:ListAnycastIpLists", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListAnycastIpListsOutput, *string, error) {
 			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
@@ -1065,7 +1065,7 @@ func scanCloudFrontAnycastIpLists(ctx context.Context, acct *account, client clo
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
-					Type:           TypeCloudFrontAnycastIpList,
+					Type:           TypeCloudFrontAnycastIPList,
 					NativeID:       sv(a.Arn),
 					Name:           a.Name,
 					AttributesJSON: mustJSON(a),

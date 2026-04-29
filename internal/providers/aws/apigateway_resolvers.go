@@ -189,8 +189,8 @@ func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) er
 
 // resolveAPIGatewayMethodRelationships walks each method's MethodIntegration
 // and emits edges to the backend. Lambda proxy/non-proxy integrations produce
-// a uses→Lambda function edge (extracted from the Uri). VPC_LINK integrations
-// produce an attached-to→VpcLink edge (ConnectionId).
+// a uses→Lambda function edge (extracted from the URI). VPC_LINK integrations
+// produce an attached-to→VpcLink edge (ConnectionID).
 func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error {
 	methods, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayMethod},
@@ -203,22 +203,22 @@ func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error 
 		var attrs struct {
 			MethodIntegration *struct {
 				Type         *string `json:"Type"`
-				Uri          *string `json:"Uri"`
-				ConnectionId *string `json:"ConnectionId"`
+				URI          *string `json:"URI"`
+				ConnectionID *string `json:"ConnectionID"`
 			} `json:"MethodIntegration"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.MethodIntegration == nil {
 			continue
 		}
 		integ := attrs.MethodIntegration
-		if fnARN := apigwLambdaInvokeARN(sv(integ.Uri)); fnARN != "" {
+		if fnARN := apigwLambdaInvokeARN(sv(integ.URI)); fnARN != "" {
 			fnID := store.ResourceID("aws", acct.ID, TypeLambdaFunction, fnARN)
 			if err := st.UpsertRelationship(r.ID, fnID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apigw-method→lambda: %w", err)
 			}
 		}
-		if sv(integ.Type) == "VPC_LINK" && sv(integ.ConnectionId) != "" {
-			vpcLinkARN := apigatewayARN(sv(r.Region), "vpclinks", *integ.ConnectionId)
+		if sv(integ.Type) == "VPC_LINK" && sv(integ.ConnectionID) != "" {
+			vpcLinkARN := apigatewayARN(sv(r.Region), "vpclinks", *integ.ConnectionID)
 			vpcLinkID := store.ResourceID("aws", acct.ID, TypeAPIGatewayVpcLink, vpcLinkARN)
 			if err := st.UpsertRelationship(r.ID, vpcLinkID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apigw-method→vpclink: %w", err)
@@ -229,7 +229,7 @@ func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error 
 }
 
 // apigwLambdaInvokeARN extracts the Lambda function ARN from an API Gateway
-// integration Uri. Lambda integration Uri format:
+// integration URI. Lambda integration URI format:
 // arn:aws:apigateway:{r}:lambda:path/2015-03-31/functions/{fnARN}/invocations
 // Returns "" if uri is not a Lambda integration.
 func apigwLambdaInvokeARN(uri string) string {
@@ -248,8 +248,8 @@ func apigwLambdaInvokeARN(uri string) string {
 }
 
 // resolveAPIGatewayStageRelationships links each stage to:
-//   - its deployment via attaches-to (DeploymentId in attrs)
-//   - its client certificate via uses (ClientCertificateId in attrs)
+//   - its deployment via attaches-to (DeploymentID in attrs)
+//   - its client certificate via uses (ClientCertificateID in attrs)
 //   - its parent REST API via contains (REST API ID extracted from the stage ARN)
 //
 // Stage ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
@@ -274,34 +274,34 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 		}
 
 		var attrs struct {
-			DeploymentId        *string `json:"DeploymentId"`
-			ClientCertificateId *string `json:"ClientCertificateId"`
-			WebAclArn           *string `json:"WebAclArn"`
+			DeploymentID        *string `json:"DeploymentID"`
+			ClientCertificateID *string `json:"ClientCertificateID"`
+			WebACLArn           *string `json:"WebACLArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 
-		if attrs.DeploymentId != nil && *attrs.DeploymentId != "" && apiID != "" {
+		if attrs.DeploymentID != nil && *attrs.DeploymentID != "" && apiID != "" {
 			// Reconstruct deployment ARN from stage ARN components.
-			deployARN := apiGatewayPerAPIChildARN(r.NativeID, "deployments", *attrs.DeploymentId)
+			deployARN := apiGatewayPerAPIChildARN(r.NativeID, "deployments", *attrs.DeploymentID)
 			deployID := store.ResourceID("aws", acct.ID, TypeAPIGatewayDeployment, deployARN)
 			if err := st.UpsertRelationship(r.ID, deployID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert stage→deployment: %w", err)
 			}
 		}
 
-		if attrs.ClientCertificateId != nil && *attrs.ClientCertificateId != "" {
+		if attrs.ClientCertificateID != nil && *attrs.ClientCertificateID != "" {
 			region := sv(r.Region)
-			certARN := apigatewayARN(region, "clientcertificates", *attrs.ClientCertificateId)
+			certARN := apigatewayARN(region, "clientcertificates", *attrs.ClientCertificateID)
 			certID := store.ResourceID("aws", acct.ID, TypeAPIGatewayClientCertificate, certARN)
 			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert stage→client-certificate: %w", err)
 			}
 		}
 
-		if sv(attrs.WebAclArn) != "" {
-			aclID := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, *attrs.WebAclArn)
+		if sv(attrs.WebACLArn) != "" {
+			aclID := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, *attrs.WebACLArn)
 			if err := st.UpsertRelationship(r.ID, aclID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert stage→waf-web-acl: %w", err)
 			}
@@ -312,7 +312,7 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 
 // resolveAPIGatewayBasePathMappingRelationships links each base-path mapping to:
 //   - its domain name via attached-to (domain name extracted from the mapping ARN)
-//   - its target REST API via routes-to (RestApiId in attrs)
+//   - its target REST API via routes-to (RestAPIID in attrs)
 //
 // Mapping ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
 func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Store) error {
@@ -337,13 +337,13 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 		}
 
 		var attrs struct {
-			RestApiId *string `json:"RestApiId"`
+			RestAPIID *string `json:"RestAPIID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.RestApiId != nil && *attrs.RestApiId != "" {
-			restAPIARN := apigatewayARN(region, "restapis", *attrs.RestApiId)
+		if attrs.RestAPIID != nil && *attrs.RestAPIID != "" {
+			restAPIARN := apigatewayARN(region, "restapis", *attrs.RestAPIID)
 			restAPIID := store.ResourceID("aws", acct.ID, TypeAPIGatewayRestAPI, restAPIARN)
 			if err := st.UpsertRelationship(r.ID, restAPIID, store.RelRoutesTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert base-path-mapping→rest-api: %w", err)
@@ -381,7 +381,7 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 
 // resolveAPIGatewayUsagePlanStages links each usage plan to the REST API
 // stages it applies to. The scanner stores the full GetUsagePlans item under
-// attributes; ApiStages[] carries {ApiId, Stage} pairs. Rebuild each stage's
+// attributes; APIStages[] carries {APIID, Stage} pairs. Rebuild each stage's
 // NativeID using the scanner's ARN shape
 // (arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emit an
 // attached-to edge.
@@ -395,17 +395,17 @@ func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
 	}
 	for _, p := range plans {
 		var attrs struct {
-			ApiStages []struct {
-				ApiId *string `json:"ApiId"`
+			APIStages []struct {
+				APIID *string `json:"APIID"`
 				Stage *string `json:"Stage"`
-			} `json:"ApiStages"`
+			} `json:"APIStages"`
 		}
 		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(p.Region)
-		for _, s := range attrs.ApiStages {
-			apiID := sv(s.ApiId)
+		for _, s := range attrs.APIStages {
+			apiID := sv(s.APIID)
 			stage := sv(s.Stage)
 			if apiID == "" || stage == "" {
 				continue

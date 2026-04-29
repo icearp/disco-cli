@@ -56,6 +56,7 @@ type Scanner struct {
 	profile        string   // "" = default AWS credential chain
 }
 
+// Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "aws" }
 
 // SetServiceFilter restricts the scan to the named services (e.g. "aws:ec2", "aws:iam").

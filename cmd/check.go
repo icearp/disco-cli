@@ -41,7 +41,7 @@ Examples:
   disco check --rules ./policies --severity high -o jsonl
   disco check --rules ./policies -o sarif > findings.sarif
   disco check --rules ./policies --exit-nonzero`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		if len(checkRulePaths) == 0 {
 			return fmt.Errorf("--rules is required (path to .rego file or directory)")
 		}
@@ -118,8 +118,8 @@ var severityRank = map[string]int{
 	"critical": 4,
 }
 
-func filterBySeverity(fs []policy.Finding, min string) []policy.Finding {
-	cutoff, ok := severityRank[strings.ToLower(min)]
+func filterBySeverity(fs []policy.Finding, minSeverity string) []policy.Finding {
+	cutoff, ok := severityRank[strings.ToLower(minSeverity)]
 	if !ok {
 		return fs
 	}

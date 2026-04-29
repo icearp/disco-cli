@@ -18,8 +18,8 @@ func init() {
 // permission-set → instance edge resolves without re-querying per row.
 type ssoInstanceIndex struct {
 	idByArn         map[string]string
-	identityStoreID map[string]string // InstanceArn → IdentityStoreId
-	ownerAcct       map[string]string // InstanceArn → OwnerAccountId
+	identityStoreID map[string]string // InstanceArn → IdentityStoreID
+	ownerAcct       map[string]string // InstanceArn → OwnerAccountID
 }
 
 func loadSSOInstanceIndex(acct *account, st *store.Store) (*ssoInstanceIndex, error) {
@@ -39,12 +39,12 @@ func loadSSOInstanceIndex(acct *account, st *store.Store) (*ssoInstanceIndex, er
 	for _, r := range rows {
 		idx.idByArn[r.NativeID] = r.ID
 		var meta struct {
-			IdentityStoreId *string `json:"IdentityStoreId"`
-			OwnerAccountId  *string `json:"OwnerAccountId"`
+			IdentityStoreID *string `json:"IdentityStoreID"`
+			OwnerAccountID  *string `json:"OwnerAccountID"`
 		}
 		_ = json.Unmarshal([]byte(r.AttributesJSON), &meta)
-		idx.identityStoreID[r.NativeID] = sv(meta.IdentityStoreId)
-		idx.ownerAcct[r.NativeID] = sv(meta.OwnerAccountId)
+		idx.identityStoreID[r.NativeID] = sv(meta.IdentityStoreID)
+		idx.ownerAcct[r.NativeID] = sv(meta.OwnerAccountID)
 	}
 	return idx, nil
 }
@@ -102,9 +102,9 @@ func resolveSSOPermissionSetInstance(acct *account, st *store.Store) error {
 // ssoAssignmentAttrs mirrors the AccountAssignment fields used by the
 // resolver — the rest stays in raw attrs JSON for query consumers.
 type ssoAssignmentAttrs struct {
-	AccountId        *string `json:"AccountId"`
+	AccountID        *string `json:"AccountID"`
 	PermissionSetArn *string `json:"PermissionSetArn"`
-	PrincipalId      *string `json:"PrincipalId"`
+	PrincipalID      *string `json:"PrincipalID"`
 	PrincipalType    string  `json:"PrincipalType"`
 }
 
@@ -173,7 +173,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 		if ownerAcct == "" {
 			ownerAcct = acct.ID
 		}
-		principalID := sv(attrs.PrincipalId)
+		principalID := sv(attrs.PrincipalID)
 		if identityStoreID != "" && principalID != "" {
 			switch attrs.PrincipalType {
 			case "USER":
@@ -193,7 +193,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 			}
 		}
 
-		if accountID := sv(attrs.AccountId); accountID != "" {
+		if accountID := sv(attrs.AccountID); accountID != "" {
 			if orgARN, ok := orgArnByID[accountID]; ok {
 				orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
 				if err := st.UpsertRelationship(a.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {

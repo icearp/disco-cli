@@ -20,7 +20,7 @@ type batchComputeEnvAttrs struct {
 	ComputeResources *struct {
 		InstanceRole     *string  `json:"InstanceRole"`
 		Subnets          []string `json:"Subnets"`
-		SecurityGroupIds []string `json:"SecurityGroupIds"`
+		SecurityGroupIDs []string `json:"SecurityGroupIDs"`
 	} `json:"ComputeResources"`
 }
 
@@ -28,7 +28,7 @@ type batchComputeEnvAttrs struct {
 //   - compute-env → IAM service role (assumes) via ServiceRole
 //   - compute-env → IAM instance role (assumes) via ComputeResources.InstanceRole
 //   - compute-env → subnet (uses) per ComputeResources.Subnets[]
-//   - compute-env → security group (uses) per ComputeResources.SecurityGroupIds[]
+//   - compute-env → security group (uses) per ComputeResources.SecurityGroupIDs[]
 //
 // FK-safe via per-type id sets. Cross-account refs skip silently.
 // Fargate compute-envs have no ComputeResources.InstanceRole/SecurityGroups —
@@ -106,7 +106,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 					}
 				}
 			}
-			for _, sg := range attrs.ComputeResources.SecurityGroupIds {
+			for _, sg := range attrs.ComputeResources.SecurityGroupIDs {
 				if sg == "" {
 					continue
 				}

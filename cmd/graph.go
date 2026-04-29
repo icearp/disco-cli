@@ -230,7 +230,7 @@ drop out by default. Pass --include-managed to keep them all.
 filter flags (--exclude-types, --exclude-regions, --max-nodes, --max-edges)
 work as for the seeded subcommands.`,
 	Args: cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)

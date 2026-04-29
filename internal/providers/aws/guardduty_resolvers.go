@@ -17,7 +17,7 @@ func init() {
 // guardDutyMemberAttrs mirrors the verbatim Member fields used by the
 // resolver. PascalCase tags match `mustJSON(guarddutytypes.Member)`.
 type guardDutyMemberAttrs struct {
-	AccountId *string `json:"AccountId"`
+	AccountID *string `json:"AccountID"`
 }
 
 // resolveGuardDutyMemberOrgAccount emits an `attached-to` edge from each
@@ -50,7 +50,7 @@ func resolveGuardDutyMemberOrgAccount(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		accountID := sv(attrs.AccountId)
+		accountID := sv(attrs.AccountID)
 		if accountID == "" {
 			continue
 		}

@@ -27,7 +27,7 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 
 	type trailInner struct {
 		S3BucketName              *string `json:"S3BucketName"`
-		KMSKeyId                  *string `json:"KMSKeyId"`
+		KMSKeyID                  *string `json:"KMSKeyID"`
 		CloudWatchLogsLogGroupArn *string `json:"CloudWatchLogsLogGroupArn"`
 	}
 	type attrs struct {
@@ -49,8 +49,8 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		// Trail → KMS key
-		if sv(t.KMSKeyId) != "" {
-			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *t.KMSKeyId)
+		if sv(t.KMSKeyID) != "" {
+			keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *t.KMSKeyID)
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail→kms: %w", err)
 			}
@@ -100,7 +100,7 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 	}
 
 	type attrs struct {
-		KmsKeyId          *string `json:"KmsKeyId"`
+		KmsKeyID          *string `json:"KmsKeyID"`
 		FederationRoleArn *string `json:"FederationRoleArn"`
 	}
 	for _, r := range eds {
@@ -109,7 +109,7 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 			continue
 		}
 		// EDS → KMS
-		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(a.KmsKeyId), sv(r.Region), acct.ID); ok {
+		if keyID, ok := kmsIdx.resolveKMSKeyID(sv(a.KmsKeyID), sv(r.Region), acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail-eds→kms: %w", err)
 			}

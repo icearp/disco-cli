@@ -27,7 +27,7 @@ func resolveKinesisStreamRelationships(acct *account, st *store.Store) error {
 	for _, r := range streams {
 		var attrs struct {
 			EncryptionType *string `json:"EncryptionType"`
-			KeyId          *string `json:"KeyId"`
+			KeyID          *string `json:"KeyID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -35,7 +35,7 @@ func resolveKinesisStreamRelationships(acct *account, st *store.Store) error {
 		if sv(attrs.EncryptionType) != "KMS" {
 			continue
 		}
-		keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KeyId), sv(r.Region), acct.ID)
+		keyID, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KeyID), sv(r.Region), acct.ID)
 		if !ok {
 			continue
 		}

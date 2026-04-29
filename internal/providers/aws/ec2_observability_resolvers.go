@@ -25,15 +25,15 @@ func resolveNetworkInsightsAnalysisRelationships(acct *account, st *store.Store)
 	}
 	for _, r := range analyses {
 		var attrs struct {
-			NetworkInsightsPathId *string `json:"NetworkInsightsPathId"`
+			NetworkInsightsPathID *string `json:"NetworkInsightsPathID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.NetworkInsightsPathId != nil {
+		if attrs.NetworkInsightsPathID != nil {
 			// Path NativeID is its ARN; ec2ARN reconstructs it from the path ID.
 			pathID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInsightsPath,
-				ec2ARN(sv(r.Region), acct.ID, "network-insights-path", *attrs.NetworkInsightsPathId))
+				ec2ARN(sv(r.Region), acct.ID, "network-insights-path", *attrs.NetworkInsightsPathID))
 			if err := st.UpsertRelationship(r.ID, pathID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-analysis→path relationship: %w", err)
 			}
@@ -54,15 +54,15 @@ func resolveNetworkInsightsAccessScopeAnalysisRelationships(acct *account, st *s
 	}
 	for _, r := range analyses {
 		var attrs struct {
-			NetworkInsightsAccessScopeId *string `json:"NetworkInsightsAccessScopeId"`
+			NetworkInsightsAccessScopeID *string `json:"NetworkInsightsAccessScopeID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.NetworkInsightsAccessScopeId != nil {
+		if attrs.NetworkInsightsAccessScopeID != nil {
 			// Scope NativeID is its ARN; ec2ARN reconstructs it from the scope ID.
 			scopeID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInsightsAccessScope,
-				ec2ARN(sv(r.Region), acct.ID, "network-insights-access-scope", *attrs.NetworkInsightsAccessScopeId))
+				ec2ARN(sv(r.Region), acct.ID, "network-insights-access-scope", *attrs.NetworkInsightsAccessScopeID))
 			if err := st.UpsertRelationship(r.ID, scopeID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-scope-analysis→scope relationship: %w", err)
 			}
@@ -81,13 +81,13 @@ func resolveFlowLogRelationships(acct *account, st *store.Store) error {
 	}
 	for _, r := range logs {
 		var attrs struct {
-			ResourceId   *string `json:"ResourceId"`
+			ResourceID   *string `json:"ResourceID"`
 			ResourceType *string `json:"ResourceType"` // "VPC", "Subnet", "NetworkInterface"
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ResourceId == nil || attrs.ResourceType == nil {
+		if attrs.ResourceID == nil || attrs.ResourceType == nil {
 			continue
 		}
 		region := sv(r.Region)
@@ -102,7 +102,7 @@ func resolveFlowLogRelationships(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, targetType, ec2ARN(region, acct.ID, arnResourceType, *attrs.ResourceId))
+		targetID := store.ResourceID("aws", acct.ID, targetType, ec2ARN(region, acct.ID, arnResourceType, *attrs.ResourceID))
 		if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert flow-log→resource relationship: %w", err)
 		}

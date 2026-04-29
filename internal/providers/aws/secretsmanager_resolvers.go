@@ -85,7 +85,7 @@ func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 }
 
 // resolveSecretsManagerKMS links each secret to the KMS key that encrypts it.
-// KmsKeyId is omitted when the AWS-managed default key is used — skip in that
+// KmsKeyID is omitted when the AWS-managed default key is used — skip in that
 // case since disco doesn't scan AWS-managed keys.
 func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
@@ -112,12 +112,12 @@ func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 	}
 	for _, s := range secrets {
 		var attrs struct {
-			KmsKeyId *string `json:"KmsKeyId"`
+			KmsKeyID *string `json:"KmsKeyID"`
 		}
-		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil || attrs.KmsKeyId == nil || *attrs.KmsKeyId == "" {
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil || attrs.KmsKeyID == nil || *attrs.KmsKeyID == "" {
 			continue
 		}
-		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyId)
+		keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, *attrs.KmsKeyID)
 		if !knownKey[keyID] {
 			continue
 		}

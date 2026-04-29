@@ -1,3 +1,7 @@
+// Package store is the SQLite persistence layer (modernc.org/sqlite,
+// CGO-free) for resources, relationships, hierarchy closure, and scan
+// lifecycle. See internal/store/CLAUDE.md for table shape and edge
+// kinds.
 package store
 
 import (
@@ -8,6 +12,8 @@ import (
 	"sync/atomic"
 
 	"github.com/jmoiron/sqlx"
+	// modernc.org/sqlite is the CGO-free SQLite driver; blank import
+	// registers it with database/sql so sqlx can open `sqlite` URIs.
 	_ "modernc.org/sqlite"
 )
 

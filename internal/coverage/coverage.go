@@ -53,6 +53,7 @@ type Provider interface {
 // Bucket classifies a single matrix row.
 type Bucket string
 
+// Bucket values; semantics documented in internal/coverage/CLAUDE.md.
 const (
 	BucketCovered         Bucket = "covered"
 	BucketUncovered       Bucket = "uncovered"

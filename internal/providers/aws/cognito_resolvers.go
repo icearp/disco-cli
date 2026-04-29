@@ -43,7 +43,7 @@ func resolveCognitoAppClientRelationships(acct *account, st *store.Store) error 
 // resolveCognitoIdentityPoolRelationships links each identity pool to:
 //   - IAM roles from its role mappings (authenticated / unauthenticated / custom)
 //   - the user pools feeding it via CognitoIdentityProviders[].ProviderName
-//   - the user-pool app clients via CognitoIdentityProviders[].ClientId
+//   - the user-pool app clients via CognitoIdentityProviders[].ClientID
 func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) error {
 	pools, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoIdentityPool},
@@ -54,7 +54,7 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 	}
 
 	type idpProvider struct {
-		ClientId     *string `json:"ClientId"`
+		ClientID     *string `json:"ClientID"`
 		ProviderName *string `json:"ProviderName"`
 	}
 	type poolInner struct {
@@ -97,7 +97,7 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 					if err := st.UpsertRelationship(r.ID, upID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cognito-identity-pool→user-pool: %w", err)
 					}
-					if clientID := sv(p.ClientId); clientID != "" {
+					if clientID := sv(p.ClientID); clientID != "" {
 						acARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", upRegion, acct.ID, poolNative, clientID)
 						acID := store.ResourceID("aws", acct.ID, TypeCognitoAppClient, acARN)
 						if err := st.UpsertRelationship(r.ID, acID, store.RelUses, "directed", nil); err != nil {

@@ -120,6 +120,14 @@ Repo surfaces `slicescontains`, `stringscut`, `rangeint` diagnostics. Prefer `sl
 
 Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `wg.Go(func() { ... })` instead.
 
+### Don't enable `tagliatelle`
+
+Conflicts with two project conventions: AWS resolver structs deliberately use PascalCase JSON tags to match SDK marshal output (see `internal/providers/aws/CLAUDE.md`), and the `disco check` Rego input contract uses snake_case (`cmd/CLAUDE.md`). Enabling produces hundreds of false-positives that, if "fixed", silently break unmarshalling.
+
+### Bulk `revive` var-naming sweeps
+
+Resolver-local struct fields rename safely with per-file `re.sub(r'\b' + old + r'\b', new, text)` because explicit `json:"OldName"` tags preserve wire format. Watch one collateral case: bare-suffix renames like `Id→ID` also rewrite SDK call-site accesses (e.g. `a.Id` on an `organizationstypes.DelegatedAdministrator`). Build immediately after a bulk apply — compile error names the offending file/line, revert that site only.
+
 ## Solution Rules
 
 1. **KEEP THINGS SIMPLE**

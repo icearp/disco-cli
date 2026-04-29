@@ -80,24 +80,30 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 		return total, inserted, nil
 	}
 
-	if t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanSSOAccountAssignments(ctx, ssoClient, acct, region, instances, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSSOAccountAssignments(ctx, ssoClient, acct, region, instances, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	isClient := identitystore.NewFromConfig(acct.cfg, func(o *identitystore.Options) { o.Region = region })
-	if t, i, ferr := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
@@ -367,15 +373,19 @@ func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, 
 		if ownerAccountID == "" {
 			ownerAccountID = acct.ID
 		}
-		if t, i, ferr := scanIdentityStoreUsers(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID); ferr != nil {
-			return total, inserted, ferr
-		} else {
+		{
+			t, i, ferr := scanIdentityStoreUsers(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			if ferr != nil {
+				return total, inserted, ferr
+			}
 			total += t
 			inserted += i
 		}
-		if t, i, ferr := scanIdentityStoreGroups(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID); ferr != nil {
-			return total, inserted, ferr
-		} else {
+		{
+			t, i, ferr := scanIdentityStoreGroups(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			if ferr != nil {
+				return total, inserted, ferr
+			}
 			total += t
 			inserted += i
 		}

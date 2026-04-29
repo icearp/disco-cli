@@ -216,7 +216,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 		}
 	}
 
-	// APIGW v2 custom domains — DomainNameConfigurations[].ApiGatewayDomainName.
+	// APIGW v2 custom domains — DomainNameConfigurations[].APIGatewayDomainName.
 	v2, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
 		Limit: util.AllResources,
@@ -227,14 +227,14 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 	for _, r := range v2 {
 		var attrs struct {
 			DomainNameConfigurations []struct {
-				ApiGatewayDomainName *string `json:"ApiGatewayDomainName"`
+				APIGatewayDomainName *string `json:"APIGatewayDomainName"`
 			} `json:"DomainNameConfigurations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		for _, c := range attrs.DomainNameConfigurations {
-			if k := normalizeAliasDNS(sv(c.ApiGatewayDomainName)); k != "" {
+			if k := normalizeAliasDNS(sv(c.APIGatewayDomainName)); k != "" {
 				index[k] = r.ID
 			}
 		}
@@ -379,7 +379,7 @@ func kskDNSSECNativeID(nativeID string) string {
 
 // resolveRoute53HealthCheckRelationships links each record set that references
 // a health check to that health check via a "uses" relationship.
-// HealthCheckId is extracted from the record set's AttributesJSON.
+// HealthCheckID is extracted from the record set's AttributesJSON.
 func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
@@ -390,12 +390,12 @@ func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) erro
 	}
 	for _, r := range records {
 		var attrs struct {
-			HealthCheckId *string `json:"HealthCheckId"`
+			HealthCheckID *string `json:"HealthCheckID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		hcID := sv(attrs.HealthCheckId)
+		hcID := sv(attrs.HealthCheckID)
 		if hcID == "" {
 			continue
 		}

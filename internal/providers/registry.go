@@ -1,3 +1,6 @@
+// Package providers hosts the cloud-provider Scanner registry. Concrete
+// scanners live in subpackages (aws, azure, gcp) and self-register via
+// init() — see internal/providers/CLAUDE.md for the registration shape.
 package providers
 
 import (

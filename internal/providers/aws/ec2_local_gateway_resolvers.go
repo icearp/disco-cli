@@ -26,7 +26,7 @@ func resolveLocalGatewayRouteTableVPCAssociationRelationships(acct *account, st 
 	for _, r := range assocs {
 		var attrs struct {
 			LocalGatewayRouteTableArn *string `json:"LocalGatewayRouteTableArn"`
-			VpcId                     *string `json:"VpcId"`
+			VpcID                     *string `json:"VpcID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -38,9 +38,9 @@ func resolveLocalGatewayRouteTableVPCAssociationRelationships(acct *account, st 
 				return fmt.Errorf("upsert lgw-rtb-vpc-assoc→route-table relationship: %w", err)
 			}
 		}
-		if attrs.VpcId != nil {
+		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcId))
+				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lgw-rtb-vpc-assoc→vpc relationship: %w", err)
 			}
@@ -62,7 +62,7 @@ func resolveLocalGatewayRouteTableVIGAssociationRelationships(acct *account, st 
 	for _, r := range assocs {
 		var attrs struct {
 			LocalGatewayRouteTableArn           *string `json:"LocalGatewayRouteTableArn"`
-			LocalGatewayVirtualInterfaceGroupId *string `json:"LocalGatewayVirtualInterfaceGroupId"`
+			LocalGatewayVirtualInterfaceGroupID *string `json:"LocalGatewayVirtualInterfaceGroupID"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -74,9 +74,9 @@ func resolveLocalGatewayRouteTableVIGAssociationRelationships(acct *account, st 
 				return fmt.Errorf("upsert lgw-rtb-vig-assoc→route-table relationship: %w", err)
 			}
 		}
-		if attrs.LocalGatewayVirtualInterfaceGroupId != nil {
+		if attrs.LocalGatewayVirtualInterfaceGroupID != nil {
 			vigID := store.ResourceID("aws", acct.ID, TypeEC2LocalGatewayVirtualInterfaceGroup,
-				ec2ARN(region, acct.ID, "local-gateway-virtual-interface-group", *attrs.LocalGatewayVirtualInterfaceGroupId))
+				ec2ARN(region, acct.ID, "local-gateway-virtual-interface-group", *attrs.LocalGatewayVirtualInterfaceGroupID))
 			if err := st.UpsertRelationship(r.ID, vigID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lgw-rtb-vig-assoc→vig relationship: %w", err)
 			}

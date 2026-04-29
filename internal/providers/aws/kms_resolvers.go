@@ -75,7 +75,7 @@ func resolveKMSGrants(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveKMSAliases links each alias to the key it points at. TargetKeyId on an
+// resolveKMSAliases links each alias to the key it points at. TargetKeyID on an
 // AliasListEntry is either a bare KeyId or a full ARN; the bare form is resolved
 // by rebuilding the key ARN from the alias's region.
 func resolveKMSAliases(acct *account, st *store.Store) error {
@@ -103,12 +103,12 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 	}
 	for _, a := range aliases {
 		var attrs struct {
-			TargetKeyId *string `json:"TargetKeyId"`
+			TargetKeyID *string `json:"TargetKeyID"`
 		}
-		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil || attrs.TargetKeyId == nil {
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil || attrs.TargetKeyID == nil {
 			continue
 		}
-		target := *attrs.TargetKeyId
+		target := *attrs.TargetKeyID
 		if !strings.HasPrefix(target, "arn:") {
 			target = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", sv(a.Region), acct.ID, target)
 		}

@@ -64,8 +64,8 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 			Role      *string `json:"Role"` // IAM role ARN
 			KMSKeyArn *string `json:"KMSKeyArn"`
 			VpcConfig *struct {
-				SubnetIds        []string `json:"SubnetIds"`
-				SecurityGroupIds []string `json:"SecurityGroupIds"`
+				SubnetIDs        []string `json:"SubnetIDs"`
+				SecurityGroupIDs []string `json:"SecurityGroupIDs"`
 			} `json:"VpcConfig"`
 			FileSystemConfigs []struct {
 				Arn *string `json:"Arn"` // EFS access point ARN
@@ -89,7 +89,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.VpcConfig != nil {
-			for _, sn := range attrs.VpcConfig.SubnetIds {
+			for _, sn := range attrs.VpcConfig.SubnetIDs {
 				if sn == "" {
 					continue
 				}
@@ -98,7 +98,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert lambda→subnet relationship: %w", err)
 				}
 			}
-			for _, sg := range attrs.VpcConfig.SecurityGroupIds {
+			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
 				if sg == "" {
 					continue
 				}

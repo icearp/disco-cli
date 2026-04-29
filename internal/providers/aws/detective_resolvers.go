@@ -15,7 +15,7 @@ func init() {
 // detectiveMemberAttrs mirrors the verbatim MemberDetail fields used by the
 // resolver. PascalCase tags match mustJSON of the AWS SDK v2 struct.
 type detectiveMemberAttrs struct {
-	AccountId *string `json:"AccountId"`
+	AccountID *string `json:"AccountID"`
 }
 
 // resolveDetectiveMemberOrgAccount emits an `attached-to` edge from each
@@ -50,7 +50,7 @@ func resolveDetectiveMemberOrgAccount(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		accountID := sv(attrs.AccountId)
+		accountID := sv(attrs.AccountID)
 		if accountID == "" {
 			continue
 		}

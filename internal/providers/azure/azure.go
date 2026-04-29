@@ -64,6 +64,7 @@ type Scanner struct {
 	serviceFilter []string // nil = scan all registered services
 }
 
+// Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "azure" }
 
 // SetServiceFilter restricts the scan to the named services (e.g. "azure:compute", "azure:network").

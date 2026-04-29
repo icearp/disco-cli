@@ -49,23 +49,29 @@ func scanSecurityHub(ctx context.Context, acct *account, region string, st *stor
 		return total, inserted, nil
 	}
 
-	if t, i, ferr := scanSecurityHubInsights(ctx, client, acct, region, hubARN, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSecurityHubInsights(ctx, client, acct, region, hubARN, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
-	if t, i, ferr := scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}

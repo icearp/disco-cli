@@ -39,6 +39,7 @@ type Scanner struct {
 	serviceFilter []string // nil = scan all registered services
 }
 
+// Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "gcp" }
 
 // SetServiceFilter restricts the scan to the named services (e.g. "gcp:compute", "gcp:gke").

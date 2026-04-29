@@ -15,7 +15,7 @@ func init() {
 // inspector2MemberAttrs mirrors the verbatim Member fields used by the
 // resolver. PascalCase tags match mustJSON of the SDK v2 struct.
 type inspector2MemberAttrs struct {
-	AccountId *string `json:"AccountId"`
+	AccountID *string `json:"AccountID"`
 }
 
 // resolveInspector2MemberOrgAccount emits an `attached-to` edge from each
@@ -50,7 +50,7 @@ func resolveInspector2MemberOrgAccount(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		accountID := sv(attrs.AccountId)
+		accountID := sv(attrs.AccountID)
 		if accountID == "" {
 			continue
 		}

@@ -1,10 +1,8 @@
 package cmd
 
-// Provider packages register themselves via init() by calling providers.Register.
-// Each blank import triggers the package's init(), which registers its Scanner
-// and makes it available as a "disco scan <name>" subcommand.
-
 import (
+	// Provider packages self-register their Scanner via init() so the
+	// blank imports here are what wires `disco scan <name>` subcommands.
 	_ "codeberg.org/icearp/disco/internal/providers/aws"
 	_ "codeberg.org/icearp/disco/internal/providers/azure"
 	_ "codeberg.org/icearp/disco/internal/providers/gcp"

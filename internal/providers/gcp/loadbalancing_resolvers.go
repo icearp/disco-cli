@@ -103,12 +103,12 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 		}
 		for _, pp := range ps {
 			var a struct {
-				UrlMap string `json:"urlMap"`
+				URLMap string `json:"urlMap"`
 			}
 			if err := json.Unmarshal([]byte(pp.AttributesJSON), &a); err != nil {
 				continue
 			}
-			if err := emit(pp.ID, a.UrlMap); err != nil {
+			if err := emit(pp.ID, a.URLMap); err != nil {
 				return err
 			}
 		}

@@ -61,9 +61,11 @@ func scanMacie(ctx context.Context, acct *account, region string, st *store.Stor
 	// Phase 1: session singleton. If Macie is not enabled here every phase
 	// will fail the same way, so a denied session bails the whole region.
 	sessionPresent := false
-	if t, i, present, ferr := scanMacieSession(ctx, client, acct, region, st, scanID); ferr != nil {
-		return 0, 0, ferr
-	} else {
+	{
+		t, i, present, ferr := scanMacieSession(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return 0, 0, ferr
+		}
 		total += t
 		inserted += i
 		sessionPresent = present
@@ -73,25 +75,31 @@ func scanMacie(ctx context.Context, acct *account, region string, st *store.Stor
 	}
 
 	// Phase 2: classification jobs.
-	if t, i, ferr := scanMacieClassificationJobs(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanMacieClassificationJobs(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	// Phase 3: custom data identifiers.
-	if t, i, ferr := scanMacieCustomDataIdentifiers(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanMacieCustomDataIdentifiers(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
 
 	// Phase 4: allow lists.
-	if t, i, ferr := scanMacieAllowLists(ctx, client, acct, region, st, scanID); ferr != nil {
-		return total, inserted, ferr
-	} else {
+	{
+		t, i, ferr := scanMacieAllowLists(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
 		total += t
 		inserted += i
 	}
