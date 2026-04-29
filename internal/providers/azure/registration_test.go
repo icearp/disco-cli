@@ -44,7 +44,6 @@ var expectedAzureServices = []string{
 	"azure:storage",
 	"azure:synapse",
 	"azure:trafficmanager",
-	"azure:wan",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the same name.
