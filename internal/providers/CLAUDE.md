@@ -65,6 +65,10 @@ Do NOT invent resource types for cloud concepts that aren't real resources (`aws
 
 Pattern for edges needing non-resource config: stash on `account` struct during scan (mutex-protected if concurrent), consume in resolver. Edge persists; raw config ephemeral per scan. Precedent: `account.s3BucketEncryption` populated by `scanS3BucketEncryptions`, consumed by `resolveS3BucketEncryptionRelationships`. If config must later be queryable, add generic `resource_configs(resource_id, config_type, payload_json)` sidecar table — do NOT retrofit via synthesized resource type or wrapped attrs.
 
+## Synthetic-resource removal audit
+
+Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`BatchAddToHierarchyClosure` callers), (3) rules / sidecar reads. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, `KnownTypes()` slice, scanner upsert call, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
+
 ## Testing
 
 Test files exist for: `internal/store/`, `internal/util/`, all three provider packages.

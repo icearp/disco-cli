@@ -26,20 +26,18 @@ type shieldAPI interface {
 	ListProtectionGroups(context.Context, *shield.ListProtectionGroupsInput, ...func(*shield.Options)) (*shield.ListProtectionGroupsOutput, error)
 }
 
-// scanShield discovers Shield Advanced subscription, protections, and
-// protection groups. Shield is a global service; the client always uses
-// us-east-1. Three phases run sequentially. Accounts without a Shield Advanced
-// subscription return ResourceNotFoundException at every phase — tolerated as
-// a no-op via isShieldNotSubscribed alongside the standard AccessDenied skip.
+// scanShield discovers Shield Advanced protections and protection groups.
+// Shield is a global service; the client always uses us-east-1. A phase-0
+// DescribeSubscription gate detects accounts without an active Advanced
+// subscription (ResourceNotFoundException) and short-circuits via
+// markServiceDisabled. Per-phase isShieldNotSubscribed skips remain as a
+// safety net for the rare partial-IAM-grant case.
 func scanShield(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := shield.NewFromConfig(acct.cfg, func(o *shield.Options) { o.Region = "us-east-1" })
 
-	// Phase 1: subscription (singleton per account).
-	if t, i, ferr := scanShieldSubscription(ctx, client, acct, st, scanID); ferr != nil {
+	// Phase 0: subscription gate (no resource upsert — config, not a resource).
+	if ferr := gateShieldSubscription(ctx, client, acct, st); ferr != nil {
 		return 0, 0, ferr
-	} else {
-		total += t
-		inserted += i
 	}
 
 	// Phase 2: protections.
@@ -70,48 +68,23 @@ func isShieldNotSubscribed(err error) bool {
 	return isAPIErrorCode(err, "ResourceNotFoundException")
 }
 
-// shieldSubscriptionNativeID synthesises a stable identifier for the
-// account-wide subscription. AWS sometimes populates Subscription.SubscriptionArn
-// but not always; the synthetic form matches the canonical Shield ARN shape so
-// rescans dedupe.
-func shieldSubscriptionNativeID(accountID string) string {
-	return fmt.Sprintf("arn:aws:shield::%s:subscription", accountID)
-}
-
-func scanShieldSubscription(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	out, derr := client.DescribeSubscription(ctx, &shield.DescribeSubscriptionInput{})
-	if derr != nil {
+// gateShieldSubscription detects whether the account has an active Shield
+// Advanced subscription. Accounts without one surface ResourceNotFoundException
+// — returned wrapped via markServiceDisabled so the dispatcher renders
+// "(service disabled)" rather than an error. The subscription itself is
+// account-wide config, not an ARN'd resource, so no row is upserted.
+func gateShieldSubscription(ctx context.Context, client shieldAPI, acct *account, st *store.Store) error {
+	if _, derr := client.DescribeSubscription(ctx, &shield.DescribeSubscriptionInput{}); derr != nil {
 		if isAccessDenied(derr) {
 			_ = skipIfAccessDenied(st, "shield:DescribeSubscription", acct.ID, "", derr)
-			return 0, 0, nil
+			return nil
 		}
 		if isShieldNotSubscribed(derr) {
-			return 0, 0, markServiceDisabled(derr)
+			return markServiceDisabled(derr)
 		}
-		return 0, 0, fmt.Errorf("shield:DescribeSubscription: %w", derr)
+		return fmt.Errorf("shield:DescribeSubscription: %w", derr)
 	}
-	if out == nil || out.Subscription == nil {
-		return 0, 0, nil
-	}
-	nid := sv(out.Subscription.SubscriptionArn)
-	if nid == "" {
-		nid = shieldSubscriptionNativeID(acct.ID)
-	}
-	r := &store.Resource{
-		Provider:       "aws",
-		AccountID:      acct.ID,
-		AccountName:    &acct.Name,
-		Type:           TypeShieldSubscription,
-		NativeID:       nid,
-		Region:         nil,
-		AttributesJSON: mustJSON(out),
-		DiscoveredBy:   scanID,
-	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert shield subscription: %w", uerr)
-	}
-	return 1, n, nil
+	return nil
 }
 
 func scanShieldProtections(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {

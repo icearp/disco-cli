@@ -351,7 +351,6 @@ const (
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
-	TypeShieldSubscription    = "aws:shield:subscription"
 	// Security Hub (securityhub_scanners.go, securityhub_resolvers.go)
 	TypeSecurityHubHub                   = "aws:securityhub:hub"
 	TypeSecurityHubInsight               = "aws:securityhub:insight"
@@ -576,7 +575,7 @@ func KnownTypes() []string {
 		TypeSSOInstance, TypeSSOPermissionSet, TypeSSOAccountAssignment,
 		TypeIdentityStoreUser, TypeIdentityStoreGroup,
 		// Shield Advanced
-		TypeShieldProtection, TypeShieldProtectionGroup, TypeShieldSubscription,
+		TypeShieldProtection, TypeShieldProtectionGroup,
 		// Macie
 		TypeMacieSession, TypeMacieClassificationJob,
 		TypeMacieCustomDataIdentifier, TypeMacieAllowList,

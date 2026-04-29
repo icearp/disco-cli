@@ -114,6 +114,8 @@ Some AWS APIs return distinct exception code when account has not subscribed to 
 
 **Multi-phase orchestration.** Only phase-1 detection step (`DescribeSubscription` / `DescribeHub` / `GetMacieSession`) returns sentinel. Phases 2+ keep per-phase tolerant `isAccessDenied` skip — handles rare partial-IAM-grant case where subscription detectable but list APIs fail. Top-level scanner (`scanShield` / `scanSecurityHub` / `scanMacie`) propagates sentinel via existing `if ferr != nil { return 0, 0, ferr }` chain, halting downstream phases naturally.
 
+**Gate-only phase-0 (no upsert).** Account/region config that gates a service but isn't an ARN'd resource uses `gateXxx(ctx, client, acct, st) error` — calls Describe purely for disabled-sentinel side-effect (`markServiceDisabled` on not-subscribed, nil otherwise). No `store.Resource` built. Distinct from "Multi-phase orchestration" above, which DOES upsert the phase-1 detection row. Precedent: `gateShieldSubscription` in `shield_scanners.go`.
+
 ## Multi-phase parent + children closure-wiring helper
 
 Scanners modeling per-(acct,region) singleton parent with N child phases (Macie session + jobs/CDIs/allow-lists, Security Hub hub + insights/standards/product-subs) factor closure-wiring into one `upsertXChildren(st, parentARN, acct, batch, kind)` helper. Helper does `UpsertResources(batch)` + `BatchAddToHierarchyClosure([(child.ID, parentID)])` together. Don't inline per phase — three+ duplicated copies of same closure-pair build = sign to extract. Precedent: `upsertMacieChildren` (`macie_scanners.go:343`), `upsertSecurityHubChildren` (`securityhub_scanners.go`).
