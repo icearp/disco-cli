@@ -455,4 +455,7 @@ const (
 	TypeAutoScalingScalingPolicy       = "aws:autoscaling:scaling-policy"
 	TypeAutoScalingScheduledAction     = "aws:autoscaling:scheduled-action"
 	TypeAutoScalingWarmPool            = "aws:autoscaling:warm-pool"
+	// AWS Auto Scaling (a.k.a. AutoScalingPlans). Disco service segment
+	// "autoscaling-plans"; CFN segment "AutoScalingPlans".
+	TypeAutoScalingPlansScalingPlan = "aws:autoscaling-plans:scaling-plan"
 )

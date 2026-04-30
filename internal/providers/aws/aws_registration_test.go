@@ -60,6 +60,7 @@ var expectedAWSServices = []string{
 	"aws:glue",
 	"aws:athena",
 	"aws:autoscaling",
+	"aws:autoscaling-plans",
 	"aws:redshift",
 	"aws:opensearch",
 	"aws:docdb",

@@ -412,6 +412,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAPSScraper:   "AWS::APS::Scraper",
 		// ARC Region Switch — disco service segment "arc-region-switch", CFN "ARCRegionSwitch".
 		TypeARCRegionSwitchPlan: "AWS::ARCRegionSwitch::Plan",
+		// AWS Auto Scaling (Plans) — disco "autoscaling-plans", CFN "AutoScalingPlans".
+		TypeAutoScalingPlansScalingPlan: "AWS::AutoScalingPlans::ScalingPlan",
 		// EC2 Auto Scaling — disco service segment "autoscaling", CFN "AutoScaling".
 		TypeAutoScalingGroup:               "AWS::AutoScaling::AutoScalingGroup",
 		TypeAutoScalingLaunchConfiguration: "AWS::AutoScaling::LaunchConfiguration",
