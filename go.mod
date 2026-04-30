@@ -69,6 +69,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/backupgateway v1.26.5
 	github.com/aws/aws-sdk-go-v2/service/batch v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.14.2
+	github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.10.11
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.61.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.10

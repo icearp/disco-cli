@@ -341,6 +341,8 @@ const (
 	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
 	// BCM Data Exports (bcmdataexports_scanners.go)
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
+	// BCM Pricing Calculator (bcmpricingcalculator_scanners.go)
+	TypeBcmPricingCalculatorBillScenario = "aws:bcmpricingcalculator:bill-scenario"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
