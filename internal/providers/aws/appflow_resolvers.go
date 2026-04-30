@@ -8,7 +8,29 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAppFlowRelationships) }
+func init() {
+	registerResolver(resolveAppFlowRelationships)
+	registerResolver(resolveAppFlowConnectorProfileRelationships)
+}
+
+// resolveAppFlowConnectorProfileRelationships is a no-op audit-stub.
+//
+// The natural edge here is connector-profile → Secrets Manager via
+// `CredentialsArn`, but `internal/store/sanitize.go` scrubs any attrs key
+// matching `credential` (denylist substring), so by the time the resolver
+// reads `AttributesJSON` the ARN has already been replaced with
+// "[REDACTED]". Deferred until either (1) sanitize.go gains an exception
+// for ARN-typed credential fields, or (2) the scanner stashes
+// CredentialsArn on `account` as a sidecar (per the providers/CLAUDE.md
+// "Non-resource config fetches → sidecar on `account`" precedent).
+//
+// Connector-profile rows still upsert; this resolver registers so the
+// resolver-registration test stays uniform.
+func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store) error {
+	_ = acct
+	_ = st
+	return nil
+}
 
 // resolveAppFlowRelationships emits flow → KMS edges via FlowDefinition's
 // per-flow `kmsArn` field. Connector-profile / source / destination edges
