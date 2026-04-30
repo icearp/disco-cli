@@ -395,8 +395,11 @@ const (
 	TypeControlTowerLandingZone     = "aws:controltower:landing-zone"
 	TypeControlTowerEnabledBaseline = "aws:controltower:enabled-baseline"
 	// App Runner (apprunner_scanners.go, apprunner_resolvers.go)
-	TypeAppRunnerService      = "aws:apprunner:service"
-	TypeAppRunnerVPCConnector = "aws:apprunner:vpc-connector"
+	TypeAppRunnerService                    = "aws:apprunner:service"
+	TypeAppRunnerVPCConnector               = "aws:apprunner:vpc-connector"
+	TypeAppRunnerAutoScalingConfiguration   = "aws:apprunner:auto-scaling-configuration"
+	TypeAppRunnerObservabilityConfiguration = "aws:apprunner:observability-configuration"
+	TypeAppRunnerVpcIngressConnection       = "aws:apprunner:vpc-ingress-connection"
 	// Batch (batch_scanners.go, batch_resolvers.go)
 	TypeBatchComputeEnvironment = "aws:batch:compute-environment"
 	TypeBatchJobQueue           = "aws:batch:job-queue"

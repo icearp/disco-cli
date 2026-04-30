@@ -12,6 +12,49 @@ import (
 func init() {
 	registerResolver(resolveAppRunnerServiceTargets)
 	registerResolver(resolveAppRunnerVPCConnectorTargets)
+	registerResolver(resolveAppRunnerVpcIngressConnectionTargets)
+}
+
+// resolveAppRunnerVpcIngressConnectionTargets emits each VPC Ingress
+// Connection → its linked App Runner service (uses). FK-safe via scanned
+// service id set. AutoScaling / Observability configurations have no
+// outbound ARN-bearing fields beyond service association (HasAssociatedService
+// is a bool), so they get no resolver edges.
+func resolveAppRunnerVpcIngressConnectionTargets(acct *account, st *store.Store) error {
+	conns, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppRunnerVpcIngressConnection},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(conns) == 0 {
+		return nil
+	}
+	svcIDs, err := scannedIDSet(acct, st, TypeAppRunnerService)
+	if err != nil {
+		return err
+	}
+	type attrs struct {
+		ServiceArn *string `json:"ServiceArn"`
+	}
+	for _, c := range conns {
+		var a attrs
+		if err := json.Unmarshal([]byte(c.AttributesJSON), &a); err != nil {
+			continue
+		}
+		svcARN := sv(a.ServiceArn)
+		if svcARN == "" {
+			continue
+		}
+		svcID := store.ResourceID("aws", acct.ID, TypeAppRunnerService, svcARN)
+		if _, ok := svcIDs[svcID]; ok {
+			if err := st.UpsertRelationship(c.ID, svcID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert apprunner-vpc-ingress→service: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // apprunnerServiceAttrs mirrors the verbatim Service fields used by the

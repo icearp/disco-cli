@@ -19,6 +19,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "apprunner", DiscoType: TypeAppRunnerService},
 			{Service: "apprunner", DiscoType: TypeAppRunnerVPCConnector},
+			{Service: "apprunner", DiscoType: TypeAppRunnerAutoScalingConfiguration},
+			{Service: "apprunner", DiscoType: TypeAppRunnerObservabilityConfiguration},
+			{Service: "apprunner", DiscoType: TypeAppRunnerVpcIngressConnection},
 		},
 	})
 }
@@ -29,6 +32,9 @@ type apprunnerAPI interface {
 	ListServices(context.Context, *apprunner.ListServicesInput, ...func(*apprunner.Options)) (*apprunner.ListServicesOutput, error)
 	DescribeService(context.Context, *apprunner.DescribeServiceInput, ...func(*apprunner.Options)) (*apprunner.DescribeServiceOutput, error)
 	ListVpcConnectors(context.Context, *apprunner.ListVpcConnectorsInput, ...func(*apprunner.Options)) (*apprunner.ListVpcConnectorsOutput, error)
+	ListAutoScalingConfigurations(context.Context, *apprunner.ListAutoScalingConfigurationsInput, ...func(*apprunner.Options)) (*apprunner.ListAutoScalingConfigurationsOutput, error)
+	ListObservabilityConfigurations(context.Context, *apprunner.ListObservabilityConfigurationsInput, ...func(*apprunner.Options)) (*apprunner.ListObservabilityConfigurationsOutput, error)
+	ListVpcIngressConnections(context.Context, *apprunner.ListVpcIngressConnectionsInput, ...func(*apprunner.Options)) (*apprunner.ListVpcIngressConnectionsOutput, error)
 }
 
 // scanAppRunner discovers App Runner services and VPC connectors in one
@@ -61,6 +67,163 @@ func scanAppRunner(ctx context.Context, acct *account, region string, st *store.
 		inserted += i
 	}
 
+	{
+		t, i, ferr := scanAppRunnerAutoScalingConfigs(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanAppRunnerObservabilityConfigs(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanAppRunnerVpcIngressConnections(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	return total, inserted, nil
+}
+
+// scanAppRunnerAutoScalingConfigs lists auto-scaling configuration revisions
+// (account-scoped per region). NativeID = AutoScalingConfigurationArn.
+func scanAppRunnerAutoScalingConfigs(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := apprunner.NewListAutoScalingConfigurationsPaginator(client, &apprunner.ListAutoScalingConfigurationsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "apprunner:ListAutoScalingConfigurations", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("apprunner:ListAutoScalingConfigurations: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(out.AutoScalingConfigurationSummaryList))
+		for _, c := range out.AutoScalingConfigurationSummaryList {
+			arn := sv(c.AutoScalingConfigurationArn)
+			if arn == "" {
+				continue
+			}
+			name := sv(c.AutoScalingConfigurationName)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAppRunnerAutoScalingConfiguration,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				CreatedAt:      tp(c.CreatedAt),
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert apprunner autoscaling-configs: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanAppRunnerObservabilityConfigs lists observability config revisions
+// (account-scoped per region). NativeID = ObservabilityConfigurationArn.
+func scanAppRunnerObservabilityConfigs(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := apprunner.NewListObservabilityConfigurationsPaginator(client, &apprunner.ListObservabilityConfigurationsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "apprunner:ListObservabilityConfigurations", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("apprunner:ListObservabilityConfigurations: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(out.ObservabilityConfigurationSummaryList))
+		for _, c := range out.ObservabilityConfigurationSummaryList {
+			arn := sv(c.ObservabilityConfigurationArn)
+			if arn == "" {
+				continue
+			}
+			name := sv(c.ObservabilityConfigurationName)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAppRunnerObservabilityConfiguration,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert apprunner observability-configs: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanAppRunnerVpcIngressConnections lists VPC ingress connections
+// (account-scoped per region). NativeID = VpcIngressConnectionArn.
+// VpcIngressConnectionSummary carries the linked ServiceArn for resolver edge.
+func scanAppRunnerVpcIngressConnections(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := apprunner.NewListVpcIngressConnectionsPaginator(client, &apprunner.ListVpcIngressConnectionsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "apprunner:ListVpcIngressConnections", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("apprunner:ListVpcIngressConnections: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(out.VpcIngressConnectionSummaryList))
+		for _, c := range out.VpcIngressConnectionSummaryList {
+			arn := sv(c.VpcIngressConnectionArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAppRunnerVpcIngressConnection,
+				NativeID:       arn,
+				Name:           &arn,
+				Region:         &region,
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert apprunner vpc-ingress-connections: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
 	return total, inserted, nil
 }
 
