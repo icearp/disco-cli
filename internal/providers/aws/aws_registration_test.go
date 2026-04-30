@@ -89,6 +89,7 @@ var expectedAWSServices = []string{
 	"aws:bcmpricingcalculator",
 	"aws:billing",
 	"aws:billingconductor",
+	"aws:braket",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

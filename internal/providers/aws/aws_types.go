@@ -350,6 +350,8 @@ const (
 	TypeBillingConductorCustomLineItem = "aws:billingconductor:custom-line-item"
 	TypeBillingConductorPricingPlan    = "aws:billingconductor:pricing-plan"
 	TypeBillingConductorPricingRule    = "aws:billingconductor:pricing-rule"
+	// Braket (braket_scanners.go, braket_resolvers.go)
+	TypeBraketSpendingLimit = "aws:braket:spending-limit"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
