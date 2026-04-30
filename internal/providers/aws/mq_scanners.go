@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -16,8 +17,16 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "mq", DiscoType: TypeMQBroker},
 			{Service: "mq", DiscoType: TypeMQConfiguration},
+			{Service: "mq", DiscoType: TypeMQConfigurationAssociation},
 		},
 	})
+}
+
+// mqConfigurationAssociationNativeID synthesizes the broker→configuration
+// association NativeID. CFN's AWS::AmazonMQ::ConfigurationAssociation has no
+// AWS-issued ARN; uniqueness is the (brokerARN, configId) pair.
+func mqConfigurationAssociationNativeID(brokerARN, configID string) string {
+	return brokerARN + "/configuration-association/" + configID
 }
 
 // mqAPI is the narrow surface the MQ scanner uses. ListBrokers + DescribeBroker
@@ -31,7 +40,7 @@ type mqAPI interface {
 
 func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mq.NewFromConfig(acct.cfg, func(o *mq.Options) { o.Region = region })
-	bTotal, bInserted, err := scanMQBrokers(ctx, client, acct, region, st, scanID)
+	bTotal, bInserted, assocs, err := scanMQBrokers(ctx, client, acct, region, st, scanID)
 	if err != nil {
 		return bTotal, bInserted, err
 	}
@@ -39,12 +48,28 @@ func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, 
 	if err != nil {
 		return bTotal + cTotal, bInserted + cInserted, err
 	}
-	return bTotal + cTotal, bInserted + cInserted, nil
+	aTotal, aInserted, err := scanMQConfigurationAssociations(acct, region, st, scanID, assocs)
+	if err != nil {
+		return bTotal + cTotal + aTotal, bInserted + cInserted + aInserted, err
+	}
+	return bTotal + cTotal + aTotal, bInserted + cInserted + aInserted, nil
 }
 
-func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// mqBrokerAssoc captures the (brokerARN, configId) pair surfaced by
+// DescribeBroker.Configurations.Current. Collected during the broker phase and
+// emitted as ConfigurationAssociation rows in the third phase.
+type mqBrokerAssoc struct {
+	brokerARN string
+	configID  string
+}
+
+func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []mqBrokerAssoc, error) {
 	p := mq.NewListBrokersPaginator(client, &mq.ListBrokersInput{})
-	return pageScanConcurrent(ctx, "mq:ListBrokers", acct, region, st,
+	var (
+		assocMu sync.Mutex
+		assocs  []mqBrokerAssoc
+	)
+	total, inserted, err := pageScanConcurrent(ctx, "mq:ListBrokers", acct, region, st,
 		p.HasMorePages,
 		func(c context.Context) (*mq.ListBrokersOutput, error) { return p.NextPage(c) },
 		func(o *mq.ListBrokersOutput) []string {
@@ -71,6 +96,13 @@ func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region stri
 			}
 			name := sv(out.BrokerName)
 			status := string(out.BrokerState)
+			if out.Configurations != nil && out.Configurations.Current != nil {
+				if cid := sv(out.Configurations.Current.Id); cid != "" {
+					assocMu.Lock()
+					assocs = append(assocs, mqBrokerAssoc{brokerARN: arn, configID: cid})
+					assocMu.Unlock()
+				}
+			}
 			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -85,6 +117,48 @@ func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region stri
 				DiscoveredBy:   scanID,
 			}, nil
 		}, fanoutMed)
+	return total, inserted, assocs, err
+}
+
+// scanMQConfigurationAssociations emits one ConfigurationAssociation row per
+// (broker, current-configuration) pair captured during the broker phase. The
+// row carries no native ARN (CFN-only resource) — NativeID is synthesized via
+// mqConfigurationAssociationNativeID and the row is closure-wired under its
+// parent broker so graph walks reach it through the broker.
+func scanMQConfigurationAssociations(acct *account, region string, st *store.Store, scanID string, assocs []mqBrokerAssoc) (total, inserted int, err error) {
+	if len(assocs) == 0 {
+		return 0, 0, nil
+	}
+	batch := make([]*store.Resource, 0, len(assocs))
+	for _, a := range assocs {
+		nativeID := mqConfigurationAssociationNativeID(a.brokerARN, a.configID)
+		name := a.configID
+		attrs := map[string]string{"Broker": a.brokerARN, "Configuration": a.configID}
+		batch = append(batch, &store.Resource{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeMQConfigurationAssociation,
+			NativeID:       nativeID,
+			Name:           &name,
+			Region:         &region,
+			AttributesJSON: mustJSON(attrs),
+			DiscoveredBy:   scanID,
+		})
+	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert mq configuration-associations: %w", err)
+	}
+	pairs := make([][2]string, len(batch))
+	for i, r := range batch {
+		parentID := store.ResourceID("aws", acct.ID, TypeMQBroker, assocs[i].brokerARN)
+		pairs[i] = [2]string{r.ID, parentID}
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return 0, 0, fmt.Errorf("closure mq configuration-associations: %w", err)
+	}
+	return len(batch), n, nil
 }
 
 // scanMQConfigurations enumerates Amazon MQ broker configurations. The list

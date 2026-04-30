@@ -405,8 +405,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// CloudWatch AIOps (CFN service segment "AIOps" mixed-case).
 		TypeAIOpsInvestigationGroup: "AWS::AIOps::InvestigationGroup",
 		// Amazon MQ — disco service segment "mq", CFN segment "AmazonMQ".
-		TypeMQBroker:        "AWS::AmazonMQ::Broker",
-		TypeMQConfiguration: "AWS::AmazonMQ::Configuration",
+		TypeMQBroker:                   "AWS::AmazonMQ::Broker",
+		TypeMQConfiguration:            "AWS::AmazonMQ::Configuration",
+		TypeMQConfigurationAssociation: "AWS::AmazonMQ::ConfigurationAssociation",
 		// Amazon Managed Prometheus / APS — CFN segment "APS" mixed-case.
 		TypeAPSWorkspace: "AWS::APS::Workspace",
 		TypeAPSScraper:   "AWS::APS::Scraper",

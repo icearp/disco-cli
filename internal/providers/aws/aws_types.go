@@ -418,8 +418,9 @@ const (
 	// CloudWatch AIOps investigation groups (aiops_scanners.go, aiops_resolvers.go)
 	TypeAIOpsInvestigationGroup = "aws:aiops:investigation-group"
 	// Amazon MQ (mq_scanners.go, mq_resolvers.go)
-	TypeMQBroker        = "aws:mq:broker"
-	TypeMQConfiguration = "aws:mq:configuration"
+	TypeMQBroker                   = "aws:mq:broker"
+	TypeMQConfiguration            = "aws:mq:configuration"
+	TypeMQConfigurationAssociation = "aws:mq:configuration-association"
 	// Amplify (amplify_scanners.go, amplify_resolvers.go)
 	TypeAmplifyApp    = "aws:amplify:app"
 	TypeAmplifyBranch = "aws:amplify:branch"
