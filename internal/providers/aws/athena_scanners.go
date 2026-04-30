@@ -19,6 +19,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "athena", DiscoType: TypeAthenaWorkgroup},
 			{Service: "athena", DiscoType: TypeAthenaDataCatalog},
+			{Service: "athena", DiscoType: TypeAthenaCapacityReservation},
 		},
 	})
 }
@@ -30,6 +31,11 @@ type athenaAPI interface {
 	GetWorkGroup(context.Context, *athena.GetWorkGroupInput, ...func(*athena.Options)) (*athena.GetWorkGroupOutput, error)
 	ListDataCatalogs(context.Context, *athena.ListDataCatalogsInput, ...func(*athena.Options)) (*athena.ListDataCatalogsOutput, error)
 	GetDataCatalog(context.Context, *athena.GetDataCatalogInput, ...func(*athena.Options)) (*athena.GetDataCatalogOutput, error)
+	ListCapacityReservations(context.Context, *athena.ListCapacityReservationsInput, ...func(*athena.Options)) (*athena.ListCapacityReservationsOutput, error)
+}
+
+func athenaCapacityReservationARN(region, accountID, name string) string {
+	return fmt.Sprintf("arn:aws:athena:%s:%s:capacity-reservation/%s", region, accountID, name)
 }
 
 // scanAthena discovers Athena workgroups and data catalogs in one region.
@@ -57,6 +63,63 @@ func scanAthena(ctx context.Context, acct *account, region string, st *store.Sto
 		inserted += i
 	}
 
+	{
+		t, i, ferr := scanAthenaCapacityReservations(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	return total, inserted, nil
+}
+
+// scanAthenaCapacityReservations enumerates Athena capacity reservations
+// (account-scoped per region). NativeID synthesized via
+// athenaCapacityReservationARN since ListCapacityReservations does not
+// surface an ARN field.
+func scanAthenaCapacityReservations(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := athena.NewListCapacityReservationsPaginator(client, &athena.ListCapacityReservationsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "athena:ListCapacityReservations", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("athena:ListCapacityReservations: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(out.CapacityReservations))
+		for _, c := range out.CapacityReservations {
+			cname := sv(c.Name)
+			if cname == "" {
+				continue
+			}
+			arn := athenaCapacityReservationARN(region, acct.ID, cname)
+			status := string(c.Status)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAthenaCapacityReservation,
+				NativeID:       arn,
+				Name:           &cname,
+				Region:         &region,
+				Status:         &status,
+				CreatedAt:      tp(c.CreationTime),
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert athena capacity-reservations: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
 	return total, inserted, nil
 }
 
