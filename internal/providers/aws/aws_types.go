@@ -417,4 +417,8 @@ const (
 	// Amazon MQ (mq_scanners.go, mq_resolvers.go)
 	TypeMQBroker        = "aws:mq:broker"
 	TypeMQConfiguration = "aws:mq:configuration"
+	// Amplify (amplify_scanners.go, amplify_resolvers.go)
+	TypeAmplifyApp    = "aws:amplify:app"
+	TypeAmplifyBranch = "aws:amplify:branch"
+	TypeAmplifyDomain = "aws:amplify:domain"
 )
