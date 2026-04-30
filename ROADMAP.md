@@ -635,7 +635,7 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **SSM** — `aws:ssm:parameter`, `aws:ssm:document`, `aws:ssm:patch-baseline`. Resolver: SecureString parameter → KMS key (skips AWS-managed `alias/aws/*`). Parameter *values* deliberately never fetched.
 - **GuardDuty** — `aws:guardduty:detector`, `aws:guardduty:filter`, `aws:guardduty:ipset`. Resolvers: filter→detector, ipset→detector (both `contains`); ipset `Location` URL parsed (`s3://`, virtual-hosted, path-style) → S3 bucket `uses`. Hierarchy closure populated.
 - **AWS Config** — `aws:config:recorder`, `aws:config:delivery-channel`, `aws:config:rule`. Resolvers: recorder→IAM role (assumes); delivery-channel→S3 + KMS + SNS; custom-Lambda rules → Lambda function.
-- **Backup** — `aws:backup:vault`, `aws:backup:plan`, `aws:backup:selection`. Resolvers: vault→KMS (skips managed), selection→plan (contains), selection→IAM role (assumes). Hierarchy closure populated.
+- **Backup** — `aws:backup:vault`, `aws:backup:logically-air-gapped-vault`, `aws:backup:plan`, `aws:backup:selection`. Resolvers: vault→KMS (skips managed; covers both vault variants), selection→plan (contains), selection→IAM role (assumes). Hierarchy closure populated.
 - **ACM Private CA** — `aws:acm-pca:*`. Closes pre-existing ACM cert→CA dangle. Resolver: CA→S3 (CRL bucket).
 - **APIGW** authorizer → Cognito user-pool (REST v1 `COGNITO_USER_POOLS` + `ProviderARNs[]`).
 

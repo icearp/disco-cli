@@ -294,9 +294,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAuditManagerControl:    "AWS::AuditManager::Control",
 		TypeAuditManagerFramework:  "AWS::AuditManager::Framework",
 		// Backup.
-		TypeBackupVault:     "AWS::Backup::BackupVault",
-		TypeBackupPlan:      "AWS::Backup::BackupPlan",
-		TypeBackupSelection: "AWS::Backup::BackupSelection",
+		TypeBackupVault:                   "AWS::Backup::BackupVault",
+		TypeBackupLogicallyAirGappedVault: "AWS::Backup::LogicallyAirGappedBackupVault",
+		TypeBackupPlan:                    "AWS::Backup::BackupPlan",
+		TypeBackupSelection:               "AWS::Backup::BackupSelection",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

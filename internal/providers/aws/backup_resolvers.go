@@ -23,8 +23,10 @@ func resolveBackupRelationships(acct *account, st *store.Store) error {
 
 func resolveBackupVaults(acct *account, st *store.Store) error {
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBackupVault},
-		Limit: util.AllResources,
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeBackupVault, TypeBackupLogicallyAirGappedVault},
+		Limit:     util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -333,9 +333,10 @@ const (
 	TypeConfigDeliveryChannel = "aws:config:delivery-channel"
 	TypeConfigRule            = "aws:config:rule"
 	// Backup (backup_scanners.go)
-	TypeBackupVault     = "aws:backup:vault"
-	TypeBackupPlan      = "aws:backup:plan"
-	TypeBackupSelection = "aws:backup:selection"
+	TypeBackupVault                   = "aws:backup:vault"
+	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-vault"
+	TypeBackupPlan                    = "aws:backup:plan"
+	TypeBackupSelection               = "aws:backup:selection"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"

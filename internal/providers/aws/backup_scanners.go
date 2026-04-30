@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
+	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 )
 
 func init() {
@@ -15,6 +16,7 @@ func init() {
 		fn:   scanBackup,
 		emits: []coverage.TypeDecl{
 			{Service: "backup", DiscoType: TypeBackupVault},
+			{Service: "backup", DiscoType: TypeBackupLogicallyAirGappedVault},
 			{Service: "backup", DiscoType: TypeBackupPlan},
 			{Service: "backup", DiscoType: TypeBackupSelection},
 		},
@@ -55,11 +57,18 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			if arn == "" {
 				continue
 			}
+			// VaultType=LOGICALLY_AIR_GAPPED_BACKUP_VAULT splits to its own
+			// disco type so the AWS::Backup::LogicallyAirGappedBackupVault
+			// CFN row maps to a real scanner row.
+			vtype := TypeBackupVault
+			if v.VaultType == backuptypes.VaultTypeLogicallyAirGappedBackupVault {
+				vtype = TypeBackupLogicallyAirGappedVault
+			}
 			vaultBatch = append(vaultBatch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           TypeBackupVault,
+				Type:           vtype,
 				NativeID:       arn,
 				Name:           v.BackupVaultName,
 				Region:         &region,

@@ -47,6 +47,24 @@ func TestResolveBackupRelationships(t *testing.T) {
 	assertRelationship(t, sRels, sID, rID, store.RelAssumes)
 }
 
+func TestResolveBackupRelationships_LogicallyAirGappedVaultKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	kmsARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/key-air", testRegion, acct.ID)
+	vaultARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:AirGapped", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"EncryptionKeyArn":%q,"VaultType":"LOGICALLY_AIR_GAPPED_BACKUP_VAULT"}`, kmsARN)
+
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeBackupLogicallyAirGappedVault, vaultARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kmsARN, testRegion, "{}")
+
+	if err := resolveBackupRelationships(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(vID)
+	assertRelationship(t, rels, vID, kID, store.RelUses)
+}
+
 func TestResolveBackupRelationships_SkipsManagedKey(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
