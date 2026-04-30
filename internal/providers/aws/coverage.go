@@ -397,6 +397,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeWAFv2IPSet:                "AWS::WAFv2::IPSet",
 		TypeACMCertificate:            "AWS::CertificateManager::Certificate",
 		TypeACMPrivateCA:              "AWS::ACMPCA::CertificateAuthority",
+		// IAM Access Analyzer (CFN service segment "AccessAnalyzer" mixed-case).
+		TypeAccessAnalyzerAnalyzer: "AWS::AccessAnalyzer::Analyzer",
 	}
 }
 

@@ -70,6 +70,7 @@ var expectedAWSServices = []string{
 	"aws:batch",
 	"aws:lightsail",
 	"aws:elasticbeanstalk",
+	"aws:accessanalyzer",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

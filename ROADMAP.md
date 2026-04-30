@@ -17,6 +17,9 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 
 ## COMPLETED
 
+### AWS coverage sweep — `disco coverage` uncovered → covered (this session)
+- **AccessAnalyzer** new type `aws:accessanalyzer:analyzer`. Scanner = `accessanalyzer:ListAnalyzers` paginator (full `AnalyzerSummary` body, no Describe fan-out). NativeID = `Arn`. Resolver intentionally no-op — ListAnalyzers payload carries no cross-resource ARNs (Configuration union holds bare account IDs / type strings, not ARNs); audit comment in `accessanalyzer_resolvers.go`.
+
 ### Foundations
 - **N1** Partial scan status (`PartialScan` at `internal/store/scans.go:75`, wired in `cmd/scan.go:183`)
 - **N2** Progress reporting (`OnServiceComplete`/`OnResolve*` → stderr, `--quiet` flag)

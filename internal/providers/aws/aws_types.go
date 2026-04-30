@@ -408,4 +408,6 @@ const (
 	// Elastic Beanstalk (elasticbeanstalk_scanners.go, elasticbeanstalk_resolvers.go)
 	TypeBeanstalkApplication = "aws:elasticbeanstalk:application"
 	TypeBeanstalkEnvironment = "aws:elasticbeanstalk:environment"
+	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
+	TypeAccessAnalyzerAnalyzer = "aws:accessanalyzer:analyzer"
 )
