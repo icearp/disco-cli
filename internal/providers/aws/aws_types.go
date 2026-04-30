@@ -443,4 +443,7 @@ const (
 	TypeAPSScraper   = "aws:aps:scraper"
 	// ARC Region Switch (arcregionswitch_scanners.go, arcregionswitch_resolvers.go).
 	TypeARCRegionSwitchPlan = "aws:arc-region-switch:plan"
+	// ARC Zonal Shift (arczonalshift_scanners.go, arczonalshift_resolvers.go).
+	TypeARCZonalShiftObserverStatus = "aws:arc-zonal-shift:autoshift-observer-notification-status"
+	TypeARCZonalShiftConfiguration  = "aws:arc-zonal-shift:zonal-autoshift-configuration"
 )

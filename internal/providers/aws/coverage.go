@@ -412,6 +412,9 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAPSScraper:   "AWS::APS::Scraper",
 		// ARC Region Switch — disco service segment "arc-region-switch", CFN "ARCRegionSwitch".
 		TypeARCRegionSwitchPlan: "AWS::ARCRegionSwitch::Plan",
+		// ARC Zonal Shift — disco service segment "arc-zonal-shift", CFN "ARCZonalShift".
+		TypeARCZonalShiftObserverStatus: "AWS::ARCZonalShift::AutoshiftObserverNotificationStatus",
+		TypeARCZonalShiftConfiguration:  "AWS::ARCZonalShift::ZonalAutoshiftConfiguration",
 		// API Gateway v2 — VPC Link.
 		TypeAPIGatewayV2VpcLink: "AWS::ApiGatewayV2::VpcLink",
 	}

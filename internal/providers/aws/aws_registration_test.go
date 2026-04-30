@@ -80,6 +80,7 @@ var expectedAWSServices = []string{
 	"aws:applicationsignals",
 	"aws:aps",
 	"aws:arc-region-switch",
+	"aws:arc-zonal-shift",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

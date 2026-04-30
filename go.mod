@@ -59,6 +59,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/applicationsignals v1.21.1
 	github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15
 	github.com/aws/aws-sdk-go-v2/service/arcregionswitch v1.6.5
+	github.com/aws/aws-sdk-go-v2/service/arczonalshift v1.22.25
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.5
 	github.com/aws/aws-sdk-go-v2/service/auditmanager v1.46.13
 	github.com/aws/aws-sdk-go-v2/service/backup v1.55.1
