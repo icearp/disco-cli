@@ -640,6 +640,7 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Batch (extended)** — `aws:batch:scheduling-policy`, `aws:batch:consumable-resource`, `aws:batch:service-environment`, `aws:batch:quota-share`. Quota share fans out per-job-queue (`ListQuotaShares` requires JobQueue input). Resolver: quota-share → job-queue (attached-to).
 - **BCM Data Exports** — `aws:bcmdataexports:export`. ListExports + per-ARN GetExport for the full S3 destination body. Resolver: export → S3 bucket (uses).
 - **BCM Pricing Calculator** — `aws:bcmpricingcalculator:bill-scenario`. NativeID synth `arn:aws:bcm-pricing-calculator:{region}:{acct}:bill-scenario/{id}`. Resolver no-op stub (CostCategoryGroupSharingPreferenceArn edge deferred until ce:cost-category lands).
+- **Billing** — `aws:billing:billing-view`. Global service (forced `us-east-1` endpoint). `billing:ListBillingViews` paginator-native; ARN already in `BillingViewListElement` summary so no Get fan-out. Resolver no-op audit stub — list payload carries no cross-resource ARNs (OwnerAccountId / SourceAccountId are bare 12-digit IDs, not ARNs); SourceView fan-out via `ListSourceViewsForBillingView` deferred. `AWS::B2BI::*` (Capability/Partnership/Profile/Transformer) deferred separately — SDK module is `v1.0.0-preview.x` and go.mod policy is GA-only deps.
 - **ACM Private CA** — `aws:acm-pca:*`. Closes pre-existing ACM cert→CA dangle. Resolver: CA→S3 (CRL bucket).
 - **APIGW** authorizer → Cognito user-pool (REST v1 `COGNITO_USER_POOLS` + `ProviderARNs[]`).
 

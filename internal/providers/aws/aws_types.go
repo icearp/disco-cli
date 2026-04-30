@@ -343,6 +343,8 @@ const (
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
 	// BCM Pricing Calculator (bcmpricingcalculator_scanners.go)
 	TypeBcmPricingCalculatorBillScenario = "aws:bcmpricingcalculator:bill-scenario"
+	// Billing (billing_scanners.go, billing_resolvers.go)
+	TypeBillingView = "aws:billing:billing-view"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"

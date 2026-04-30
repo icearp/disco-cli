@@ -87,6 +87,7 @@ var expectedAWSServices = []string{
 	"aws:backupgateway",
 	"aws:bcmdataexports",
 	"aws:bcmpricingcalculator",
+	"aws:billing",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
