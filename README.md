@@ -5,8 +5,8 @@
 ## What it does
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
-- `resolve` runs after scanning and connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`).
-- `list` and `graph` query the local DB without going back to the cloud.
+- A resolve phase runs as part of `scan`, connecting resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam`).
+- `list`, `diff`, `graph`, `check`, and `coverage` query the local DB without going back to the cloud.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
@@ -32,20 +32,23 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/disco-windows-amd64.exe
 
 ```bash
 # Scan
-disco scan aws    --profile myprofile
-disco scan azure  --subscription <sub-id>
-disco scan gcp    --org <org-id>
+disco scan aws    --profile myprofile --regions us-east-1,us-west-2
+disco scan azure  --services azure:compute,azure:network
+disco scan gcp    --services gcp:compute,gcp:storage
 
 # Query
 disco list  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
+disco coverage --provider aws
 ```
+
+Azure scopes per accessible subscription (override via config); GCP fans out across accessible projects (override via config). Neither takes a scope flag on `scan` — credentials drive which subs/projects are reachable.
 
 Resource types follow the pattern `cloud:service:kind`, lowercase. So `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`, and so on.
 
 ## Configuration
 
-Config lives in `~/.disco/config.yaml` (Viper format). Anything in the file can be overridden with a `DISCO_`-prefixed environment variable. The database path defaults to `~/.disco/disco.db`; override it with `--db` or `$DISCO_DB`.
+Config lives at `$XDG_CONFIG_HOME/disco/config.yaml` (Viper format) — `~/.config/disco/config.yaml` on Linux, the platform app-data dir on macOS/Windows. Anything in the file can be overridden with a `DISCO_`-prefixed environment variable. The database path defaults to `$XDG_DATA_HOME/disco/disco.db` (`~/.local/share/disco/disco.db` on Linux); override it with `--db` or `$DISCO_DB`.
 
 ## How it works
 
@@ -60,13 +63,13 @@ There are `CLAUDE.md` files scattered through the tree that document the convent
 
 ## Coverage
 
-AWS is the most thorough at the moment. Roughly 30+ services: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Backup, CloudTrail, IAM Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, plus a handful of others.
+All three clouds are covered broadly. Run `disco coverage --provider <aws|azure|gcp>` for the live, scanner-declared list (matches the running binary; updates with the code).
 
-Azure covers compute, network, storage, key vault, SQL, app service, and AKS.
+- **AWS** — the broadest surface: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Detective, Inspector v2, Macie, Backup, CloudTrail, Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, Glue, Athena, plus more.
+- **Azure** — compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID. ~30 services.
+- **GCP** — Compute, Storage, IAM (incl. service accounts + key bindings), Cloud DNS, KMS, Pub/Sub, BigQuery, Bigtable, Firestore, Spanner, Cloud Functions Gen2, Cloud Run (services + jobs), Composer, Artifact Registry, Cert Manager, Cloud Build, Cloud Armor, Load Balancing, Logging sinks, Monitoring alert policies, Secret Manager, Binary Authorization, VPC Service Controls, project/folder/org hierarchy.
 
-GCP covers compute, storage, IAM, and the project hierarchy.
-
-`ROADMAP.md` tracks what's in progress and what's missing.
+`disco coverage --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `ROADMAP.md` carries longer-form context on planned work.
 
 ## Development
 

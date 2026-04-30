@@ -12,7 +12,7 @@ Resolvers needing to insert resources (e.g. cross-tenant stubs for R5) get scanI
 
 ## Persist API contract
 
-Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.BatchAddToHierarchyClosure()` to persist. Errors from all three must propagate — never silence with `_ =`.
+Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, `store.RecordHierarchyBatch()` to persist. Errors from all three must propagate — never silence with `_ =`.
 
 ## Provider-managed resources
 
@@ -71,7 +71,7 @@ Pattern for edges needing non-resource config: stash on `account` struct during 
 
 ## Synthetic-resource removal audit
 
-Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`BatchAddToHierarchyClosure` callers), (3) rules / sidecar reads, (4) `emits` decls + alias maps in `coverage.go`. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, scanner upsert call, scanner's `emits` decl, alias-map entry in `<provider>/coverage.go`, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
+Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers reading the type (`grep -rn TypeX`), (2) hierarchy closure parents (`RecordHierarchyBatch` callers), (3) rules / sidecar reads, (4) `emits` decls + alias maps in `coverage.go`. Zero hits beyond the scanner's own upsert = safe to remove. Edit sites: type constant in `<provider>_types.go`, scanner upsert call, scanner's `emits` decl, alias-map entry in `<provider>/coverage.go`, test fixtures, `ROADMAP.md` historical entry. Existing DB rows left as cruft — no migration unless edge-bearing. Precedent: `aws:shield:subscription` removed (zero consumers); contrast `aws:macie:session` kept (Security Hub product-sub resolver + Macie children hierarchy parent).
 
 ## Testing
 

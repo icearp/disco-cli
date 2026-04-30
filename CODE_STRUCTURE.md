@@ -5,7 +5,7 @@ Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural co
 ## Top-level flow
 
 ```
-cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlite (~/.disco/disco.db)
+cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlite ($XDG_DATA_HOME/disco/disco.db)
  (cobra CLI)      (scanners + resolvers)         (sqlx + squirrel)
                             ↓                            ↑
                    cmd/graph, cmd/list, cmd/diff  ───────┘
@@ -18,13 +18,13 @@ cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlit
 
 Edge kinds + relationship semantics: `internal/store/CLAUDE.md` "Edge kinds".
 
-CLI subcommand surface (`scan`, `list`, `diff`, `graph`) + flags: `cmd/CLAUDE.md`. (`check` is paid-only — `internal/policy/` Rego engine.)
+CLI subcommand surface (`scan`, `list`, `diff`, `graph`, `check`, `coverage`) + flags: `cmd/CLAUDE.md`. `check` ships in OSS (engine + BYO `--rules`); curated compliance packs are paid.
 
 ---
 
 # Provider code structure
 
-Per-service API calls via each cloud's native Go SDK (no unified discovery APIs). Provider package implements the `Scanner` interface (`internal/providers/registry.go`) and persists via `store.UpsertResources` / `store.UpsertRelationship` / `store.BatchAddToHierarchyClosure`. Registry, file naming, "add new provider" / "add new service" steps, sidecar pattern, embed-child-data, registration tests, resolver test pattern: `internal/providers/CLAUDE.md`.
+Per-service API calls via each cloud's native Go SDK (no unified discovery APIs). Provider package implements the `Scanner` interface (`internal/providers/registry.go`) and persists via `store.UpsertResources` / `store.UpsertRelationship` / `store.RecordHierarchyBatch`. Registry, file naming, "add new provider" / "add new service" steps, sidecar pattern, embed-child-data, registration tests, resolver test pattern: `internal/providers/CLAUDE.md`.
 
 ## Per-provider scanner / resolver function signatures
 
@@ -102,7 +102,7 @@ st.UpsertResources(batch)
 
 Templates: `eks_scanners.go`, `kms_scanners.go`. Concurrency tiers (`fanoutHigh`, `fanoutMed`, `fanoutLow`) live in `aws/concurrency.go` — see `internal/providers/aws/CLAUDE.md`.
 
-Closure-table population pattern (`BatchAddToHierarchyClosure`): `internal/store/CLAUDE.md`.
+Closure-table population pattern (`RecordHierarchyBatch`): `internal/store/CLAUDE.md`.
 
 ## Shared helpers (aws package — `aws.go`)
 
@@ -122,7 +122,7 @@ Azure and GCP have equivalent helpers in their own `azure.go` / `gcp.go` (adapte
 
 ## Credential configuration
 
-Read from `~/.disco/config.yaml` (viper), env prefix `DISCO_`. Credentials resolve through each SDK's default chain (env, files, IAM role / managed identity / ADC). Disco does not manage secrets.
+Read from `$XDG_CONFIG_HOME/disco/config.yaml` (viper; `~/.config/disco/config.yaml` on Linux, platform app-data dir on macOS/Windows), env prefix `DISCO_`. Credentials resolve through each SDK's default chain (env, files, IAM role / managed identity / ADC). Disco does not manage secrets.
 
 ```yaml
 aws:

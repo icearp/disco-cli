@@ -8,14 +8,11 @@ Tier headings mirror the OSS roadmap (NEXT — quarter; LATER — 6–12mo / v1.
 
 ## NEXT — this quarter
 
-### G3. Incremental / resumable scans (paid feature)
-(Moved from prior roadmap — still outstanding.) Per-service watermark, `disco scan --resume <scanID>`. Migration `002_service_progress.sql`, `internal/store/scans.go`, `cmd/scan.go`.
-
-### G10. `disco scan --resume` (paid feature)
-N1 PartialScan landed status flag; natural follow-up is resuming a partial scan from last successful service rather than restarting from zero. Big-account scan timeouts the obvious driver. Requires per-(scan, service) progress checkpoint in scans table. Overlaps with G3 above — fold together at implementation time.
+### G10. `disco scan --resume` — incremental / resumable scans (paid feature)
+N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `002_scan_checkpoints.sql`) already persists per-(scan, provider, service, scope) continuation tokens. The paid incremental scanner consumes those checkpoints on `disco scan --resume <scanID|latest>` to skip already-listed pages — natural follow-up to PartialScan, driven by big-account scan timeouts. Engine in `internal/scanresume/` (paid); CLI dispatch via `startOrResumeScan` in `cmd/scan.go` (already in OSS, currently a no-op for the consumer side).
 
 ### G6. `disco diff` (paid feature)
-Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across two scan timestamps is the primary paid value-add for compliance teams running scheduled scans — pairs with G3 (incremental scans) and L6 (continuous mode). Base `--type`, `--provider`, `--kind added|removed|changed`, `--region`, `--account` filters ship as part of the paid surface. License check shared with other paid commands; OSS build returns "diff requires a license" with link.
+Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across two scan timestamps is the primary paid value-add for compliance teams running scheduled scans — pairs with G10 (incremental scans) and L6 (continuous mode). Base `--type`, `--provider`, `--kind added|removed|changed`, `--region`, `--account` filters ship as part of the paid surface. License check shared with other paid commands; OSS build returns "diff requires a license" with link.
 
 ---
 
