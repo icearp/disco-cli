@@ -337,6 +337,8 @@ const (
 	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-vault"
 	TypeBackupPlan                    = "aws:backup:plan"
 	TypeBackupSelection               = "aws:backup:selection"
+	// Backup Gateway (backupgateway_scanners.go)
+	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
