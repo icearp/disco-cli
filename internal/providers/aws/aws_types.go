@@ -427,4 +427,8 @@ const (
 	TypeAPIGatewayV2VpcLink = "aws:apigatewayv2:vpc-link"
 	// AppFlow (appflow_scanners.go, appflow_resolvers.go)
 	TypeAppFlowFlow = "aws:appflow:flow"
+	// AppIntegrations (appintegrations_scanners.go, appintegrations_resolvers.go)
+	TypeAppIntegrationsApplication      = "aws:appintegrations:application"
+	TypeAppIntegrationsDataIntegration  = "aws:appintegrations:data-integration"
+	TypeAppIntegrationsEventIntegration = "aws:appintegrations:event-integration"
 )
