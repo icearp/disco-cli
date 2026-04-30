@@ -194,7 +194,8 @@ func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error 
 func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) error {
 	// v1 domains
 	v1, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainName},
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeAPIGatewayDomainName, TypeAPIGatewayPrivateDomainName},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -379,9 +380,16 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 // Mapping ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
 func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Store) error {
 	mappings, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayBasePathMapping},
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeAPIGatewayBasePathMapping, TypeAPIGatewayPrivateBasePathMapping},
 		Limit: util.AllResources,
 	})
+	if err != nil {
+		return err
+	}
+	// Build the set of private-domain IDs once so the parent-domain edge can
+	// fall through to the private type when the public-type lookup misses.
+	privateDomainIDs, err := scannedIDSet(acct, st, TypeAPIGatewayPrivateDomainName)
 	if err != nil {
 		return err
 	}
@@ -392,7 +400,19 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 		domainName := apiGatewayDomainNameFromMappingARN(r.NativeID)
 		if domainName != "" {
 			domainARN := apigatewayARN(region, "domainnames", domainName)
-			domainID := store.ResourceID("aws", acct.ID, TypeAPIGatewayDomainName, domainARN)
+			domainType := TypeAPIGatewayDomainName
+			if r.Type == TypeAPIGatewayPrivateBasePathMapping {
+				domainType = TypeAPIGatewayPrivateDomainName
+			}
+			domainID := store.ResourceID("aws", acct.ID, domainType, domainARN)
+			// Mapping inherits its parent-domain type from the scanner branch;
+			// fall back to the other type only if the primary lookup misses
+			// (defensive for older rows scanned before the V2 split).
+			if domainType == TypeAPIGatewayDomainName {
+				if _, isPrivate := privateDomainIDs[store.ResourceID("aws", acct.ID, TypeAPIGatewayPrivateDomainName, domainARN)]; isPrivate {
+					domainID = store.ResourceID("aws", acct.ID, TypeAPIGatewayPrivateDomainName, domainARN)
+				}
+			}
 			if err := st.UpsertRelationship(r.ID, domainID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert base-path-mapping→domain-name: %w", err)
 			}

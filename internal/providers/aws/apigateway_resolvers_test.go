@@ -157,6 +157,65 @@ func TestResolveAPIGatewayBasePathMappingToRestAPI(t *testing.T) {
 	assertRelationship(t, rels, mappingID, restAPIResID, store.RelRoutesTo)
 }
 
+// TestResolveAPIGatewayPrivateBasePathMappingToPrivateDomain verifies that the
+// V2 (private) variants of base-path mapping + domain name wire to each other
+// via attached-to and to the rest API via routes-to.
+func TestResolveAPIGatewayPrivateBasePathMappingToPrivateDomain(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	region := testRegion
+	domain := "private.example.com"
+	apiID := "privapi1"
+
+	mappingARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/%s/basepathmappings/v2", region, domain)
+	domainARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/%s", region, domain)
+	restAPIARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/%s", region, apiID)
+	attrsJSON := fmt.Sprintf(`{"RestApiId": "%s"}`, apiID)
+
+	mappingID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayPrivateBasePathMapping, mappingARN, region, attrsJSON)
+	domainResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayPrivateDomainName, domainARN, region, "{}")
+	restAPIResID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayRestAPI, restAPIARN, region, "{}")
+
+	if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayBasePathMappingRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(mappingID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, mappingID, domainResID, store.RelAttachedTo)
+	assertRelationship(t, rels, mappingID, restAPIResID, store.RelRoutesTo)
+}
+
+// TestResolveAPIGatewayPrivateDomainToCert verifies that the V2 (private)
+// custom domain name is linked to its ACM certificate via the V1-shape
+// CertificateArn / RegionalCertificateArn fields shared with public domains.
+func TestResolveAPIGatewayPrivateDomainToCert(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	region := testRegion
+	domain := "priv2.example.com"
+	certARN := fmt.Sprintf("arn:aws:acm:%s:%s:certificate/abcd-1234", region, acct.ID)
+	domainARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/%s", region, domain)
+	attrsJSON := fmt.Sprintf(`{"RegionalCertificateArn": "%s"}`, certARN)
+
+	domainID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayPrivateDomainName, domainARN, region, attrsJSON)
+	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, certARN, region, "{}")
+
+	if err := resolveAPIGatewayDomainCertRelationships(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayDomainCertRelationships: %v", err)
+	}
+
+	rels, err := st.RelationshipsFrom(domainID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, domainID, certID, store.RelUses)
+}
+
 // TestResolveAPIGatewayBasePathMappingToRestAPI_NoAttrs verifies that a mapping
 // without a RestApiId produces no routes-to relationship and no error.
 func TestResolveAPIGatewayBasePathMappingToRestAPI_NoAttrs(t *testing.T) {

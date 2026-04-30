@@ -268,10 +268,12 @@ const (
 	TypeAPIGatewayUsagePlanKey          = "aws:apigateway:usage-plan-key"
 	TypeAPIGatewayVpcLink               = "aws:apigateway:vpc-link"
 	// API Gateway v2 (apigateway_scanners.go)
-	TypeAPIGatewayV2API             = "aws:apigatewayv2:api"
-	TypeAPIGatewayV2Authorizer      = "aws:apigatewayv2:authorizer"
-	TypeAPIGatewayBasePathMappingV2 = "aws:apigatewayv2:base-path-mapping"
-	TypeAPIGatewayDomainNameV2      = "aws:apigatewayv2:domain-name"
+	TypeAPIGatewayV2API                  = "aws:apigatewayv2:api"
+	TypeAPIGatewayV2Authorizer           = "aws:apigatewayv2:authorizer"
+	TypeAPIGatewayBasePathMappingV2      = "aws:apigatewayv2:base-path-mapping"
+	TypeAPIGatewayDomainNameV2           = "aws:apigatewayv2:domain-name"
+	TypeAPIGatewayPrivateDomainName      = "aws:apigateway:domain-name-v2"
+	TypeAPIGatewayPrivateBasePathMapping = "aws:apigateway:base-path-mapping-v2"
 	// CloudWatch (cloudwatch_scanners.go)
 	TypeCloudWatchAlarm           = "aws:cloudwatch:alarm"
 	TypeCloudWatchAlarmMuteRule   = "aws:cloudwatch:alarm-mute-rule"

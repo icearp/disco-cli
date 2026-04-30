@@ -3,11 +3,13 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/apigateway"
+	apigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -50,6 +52,8 @@ func init() {
 			{Service: "apigateway", DiscoType: TypeAPIGatewayDocumentationVersion},
 			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainName},
 			{Service: "apigateway", DiscoType: TypeAPIGatewayDomainNameAccessAssoc},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayPrivateDomainName},
+			{Service: "apigateway", DiscoType: TypeAPIGatewayPrivateBasePathMapping},
 			{Service: "apigateway", DiscoType: TypeAPIGatewayGatewayResponse},
 			{Service: "apigateway", DiscoType: TypeAPIGatewayMethod},
 			{Service: "apigateway", DiscoType: TypeAPIGatewayModel},
@@ -714,6 +718,16 @@ func scanAPIGatewayClientCertificates(ctx context.Context, acct *account, region
 // Domain name ARN:        arn:aws:apigateway:{region}::/domainnames/{domainName}
 // Base-path mapping ARN:  arn:aws:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
 // Access association NativeID: the DomainNameAccessAssociationArn from the API response
+// apigatewayDomainIsPrivate reports whether the V1 SDK DomainName carries an
+// EndpointConfiguration with Types containing PRIVATE. Private custom-domain
+// rows are the V1-SDK manifestation of CFN AWS::ApiGateway::DomainNameV2.
+func apigatewayDomainIsPrivate(ec *apigatewaytypes.EndpointConfiguration) bool {
+	if ec == nil {
+		return false
+	}
+	return slices.Contains(ec.Types, apigatewaytypes.EndpointTypePrivate)
+}
+
 func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigateway.NewFromConfig(acct.cfg, func(o *apigateway.Options) { o.Region = region })
 
@@ -732,11 +746,23 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 		for _, item := range page.Items {
 			domainName := sv(item.DomainName)
 			nativeID := apigatewayARN(region, "domainnames", domainName)
+			// Branch on EndpointConfiguration.Types containing PRIVATE — CFN
+			// models private REST custom domains as the V2-suffixed type
+			// (`AWS::ApiGateway::DomainNameV2`) even though the V1 SDK serves
+			// them. Same NativeID shape; child base-path mappings inherit the
+			// V2 type via the same branch.
+			isPrivate := apigatewayDomainIsPrivate(item.EndpointConfiguration)
+			domainType := TypeAPIGatewayDomainName
+			bpmType := TypeAPIGatewayBasePathMapping
+			if isPrivate {
+				domainType = TypeAPIGatewayPrivateDomainName
+				bpmType = TypeAPIGatewayPrivateBasePathMapping
+			}
 			domains = append(domains, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           TypeAPIGatewayDomainName,
+				Type:           domainType,
 				NativeID:       nativeID,
 				Name:           &domainName,
 				Region:         &region,
@@ -762,7 +788,7 @@ func scanAPIGatewayDomainNames(ctx context.Context, acct *account, region string
 					Provider:       "aws",
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
-					Type:           TypeAPIGatewayBasePathMapping,
+					Type:           bpmType,
 					NativeID:       bpmNativeID,
 					Name:           &name,
 					Region:         &region,
