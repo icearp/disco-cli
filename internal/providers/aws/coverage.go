@@ -410,6 +410,8 @@ func (coverageProvider) Aliases() map[string]string {
 		// Amazon Managed Prometheus / APS — CFN segment "APS" mixed-case.
 		TypeAPSWorkspace: "AWS::APS::Workspace",
 		TypeAPSScraper:   "AWS::APS::Scraper",
+		// ARC Region Switch — disco service segment "arc-region-switch", CFN "ARCRegionSwitch".
+		TypeARCRegionSwitchPlan: "AWS::ARCRegionSwitch::Plan",
 		// API Gateway v2 — VPC Link.
 		TypeAPIGatewayV2VpcLink: "AWS::ApiGatewayV2::VpcLink",
 	}

@@ -441,4 +441,6 @@ const (
 	// Amazon Managed Prometheus / APS (aps_scanners.go, aps_resolvers.go); SDK module is `amp`.
 	TypeAPSWorkspace = "aws:aps:workspace"
 	TypeAPSScraper   = "aws:aps:scraper"
+	// ARC Region Switch (arcregionswitch_scanners.go, arcregionswitch_resolvers.go).
+	TypeARCRegionSwitchPlan = "aws:arc-region-switch:plan"
 )
