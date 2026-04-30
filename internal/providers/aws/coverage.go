@@ -402,6 +402,8 @@ func (coverageProvider) Aliases() map[string]string {
 		// ACM Private CA — disco service segment "acm-pca" (kebab-case, hyphen
 		// would not survive the algorithmic Pascal-case conversion).
 		TypeACMPCAPermission: "AWS::ACMPCA::Permission",
+		// CloudWatch AIOps (CFN service segment "AIOps" mixed-case).
+		TypeAIOpsInvestigationGroup: "AWS::AIOps::InvestigationGroup",
 	}
 }
 

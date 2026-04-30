@@ -412,4 +412,6 @@ const (
 	TypeAccessAnalyzerAnalyzer = "aws:accessanalyzer:analyzer"
 	// ACM Private CA permissions (acmpca_scanners.go, acmpca_resolvers.go)
 	TypeACMPCAPermission = "aws:acm-pca:permission"
+	// CloudWatch AIOps investigation groups (aiops_scanners.go, aiops_resolvers.go)
+	TypeAIOpsInvestigationGroup = "aws:aiops:investigation-group"
 )

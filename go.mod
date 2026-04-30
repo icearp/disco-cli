@@ -48,6 +48,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.47.2
 	github.com/aws/aws-sdk-go-v2/service/acm v1.38.2
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.13
+	github.com/aws/aws-sdk-go-v2/service/aiops v1.6.23
 	github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15
