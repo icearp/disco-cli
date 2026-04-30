@@ -144,6 +144,8 @@ github.com/aws/aws-sdk-go-v2/service/appintegrations v1.37.9 h1:e51YjJHGLC86GPxL
 github.com/aws/aws-sdk-go-v2/service/appintegrations v1.37.9/go.mod h1:EhPRMWYqp8CDlJ/EEYNegsBOTTJRN6HbNaUCQ9J7JGw=
 github.com/aws/aws-sdk-go-v2/service/applicationinsights v1.34.22 h1:Efp05vChZXL5og/ix/bjwIB8Yea0Kge//pGnbQk22Mc=
 github.com/aws/aws-sdk-go-v2/service/applicationinsights v1.34.22/go.mod h1:pm+LG2M+wklS+qMReaKBWmEwR8vkUwWbUIVEjIkZnuw=
+github.com/aws/aws-sdk-go-v2/service/applicationsignals v1.21.1 h1:rOAuBZoP/AIhOt2vyChIgztsxLRQXYU+jlvB73WRI7A=
+github.com/aws/aws-sdk-go-v2/service/applicationsignals v1.21.1/go.mod h1:pK5zExLS4u5kh2swzrGKTQHbexXeIzKW/Cz2hjgl9q4=
 github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15 h1:WAGurUZIX4BuIAI4LySe6MJxk9ttiZkhLls904uQBd0=
 github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15/go.mod h1:mF/kG7DIgDThWovf8MedWFKWZEFoSXVXPIHDXBVmOGE=
 github.com/aws/aws-sdk-go-v2/service/athena v1.57.5 h1:kQHg6KdRJQIag91wjykAyu/IsRURFWUdP6TxNEVW2tY=
