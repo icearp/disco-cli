@@ -118,3 +118,38 @@ func TestResolveBatchJobDefinitionTargets(t *testing.T) {
 	assertRelationship(t, rels, defID, execRoleID, store.RelAssumes)
 	assertRelationship(t, rels, defID, repoID, store.RelUses)
 }
+
+func TestResolveBatchQuotaShareJobQueue(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	qARN := fmt.Sprintf("arn:aws:batch:%s:%s:job-queue/q1", testRegion, acct.ID)
+	sARN := fmt.Sprintf("arn:aws:batch:%s:%s:job-queue/q1/quota-share/share-1", testRegion, acct.ID)
+	qID := upsertTestResource(t, st, "aws", acct.ID, TypeBatchJobQueue, qARN, testRegion, "{}")
+	attrs := fmt.Sprintf(`{"QuotaShareArn":%q,"JobQueueArn":%q,"State":"ENABLED"}`, sARN, qARN)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeBatchQuotaShare, sARN, testRegion, attrs)
+
+	if err := resolveBatchQuotaShareJobQueue(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, qID, store.RelAttachedTo)
+}
+
+func TestResolveBatchQuotaShareJobQueue_UnscannedQueue(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	qARN := fmt.Sprintf("arn:aws:batch:%s:%s:job-queue/missing", testRegion, acct.ID)
+	sARN := fmt.Sprintf("arn:aws:batch:%s:%s:job-queue/missing/quota-share/orphan", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"QuotaShareArn":%q,"JobQueueArn":%q,"State":"ENABLED"}`, sARN, qARN)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeBatchQuotaShare, sARN, testRegion, attrs)
+
+	if err := resolveBatchQuotaShareJobQueue(acct, st); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	if len(rels) != 0 {
+		t.Errorf("expected no rels, got %+v", rels)
+	}
+}

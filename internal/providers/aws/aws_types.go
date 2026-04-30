@@ -409,6 +409,10 @@ const (
 	TypeBatchComputeEnvironment = "aws:batch:compute-environment"
 	TypeBatchJobQueue           = "aws:batch:job-queue"
 	TypeBatchJobDefinition      = "aws:batch:job-definition"
+	TypeBatchSchedulingPolicy   = "aws:batch:scheduling-policy"
+	TypeBatchConsumableResource = "aws:batch:consumable-resource"
+	TypeBatchServiceEnvironment = "aws:batch:service-environment"
+	TypeBatchQuotaShare         = "aws:batch:quota-share"
 	// Lightsail (lightsail_scanners.go)
 	TypeLightsailInstance         = "aws:lightsail:instance"
 	TypeLightsailDatabase         = "aws:lightsail:database"

@@ -303,6 +303,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",
 		TypeBatchJobDefinition:      "AWS::Batch::JobDefinition",
+		TypeBatchSchedulingPolicy:   "AWS::Batch::SchedulingPolicy",
+		TypeBatchConsumableResource: "AWS::Batch::ConsumableResource",
+		TypeBatchServiceEnvironment: "AWS::Batch::ServiceEnvironment",
+		TypeBatchQuotaShare:         "AWS::Batch::QuotaShare",
 		// DocDB / Neptune / RDS / Redshift / DynamoDB.
 		TypeDocDBCluster:               "AWS::DocDB::DBCluster",
 		TypeDocDBInstance:              "AWS::DocDB::DBInstance",

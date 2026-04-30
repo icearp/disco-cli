@@ -12,6 +12,7 @@ func init() {
 	registerResolver(resolveBatchComputeEnvironmentTargets)
 	registerResolver(resolveBatchJobQueueComputeEnvs)
 	registerResolver(resolveBatchJobDefinitionTargets)
+	registerResolver(resolveBatchQuotaShareJobQueue)
 }
 
 // batchComputeEnvAttrs mirrors verbatim ComputeEnvironmentDetail fields.
@@ -254,6 +255,51 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert batch job-def→ecr repo: %w", err)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// batchQuotaShareAttrs mirrors verbatim QuotaShareDetail fields.
+type batchQuotaShareAttrs struct {
+	JobQueueArn *string `json:"JobQueueArn"`
+}
+
+// resolveBatchQuotaShareJobQueue emits quota-share → job-queue (attached-to)
+// edges. JobQueueArn is required on the SDK shape; FK-safe via job-queue id
+// set so cross-account or unscanned queues skip without dangling edges.
+func resolveBatchQuotaShareJobQueue(acct *account, st *store.Store) error {
+	shares, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeBatchQuotaShare},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(shares) == 0 {
+		return nil
+	}
+	queueIDs, err := resourceIDSet(st, acct.ID, TypeBatchJobQueue)
+	if err != nil {
+		return err
+	}
+	for _, s := range shares {
+		var attrs batchQuotaShareAttrs
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		qARN := sv(attrs.JobQueueArn)
+		if qARN == "" {
+			continue
+		}
+		qID := store.ResourceID("aws", acct.ID, TypeBatchJobQueue, qARN)
+		if _, ok := queueIDs[qID]; !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(s.ID, qID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert batch quota-share→job-queue: %w", err)
 		}
 	}
 	return nil

@@ -637,6 +637,7 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **AWS Config** — `aws:config:recorder`, `aws:config:delivery-channel`, `aws:config:rule`. Resolvers: recorder→IAM role (assumes); delivery-channel→S3 + KMS + SNS; custom-Lambda rules → Lambda function.
 - **Backup** — `aws:backup:vault`, `aws:backup:logically-air-gapped-vault`, `aws:backup:plan`, `aws:backup:selection`. Resolvers: vault→KMS (skips managed; covers both vault variants), selection→plan (contains), selection→IAM role (assumes). Hierarchy closure populated.
 - **Backup Gateway** — `aws:backupgateway:hypervisor`. Resolver: hypervisor→KMS (skips managed/empty).
+- **Batch (extended)** — `aws:batch:scheduling-policy`, `aws:batch:consumable-resource`, `aws:batch:service-environment`, `aws:batch:quota-share`. Quota share fans out per-job-queue (`ListQuotaShares` requires JobQueue input). Resolver: quota-share → job-queue (attached-to).
 - **ACM Private CA** — `aws:acm-pca:*`. Closes pre-existing ACM cert→CA dangle. Resolver: CA→S3 (CRL bucket).
 - **APIGW** authorizer → Cognito user-pool (REST v1 `COGNITO_USER_POOLS` + `ProviderARNs[]`).
 
