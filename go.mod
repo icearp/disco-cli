@@ -91,6 +91,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1
+	github.com/aws/aws-sdk-go-v2/service/mq v1.34.21
 	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.4
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0

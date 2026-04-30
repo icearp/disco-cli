@@ -226,6 +226,8 @@ github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.1 h1:2EYcA+XS5fkOW69b0PCRfV
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.1/go.mod h1:CIWHmMlKECdIPOG0JASCovH6JKf7dfuf75LH+wWz8Ks=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1 h1:pqxfuLWtNHVTOybxVzPA39SihgxhL7BK/Eew27Ae+ig=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1/go.mod h1:cVZCUudpBhZWgzualBjHg/U+sq0ma2O1S6eMgE+yjfU=
+github.com/aws/aws-sdk-go-v2/service/mq v1.34.21 h1:yWG4RLTuQr2T7BhHqAS/2pclPmwhozRU5mHrDuuwPiA=
+github.com/aws/aws-sdk-go-v2/service/mq v1.34.21/go.mod h1:aWvcRNyk/LFb3R6xIJE1o4MDwJcLjXhpdlg8X4kW57k=
 github.com/aws/aws-sdk-go-v2/service/neptune v1.44.4 h1:G7cfE96vHtWTK1fFOmRpperkUjWnUg0Gcd7IDHHUkY4=
 github.com/aws/aws-sdk-go-v2/service/neptune v1.44.4/go.mod h1:/Trrd77PVznZodZiKPhQEhyKXXzxt2eUZFJ5EgVDwt4=
 github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0 h1:m4dFEJee5tpnA1qVSlcJbfOOWvsk/iifKxmwOX8nhAc=
