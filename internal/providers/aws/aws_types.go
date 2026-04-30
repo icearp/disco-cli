@@ -431,4 +431,6 @@ const (
 	TypeAppIntegrationsApplication      = "aws:appintegrations:application"
 	TypeAppIntegrationsDataIntegration  = "aws:appintegrations:data-integration"
 	TypeAppIntegrationsEventIntegration = "aws:appintegrations:event-integration"
+	// CloudWatch Application Insights (applicationinsights_scanners.go, applicationinsights_resolvers.go)
+	TypeApplicationInsightsApplication = "aws:applicationinsights:application"
 )
