@@ -448,4 +448,11 @@ const (
 	TypeARCZonalShiftConfiguration  = "aws:arc-zonal-shift:zonal-autoshift-configuration"
 	// Athena capacity reservations (athena_scanners.go).
 	TypeAthenaCapacityReservation = "aws:athena:capacity-reservation"
+	// EC2 Auto Scaling (autoscaling_scanners.go, autoscaling_resolvers.go).
+	TypeAutoScalingGroup               = "aws:autoscaling:auto-scaling-group"
+	TypeAutoScalingLaunchConfiguration = "aws:autoscaling:launch-configuration"
+	TypeAutoScalingLifecycleHook       = "aws:autoscaling:lifecycle-hook"
+	TypeAutoScalingScalingPolicy       = "aws:autoscaling:scaling-policy"
+	TypeAutoScalingScheduledAction     = "aws:autoscaling:scheduled-action"
+	TypeAutoScalingWarmPool            = "aws:autoscaling:warm-pool"
 )

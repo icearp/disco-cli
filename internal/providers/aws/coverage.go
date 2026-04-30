@@ -412,6 +412,13 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAPSScraper:   "AWS::APS::Scraper",
 		// ARC Region Switch — disco service segment "arc-region-switch", CFN "ARCRegionSwitch".
 		TypeARCRegionSwitchPlan: "AWS::ARCRegionSwitch::Plan",
+		// EC2 Auto Scaling — disco service segment "autoscaling", CFN "AutoScaling".
+		TypeAutoScalingGroup:               "AWS::AutoScaling::AutoScalingGroup",
+		TypeAutoScalingLaunchConfiguration: "AWS::AutoScaling::LaunchConfiguration",
+		TypeAutoScalingLifecycleHook:       "AWS::AutoScaling::LifecycleHook",
+		TypeAutoScalingScalingPolicy:       "AWS::AutoScaling::ScalingPolicy",
+		TypeAutoScalingScheduledAction:     "AWS::AutoScaling::ScheduledAction",
+		TypeAutoScalingWarmPool:            "AWS::AutoScaling::WarmPool",
 		// ARC Zonal Shift — disco service segment "arc-zonal-shift", CFN "ARCZonalShift".
 		TypeARCZonalShiftObserverStatus: "AWS::ARCZonalShift::AutoshiftObserverNotificationStatus",
 		TypeARCZonalShiftConfiguration:  "AWS::ARCZonalShift::ZonalAutoshiftConfiguration",
