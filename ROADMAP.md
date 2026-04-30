@@ -638,6 +638,7 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 - **Backup** — `aws:backup:vault`, `aws:backup:logically-air-gapped-vault`, `aws:backup:plan`, `aws:backup:selection`. Resolvers: vault→KMS (skips managed; covers both vault variants), selection→plan (contains), selection→IAM role (assumes). Hierarchy closure populated.
 - **Backup Gateway** — `aws:backupgateway:hypervisor`. Resolver: hypervisor→KMS (skips managed/empty).
 - **Batch (extended)** — `aws:batch:scheduling-policy`, `aws:batch:consumable-resource`, `aws:batch:service-environment`, `aws:batch:quota-share`. Quota share fans out per-job-queue (`ListQuotaShares` requires JobQueue input). Resolver: quota-share → job-queue (attached-to).
+- **BCM Data Exports** — `aws:bcmdataexports:export`. ListExports + per-ARN GetExport for the full S3 destination body. Resolver: export → S3 bucket (uses).
 - **ACM Private CA** — `aws:acm-pca:*`. Closes pre-existing ACM cert→CA dangle. Resolver: CA→S3 (CRL bucket).
 - **APIGW** authorizer → Cognito user-pool (REST v1 `COGNITO_USER_POOLS` + `ProviderARNs[]`).
 

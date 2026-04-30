@@ -299,6 +299,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBackupPlan:                    "AWS::Backup::BackupPlan",
 		TypeBackupSelection:               "AWS::Backup::BackupSelection",
 		TypeBackupGatewayHypervisor:       "AWS::BackupGateway::Hypervisor",
+		TypeBCMDataExportsExport:          "AWS::BCMDataExports::Export",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

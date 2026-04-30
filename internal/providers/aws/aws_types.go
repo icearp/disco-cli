@@ -339,6 +339,8 @@ const (
 	TypeBackupSelection               = "aws:backup:selection"
 	// Backup Gateway (backupgateway_scanners.go)
 	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
+	// BCM Data Exports (bcmdataexports_scanners.go)
+	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"

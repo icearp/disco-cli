@@ -85,6 +85,7 @@ var expectedAWSServices = []string{
 	"aws:arc-region-switch",
 	"aws:arc-zonal-shift",
 	"aws:backupgateway",
+	"aws:bcmdataexports",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
