@@ -345,6 +345,11 @@ const (
 	TypeBcmPricingCalculatorBillScenario = "aws:bcmpricingcalculator:bill-scenario"
 	// Billing (billing_scanners.go, billing_resolvers.go)
 	TypeBillingView = "aws:billing:billing-view"
+	// Billing Conductor (billingconductor_scanners.go, billingconductor_resolvers.go)
+	TypeBillingConductorBillingGroup   = "aws:billingconductor:billing-group"
+	TypeBillingConductorCustomLineItem = "aws:billingconductor:custom-line-item"
+	TypeBillingConductorPricingPlan    = "aws:billingconductor:pricing-plan"
+	TypeBillingConductorPricingRule    = "aws:billingconductor:pricing-rule"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
 	TypeCloudFormationStack    = "aws:cloudformation:stack"
 	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
