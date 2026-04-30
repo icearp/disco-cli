@@ -432,9 +432,12 @@ const (
 	// (apigateway, not apigatewayv2).
 	TypeAPIGatewayV2VpcLink = "aws:apigatewayv2:vpc-link"
 	// AppFlow (appflow_scanners.go, appflow_resolvers.go)
-	TypeAppFlowFlow             = "aws:appflow:flow"
-	TypeAppFlowConnector        = "aws:appflow:connector"
-	TypeAppFlowConnectorProfile = "aws:appflow:connector-profile"
+	// Application Auto Scaling (applicationautoscaling_scanners.go)
+	TypeApplicationAutoScalingScalableTarget = "aws:application-autoscaling:scalable-target"
+	TypeApplicationAutoScalingScalingPolicy  = "aws:application-autoscaling:scaling-policy"
+	TypeAppFlowFlow                          = "aws:appflow:flow"
+	TypeAppFlowConnector                     = "aws:appflow:connector"
+	TypeAppFlowConnectorProfile              = "aws:appflow:connector-profile"
 	// AppIntegrations (appintegrations_scanners.go, appintegrations_resolvers.go)
 	TypeAppIntegrationsApplication      = "aws:appintegrations:application"
 	TypeAppIntegrationsDataIntegration  = "aws:appintegrations:data-integration"

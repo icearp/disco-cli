@@ -77,6 +77,7 @@ var expectedAWSServices = []string{
 	"aws:mq",
 	"aws:amplify",
 	"aws:appflow",
+	"aws:application-autoscaling",
 	"aws:appintegrations",
 	"aws:applicationinsights",
 	"aws:applicationsignals",
