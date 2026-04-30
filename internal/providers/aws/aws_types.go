@@ -445,7 +445,8 @@ const (
 	// CloudWatch Application Insights (applicationinsights_scanners.go, applicationinsights_resolvers.go)
 	TypeApplicationInsightsApplication = "aws:applicationinsights:application"
 	// CloudWatch Application Signals (applicationsignals_scanners.go, applicationsignals_resolvers.go)
-	TypeApplicationSignalsSLO = "aws:applicationsignals:service-level-objective"
+	TypeApplicationSignalsSLO                   = "aws:applicationsignals:service-level-objective"
+	TypeApplicationSignalsGroupingConfiguration = "aws:applicationsignals:grouping-configuration"
 	// Amazon Managed Prometheus / APS (aps_scanners.go, aps_resolvers.go); SDK module is `amp`.
 	TypeAPSWorkspace = "aws:aps:workspace"
 	TypeAPSScraper   = "aws:aps:scraper"
