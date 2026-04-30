@@ -74,6 +74,7 @@ var expectedAWSServices = []string{
 	"aws:aiops",
 	"aws:mq",
 	"aws:amplify",
+	"aws:appflow",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

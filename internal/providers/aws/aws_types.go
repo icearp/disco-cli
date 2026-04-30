@@ -425,4 +425,6 @@ const (
 	// the v1 TypeAPIGatewayVpcLink which targets a different SDK module
 	// (apigateway, not apigatewayv2).
 	TypeAPIGatewayV2VpcLink = "aws:apigatewayv2:vpc-link"
+	// AppFlow (appflow_scanners.go, appflow_resolvers.go)
+	TypeAppFlowFlow = "aws:appflow:flow"
 )

@@ -138,6 +138,8 @@ github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1 h1:r3dXvi6tMfv4D48pyantO
 github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.1/go.mod h1:nhYOLBwQu7P3ckR+L4gZkY0DT0nAhrQuZkI51jR1vTE=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1 h1:KdeMmKNbHOcFsiFe8BhLYE2A8crvEWnetrs8GkF2od8=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.1/go.mod h1:QdVi7bF8U8HE8FWQ77pa4wcAMFnxI/UPx4mmQ4azRQs=
+github.com/aws/aws-sdk-go-v2/service/appflow v1.51.14 h1:+Ty4C5yqKzL+AbI20nUKkkElHf2Cn8IGdAou6mwd9UI=
+github.com/aws/aws-sdk-go-v2/service/appflow v1.51.14/go.mod h1:JbM1SD1BwFKHndHw6iIHhQzF3RTTC36xLYWPUj3jHds=
 github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15 h1:WAGurUZIX4BuIAI4LySe6MJxk9ttiZkhLls904uQBd0=
 github.com/aws/aws-sdk-go-v2/service/apprunner v1.39.15/go.mod h1:mF/kG7DIgDThWovf8MedWFKWZEFoSXVXPIHDXBVmOGE=
 github.com/aws/aws-sdk-go-v2/service/athena v1.57.5 h1:kQHg6KdRJQIag91wjykAyu/IsRURFWUdP6TxNEVW2tY=
