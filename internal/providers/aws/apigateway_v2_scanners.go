@@ -17,6 +17,7 @@ type apigatewayv2API interface {
 	GetAuthorizers(context.Context, *apigatewayv2.GetAuthorizersInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetAuthorizersOutput, error)
 	GetDomainNames(context.Context, *apigatewayv2.GetDomainNamesInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetDomainNamesOutput, error)
 	GetApiMappings(context.Context, *apigatewayv2.GetApiMappingsInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetApiMappingsOutput, error)
+	GetVpcLinks(context.Context, *apigatewayv2.GetVpcLinksInput, ...func(*apigatewayv2.Options)) (*apigatewayv2.GetVpcLinksOutput, error)
 }
 
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
@@ -28,7 +29,66 @@ func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *sto
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayV2DomainNames(ctx, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanAPIGatewayV2VpcLinks(ctx, acct, region, st, scanID)
+		},
 	)
+}
+
+// scanAPIGatewayV2VpcLinks discovers API Gateway v2 VPC Links (account-scoped
+// per region; no per-API fan-out). GetVpcLinks pages via NextToken; SDK
+// exposes no paginator helper (per AWS-CLAUDE.md "SDK paginator availability
+// per-op"). NativeID = canonical apigateway ARN
+// arn:aws:apigateway:{region}::/vpclinks/{id} via apigatewayARN.
+func scanAPIGatewayV2VpcLinks(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
+	var nextToken *string
+	for {
+		out, err := client.GetVpcLinks(ctx, &apigatewayv2.GetVpcLinksInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied(st, "apigatewayv2:GetVpcLinks", acct.ID, region, err)
+			}
+			return total, inserted, fmt.Errorf("apigatewayv2:GetVpcLinks: %w", err)
+		}
+		batch := make([]*store.Resource, 0, len(out.Items))
+		for _, v := range out.Items {
+			id := sv(v.VpcLinkId)
+			if id == "" {
+				continue
+			}
+			arn := apigatewayARN(region, "vpclinks", id)
+			name := sv(v.Name)
+			status := string(v.VpcLinkStatus)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAPIGatewayV2VpcLink,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				Status:         &status,
+				CreatedAt:      tp(v.CreatedDate),
+				AttributesJSON: mustJSON(v),
+				TagsJSON:       mapTagsJSON(v.Tags),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert apigatewayv2 vpc-links: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return total, inserted, nil
 }
 
 // scanAPIGatewayV2 discovers HTTP and WebSocket APIs (API Gateway v2).

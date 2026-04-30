@@ -70,6 +70,7 @@ func init() {
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Authorizer},
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayDomainNameV2},
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayBasePathMappingV2},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2VpcLink},
 		},
 	})
 }

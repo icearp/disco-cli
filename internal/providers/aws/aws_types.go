@@ -421,4 +421,8 @@ const (
 	TypeAmplifyApp    = "aws:amplify:app"
 	TypeAmplifyBranch = "aws:amplify:branch"
 	TypeAmplifyDomain = "aws:amplify:domain"
+	// API Gateway v2 — VPC Link (apigateway_v2_scanners.go); separate from
+	// the v1 TypeAPIGatewayVpcLink which targets a different SDK module
+	// (apigateway, not apigatewayv2).
+	TypeAPIGatewayV2VpcLink = "aws:apigatewayv2:vpc-link"
 )

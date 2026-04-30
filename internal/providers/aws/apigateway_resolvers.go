@@ -32,8 +32,70 @@ func init() {
 		if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
 			return err
 		}
+		if err := resolveAPIGatewayV2VpcLinkRelationships(acct, st); err != nil {
+			return err
+		}
 		return resolveAPIGatewayDomainCertRelationships(acct, st)
 	})
+}
+
+// resolveAPIGatewayV2VpcLinkRelationships emits VPC-link → security-group
+// (uses) and VPC-link → subnet (attached-to) edges. SecurityGroupIds and
+// SubnetIds are required fields on the SDK VpcLink struct; FK-safe via
+// scanned id sets.
+func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) error {
+	links, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2VpcLink},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(links) == 0 {
+		return nil
+	}
+	sgIDs, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	subnetIDs, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	type attrs struct {
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
+		SubnetIDs        []string `json:"SubnetIds"`
+	}
+	for _, l := range links {
+		var a attrs
+		if err := json.Unmarshal([]byte(l.AttributesJSON), &a); err != nil {
+			continue
+		}
+		region := sv(l.Region)
+		for _, sg := range a.SecurityGroupIDs {
+			if sg == "" {
+				continue
+			}
+			id := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			if _, ok := sgIDs[id]; ok {
+				if err := st.UpsertRelationship(l.ID, id, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert apigatewayv2-vpclink→sg: %w", err)
+				}
+			}
+		}
+		for _, sn := range a.SubnetIDs {
+			if sn == "" {
+				continue
+			}
+			id := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+			if _, ok := subnetIDs[id]; ok {
+				if err := st.UpsertRelationship(l.ID, id, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert apigatewayv2-vpclink→subnet: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveAPIGatewayAuthorizerCognito emits an authorizer → Cognito user-pool
