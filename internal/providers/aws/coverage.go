@@ -407,6 +407,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// Amazon MQ — disco service segment "mq", CFN segment "AmazonMQ".
 		TypeMQBroker:        "AWS::AmazonMQ::Broker",
 		TypeMQConfiguration: "AWS::AmazonMQ::Configuration",
+		// Amazon Managed Prometheus / APS — CFN segment "APS" mixed-case.
+		TypeAPSWorkspace: "AWS::APS::Workspace",
+		TypeAPSScraper:   "AWS::APS::Scraper",
 		// API Gateway v2 — VPC Link.
 		TypeAPIGatewayV2VpcLink: "AWS::ApiGatewayV2::VpcLink",
 	}

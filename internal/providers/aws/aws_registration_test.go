@@ -78,6 +78,7 @@ var expectedAWSServices = []string{
 	"aws:appintegrations",
 	"aws:applicationinsights",
 	"aws:applicationsignals",
+	"aws:aps",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
