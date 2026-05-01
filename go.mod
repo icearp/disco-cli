@@ -70,6 +70,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/batch v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.14.2
 	github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.10.11
+	github.com/aws/aws-sdk-go-v2/service/bedrock v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/billing v1.10.6
 	github.com/aws/aws-sdk-go-v2/service/billingconductor v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/braket v1.40.2
@@ -81,6 +82,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.23
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.2
+	github.com/aws/aws-sdk-go-v2/service/connect v1.172.1
 	github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10
 	github.com/aws/aws-sdk-go-v2/service/detective v1.38.14
 	github.com/aws/aws-sdk-go-v2/service/docdb v1.48.14
@@ -101,6 +103,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.6
 	github.com/aws/aws-sdk-go-v2/service/inspector2 v1.47.5
+	github.com/aws/aws-sdk-go-v2/service/iot v1.72.8
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
@@ -158,13 +161,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/connect v1.172.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/iot v1.72.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect

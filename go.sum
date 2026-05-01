@@ -174,6 +174,8 @@ github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.14.2 h1:qLTMmD9S5m05HATtS
 github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.14.2/go.mod h1:zoV7Gv5idtxuUXqF1uRxS83Jb7zeHCa16s27f7dQs9A=
 github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.10.11 h1:/p5whuH36jo84ipb7qyh7kRO/LXU57Hd2PdoIATFoy4=
 github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.10.11/go.mod h1:Zg1/bxjPE2FV4mNNDMGs9/r3iyTycmDPMjZtvwJzULI=
+github.com/aws/aws-sdk-go-v2/service/bedrock v1.59.2 h1:TdYgGWLuNqQGNNVHzMwBEkg1fsyoaOfd+aP3xKfIeDM=
+github.com/aws/aws-sdk-go-v2/service/bedrock v1.59.2/go.mod h1:v/+a2bHvfo04yQC/p2HOK1iJF6V59OwCfCSf4iYgob4=
 github.com/aws/aws-sdk-go-v2/service/billing v1.10.6 h1:7hdJni3aVCV1nThQ2PtEG+Chdt744rBv00IGjlu7hrQ=
 github.com/aws/aws-sdk-go-v2/service/billing v1.10.6/go.mod h1:3/4KagnaoaVLj9jIOKGWCZc+YFETolSQV+AjOPB+WUY=
 github.com/aws/aws-sdk-go-v2/service/billingconductor v1.28.7 h1:Y00Qlp9CDLKnl6Ka/AbBDiq5IZcv1buuzPR9oilG7jM=

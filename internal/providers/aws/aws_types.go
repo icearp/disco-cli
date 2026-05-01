@@ -521,6 +521,12 @@ const (
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"
+	// Bedrock — Foundation family (bedrock_foundation_scanners.go)
+	TypeBedrockGuardrail                      = "aws:bedrock:guardrail"
+	TypeBedrockAutomatedReasoningPolicy       = "aws:bedrock:automated-reasoning-policy"
+	TypeBedrockIntelligentPromptRouter        = "aws:bedrock:intelligent-prompt-router"
+	TypeBedrockApplicationInferenceProfile    = "aws:bedrock:application-inference-profile"
+	TypeBedrockEnforcedGuardrailConfiguration = "aws:bedrock:enforced-guardrail-configuration"
 	// Glue — Schema (glue_schema_scanners.go)
 	TypeGlueRegistry              = "aws:glue:registry"
 	TypeGlueSchema                = "aws:glue:schema"
