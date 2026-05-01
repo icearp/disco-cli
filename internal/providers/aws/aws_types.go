@@ -390,6 +390,12 @@ const (
 	TypeSageMakerModelCard            = "aws:sagemaker:model-card"
 	TypeSageMakerFeatureGroup         = "aws:sagemaker:feature-group"
 	TypeSageMakerMlflowTrackingServer = "aws:sagemaker:mlflow-tracking-server"
+	// SageMaker — Monitoring (sagemaker_monitoring_scanners.go)
+	TypeSageMakerMonitoringSchedule               = "aws:sagemaker:monitoring-schedule"
+	TypeSageMakerDataQualityJobDefinition         = "aws:sagemaker:data-quality-job-definition"
+	TypeSageMakerModelBiasJobDefinition           = "aws:sagemaker:model-bias-job-definition"
+	TypeSageMakerModelExplainabilityJobDefinition = "aws:sagemaker:model-explainability-job-definition"
+	TypeSageMakerModelQualityJobDefinition        = "aws:sagemaker:model-quality-job-definition"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
