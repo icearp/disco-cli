@@ -654,6 +654,17 @@ const (
 	TypeDeadlineQueueFleetAssociation = "aws:deadline:queue-fleet-association"
 	TypeDeadlineQueueLimitAssociation = "aws:deadline:queue-limit-association"
 	TypeDeadlineStorageProfile        = "aws:deadline:storage-profile"
+	// WorkSpacesWeb (workspacesweb_scanners.go)
+	TypeWSWBrowserSettings           = "aws:workspaces-web:browser-settings"
+	TypeWSWDataProtectionSettings    = "aws:workspaces-web:data-protection-settings"
+	TypeWSWIdentityProvider          = "aws:workspaces-web:identity-provider"
+	TypeWSWIPAccessSettings          = "aws:workspaces-web:ip-access-settings"
+	TypeWSWNetworkSettings           = "aws:workspaces-web:network-settings"
+	TypeWSWPortal                    = "aws:workspaces-web:portal"
+	TypeWSWSessionLogger             = "aws:workspaces-web:session-logger"
+	TypeWSWTrustStore                = "aws:workspaces-web:trust-store"
+	TypeWSWUserAccessLoggingSettings = "aws:workspaces-web:user-access-logging-settings"
+	TypeWSWUserSettings              = "aws:workspaces-web:user-settings"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
