@@ -100,6 +100,7 @@ var expectedAWSServices = []string{
 	"aws:networkmanager",
 	"aws:pinpoint",
 	"aws:quicksight",
+	"aws:route53resolver",
 	"aws:billingconductor",
 	"aws:braket",
 	"aws:connect",

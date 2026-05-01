@@ -594,6 +594,18 @@ const (
 	TypeQuickSightTheme             = "aws:quicksight:theme"
 	TypeQuickSightTopic             = "aws:quicksight:topic"
 	TypeQuickSightVPCConnection     = "aws:quicksight:vpc-connection"
+	// Route53Resolver (route53resolver_scanners.go)
+	TypeRoute53ResolverFirewallDomainList                    = "aws:route53resolver:firewall-domain-list"
+	TypeRoute53ResolverFirewallRuleGroup                     = "aws:route53resolver:firewall-rule-group"
+	TypeRoute53ResolverFirewallRuleGroupAssociation          = "aws:route53resolver:firewall-rule-group-association"
+	TypeRoute53ResolverOutpostResolver                       = "aws:route53resolver:outpost-resolver"
+	TypeRoute53ResolverResolverConfig                        = "aws:route53resolver:resolver-config"
+	TypeRoute53ResolverResolverDNSSECConfig                  = "aws:route53resolver:resolver-dnssec-config"
+	TypeRoute53ResolverResolverEndpoint                      = "aws:route53resolver:resolver-endpoint"
+	TypeRoute53ResolverResolverQueryLoggingConfig            = "aws:route53resolver:resolver-query-logging-config"
+	TypeRoute53ResolverResolverQueryLoggingConfigAssociation = "aws:route53resolver:resolver-query-logging-config-association"
+	TypeRoute53ResolverResolverRule                          = "aws:route53resolver:resolver-rule"
+	TypeRoute53ResolverResolverRuleAssociation               = "aws:route53resolver:resolver-rule-association"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
