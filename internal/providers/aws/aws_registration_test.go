@@ -90,6 +90,7 @@ var expectedAWSServices = []string{
 	"aws:billing",
 	"aws:billingconductor",
 	"aws:braket",
+	"aws:sagemaker",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

@@ -366,6 +366,13 @@ const (
 	TypeMacieClassificationJob    = "aws:macie:classification-job"
 	TypeMacieCustomDataIdentifier = "aws:macie:custom-data-identifier"
 	TypeMacieAllowList            = "aws:macie:allow-list"
+	// SageMaker — Studio (sagemaker_scanners.go)
+	TypeSageMakerDomain                = "aws:sagemaker:domain"
+	TypeSageMakerUserProfile           = "aws:sagemaker:user-profile"
+	TypeSageMakerSpace                 = "aws:sagemaker:space"
+	TypeSageMakerApp                   = "aws:sagemaker:app"
+	TypeSageMakerAppImageConfig        = "aws:sagemaker:app-image-config"
+	TypeSageMakerStudioLifecycleConfig = "aws:sagemaker:studio-lifecycle-config"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
