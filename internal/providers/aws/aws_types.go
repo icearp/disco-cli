@@ -125,6 +125,13 @@ const (
 	TypeIoTRoleAlias                 = "aws:iot:role-alias"
 	TypeIoTAuthorizer                = "aws:iot:authorizer"
 	TypeIoTDomainConfiguration       = "aws:iot:domain-configuration"
+	// IoT — Defender (iot_defender_scanners.go)
+	TypeIoTAccountAuditConfiguration = "aws:iot:account-audit-configuration"
+	TypeIoTScheduledAudit            = "aws:iot:scheduled-audit"
+	TypeIoTMitigationAction          = "aws:iot:mitigation-action"
+	TypeIoTSecurityProfile           = "aws:iot:security-profile"
+	TypeIoTCustomMetric              = "aws:iot:custom-metric"
+	TypeIoTDimension                 = "aws:iot:dimension"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
