@@ -234,6 +234,20 @@ const (
 	TypeCognitoLogDeliveryConfiguration            = "aws:cognito:log-delivery-configuration"
 	TypeCognitoTerms                               = "aws:cognito:terms"
 	TypeCognitoIdentityPoolRoleAttachment          = "aws:cognito:identity-pool-role-attachment"
+	// AppStream (appstream_scanners.go)
+	TypeAppStreamAppBlock                          = "aws:appstream:app-block"
+	TypeAppStreamAppBlockBuilder                   = "aws:appstream:app-block-builder"
+	TypeAppStreamApplication                       = "aws:appstream:application"
+	TypeAppStreamApplicationEntitlementAssociation = "aws:appstream:application-entitlement-association"
+	TypeAppStreamApplicationFleetAssociation       = "aws:appstream:application-fleet-association"
+	TypeAppStreamDirectoryConfig                   = "aws:appstream:directory-config"
+	TypeAppStreamEntitlement                       = "aws:appstream:entitlement"
+	TypeAppStreamFleet                             = "aws:appstream:fleet"
+	TypeAppStreamImageBuilder                      = "aws:appstream:image-builder"
+	TypeAppStreamStack                             = "aws:appstream:stack"
+	TypeAppStreamStackFleetAssociation             = "aws:appstream:stack-fleet-association"
+	TypeAppStreamStackUserAssociation              = "aws:appstream:stack-user-association"
+	TypeAppStreamUser                              = "aws:appstream:user"
 	// EKS
 	TypeEKSCluster = "aws:eks:cluster"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
