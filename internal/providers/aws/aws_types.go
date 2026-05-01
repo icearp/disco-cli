@@ -445,6 +445,10 @@ const (
 	TypeConnectViewVersion    = "aws:connect:view-version"
 	TypeConnectWorkspace      = "aws:connect:workspace"
 	TypeConnectPrompt         = "aws:connect:prompt"
+	// Connect — DataTable (connect_datatable_scanners.go)
+	TypeConnectDataTable          = "aws:connect:data-table"
+	TypeConnectDataTableAttribute = "aws:connect:data-table-attribute"
+	TypeConnectDataTableRecord    = "aws:connect:data-table-record"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
