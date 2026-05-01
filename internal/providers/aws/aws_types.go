@@ -684,6 +684,15 @@ const (
 	TypeIVSStage                     = "aws:ivs:stage"
 	TypeIVSStorageConfiguration      = "aws:ivs:storage-configuration"
 	TypeIVSStreamKey                 = "aws:ivs:stream-key"
+	// Transfer (transfer_scanners.go)
+	TypeTransferAgreement   = "aws:transfer:agreement"
+	TypeTransferCertificate = "aws:transfer:certificate"
+	TypeTransferConnector   = "aws:transfer:connector"
+	TypeTransferProfile     = "aws:transfer:profile"
+	TypeTransferServer      = "aws:transfer:server"
+	TypeTransferUser        = "aws:transfer:user"
+	TypeTransferWebApp      = "aws:transfer:web-app"
+	TypeTransferWorkflow    = "aws:transfer:workflow"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"

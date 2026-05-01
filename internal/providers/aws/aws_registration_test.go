@@ -113,6 +113,7 @@ var expectedAWSServices = []string{
 	"aws:ivs",
 	"aws:sagemaker",
 	"aws:vpclattice",
+	"aws:transfer",
 	"aws:wisdom",
 	"aws:workspaces-web",
 }

@@ -192,6 +192,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/vpclattice v1.20.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/workspacesweb v1.39.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
