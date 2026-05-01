@@ -413,6 +413,12 @@ const (
 	TypeConnectTrafficDistributionGroup = "aws:connect:traffic-distribution-group"
 	TypeConnectPhoneNumber              = "aws:connect:phone-number"
 	TypeConnectEmailAddress             = "aws:connect:email-address"
+	// Connect — Routing (connect_routing_scanners.go)
+	TypeConnectQueue            = "aws:connect:queue"
+	TypeConnectRoutingProfile   = "aws:connect:routing-profile"
+	TypeConnectHoursOfOperation = "aws:connect:hours-of-operation"
+	TypeConnectAgentStatus      = "aws:connect:agent-status"
+	TypeConnectQuickConnect     = "aws:connect:quick-connect"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
