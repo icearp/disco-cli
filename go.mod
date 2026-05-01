@@ -182,6 +182,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.52.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/iotwireless v1.55.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ivs v1.50.1 // indirect

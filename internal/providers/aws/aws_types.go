@@ -805,6 +805,14 @@ const (
 	TypeLocationRouteCalculator    = "aws:location:route-calculator"
 	TypeLocationTracker            = "aws:location:tracker"
 	TypeLocationTrackerConsumer    = "aws:location:tracker-consumer"
+	// IoTFleetWise (iotfleetwise_scanners.go)
+	TypeIoTFWCampaign        = "aws:iotfleetwise:campaign"
+	TypeIoTFWDecoderManifest = "aws:iotfleetwise:decoder-manifest"
+	TypeIoTFWFleet           = "aws:iotfleetwise:fleet"
+	TypeIoTFWModelManifest   = "aws:iotfleetwise:model-manifest"
+	TypeIoTFWSignalCatalog   = "aws:iotfleetwise:signal-catalog"
+	TypeIoTFWStateTemplate   = "aws:iotfleetwise:state-template"
+	TypeIoTFWVehicle         = "aws:iotfleetwise:vehicle"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"

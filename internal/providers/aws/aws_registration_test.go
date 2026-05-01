@@ -120,6 +120,7 @@ var expectedAWSServices = []string{
 	"aws:connect",
 	"aws:gamelift",
 	"aws:iot",
+	"aws:iotfleetwise",
 	"aws:iotsitewise",
 	"aws:iotwireless",
 	"aws:ivs",
