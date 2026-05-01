@@ -110,6 +110,12 @@ const (
 	TypeEC2TransitGatewayMeteringPolicy         = "aws:ec2:transit-gateway-metering-policy"
 	TypeEC2VPCEncryptionControl                 = "aws:ec2:vpc-encryption-control"
 	TypeEC2VPNConcentrator                      = "aws:ec2:vpn-concentrator"
+	// IoT — Things (iot_things_scanners.go)
+	TypeIoTThing                    = "aws:iot:thing"
+	TypeIoTThingGroup               = "aws:iot:thing-group"
+	TypeIoTThingType                = "aws:iot:thing-type"
+	TypeIoTBillingGroup             = "aws:iot:billing-group"
+	TypeIoTThingPrincipalAttachment = "aws:iot:thing-principal-attachment"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
