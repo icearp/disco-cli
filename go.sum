@@ -242,6 +242,8 @@ github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.24 h1:RNZw+bUt/XamP/xYXKc
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.24/go.mod h1:nTvm6jvJ5iqT+36oA7aW8SkzcncwDmiv29No3VNuuiQ=
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14 h1:sHXyginrCoA3WaOkHIyaesZ21xzdZfZh45JAJ+iC+Hs=
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14/go.mod h1:79fwBYDS6J0bKmEO6Hjp4EisUG5sQDSxM8xw8QJkOJM=
+github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0 h1:TnDHcCjQbeyxNgWV67Gz8DigkCDcz6t4y+UWBItR1zc=
+github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0/go.mod h1:krO76k8XMEa+hBF4M+zuyU2XXct6JQIdH5LKOrltHew=
 github.com/aws/aws-sdk-go-v2/service/glue v1.139.3 h1:2awAOXxGrBdC53fTI7P40kkDVz0mCIU1+3beKypTrIo=
 github.com/aws/aws-sdk-go-v2/service/glue v1.139.3/go.mod h1:mDg5wTmo9ElbuHNOerghTunsyjUS8PUtdIFVAFMON88=
 github.com/aws/aws-sdk-go-v2/service/greengrass v1.32.23 h1:VTghmVEn2zf3DVkqNE9d8gdg+Tc2Lj0CggsTXtU0zGo=

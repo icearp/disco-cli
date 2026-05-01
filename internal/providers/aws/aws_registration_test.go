@@ -104,6 +104,7 @@ var expectedAWSServices = []string{
 	"aws:billingconductor",
 	"aws:braket",
 	"aws:connect",
+	"aws:gamelift",
 	"aws:iot",
 	"aws:iotwireless",
 	"aws:sagemaker",

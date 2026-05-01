@@ -618,6 +618,18 @@ const (
 	TypeIoTWirelessWirelessDevice               = "aws:iotwireless:wireless-device"
 	TypeIoTWirelessWirelessDeviceImportTask     = "aws:iotwireless:wireless-device-import-task"
 	TypeIoTWirelessWirelessGateway              = "aws:iotwireless:wireless-gateway"
+	// GameLift (gamelift_scanners.go)
+	TypeGameLiftAlias                    = "aws:gamelift:alias"
+	TypeGameLiftBuild                    = "aws:gamelift:build"
+	TypeGameLiftContainerFleet           = "aws:gamelift:container-fleet"
+	TypeGameLiftContainerGroupDefinition = "aws:gamelift:container-group-definition"
+	TypeGameLiftFleet                    = "aws:gamelift:fleet"
+	TypeGameLiftGameServerGroup          = "aws:gamelift:game-server-group"
+	TypeGameLiftGameSessionQueue         = "aws:gamelift:game-session-queue"
+	TypeGameLiftLocation                 = "aws:gamelift:location"
+	TypeGameLiftMatchmakingConfiguration = "aws:gamelift:matchmaking-configuration"
+	TypeGameLiftMatchmakingRuleSet       = "aws:gamelift:matchmaking-rule-set"
+	TypeGameLiftScript                   = "aws:gamelift:script"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
