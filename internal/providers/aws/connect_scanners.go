@@ -43,6 +43,9 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 		func(ctx context.Context) (int, int, error) {
 			return scanConnectFlows(ctx, client, instances, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanConnectIntegration(ctx, client, instances, acct, region, st, scanID)
+		},
 	)
 }
 

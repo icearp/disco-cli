@@ -431,6 +431,13 @@ const (
 	TypeConnectContactFlowModule        = "aws:connect:contact-flow-module"
 	TypeConnectContactFlowModuleVersion = "aws:connect:contact-flow-module-version"
 	TypeConnectContactFlowModuleAlias   = "aws:connect:contact-flow-module-alias"
+	// Connect — Integration (connect_integration_scanners.go)
+	TypeConnectApprovedOrigin         = "aws:connect:approved-origin"
+	TypeConnectSecurityKey            = "aws:connect:security-key"
+	TypeConnectInstanceStorageConfig  = "aws:connect:instance-storage-config"
+	TypeConnectIntegrationAssociation = "aws:connect:integration-association"
+	TypeConnectNotification           = "aws:connect:notification"
+	TypeConnectRule                   = "aws:connect:rule"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
