@@ -75,6 +75,14 @@ func init() {
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayDomainNameV2},
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayBasePathMappingV2},
 			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2VpcLink},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Deployment},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Integration},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2IntegrationResponse},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Model},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Route},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2RouteResponse},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2Stage},
+			{Service: "apigatewayv2", DiscoType: TypeAPIGatewayV2RoutingRule},
 		},
 	})
 }

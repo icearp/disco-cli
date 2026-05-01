@@ -152,6 +152,12 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 			ni.Add(int64(nn))
 			return e
 		})
+		eg.Go(func() error {
+			tt, nn, e := scanAPIGatewayV2APIChildren(egCtx, client, acct, region, id, st, scanID)
+			t.Add(int64(tt))
+			ni.Add(int64(nn))
+			return e
+		})
 	}
 	if err := eg.Wait(); err != nil {
 		return total, inserted, err
@@ -215,6 +221,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 	input := &apigatewayv2.GetDomainNamesInput{}
 	var domains []*store.Resource
 	var mappings []*store.Resource
+	var domainNames []string
 	for {
 		page, apiErr := client.GetDomainNames(ctx, input)
 		if apiErr != nil {
@@ -225,6 +232,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 		}
 		for _, item := range page.Items {
 			domainName := sv(item.DomainName)
+			domainNames = append(domainNames, domainName)
 			nativeID := apigatewayARN(region, "domainnames", domainName)
 			domains = append(domains, &store.Resource{
 				Provider:       "aws",
@@ -292,6 +300,16 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 		}
 		total += len(mappings)
 		inserted += n
+	}
+
+	// Per-domain routing-rules fan-out.
+	for _, dn := range domainNames {
+		t, i, ferr := scanAPIGatewayV2RoutingRules(ctx, client, acct, region, dn, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
 	}
 	return
 }
