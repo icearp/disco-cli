@@ -18,6 +18,17 @@ func init() {
 			{Service: "securityhub", DiscoType: TypeSecurityHubInsight},
 			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
 			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription},
+			{Service: "securityhub", DiscoType: TypeSecurityHubAggregatorV2},
+			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRule},
+			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRuleV2},
+			{Service: "securityhub", DiscoType: TypeSecurityHubConfigurationPolicy},
+			{Service: "securityhub", DiscoType: TypeSecurityHubConnectorV2},
+			{Service: "securityhub", DiscoType: TypeSecurityHubFindingAggregator},
+			{Service: "securityhub", DiscoType: TypeSecurityHubHubV2},
+			{Service: "securityhub", DiscoType: TypeSecurityHubOrganizationConfiguration},
+			{Service: "securityhub", DiscoType: TypeSecurityHubPolicyAssociation},
+			{Service: "securityhub", DiscoType: TypeSecurityHubSecurityControl},
+			{Service: "securityhub", DiscoType: TypeSecurityHubStandard},
 		},
 	})
 }
@@ -29,6 +40,17 @@ type securityhubAPI interface {
 	GetInsights(context.Context, *securityhub.GetInsightsInput, ...func(*securityhub.Options)) (*securityhub.GetInsightsOutput, error)
 	GetEnabledStandards(context.Context, *securityhub.GetEnabledStandardsInput, ...func(*securityhub.Options)) (*securityhub.GetEnabledStandardsOutput, error)
 	ListEnabledProductsForImport(context.Context, *securityhub.ListEnabledProductsForImportInput, ...func(*securityhub.Options)) (*securityhub.ListEnabledProductsForImportOutput, error)
+	ListAggregatorsV2(context.Context, *securityhub.ListAggregatorsV2Input, ...func(*securityhub.Options)) (*securityhub.ListAggregatorsV2Output, error)
+	ListAutomationRules(context.Context, *securityhub.ListAutomationRulesInput, ...func(*securityhub.Options)) (*securityhub.ListAutomationRulesOutput, error)
+	ListAutomationRulesV2(context.Context, *securityhub.ListAutomationRulesV2Input, ...func(*securityhub.Options)) (*securityhub.ListAutomationRulesV2Output, error)
+	ListConfigurationPolicies(context.Context, *securityhub.ListConfigurationPoliciesInput, ...func(*securityhub.Options)) (*securityhub.ListConfigurationPoliciesOutput, error)
+	ListConnectorsV2(context.Context, *securityhub.ListConnectorsV2Input, ...func(*securityhub.Options)) (*securityhub.ListConnectorsV2Output, error)
+	ListFindingAggregators(context.Context, *securityhub.ListFindingAggregatorsInput, ...func(*securityhub.Options)) (*securityhub.ListFindingAggregatorsOutput, error)
+	DescribeSecurityHubV2(context.Context, *securityhub.DescribeSecurityHubV2Input, ...func(*securityhub.Options)) (*securityhub.DescribeSecurityHubV2Output, error)
+	DescribeOrganizationConfiguration(context.Context, *securityhub.DescribeOrganizationConfigurationInput, ...func(*securityhub.Options)) (*securityhub.DescribeOrganizationConfigurationOutput, error)
+	ListConfigurationPolicyAssociations(context.Context, *securityhub.ListConfigurationPolicyAssociationsInput, ...func(*securityhub.Options)) (*securityhub.ListConfigurationPolicyAssociationsOutput, error)
+	ListSecurityControlDefinitions(context.Context, *securityhub.ListSecurityControlDefinitionsInput, ...func(*securityhub.Options)) (*securityhub.ListSecurityControlDefinitionsOutput, error)
+	DescribeStandards(context.Context, *securityhub.DescribeStandardsInput, ...func(*securityhub.Options)) (*securityhub.DescribeStandardsOutput, error)
 }
 
 // scanSecurityHub discovers the per-region hub, enabled standards, imported
@@ -69,6 +91,15 @@ func scanSecurityHub(ctx context.Context, acct *account, region string, st *stor
 
 	{
 		t, i, ferr := scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSecurityHubExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

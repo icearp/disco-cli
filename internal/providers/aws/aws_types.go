@@ -544,6 +544,18 @@ const (
 	TypeSecurityHubInsight               = "aws:securityhub:insight"
 	TypeSecurityHubStandardsSubscription = "aws:securityhub:standards-subscription"
 	TypeSecurityHubProductSubscription   = "aws:securityhub:product-subscription"
+	// SecurityHub — extended (securityhub_extended_scanners.go)
+	TypeSecurityHubAggregatorV2              = "aws:securityhub:aggregator-v2"
+	TypeSecurityHubAutomationRule            = "aws:securityhub:automation-rule"
+	TypeSecurityHubAutomationRuleV2          = "aws:securityhub:automation-rule-v2"
+	TypeSecurityHubConfigurationPolicy       = "aws:securityhub:configuration-policy"
+	TypeSecurityHubConnectorV2               = "aws:securityhub:connector-v2"
+	TypeSecurityHubFindingAggregator         = "aws:securityhub:finding-aggregator"
+	TypeSecurityHubHubV2                     = "aws:securityhub:hub-v2"
+	TypeSecurityHubOrganizationConfiguration = "aws:securityhub:organization-configuration"
+	TypeSecurityHubPolicyAssociation         = "aws:securityhub:policy-association"
+	TypeSecurityHubSecurityControl           = "aws:securityhub:security-control"
+	TypeSecurityHubStandard                  = "aws:securityhub:standard"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
