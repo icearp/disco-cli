@@ -761,6 +761,15 @@ const (
 	TypeCleanRoomsIdNamespaceAssociation     = "aws:cleanrooms:id-namespace-association"
 	TypeCleanRoomsMembership                 = "aws:cleanrooms:membership"
 	TypeCleanRoomsPrivacyBudgetTemplate      = "aws:cleanrooms:privacy-budget-template"
+	// AppConfig (appconfig_scanners.go)
+	TypeAppConfigApplication                = "aws:appconfig:application"
+	TypeAppConfigConfigurationProfile       = "aws:appconfig:configuration-profile"
+	TypeAppConfigDeployment                 = "aws:appconfig:deployment"
+	TypeAppConfigDeploymentStrategy         = "aws:appconfig:deployment-strategy"
+	TypeAppConfigEnvironment                = "aws:appconfig:environment"
+	TypeAppConfigExtension                  = "aws:appconfig:extension"
+	TypeAppConfigExtensionAssociation       = "aws:appconfig:extension-association"
+	TypeAppConfigHostedConfigurationVersion = "aws:appconfig:hosted-configuration-version"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
