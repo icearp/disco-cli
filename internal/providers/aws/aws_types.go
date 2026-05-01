@@ -785,6 +785,13 @@ const (
 	TypeR53GRFirewallRule          = "aws:route53globalresolver:firewall-rule"
 	TypeR53GRGlobalResolver        = "aws:route53globalresolver:global-resolver"
 	TypeR53GRHostedZoneAssociation = "aws:route53globalresolver:hosted-zone-association"
+	// Notifications (notifications_scanners.go)
+	TypeNotificationsChannelAssociation                        = "aws:notifications:channel-association"
+	TypeNotificationsEventRule                                 = "aws:notifications:event-rule"
+	TypeNotificationsManagedNotificationAdditionalChannelAssoc = "aws:notifications:managed-notification-additional-channel-association"
+	TypeNotificationsNotificationConfiguration                 = "aws:notifications:notification-configuration"
+	TypeNotificationsNotificationHub                           = "aws:notifications:notification-hub"
+	TypeNotificationsOrganizationalUnitAssociation             = "aws:notifications:organizational-unit-association"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"

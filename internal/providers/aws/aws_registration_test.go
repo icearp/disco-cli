@@ -50,6 +50,7 @@ var expectedAWSServices = []string{
 	"aws:acm-pca",
 	"aws:kafka",
 	"aws:network-firewall",
+	"aws:notifications",
 	"aws:cleanrooms",
 	"aws:cloudformation",
 	"aws:sso-admin",
