@@ -28,5 +28,17 @@ func scanIoT(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanIoTDefender(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIoTJobs(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIoTSoftware(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIoTTopic(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIoTLogging(ctx, client, acct, region, st, scanID)
+		},
 	)
 }

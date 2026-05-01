@@ -132,6 +132,21 @@ const (
 	TypeIoTSecurityProfile           = "aws:iot:security-profile"
 	TypeIoTCustomMetric              = "aws:iot:custom-metric"
 	TypeIoTDimension                 = "aws:iot:dimension"
+	// IoT — Jobs (iot_jobs_scanners.go)
+	TypeIoTCommand              = "aws:iot:command"
+	TypeIoTJobTemplate          = "aws:iot:job-template"
+	TypeIoTFleetMetric          = "aws:iot:fleet-metric"
+	TypeIoTProvisioningTemplate = "aws:iot:provisioning-template"
+	// IoT — Software (iot_software_scanners.go)
+	TypeIoTSoftwarePackage        = "aws:iot:software-package"
+	TypeIoTSoftwarePackageVersion = "aws:iot:software-package-version"
+	// IoT — Topic Rules (iot_topic_scanners.go)
+	TypeIoTTopicRule            = "aws:iot:topic-rule"
+	TypeIoTTopicRuleDestination = "aws:iot:topic-rule-destination"
+	// IoT — Logging/Encryption (iot_logging_scanners.go)
+	TypeIoTLogging                 = "aws:iot:logging"
+	TypeIoTResourceSpecificLogging = "aws:iot:resource-specific-logging"
+	TypeIoTEncryptionConfiguration = "aws:iot:encryption-configuration"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
