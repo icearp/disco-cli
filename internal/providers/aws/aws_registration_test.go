@@ -92,6 +92,7 @@ var expectedAWSServices = []string{
 	"aws:bedrockagentcore",
 	"aws:datazone",
 	"aws:greengrass",
+	"aws:medialive",
 	"aws:networkmanager",
 	"aws:pinpoint",
 	"aws:billingconductor",
