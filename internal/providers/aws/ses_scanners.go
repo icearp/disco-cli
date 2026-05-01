@@ -7,6 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/service/mailmanager"
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"golang.org/x/sync/errgroup"
@@ -31,6 +32,14 @@ func init() {
 			{Service: "ses", DiscoType: TypeSESReceiptFilter},
 			{Service: "ses", DiscoType: TypeSESReceiptRule},
 			{Service: "ses", DiscoType: TypeSESReceiptRuleSet},
+			{Service: "ses", DiscoType: TypeSESMailManagerAddonInstance},
+			{Service: "ses", DiscoType: TypeSESMailManagerAddonSubscription},
+			{Service: "ses", DiscoType: TypeSESMailManagerAddressList},
+			{Service: "ses", DiscoType: TypeSESMailManagerArchive},
+			{Service: "ses", DiscoType: TypeSESMailManagerIngressPoint},
+			{Service: "ses", DiscoType: TypeSESMailManagerRelay},
+			{Service: "ses", DiscoType: TypeSESMailManagerRuleSet},
+			{Service: "ses", DiscoType: TypeSESMailManagerTrafficPolicy},
 		},
 	})
 }
@@ -58,6 +67,7 @@ type sesv2API interface {
 func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sesv2.NewFromConfig(acct.cfg, func(o *sesv2.Options) { o.Region = region })
 	v1client := sesv1.NewFromConfig(acct.cfg, func(o *sesv1.Options) { o.Region = region })
+	mmclient := mailmanager.NewFromConfig(acct.cfg, func(o *mailmanager.Options) { o.Region = region })
 
 	{
 		t, i, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID)
@@ -88,6 +98,15 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 
 	{
 		t, i, ferr := scanSESReceipt(ctx, v1client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSESMailManager(ctx, mmclient, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

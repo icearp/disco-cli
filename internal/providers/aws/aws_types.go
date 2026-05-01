@@ -528,6 +528,15 @@ const (
 	TypeSESReceiptFilter  = "aws:ses:receipt-filter"
 	TypeSESReceiptRule    = "aws:ses:receipt-rule"
 	TypeSESReceiptRuleSet = "aws:ses:receipt-rule-set"
+	// SES — MailManager family (ses_mailmanager_scanners.go)
+	TypeSESMailManagerAddonInstance     = "aws:ses:mailmanager-addon-instance"
+	TypeSESMailManagerAddonSubscription = "aws:ses:mailmanager-addon-subscription"
+	TypeSESMailManagerAddressList       = "aws:ses:mailmanager-address-list"
+	TypeSESMailManagerArchive           = "aws:ses:mailmanager-archive"
+	TypeSESMailManagerIngressPoint      = "aws:ses:mailmanager-ingress-point"
+	TypeSESMailManagerRelay             = "aws:ses:mailmanager-relay"
+	TypeSESMailManagerRuleSet           = "aws:ses:mailmanager-rule-set"
+	TypeSESMailManagerTrafficPolicy     = "aws:ses:mailmanager-traffic-policy"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter = "aws:inspector2:filter"
 	TypeInspector2Member = "aws:inspector2:member"
