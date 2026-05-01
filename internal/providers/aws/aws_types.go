@@ -709,6 +709,15 @@ const (
 	TypeOSSSecurityConfig  = "aws:opensearchserverless:security-config"
 	TypeOSSSecurityPolicy  = "aws:opensearchserverless:security-policy"
 	TypeOSSVpcEndpoint     = "aws:opensearchserverless:vpc-endpoint"
+	// Omics (omics_scanners.go)
+	TypeOmicsAnnotationStore = "aws:omics:annotation-store"
+	TypeOmicsConfiguration   = "aws:omics:configuration"
+	TypeOmicsReferenceStore  = "aws:omics:reference-store"
+	TypeOmicsRunGroup        = "aws:omics:run-group"
+	TypeOmicsSequenceStore   = "aws:omics:sequence-store"
+	TypeOmicsVariantStore    = "aws:omics:variant-store"
+	TypeOmicsWorkflow        = "aws:omics:workflow"
+	TypeOmicsWorkflowVersion = "aws:omics:workflow-version"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
