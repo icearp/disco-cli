@@ -569,6 +569,18 @@ const (
 	TypeMediaConnectRouterInput            = "aws:mediaconnect:router-input"
 	TypeMediaConnectRouterNetworkInterface = "aws:mediaconnect:router-network-interface"
 	TypeMediaConnectRouterOutput           = "aws:mediaconnect:router-output"
+	// AppSync (appsync_scanners.go)
+	TypeAppSyncApi                      = "aws:appsync:api"
+	TypeAppSyncApiCache                 = "aws:appsync:api-cache"
+	TypeAppSyncApiKey                   = "aws:appsync:api-key"
+	TypeAppSyncChannelNamespace         = "aws:appsync:channel-namespace"
+	TypeAppSyncDataSource               = "aws:appsync:data-source"
+	TypeAppSyncDomainName               = "aws:appsync:domain-name"
+	TypeAppSyncDomainNameApiAssociation = "aws:appsync:domain-name-api-association"
+	TypeAppSyncFunctionConfiguration    = "aws:appsync:function-configuration"
+	TypeAppSyncGraphQLApi               = "aws:appsync:graphql-api"
+	TypeAppSyncGraphQLSchema            = "aws:appsync:graphql-schema"
+	TypeAppSyncSourceApiAssociation     = "aws:appsync:source-api-association"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"

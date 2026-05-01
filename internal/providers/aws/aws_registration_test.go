@@ -89,6 +89,7 @@ var expectedAWSServices = []string{
 	"aws:bcmpricingcalculator",
 	"aws:billing",
 	"aws:appstream",
+	"aws:appsync",
 	"aws:bedrock",
 	"aws:bedrockagentcore",
 	"aws:datasync",
