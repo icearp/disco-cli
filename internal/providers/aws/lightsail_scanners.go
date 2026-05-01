@@ -17,6 +17,18 @@ func init() {
 			{Service: "lightsail", DiscoType: TypeLightsailInstance},
 			{Service: "lightsail", DiscoType: TypeLightsailDatabase},
 			{Service: "lightsail", DiscoType: TypeLightsailContainerService},
+			{Service: "lightsail", DiscoType: TypeLightsailAlarm},
+			{Service: "lightsail", DiscoType: TypeLightsailBucket},
+			{Service: "lightsail", DiscoType: TypeLightsailCertificate},
+			{Service: "lightsail", DiscoType: TypeLightsailDatabaseSnapshot},
+			{Service: "lightsail", DiscoType: TypeLightsailDisk},
+			{Service: "lightsail", DiscoType: TypeLightsailDiskSnapshot},
+			{Service: "lightsail", DiscoType: TypeLightsailDistribution},
+			{Service: "lightsail", DiscoType: TypeLightsailDomain},
+			{Service: "lightsail", DiscoType: TypeLightsailInstanceSnapshot},
+			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancer},
+			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancerTlsCertificate},
+			{Service: "lightsail", DiscoType: TypeLightsailStaticIp},
 		},
 	})
 }
@@ -27,6 +39,18 @@ type lightsailAPI interface {
 	GetInstances(context.Context, *lightsail.GetInstancesInput, ...func(*lightsail.Options)) (*lightsail.GetInstancesOutput, error)
 	GetRelationalDatabases(context.Context, *lightsail.GetRelationalDatabasesInput, ...func(*lightsail.Options)) (*lightsail.GetRelationalDatabasesOutput, error)
 	GetContainerServices(context.Context, *lightsail.GetContainerServicesInput, ...func(*lightsail.Options)) (*lightsail.GetContainerServicesOutput, error)
+	GetAlarms(context.Context, *lightsail.GetAlarmsInput, ...func(*lightsail.Options)) (*lightsail.GetAlarmsOutput, error)
+	GetBuckets(context.Context, *lightsail.GetBucketsInput, ...func(*lightsail.Options)) (*lightsail.GetBucketsOutput, error)
+	GetCertificates(context.Context, *lightsail.GetCertificatesInput, ...func(*lightsail.Options)) (*lightsail.GetCertificatesOutput, error)
+	GetRelationalDatabaseSnapshots(context.Context, *lightsail.GetRelationalDatabaseSnapshotsInput, ...func(*lightsail.Options)) (*lightsail.GetRelationalDatabaseSnapshotsOutput, error)
+	GetDisks(context.Context, *lightsail.GetDisksInput, ...func(*lightsail.Options)) (*lightsail.GetDisksOutput, error)
+	GetDiskSnapshots(context.Context, *lightsail.GetDiskSnapshotsInput, ...func(*lightsail.Options)) (*lightsail.GetDiskSnapshotsOutput, error)
+	GetDistributions(context.Context, *lightsail.GetDistributionsInput, ...func(*lightsail.Options)) (*lightsail.GetDistributionsOutput, error)
+	GetDomains(context.Context, *lightsail.GetDomainsInput, ...func(*lightsail.Options)) (*lightsail.GetDomainsOutput, error)
+	GetInstanceSnapshots(context.Context, *lightsail.GetInstanceSnapshotsInput, ...func(*lightsail.Options)) (*lightsail.GetInstanceSnapshotsOutput, error)
+	GetLoadBalancers(context.Context, *lightsail.GetLoadBalancersInput, ...func(*lightsail.Options)) (*lightsail.GetLoadBalancersOutput, error)
+	GetLoadBalancerTlsCertificates(context.Context, *lightsail.GetLoadBalancerTlsCertificatesInput, ...func(*lightsail.Options)) (*lightsail.GetLoadBalancerTlsCertificatesOutput, error)
+	GetStaticIps(context.Context, *lightsail.GetStaticIpsInput, ...func(*lightsail.Options)) (*lightsail.GetStaticIpsOutput, error)
 }
 
 // scanLightsail discovers Lightsail instances, relational databases, and
@@ -59,6 +83,15 @@ func scanLightsail(ctx context.Context, acct *account, region string, st *store.
 
 	{
 		t, i, ferr := scanLightsailContainerServices(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanLightsailExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
