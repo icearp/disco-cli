@@ -15,6 +15,11 @@ func init() {
 		fn:   scanKafka,
 		emits: []coverage.TypeDecl{
 			{Service: "msk", DiscoType: TypeMSKCluster},
+			{Service: "msk", DiscoType: TypeMSKBatchScramSecret},
+			{Service: "msk", DiscoType: TypeMSKClusterPolicy},
+			{Service: "msk", DiscoType: TypeMSKConfiguration},
+			{Service: "msk", DiscoType: TypeMSKReplicator},
+			{Service: "msk", DiscoType: TypeMSKVpcConnection},
 		},
 	})
 }
@@ -29,9 +34,66 @@ type kafkaAPI interface {
 // separate Describe is needed. The Provisioned and Serverless variants are
 // both carried in AttributesJSON as returned by the SDK; resolvers branch on
 // which sub-struct is populated.
-func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanKafka(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kafka.NewFromConfig(acct.cfg, func(o *kafka.Options) { o.Region = region })
-	return scanKafkaClusters(ctx, client, acct, region, st, scanID)
+
+	clusterARNs, t, i, ferr := scanKafkaClustersAndCollect(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanKafkaConfigurations(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanKafkaReplicators(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanKafkaVpcConnections(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+	for _, ca := range clusterARNs {
+		for _, phase := range []func() (int, int, error){
+			func() (int, int, error) { return scanKafkaClusterPolicy(ctx, client, acct, region, st, scanID, ca) },
+			func() (int, int, error) { return scanKafkaScramSecrets(ctx, client, acct, region, st, scanID, ca) },
+		} {
+			t, i, perr := phase()
+			if perr != nil {
+				return total, inserted, perr
+			}
+			total += t
+			inserted += i
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanKafkaClustersAndCollect wraps scanKafkaClusters and additionally returns
+// the cluster ARN list for downstream per-cluster fan-out (cluster-policy,
+// scram-secrets).
+func scanKafkaClustersAndCollect(ctx context.Context, client kafkaAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	t, i, err := scanKafkaClusters(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return nil, t, i, err
+	}
+	rs, lerr := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeMSKCluster},
+		Regions:   []string{region},
+	})
+	if lerr != nil {
+		return nil, t, i, nil
+	}
+	arns := make([]string, 0, len(rs))
+	for _, r := range rs {
+		arns = append(arns, r.NativeID)
+	}
+	return arns, t, i, nil
 }
 
 // scanKafkaClusters holds the testable scan body.

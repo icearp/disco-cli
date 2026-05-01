@@ -407,7 +407,12 @@ const (
 	TypeKMSAlias = "aws:kms:alias"
 	TypeKMSGrant = "aws:kms:grant"
 	// MSK / Kafka (kafka_scanners.go)
-	TypeMSKCluster = "aws:kafka:cluster"
+	TypeMSKCluster          = "aws:kafka:cluster"
+	TypeMSKBatchScramSecret = "aws:kafka:batch-scram-secret"
+	TypeMSKClusterPolicy    = "aws:kafka:cluster-policy"
+	TypeMSKConfiguration    = "aws:kafka:configuration"
+	TypeMSKReplicator       = "aws:kafka:replicator"
+	TypeMSKVpcConnection    = "aws:kafka:vpc-connection"
 	// Secrets Manager (secretsmanager_scanners.go)
 	TypeSecretsManagerSecret = "aws:secretsmanager:secret"
 	// Organizations (organizations_scanners.go)
