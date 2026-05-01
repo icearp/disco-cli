@@ -19,6 +19,14 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "ses", DiscoType: TypeSESEmailIdentity},
 			{Service: "ses", DiscoType: TypeSESConfigurationSet},
+			{Service: "ses", DiscoType: TypeSESConfigurationSetEventDestination},
+			{Service: "ses", DiscoType: TypeSESContactList},
+			{Service: "ses", DiscoType: TypeSESCustomVerificationEmailTemplate},
+			{Service: "ses", DiscoType: TypeSESDedicatedIpPool},
+			{Service: "ses", DiscoType: TypeSESMultiRegionEndpoint},
+			{Service: "ses", DiscoType: TypeSESTemplate},
+			{Service: "ses", DiscoType: TypeSESTenant},
+			{Service: "ses", DiscoType: TypeSESVdmAttributes},
 		},
 	})
 }
@@ -30,6 +38,14 @@ type sesv2API interface {
 	GetEmailIdentity(context.Context, *sesv2.GetEmailIdentityInput, ...func(*sesv2.Options)) (*sesv2.GetEmailIdentityOutput, error)
 	ListConfigurationSets(context.Context, *sesv2.ListConfigurationSetsInput, ...func(*sesv2.Options)) (*sesv2.ListConfigurationSetsOutput, error)
 	GetConfigurationSet(context.Context, *sesv2.GetConfigurationSetInput, ...func(*sesv2.Options)) (*sesv2.GetConfigurationSetOutput, error)
+	GetConfigurationSetEventDestinations(context.Context, *sesv2.GetConfigurationSetEventDestinationsInput, ...func(*sesv2.Options)) (*sesv2.GetConfigurationSetEventDestinationsOutput, error)
+	ListContactLists(context.Context, *sesv2.ListContactListsInput, ...func(*sesv2.Options)) (*sesv2.ListContactListsOutput, error)
+	ListCustomVerificationEmailTemplates(context.Context, *sesv2.ListCustomVerificationEmailTemplatesInput, ...func(*sesv2.Options)) (*sesv2.ListCustomVerificationEmailTemplatesOutput, error)
+	ListDedicatedIpPools(context.Context, *sesv2.ListDedicatedIpPoolsInput, ...func(*sesv2.Options)) (*sesv2.ListDedicatedIpPoolsOutput, error)
+	ListMultiRegionEndpoints(context.Context, *sesv2.ListMultiRegionEndpointsInput, ...func(*sesv2.Options)) (*sesv2.ListMultiRegionEndpointsOutput, error)
+	ListEmailTemplates(context.Context, *sesv2.ListEmailTemplatesInput, ...func(*sesv2.Options)) (*sesv2.ListEmailTemplatesOutput, error)
+	ListTenants(context.Context, *sesv2.ListTenantsInput, ...func(*sesv2.Options)) (*sesv2.ListTenantsOutput, error)
+	GetAccount(context.Context, *sesv2.GetAccountInput, ...func(*sesv2.Options)) (*sesv2.GetAccountOutput, error)
 }
 
 // scanSES discovers SES v2 email identities and configuration sets in one
@@ -49,6 +65,15 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 
 	{
 		t, i, ferr := scanSESConfigurationSets(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSESExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

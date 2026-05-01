@@ -515,6 +515,15 @@ const (
 	// SES v2 (ses_scanners.go, ses_resolvers.go)
 	TypeSESEmailIdentity    = "aws:ses:email-identity"
 	TypeSESConfigurationSet = "aws:ses:configuration-set"
+	// SES v2 — extended (ses_v2_extended_scanners.go)
+	TypeSESConfigurationSetEventDestination = "aws:ses:configuration-set-event-destination"
+	TypeSESContactList                      = "aws:ses:contact-list"
+	TypeSESCustomVerificationEmailTemplate  = "aws:ses:custom-verification-email-template"
+	TypeSESDedicatedIpPool                  = "aws:ses:dedicated-ip-pool"
+	TypeSESMultiRegionEndpoint              = "aws:ses:multi-region-endpoint"
+	TypeSESTemplate                         = "aws:ses:template"
+	TypeSESTenant                           = "aws:ses:tenant"
+	TypeSESVdmAttributes                    = "aws:ses:vdm-attributes"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter = "aws:inspector2:filter"
 	TypeInspector2Member = "aws:inspector2:member"
