@@ -64,6 +64,8 @@ type ec2API interface {
 	DescribeRouteServers(context.Context, *ec2.DescribeRouteServersInput, ...func(*ec2.Options)) (*ec2.DescribeRouteServersOutput, error)
 	DescribeRouteServerEndpoints(context.Context, *ec2.DescribeRouteServerEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeRouteServerEndpointsOutput, error)
 	DescribeRouteServerPeers(context.Context, *ec2.DescribeRouteServerPeersInput, ...func(*ec2.Options)) (*ec2.DescribeRouteServerPeersOutput, error)
+	DescribeIpamPrefixListResolvers(context.Context, *ec2.DescribeIpamPrefixListResolversInput, ...func(*ec2.Options)) (*ec2.DescribeIpamPrefixListResolversOutput, error)
+	DescribeIpamPrefixListResolverTargets(context.Context, *ec2.DescribeIpamPrefixListResolverTargetsInput, ...func(*ec2.Options)) (*ec2.DescribeIpamPrefixListResolverTargetsOutput, error)
 	DescribeManagedPrefixLists(context.Context, *ec2.DescribeManagedPrefixListsInput, ...func(*ec2.Options)) (*ec2.DescribeManagedPrefixListsOutput, error)
 	DescribeNatGateways(context.Context, *ec2.DescribeNatGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeNatGatewaysOutput, error)
 	DescribeNetworkAcls(context.Context, *ec2.DescribeNetworkAclsInput, ...func(*ec2.Options)) (*ec2.DescribeNetworkAclsOutput, error)

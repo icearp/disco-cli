@@ -101,6 +101,9 @@ const (
 	TypeEC2RouteServer         = "aws:ec2:route-server"
 	TypeEC2RouteServerEndpoint = "aws:ec2:route-server-endpoint"
 	TypeEC2RouteServerPeer     = "aws:ec2:route-server-peer"
+	// EC2 — IPAM Prefix List Resolver (ec2_ipam_resolver_scanners.go)
+	TypeEC2IPAMPrefixListResolver       = "aws:ec2:ipam-prefix-list-resolver"
+	TypeEC2IPAMPrefixListResolverTarget = "aws:ec2:ipam-prefix-list-resolver-target"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
