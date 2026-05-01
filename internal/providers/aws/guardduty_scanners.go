@@ -18,6 +18,11 @@ func init() {
 			{Service: "guardduty", DiscoType: TypeGuardDutyFilter},
 			{Service: "guardduty", DiscoType: TypeGuardDutyIPSet},
 			{Service: "guardduty", DiscoType: TypeGuardDutyMember, Synthetic: true},
+			{Service: "guardduty", DiscoType: TypeGuardDutyMalwareProtectionPlan},
+			{Service: "guardduty", DiscoType: TypeGuardDutyPublishingDestination},
+			{Service: "guardduty", DiscoType: TypeGuardDutyThreatEntitySet},
+			{Service: "guardduty", DiscoType: TypeGuardDutyThreatIntelSet},
+			{Service: "guardduty", DiscoType: TypeGuardDutyTrustedEntitySet},
 		},
 	})
 }
@@ -38,7 +43,20 @@ type guarddutyAPI interface {
 // returns a list for future-proofing — we handle N defensively.
 func scanGuardDuty(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := guardduty.NewFromConfig(acct.cfg, func(o *guardduty.Options) { o.Region = region })
-	return scanGuardDutyDetectors(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanGuardDutyDetectors(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanGuardDutyExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanGuardDutyDetectors holds the testable scan body.
