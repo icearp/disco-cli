@@ -743,6 +743,15 @@ const (
 	TypeEMRStep                 = "aws:emr:step"
 	TypeEMRStudio               = "aws:emr:studio"
 	TypeEMRStudioSessionMapping = "aws:emr:studio-session-mapping"
+	// CustomerProfiles (customerprofiles_scanners.go)
+	TypeCPDomain                        = "aws:customer-profiles:domain"
+	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
+	TypeCPEventStream                   = "aws:customer-profiles:event-stream"
+	TypeCPEventTrigger                  = "aws:customer-profiles:event-trigger"
+	TypeCPIntegration                   = "aws:customer-profiles:integration"
+	TypeCPObjectType                    = "aws:customer-profiles:object-type"
+	TypeCPRecommender                   = "aws:customer-profiles:recommender"
+	TypeCPSegmentDefinition             = "aws:customer-profiles:segment-definition"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"

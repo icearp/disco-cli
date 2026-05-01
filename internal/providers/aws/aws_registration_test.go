@@ -71,6 +71,7 @@ var expectedAWSServices = []string{
 	"aws:servicecatalog",
 	"aws:auditmanager",
 	"aws:controltower",
+	"aws:customer-profiles",
 	"aws:apprunner",
 	"aws:batch",
 	"aws:lightsail",
