@@ -15,7 +15,9 @@ func init() {
 		fn:   scanBedrock,
 		emits: []coverage.TypeDecl{
 			{Service: "bedrock", DiscoType: TypeBedrockGuardrail},
+			{Service: "bedrock", DiscoType: TypeBedrockGuardrailVersion},
 			{Service: "bedrock", DiscoType: TypeBedrockAutomatedReasoningPolicy},
+			{Service: "bedrock", DiscoType: TypeBedrockAutomatedReasoningPolicyVersion},
 			{Service: "bedrock", DiscoType: TypeBedrockIntelligentPromptRouter},
 			{Service: "bedrock", DiscoType: TypeBedrockApplicationInferenceProfile},
 			{Service: "bedrock", DiscoType: TypeBedrockEnforcedGuardrailConfiguration},

@@ -9,9 +9,35 @@ import (
 )
 
 func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	guardIDs, t, i, ferr := scanBedrockGuardrails(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return 0, 0, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanBedrockGuardrailVersions(ctx, client, acct, region, st, scanID, guardIDs)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	policyArns, t, i, ferr := scanBedrockARPolicies(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanBedrockARPolicyVersions(ctx, client, acct, region, st, scanID, policyArns)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanBedrockGuardrails(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanBedrockARPolicies(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBedrockPromptRouters(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanBedrockInferenceProfiles(ctx, client, acct, region, st, scanID)
@@ -30,23 +56,25 @@ func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account
 	return total, inserted, nil
 }
 
-func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := bedrock.NewListGuardrailsPaginator(client, &bedrock.ListGuardrailsInput{})
+	var ids []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListGuardrails", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("bedrock:ListGuardrails: %w", perr)
+			return nil, 0, 0, fmt.Errorf("bedrock:ListGuardrails: %w", perr)
 		}
 		for _, g := range out.Guardrails {
 			arn := sv(g.Arn)
 			if arn == "" {
 				continue
 			}
+			ids = append(ids, sv(g.Id))
 			label := sv(g.Name)
 			if label == "" {
 				label = sv(g.Id)
@@ -65,32 +93,77 @@ func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account
 		}
 	}
 	if len(batch) == 0 {
+		return ids, 0, 0, nil
+	}
+	n, uerr := st.UpsertResources(batch)
+	if uerr != nil {
+		return ids, 0, 0, fmt.Errorf("upsert bedrock guardrails: %w", uerr)
+	}
+	return ids, len(batch), n, nil
+}
+
+// scanBedrockGuardrailVersions calls ListGuardrails(GuardrailIdentifier=id)
+// per-guardrail — when set, returns versions of that guardrail.
+func scanBedrockGuardrailVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, guardrailIDs []string) (int, int, error) {
+	if len(guardrailIDs) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, gid := range guardrailIDs {
+		id := gid
+		pager := bedrock.NewListGuardrailsPaginator(client, &bedrock.ListGuardrailsInput{GuardrailIdentifier: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("bedrock:ListGuardrails(versions) %s: %w", gid, perr)
+			}
+			for _, g := range out.Guardrails {
+				arn := sv(g.Arn)
+				ver := sv(g.Version)
+				if arn == "" || ver == "" || ver == "DRAFT" {
+					continue
+				}
+				vlabel := ver
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeBedrockGuardrailVersion, NativeID: arn + ":" + ver,
+					Name: &vlabel, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	if len(batch) == 0 {
 		return 0, 0, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock guardrails: %w", uerr)
+		return 0, 0, fmt.Errorf("upsert bedrock guardrail-versions: %w", uerr)
 	}
 	return len(batch), n, nil
 }
 
-func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := bedrock.NewListAutomatedReasoningPoliciesPaginator(client, &bedrock.ListAutomatedReasoningPoliciesInput{})
+	var arns []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListAutomatedReasoningPolicies", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("bedrock:ListAutomatedReasoningPolicies: %w", perr)
+			return nil, 0, 0, fmt.Errorf("bedrock:ListAutomatedReasoningPolicies: %w", perr)
 		}
 		for _, p := range out.AutomatedReasoningPolicySummaries {
 			arn := sv(p.PolicyArn)
 			if arn == "" {
 				continue
 			}
+			arns = append(arns, arn)
 			label := sv(p.Name)
 			if label == "" {
 				label = sv(p.PolicyId)
@@ -109,11 +182,54 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 		}
 	}
 	if len(batch) == 0 {
+		return arns, 0, 0, nil
+	}
+	n, uerr := st.UpsertResources(batch)
+	if uerr != nil {
+		return arns, 0, 0, fmt.Errorf("upsert bedrock automated-reasoning-policies: %w", uerr)
+	}
+	return arns, len(batch), n, nil
+}
+
+// scanBedrockARPolicyVersions calls ListAutomatedReasoningPolicies with
+// PolicyArn set per-policy — returns versions of that policy.
+func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyArns []string) (int, int, error) {
+	if len(policyArns) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, pa := range policyArns {
+		arnRef := pa
+		pager := bedrock.NewListAutomatedReasoningPoliciesPaginator(client, &bedrock.ListAutomatedReasoningPoliciesInput{PolicyArn: &arnRef})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("bedrock:ListAutomatedReasoningPolicies(versions) %s: %w", pa, perr)
+			}
+			for _, p := range out.AutomatedReasoningPolicySummaries {
+				arn := sv(p.PolicyArn)
+				ver := sv(p.Version)
+				if arn == "" || ver == "" || ver == "DRAFT" {
+					continue
+				}
+				vlabel := ver
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeBedrockAutomatedReasoningPolicyVersion, NativeID: arn + ":" + ver,
+					Name: &vlabel, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	if len(batch) == 0 {
 		return 0, 0, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock automated-reasoning-policies: %w", uerr)
+		return 0, 0, fmt.Errorf("upsert bedrock automated-reasoning-policy-versions: %w", uerr)
 	}
 	return len(batch), n, nil
 }

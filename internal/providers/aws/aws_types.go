@@ -532,11 +532,13 @@ const (
 	TypeBedrockPrompt        = "aws:bedrock:prompt"
 	TypeBedrockPromptVersion = "aws:bedrock:prompt-version"
 	// Bedrock — Foundation family (bedrock_foundation_scanners.go)
-	TypeBedrockGuardrail                      = "aws:bedrock:guardrail"
-	TypeBedrockAutomatedReasoningPolicy       = "aws:bedrock:automated-reasoning-policy"
-	TypeBedrockIntelligentPromptRouter        = "aws:bedrock:intelligent-prompt-router"
-	TypeBedrockApplicationInferenceProfile    = "aws:bedrock:application-inference-profile"
-	TypeBedrockEnforcedGuardrailConfiguration = "aws:bedrock:enforced-guardrail-configuration"
+	TypeBedrockGuardrail                       = "aws:bedrock:guardrail"
+	TypeBedrockGuardrailVersion                = "aws:bedrock:guardrail-version"
+	TypeBedrockAutomatedReasoningPolicy        = "aws:bedrock:automated-reasoning-policy"
+	TypeBedrockAutomatedReasoningPolicyVersion = "aws:bedrock:automated-reasoning-policy-version"
+	TypeBedrockIntelligentPromptRouter         = "aws:bedrock:intelligent-prompt-router"
+	TypeBedrockApplicationInferenceProfile     = "aws:bedrock:application-inference-profile"
+	TypeBedrockEnforcedGuardrailConfiguration  = "aws:bedrock:enforced-guardrail-configuration"
 	// Glue — Schema (glue_schema_scanners.go)
 	TypeGlueRegistry              = "aws:glue:registry"
 	TypeGlueSchema                = "aws:glue:schema"
