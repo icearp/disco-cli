@@ -44,6 +44,15 @@ type glueAPI interface {
 	GetCrawlers(context.Context, *glue.GetCrawlersInput, ...func(*glue.Options)) (*glue.GetCrawlersOutput, error)
 	GetConnections(context.Context, *glue.GetConnectionsInput, ...func(*glue.Options)) (*glue.GetConnectionsOutput, error)
 	GetClassifiers(context.Context, *glue.GetClassifiersInput, ...func(*glue.Options)) (*glue.GetClassifiersOutput, error)
+	GetCatalogs(context.Context, *glue.GetCatalogsInput, ...func(*glue.Options)) (*glue.GetCatalogsOutput, error)
+	ListCustomEntityTypes(context.Context, *glue.ListCustomEntityTypesInput, ...func(*glue.Options)) (*glue.ListCustomEntityTypesOutput, error)
+	GetDataCatalogEncryptionSettings(context.Context, *glue.GetDataCatalogEncryptionSettingsInput, ...func(*glue.Options)) (*glue.GetDataCatalogEncryptionSettingsOutput, error)
+	ListDataQualityRulesets(context.Context, *glue.ListDataQualityRulesetsInput, ...func(*glue.Options)) (*glue.ListDataQualityRulesetsOutput, error)
+	GetGlueIdentityCenterConfiguration(context.Context, *glue.GetGlueIdentityCenterConfigurationInput, ...func(*glue.Options)) (*glue.GetGlueIdentityCenterConfigurationOutput, error)
+	DescribeIntegrations(context.Context, *glue.DescribeIntegrationsInput, ...func(*glue.Options)) (*glue.DescribeIntegrationsOutput, error)
+	ListIntegrationResourceProperties(context.Context, *glue.ListIntegrationResourcePropertiesInput, ...func(*glue.Options)) (*glue.ListIntegrationResourcePropertiesOutput, error)
+	GetSecurityConfigurations(context.Context, *glue.GetSecurityConfigurationsInput, ...func(*glue.Options)) (*glue.GetSecurityConfigurationsOutput, error)
+	ListUsageProfiles(context.Context, *glue.ListUsageProfilesInput, ...func(*glue.Options)) (*glue.ListUsageProfilesOutput, error)
 }
 
 // scanGlue discovers Glue Data Catalog databases and tables in one region.
@@ -85,6 +94,15 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 
 	{
 		t, i, ferr := scanGlueJobs(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanGlueMisc(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

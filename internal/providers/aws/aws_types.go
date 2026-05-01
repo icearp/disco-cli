@@ -530,6 +530,16 @@ const (
 	TypeGlueCrawler    = "aws:glue:crawler"
 	TypeGlueConnection = "aws:glue:connection"
 	TypeGlueClassifier = "aws:glue:classifier"
+	// Glue — Misc family (glue_misc_scanners.go)
+	TypeGlueCatalog                       = "aws:glue:catalog"
+	TypeGlueCustomEntityType              = "aws:glue:custom-entity-type"
+	TypeGlueDataCatalogEncryptionSettings = "aws:glue:data-catalog-encryption-settings"
+	TypeGlueDataQualityRuleset            = "aws:glue:data-quality-ruleset"
+	TypeGlueIdentityCenterConfiguration   = "aws:glue:identity-center-configuration"
+	TypeGlueIntegration                   = "aws:glue:integration"
+	TypeGlueIntegrationResourceProperty   = "aws:glue:integration-resource-property"
+	TypeGlueSecurityConfiguration         = "aws:glue:security-configuration"
+	TypeGlueUsageProfile                  = "aws:glue:usage-profile"
 	// Glue — Jobs family (glue_jobs_scanners.go)
 	TypeGlueJob         = "aws:glue:job"
 	TypeGlueTrigger     = "aws:glue:trigger"
