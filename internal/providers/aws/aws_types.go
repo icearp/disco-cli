@@ -408,6 +408,11 @@ const (
 	// SageMaker — Misc (sagemaker_misc_scanners.go)
 	TypeSageMakerCluster  = "aws:sagemaker:cluster"
 	TypeSageMakerWorkteam = "aws:sagemaker:workteam"
+	// Connect — Core (connect_core_scanners.go)
+	TypeConnectInstance                 = "aws:connect:instance"
+	TypeConnectTrafficDistributionGroup = "aws:connect:traffic-distribution-group"
+	TypeConnectPhoneNumber              = "aws:connect:phone-number"
+	TypeConnectEmailAddress             = "aws:connect:email-address"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

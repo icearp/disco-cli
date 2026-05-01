@@ -90,6 +90,7 @@ var expectedAWSServices = []string{
 	"aws:billing",
 	"aws:billingconductor",
 	"aws:braket",
+	"aws:connect",
 	"aws:sagemaker",
 }
 

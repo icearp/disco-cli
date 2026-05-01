@@ -196,6 +196,8 @@ github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.1 h1:DdaA4M1S
 github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.1/go.mod h1:jV4WhWx/pQMmXGp2u97+b+sOsagzQoM2T1EycFXfhj4=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.62.2 h1:iyAjN2NU9dMlpnN1ykTQaN/yMfI4HSae10cfLykqiXw=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.62.2/go.mod h1:zesNwMWxY+ZQZzN+npfj6KwNWPSXUGNmsXGv93b4GYA=
+github.com/aws/aws-sdk-go-v2/service/connect v1.172.1 h1:aHqy/dANNJHJlgjDs/8exwtHMeHDWCVG+L1T/0+7hps=
+github.com/aws/aws-sdk-go-v2/service/connect v1.172.1/go.mod h1:Du5pBjluSAHkGpEiz8aCfk9NdndzEeGpCqARDWAlGGQ=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10 h1:2IJTn2NHVRNz2aNfjSHFjHWV3WqQfhSL8AzkozgUFmY=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10/go.mod h1:mqfl3hxenQ4Y4qG53D90gIL/kIQqnyqoyzABYTDYJH0=
 github.com/aws/aws-sdk-go-v2/service/detective v1.38.14 h1:FJ8iRprCfzN6RW73dYHNM2ge/XXMmAiY2aPLsFf8EOY=
