@@ -97,6 +97,10 @@ const (
 	TypeEC2SecurityGroupVPCAssociation       = "aws:ec2:security-group-vpc-association"
 	TypeEC2NetworkInterfacePermission        = "aws:ec2:network-interface-permission"
 	TypeEC2SnapshotBlockPublicAccess         = "aws:ec2:snapshot-block-public-access"
+	// EC2 — Route Server (ec2_route_server_scanners.go)
+	TypeEC2RouteServer         = "aws:ec2:route-server"
+	TypeEC2RouteServerEndpoint = "aws:ec2:route-server-endpoint"
+	TypeEC2RouteServerPeer     = "aws:ec2:route-server-peer"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"

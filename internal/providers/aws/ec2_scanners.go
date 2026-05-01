@@ -48,6 +48,9 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2ClientVPN(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2RouteServer(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
 
