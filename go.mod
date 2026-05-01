@@ -176,6 +176,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/medialive v1.95.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/qconnect v1.30.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ses v1.34.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect

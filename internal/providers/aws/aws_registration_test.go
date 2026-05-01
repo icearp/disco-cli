@@ -103,6 +103,7 @@ var expectedAWSServices = []string{
 	"aws:iot",
 	"aws:sagemaker",
 	"aws:vpclattice",
+	"aws:wisdom",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

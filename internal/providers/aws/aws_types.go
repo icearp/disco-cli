@@ -248,6 +248,19 @@ const (
 	TypeAppStreamStackFleetAssociation             = "aws:appstream:stack-fleet-association"
 	TypeAppStreamStackUserAssociation              = "aws:appstream:stack-user-association"
 	TypeAppStreamUser                              = "aws:appstream:user"
+	// Wisdom (Amazon Q Connect — qconnect SDK) (wisdom_scanners.go)
+	TypeWisdomAssistant              = "aws:wisdom:assistant"
+	TypeWisdomAssistantAssociation   = "aws:wisdom:assistant-association"
+	TypeWisdomAIAgent                = "aws:wisdom:ai-agent"
+	TypeWisdomAIAgentVersion         = "aws:wisdom:ai-agent-version"
+	TypeWisdomAIGuardrail            = "aws:wisdom:ai-guardrail"
+	TypeWisdomAIGuardrailVersion     = "aws:wisdom:ai-guardrail-version"
+	TypeWisdomAIPrompt               = "aws:wisdom:ai-prompt"
+	TypeWisdomAIPromptVersion        = "aws:wisdom:ai-prompt-version"
+	TypeWisdomKnowledgeBase          = "aws:wisdom:knowledge-base"
+	TypeWisdomMessageTemplate        = "aws:wisdom:message-template"
+	TypeWisdomMessageTemplateVersion = "aws:wisdom:message-template-version"
+	TypeWisdomQuickResponse          = "aws:wisdom:quick-response"
 	// EKS
 	TypeEKSCluster = "aws:eks:cluster"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
