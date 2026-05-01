@@ -71,6 +71,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.14.2
 	github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.10.11
 	github.com/aws/aws-sdk-go-v2/service/bedrock v1.59.2
+	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.53.2
 	github.com/aws/aws-sdk-go-v2/service/billing v1.10.6
 	github.com/aws/aws-sdk-go-v2/service/billingconductor v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/braket v1.40.2

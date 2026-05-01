@@ -521,6 +521,16 @@ const (
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"
+	// Bedrock — Agents family (bedrock_agents_scanners.go)
+	TypeBedrockAgent         = "aws:bedrock:agent"
+	TypeBedrockAgentAlias    = "aws:bedrock:agent-alias"
+	TypeBedrockKnowledgeBase = "aws:bedrock:knowledge-base"
+	TypeBedrockDataSource    = "aws:bedrock:data-source"
+	TypeBedrockFlow          = "aws:bedrock:flow"
+	TypeBedrockFlowAlias     = "aws:bedrock:flow-alias"
+	TypeBedrockFlowVersion   = "aws:bedrock:flow-version"
+	TypeBedrockPrompt        = "aws:bedrock:prompt"
+	TypeBedrockPromptVersion = "aws:bedrock:prompt-version"
 	// Bedrock — Foundation family (bedrock_foundation_scanners.go)
 	TypeBedrockGuardrail                      = "aws:bedrock:guardrail"
 	TypeBedrockAutomatedReasoningPolicy       = "aws:bedrock:automated-reasoning-policy"

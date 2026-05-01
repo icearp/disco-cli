@@ -6,6 +6,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
+	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 )
 
 func init() {
@@ -18,12 +19,33 @@ func init() {
 			{Service: "bedrock", DiscoType: TypeBedrockIntelligentPromptRouter},
 			{Service: "bedrock", DiscoType: TypeBedrockApplicationInferenceProfile},
 			{Service: "bedrock", DiscoType: TypeBedrockEnforcedGuardrailConfiguration},
+			{Service: "bedrock", DiscoType: TypeBedrockAgent},
+			{Service: "bedrock", DiscoType: TypeBedrockAgentAlias},
+			{Service: "bedrock", DiscoType: TypeBedrockKnowledgeBase},
+			{Service: "bedrock", DiscoType: TypeBedrockDataSource},
+			{Service: "bedrock", DiscoType: TypeBedrockFlow},
+			{Service: "bedrock", DiscoType: TypeBedrockFlowAlias},
+			{Service: "bedrock", DiscoType: TypeBedrockFlowVersion},
+			{Service: "bedrock", DiscoType: TypeBedrockPrompt},
+			{Service: "bedrock", DiscoType: TypeBedrockPromptVersion},
 		},
 	})
 }
 
 // bedrockAPI is the narrow set of Bedrock SDK ops invoked by scanBedrock
 // sub-phases. Foundation-only — agent-side scanners use a separate client.
+// bedrockAgentAPI covers the bedrockagent SDK (Agents, KBs, Flows, Prompts).
+type bedrockAgentAPI interface {
+	ListAgents(context.Context, *bedrockagent.ListAgentsInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentsOutput, error)
+	ListAgentAliases(context.Context, *bedrockagent.ListAgentAliasesInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentAliasesOutput, error)
+	ListKnowledgeBases(context.Context, *bedrockagent.ListKnowledgeBasesInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListKnowledgeBasesOutput, error)
+	ListDataSources(context.Context, *bedrockagent.ListDataSourcesInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListDataSourcesOutput, error)
+	ListFlows(context.Context, *bedrockagent.ListFlowsInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListFlowsOutput, error)
+	ListFlowAliases(context.Context, *bedrockagent.ListFlowAliasesInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListFlowAliasesOutput, error)
+	ListFlowVersions(context.Context, *bedrockagent.ListFlowVersionsInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListFlowVersionsOutput, error)
+	ListPrompts(context.Context, *bedrockagent.ListPromptsInput, ...func(*bedrockagent.Options)) (*bedrockagent.ListPromptsOutput, error)
+}
+
 type bedrockAPI interface {
 	ListGuardrails(context.Context, *bedrock.ListGuardrailsInput, ...func(*bedrock.Options)) (*bedrock.ListGuardrailsOutput, error)
 	ListAutomatedReasoningPolicies(context.Context, *bedrock.ListAutomatedReasoningPoliciesInput, ...func(*bedrock.Options)) (*bedrock.ListAutomatedReasoningPoliciesOutput, error)
@@ -33,6 +55,15 @@ type bedrockAPI interface {
 }
 
 func scanBedrock(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := bedrock.NewFromConfig(acct.cfg, func(o *bedrock.Options) { o.Region = region })
-	return scanBedrockFoundation(ctx, client, acct, region, st, scanID)
+	bclient := bedrock.NewFromConfig(acct.cfg, func(o *bedrock.Options) { o.Region = region })
+	aclient := bedrockagent.NewFromConfig(acct.cfg, func(o *bedrockagent.Options) { o.Region = region })
+	t1, i1, e1 := scanBedrockFoundation(ctx, bclient, acct, region, st, scanID)
+	if e1 != nil {
+		return 0, 0, e1
+	}
+	t2, i2, e2 := scanBedrockAgents(ctx, aclient, acct, region, st, scanID)
+	if e2 != nil {
+		return t1, i1, e2
+	}
+	return t1 + t2, i1 + i2, nil
 }
