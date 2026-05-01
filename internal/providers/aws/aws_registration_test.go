@@ -59,6 +59,7 @@ var expectedAWSServices = []string{
 	"aws:securityhub",
 	"aws:detective",
 	"aws:lakeformation",
+	"aws:location",
 	"aws:ses",
 	"aws:inspector2",
 	"aws:glue",

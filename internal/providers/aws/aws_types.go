@@ -797,6 +797,14 @@ const (
 	TypeNotificationsNotificationConfiguration                 = "aws:notifications:notification-configuration"
 	TypeNotificationsNotificationHub                           = "aws:notifications:notification-hub"
 	TypeNotificationsOrganizationalUnitAssociation             = "aws:notifications:organizational-unit-association"
+	// Location (location_scanners.go)
+	TypeLocationAPIKey             = "aws:location:api-key"
+	TypeLocationGeofenceCollection = "aws:location:geofence-collection"
+	TypeLocationMap                = "aws:location:map"
+	TypeLocationPlaceIndex         = "aws:location:place-index"
+	TypeLocationRouteCalculator    = "aws:location:route-calculator"
+	TypeLocationTracker            = "aws:location:tracker"
+	TypeLocationTrackerConsumer    = "aws:location:tracker-consumer"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
