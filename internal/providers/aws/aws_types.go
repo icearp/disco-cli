@@ -752,6 +752,15 @@ const (
 	TypeCPObjectType                    = "aws:customer-profiles:object-type"
 	TypeCPRecommender                   = "aws:customer-profiles:recommender"
 	TypeCPSegmentDefinition             = "aws:customer-profiles:segment-definition"
+	// CleanRooms (cleanrooms_scanners.go)
+	TypeCleanRoomsAnalysisTemplate           = "aws:cleanrooms:analysis-template"
+	TypeCleanRoomsCollaboration              = "aws:cleanrooms:collaboration"
+	TypeCleanRoomsConfiguredTable            = "aws:cleanrooms:configured-table"
+	TypeCleanRoomsConfiguredTableAssociation = "aws:cleanrooms:configured-table-association"
+	TypeCleanRoomsIdMappingTable             = "aws:cleanrooms:id-mapping-table"
+	TypeCleanRoomsIdNamespaceAssociation     = "aws:cleanrooms:id-namespace-association"
+	TypeCleanRoomsMembership                 = "aws:cleanrooms:membership"
+	TypeCleanRoomsPrivacyBudgetTemplate      = "aws:cleanrooms:privacy-budget-template"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
