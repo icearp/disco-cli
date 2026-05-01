@@ -185,6 +185,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/medialive v1.95.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/qbusiness v1.34.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/qconnect v1.30.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/quicksight v1.108.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53resolver v1.42.7 // indirect

@@ -693,6 +693,14 @@ const (
 	TypeTransferUser        = "aws:transfer:user"
 	TypeTransferWebApp      = "aws:transfer:web-app"
 	TypeTransferWorkflow    = "aws:transfer:workflow"
+	// QBusiness (qbusiness_scanners.go)
+	TypeQBusinessApplication   = "aws:qbusiness:application"
+	TypeQBusinessDataAccessor  = "aws:qbusiness:data-accessor"
+	TypeQBusinessDataSource    = "aws:qbusiness:data-source"
+	TypeQBusinessIndex         = "aws:qbusiness:index"
+	TypeQBusinessPlugin        = "aws:qbusiness:plugin"
+	TypeQBusinessRetriever     = "aws:qbusiness:retriever"
+	TypeQBusinessWebExperience = "aws:qbusiness:web-experience"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
