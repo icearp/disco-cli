@@ -111,6 +111,7 @@ var expectedAWSServices = []string{
 	"aws:pinpoint",
 	"aws:qbusiness",
 	"aws:quicksight",
+	"aws:route53globalresolver",
 	"aws:route53resolver",
 	"aws:billingconductor",
 	"aws:braket",

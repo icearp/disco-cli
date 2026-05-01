@@ -777,6 +777,14 @@ const (
 	TypeSMSVoicePool                 = "aws:sms-voice:pool"
 	TypeSMSVoiceProtectConfiguration = "aws:sms-voice:protect-configuration"
 	TypeSMSVoiceSenderID             = "aws:sms-voice:sender-id"
+	// Route53GlobalResolver (route53globalresolver_scanners.go)
+	TypeR53GRAccessSource          = "aws:route53globalresolver:access-source"
+	TypeR53GRAccessToken           = "aws:route53globalresolver:access-token"
+	TypeR53GRDNSView               = "aws:route53globalresolver:dns-view"
+	TypeR53GRFirewallDomainList    = "aws:route53globalresolver:firewall-domain-list"
+	TypeR53GRFirewallRule          = "aws:route53globalresolver:firewall-rule"
+	TypeR53GRGlobalResolver        = "aws:route53globalresolver:global-resolver"
+	TypeR53GRHostedZoneAssociation = "aws:route53globalresolver:hosted-zone-association"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
