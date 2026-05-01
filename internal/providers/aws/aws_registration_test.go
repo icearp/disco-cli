@@ -99,6 +99,7 @@ var expectedAWSServices = []string{
 	"aws:medialive",
 	"aws:networkmanager",
 	"aws:pinpoint",
+	"aws:quicksight",
 	"aws:billingconductor",
 	"aws:braket",
 	"aws:connect",
