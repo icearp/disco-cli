@@ -104,6 +104,12 @@ const (
 	// EC2 — IPAM Prefix List Resolver (ec2_ipam_resolver_scanners.go)
 	TypeEC2IPAMPrefixListResolver       = "aws:ec2:ipam-prefix-list-resolver"
 	TypeEC2IPAMPrefixListResolverTarget = "aws:ec2:ipam-prefix-list-resolver-target"
+	// EC2 — Misc (ec2_misc_extra_scanners.go)
+	TypeEC2CapacityManagerDataExport            = "aws:ec2:capacity-manager-data-export"
+	TypeEC2NetworkPerformanceMetricSubscription = "aws:ec2:network-performance-metric-subscription"
+	TypeEC2TransitGatewayMeteringPolicy         = "aws:ec2:transit-gateway-metering-policy"
+	TypeEC2VPCEncryptionControl                 = "aws:ec2:vpc-encryption-control"
+	TypeEC2VPNConcentrator                      = "aws:ec2:vpn-concentrator"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
