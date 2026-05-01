@@ -89,6 +89,7 @@ var expectedAWSServices = []string{
 	"aws:bcmpricingcalculator",
 	"aws:billing",
 	"aws:bedrock",
+	"aws:bedrockagentcore",
 	"aws:datazone",
 	"aws:greengrass",
 	"aws:networkmanager",
