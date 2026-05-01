@@ -537,6 +537,28 @@ const (
 	TypeSESMailManagerRelay             = "aws:ses:mailmanager-relay"
 	TypeSESMailManagerRuleSet           = "aws:ses:mailmanager-rule-set"
 	TypeSESMailManagerTrafficPolicy     = "aws:ses:mailmanager-traffic-policy"
+	// Pinpoint — Core (pinpoint_scanners.go)
+	TypePinpointApp                 = "aws:pinpoint:app"
+	TypePinpointApplicationSettings = "aws:pinpoint:application-settings"
+	TypePinpointEventStream         = "aws:pinpoint:event-stream"
+	TypePinpointCampaign            = "aws:pinpoint:campaign"
+	TypePinpointSegment             = "aws:pinpoint:segment"
+	// Pinpoint — Channels (pinpoint_channels_scanners.go)
+	TypePinpointADMChannel             = "aws:pinpoint:adm-channel"
+	TypePinpointAPNSChannel            = "aws:pinpoint:apns-channel"
+	TypePinpointAPNSSandboxChannel     = "aws:pinpoint:apns-sandbox-channel"
+	TypePinpointAPNSVoipChannel        = "aws:pinpoint:apns-voip-channel"
+	TypePinpointAPNSVoipSandboxChannel = "aws:pinpoint:apns-voip-sandbox-channel"
+	TypePinpointBaiduChannel           = "aws:pinpoint:baidu-channel"
+	TypePinpointEmailChannel           = "aws:pinpoint:email-channel"
+	TypePinpointGCMChannel             = "aws:pinpoint:gcm-channel"
+	TypePinpointSMSChannel             = "aws:pinpoint:sms-channel"
+	TypePinpointVoiceChannel           = "aws:pinpoint:voice-channel"
+	// Pinpoint — Templates (pinpoint_templates_scanners.go)
+	TypePinpointEmailTemplate = "aws:pinpoint:email-template"
+	TypePinpointInAppTemplate = "aws:pinpoint:in-app-template"
+	TypePinpointPushTemplate  = "aws:pinpoint:push-template"
+	TypePinpointSmsTemplate   = "aws:pinpoint:sms-template"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter = "aws:inspector2:filter"
 	TypeInspector2Member = "aws:inspector2:member"

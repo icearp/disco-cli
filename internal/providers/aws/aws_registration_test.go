@@ -89,6 +89,7 @@ var expectedAWSServices = []string{
 	"aws:bcmpricingcalculator",
 	"aws:billing",
 	"aws:bedrock",
+	"aws:pinpoint",
 	"aws:billingconductor",
 	"aws:braket",
 	"aws:connect",

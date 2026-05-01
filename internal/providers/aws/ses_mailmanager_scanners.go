@@ -296,12 +296,19 @@ func scanMMTrafficPolicies(ctx context.Context, client mailManagerAPI, acct *acc
 }
 
 func upsertSESMM(st *store.Store, batch []*store.Resource, kind string) (int, int, error) {
+	return upsertBatch(st, batch, "ses mailmanager-"+kind)
+}
+
+// upsertBatch is a generic helper used by scanners that fan-out into a
+// batch and need uniform empty-skip + error formatting. Pass a label
+// describing the resource family for inclusion in error messages.
+func upsertBatch(st *store.Store, batch []*store.Resource, label string) (int, int, error) {
 	if len(batch) == 0 {
 		return 0, 0, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses mailmanager-%s: %w", kind, uerr)
+		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
 	}
 	return len(batch), n, nil
 }
