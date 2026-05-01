@@ -384,6 +384,12 @@ const (
 	TypeSageMakerModel               = "aws:sagemaker:model"
 	TypeSageMakerInferenceComponent  = "aws:sagemaker:inference-component"
 	TypeSageMakerInferenceExperiment = "aws:sagemaker:inference-experiment"
+	// SageMaker — Model registry (sagemaker_registry_scanners.go)
+	TypeSageMakerModelPackage         = "aws:sagemaker:model-package"
+	TypeSageMakerModelPackageGroup    = "aws:sagemaker:model-package-group"
+	TypeSageMakerModelCard            = "aws:sagemaker:model-card"
+	TypeSageMakerFeatureGroup         = "aws:sagemaker:feature-group"
+	TypeSageMakerMlflowTrackingServer = "aws:sagemaker:mlflow-tracking-server"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

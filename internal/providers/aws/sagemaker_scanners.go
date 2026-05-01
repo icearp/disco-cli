@@ -29,5 +29,8 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 		func(ctx context.Context) (int, int, error) {
 			return scanSageMakerInference(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSageMakerRegistry(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
