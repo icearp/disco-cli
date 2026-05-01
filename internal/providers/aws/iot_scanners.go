@@ -22,5 +22,8 @@ func scanIoT(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanIoTThings(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanIoTCerts(ctx, client, acct, region, st, scanID)
+		},
 	)
 }

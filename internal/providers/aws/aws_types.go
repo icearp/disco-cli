@@ -116,6 +116,15 @@ const (
 	TypeIoTThingType                = "aws:iot:thing-type"
 	TypeIoTBillingGroup             = "aws:iot:billing-group"
 	TypeIoTThingPrincipalAttachment = "aws:iot:thing-principal-attachment"
+	// IoT — Certs/Auth (iot_certs_scanners.go)
+	TypeIoTCertificate               = "aws:iot:certificate"
+	TypeIoTCACertificate             = "aws:iot:ca-certificate"
+	TypeIoTCertificateProvider       = "aws:iot:certificate-provider"
+	TypeIoTPolicy                    = "aws:iot:policy"
+	TypeIoTPolicyPrincipalAttachment = "aws:iot:policy-principal-attachment"
+	TypeIoTRoleAlias                 = "aws:iot:role-alias"
+	TypeIoTAuthorizer                = "aws:iot:authorizer"
+	TypeIoTDomainConfiguration       = "aws:iot:domain-configuration"
 	// IAM — principals
 	TypeIAMRole              = "aws:iam:role"
 	TypeIAMUser              = "aws:iam:user"
