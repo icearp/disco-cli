@@ -75,6 +75,7 @@ var expectedAWSServices = []string{
 	"aws:batch",
 	"aws:lightsail",
 	"aws:elasticbeanstalk",
+	"aws:emr",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

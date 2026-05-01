@@ -727,6 +727,14 @@ const (
 	TypeImageBuilderInfrastructureConfig      = "aws:imagebuilder:infrastructure-configuration"
 	TypeImageBuilderLifecyclePolicy           = "aws:imagebuilder:lifecycle-policy"
 	TypeImageBuilderWorkflow                  = "aws:imagebuilder:workflow"
+	// EMR (emr_scanners.go)
+	TypeEMRCluster              = "aws:emr:cluster"
+	TypeEMRInstanceFleet        = "aws:emr:instance-fleet"
+	TypeEMRInstanceGroup        = "aws:emr:instance-group"
+	TypeEMRSecurityConfig       = "aws:emr:security-configuration"
+	TypeEMRStep                 = "aws:emr:step"
+	TypeEMRStudio               = "aws:emr:studio"
+	TypeEMRStudioSessionMapping = "aws:emr:studio-session-mapping"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
