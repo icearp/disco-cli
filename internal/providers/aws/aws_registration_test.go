@@ -23,6 +23,7 @@ var expectedAWSServices = []string{
 	"aws:elasticloadbalancingv2",
 	"aws:route53",
 	"aws:iam",
+	"aws:imagebuilder",
 	"aws:lambda",
 	"aws:rds",
 	"aws:s3",

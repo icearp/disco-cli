@@ -718,6 +718,15 @@ const (
 	TypeOmicsVariantStore    = "aws:omics:variant-store"
 	TypeOmicsWorkflow        = "aws:omics:workflow"
 	TypeOmicsWorkflowVersion = "aws:omics:workflow-version"
+	// Image Builder (imagebuilder_scanners.go)
+	TypeImageBuilderComponent                 = "aws:imagebuilder:component"
+	TypeImageBuilderContainerRecipe           = "aws:imagebuilder:container-recipe"
+	TypeImageBuilderDistributionConfiguration = "aws:imagebuilder:distribution-configuration"
+	TypeImageBuilderImagePipeline             = "aws:imagebuilder:image-pipeline"
+	TypeImageBuilderImageRecipe               = "aws:imagebuilder:image-recipe"
+	TypeImageBuilderInfrastructureConfig      = "aws:imagebuilder:infrastructure-configuration"
+	TypeImageBuilderLifecyclePolicy           = "aws:imagebuilder:lifecycle-policy"
+	TypeImageBuilderWorkflow                  = "aws:imagebuilder:workflow"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
