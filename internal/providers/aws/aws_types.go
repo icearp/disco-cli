@@ -400,6 +400,14 @@ const (
 	TypeSageMakerPipeline   = "aws:sagemaker:pipeline"
 	TypeSageMakerProject    = "aws:sagemaker:project"
 	TypeSageMakerPartnerApp = "aws:sagemaker:partner-app"
+	// SageMaker — Edge / images (sagemaker_edge_scanners.go)
+	TypeSageMakerDeviceFleet  = "aws:sagemaker:device-fleet"
+	TypeSageMakerDevice       = "aws:sagemaker:device"
+	TypeSageMakerImage        = "aws:sagemaker:image"
+	TypeSageMakerImageVersion = "aws:sagemaker:image-version"
+	// SageMaker — Misc (sagemaker_misc_scanners.go)
+	TypeSageMakerCluster  = "aws:sagemaker:cluster"
+	TypeSageMakerWorkteam = "aws:sagemaker:workteam"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

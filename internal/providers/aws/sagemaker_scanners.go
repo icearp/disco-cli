@@ -38,5 +38,8 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 		func(ctx context.Context) (int, int, error) {
 			return scanSageMakerPipelines(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSageMakerEdge(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
