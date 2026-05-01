@@ -526,6 +526,12 @@ const (
 	TypeGlueSchema                = "aws:glue:schema"
 	TypeGlueSchemaVersion         = "aws:glue:schema-version"
 	TypeGlueSchemaVersionMetadata = "aws:glue:schema-version-metadata"
+	// Glue — Jobs family (glue_jobs_scanners.go)
+	TypeGlueJob         = "aws:glue:job"
+	TypeGlueTrigger     = "aws:glue:trigger"
+	TypeGlueWorkflow    = "aws:glue:workflow"
+	TypeGlueMLTransform = "aws:glue:ml-transform"
+	TypeGlueDevEndpoint = "aws:glue:dev-endpoint"
 	// Athena (athena_scanners.go, athena_resolvers.go)
 	TypeAthenaWorkgroup   = "aws:athena:workgroup"
 	TypeAthenaDataCatalog = "aws:athena:datacatalog"
