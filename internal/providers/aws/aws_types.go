@@ -419,6 +419,12 @@ const (
 	TypeConnectHoursOfOperation = "aws:connect:hours-of-operation"
 	TypeConnectAgentStatus      = "aws:connect:agent-status"
 	TypeConnectQuickConnect     = "aws:connect:quick-connect"
+	// Connect — Users (connect_users_scanners.go)
+	TypeConnectUser                   = "aws:connect:user"
+	TypeConnectUserHierarchyGroup     = "aws:connect:user-hierarchy-group"
+	TypeConnectUserHierarchyStructure = "aws:connect:user-hierarchy-structure"
+	TypeConnectSecurityProfile        = "aws:connect:security-profile"
+	TypeConnectPredefinedAttribute    = "aws:connect:predefined-attribute"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
