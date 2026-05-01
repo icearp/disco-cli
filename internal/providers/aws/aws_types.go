@@ -606,6 +606,18 @@ const (
 	TypeRoute53ResolverResolverQueryLoggingConfigAssociation = "aws:route53resolver:resolver-query-logging-config-association"
 	TypeRoute53ResolverResolverRule                          = "aws:route53resolver:resolver-rule"
 	TypeRoute53ResolverResolverRuleAssociation               = "aws:route53resolver:resolver-rule-association"
+	// IoTWireless (iotwireless_scanners.go)
+	TypeIoTWirelessDestination                  = "aws:iotwireless:destination"
+	TypeIoTWirelessDeviceProfile                = "aws:iotwireless:device-profile"
+	TypeIoTWirelessFuotaTask                    = "aws:iotwireless:fuota-task"
+	TypeIoTWirelessMulticastGroup               = "aws:iotwireless:multicast-group"
+	TypeIoTWirelessNetworkAnalyzerConfiguration = "aws:iotwireless:network-analyzer-configuration"
+	TypeIoTWirelessPartnerAccount               = "aws:iotwireless:partner-account"
+	TypeIoTWirelessServiceProfile               = "aws:iotwireless:service-profile"
+	TypeIoTWirelessTaskDefinition               = "aws:iotwireless:task-definition"
+	TypeIoTWirelessWirelessDevice               = "aws:iotwireless:wireless-device"
+	TypeIoTWirelessWirelessDeviceImportTask     = "aws:iotwireless:wireless-device-import-task"
+	TypeIoTWirelessWirelessGateway              = "aws:iotwireless:wireless-gateway"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"

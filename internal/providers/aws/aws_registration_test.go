@@ -105,6 +105,7 @@ var expectedAWSServices = []string{
 	"aws:braket",
 	"aws:connect",
 	"aws:iot",
+	"aws:iotwireless",
 	"aws:sagemaker",
 	"aws:vpclattice",
 	"aws:wisdom",
