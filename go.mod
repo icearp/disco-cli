@@ -173,6 +173,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mailmanager v1.18.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/mediaconnect v1.48.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/medialive v1.95.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 // indirect

@@ -94,6 +94,7 @@ var expectedAWSServices = []string{
 	"aws:datasync",
 	"aws:datazone",
 	"aws:greengrass",
+	"aws:mediaconnect",
 	"aws:medialive",
 	"aws:networkmanager",
 	"aws:pinpoint",
