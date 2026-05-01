@@ -378,6 +378,12 @@ const (
 	TypeSageMakerNotebookInstanceLifecycleConfig = "aws:sagemaker:notebook-instance-lifecycle-config"
 	TypeSageMakerCodeRepository                  = "aws:sagemaker:code-repository"
 	TypeSageMakerProcessingJob                   = "aws:sagemaker:processing-job"
+	// SageMaker — Inference (sagemaker_inference_scanners.go)
+	TypeSageMakerEndpoint            = "aws:sagemaker:endpoint"
+	TypeSageMakerEndpointConfig      = "aws:sagemaker:endpoint-config"
+	TypeSageMakerModel               = "aws:sagemaker:model"
+	TypeSageMakerInferenceComponent  = "aws:sagemaker:inference-component"
+	TypeSageMakerInferenceExperiment = "aws:sagemaker:inference-experiment"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
