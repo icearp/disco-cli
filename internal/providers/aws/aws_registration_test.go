@@ -109,6 +109,7 @@ var expectedAWSServices = []string{
 	"aws:gamelift",
 	"aws:iot",
 	"aws:iotwireless",
+	"aws:ivs",
 	"aws:sagemaker",
 	"aws:vpclattice",
 	"aws:wisdom",

@@ -274,6 +274,10 @@ github.com/aws/aws-sdk-go-v2/service/iot v1.72.8 h1:2RF7aiG3/OYCdPFrYDc6NPJJQiN2
 github.com/aws/aws-sdk-go-v2/service/iot v1.72.8/go.mod h1:9OGjPSOz2OZbObVfBcn110WPW/XZ1k6rSCpky8EvfHQ=
 github.com/aws/aws-sdk-go-v2/service/iotwireless v1.55.1 h1:WI86X0Dm6dSoaKVtvqaS9uHSAEOeqoDpRS/EsSVJCtE=
 github.com/aws/aws-sdk-go-v2/service/iotwireless v1.55.1/go.mod h1:99fkJJ+5AnuS5NN+guW2wASnzPKo3eehF+3jT3D5bZE=
+github.com/aws/aws-sdk-go-v2/service/ivs v1.50.1 h1:H/tTA4a7nmiFacIKeQjK/S8m7Ah/OXzSSLwPXEtD3l8=
+github.com/aws/aws-sdk-go-v2/service/ivs v1.50.1/go.mod h1:bu+KAqMu3i8tSo+e5AT3LriDJ6miYVK1E3hVqBXFA/k=
+github.com/aws/aws-sdk-go-v2/service/ivsrealtime v1.34.2 h1:2Hu9Vm1PrfVWqrfvCAh94JhZc2gpiAd+YkBz1mP/CEY=
+github.com/aws/aws-sdk-go-v2/service/ivsrealtime v1.34.2/go.mod h1:5gcjQass5/eeszXeq1p4y0lFJoNRxykwg2z5jbgt5wo=
 github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0 h1:feafjJPoA5tsmSGy/yNQn6X5RZobqTYeN3w2qCXuKhA=
 github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0/go.mod h1:fKgdZ47ytmRoWz0XU6XXgV2AVVgVZdc9KmuWFxF6fjA=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6 h1:Gw375uiaTvryG3z4QN9m5KuaIRkfdWASq/xqZS18zMg=

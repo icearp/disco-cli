@@ -665,6 +665,17 @@ const (
 	TypeWSWTrustStore                = "aws:workspaces-web:trust-store"
 	TypeWSWUserAccessLoggingSettings = "aws:workspaces-web:user-access-logging-settings"
 	TypeWSWUserSettings              = "aws:workspaces-web:user-settings"
+	// IVS (ivs_scanners.go)
+	TypeIVSChannel                   = "aws:ivs:channel"
+	TypeIVSEncoderConfiguration      = "aws:ivs:encoder-configuration"
+	TypeIVSIngestConfiguration       = "aws:ivs:ingest-configuration"
+	TypeIVSPlaybackKeyPair           = "aws:ivs:playback-key-pair"
+	TypeIVSPlaybackRestrictionPolicy = "aws:ivs:playback-restriction-policy"
+	TypeIVSPublicKey                 = "aws:ivs:public-key"
+	TypeIVSRecordingConfiguration    = "aws:ivs:recording-configuration"
+	TypeIVSStage                     = "aws:ivs:stage"
+	TypeIVSStorageConfiguration      = "aws:ivs:storage-configuration"
+	TypeIVSStreamKey                 = "aws:ivs:stream-key"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
