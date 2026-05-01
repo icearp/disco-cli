@@ -438,6 +438,13 @@ const (
 	TypeConnectIntegrationAssociation = "aws:connect:integration-association"
 	TypeConnectNotification           = "aws:connect:notification"
 	TypeConnectRule                   = "aws:connect:rule"
+	// Connect — Workspace (connect_workspace_scanners.go)
+	TypeConnectTaskTemplate   = "aws:connect:task-template"
+	TypeConnectEvaluationForm = "aws:connect:evaluation-form"
+	TypeConnectView           = "aws:connect:view"
+	TypeConnectViewVersion    = "aws:connect:view-version"
+	TypeConnectWorkspace      = "aws:connect:workspace"
+	TypeConnectPrompt         = "aws:connect:prompt"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
