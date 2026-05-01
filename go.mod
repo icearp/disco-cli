@@ -165,6 +165,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appstream v1.58.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/appsync v1.53.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol v1.34.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0 // indirect

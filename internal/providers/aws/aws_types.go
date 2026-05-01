@@ -630,6 +630,18 @@ const (
 	TypeGameLiftMatchmakingConfiguration = "aws:gamelift:matchmaking-configuration"
 	TypeGameLiftMatchmakingRuleSet       = "aws:gamelift:matchmaking-rule-set"
 	TypeGameLiftScript                   = "aws:gamelift:script"
+	// DMS (dms_scanners.go)
+	TypeDMSCertificate            = "aws:dms:certificate"
+	TypeDMSDataMigration          = "aws:dms:data-migration"
+	TypeDMSDataProvider           = "aws:dms:data-provider"
+	TypeDMSEndpoint               = "aws:dms:endpoint"
+	TypeDMSEventSubscription      = "aws:dms:event-subscription"
+	TypeDMSInstanceProfile        = "aws:dms:instance-profile"
+	TypeDMSMigrationProject       = "aws:dms:migration-project"
+	TypeDMSReplicationConfig      = "aws:dms:replication-config"
+	TypeDMSReplicationInstance    = "aws:dms:replication-instance"
+	TypeDMSReplicationSubnetGroup = "aws:dms:replication-subnet-group"
+	TypeDMSReplicationTask        = "aws:dms:replication-task"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"

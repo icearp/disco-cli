@@ -210,6 +210,8 @@ github.com/aws/aws-sdk-go-v2/service/connect v1.172.1 h1:aHqy/dANNJHJlgjDs/8exwt
 github.com/aws/aws-sdk-go-v2/service/connect v1.172.1/go.mod h1:Du5pBjluSAHkGpEiz8aCfk9NdndzEeGpCqARDWAlGGQ=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10 h1:2IJTn2NHVRNz2aNfjSHFjHWV3WqQfhSL8AzkozgUFmY=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10/go.mod h1:mqfl3hxenQ4Y4qG53D90gIL/kIQqnyqoyzABYTDYJH0=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2 h1:+vWChWbLMrEzHuKtm2koCaGoZo6Cnu8OpYH0fsdSLEI=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2/go.mod h1:Qa7SOwwtaE9VticcY52FgDIXJZLS1jz+Y6fiCdLUdRU=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 h1:8dunTSKwZYHGBpCKtiSLXPHZph5uRGnlaMY/f4UeQEA=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4/go.mod h1:5H2TlnEkHntq2f9qVEZ9Fc0uO0vf+30KtECvmnms2m8=
 github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 h1:Li0gQAUOC1T3Im4lyEVKrFzMebIwuoSK8ktAVIlk+yg=
