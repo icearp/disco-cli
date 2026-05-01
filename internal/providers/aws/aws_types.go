@@ -701,6 +701,14 @@ const (
 	TypeQBusinessPlugin        = "aws:qbusiness:plugin"
 	TypeQBusinessRetriever     = "aws:qbusiness:retriever"
 	TypeQBusinessWebExperience = "aws:qbusiness:web-experience"
+	// OpenSearch Serverless (opensearchserverless_scanners.go)
+	TypeOSSAccessPolicy    = "aws:opensearchserverless:access-policy"
+	TypeOSSCollection      = "aws:opensearchserverless:collection"
+	TypeOSSCollectionGroup = "aws:opensearchserverless:collection-group"
+	TypeOSSLifecyclePolicy = "aws:opensearchserverless:lifecycle-policy"
+	TypeOSSSecurityConfig  = "aws:opensearchserverless:security-config"
+	TypeOSSSecurityPolicy  = "aws:opensearchserverless:security-policy"
+	TypeOSSVpcEndpoint     = "aws:opensearchserverless:vpc-endpoint"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"

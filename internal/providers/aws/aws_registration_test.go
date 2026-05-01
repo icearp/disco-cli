@@ -63,6 +63,7 @@ var expectedAWSServices = []string{
 	"aws:autoscaling-plans",
 	"aws:redshift",
 	"aws:opensearch",
+	"aws:opensearchserverless",
 	"aws:docdb",
 	"aws:neptune",
 	"aws:servicecatalog",

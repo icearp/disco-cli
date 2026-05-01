@@ -314,6 +314,8 @@ github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10 h1:fZdjuh4szziSdwiD
 github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10/go.mod h1:x0O7AHep2gwquyfW6gmNql2OM4LEloyJGFflJfEJV+U=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0 h1:aBPbUvfgXI9M05r8y5vxaceF17LbL0orIWDz6l/LpU4=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0/go.mod h1:Vl2mkiFwxo+XTJ5VKSfhmlpiYCQFC93c6NB/EhV5lfA=
+github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3 h1:47FPswEE4RKBY0sUivfFCqBS5PVAfg2iiNaSl9rHOX4=
+github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3/go.mod h1:w/kwwh/dzVFrXLKUCj3M73lYUl+LrVn9gQ7RyiPNkZU=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2 h1:2TDersSNowBwSRTrnD0LxLilpr6Dr5coXwVsWO7f2rw=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2/go.mod h1:UMm4MKZDJMbuJZF5QOJBsVRMLeKiEXAgCXFpocWPDFo=
 github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 h1:YEwsIfiIhbD4eVaM8GmvFAb5w3MBtNka6lWNBQAEEuc=
