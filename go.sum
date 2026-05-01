@@ -216,6 +216,8 @@ github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 h1:8dunTSKwZYHGBpCKtiSLXPH
 github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4/go.mod h1:5H2TlnEkHntq2f9qVEZ9Fc0uO0vf+30KtECvmnms2m8=
 github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 h1:Li0gQAUOC1T3Im4lyEVKrFzMebIwuoSK8ktAVIlk+yg=
 github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0/go.mod h1:XdP77XvH2J7MVHRA+i7JSxpEqDC0TeXEfbXPHMQLEFw=
+github.com/aws/aws-sdk-go-v2/service/deadline v1.31.0 h1:tG0ImMgW6WlGkwatXaDkwoDhqikrFgOqLVQHAap5r6o=
+github.com/aws/aws-sdk-go-v2/service/deadline v1.31.0/go.mod h1:Gn/LkoigrQNbD695JxVsfKs3tOwi0AtfBI3sAkjD0hY=
 github.com/aws/aws-sdk-go-v2/service/detective v1.38.14 h1:FJ8iRprCfzN6RW73dYHNM2ge/XXMmAiY2aPLsFf8EOY=
 github.com/aws/aws-sdk-go-v2/service/detective v1.38.14/go.mod h1:fk/24xX7JX6RqwB9uyaOjJzkNwhC6iK1DFBP43lLprQ=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.14 h1:uOHt6lFot7qDGnUQ2oCaZ5t+b0GtiX9AiFgwBOHLM7U=

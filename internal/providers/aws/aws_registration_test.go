@@ -94,6 +94,7 @@ var expectedAWSServices = []string{
 	"aws:bedrockagentcore",
 	"aws:datasync",
 	"aws:datazone",
+	"aws:deadline",
 	"aws:dms",
 	"aws:greengrass",
 	"aws:mediaconnect",

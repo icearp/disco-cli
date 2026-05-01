@@ -168,6 +168,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/deadline v1.31.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/greengrass v1.32.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect

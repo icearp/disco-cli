@@ -642,6 +642,18 @@ const (
 	TypeDMSReplicationInstance    = "aws:dms:replication-instance"
 	TypeDMSReplicationSubnetGroup = "aws:dms:replication-subnet-group"
 	TypeDMSReplicationTask        = "aws:dms:replication-task"
+	// Deadline (deadline_scanners.go)
+	TypeDeadlineFarm                  = "aws:deadline:farm"
+	TypeDeadlineFleet                 = "aws:deadline:fleet"
+	TypeDeadlineLicenseEndpoint       = "aws:deadline:license-endpoint"
+	TypeDeadlineLimit                 = "aws:deadline:limit"
+	TypeDeadlineMeteredProduct        = "aws:deadline:metered-product"
+	TypeDeadlineMonitor               = "aws:deadline:monitor"
+	TypeDeadlineQueue                 = "aws:deadline:queue"
+	TypeDeadlineQueueEnvironment      = "aws:deadline:queue-environment"
+	TypeDeadlineQueueFleetAssociation = "aws:deadline:queue-fleet-association"
+	TypeDeadlineQueueLimitAssociation = "aws:deadline:queue-limit-association"
+	TypeDeadlineStorageProfile        = "aws:deadline:storage-profile"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
