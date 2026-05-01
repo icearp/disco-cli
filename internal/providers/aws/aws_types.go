@@ -526,6 +526,10 @@ const (
 	TypeGlueSchema                = "aws:glue:schema"
 	TypeGlueSchemaVersion         = "aws:glue:schema-version"
 	TypeGlueSchemaVersionMetadata = "aws:glue:schema-version-metadata"
+	// Glue — Catalog family (glue_catalog_scanners.go)
+	TypeGlueCrawler    = "aws:glue:crawler"
+	TypeGlueConnection = "aws:glue:connection"
+	TypeGlueClassifier = "aws:glue:classifier"
 	// Glue — Jobs family (glue_jobs_scanners.go)
 	TypeGlueJob         = "aws:glue:job"
 	TypeGlueTrigger     = "aws:glue:trigger"
