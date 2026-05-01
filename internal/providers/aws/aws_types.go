@@ -224,6 +224,16 @@ const (
 	TypeCognitoUserPool     = "aws:cognito:user-pool"
 	TypeCognitoIdentityPool = "aws:cognito:identity-pool"
 	TypeCognitoAppClient    = "aws:cognito:app-client"
+	// Cognito — extended (cognito_extended_scanners.go)
+	TypeCognitoUserPoolDomain                      = "aws:cognito:user-pool-domain"
+	TypeCognitoUserPoolGroup                       = "aws:cognito:user-pool-group"
+	TypeCognitoUserPoolIdentityProvider            = "aws:cognito:user-pool-identity-provider"
+	TypeCognitoUserPoolResourceServer              = "aws:cognito:user-pool-resource-server"
+	TypeCognitoUserPoolRiskConfigurationAttachment = "aws:cognito:user-pool-risk-configuration-attachment"
+	TypeCognitoUserPoolUICustomizationAttachment   = "aws:cognito:user-pool-ui-customization-attachment"
+	TypeCognitoLogDeliveryConfiguration            = "aws:cognito:log-delivery-configuration"
+	TypeCognitoTerms                               = "aws:cognito:terms"
+	TypeCognitoIdentityPoolRoleAttachment          = "aws:cognito:identity-pool-role-attachment"
 	// EKS
 	TypeEKSCluster = "aws:eks:cluster"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)

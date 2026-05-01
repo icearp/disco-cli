@@ -21,6 +21,15 @@ func init() {
 			{Service: "cognito", DiscoType: TypeCognitoUserPool},
 			{Service: "cognito", DiscoType: TypeCognitoAppClient},
 			{Service: "cognito", DiscoType: TypeCognitoIdentityPool},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolDomain},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolGroup},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolIdentityProvider},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolResourceServer},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolRiskConfigurationAttachment},
+			{Service: "cognito", DiscoType: TypeCognitoUserPoolUICustomizationAttachment},
+			{Service: "cognito", DiscoType: TypeCognitoLogDeliveryConfiguration},
+			{Service: "cognito", DiscoType: TypeCognitoTerms},
+			{Service: "cognito", DiscoType: TypeCognitoIdentityPoolRoleAttachment},
 		},
 	})
 }
@@ -33,6 +42,14 @@ type cognitoidpAPI interface {
 	DescribeUserPool(context.Context, *cognitoidp.DescribeUserPoolInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolOutput, error)
 	ListUserPoolClients(context.Context, *cognitoidp.ListUserPoolClientsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolClientsOutput, error)
 	DescribeUserPoolClient(context.Context, *cognitoidp.DescribeUserPoolClientInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolClientOutput, error)
+	DescribeUserPoolDomain(context.Context, *cognitoidp.DescribeUserPoolDomainInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolDomainOutput, error)
+	ListGroups(context.Context, *cognitoidp.ListGroupsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListGroupsOutput, error)
+	ListIdentityProviders(context.Context, *cognitoidp.ListIdentityProvidersInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListIdentityProvidersOutput, error)
+	ListResourceServers(context.Context, *cognitoidp.ListResourceServersInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListResourceServersOutput, error)
+	DescribeRiskConfiguration(context.Context, *cognitoidp.DescribeRiskConfigurationInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeRiskConfigurationOutput, error)
+	GetUICustomization(context.Context, *cognitoidp.GetUICustomizationInput, ...func(*cognitoidp.Options)) (*cognitoidp.GetUICustomizationOutput, error)
+	GetLogDeliveryConfiguration(context.Context, *cognitoidp.GetLogDeliveryConfigurationInput, ...func(*cognitoidp.Options)) (*cognitoidp.GetLogDeliveryConfigurationOutput, error)
+	ListTerms(context.Context, *cognitoidp.ListTermsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListTermsOutput, error)
 }
 
 // cognitoidentityAPI is the narrow set of Cognito Identity (federated
@@ -172,6 +189,7 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 
 	// Phase 3: identity pools.
 	var idBatch []*store.Resource
+	var idPoolIDs []string
 	ipPager := cognitoidentity.NewListIdentityPoolsPaginator(idClient, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60)})
 	for ipPager.HasMorePages() {
 		out, err := ipPager.NextPage(ctx)
@@ -183,6 +201,7 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 		}
 		for _, p := range out.IdentityPools {
 			ipID := sv(p.IdentityPoolId)
+			idPoolIDs = append(idPoolIDs, ipID)
 			descOut, err := idClient.DescribeIdentityPool(ctx, &cognitoidentity.DescribeIdentityPoolInput{IdentityPoolId: &ipID})
 			if err != nil {
 				continue
@@ -219,6 +238,15 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 		}
 		total += len(idBatch)
 		inserted += n
+	}
+
+	{
+		t, i, err := scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
+		if err != nil {
+			return total, inserted, err
+		}
+		total += t
+		inserted += i
 	}
 
 	return total, inserted, nil
