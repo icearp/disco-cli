@@ -676,6 +676,16 @@ const (
 	TypeIVSStage                     = "aws:ivs:stage"
 	TypeIVSStorageConfiguration      = "aws:ivs:storage-configuration"
 	TypeIVSStreamKey                 = "aws:ivs:stream-key"
+	// IoT SiteWise (iotsitewise_scanners.go)
+	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
+	TypeIoTSWAsset            = "aws:iotsitewise:asset"
+	TypeIoTSWAssetModel       = "aws:iotsitewise:asset-model"
+	TypeIoTSWComputationModel = "aws:iotsitewise:computation-model"
+	TypeIoTSWDashboard        = "aws:iotsitewise:dashboard"
+	TypeIoTSWDataset          = "aws:iotsitewise:dataset"
+	TypeIoTSWGateway          = "aws:iotsitewise:gateway"
+	TypeIoTSWPortal           = "aws:iotsitewise:portal"
+	TypeIoTSWProject          = "aws:iotsitewise:project"
 	// Detective (detective_scanners.go, detective_resolvers.go)
 	TypeDetectiveGraph  = "aws:detective:graph"
 	TypeDetectiveMember = "aws:detective:member"
