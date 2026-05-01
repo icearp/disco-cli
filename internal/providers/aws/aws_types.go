@@ -373,6 +373,11 @@ const (
 	TypeSageMakerApp                   = "aws:sagemaker:app"
 	TypeSageMakerAppImageConfig        = "aws:sagemaker:app-image-config"
 	TypeSageMakerStudioLifecycleConfig = "aws:sagemaker:studio-lifecycle-config"
+	// SageMaker — Training/Notebook (sagemaker_training_scanners.go)
+	TypeSageMakerNotebookInstance                = "aws:sagemaker:notebook-instance"
+	TypeSageMakerNotebookInstanceLifecycleConfig = "aws:sagemaker:notebook-instance-lifecycle-config"
+	TypeSageMakerCodeRepository                  = "aws:sagemaker:code-repository"
+	TypeSageMakerProcessingJob                   = "aws:sagemaker:processing-job"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"

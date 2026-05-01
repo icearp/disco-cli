@@ -23,5 +23,8 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 		func(ctx context.Context) (int, int, error) {
 			return scanSageMakerStudio(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSageMakerTraining(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
