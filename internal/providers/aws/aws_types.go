@@ -703,6 +703,19 @@ const (
 	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)
 	TypeServiceCatalogPortfolio = "aws:servicecatalog:portfolio"
 	TypeServiceCatalogProduct   = "aws:servicecatalog:product"
+	// ServiceCatalog — extended (servicecatalog_extended_scanners.go)
+	TypeServiceCatalogAcceptedPortfolioShare           = "aws:servicecatalog:accepted-portfolio-share"
+	TypeServiceCatalogCloudFormationProvisionedProduct = "aws:servicecatalog:cloudformation-provisioned-product"
+	TypeServiceCatalogServiceAction                    = "aws:servicecatalog:service-action"
+	TypeServiceCatalogTagOption                        = "aws:servicecatalog:tag-option"
+	TypeServiceCatalogPortfolioShare                   = "aws:servicecatalog:portfolio-share"
+	TypeServiceCatalogPortfolioPrincipalAssociation    = "aws:servicecatalog:portfolio-principal-association"
+	TypeServiceCatalogTagOptionAssociation             = "aws:servicecatalog:tag-option-association"
+	TypeServiceCatalogLaunchRoleConstraint             = "aws:servicecatalog:launch-role-constraint"
+	TypeServiceCatalogLaunchNotificationConstraint     = "aws:servicecatalog:launch-notification-constraint"
+	TypeServiceCatalogLaunchTemplateConstraint         = "aws:servicecatalog:launch-template-constraint"
+	TypeServiceCatalogResourceUpdateConstraint         = "aws:servicecatalog:resource-update-constraint"
+	TypeServiceCatalogStackSetConstraint               = "aws:servicecatalog:stack-set-constraint"
 	// Audit Manager (auditmanager_scanners.go, auditmanager_resolvers.go)
 	TypeAuditManagerAssessment = "aws:auditmanager:assessment"
 	TypeAuditManagerFramework  = "aws:auditmanager:framework"

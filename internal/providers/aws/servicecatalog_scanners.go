@@ -20,6 +20,18 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolio},
 			{Service: "servicecatalog", DiscoType: TypeServiceCatalogProduct},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogAcceptedPortfolioShare},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogCloudFormationProvisionedProduct},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogServiceAction},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogTagOption},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolioShare},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogPortfolioPrincipalAssociation},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogTagOptionAssociation},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchRoleConstraint},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchNotificationConstraint},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogLaunchTemplateConstraint},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogResourceUpdateConstraint},
+			{Service: "servicecatalog", DiscoType: TypeServiceCatalogStackSetConstraint},
 		},
 	})
 }
@@ -30,6 +42,14 @@ type servicecatalogAPI interface {
 	ListPortfolios(context.Context, *servicecatalog.ListPortfoliosInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListPortfoliosOutput, error)
 	ListConstraintsForPortfolio(context.Context, *servicecatalog.ListConstraintsForPortfolioInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListConstraintsForPortfolioOutput, error)
 	SearchProductsAsAdmin(context.Context, *servicecatalog.SearchProductsAsAdminInput, ...func(*servicecatalog.Options)) (*servicecatalog.SearchProductsAsAdminOutput, error)
+	ListAcceptedPortfolioShares(context.Context, *servicecatalog.ListAcceptedPortfolioSharesInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListAcceptedPortfolioSharesOutput, error)
+	SearchProvisionedProducts(context.Context, *servicecatalog.SearchProvisionedProductsInput, ...func(*servicecatalog.Options)) (*servicecatalog.SearchProvisionedProductsOutput, error)
+	ListServiceActions(context.Context, *servicecatalog.ListServiceActionsInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListServiceActionsOutput, error)
+	ListTagOptions(context.Context, *servicecatalog.ListTagOptionsInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListTagOptionsOutput, error)
+	DescribePortfolioShares(context.Context, *servicecatalog.DescribePortfolioSharesInput, ...func(*servicecatalog.Options)) (*servicecatalog.DescribePortfolioSharesOutput, error)
+	ListPrincipalsForPortfolio(context.Context, *servicecatalog.ListPrincipalsForPortfolioInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListPrincipalsForPortfolioOutput, error)
+	ListResourcesForTagOption(context.Context, *servicecatalog.ListResourcesForTagOptionInput, ...func(*servicecatalog.Options)) (*servicecatalog.ListResourcesForTagOptionOutput, error)
+	DescribeConstraint(context.Context, *servicecatalog.DescribeConstraintInput, ...func(*servicecatalog.Options)) (*servicecatalog.DescribeConstraintOutput, error)
 }
 
 // scanServiceCatalog discovers Service Catalog portfolios and products
@@ -58,7 +78,14 @@ func scanServiceCatalog(ctx context.Context, acct *account, region string, st *s
 		total += t
 		inserted += i
 	}
-	_ = portfolioIDs // reserved for future cross-resolver use
+	{
+		t, i, ferr := scanServiceCatalogExtended(ctx, client, acct, region, st, scanID, portfolioIDs)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
 
 	return total, inserted, nil
 }
