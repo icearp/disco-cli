@@ -28,6 +28,7 @@ var expectedAWSServices = []string{
 	"aws:rds",
 	"aws:s3",
 	"aws:s3control",
+	"aws:sms-voice",
 	"aws:sns",
 	"aws:sqs",
 	"aws:kms",

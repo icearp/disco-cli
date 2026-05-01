@@ -193,6 +193,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/omics v1.41.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.28.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/qbusiness v1.34.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/qconnect v1.30.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/quicksight v1.108.0 // indirect

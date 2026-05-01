@@ -770,6 +770,13 @@ const (
 	TypeAppConfigExtension                  = "aws:appconfig:extension"
 	TypeAppConfigExtensionAssociation       = "aws:appconfig:extension-association"
 	TypeAppConfigHostedConfigurationVersion = "aws:appconfig:hosted-configuration-version"
+	// SMSVoice v2 (smsvoice_scanners.go)
+	TypeSMSVoiceConfigurationSet     = "aws:sms-voice:configuration-set"
+	TypeSMSVoiceOptOutList           = "aws:sms-voice:opt-out-list"
+	TypeSMSVoicePhoneNumber          = "aws:sms-voice:phone-number"
+	TypeSMSVoicePool                 = "aws:sms-voice:pool"
+	TypeSMSVoiceProtectConfiguration = "aws:sms-voice:protect-configuration"
+	TypeSMSVoiceSenderID             = "aws:sms-voice:sender-id"
 	// IoT SiteWise (iotsitewise_scanners.go)
 	TypeIoTSWAccessPolicy     = "aws:iotsitewise:access-policy"
 	TypeIoTSWAsset            = "aws:iotsitewise:asset"
