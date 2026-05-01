@@ -521,6 +521,11 @@ const (
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"
+	// Glue — Schema (glue_schema_scanners.go)
+	TypeGlueRegistry              = "aws:glue:registry"
+	TypeGlueSchema                = "aws:glue:schema"
+	TypeGlueSchemaVersion         = "aws:glue:schema-version"
+	TypeGlueSchemaVersionMetadata = "aws:glue:schema-version-metadata"
 	// Athena (athena_scanners.go, athena_resolvers.go)
 	TypeAthenaWorkgroup   = "aws:athena:workgroup"
 	TypeAthenaDataCatalog = "aws:athena:datacatalog"
