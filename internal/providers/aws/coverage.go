@@ -136,8 +136,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEC2ClientVPNTargetNetworkAssociation:        "AWS::EC2::ClientVpnTargetNetworkAssociation",
 		TypeEC2LocalGatewayRouteTable:                   "AWS::EC2::LocalGatewayRouteTable",
 		TypeEC2LocalGatewayRoute:                        "AWS::EC2::LocalGatewayRoute",
-		TypeEC2LocalGatewayVirtualInterface:             "AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroupAssociation",
-		TypeEC2LocalGatewayVirtualInterfaceGroup:        "AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroup",
+		TypeEC2LocalGatewayVirtualInterface:             "AWS::EC2::LocalGatewayVirtualInterface",
+		TypeEC2LocalGatewayVirtualInterfaceGroup:        "AWS::EC2::LocalGatewayVirtualInterfaceGroup",
 		TypeEC2LocalGatewayRouteTableVPCAssociation:     "AWS::EC2::LocalGatewayRouteTableVPCAssociation",
 		TypeEC2LocalGatewayRouteTableVIGAssociation:     "AWS::EC2::LocalGatewayRouteTableVirtualInterfaceGroupAssociation",
 		// ELBv2 (disco service segment is "elasticloadbalancing", CFN uses

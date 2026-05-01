@@ -18,8 +18,10 @@ cd "$repo_root"
 skip_file="docs/aws-skip.md"
 skip_filter='cat'
 if [[ -f "$skip_file" ]]; then
-  # Lines of form "- AWS::Service::Type" treated as skipped types.
-  skip_filter="grep -v -F -f <(awk '/^- AWS::/ {print \$2}' $skip_file)"
+  # Lines of form "- AWS::Service::Type" treated as skipped types. Use awk
+  # exact-match against column 2 (the CFN type) — substring match would
+  # over-filter (e.g. "AWS::EC2::Route" eating RouteServer*).
+  skip_filter="awk -F'\\t' 'NR==FNR{skip[\$2]=1;next} !(\$2 in skip)' <(awk '/^- AWS::/ {print \"x\\t\"\$2}' $skip_file) -"
 fi
 
 cov="$(mktemp)"
