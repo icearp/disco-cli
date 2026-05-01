@@ -204,6 +204,8 @@ github.com/aws/aws-sdk-go-v2/service/connect v1.172.1 h1:aHqy/dANNJHJlgjDs/8exwt
 github.com/aws/aws-sdk-go-v2/service/connect v1.172.1/go.mod h1:Du5pBjluSAHkGpEiz8aCfk9NdndzEeGpCqARDWAlGGQ=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10 h1:2IJTn2NHVRNz2aNfjSHFjHWV3WqQfhSL8AzkozgUFmY=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10/go.mod h1:mqfl3hxenQ4Y4qG53D90gIL/kIQqnyqoyzABYTDYJH0=
+github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 h1:Li0gQAUOC1T3Im4lyEVKrFzMebIwuoSK8ktAVIlk+yg=
+github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0/go.mod h1:XdP77XvH2J7MVHRA+i7JSxpEqDC0TeXEfbXPHMQLEFw=
 github.com/aws/aws-sdk-go-v2/service/detective v1.38.14 h1:FJ8iRprCfzN6RW73dYHNM2ge/XXMmAiY2aPLsFf8EOY=
 github.com/aws/aws-sdk-go-v2/service/detective v1.38.14/go.mod h1:fk/24xX7JX6RqwB9uyaOjJzkNwhC6iK1DFBP43lLprQ=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.14 h1:uOHt6lFot7qDGnUQ2oCaZ5t+b0GtiX9AiFgwBOHLM7U=
