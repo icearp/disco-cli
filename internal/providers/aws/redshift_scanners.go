@@ -16,6 +16,13 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "redshift", DiscoType: TypeRedshiftCluster},
 			{Service: "redshift", DiscoType: TypeRedshiftSubnetGroup},
+			{Service: "redshift", DiscoType: TypeRedshiftClusterParameterGroup},
+			{Service: "redshift", DiscoType: TypeRedshiftClusterSecurityGroup},
+			{Service: "redshift", DiscoType: TypeRedshiftEndpointAccess},
+			{Service: "redshift", DiscoType: TypeRedshiftEndpointAuthorization},
+			{Service: "redshift", DiscoType: TypeRedshiftEventSubscription},
+			{Service: "redshift", DiscoType: TypeRedshiftIntegration},
+			{Service: "redshift", DiscoType: TypeRedshiftScheduledAction},
 		},
 	})
 }
@@ -48,6 +55,33 @@ func scanRedshift(ctx context.Context, acct *account, region string, st *store.S
 
 	{
 		t, i, ferr := scanRedshiftClusterSubnetGroups(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanRedshiftClusterParameterGroups(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanRedshiftClusterSecurityGroups(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) { return scanRedshiftEndpointAccess(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanRedshiftEndpointAuthorization(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanRedshiftEventSubscriptions(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) { return scanRedshiftIntegrations(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanRedshiftScheduledActions(ctx, client, acct, region, st, scanID)
+		},
+	} {
+		t, i, ferr := phase()
 		if ferr != nil {
 			return total, inserted, ferr
 		}

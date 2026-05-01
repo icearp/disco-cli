@@ -886,8 +886,15 @@ const (
 	TypeAthenaWorkgroup   = "aws:athena:workgroup"
 	TypeAthenaDataCatalog = "aws:athena:datacatalog"
 	// Redshift (redshift_scanners.go, redshift_resolvers.go)
-	TypeRedshiftCluster     = "aws:redshift:cluster"
-	TypeRedshiftSubnetGroup = "aws:redshift:subnet-group"
+	TypeRedshiftCluster               = "aws:redshift:cluster"
+	TypeRedshiftSubnetGroup           = "aws:redshift:subnet-group"
+	TypeRedshiftClusterParameterGroup = "aws:redshift:cluster-parameter-group"
+	TypeRedshiftClusterSecurityGroup  = "aws:redshift:cluster-security-group"
+	TypeRedshiftEndpointAccess        = "aws:redshift:endpoint-access"
+	TypeRedshiftEndpointAuthorization = "aws:redshift:endpoint-authorization"
+	TypeRedshiftEventSubscription     = "aws:redshift:event-subscription"
+	TypeRedshiftIntegration           = "aws:redshift:integration"
+	TypeRedshiftScheduledAction       = "aws:redshift:scheduled-action"
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
