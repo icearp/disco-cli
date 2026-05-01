@@ -524,6 +524,10 @@ const (
 	TypeSESTemplate                         = "aws:ses:template"
 	TypeSESTenant                           = "aws:ses:tenant"
 	TypeSESVdmAttributes                    = "aws:ses:vdm-attributes"
+	// SES v1 — Receipt family (ses_receipt_scanners.go)
+	TypeSESReceiptFilter  = "aws:ses:receipt-filter"
+	TypeSESReceiptRule    = "aws:ses:receipt-rule"
+	TypeSESReceiptRuleSet = "aws:ses:receipt-rule-set"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter = "aws:inspector2:filter"
 	TypeInspector2Member = "aws:inspector2:member"

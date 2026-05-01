@@ -7,6 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
+	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -27,6 +28,9 @@ func init() {
 			{Service: "ses", DiscoType: TypeSESTemplate},
 			{Service: "ses", DiscoType: TypeSESTenant},
 			{Service: "ses", DiscoType: TypeSESVdmAttributes},
+			{Service: "ses", DiscoType: TypeSESReceiptFilter},
+			{Service: "ses", DiscoType: TypeSESReceiptRule},
+			{Service: "ses", DiscoType: TypeSESReceiptRuleSet},
 		},
 	})
 }
@@ -53,6 +57,7 @@ type sesv2API interface {
 // via skipIfAccessDenied without barring the other phase.
 func scanSES(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sesv2.NewFromConfig(acct.cfg, func(o *sesv2.Options) { o.Region = region })
+	v1client := sesv1.NewFromConfig(acct.cfg, func(o *sesv1.Options) { o.Region = region })
 
 	{
 		t, i, ferr := scanSESEmailIdentities(ctx, client, acct, region, st, scanID)
@@ -74,6 +79,15 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 
 	{
 		t, i, ferr := scanSESExtended(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSESReceipt(ctx, v1client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
