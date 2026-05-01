@@ -90,6 +90,7 @@ var expectedAWSServices = []string{
 	"aws:billing",
 	"aws:bedrock",
 	"aws:datazone",
+	"aws:greengrass",
 	"aws:networkmanager",
 	"aws:pinpoint",
 	"aws:billingconductor",
