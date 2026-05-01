@@ -396,6 +396,10 @@ const (
 	TypeSageMakerModelBiasJobDefinition           = "aws:sagemaker:model-bias-job-definition"
 	TypeSageMakerModelExplainabilityJobDefinition = "aws:sagemaker:model-explainability-job-definition"
 	TypeSageMakerModelQualityJobDefinition        = "aws:sagemaker:model-quality-job-definition"
+	// SageMaker — Pipelines (sagemaker_pipelines_scanners.go)
+	TypeSageMakerPipeline   = "aws:sagemaker:pipeline"
+	TypeSageMakerProject    = "aws:sagemaker:project"
+	TypeSageMakerPartnerApp = "aws:sagemaker:partner-app"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
