@@ -425,6 +425,12 @@ const (
 	TypeConnectUserHierarchyStructure = "aws:connect:user-hierarchy-structure"
 	TypeConnectSecurityProfile        = "aws:connect:security-profile"
 	TypeConnectPredefinedAttribute    = "aws:connect:predefined-attribute"
+	// Connect — Flows (connect_flows_scanners.go)
+	TypeConnectContactFlow              = "aws:connect:contact-flow"
+	TypeConnectContactFlowVersion       = "aws:connect:contact-flow-version"
+	TypeConnectContactFlowModule        = "aws:connect:contact-flow-module"
+	TypeConnectContactFlowModuleVersion = "aws:connect:contact-flow-module-version"
+	TypeConnectContactFlowModuleAlias   = "aws:connect:contact-flow-module-alias"
 	// Shield Advanced (shield_scanners.go, shield_resolvers.go)
 	TypeShieldProtection      = "aws:shield:protection"
 	TypeShieldProtectionGroup = "aws:shield:protection-group"
