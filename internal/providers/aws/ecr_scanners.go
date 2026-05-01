@@ -17,6 +17,14 @@ func init() {
 		fn:   scanECR,
 		emits: []coverage.TypeDecl{
 			{Service: "ecr", DiscoType: TypeECRRepository},
+			{Service: "ecr", DiscoType: TypeECRPublicRepository},
+			{Service: "ecr", DiscoType: TypeECRPullThroughCacheRule},
+			{Service: "ecr", DiscoType: TypeECRPullTimeUpdateExclusion},
+			{Service: "ecr", DiscoType: TypeECRRegistryPolicy},
+			{Service: "ecr", DiscoType: TypeECRRegistryScanningConfig},
+			{Service: "ecr", DiscoType: TypeECRReplicationConfiguration},
+			{Service: "ecr", DiscoType: TypeECRRepositoryCreationTemplate},
+			{Service: "ecr", DiscoType: TypeECRSigningConfiguration},
 		},
 	})
 }
@@ -32,7 +40,38 @@ type ecrAPI interface {
 // Tags are fetched concurrently via ListTagsForResource (one call per repository).
 func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
-	return scanECRRepositories(ctx, client, acct, region, st, scanID)
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanECRRepositories(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanECRPullThroughCacheRules(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanECRPullTimeUpdateExclusions(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) { return scanECRRegistryPolicy(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanECRRegistryScanningConfig(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanECRReplicationConfiguration(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanECRRepositoryCreationTemplates(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanECRSigningConfiguration(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) { return scanECRPublicRepositories(ctx, acct, region, st, scanID) },
+	} {
+		t, i, ferr := phase()
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+	return total, inserted, nil
 }
 
 // scanECRRepositories holds the testable scan body.

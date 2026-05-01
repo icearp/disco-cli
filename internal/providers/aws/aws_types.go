@@ -294,7 +294,15 @@ const (
 	TypeECSService        = "aws:ecs:service"
 	TypeECSTaskDefinition = "aws:ecs:task-definition"
 	// ECR
-	TypeECRRepository = "aws:ecr:repository"
+	TypeECRRepository                 = "aws:ecr:repository"
+	TypeECRPublicRepository           = "aws:ecr:public-repository"
+	TypeECRPullThroughCacheRule       = "aws:ecr:pull-through-cache-rule"
+	TypeECRPullTimeUpdateExclusion    = "aws:ecr:pull-time-update-exclusion"
+	TypeECRRegistryPolicy             = "aws:ecr:registry-policy"
+	TypeECRRegistryScanningConfig     = "aws:ecr:registry-scanning-configuration"
+	TypeECRReplicationConfiguration   = "aws:ecr:replication-configuration"
+	TypeECRRepositoryCreationTemplate = "aws:ecr:repository-creation-template"
+	TypeECRSigningConfiguration       = "aws:ecr:signing-configuration"
 	// ElastiCache
 	TypeElastiCacheReplicationGroup       = "aws:elasticache:replication-group"
 	TypeElastiCacheCacheCluster           = "aws:elasticache:cache-cluster"
