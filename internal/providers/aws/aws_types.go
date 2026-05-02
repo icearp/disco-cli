@@ -943,6 +943,8 @@ const (
 	TypeSSMSAPApplication = "aws:systems-manager-sap:application"
 	// SSMGuiConnect (ssmguiconnect_scanners.go)
 	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
+	// SimSpaceWeaver (simspaceweaver_scanners.go)
+	TypeSimSpaceWeaverSimulation = "aws:sim-space-weaver:simulation"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
