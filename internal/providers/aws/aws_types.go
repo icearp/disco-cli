@@ -869,6 +869,9 @@ const (
 	// Shield extras (shield_extended_scanners.go)
 	TypeShieldDRTAccess           = "aws:shield:drt-access"
 	TypeShieldProactiveEngagement = "aws:shield:proactive-engagement"
+	// Scheduler (scheduler_scanners.go)
+	TypeSchedulerSchedule      = "aws:scheduler:schedule"
+	TypeSchedulerScheduleGroup = "aws:scheduler:schedule-group"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

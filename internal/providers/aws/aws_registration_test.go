@@ -98,6 +98,7 @@ var expectedAWSServices = []string{
 	"aws:ssm-quick-setup",
 	"aws:ssm-incidents",
 	"aws:signer",
+	"aws:scheduler",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

@@ -278,6 +278,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53profiles v1.9.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/scheduler v1.17.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/schemas v1.34.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signer v1.32.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
