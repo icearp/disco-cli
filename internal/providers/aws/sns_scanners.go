@@ -15,6 +15,8 @@ func init() {
 		fn:   scanSNS,
 		emits: []coverage.TypeDecl{
 			{Service: "sns", DiscoType: TypeSNSTopic},
+			{Service: "sns", DiscoType: TypeSNSSubscription},
+			{Service: "sns", DiscoType: TypeSNSTopicPolicy},
 		},
 	})
 }
@@ -26,14 +28,27 @@ func init() {
 type snsAPI interface {
 	ListTopics(context.Context, *sns.ListTopicsInput, ...func(*sns.Options)) (*sns.ListTopicsOutput, error)
 	GetTopicAttributes(context.Context, *sns.GetTopicAttributesInput, ...func(*sns.Options)) (*sns.GetTopicAttributesOutput, error)
+	ListSubscriptions(context.Context, *sns.ListSubscriptionsInput, ...func(*sns.Options)) (*sns.ListSubscriptionsOutput, error)
 }
 
 // scanSNS discovers SNS topics in one region. ListTopics returns only ARNs;
 // GetTopicAttributes is called concurrently to fetch the attributes map
 // (KmsMasterKeyId, RedrivePolicy, etc.) needed by the resolver.
-func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSNS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sns.NewFromConfig(acct.cfg, func(o *sns.Options) { o.Region = region })
-	return scanSNSTopics(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanSNSTopics(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanSNSExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanSNSTopics holds the testable scan body: depends only on the narrow

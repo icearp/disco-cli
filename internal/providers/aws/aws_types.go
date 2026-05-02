@@ -296,7 +296,9 @@ const (
 	TypeS3StorageLens                  = "aws:s3:storage-lens"
 	TypeS3StorageLensGroup             = "aws:s3:storage-lens-group"
 	// SNS
-	TypeSNSTopic = "aws:sns:topic"
+	TypeSNSTopic        = "aws:sns:topic"
+	TypeSNSSubscription = "aws:sns:subscription"
+	TypeSNSTopicPolicy  = "aws:sns:topic-policy"
 	// SQS
 	TypeSQSQueue = "aws:sqs:queue"
 	// ECS
