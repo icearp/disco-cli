@@ -86,6 +86,7 @@ var expectedAWSServices = []string{
 	"aws:devops-guru",
 	"aws:dax",
 	"aws:codestar-connections",
+	"aws:codepipeline",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

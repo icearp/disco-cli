@@ -812,6 +812,10 @@ const (
 	TypeCodeStarConnectionsConnection        = "aws:codestar-connections:connection"
 	TypeCodeStarConnectionsRepositoryLink    = "aws:codestar-connections:repository-link"
 	TypeCodeStarConnectionsSyncConfiguration = "aws:codestar-connections:sync-configuration"
+	// CodePipeline (codepipeline_scanners.go)
+	TypeCodePipelinePipeline         = "aws:codepipeline:pipeline"
+	TypeCodePipelineCustomActionType = "aws:codepipeline:custom-action-type"
+	TypeCodePipelineWebhook          = "aws:codepipeline:webhook"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

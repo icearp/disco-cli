@@ -477,6 +477,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodeStarConnectionsConnection:        "AWS::CodeStarConnections::Connection",
 		TypeCodeStarConnectionsRepositoryLink:    "AWS::CodeStarConnections::RepositoryLink",
 		TypeCodeStarConnectionsSyncConfiguration: "AWS::CodeStarConnections::SyncConfiguration",
+		// CodePipeline — disco "codepipeline" segment vs CFN "CodePipeline".
+		TypeCodePipelinePipeline:         "AWS::CodePipeline::Pipeline",
+		TypeCodePipelineCustomActionType: "AWS::CodePipeline::CustomActionType",
+		TypeCodePipelineWebhook:          "AWS::CodePipeline::Webhook",
 	}
 }
 
