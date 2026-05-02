@@ -884,6 +884,9 @@ const (
 	// RAM (ram_scanners.go)
 	TypeRAMResourceShare = "aws:ram:resource-share"
 	TypeRAMPermission    = "aws:ram:permission"
+	// PCAConnectorSCEP (pcaconnectorscep_scanners.go)
+	TypePCAConnectorSCEPConnector = "aws:pca-connector-scep:connector"
+	TypePCAConnectorSCEPChallenge = "aws:pca-connector-scep:challenge"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

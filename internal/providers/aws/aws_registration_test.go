@@ -102,6 +102,7 @@ var expectedAWSServices = []string{
 	"aws:resource-groups",
 	"aws:resilience-hub",
 	"aws:ram",
+	"aws:pca-connector-scep",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

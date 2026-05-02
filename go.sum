@@ -426,6 +426,8 @@ github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23 h1:Sy7IZqg/B2A3MnqFPaZHFp
 github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23/go.mod h1:HtpCtAcElVMl6bJvlyVcE4D+j8pwxWUOCYXH4vFMUyk=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23 h1:CtTEAf/iYhq8G9KLBJH0T3GOZQ6/Ejjt0+J66jdSfKk=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23/go.mod h1:rHRclwfqAZZNIE/8KCVZomUOeLyuUd8jdU9a5Z4NQX4=
+github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.11.6 h1:0d8UWQYKUyQYcQBEvhZd4g/4U4evge0WrQNVhuYwmTE=
+github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.11.6/go.mod h1:L5HboT2ooLKEUehisDnSHFRfB54ey+19hAKlAdevv/s=
 github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4 h1:sTErG/5KtqR5fvYSdkLHmagNuR8bhbNyVmVea2LYYEo=
 github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4/go.mod h1:2OGJaB8B0hHY3ZsIYzEevlMjLpWJCbHcBQJbNi5NGWw=
 github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9 h1:A4IEYxMDsn9a6zRyJFu1EBBNrHbgpHvCwbvZDNIHMuA=

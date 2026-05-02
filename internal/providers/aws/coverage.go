@@ -519,6 +519,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// RAM — disco "ram" segment vs CFN "RAM".
 		TypeRAMResourceShare: "AWS::RAM::ResourceShare",
 		TypeRAMPermission:    "AWS::RAM::Permission",
+		// PCAConnectorSCEP — disco "pca-connector-scep" segment vs CFN "PCAConnectorSCEP".
+		TypePCAConnectorSCEPConnector: "AWS::PCAConnectorSCEP::Connector",
+		TypePCAConnectorSCEPChallenge: "AWS::PCAConnectorSCEP::Challenge",
 	}
 }
 
