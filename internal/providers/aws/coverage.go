@@ -534,6 +534,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// KinesisVideo — disco "kinesis-video" segment vs CFN "KinesisVideo".
 		TypeKinesisVideoStream:           "AWS::KinesisVideo::Stream",
 		TypeKinesisVideoSignalingChannel: "AWS::KinesisVideo::SignalingChannel",
+		// IVSChat — disco "ivs-chat" segment vs CFN "IVSChat".
+		TypeIVSChatRoom:                 "AWS::IVSChat::Room",
+		TypeIVSChatLoggingConfiguration: "AWS::IVSChat::LoggingConfiguration",
 	}
 }
 

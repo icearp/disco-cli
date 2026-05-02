@@ -290,6 +290,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ivschat v1.21.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mpa v1.7.4 // indirect

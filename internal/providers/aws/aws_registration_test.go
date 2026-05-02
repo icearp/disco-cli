@@ -108,6 +108,7 @@ var expectedAWSServices = []string{
 	"aws:mpa",
 	"aws:license-manager",
 	"aws:kinesis-video",
+	"aws:ivs-chat",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

@@ -910,6 +910,9 @@ const (
 	// Kinesis extras (kinesis_extended_scanners.go)
 	TypeKinesisStreamConsumer = "aws:kinesis:stream-consumer"
 	TypeKinesisResourcePolicy = "aws:kinesis:resource-policy"
+	// IVSChat (ivschat_scanners.go)
+	TypeIVSChatRoom                 = "aws:ivs-chat:room"
+	TypeIVSChatLoggingConfiguration = "aws:ivs-chat:logging-configuration"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
