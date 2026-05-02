@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
+	// CFN segment is "Cases".
+	TypeCasesCaseRule = "aws:cases:case-rule"
+	TypeCasesDomain   = "aws:cases:domain"
+	TypeCasesField    = "aws:cases:field"
+	TypeCasesLayout   = "aws:cases:layout"
+	TypeCasesTemplate = "aws:cases:template"
 	// EntityResolution (entityresolution_scanners.go).
 	TypeEntityResolutionIdMappingWorkflow = "aws:entityresolution:id-mapping-workflow"
 	TypeEntityResolutionIdNamespace       = "aws:entityresolution:id-namespace"

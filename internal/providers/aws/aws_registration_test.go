@@ -147,6 +147,7 @@ var expectedAWSServices = []string{
 	"aws:mediapackage",
 	"aws:iottwinmaker",
 	"aws:entityresolution",
+	"aws:cases",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
