@@ -25,6 +25,8 @@ type s3controlAPI interface {
 	ListStorageLensConfigurations(context.Context, *s3control.ListStorageLensConfigurationsInput, ...func(*s3control.Options)) (*s3control.ListStorageLensConfigurationsOutput, error)
 	GetStorageLensConfiguration(context.Context, *s3control.GetStorageLensConfigurationInput, ...func(*s3control.Options)) (*s3control.GetStorageLensConfigurationOutput, error)
 	ListStorageLensGroups(context.Context, *s3control.ListStorageLensGroupsInput, ...func(*s3control.Options)) (*s3control.ListStorageLensGroupsOutput, error)
+	ListAccessPointsForObjectLambda(context.Context, *s3control.ListAccessPointsForObjectLambdaInput, ...func(*s3control.Options)) (*s3control.ListAccessPointsForObjectLambdaOutput, error)
+	GetAccessPointPolicyForObjectLambda(context.Context, *s3control.GetAccessPointPolicyForObjectLambdaInput, ...func(*s3control.Options)) (*s3control.GetAccessPointPolicyForObjectLambdaOutput, error)
 }
 
 func init() {
@@ -41,6 +43,8 @@ func init() {
 			{Service: "s3", DiscoType: TypeS3MultiRegionAccessPointPolicy},
 			{Service: "s3", DiscoType: TypeS3StorageLens},
 			{Service: "s3", DiscoType: TypeS3StorageLensGroup},
+			{Service: "s3-object-lambda", DiscoType: TypeS3ObjectLambdaAccessPoint},
+			{Service: "s3-object-lambda", DiscoType: TypeS3ObjectLambdaAccessPointPolicy},
 		},
 	})
 }
@@ -59,6 +63,7 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 		scanS3AccessPoints,
 		scanStorageLens,
 		scanStorageLensGroups,
+		scanS3ObjectLambdaAccessPoints,
 	} {
 		tt, nn, e := scan(ctx, acct, region, client, st, scanID)
 		if e != nil {

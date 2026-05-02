@@ -510,6 +510,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// SSMIncidents — disco "ssm-incidents" segment vs CFN "SSMIncidents".
 		TypeSSMIncidentsReplicationSet: "AWS::SSMIncidents::ReplicationSet",
 		TypeSSMIncidentsResponsePlan:   "AWS::SSMIncidents::ResponsePlan",
+		// S3ObjectLambda — disco "s3-object-lambda" segment vs CFN "S3ObjectLambda".
+		TypeS3ObjectLambdaAccessPoint:       "AWS::S3ObjectLambda::AccessPoint",
+		TypeS3ObjectLambdaAccessPointPolicy: "AWS::S3ObjectLambda::AccessPointPolicy",
 	}
 }
 
