@@ -239,6 +239,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.102 // indirect
+	github.com/aws/aws-sdk-go-v2/service/chatbot v1.14.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/cleanroomsml v1.22.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codeartifact v1.38.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.15 // indirect

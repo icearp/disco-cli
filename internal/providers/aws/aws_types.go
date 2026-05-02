@@ -832,6 +832,10 @@ const (
 	TypeCleanRoomsMLConfiguredModelAlgorithm            = "aws:cleanrooms-ml:configured-model-algorithm"
 	TypeCleanRoomsMLConfiguredModelAlgorithmAssociation = "aws:cleanrooms-ml:configured-model-algorithm-association"
 	TypeCleanRoomsMLTrainingDataset                     = "aws:cleanrooms-ml:training-dataset"
+	// Chatbot (chatbot_scanners.go)
+	TypeChatbotCustomAction                       = "aws:chatbot:custom-action"
+	TypeChatbotSlackChannelConfiguration          = "aws:chatbot:slack-channel-configuration"
+	TypeChatbotMicrosoftTeamsChannelConfiguration = "aws:chatbot:microsoft-teams-channel-configuration"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
