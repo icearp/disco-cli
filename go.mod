@@ -172,6 +172,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/deadline v1.31.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.38.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/emr v1.59.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14 // indirect

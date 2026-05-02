@@ -130,6 +130,7 @@ var expectedAWSServices = []string{
 	"aws:transfer",
 	"aws:wisdom",
 	"aws:workspaces-web",
+	"aws:directconnect",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

@@ -820,6 +820,14 @@ const (
 	TypeLocationRouteCalculator    = "aws:location:route-calculator"
 	TypeLocationTracker            = "aws:location:tracker"
 	TypeLocationTrackerConsumer    = "aws:location:tracker-consumer"
+	// DirectConnect (directconnect_scanners.go)
+	TypeDirectConnectConnection                      = "aws:directconnect:connection"
+	TypeDirectConnectDirectConnectGateway            = "aws:directconnect:direct-connect-gateway"
+	TypeDirectConnectDirectConnectGatewayAssociation = "aws:directconnect:direct-connect-gateway-association"
+	TypeDirectConnectLag                             = "aws:directconnect:lag"
+	TypeDirectConnectPrivateVirtualInterface         = "aws:directconnect:private-virtual-interface"
+	TypeDirectConnectPublicVirtualInterface          = "aws:directconnect:public-virtual-interface"
+	TypeDirectConnectTransitVirtualInterface         = "aws:directconnect:transit-virtual-interface"
 	// IoTFleetWise (iotfleetwise_scanners.go)
 	TypeIoTFWCampaign        = "aws:iotfleetwise:campaign"
 	TypeIoTFWDecoderManifest = "aws:iotfleetwise:decoder-manifest"
