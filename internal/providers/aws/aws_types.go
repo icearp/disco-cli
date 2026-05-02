@@ -947,6 +947,8 @@ const (
 	TypeSimSpaceWeaverSimulation = "aws:sim-space-weaver:simulation"
 	// RUM (rum_scanners.go)
 	TypeRUMAppMonitor = "aws:rum:app-monitor"
+	// Rbin (rbin_scanners.go)
+	TypeRbinRule = "aws:rbin:rule"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
