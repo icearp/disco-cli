@@ -148,6 +148,7 @@ var expectedAWSServices = []string{
 	"aws:iottwinmaker",
 	"aws:entityresolution",
 	"aws:cases",
+	"aws:xray",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

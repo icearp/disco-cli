@@ -1202,6 +1202,10 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// XRay (xray_scanners.go).
+	TypeXRayGroup          = "aws:xray:group"
+	TypeXRayResourcePolicy = "aws:xray:resource-policy"
+	TypeXRaySamplingRule   = "aws:xray:sampling-rule"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
 	// CFN segment is "Cases".
 	TypeCasesCaseRule = "aws:cases:case-rule"
