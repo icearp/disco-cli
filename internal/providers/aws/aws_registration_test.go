@@ -167,6 +167,7 @@ var expectedAWSServices = []string{
 	"aws:global-accelerator",
 	"aws:event-schemas",
 	"aws:dev-ops-agent",
+	"aws:code-build",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

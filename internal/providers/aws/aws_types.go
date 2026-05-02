@@ -1216,6 +1216,11 @@ const (
 	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
 	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
 	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
+	// CodeBuild (codebuild_scanners.go).
+	TypeCodeBuildFleet            = "aws:code-build:fleet"
+	TypeCodeBuildProject          = "aws:code-build:project"
+	TypeCodeBuildReportGroup      = "aws:code-build:report-group"
+	TypeCodeBuildSourceCredential = "aws:code-build:source-credential"
 	// DevOpsAgent (devopsagent_scanners.go).
 	TypeDevOpsAgentAgentSpace  = "aws:dev-ops-agent:agent-space"
 	TypeDevOpsAgentAssociation = "aws:dev-ops-agent:association"
