@@ -454,6 +454,8 @@ github.com/aws/aws-sdk-go-v2/service/rekognition v1.51.23 h1:FLbnYKee5UfH4zdsZk9
 github.com/aws/aws-sdk-go-v2/service/rekognition v1.51.23/go.mod h1:1j7mu8NwhHLrAB43agCDAv4BsncoE0Ld+JWpDgUKH6w=
 github.com/aws/aws-sdk-go-v2/service/resourceexplorer2 v1.23.6 h1:v4Gii9Pxx4bvvNmV5Se1pmx0ag5+Eb3/wZkT03iyCCI=
 github.com/aws/aws-sdk-go-v2/service/resourceexplorer2 v1.23.6/go.mod h1:W/WhNWo1nbW+wVQTw8681WzAj6yTOvGLl8GLWNEWC2I=
+github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.26 h1:HmcCtAaTeZTskXrcrdoioe6oDsQCbdGekBkLOCUE8F8=
+github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.26/go.mod h1:nYctzUkOuHA0n6thF68Td93Mm8NJzAhWuhKOIqk5vW8=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.9 h1:k/CFcgfhrwUUHFNfDMvXwb71wkrcKT/D0AADHLli+DU=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.9/go.mod h1:kJgqmGmlOPqTe9cntPrSgMdIQ3cAama8TAW+NKaDCzE=
 github.com/aws/aws-sdk-go-v2/service/route53 v1.62.5 h1:Z+/OLsb85Kpq7TVLCspskqePaf68Tdv6GfmJP4kH6i0=

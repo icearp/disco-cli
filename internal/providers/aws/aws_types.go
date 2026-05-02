@@ -875,6 +875,9 @@ const (
 	// S3ObjectLambda (s3objectlambda_scanners.go)
 	TypeS3ObjectLambdaAccessPoint       = "aws:s3-object-lambda:access-point"
 	TypeS3ObjectLambdaAccessPointPolicy = "aws:s3-object-lambda:access-point-policy"
+	// ResourceGroups (resourcegroups_scanners.go)
+	TypeResourceGroupsGroup       = "aws:resource-groups:group"
+	TypeResourceGroupsTagSyncTask = "aws:resource-groups:tag-sync-task"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
