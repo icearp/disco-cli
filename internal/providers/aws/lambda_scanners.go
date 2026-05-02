@@ -23,6 +23,8 @@ func init() {
 			{Service: "lambda", DiscoType: TypeLambdaCodeSigningConfig},
 			{Service: "lambda", DiscoType: TypeLambdaEventInvokeConfig},
 			{Service: "lambda", DiscoType: TypeLambdaCapacityProvider},
+			{Service: "lambda", DiscoType: TypeLambdaPermission},
+			{Service: "lambda", DiscoType: TypeLambdaLayerVersionPermission},
 		},
 	})
 }
@@ -43,6 +45,8 @@ type lambdaAPI interface {
 	ListEventSourceMappings(context.Context, *lambda.ListEventSourceMappingsInput, ...func(*lambda.Options)) (*lambda.ListEventSourceMappingsOutput, error)
 	ListLayers(context.Context, *lambda.ListLayersInput, ...func(*lambda.Options)) (*lambda.ListLayersOutput, error)
 	ListLayerVersions(context.Context, *lambda.ListLayerVersionsInput, ...func(*lambda.Options)) (*lambda.ListLayerVersionsOutput, error)
+	GetPolicy(context.Context, *lambda.GetPolicyInput, ...func(*lambda.Options)) (*lambda.GetPolicyOutput, error)
+	GetLayerVersionPolicy(context.Context, *lambda.GetLayerVersionPolicyInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionPolicyOutput, error)
 }
 
 // lambdaFunctionSummary holds the minimal per-function data reused by per-function
@@ -73,6 +77,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		scanLambdaVersions,
 		scanLambdaEventInvokeConfigs,
 		scanLambdaFunctionURLs,
+		scanLambdaPermissions,
 	} {
 		tt, nn, err := scan(ctx, client, acct, fns, region, st, scanID)
 		if err != nil {
@@ -88,6 +93,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		scanLambdaCapacityProviders,
 		scanLambdaEventSourceMappings,
 		scanLambdaLayerVersions,
+		scanLambdaLayerVersionPermissions,
 	} {
 		tt, nn, err := scan(ctx, client, acct, region, st, scanID)
 		if err != nil {
