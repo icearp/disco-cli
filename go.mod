@@ -313,6 +313,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dlm v1.36.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/docdbelastic v1.20.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dsql v1.12.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/elementalinference v1.0.5 // indirect

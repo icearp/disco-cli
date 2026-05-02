@@ -1001,6 +1001,8 @@ const (
 	TypeDSQLCluster = "aws:dsql:cluster"
 	// DocDBElastic (docdbelastic_scanners.go)
 	TypeDocDBElasticCluster = "aws:doc-db-elastic:cluster"
+	// DLM (dlm_scanners.go)
+	TypeDLMLifecyclePolicy = "aws:dlm:lifecycle-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

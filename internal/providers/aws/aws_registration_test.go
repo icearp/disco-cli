@@ -146,6 +146,7 @@ var expectedAWSServices = []string{
 	"aws:elemental-inference",
 	"aws:dsql",
 	"aws:doc-db-elastic",
+	"aws:dlm",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
