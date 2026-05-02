@@ -1221,6 +1221,8 @@ const (
 	TypeB2BIPartnership = "aws:b2bi:partnership"
 	TypeB2BIProfile     = "aws:b2bi:profile"
 	TypeB2BITransformer = "aws:b2bi:transformer"
+	// WorkspacesInstances (workspacesinstances_scanners.go).
+	TypeWorkspacesInstancesWorkspaceInstance = "aws:workspaces-instances:workspace-instance"
 	// CodeBuild (codebuild_scanners.go).
 	TypeCodeBuildFleet            = "aws:code-build:fleet"
 	TypeCodeBuildProject          = "aws:code-build:project"
