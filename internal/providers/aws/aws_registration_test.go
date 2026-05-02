@@ -162,6 +162,7 @@ var expectedAWSServices = []string{
 	"aws:pinpoint-email",
 	"aws:personalize",
 	"aws:lex",
+	"aws:kinesis-analytics-v2",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

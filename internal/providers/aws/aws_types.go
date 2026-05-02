@@ -1206,6 +1206,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// KinesisAnalyticsV2 (kinesisanalyticsv2_scanners.go).
+	TypeKAV2Application                 = "aws:kinesis-analytics-v2:application"
+	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"
+	TypeKAV2ApplicationOutput           = "aws:kinesis-analytics-v2:application-output"
+	TypeKAV2ApplicationReferenceData    = "aws:kinesis-analytics-v2:application-reference-data-source"
 	// Lex (lex_scanners.go); SDK module is lexmodelsv2.
 	TypeLexBot            = "aws:lex:bot"
 	TypeLexBotAlias       = "aws:lex:bot-alias"
