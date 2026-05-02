@@ -961,6 +961,8 @@ const (
 	TypeNovaActWorkflowDefinition = "aws:nova-act:workflow-definition"
 	// NotificationsContacts (notificationscontacts_scanners.go)
 	TypeNotificationsContactsEmailContact = "aws:notifications-contacts:email-contact"
+	// MWAAServerless (mwaaserverless_scanners.go)
+	TypeMWAAServerlessWorkflow = "aws:mwaa-serverless:workflow"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

@@ -566,6 +566,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeNovaActWorkflowDefinition: "AWS::NovaAct::WorkflowDefinition",
 		// NotificationsContacts — disco "notifications-contacts" segment vs CFN "NotificationsContacts".
 		TypeNotificationsContactsEmailContact: "AWS::NotificationsContacts::EmailContact",
+		// MWAAServerless — disco "mwaa-serverless" segment vs CFN "MWAAServerless".
+		TypeMWAAServerlessWorkflow: "AWS::MWAAServerless::Workflow",
 	}
 }
 

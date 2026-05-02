@@ -127,6 +127,7 @@ var expectedAWSServices = []string{
 	"aws:osis",
 	"aws:nova-act",
 	"aws:notifications-contacts",
+	"aws:mwaa-serverless",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
