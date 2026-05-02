@@ -27,6 +27,9 @@ func init() {
 			// CFN does have AWS::SSO::Assignment / AWS::IdentityStore::Group,
 			// so these are NOT synthetic in coverage terms.
 			{Service: "sso", DiscoType: TypeSSOAccountAssignment},
+			{Service: "sso", DiscoType: TypeSSOApplication},
+			{Service: "sso", DiscoType: TypeSSOApplicationAssignment},
+			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreUser},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup},
 		},
@@ -41,6 +44,9 @@ type ssoadminAPI interface {
 	DescribePermissionSet(context.Context, *ssoadmin.DescribePermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.DescribePermissionSetOutput, error)
 	ListAccountsForProvisionedPermissionSet(context.Context, *ssoadmin.ListAccountsForProvisionedPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListAccountsForProvisionedPermissionSetOutput, error)
 	ListAccountAssignments(context.Context, *ssoadmin.ListAccountAssignmentsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListAccountAssignmentsOutput, error)
+	ListApplications(context.Context, *ssoadmin.ListApplicationsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationsOutput, error)
+	ListApplicationAssignments(context.Context, *ssoadmin.ListApplicationAssignmentsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationAssignmentsOutput, error)
+	DescribeInstanceAccessControlAttributeConfiguration(context.Context, *ssoadmin.DescribeInstanceAccessControlAttributeConfigurationInput, ...func(*ssoadmin.Options)) (*ssoadmin.DescribeInstanceAccessControlAttributeConfigurationOutput, error)
 }
 
 // identitystoreAPI is the narrow set of Identity Store operations called by
@@ -101,6 +107,15 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 	isClient := identitystore.NewFromConfig(acct.cfg, func(o *identitystore.Options) { o.Region = region })
 	{
 		t, i, ferr := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
