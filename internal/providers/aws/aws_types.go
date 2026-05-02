@@ -1243,6 +1243,10 @@ const (
 	TypeS3ExpressAccessPoint     = "aws:s3express:access-point"
 	TypeS3ExpressBucketPolicy    = "aws:s3express:bucket-policy"
 	TypeS3ExpressDirectoryBucket = "aws:s3express:directory-bucket"
+	// ResourceExplorer2 (resourceexplorer2_scanners.go).
+	TypeResourceExplorer2DefaultViewAssociation = "aws:resource-explorer-2:default-view-association"
+	TypeResourceExplorer2Index                  = "aws:resource-explorer-2:index"
+	TypeResourceExplorer2View                   = "aws:resource-explorer-2:view"
 	// RolesAnywhere (rolesanywhere_scanners.go).
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"

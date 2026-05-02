@@ -248,6 +248,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/resourceexplorer2 v1.23.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53profiles v1.9.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.8 // indirect
