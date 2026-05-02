@@ -19,6 +19,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "shield", DiscoType: TypeShieldProtection},
 			{Service: "shield", DiscoType: TypeShieldProtectionGroup},
+			{Service: "shield", DiscoType: TypeShieldDRTAccess},
+			{Service: "shield", DiscoType: TypeShieldProactiveEngagement},
 		},
 	})
 }
@@ -29,6 +31,8 @@ type shieldAPI interface {
 	DescribeSubscription(context.Context, *shield.DescribeSubscriptionInput, ...func(*shield.Options)) (*shield.DescribeSubscriptionOutput, error)
 	ListProtections(context.Context, *shield.ListProtectionsInput, ...func(*shield.Options)) (*shield.ListProtectionsOutput, error)
 	ListProtectionGroups(context.Context, *shield.ListProtectionGroupsInput, ...func(*shield.Options)) (*shield.ListProtectionGroupsOutput, error)
+	DescribeDRTAccess(context.Context, *shield.DescribeDRTAccessInput, ...func(*shield.Options)) (*shield.DescribeDRTAccessOutput, error)
+	DescribeEmergencyContactSettings(context.Context, *shield.DescribeEmergencyContactSettingsInput, ...func(*shield.Options)) (*shield.DescribeEmergencyContactSettingsOutput, error)
 }
 
 // scanShield discovers Shield Advanced protections and protection groups.
@@ -58,6 +62,24 @@ func scanShield(ctx context.Context, acct *account, st *store.Store, scanID stri
 	// Phase 3: protection groups.
 	{
 		t, i, ferr := scanShieldProtectionGroups(ctx, client, acct, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Phase 4: DRT access + proactive engagement (per-account singletons).
+	{
+		t, i, ferr := scanShieldDRTAccess(ctx, client, acct, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+	{
+		t, i, ferr := scanShieldProactiveEngagement(ctx, client, acct, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

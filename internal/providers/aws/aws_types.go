@@ -866,6 +866,9 @@ const (
 	// Signer (signer_scanners.go)
 	TypeSignerSigningProfile    = "aws:signer:signing-profile"
 	TypeSignerProfilePermission = "aws:signer:profile-permission"
+	// Shield extras (shield_extended_scanners.go)
+	TypeShieldDRTAccess           = "aws:shield:drt-access"
+	TypeShieldProactiveEngagement = "aws:shield:proactive-engagement"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
