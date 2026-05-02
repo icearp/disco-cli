@@ -15,6 +15,8 @@ func init() {
 		fn:   scanSecretsManager,
 		emits: []coverage.TypeDecl{
 			{Service: "secretsmanager", DiscoType: TypeSecretsManagerSecret},
+			{Service: "secretsmanager", DiscoType: TypeSecretsManagerResourcePolicy},
+			{Service: "secretsmanager", DiscoType: TypeSecretsManagerRotationSchedule},
 		},
 	})
 }
@@ -23,14 +25,27 @@ func init() {
 // scanSecretsManagerSecrets.
 type secretsManagerAPI interface {
 	ListSecrets(context.Context, *secretsmanager.ListSecretsInput, ...func(*secretsmanager.Options)) (*secretsmanager.ListSecretsOutput, error)
+	GetResourcePolicy(context.Context, *secretsmanager.GetResourcePolicyInput, ...func(*secretsmanager.Options)) (*secretsmanager.GetResourcePolicyOutput, error)
 }
 
 // scanSecretsManager discovers Secrets Manager secrets in one region. Secret
 // values are never fetched — only metadata (rotation config, last-rotated date,
 // KMS key binding) suitable for posture rules.
-func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSecretsManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := secretsmanager.NewFromConfig(acct.cfg, func(o *secretsmanager.Options) { o.Region = region })
-	return scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanSecretsManagerSecrets(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanSecretsManagerExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanSecretsManagerSecrets holds the testable scan body.

@@ -429,7 +429,9 @@ const (
 	TypeMSKReplicator       = "aws:kafka:replicator"
 	TypeMSKVpcConnection    = "aws:kafka:vpc-connection"
 	// Secrets Manager (secretsmanager_scanners.go)
-	TypeSecretsManagerSecret = "aws:secretsmanager:secret"
+	TypeSecretsManagerSecret           = "aws:secretsmanager:secret"
+	TypeSecretsManagerResourcePolicy   = "aws:secretsmanager:resource-policy"
+	TypeSecretsManagerRotationSchedule = "aws:secretsmanager:rotation-schedule"
 	// Organizations (organizations_scanners.go)
 	TypeOrganization         = "aws:organizations:organization"
 	TypeOrganizationsAccount = "aws:organizations:account"
