@@ -608,6 +608,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodeStarNotificationsNotificationRule: "AWS::CodeStarNotifications::NotificationRule",
 		// CodeGuruReviewer — disco "code-guru-reviewer" segment vs CFN "CodeGuruReviewer".
 		TypeCodeGuruReviewerRepositoryAssociation: "AWS::CodeGuruReviewer::RepositoryAssociation",
+		// CodeGuruProfiler — disco "code-guru-profiler" segment vs CFN "CodeGuruProfiler".
+		TypeCodeGuruProfilerProfilingGroup: "AWS::CodeGuruProfiler::ProfilingGroup",
 	}
 }
 

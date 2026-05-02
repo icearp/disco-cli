@@ -1015,6 +1015,8 @@ const (
 	TypeCodeStarNotificationsNotificationRule = "aws:codestar-notifications:notification-rule"
 	// CodeGuruReviewer (codegurureviewer_scanners.go)
 	TypeCodeGuruReviewerRepositoryAssociation = "aws:code-guru-reviewer:repository-association"
+	// CodeGuruProfiler (codeguruprofiler_scanners.go)
+	TypeCodeGuruProfilerProfilingGroup = "aws:code-guru-profiler:profiling-group"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
