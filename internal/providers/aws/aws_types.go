@@ -1251,6 +1251,10 @@ const (
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"
 	TypeRolesAnywhereTrustAnchor = "aws:roles-anywhere:trust-anchor"
+	// Rekognition (rekognition_scanners.go).
+	TypeRekognitionCollection      = "aws:rekognition:collection"
+	TypeRekognitionProject         = "aws:rekognition:project"
+	TypeRekognitionStreamProcessor = "aws:rekognition:stream-processor"
 	// Route53Profiles (route53profiles_scanners.go).
 	TypeRoute53ProfilesProfile                    = "aws:route53-profiles:profile"
 	TypeRoute53ProfilesProfileAssociation         = "aws:route53-profiles:profile-association"

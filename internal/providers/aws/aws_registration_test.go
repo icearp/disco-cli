@@ -177,6 +177,7 @@ var expectedAWSServices = []string{
 	"aws:route53-profiles",
 	"aws:roles-anywhere",
 	"aws:resource-explorer-2",
+	"aws:rekognition",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
