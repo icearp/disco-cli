@@ -501,6 +501,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAPSAnomalyDetector:     "AWS::APS::AnomalyDetector",
 		TypeAPSRuleGroupsNamespace: "AWS::APS::RuleGroupsNamespace",
 		TypeAPSResourcePolicy:      "AWS::APS::ResourcePolicy",
+		// AmplifyUIBuilder — disco "amplify-ui-builder" segment vs CFN "AmplifyUIBuilder".
+		TypeAmplifyUIBuilderComponent: "AWS::AmplifyUIBuilder::Component",
+		TypeAmplifyUIBuilderForm:      "AWS::AmplifyUIBuilder::Form",
+		TypeAmplifyUIBuilderTheme:     "AWS::AmplifyUIBuilder::Theme",
 	}
 }
 

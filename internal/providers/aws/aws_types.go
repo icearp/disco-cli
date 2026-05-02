@@ -848,6 +848,10 @@ const (
 	TypeAPSAnomalyDetector     = "aws:aps:anomaly-detector"
 	TypeAPSRuleGroupsNamespace = "aws:aps:rule-groups-namespace"
 	TypeAPSResourcePolicy      = "aws:aps:resource-policy"
+	// AmplifyUIBuilder (amplifyuibuilder_scanners.go)
+	TypeAmplifyUIBuilderComponent = "aws:amplify-ui-builder:component"
+	TypeAmplifyUIBuilderForm      = "aws:amplify-ui-builder:form"
+	TypeAmplifyUIBuilderTheme     = "aws:amplify-ui-builder:theme"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
