@@ -919,6 +919,9 @@ const (
 	// Forecast (forecast_scanners.go)
 	TypeForecastDataset      = "aws:forecast:dataset"
 	TypeForecastDatasetGroup = "aws:forecast:dataset-group"
+	// FIS (fis_scanners.go)
+	TypeFISExperimentTemplate         = "aws:fis:experiment-template"
+	TypeFISTargetAccountConfiguration = "aws:fis:target-account-configuration"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

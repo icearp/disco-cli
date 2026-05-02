@@ -111,6 +111,7 @@ var expectedAWSServices = []string{
 	"aws:ivs-chat",
 	"aws:greengrass-v2",
 	"aws:forecast",
+	"aws:fis",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
