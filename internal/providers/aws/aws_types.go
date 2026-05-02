@@ -1317,6 +1317,10 @@ const (
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
 	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
+	// IoTEvents (iotevents_scanners.go).
+	TypeIoTEventsAlarmModel    = "aws:iot-events:alarm-model"
+	TypeIoTEventsDetectorModel = "aws:iot-events:detector-model"
+	TypeIoTEventsInput         = "aws:iot-events:input"
 	// KafkaConnect (kafkaconnect_scanners.go).
 	TypeKafkaConnectConnector           = "aws:kafka-connect:connector"
 	TypeKafkaConnectCustomPlugin        = "aws:kafka-connect:custom-plugin"
