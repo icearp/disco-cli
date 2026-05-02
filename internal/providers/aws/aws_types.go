@@ -1221,6 +1221,10 @@ const (
 	TypeB2BIPartnership = "aws:b2bi:partnership"
 	TypeB2BIProfile     = "aws:b2bi:profile"
 	TypeB2BITransformer = "aws:b2bi:transformer"
+	// WorkSpaces (workspaces_scanners.go).
+	TypeWorkSpacesConnectionAlias = "aws:work-spaces:connection-alias"
+	TypeWorkSpacesWorkspace       = "aws:work-spaces:workspace"
+	TypeWorkSpacesWorkspacesPool  = "aws:work-spaces:workspaces-pool"
 	// WorkspacesInstances (workspacesinstances_scanners.go).
 	TypeWorkspacesInstancesWorkspaceInstance = "aws:workspaces-instances:workspace-instance"
 	// CodeBuild (codebuild_scanners.go).

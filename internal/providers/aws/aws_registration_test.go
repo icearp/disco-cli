@@ -170,6 +170,7 @@ var expectedAWSServices = []string{
 	"aws:code-build",
 	"aws:b2bi",
 	"aws:workspaces-instances",
+	"aws:work-spaces",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
