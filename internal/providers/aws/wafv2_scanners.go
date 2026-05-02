@@ -20,6 +20,9 @@ func init() {
 			{Service: "wafv2", DiscoType: TypeWAFv2WebACL},
 			{Service: "wafv2", DiscoType: TypeWAFv2RuleGroup},
 			{Service: "wafv2", DiscoType: TypeWAFv2IPSet},
+			{Service: "wafv2", DiscoType: TypeWAFv2LoggingConfiguration},
+			{Service: "wafv2", DiscoType: TypeWAFv2RegexPatternSet},
+			{Service: "wafv2", DiscoType: TypeWAFv2WebACLAssociation},
 		},
 	})
 }
@@ -30,6 +33,9 @@ type wafv2API interface {
 	GetWebACL(context.Context, *wafv2.GetWebACLInput, ...func(*wafv2.Options)) (*wafv2.GetWebACLOutput, error)
 	ListRuleGroups(context.Context, *wafv2.ListRuleGroupsInput, ...func(*wafv2.Options)) (*wafv2.ListRuleGroupsOutput, error)
 	ListIPSets(context.Context, *wafv2.ListIPSetsInput, ...func(*wafv2.Options)) (*wafv2.ListIPSetsOutput, error)
+	ListLoggingConfigurations(context.Context, *wafv2.ListLoggingConfigurationsInput, ...func(*wafv2.Options)) (*wafv2.ListLoggingConfigurationsOutput, error)
+	ListRegexPatternSets(context.Context, *wafv2.ListRegexPatternSetsInput, ...func(*wafv2.Options)) (*wafv2.ListRegexPatternSetsOutput, error)
+	ListResourcesForWebACL(context.Context, *wafv2.ListResourcesForWebACLInput, ...func(*wafv2.Options)) (*wafv2.ListResourcesForWebACLOutput, error)
 }
 
 // scanWAFv2 discovers WAFv2 web ACLs, rule groups, and IP sets in one region.
@@ -201,6 +207,15 @@ func scanWAFv2Scope(ctx context.Context, client wafv2API, acct *account, region 
 		}
 		total += len(ipBatch)
 		inserted += n
+	}
+
+	{
+		t, i, ferr := scanWAFv2ScopeExtended(ctx, client, acct, region, scope, st, scanID, aclSummaries)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
 	}
 
 	return total, inserted, nil

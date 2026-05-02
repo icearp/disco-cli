@@ -202,9 +202,12 @@ const (
 	TypeEFSMountTarget = "aws:efs:mount-target"
 	TypeEFSAccessPoint = "aws:efs:access-point"
 	// WAFv2 (wafv2_scanners.go, wafv2_resolvers.go)
-	TypeWAFv2WebACL    = "aws:wafv2:web-acl"
-	TypeWAFv2RuleGroup = "aws:wafv2:rule-group"
-	TypeWAFv2IPSet     = "aws:wafv2:ip-set"
+	TypeWAFv2WebACL               = "aws:wafv2:web-acl"
+	TypeWAFv2RuleGroup            = "aws:wafv2:rule-group"
+	TypeWAFv2IPSet                = "aws:wafv2:ip-set"
+	TypeWAFv2LoggingConfiguration = "aws:wafv2:logging-configuration"
+	TypeWAFv2RegexPatternSet      = "aws:wafv2:regex-pattern-set"
+	TypeWAFv2WebACLAssociation    = "aws:wafv2:web-acl-association"
 	// Network Firewall (networkfirewall_scanners.go, networkfirewall_resolvers.go)
 	TypeNetworkFirewallFirewall       = "aws:network-firewall:firewall"
 	TypeNetworkFirewallFirewallPolicy = "aws:network-firewall:firewall-policy"
