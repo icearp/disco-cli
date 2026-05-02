@@ -570,6 +570,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeMWAAServerlessWorkflow: "AWS::MWAAServerless::Workflow",
 		// MediaStore — disco "media-store" segment vs CFN "MediaStore".
 		TypeMediaStoreContainer: "AWS::MediaStore::Container",
+		// LookoutEquipment — disco "lookout-equipment" segment vs CFN "LookoutEquipment".
+		TypeLookoutEquipmentInferenceScheduler: "AWS::LookoutEquipment::InferenceScheduler",
 	}
 }
 

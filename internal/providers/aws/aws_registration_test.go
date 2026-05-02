@@ -130,6 +130,7 @@ var expectedAWSServices = []string{
 	"aws:mwaa-serverless",
 	"aws:mwaa",
 	"aws:media-store",
+	"aws:lookout-equipment",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

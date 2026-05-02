@@ -967,6 +967,8 @@ const (
 	TypeMWAAEnvironment = "aws:mwaa:environment"
 	// MediaStore (mediastore_scanners.go)
 	TypeMediaStoreContainer = "aws:media-store:container"
+	// LookoutEquipment (lookoutequipment_scanners.go)
+	TypeLookoutEquipmentInferenceScheduler = "aws:lookout-equipment:inference-scheduler"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
