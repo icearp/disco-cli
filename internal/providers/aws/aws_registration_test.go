@@ -114,6 +114,7 @@ var expectedAWSServices = []string{
 	"aws:fis",
 	"aws:directory-service",
 	"aws:comprehend",
+	"aws:budgets",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

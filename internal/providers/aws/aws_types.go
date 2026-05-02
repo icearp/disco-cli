@@ -930,6 +930,9 @@ const (
 	// Comprehend (comprehend_scanners.go)
 	TypeComprehendDocumentClassifier = "aws:comprehend:document-classifier"
 	TypeComprehendFlywheel           = "aws:comprehend:flywheel"
+	// Budgets (budgets_scanners.go)
+	TypeBudgetsBudget        = "aws:budgets:budget"
+	TypeBudgetsBudgetsAction = "aws:budgets:budgets-action"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
