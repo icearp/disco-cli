@@ -140,6 +140,7 @@ var expectedAWSServices = []string{
 	"aws:timestream",
 	"aws:servicediscovery",
 	"aws:s3tables",
+	"aws:rtbfabric",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

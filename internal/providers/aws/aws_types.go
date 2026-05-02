@@ -1197,6 +1197,10 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// RTBFabric (rtbfabric_scanners.go). Real-time bidding fabric.
+	TypeRTBFabricLink             = "aws:rtbfabric:link"
+	TypeRTBFabricRequesterGateway = "aws:rtbfabric:requester-gateway"
+	TypeRTBFabricResponderGateway = "aws:rtbfabric:responder-gateway"
 	// S3Tables (s3tables_scanners.go).
 	TypeS3TablesNamespace         = "aws:s3tables:namespace"
 	TypeS3TablesTable             = "aws:s3tables:table"
