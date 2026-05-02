@@ -240,6 +240,8 @@ github.com/aws/aws-sdk-go-v2/service/connectcases v1.40.2 h1:vWXo5w+kXVhvfiu47y5
 github.com/aws/aws-sdk-go-v2/service/connectcases v1.40.2/go.mod h1:Po801bVNjB1+ZF8gmqjeQUb8ay5XcpQFVi6Bhm/85Iw=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10 h1:2IJTn2NHVRNz2aNfjSHFjHWV3WqQfhSL8AzkozgUFmY=
 github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10/go.mod h1:mqfl3hxenQ4Y4qG53D90gIL/kIQqnyqoyzABYTDYJH0=
+github.com/aws/aws-sdk-go-v2/service/costandusagereportservice v1.34.15 h1:iI5WGYZl5mU9OWa0EBj6TOY0NQ4JLvevo0txMpdq20g=
+github.com/aws/aws-sdk-go-v2/service/costandusagereportservice v1.34.15/go.mod h1:3oLucoNB1dcG76JxzFFsSSnmpwl0BfX7CT1r0BgWavc=
 github.com/aws/aws-sdk-go-v2/service/costexplorer v1.63.8 h1:rUg81vwoGgCmnQxsVl+B65QF8Qh+zYCluhyAcxsk79o=
 github.com/aws/aws-sdk-go-v2/service/costexplorer v1.63.8/go.mod h1:V+bKJ05kIC6K0LH8TB3D5boy7F8BhrZeecoXLz1NlB4=
 github.com/aws/aws-sdk-go-v2/service/customerprofiles v1.59.2 h1:pQ1ewsM//YsNuPA3ctSS9jLSl4+/zn3RCWvWeEQdRIM=

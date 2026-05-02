@@ -598,6 +598,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDocDBElasticCluster: "AWS::DocDBElastic::Cluster",
 		// DLM — disco "dlm" segment vs CFN "DLM".
 		TypeDLMLifecyclePolicy: "AWS::DLM::LifecyclePolicy",
+		// CUR — disco "cur" segment vs CFN "CUR".
+		TypeCURReportDefinition: "AWS::CUR::ReportDefinition",
 	}
 }
 

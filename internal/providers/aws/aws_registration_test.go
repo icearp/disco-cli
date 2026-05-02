@@ -147,6 +147,7 @@ var expectedAWSServices = []string{
 	"aws:dsql",
 	"aws:doc-db-elastic",
 	"aws:dlm",
+	"aws:cur",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
