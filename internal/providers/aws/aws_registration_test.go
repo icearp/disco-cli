@@ -135,6 +135,7 @@ var expectedAWSServices = []string{
 	"aws:observabilityadmin",
 	"aws:memorydb",
 	"aws:mediatailor",
+	"aws:fsx",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

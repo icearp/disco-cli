@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// FSx (fsx_scanners.go).
+	TypeFSxFileSystem                = "aws:fsx:file-system"
+	TypeFSxDataRepositoryAssociation = "aws:fsx:data-repository-association"
+	TypeFSxSnapshot                  = "aws:fsx:snapshot"
+	TypeFSxStorageVirtualMachine     = "aws:fsx:storage-virtual-machine"
+	TypeFSxVolume                    = "aws:fsx:volume"
+	TypeFSxS3AccessPointAttachment   = "aws:fsx:s3-access-point-attachment"
 	// LakeFormation (lakeformation_scanners.go).
 	TypeLakeFormationDataCellsFilter      = "aws:lakeformation:data-cells-filter"
 	TypeLakeFormationDataLakeSettings     = "aws:lakeformation:data-lake-settings"

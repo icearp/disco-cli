@@ -262,6 +262,8 @@ github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14 h1:sHXyginrCoA3WaOkHIyaes
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14/go.mod h1:79fwBYDS6J0bKmEO6Hjp4EisUG5sQDSxM8xw8QJkOJM=
 github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14 h1:pG8jtwPXVBEslF2PXIPZhzkyqcS5kp4AclupLjtlRbw=
 github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14/go.mod h1:lfCVrMmrO0wMk4/J3E51SCAW2CkDuwtzcm7iyYyv7AY=
+github.com/aws/aws-sdk-go-v2/service/fsx v1.65.9 h1:xzMWyMv3g8dBFxsjZEEp3BkbBj8HMyRV6McX6uW6Nf8=
+github.com/aws/aws-sdk-go-v2/service/fsx v1.65.9/go.mod h1:ZhrGF6EmakQJR9N5lGxh7LdkVG+v+Iaa1+PKU9eehWQ=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0 h1:TnDHcCjQbeyxNgWV67Gz8DigkCDcz6t4y+UWBItR1zc=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0/go.mod h1:krO76k8XMEa+hBF4M+zuyU2XXct6JQIdH5LKOrltHew=
 github.com/aws/aws-sdk-go-v2/service/glue v1.139.3 h1:2awAOXxGrBdC53fTI7P40kkDVz0mCIU1+3beKypTrIo=
