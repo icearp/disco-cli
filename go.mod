@@ -262,6 +262,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafkaconnect v1.30.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kendra v1.60.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/keyspaces v1.25.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/m2 v1.26.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/managedblockchain v1.31.23 // indirect

@@ -840,6 +840,10 @@ const (
 	TypeCEAnomalyMonitor      = "aws:ce:anomaly-monitor"
 	TypeCEAnomalySubscription = "aws:ce:anomaly-subscription"
 	TypeCECostCategory        = "aws:ce:cost-category"
+	// Cassandra/Keyspaces (cassandra_scanners.go)
+	TypeCassandraKeyspace = "aws:cassandra:keyspace"
+	TypeCassandraTable    = "aws:cassandra:table"
+	TypeCassandraType     = "aws:cassandra:type"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
