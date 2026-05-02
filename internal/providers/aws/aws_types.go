@@ -1243,6 +1243,10 @@ const (
 	TypeS3ExpressAccessPoint     = "aws:s3express:access-point"
 	TypeS3ExpressBucketPolicy    = "aws:s3express:bucket-policy"
 	TypeS3ExpressDirectoryBucket = "aws:s3express:directory-bucket"
+	// Route53Profiles (route53profiles_scanners.go).
+	TypeRoute53ProfilesProfile                    = "aws:route53-profiles:profile"
+	TypeRoute53ProfilesProfileAssociation         = "aws:route53-profiles:profile-association"
+	TypeRoute53ProfilesProfileResourceAssociation = "aws:route53-profiles:profile-resource-association"
 	// SupportApp (supportapp_scanners.go). Global service callable via us-east-1.
 	TypeSupportAppAccountAlias                = "aws:support-app:account-alias"
 	TypeSupportAppSlackChannelConfiguration   = "aws:support-app:slack-channel-configuration"

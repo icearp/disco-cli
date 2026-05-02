@@ -174,6 +174,7 @@ var expectedAWSServices = []string{
 	"aws:support-app",
 	"aws:s3vectors",
 	"aws:s3express",
+	"aws:route53-profiles",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
