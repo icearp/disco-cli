@@ -505,6 +505,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeAmplifyUIBuilderComponent: "AWS::AmplifyUIBuilder::Component",
 		TypeAmplifyUIBuilderForm:      "AWS::AmplifyUIBuilder::Form",
 		TypeAmplifyUIBuilderTheme:     "AWS::AmplifyUIBuilder::Theme",
+		// SSMQuickSetup — disco "ssm-quick-setup" segment vs CFN "SSMQuickSetup".
+		TypeSSMQuickSetupConfigurationManager: "AWS::SSMQuickSetup::ConfigurationManager",
 	}
 }
 

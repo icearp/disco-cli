@@ -518,6 +518,8 @@ github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5 h1:TY5Vh7uXQgJVuc6ahI6toLcRajG1
 github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5/go.mod h1:UkzShnbxHRIIL2cHi/7fBGLUAZIVTEADQjaA53bWWCE=
 github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.31.16 h1:8cOU6CwAoKHYdcKNvkQklc+QAFAMCOdKItfLkvKmmNc=
 github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.31.16/go.mod h1:F2vkPqylPCcAAM3xi+OClxWIHeOPPdnzfb60WVHFq8A=
+github.com/aws/aws-sdk-go-v2/service/ssmquicksetup v1.8.23 h1:0L90sMSLZ9m+b5R7JaSYi953IIEvriv+gxFi2I78u/s=
+github.com/aws/aws-sdk-go-v2/service/ssmquicksetup v1.8.23/go.mod h1:L30rbC4sTiR0uIBkLk23p6AzjvwyfpWMo69IRCqdbIE=
 github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 h1:lFd1+ZSEYJZYvv9d6kXzhkZu07si3f+GQ1AaYwa2LUM=
 github.com/aws/aws-sdk-go-v2/service/sso v1.30.15/go.mod h1:WSvS1NLr7JaPunCXqpJnWk1Bjo7IxzZXrZi1QQCkuqM=
 github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.37.7 h1:MOhqFvfmL8ltGnN8O6O+1Yn7g+OD+UkrRws9vpGitD0=

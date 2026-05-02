@@ -280,6 +280,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3vectors v1.6.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/schemas v1.34.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssmquicksetup v1.8.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/supportapp v1.18.23 // indirect

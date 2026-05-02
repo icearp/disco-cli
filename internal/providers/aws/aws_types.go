@@ -858,6 +858,8 @@ const (
 	// SFN extras (sfn_extended_scanners.go)
 	TypeSFNStateMachineAlias   = "aws:stepfunctions:state-machine-alias"
 	TypeSFNStateMachineVersion = "aws:stepfunctions:state-machine-version"
+	// SSMQuickSetup (ssmquicksetup_scanners.go)
+	TypeSSMQuickSetupConfigurationManager = "aws:ssm-quick-setup:configuration-manager"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
