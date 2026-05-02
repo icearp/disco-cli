@@ -1228,6 +1228,10 @@ const (
 	TypeWorkSpacesConnectionAlias = "aws:work-spaces:connection-alias"
 	TypeWorkSpacesWorkspace       = "aws:work-spaces:workspace"
 	TypeWorkSpacesWorkspacesPool  = "aws:work-spaces:workspaces-pool"
+	// SupportApp (supportapp_scanners.go). Global service callable via us-east-1.
+	TypeSupportAppAccountAlias                = "aws:support-app:account-alias"
+	TypeSupportAppSlackChannelConfiguration   = "aws:support-app:slack-channel-configuration"
+	TypeSupportAppSlackWorkspaceConfiguration = "aws:support-app:slack-workspace-configuration"
 	// WorkspacesInstances (workspacesinstances_scanners.go).
 	TypeWorkspacesInstancesWorkspaceInstance = "aws:workspaces-instances:workspace-instance"
 	// CodeBuild (codebuild_scanners.go).
