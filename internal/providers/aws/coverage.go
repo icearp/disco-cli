@@ -531,6 +531,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// LicenseManager — disco "license-manager" segment vs CFN "LicenseManager".
 		TypeLicenseManagerLicense: "AWS::LicenseManager::License",
 		TypeLicenseManagerGrant:   "AWS::LicenseManager::Grant",
+		// KinesisVideo — disco "kinesis-video" segment vs CFN "KinesisVideo".
+		TypeKinesisVideoStream:           "AWS::KinesisVideo::Stream",
+		TypeKinesisVideoSignalingChannel: "AWS::KinesisVideo::SignalingChannel",
 	}
 }
 

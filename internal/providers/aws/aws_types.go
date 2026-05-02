@@ -904,6 +904,9 @@ const (
 	// Lambda extras (lambda_extended_scanners.go)
 	TypeLambdaPermission             = "aws:lambda:permission"
 	TypeLambdaLayerVersionPermission = "aws:lambda:layer-version-permission"
+	// KinesisVideo (kinesisvideo_scanners.go)
+	TypeKinesisVideoStream           = "aws:kinesis-video:stream"
+	TypeKinesisVideoSignalingChannel = "aws:kinesis-video:signaling-channel"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
