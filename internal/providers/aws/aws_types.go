@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Route53RecoveryReadiness (route53recoveryreadiness_scanners.go).
+	TypeR53RRCell           = "aws:route53-recovery-readiness:cell"
+	TypeR53RRReadinessCheck = "aws:route53-recovery-readiness:readiness-check"
+	TypeR53RRRecoveryGroup  = "aws:route53-recovery-readiness:recovery-group"
+	TypeR53RRResourceSet    = "aws:route53-recovery-readiness:resource-set"
 	// S3Files (s3files_scanners.go).
 	TypeS3FilesAccessPoint      = "aws:s3files:access-point"
 	TypeS3FilesFileSystem       = "aws:s3files:file-system"

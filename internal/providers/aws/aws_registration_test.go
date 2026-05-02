@@ -156,6 +156,7 @@ var expectedAWSServices = []string{
 	"aws:security-agent",
 	"aws:s3outposts",
 	"aws:s3files",
+	"aws:route53-recovery-readiness",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
