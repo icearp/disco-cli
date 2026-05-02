@@ -123,6 +123,7 @@ var expectedAWSServices = []string{
 	"aws:sim-space-weaver",
 	"aws:rum",
 	"aws:rbin",
+	"aws:pipes",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
