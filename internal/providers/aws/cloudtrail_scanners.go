@@ -17,6 +17,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailTrail},
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailEventDataStore},
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailChannel},
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailDashboard},
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailResourcePolicy},
 		},
 	})
 }
@@ -29,6 +32,11 @@ type cloudtrailAPI interface {
 	ListTags(context.Context, *cloudtrail.ListTagsInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListTagsOutput, error)
 	ListEventDataStores(context.Context, *cloudtrail.ListEventDataStoresInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListEventDataStoresOutput, error)
 	GetEventDataStore(context.Context, *cloudtrail.GetEventDataStoreInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetEventDataStoreOutput, error)
+	ListChannels(context.Context, *cloudtrail.ListChannelsInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListChannelsOutput, error)
+	GetChannel(context.Context, *cloudtrail.GetChannelInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetChannelOutput, error)
+	ListDashboards(context.Context, *cloudtrail.ListDashboardsInput, ...func(*cloudtrail.Options)) (*cloudtrail.ListDashboardsOutput, error)
+	GetDashboard(context.Context, *cloudtrail.GetDashboardInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetDashboardOutput, error)
+	GetResourcePolicy(context.Context, *cloudtrail.GetResourcePolicyInput, ...func(*cloudtrail.Options)) (*cloudtrail.GetResourcePolicyOutput, error)
 }
 
 // scanCloudTrail discovers CloudTrail trails in one region. DescribeTrails
@@ -134,5 +142,12 @@ func scanCloudTrailAll(ctx context.Context, client cloudtrailAPI, acct *account,
 		}, 0)
 	total += t2
 	inserted += n2
-	return total, inserted, err
+	if err != nil {
+		return total, inserted, err
+	}
+
+	t3, n3, eErr := scanCloudTrailExtended(ctx, client, acct, region, st, scanID)
+	total += t3
+	inserted += n3
+	return total, inserted, eErr
 }

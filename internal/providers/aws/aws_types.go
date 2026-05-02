@@ -824,6 +824,10 @@ const (
 	TypeCodeArtifactDomain       = "aws:codeartifact:domain"
 	TypeCodeArtifactRepository   = "aws:codeartifact:repository"
 	TypeCodeArtifactPackageGroup = "aws:codeartifact:package-group"
+	// CloudTrail extras (cloudtrail_extended_scanners.go)
+	TypeCloudTrailChannel        = "aws:cloudtrail:channel"
+	TypeCloudTrailDashboard      = "aws:cloudtrail:dashboard"
+	TypeCloudTrailResourcePolicy = "aws:cloudtrail:resource-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
