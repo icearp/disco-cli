@@ -153,6 +153,7 @@ var expectedAWSServices = []string{
 	"aws:codestar-notifications",
 	"aws:code-guru-reviewer",
 	"aws:code-guru-profiler",
+	"aws:codecommit",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

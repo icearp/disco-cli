@@ -1017,6 +1017,8 @@ const (
 	TypeCodeGuruReviewerRepositoryAssociation = "aws:code-guru-reviewer:repository-association"
 	// CodeGuruProfiler (codeguruprofiler_scanners.go)
 	TypeCodeGuruProfilerProfilingGroup = "aws:code-guru-profiler:profiling-group"
+	// CodeCommit (codecommit_scanners.go)
+	TypeCodeCommitRepository = "aws:codecommit:repository"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
