@@ -893,6 +893,9 @@ const (
 	// OAM (oam_scanners.go)
 	TypeOAMLink = "aws:oam:link"
 	TypeOAMSink = "aws:oam:sink"
+	// MPA (mpa_scanners.go)
+	TypeMPAApprovalTeam   = "aws:mpa:approval-team"
+	TypeMPAIdentitySource = "aws:mpa:identity-source"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

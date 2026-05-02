@@ -525,6 +525,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// PaymentCryptography — disco "payment-cryptography" segment vs CFN "PaymentCryptography".
 		TypePaymentCryptographyKey:   "AWS::PaymentCryptography::Key",
 		TypePaymentCryptographyAlias: "AWS::PaymentCryptography::Alias",
+		// MPA — disco "mpa" segment vs CFN "MPA".
+		TypeMPAApprovalTeam:   "AWS::MPA::ApprovalTeam",
+		TypeMPAIdentitySource: "AWS::MPA::IdentitySource",
 	}
 }
 
