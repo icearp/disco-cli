@@ -1206,6 +1206,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// GlobalAccelerator (globalaccelerator_scanners.go). Global service
+	// callable only via us-west-2.
+	TypeGlobalAcceleratorAccelerator            = "aws:global-accelerator:accelerator"
+	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
+	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
+	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
 	// GroundStation (groundstation_scanners.go).
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"

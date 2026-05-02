@@ -272,6 +272,8 @@ github.com/aws/aws-sdk-go-v2/service/fsx v1.65.9 h1:xzMWyMv3g8dBFxsjZEEp3BkbBj8H
 github.com/aws/aws-sdk-go-v2/service/fsx v1.65.9/go.mod h1:ZhrGF6EmakQJR9N5lGxh7LdkVG+v+Iaa1+PKU9eehWQ=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0 h1:TnDHcCjQbeyxNgWV67Gz8DigkCDcz6t4y+UWBItR1zc=
 github.com/aws/aws-sdk-go-v2/service/gamelift v1.54.0/go.mod h1:krO76k8XMEa+hBF4M+zuyU2XXct6JQIdH5LKOrltHew=
+github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.35.18 h1:ZtOElW3+A7mbkToRg32CRvw2kmhLZH8RfOjis29ArzA=
+github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.35.18/go.mod h1:e2pOrIpl2zSGFiNvd0FvAP01z9XOKR9Y1aJ7dYiE2YM=
 github.com/aws/aws-sdk-go-v2/service/glue v1.139.3 h1:2awAOXxGrBdC53fTI7P40kkDVz0mCIU1+3beKypTrIo=
 github.com/aws/aws-sdk-go-v2/service/glue v1.139.3/go.mod h1:mDg5wTmo9ElbuHNOerghTunsyjUS8PUtdIFVAFMON88=
 github.com/aws/aws-sdk-go-v2/service/greengrass v1.32.23 h1:VTghmVEn2zf3DVkqNE9d8gdg+Tc2Lj0CggsTXtU0zGo=
