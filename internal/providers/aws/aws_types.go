@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// ServiceDiscovery / Cloud Map (servicediscovery_scanners.go).
+	TypeServiceDiscoveryHttpNamespace       = "aws:servicediscovery:http-namespace"
+	TypeServiceDiscoveryPrivateDnsNamespace = "aws:servicediscovery:private-dns-namespace"
+	TypeServiceDiscoveryPublicDnsNamespace  = "aws:servicediscovery:public-dns-namespace"
+	TypeServiceDiscoveryService             = "aws:servicediscovery:service"
+	TypeServiceDiscoveryInstance            = "aws:servicediscovery:instance"
 	// Timestream (timestream_scanners.go); spans timestreamwrite,
 	// timestreamquery, and timestreaminfluxdb SDKs.
 	TypeTimestreamDatabase         = "aws:timestream:database"

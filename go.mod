@@ -214,6 +214,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/observabilityadmin v1.15.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.28 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
