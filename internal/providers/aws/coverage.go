@@ -537,6 +537,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// IVSChat — disco "ivs-chat" segment vs CFN "IVSChat".
 		TypeIVSChatRoom:                 "AWS::IVSChat::Room",
 		TypeIVSChatLoggingConfiguration: "AWS::IVSChat::LoggingConfiguration",
+		// GreengrassV2 — disco "greengrass-v2" segment vs CFN "GreengrassV2".
+		TypeGreengrassV2ComponentVersion: "AWS::GreengrassV2::ComponentVersion",
+		TypeGreengrassV2Deployment:       "AWS::GreengrassV2::Deployment",
 	}
 }
 

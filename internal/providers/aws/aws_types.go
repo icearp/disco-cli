@@ -913,6 +913,9 @@ const (
 	// IVSChat (ivschat_scanners.go)
 	TypeIVSChatRoom                 = "aws:ivs-chat:room"
 	TypeIVSChatLoggingConfiguration = "aws:ivs-chat:logging-configuration"
+	// GreengrassV2 (greengrassv2_scanners.go)
+	TypeGreengrassV2ComponentVersion = "aws:greengrass-v2:component-version"
+	TypeGreengrassV2Deployment       = "aws:greengrass-v2:deployment"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
