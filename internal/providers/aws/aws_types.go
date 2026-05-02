@@ -1247,6 +1247,10 @@ const (
 	TypeResourceExplorer2DefaultViewAssociation = "aws:resource-explorer-2:default-view-association"
 	TypeResourceExplorer2Index                  = "aws:resource-explorer-2:index"
 	TypeResourceExplorer2View                   = "aws:resource-explorer-2:view"
+	// Proton (proton_scanners.go).
+	TypeProtonEnvironmentAccountConnection = "aws:proton:environment-account-connection"
+	TypeProtonEnvironmentTemplate          = "aws:proton:environment-template"
+	TypeProtonServiceTemplate              = "aws:proton:service-template"
 	// RolesAnywhere (rolesanywhere_scanners.go).
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"

@@ -390,6 +390,8 @@ github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17 h1:loJZbeadcJVRILzQu
 github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17/go.mod h1:enoWasGwWUV90rS1akTDMMGEq0FapWlDGtRhxmIJLeU=
 github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.28.2 h1:CCUupPmQvjZRsQlyF6/qmrWgOwLhejP+prj273iCuyY=
 github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.28.2/go.mod h1:8+8lD4dvbnctRIsbL4mHv8FEhm5a5RLdwVElfA9rxoM=
+github.com/aws/aws-sdk-go-v2/service/proton v1.39.17 h1:DW7+Zbze2HwYZcPjQ+f6C8xw2gueyLBvNEhChbQc/vc=
+github.com/aws/aws-sdk-go-v2/service/proton v1.39.17/go.mod h1:eWC4CIQy3bPo4ilu/oao7KBuzDeM0lpioiKk8rbB50s=
 github.com/aws/aws-sdk-go-v2/service/qbusiness v1.34.8 h1:fMFheeWMyC7aGeTIz+GJAaKanfOtOzOg78q/v0jKA4E=
 github.com/aws/aws-sdk-go-v2/service/qbusiness v1.34.8/go.mod h1:S8/FKYPSm2WEEGMs5gmbrOrULz0zvJ1CYkf2UEnYzYw=
 github.com/aws/aws-sdk-go-v2/service/qconnect v1.30.0 h1:U3Wn3N2M625xOYkdiiwdcTQ03OH3gFEAaN7VX3FVAhY=
