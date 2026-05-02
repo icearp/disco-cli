@@ -155,6 +155,7 @@ var expectedAWSServices = []string{
 	"aws:security-lake",
 	"aws:security-agent",
 	"aws:s3outposts",
+	"aws:s3files",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
