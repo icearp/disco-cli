@@ -481,6 +481,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodePipelinePipeline:         "AWS::CodePipeline::Pipeline",
 		TypeCodePipelineCustomActionType: "AWS::CodePipeline::CustomActionType",
 		TypeCodePipelineWebhook:          "AWS::CodePipeline::Webhook",
+		// CodeDeploy — disco "codedeploy" segment vs CFN "CodeDeploy".
+		TypeCodeDeployApplication:      "AWS::CodeDeploy::Application",
+		TypeCodeDeployDeploymentGroup:  "AWS::CodeDeploy::DeploymentGroup",
+		TypeCodeDeployDeploymentConfig: "AWS::CodeDeploy::DeploymentConfig",
 	}
 }
 

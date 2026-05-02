@@ -816,6 +816,10 @@ const (
 	TypeCodePipelinePipeline         = "aws:codepipeline:pipeline"
 	TypeCodePipelineCustomActionType = "aws:codepipeline:custom-action-type"
 	TypeCodePipelineWebhook          = "aws:codepipeline:webhook"
+	// CodeDeploy (codedeploy_scanners.go)
+	TypeCodeDeployApplication      = "aws:codedeploy:application"
+	TypeCodeDeployDeploymentGroup  = "aws:codedeploy:deployment-group"
+	TypeCodeDeployDeploymentConfig = "aws:codedeploy:deployment-config"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
