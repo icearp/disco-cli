@@ -20,6 +20,9 @@ func init() {
 			{Service: "ecs", DiscoType: TypeECSCluster},
 			{Service: "ecs", DiscoType: TypeECSService},
 			{Service: "ecs", DiscoType: TypeECSTaskDefinition},
+			{Service: "ecs", DiscoType: TypeECSCapacityProvider},
+			{Service: "ecs", DiscoType: TypeECSClusterCapacityProviderAssociations},
+			{Service: "ecs", DiscoType: TypeECSTaskSet},
 		},
 	})
 }
@@ -54,6 +57,13 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 	inserted += nn
 
 	tt, nn, err = scanECSTaskDefinitions(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return total, inserted, err
+	}
+	total += tt
+	inserted += nn
+
+	tt, nn, err = scanECSExtended(ctx, client, acct, region, st, scanID, clusterARNs)
 	total += tt
 	inserted += nn
 	return total, inserted, err

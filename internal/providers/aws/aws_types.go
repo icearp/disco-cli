@@ -297,9 +297,12 @@ const (
 	// SQS
 	TypeSQSQueue = "aws:sqs:queue"
 	// ECS
-	TypeECSCluster        = "aws:ecs:cluster"
-	TypeECSService        = "aws:ecs:service"
-	TypeECSTaskDefinition = "aws:ecs:task-definition"
+	TypeECSCluster                             = "aws:ecs:cluster"
+	TypeECSService                             = "aws:ecs:service"
+	TypeECSTaskDefinition                      = "aws:ecs:task-definition"
+	TypeECSCapacityProvider                    = "aws:ecs:capacity-provider"
+	TypeECSClusterCapacityProviderAssociations = "aws:ecs:cluster-capacity-provider-associations"
+	TypeECSTaskSet                             = "aws:ecs:task-set"
 	// ECR
 	TypeECRRepository                 = "aws:ecr:repository"
 	TypeECRPublicRepository           = "aws:ecr:public-repository"
