@@ -1013,6 +1013,8 @@ const (
 	TypeConnectCampaignsCampaign = "aws:connect-campaigns:campaign"
 	// CodeStarNotifications (codestarnotifications_scanners.go)
 	TypeCodeStarNotificationsNotificationRule = "aws:codestar-notifications:notification-rule"
+	// CodeGuruReviewer (codegurureviewer_scanners.go)
+	TypeCodeGuruReviewerRepositoryAssociation = "aws:code-guru-reviewer:repository-association"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
