@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// PCAConnectorAD (pcaconnectorad_scanners.go).
+	TypePCAConnectorADConnector             = "aws:pca-connector-ad:connector"
+	TypePCAConnectorADDirectoryRegistration = "aws:pca-connector-ad:directory-registration"
+	TypePCAConnectorADServicePrincipalName  = "aws:pca-connector-ad:service-principal-name"
+	TypePCAConnectorADTemplate              = "aws:pca-connector-ad:template"
+	TypePCAConnectorADTemplateGroupACE      = "aws:pca-connector-ad:template-group-access-control-entry"
 	// RTBFabric (rtbfabric_scanners.go). Real-time bidding fabric.
 	TypeRTBFabricLink             = "aws:rtbfabric:link"
 	TypeRTBFabricRequesterGateway = "aws:rtbfabric:requester-gateway"
