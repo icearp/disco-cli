@@ -590,6 +590,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEVSEnvironment: "AWS::EVS::Environment",
 		// EMRServerless — disco "emr-serverless" segment vs CFN "EMRServerless".
 		TypeEMRServerlessApplication: "AWS::EMRServerless::Application",
+		// ElementalInference — disco "elemental-inference" segment vs CFN "ElementalInference".
+		TypeElementalInferenceFeed: "AWS::ElementalInference::Feed",
 	}
 }
 
