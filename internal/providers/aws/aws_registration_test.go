@@ -97,6 +97,7 @@ var expectedAWSServices = []string{
 	"aws:synthetics",
 	"aws:ssm-quick-setup",
 	"aws:ssm-incidents",
+	"aws:signer",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

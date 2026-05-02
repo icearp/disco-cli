@@ -863,6 +863,9 @@ const (
 	// SSMIncidents (ssmincidents_scanners.go)
 	TypeSSMIncidentsReplicationSet = "aws:ssm-incidents:replication-set"
 	TypeSSMIncidentsResponsePlan   = "aws:ssm-incidents:response-plan"
+	// Signer (signer_scanners.go)
+	TypeSignerSigningProfile    = "aws:signer:signing-profile"
+	TypeSignerProfilePermission = "aws:signer:profile-permission"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
