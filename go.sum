@@ -220,6 +220,8 @@ github.com/aws/aws-sdk-go-v2/service/customerprofiles v1.59.2 h1:pQ1ewsM//YsNuPA
 github.com/aws/aws-sdk-go-v2/service/customerprofiles v1.59.2/go.mod h1:P8xXL2qstcrbxBXjHnL3VVBIWqGrHIn6YA+XSd4S8rA=
 github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2 h1:+vWChWbLMrEzHuKtm2koCaGoZo6Cnu8OpYH0fsdSLEI=
 github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2/go.mod h1:Qa7SOwwtaE9VticcY52FgDIXJZLS1jz+Y6fiCdLUdRU=
+github.com/aws/aws-sdk-go-v2/service/databrew v1.39.16 h1:djPU09hXqxjAI6PXv4Ci+I/qFgMM+22Sqz8J0fCX5VY=
+github.com/aws/aws-sdk-go-v2/service/databrew v1.39.16/go.mod h1:JR6djN/YtdK6R03KYsrMoh/GzmFsIDAdtzjl1RjqqSQ=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4 h1:8dunTSKwZYHGBpCKtiSLXPHZph5uRGnlaMY/f4UeQEA=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.58.4/go.mod h1:5H2TlnEkHntq2f9qVEZ9Fc0uO0vf+30KtECvmnms2m8=
 github.com/aws/aws-sdk-go-v2/service/datazone v1.59.0 h1:Li0gQAUOC1T3Im4lyEVKrFzMebIwuoSK8ktAVIlk+yg=

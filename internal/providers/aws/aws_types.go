@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// DataBrew (databrew_scanners.go).
+	TypeDataBrewDataset  = "aws:databrew:dataset"
+	TypeDataBrewJob      = "aws:databrew:job"
+	TypeDataBrewProject  = "aws:databrew:project"
+	TypeDataBrewRecipe   = "aws:databrew:recipe"
+	TypeDataBrewRuleset  = "aws:databrew:ruleset"
+	TypeDataBrewSchedule = "aws:databrew:schedule"
 	// FSx (fsx_scanners.go).
 	TypeFSxFileSystem                = "aws:fsx:file-system"
 	TypeFSxDataRepositoryAssociation = "aws:fsx:data-repository-association"
