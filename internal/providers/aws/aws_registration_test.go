@@ -183,6 +183,7 @@ var expectedAWSServices = []string{
 	"aws:pcs",
 	"aws:panorama",
 	"aws:neptune-graph",
+	"aws:media-convert",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

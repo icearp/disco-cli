@@ -1254,6 +1254,10 @@ const (
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
 	TypePCSQueue            = "aws:pcs:queue"
+	// MediaConvert (mediaconvert_scanners.go).
+	TypeMediaConvertJobTemplate = "aws:media-convert:job-template"
+	TypeMediaConvertPreset      = "aws:media-convert:preset"
+	TypeMediaConvertQueue       = "aws:media-convert:queue"
 	// NeptuneGraph (neptunegraph_scanners.go).
 	TypeNeptuneGraphGraph                = "aws:neptune-graph:graph"
 	TypeNeptuneGraphGraphSnapshot        = "aws:neptune-graph:graph-snapshot"

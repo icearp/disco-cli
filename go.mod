@@ -248,6 +248,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/mediaconvert v1.91.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/neptunegraph v1.21.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4 // indirect
