@@ -485,6 +485,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodeDeployApplication:      "AWS::CodeDeploy::Application",
 		TypeCodeDeployDeploymentGroup:  "AWS::CodeDeploy::DeploymentGroup",
 		TypeCodeDeployDeploymentConfig: "AWS::CodeDeploy::DeploymentConfig",
+		// CodeArtifact — disco "codeartifact" segment vs CFN "CodeArtifact".
+		TypeCodeArtifactDomain:       "AWS::CodeArtifact::Domain",
+		TypeCodeArtifactRepository:   "AWS::CodeArtifact::Repository",
+		TypeCodeArtifactPackageGroup: "AWS::CodeArtifact::PackageGroup",
 	}
 }
 

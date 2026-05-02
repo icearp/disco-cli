@@ -820,6 +820,10 @@ const (
 	TypeCodeDeployApplication      = "aws:codedeploy:application"
 	TypeCodeDeployDeploymentGroup  = "aws:codedeploy:deployment-group"
 	TypeCodeDeployDeploymentConfig = "aws:codedeploy:deployment-config"
+	// CodeArtifact (codeartifact_scanners.go)
+	TypeCodeArtifactDomain       = "aws:codeartifact:domain"
+	TypeCodeArtifactRepository   = "aws:codeartifact:repository"
+	TypeCodeArtifactPackageGroup = "aws:codeartifact:package-group"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
