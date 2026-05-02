@@ -600,6 +600,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDLMLifecyclePolicy: "AWS::DLM::LifecyclePolicy",
 		// CUR — disco "cur" segment vs CFN "CUR".
 		TypeCURReportDefinition: "AWS::CUR::ReportDefinition",
+		// ConnectCampaignsV2 — disco "connect-campaigns-v2" segment vs CFN "ConnectCampaignsV2".
+		TypeConnectCampaignsV2Campaign: "AWS::ConnectCampaignsV2::Campaign",
 	}
 }
 
