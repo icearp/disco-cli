@@ -136,6 +136,7 @@ var expectedAWSServices = []string{
 	"aws:iot-core-device-advisor",
 	"aws:invoicing",
 	"aws:internet-monitor",
+	"aws:interconnect",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

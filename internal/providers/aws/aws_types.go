@@ -979,6 +979,8 @@ const (
 	TypeInvoicingInvoiceUnit = "aws:invoicing:invoice-unit"
 	// InternetMonitor (internetmonitor_scanners.go)
 	TypeInternetMonitorMonitor = "aws:internet-monitor:monitor"
+	// Interconnect (interconnect_scanners.go)
+	TypeInterconnectConnection = "aws:interconnect:connection"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
