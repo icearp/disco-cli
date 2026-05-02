@@ -238,7 +238,12 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeIdentityStoreUser:    "AWS::IdentityStore::User",
 		TypeIdentityStoreGroup:   "AWS::IdentityStore::Group",
 		// MSK.
-		TypeMSKCluster: "AWS::MSK::Cluster",
+		TypeMSKCluster:          "AWS::MSK::Cluster",
+		TypeMSKBatchScramSecret: "AWS::MSK::BatchScramSecret",
+		TypeMSKClusterPolicy:    "AWS::MSK::ClusterPolicy",
+		TypeMSKConfiguration:    "AWS::MSK::Configuration",
+		TypeMSKReplicator:       "AWS::MSK::Replicator",
+		TypeMSKVpcConnection:    "AWS::MSK::VpcConnection",
 		// CloudFront.
 		TypeCloudFrontDistribution:               "AWS::CloudFront::Distribution",
 		TypeCloudFrontStreamingDistribution:      "AWS::CloudFront::StreamingDistribution",
