@@ -89,6 +89,7 @@ var expectedAWSServices = []string{
 	"aws:codepipeline",
 	"aws:codedeploy",
 	"aws:codeartifact",
+	"aws:cleanrooms-ml",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

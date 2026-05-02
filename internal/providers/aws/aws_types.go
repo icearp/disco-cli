@@ -828,6 +828,10 @@ const (
 	TypeCloudTrailChannel        = "aws:cloudtrail:channel"
 	TypeCloudTrailDashboard      = "aws:cloudtrail:dashboard"
 	TypeCloudTrailResourcePolicy = "aws:cloudtrail:resource-policy"
+	// CleanRoomsML (cleanroomsml_scanners.go)
+	TypeCleanRoomsMLConfiguredModelAlgorithm            = "aws:cleanrooms-ml:configured-model-algorithm"
+	TypeCleanRoomsMLConfiguredModelAlgorithmAssociation = "aws:cleanrooms-ml:configured-model-algorithm-association"
+	TypeCleanRoomsMLTrainingDataset                     = "aws:cleanrooms-ml:training-dataset"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

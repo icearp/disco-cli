@@ -489,6 +489,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodeArtifactDomain:       "AWS::CodeArtifact::Domain",
 		TypeCodeArtifactRepository:   "AWS::CodeArtifact::Repository",
 		TypeCodeArtifactPackageGroup: "AWS::CodeArtifact::PackageGroup",
+		// CleanRoomsML — disco "cleanrooms-ml" segment vs CFN "CleanRoomsML".
+		TypeCleanRoomsMLConfiguredModelAlgorithm:            "AWS::CleanRoomsML::ConfiguredModelAlgorithm",
+		TypeCleanRoomsMLConfiguredModelAlgorithmAssociation: "AWS::CleanRoomsML::ConfiguredModelAlgorithmAssociation",
+		TypeCleanRoomsMLTrainingDataset:                     "AWS::CleanRoomsML::TrainingDataset",
 	}
 }
 
