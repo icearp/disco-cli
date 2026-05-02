@@ -168,6 +168,7 @@ var expectedAWSServices = []string{
 	"aws:event-schemas",
 	"aws:dev-ops-agent",
 	"aws:code-build",
+	"aws:b2bi",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

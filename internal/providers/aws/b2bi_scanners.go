@@ -1,0 +1,165 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/service/b2bi"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "aws:b2bi",
+		fn:   scanB2BI,
+		emits: []coverage.TypeDecl{
+			{Service: "b2bi", DiscoType: TypeB2BICapability},
+			{Service: "b2bi", DiscoType: TypeB2BIPartnership},
+			{Service: "b2bi", DiscoType: TypeB2BIProfile},
+			{Service: "b2bi", DiscoType: TypeB2BITransformer},
+		},
+	})
+}
+
+type b2biAPI interface {
+	ListCapabilities(context.Context, *b2bi.ListCapabilitiesInput, ...func(*b2bi.Options)) (*b2bi.ListCapabilitiesOutput, error)
+	ListPartnerships(context.Context, *b2bi.ListPartnershipsInput, ...func(*b2bi.Options)) (*b2bi.ListPartnershipsOutput, error)
+	ListProfiles(context.Context, *b2bi.ListProfilesInput, ...func(*b2bi.Options)) (*b2bi.ListProfilesOutput, error)
+	ListTransformers(context.Context, *b2bi.ListTransformersInput, ...func(*b2bi.Options)) (*b2bi.ListTransformersOutput, error)
+}
+
+// scanB2BI discovers B2B Data Interchange capabilities, partnerships,
+// profiles, and transformers via paginated List* calls. List APIs return
+// only IDs — synthesize ARN per (account, region, kind, id).
+func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	client := b2bi.NewFromConfig(acct.cfg, func(o *b2bi.Options) { o.Region = region })
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanB2BICapabilities(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanB2BIPartnerships(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanB2BIProfiles(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanB2BITransformers(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+	return total, inserted, nil
+}
+
+func scanB2BICapabilities(ctx context.Context, client b2biAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := b2bi.NewListCapabilitiesPaginator(client, &b2bi.ListCapabilitiesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "b2bi:ListCapabilities", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("b2bi:ListCapabilities: %w", err)
+		}
+		for _, c := range out.Capabilities {
+			id := sv(c.CapabilityId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:capability/%s", region, acct.ID, id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeB2BICapability, NativeID: arn,
+				Name: c.Name, Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "b2bi capabilities")
+}
+
+func scanB2BIPartnerships(ctx context.Context, client b2biAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := b2bi.NewListPartnershipsPaginator(client, &b2bi.ListPartnershipsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "b2bi:ListPartnerships", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("b2bi:ListPartnerships: %w", err)
+		}
+		for _, p := range out.Partnerships {
+			id := sv(p.PartnershipId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:partnership/%s", region, acct.ID, id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeB2BIPartnership, NativeID: arn,
+				Name: p.Name, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "b2bi partnerships")
+}
+
+func scanB2BIProfiles(ctx context.Context, client b2biAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := b2bi.NewListProfilesPaginator(client, &b2bi.ListProfilesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "b2bi:ListProfiles", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("b2bi:ListProfiles: %w", err)
+		}
+		for _, p := range out.Profiles {
+			id := sv(p.ProfileId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:profile/%s", region, acct.ID, id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeB2BIProfile, NativeID: arn,
+				Name: p.Name, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "b2bi profiles")
+}
+
+func scanB2BITransformers(ctx context.Context, client b2biAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := b2bi.NewListTransformersPaginator(client, &b2bi.ListTransformersInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "b2bi:ListTransformers", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("b2bi:ListTransformers: %w", err)
+		}
+		for _, t := range out.Transformers {
+			id := sv(t.TransformerId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:transformer/%s", region, acct.ID, id)
+			status := string(t.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeB2BITransformer, NativeID: arn,
+				Name: t.Name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "b2bi transformers")
+}

@@ -1216,6 +1216,11 @@ const (
 	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
 	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
 	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
+	// B2BI (b2bi_scanners.go).
+	TypeB2BICapability  = "aws:b2bi:capability"
+	TypeB2BIPartnership = "aws:b2bi:partnership"
+	TypeB2BIProfile     = "aws:b2bi:profile"
+	TypeB2BITransformer = "aws:b2bi:transformer"
 	// CodeBuild (codebuild_scanners.go).
 	TypeCodeBuildFleet            = "aws:code-build:fleet"
 	TypeCodeBuildProject          = "aws:code-build:project"
