@@ -878,6 +878,9 @@ const (
 	// ResourceGroups (resourcegroups_scanners.go)
 	TypeResourceGroupsGroup       = "aws:resource-groups:group"
 	TypeResourceGroupsTagSyncTask = "aws:resource-groups:tag-sync-task"
+	// ResilienceHub (resiliencehub_scanners.go)
+	TypeResilienceHubApp              = "aws:resilience-hub:app"
+	TypeResilienceHubResiliencyPolicy = "aws:resilience-hub:resiliency-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

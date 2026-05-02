@@ -100,6 +100,7 @@ var expectedAWSServices = []string{
 	"aws:signer",
 	"aws:scheduler",
 	"aws:resource-groups",
+	"aws:resilience-hub",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

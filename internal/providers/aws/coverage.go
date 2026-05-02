@@ -513,6 +513,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// S3ObjectLambda — disco "s3-object-lambda" segment vs CFN "S3ObjectLambda".
 		TypeS3ObjectLambdaAccessPoint:       "AWS::S3ObjectLambda::AccessPoint",
 		TypeS3ObjectLambdaAccessPointPolicy: "AWS::S3ObjectLambda::AccessPointPolicy",
+		// ResilienceHub — disco "resilience-hub" segment vs CFN "ResilienceHub".
+		TypeResilienceHubApp:              "AWS::ResilienceHub::App",
+		TypeResilienceHubResiliencyPolicy: "AWS::ResilienceHub::ResiliencyPolicy",
 	}
 }
 
