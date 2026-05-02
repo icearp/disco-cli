@@ -1235,6 +1235,10 @@ const (
 	TypeWorkSpacesConnectionAlias = "aws:work-spaces:connection-alias"
 	TypeWorkSpacesWorkspace       = "aws:work-spaces:workspace"
 	TypeWorkSpacesWorkspacesPool  = "aws:work-spaces:workspaces-pool"
+	// S3Vectors (s3vectors_scanners.go).
+	TypeS3VectorsIndex              = "aws:s3vectors:index"
+	TypeS3VectorsVectorBucket       = "aws:s3vectors:vector-bucket"
+	TypeS3VectorsVectorBucketPolicy = "aws:s3vectors:vector-bucket-policy"
 	// SupportApp (supportapp_scanners.go). Global service callable via us-east-1.
 	TypeSupportAppAccountAlias                = "aws:support-app:account-alias"
 	TypeSupportAppSlackChannelConfiguration   = "aws:support-app:slack-channel-configuration"

@@ -172,6 +172,7 @@ var expectedAWSServices = []string{
 	"aws:workspaces-instances",
 	"aws:work-spaces",
 	"aws:support-app",
+	"aws:s3vectors",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
