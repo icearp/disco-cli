@@ -890,6 +890,9 @@ const (
 	// PaymentCryptography (paymentcryptography_scanners.go)
 	TypePaymentCryptographyKey   = "aws:payment-cryptography:key"
 	TypePaymentCryptographyAlias = "aws:payment-cryptography:alias"
+	// OAM (oam_scanners.go)
+	TypeOAMLink = "aws:oam:link"
+	TypeOAMSink = "aws:oam:sink"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
