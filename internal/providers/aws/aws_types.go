@@ -925,6 +925,8 @@ const (
 	// DirectoryService (directoryservice_scanners.go)
 	TypeDSMicrosoftAD = "aws:directory-service:microsoft-ad"
 	TypeDSSimpleAD    = "aws:directory-service:simple-ad"
+	// Detective extras (detective_extended_scanners.go)
+	TypeDetectiveOrganizationAdmin = "aws:detective:organization-admin"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

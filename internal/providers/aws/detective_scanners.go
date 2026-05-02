@@ -19,6 +19,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "detective", DiscoType: TypeDetectiveGraph},
 			{Service: "detective", DiscoType: TypeDetectiveMember, Synthetic: true},
+			{Service: "detective", DiscoType: TypeDetectiveOrganizationAdmin},
 		},
 	})
 }
@@ -28,6 +29,7 @@ func init() {
 type detectiveAPI interface {
 	ListGraphs(context.Context, *detective.ListGraphsInput, ...func(*detective.Options)) (*detective.ListGraphsOutput, error)
 	ListMembers(context.Context, *detective.ListMembersInput, ...func(*detective.Options)) (*detective.ListMembersOutput, error)
+	ListOrganizationAdminAccounts(context.Context, *detective.ListOrganizationAdminAccountsInput, ...func(*detective.Options)) (*detective.ListOrganizationAdminAccountsOutput, error)
 }
 
 // scanDetective discovers Detective behavior graphs and their member accounts
@@ -53,6 +55,16 @@ func scanDetective(ctx context.Context, acct *account, region string, st *store.
 	// Phase 2: member accounts per graph (paginator + fan-out).
 	{
 		t, i, ferr := scanDetectiveMembers(ctx, client, acct, region, st, scanID, graphARNs)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Phase 3: organization admin accounts (per-region delegated admins).
+	{
+		t, i, ferr := scanDetectiveOrgAdmins(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
