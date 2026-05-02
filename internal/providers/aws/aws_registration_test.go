@@ -115,6 +115,7 @@ var expectedAWSServices = []string{
 	"aws:directory-service",
 	"aws:comprehend",
 	"aws:budgets",
+	"aws:workspaces-thin-client",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

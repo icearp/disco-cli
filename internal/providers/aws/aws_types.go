@@ -933,6 +933,8 @@ const (
 	// Budgets (budgets_scanners.go)
 	TypeBudgetsBudget        = "aws:budgets:budget"
 	TypeBudgetsBudgetsAction = "aws:budgets:budgets-action"
+	// WorkSpacesThinClient (workspacesthinclient_scanners.go)
+	TypeWorkSpacesThinClientEnvironment = "aws:workspaces-thin-client:environment"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
