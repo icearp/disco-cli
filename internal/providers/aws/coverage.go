@@ -528,6 +528,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// MPA — disco "mpa" segment vs CFN "MPA".
 		TypeMPAApprovalTeam:   "AWS::MPA::ApprovalTeam",
 		TypeMPAIdentitySource: "AWS::MPA::IdentitySource",
+		// LicenseManager — disco "license-manager" segment vs CFN "LicenseManager".
+		TypeLicenseManagerLicense: "AWS::LicenseManager::License",
+		TypeLicenseManagerGrant:   "AWS::LicenseManager::Grant",
 	}
 }
 

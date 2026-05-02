@@ -106,6 +106,7 @@ var expectedAWSServices = []string{
 	"aws:payment-cryptography",
 	"aws:oam",
 	"aws:mpa",
+	"aws:license-manager",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

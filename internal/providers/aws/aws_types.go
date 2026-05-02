@@ -898,6 +898,9 @@ const (
 	TypeMPAIdentitySource = "aws:mpa:identity-source"
 	// Macie extras (macie_extended_scanners.go)
 	TypeMacieFindingsFilter = "aws:macie:findings-filter"
+	// LicenseManager (licensemanager_scanners.go)
+	TypeLicenseManagerLicense = "aws:license-manager:license"
+	TypeLicenseManagerGrant   = "aws:license-manager:grant"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
