@@ -132,6 +132,7 @@ var expectedAWSServices = []string{
 	"aws:workspaces-web",
 	"aws:directconnect",
 	"aws:appmesh",
+	"aws:observabilityadmin",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

@@ -1197,6 +1197,14 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// ObservabilityAdmin (observabilityadmin_scanners.go). Disco service segment
+	// "observabilityadmin"; CFN segment "ObservabilityAdmin".
+	TypeObservabilityAdminOrganizationCentralizationRule = "aws:observabilityadmin:organization-centralization-rule"
+	TypeObservabilityAdminOrganizationTelemetryRule      = "aws:observabilityadmin:organization-telemetry-rule"
+	TypeObservabilityAdminS3TableIntegration             = "aws:observabilityadmin:s3-table-integration"
+	TypeObservabilityAdminTelemetryEnrichment            = "aws:observabilityadmin:telemetry-enrichment"
+	TypeObservabilityAdminTelemetryPipelines             = "aws:observabilityadmin:telemetry-pipelines"
+	TypeObservabilityAdminTelemetryRule                  = "aws:observabilityadmin:telemetry-rule"
 	// ARC Region Switch (arcregionswitch_scanners.go, arcregionswitch_resolvers.go).
 	TypeARCRegionSwitchPlan = "aws:arc-region-switch:plan"
 	// ARC Zonal Shift (arczonalshift_scanners.go, arczonalshift_resolvers.go).
