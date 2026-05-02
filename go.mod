@@ -246,6 +246,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.35.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codepipeline v1.46.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codestarconnections v1.35.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.63.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/devopsagent v1.3.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/devopsguru v1.40.14 // indirect

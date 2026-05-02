@@ -836,6 +836,10 @@ const (
 	TypeChatbotCustomAction                       = "aws:chatbot:custom-action"
 	TypeChatbotSlackChannelConfiguration          = "aws:chatbot:slack-channel-configuration"
 	TypeChatbotMicrosoftTeamsChannelConfiguration = "aws:chatbot:microsoft-teams-channel-configuration"
+	// CostExplorer/CE (costexplorer_scanners.go)
+	TypeCEAnomalyMonitor      = "aws:ce:anomaly-monitor"
+	TypeCEAnomalySubscription = "aws:ce:anomaly-subscription"
+	TypeCECostCategory        = "aws:ce:cost-category"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

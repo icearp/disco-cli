@@ -493,6 +493,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCleanRoomsMLConfiguredModelAlgorithm:            "AWS::CleanRoomsML::ConfiguredModelAlgorithm",
 		TypeCleanRoomsMLConfiguredModelAlgorithmAssociation: "AWS::CleanRoomsML::ConfiguredModelAlgorithmAssociation",
 		TypeCleanRoomsMLTrainingDataset:                     "AWS::CleanRoomsML::TrainingDataset",
+		// CE — disco "ce" segment vs CFN "CE".
+		TypeCEAnomalyMonitor:      "AWS::CE::AnomalyMonitor",
+		TypeCEAnomalySubscription: "AWS::CE::AnomalySubscription",
+		TypeCECostCategory:        "AWS::CE::CostCategory",
 	}
 }
 

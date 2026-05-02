@@ -1,0 +1,144 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "aws:ce",
+		fn:   scanCostExplorer,
+		emits: []coverage.TypeDecl{
+			{Service: "ce", DiscoType: TypeCEAnomalyMonitor},
+			{Service: "ce", DiscoType: TypeCEAnomalySubscription},
+			{Service: "ce", DiscoType: TypeCECostCategory},
+		},
+	})
+}
+
+type costExplorerAPI interface {
+	GetAnomalyMonitors(context.Context, *costexplorer.GetAnomalyMonitorsInput, ...func(*costexplorer.Options)) (*costexplorer.GetAnomalyMonitorsOutput, error)
+	GetAnomalySubscriptions(context.Context, *costexplorer.GetAnomalySubscriptionsInput, ...func(*costexplorer.Options)) (*costexplorer.GetAnomalySubscriptionsOutput, error)
+	ListCostCategoryDefinitions(context.Context, *costexplorer.ListCostCategoryDefinitionsInput, ...func(*costexplorer.Options)) (*costexplorer.ListCostCategoryDefinitionsOutput, error)
+}
+
+// scanCostExplorer discovers anomaly monitors, anomaly subscriptions, and
+// cost category definitions. CE is a global service accessed via us-east-1.
+func scanCostExplorer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	if region != "us-east-1" {
+		return 0, 0, nil
+	}
+	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanCEAnomalyMonitors(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanCEAnomalySubscriptions(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanCECostCategories(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+	return total, inserted, nil
+}
+
+func scanCEAnomalyMonitors(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.GetAnomalyMonitors(ctx, &costexplorer.GetAnomalyMonitorsInput{NextPageToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalyMonitors", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ce:GetAnomalyMonitors: %w", err)
+		}
+		for _, m := range out.AnomalyMonitors {
+			arn := sv(m.MonitorArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCEAnomalyMonitor, NativeID: arn,
+				Name: m.MonitorName, Region: &region,
+				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextPageToken == nil || *out.NextPageToken == "" {
+			break
+		}
+		nextToken = out.NextPageToken
+	}
+	return upsertBatch(st, batch, "ce anomaly-monitors")
+}
+
+func scanCEAnomalySubscriptions(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.GetAnomalySubscriptions(ctx, &costexplorer.GetAnomalySubscriptionsInput{NextPageToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalySubscriptions", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ce:GetAnomalySubscriptions: %w", err)
+		}
+		for _, s := range out.AnomalySubscriptions {
+			arn := sv(s.SubscriptionArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCEAnomalySubscription, NativeID: arn,
+				Name: s.SubscriptionName, Region: &region,
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextPageToken == nil || *out.NextPageToken == "" {
+			break
+		}
+		nextToken = out.NextPageToken
+	}
+	return upsertBatch(st, batch, "ce anomaly-subscriptions")
+}
+
+func scanCECostCategories(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListCostCategoryDefinitions(ctx, &costexplorer.ListCostCategoryDefinitionsInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ce:ListCostCategoryDefinitions", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ce:ListCostCategoryDefinitions: %w", err)
+		}
+		for _, c := range out.CostCategoryReferences {
+			arn := sv(c.CostCategoryArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCECostCategory, NativeID: arn,
+				Name: c.Name, Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "ce cost-categories")
+}
