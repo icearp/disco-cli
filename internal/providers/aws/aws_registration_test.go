@@ -37,6 +37,7 @@ var expectedAWSServices = []string{
 	"aws:acm",
 	"aws:kinesis",
 	"aws:firehose",
+	"aws:frauddetector",
 	"aws:efs",
 	"aws:wafv2",
 	"aws:events",
