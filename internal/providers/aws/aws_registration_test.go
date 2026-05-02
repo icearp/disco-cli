@@ -110,6 +110,7 @@ var expectedAWSServices = []string{
 	"aws:kinesis-video",
 	"aws:ivs-chat",
 	"aws:greengrass-v2",
+	"aws:forecast",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

@@ -296,6 +296,8 @@ github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14 h1:sHXyginrCoA3WaOkHIyaes
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14/go.mod h1:79fwBYDS6J0bKmEO6Hjp4EisUG5sQDSxM8xw8QJkOJM=
 github.com/aws/aws-sdk-go-v2/service/fms v1.44.24 h1:9HVojSt6nLVX/Ao55d7PGVg3zzg6XbNzT6RIiLnKEmM=
 github.com/aws/aws-sdk-go-v2/service/fms v1.44.24/go.mod h1:cIz6sTAJzcJceQM5chsHkKq5agNHWtLCm5r20teGur8=
+github.com/aws/aws-sdk-go-v2/service/forecast v1.41.23 h1:/j+rpnV7VARMuD8ioHiyn2sz5Z+mYNNUxbaCXNvPRJU=
+github.com/aws/aws-sdk-go-v2/service/forecast v1.41.23/go.mod h1:TwIEn4Wf9PlItwPe2/gYGUdFIl2omNyefLcTIlRecC8=
 github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14 h1:pG8jtwPXVBEslF2PXIPZhzkyqcS5kp4AclupLjtlRbw=
 github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14/go.mod h1:lfCVrMmrO0wMk4/J3E51SCAW2CkDuwtzcm7iyYyv7AY=
 github.com/aws/aws-sdk-go-v2/service/fsx v1.65.9 h1:xzMWyMv3g8dBFxsjZEEp3BkbBj8HMyRV6McX6uW6Nf8=
