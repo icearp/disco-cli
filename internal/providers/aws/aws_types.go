@@ -1202,6 +1202,8 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// S3Outposts (s3outposts_scanners.go).
+	TypeS3OutpostsEndpoint = "aws:s3outposts:endpoint"
 	// SecurityAgent (securityagent_scanners.go).
 	TypeSecurityAgentAgentSpace   = "aws:security-agent:agent-space"
 	TypeSecurityAgentApplication  = "aws:security-agent:application"

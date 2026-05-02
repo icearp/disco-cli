@@ -154,6 +154,7 @@ var expectedAWSServices = []string{
 	"aws:service-catalog-app-registry",
 	"aws:security-lake",
 	"aws:security-agent",
+	"aws:s3outposts",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
