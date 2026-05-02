@@ -322,6 +322,8 @@ github.com/aws/aws-sdk-go-v2/service/ivsrealtime v1.34.2 h1:2Hu9Vm1PrfVWqrfvCAh9
 github.com/aws/aws-sdk-go-v2/service/ivsrealtime v1.34.2/go.mod h1:5gcjQass5/eeszXeq1p4y0lFJoNRxykwg2z5jbgt5wo=
 github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0 h1:feafjJPoA5tsmSGy/yNQn6X5RZobqTYeN3w2qCXuKhA=
 github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0/go.mod h1:fKgdZ47ytmRoWz0XU6XXgV2AVVgVZdc9KmuWFxF6fjA=
+github.com/aws/aws-sdk-go-v2/service/kendra v1.60.23 h1:1AZgLYCMh//yiVdPwwltHFFqVxpRboFUtozB3ItiSAQ=
+github.com/aws/aws-sdk-go-v2/service/kendra v1.60.23/go.mod h1:cznbYGyQ57ijyUhYzyCSDaKVSIh8ryhCu5te3l1aaL4=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6 h1:Gw375uiaTvryG3z4QN9m5KuaIRkfdWASq/xqZS18zMg=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6/go.mod h1:CHCpwz0om22znPqK8Gn3jmu1QZxnxDzMZ6UbQ1duH3A=
 github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25 h1:OBjINDp8xhZjliKWnidzagqyHpNIRPDm4jeP/173WkI=

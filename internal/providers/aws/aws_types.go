@@ -1317,6 +1317,10 @@ const (
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
 	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
+	// Kendra (kendra_scanners.go).
+	TypeKendraDataSource = "aws:kendra:data-source"
+	TypeKendraFaq        = "aws:kendra:faq"
+	TypeKendraIndex      = "aws:kendra:index"
 	// KinesisAnalytics v1 (kinesisanalytics_scanners.go).
 	TypeKinesisAnalyticsApplication              = "aws:kinesis-analytics:application"
 	TypeKinesisAnalyticsApplicationOutput        = "aws:kinesis-analytics:application-output"

@@ -187,6 +187,7 @@ var expectedAWSServices = []string{
 	"aws:managed-blockchain",
 	"aws:m2",
 	"aws:kinesis-analytics",
+	"aws:kendra",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

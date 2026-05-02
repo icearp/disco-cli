@@ -248,6 +248,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kendra v1.60.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/m2 v1.26.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/managedblockchain v1.31.23 // indirect
