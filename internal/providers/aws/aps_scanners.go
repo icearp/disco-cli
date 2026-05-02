@@ -16,6 +16,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "aps", DiscoType: TypeAPSWorkspace},
 			{Service: "aps", DiscoType: TypeAPSScraper},
+			{Service: "aps", DiscoType: TypeAPSAnomalyDetector},
+			{Service: "aps", DiscoType: TypeAPSRuleGroupsNamespace},
+			{Service: "aps", DiscoType: TypeAPSResourcePolicy},
 		},
 	})
 }
@@ -25,6 +28,9 @@ func init() {
 type apsAPI interface {
 	ListWorkspaces(context.Context, *amp.ListWorkspacesInput, ...func(*amp.Options)) (*amp.ListWorkspacesOutput, error)
 	ListScrapers(context.Context, *amp.ListScrapersInput, ...func(*amp.Options)) (*amp.ListScrapersOutput, error)
+	ListAnomalyDetectors(context.Context, *amp.ListAnomalyDetectorsInput, ...func(*amp.Options)) (*amp.ListAnomalyDetectorsOutput, error)
+	ListRuleGroupsNamespaces(context.Context, *amp.ListRuleGroupsNamespacesInput, ...func(*amp.Options)) (*amp.ListRuleGroupsNamespacesOutput, error)
+	DescribeResourcePolicy(context.Context, *amp.DescribeResourcePolicyInput, ...func(*amp.Options)) (*amp.DescribeResourcePolicyOutput, error)
 }
 
 func scanAPS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -37,7 +43,11 @@ func scanAPS(ctx context.Context, acct *account, region string, st *store.Store,
 	if err != nil {
 		return w + s, wi + si, err
 	}
-	return w + s, wi + si, nil
+	e, ei, err := scanAPSExtended(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return w + s + e, wi + si + ei, err
+	}
+	return w + s + e, wi + si + ei, nil
 }
 
 func scanAPSWorkspaces(ctx context.Context, client apsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

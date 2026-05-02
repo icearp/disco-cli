@@ -497,6 +497,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCEAnomalyMonitor:      "AWS::CE::AnomalyMonitor",
 		TypeCEAnomalySubscription: "AWS::CE::AnomalySubscription",
 		TypeCECostCategory:        "AWS::CE::CostCategory",
+		// APS — disco "aps" segment vs CFN "APS" (Workspace/Scraper aliased earlier).
+		TypeAPSAnomalyDetector:     "AWS::APS::AnomalyDetector",
+		TypeAPSRuleGroupsNamespace: "AWS::APS::RuleGroupsNamespace",
+		TypeAPSResourcePolicy:      "AWS::APS::ResourcePolicy",
 	}
 }
 

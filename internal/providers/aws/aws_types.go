@@ -844,6 +844,10 @@ const (
 	TypeCassandraKeyspace = "aws:cassandra:keyspace"
 	TypeCassandraTable    = "aws:cassandra:table"
 	TypeCassandraType     = "aws:cassandra:type"
+	// APS extras (aps_extended_scanners.go)
+	TypeAPSAnomalyDetector     = "aws:aps:anomaly-detector"
+	TypeAPSRuleGroupsNamespace = "aws:aps:rule-groups-namespace"
+	TypeAPSResourcePolicy      = "aws:aps:resource-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
