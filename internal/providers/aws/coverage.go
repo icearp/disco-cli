@@ -548,6 +548,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDSSimpleAD:    "AWS::DirectoryService::SimpleAD",
 		// WorkSpacesThinClient — disco "workspaces-thin-client" segment vs CFN "WorkSpacesThinClient".
 		TypeWorkSpacesThinClientEnvironment: "AWS::WorkSpacesThinClient::Environment",
+		// VoiceID — disco "voice-id" segment vs CFN "VoiceID".
+		TypeVoiceIDDomain: "AWS::VoiceID::Domain",
 	}
 }
 
