@@ -881,6 +881,9 @@ const (
 	// ResilienceHub (resiliencehub_scanners.go)
 	TypeResilienceHubApp              = "aws:resilience-hub:app"
 	TypeResilienceHubResiliencyPolicy = "aws:resilience-hub:resiliency-policy"
+	// RAM (ram_scanners.go)
+	TypeRAMResourceShare = "aws:ram:resource-share"
+	TypeRAMPermission    = "aws:ram:permission"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

@@ -101,6 +101,7 @@ var expectedAWSServices = []string{
 	"aws:scheduler",
 	"aws:resource-groups",
 	"aws:resilience-hub",
+	"aws:ram",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

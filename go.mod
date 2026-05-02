@@ -272,6 +272,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/proton v1.39.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ram v1.36.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.34.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rekognition v1.51.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.35.15 // indirect

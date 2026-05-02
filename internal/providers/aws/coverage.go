@@ -516,6 +516,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// ResilienceHub — disco "resilience-hub" segment vs CFN "ResilienceHub".
 		TypeResilienceHubApp:              "AWS::ResilienceHub::App",
 		TypeResilienceHubResiliencyPolicy: "AWS::ResilienceHub::ResiliencyPolicy",
+		// RAM — disco "ram" segment vs CFN "RAM".
+		TypeRAMResourceShare: "AWS::RAM::ResourceShare",
+		TypeRAMPermission:    "AWS::RAM::Permission",
 	}
 }
 
