@@ -554,6 +554,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeUXCAccountCustomization: "AWS::UXC::AccountCustomization",
 		// SystemsManagerSAP — disco "systems-manager-sap" segment vs CFN "SystemsManagerSAP".
 		TypeSSMSAPApplication: "AWS::SystemsManagerSAP::Application",
+		// SSMGuiConnect — disco "ssm-gui-connect" segment vs CFN "SSMGuiConnect".
+		TypeSSMGuiConnectPreferences: "AWS::SSMGuiConnect::Preferences",
 	}
 }
 

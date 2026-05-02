@@ -119,6 +119,7 @@ var expectedAWSServices = []string{
 	"aws:voice-id",
 	"aws:uxc",
 	"aws:systems-manager-sap",
+	"aws:ssm-gui-connect",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

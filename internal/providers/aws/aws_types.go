@@ -941,6 +941,8 @@ const (
 	TypeUXCAccountCustomization = "aws:uxc:account-customization"
 	// SystemsManagerSAP (ssmsap_scanners.go)
 	TypeSSMSAPApplication = "aws:systems-manager-sap:application"
+	// SSMGuiConnect (ssmguiconnect_scanners.go)
+	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
