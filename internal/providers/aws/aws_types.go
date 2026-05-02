@@ -262,7 +262,14 @@ const (
 	TypeWisdomMessageTemplateVersion = "aws:wisdom:message-template-version"
 	TypeWisdomQuickResponse          = "aws:wisdom:quick-response"
 	// EKS
-	TypeEKSCluster = "aws:eks:cluster"
+	TypeEKSCluster                = "aws:eks:cluster"
+	TypeEKSAccessEntry            = "aws:eks:access-entry"
+	TypeEKSAddon                  = "aws:eks:addon"
+	TypeEKSCapability             = "aws:eks:capability"
+	TypeEKSFargateProfile         = "aws:eks:fargate-profile"
+	TypeEKSIdentityProviderConfig = "aws:eks:identity-provider-config"
+	TypeEKSNodegroup              = "aws:eks:nodegroup"
+	TypeEKSPodIdentityAssociation = "aws:eks:pod-identity-association"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
 	TypeELBClassicLoadBalancer = "aws:elasticloadbalancing:load-balancer"
 	// ELBv2 (elb_scanners.go, elb_resolvers.go)

@@ -15,6 +15,13 @@ func init() {
 		fn:   scanEKS,
 		emits: []coverage.TypeDecl{
 			{Service: "eks", DiscoType: TypeEKSCluster},
+			{Service: "eks", DiscoType: TypeEKSAccessEntry},
+			{Service: "eks", DiscoType: TypeEKSAddon},
+			{Service: "eks", DiscoType: TypeEKSCapability},
+			{Service: "eks", DiscoType: TypeEKSFargateProfile},
+			{Service: "eks", DiscoType: TypeEKSIdentityProviderConfig},
+			{Service: "eks", DiscoType: TypeEKSNodegroup},
+			{Service: "eks", DiscoType: TypeEKSPodIdentityAssociation},
 		},
 	})
 }
@@ -28,9 +35,22 @@ type eksAPI interface {
 
 // scanEKS discovers EKS clusters in one region. ListClusters returns names
 // only; clusters are described in parallel to avoid N+1 sequential API calls.
-func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
-	return scanEKSClusters(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanEKSClusters(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanEKSExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanEKSClusters holds the testable scan body.
