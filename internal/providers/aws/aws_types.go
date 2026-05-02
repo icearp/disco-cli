@@ -220,6 +220,9 @@ const (
 	TypeEventsRule           = "aws:events:rule"
 	TypeEventsAPIDestination = "aws:events:api-destination"
 	TypeEventsConnection     = "aws:events:connection"
+	TypeEventsArchive        = "aws:events:archive"
+	TypeEventsEndpoint       = "aws:events:endpoint"
+	TypeEventsEventBusPolicy = "aws:events:event-bus-policy"
 	// CloudTrail (cloudtrail_scanners.go, cloudtrail_resolvers.go)
 	TypeCloudTrailTrail          = "aws:cloudtrail:trail"
 	TypeCloudTrailEventDataStore = "aws:cloudtrail:event-data-store"

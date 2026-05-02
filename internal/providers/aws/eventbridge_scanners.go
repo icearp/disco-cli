@@ -20,6 +20,9 @@ func init() {
 			{Service: "events", DiscoType: TypeEventsRule},
 			{Service: "events", DiscoType: TypeEventsConnection},
 			{Service: "events", DiscoType: TypeEventsAPIDestination},
+			{Service: "events", DiscoType: TypeEventsArchive},
+			{Service: "events", DiscoType: TypeEventsEndpoint},
+			{Service: "events", DiscoType: TypeEventsEventBusPolicy},
 		},
 	})
 }
@@ -32,6 +35,9 @@ type eventbridgeAPI interface {
 	ListTargetsByRule(context.Context, *eventbridge.ListTargetsByRuleInput, ...func(*eventbridge.Options)) (*eventbridge.ListTargetsByRuleOutput, error)
 	ListApiDestinations(context.Context, *eventbridge.ListApiDestinationsInput, ...func(*eventbridge.Options)) (*eventbridge.ListApiDestinationsOutput, error)
 	ListConnections(context.Context, *eventbridge.ListConnectionsInput, ...func(*eventbridge.Options)) (*eventbridge.ListConnectionsOutput, error)
+	ListArchives(context.Context, *eventbridge.ListArchivesInput, ...func(*eventbridge.Options)) (*eventbridge.ListArchivesOutput, error)
+	ListEndpoints(context.Context, *eventbridge.ListEndpointsInput, ...func(*eventbridge.Options)) (*eventbridge.ListEndpointsOutput, error)
+	DescribeEventBus(context.Context, *eventbridge.DescribeEventBusInput, ...func(*eventbridge.Options)) (*eventbridge.DescribeEventBusOutput, error)
 }
 
 // scanEventBridge discovers EventBridge event buses and rules in one region.
@@ -39,7 +45,19 @@ type eventbridgeAPI interface {
 // ListTargetsByRule (targets are stored inline in attributes for resolver use).
 func scanEventBridge(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := eventbridge.NewFromConfig(acct.cfg, func(o *eventbridge.Options) { o.Region = region })
-	return scanEventBridgeAll(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanEventBridgeAll(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanEventBridgeExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanEventBridgeAll holds the testable scan body.
