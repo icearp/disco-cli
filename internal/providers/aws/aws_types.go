@@ -1015,8 +1015,11 @@ const (
 	TypeVpcLatticeServiceNetworkServiceAssociation  = "aws:vpclattice:service-network-service-association"
 	TypeVpcLatticeServiceNetworkVpcAssociation      = "aws:vpclattice:service-network-vpc-association"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
-	TypeInspector2Filter = "aws:inspector2:filter"
-	TypeInspector2Member = "aws:inspector2:member"
+	TypeInspector2Filter                        = "aws:inspector2:filter"
+	TypeInspector2Member                        = "aws:inspector2:member"
+	TypeInspector2CisScanConfiguration          = "aws:inspector2:cis-scan-configuration"
+	TypeInspector2CodeSecurityIntegration       = "aws:inspector2:code-security-integration"
+	TypeInspector2CodeSecurityScanConfiguration = "aws:inspector2:code-security-scan-configuration"
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"

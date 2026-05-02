@@ -16,6 +16,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "inspectorv2", DiscoType: TypeInspector2Filter},
 			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Synthetic: true},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CisScanConfiguration},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityIntegration},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityScanConfiguration},
 		},
 	})
 }
@@ -25,6 +28,9 @@ func init() {
 type inspector2API interface {
 	ListFilters(context.Context, *inspector2.ListFiltersInput, ...func(*inspector2.Options)) (*inspector2.ListFiltersOutput, error)
 	ListMembers(context.Context, *inspector2.ListMembersInput, ...func(*inspector2.Options)) (*inspector2.ListMembersOutput, error)
+	ListCisScanConfigurations(context.Context, *inspector2.ListCisScanConfigurationsInput, ...func(*inspector2.Options)) (*inspector2.ListCisScanConfigurationsOutput, error)
+	ListCodeSecurityIntegrations(context.Context, *inspector2.ListCodeSecurityIntegrationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityIntegrationsOutput, error)
+	ListCodeSecurityScanConfigurations(context.Context, *inspector2.ListCodeSecurityScanConfigurationsInput, ...func(*inspector2.Options)) (*inspector2.ListCodeSecurityScanConfigurationsOutput, error)
 }
 
 // scanInspector2 discovers Inspector v2 finding-filters and member accounts
@@ -48,6 +54,15 @@ func scanInspector2(ctx context.Context, acct *account, region string, st *store
 
 	{
 		t, i, ferr := scanInspector2Members(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanInspector2Extended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
