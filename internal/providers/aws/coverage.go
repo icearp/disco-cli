@@ -602,6 +602,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCURReportDefinition: "AWS::CUR::ReportDefinition",
 		// ConnectCampaignsV2 — disco "connect-campaigns-v2" segment vs CFN "ConnectCampaignsV2".
 		TypeConnectCampaignsV2Campaign: "AWS::ConnectCampaignsV2::Campaign",
+		// ConnectCampaigns — disco "connect-campaigns" segment vs CFN "ConnectCampaigns".
+		TypeConnectCampaignsCampaign: "AWS::ConnectCampaigns::Campaign",
 	}
 }
 

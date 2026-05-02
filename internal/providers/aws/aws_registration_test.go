@@ -149,6 +149,7 @@ var expectedAWSServices = []string{
 	"aws:dlm",
 	"aws:cur",
 	"aws:connect-campaigns-v2",
+	"aws:connect-campaigns",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

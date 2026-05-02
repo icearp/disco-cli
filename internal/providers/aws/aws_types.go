@@ -1009,6 +1009,8 @@ const (
 	TypeControlTowerEnabledControl = "aws:controltower:enabled-control"
 	// ConnectCampaignsV2 (connectcampaignsv2_scanners.go)
 	TypeConnectCampaignsV2Campaign = "aws:connect-campaigns-v2:campaign"
+	// ConnectCampaigns (connectcampaigns_scanners.go)
+	TypeConnectCampaignsCampaign = "aws:connect-campaigns:campaign"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
