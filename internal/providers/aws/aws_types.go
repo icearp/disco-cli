@@ -957,6 +957,8 @@ const (
 	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// OpenSearch extras (opensearch_extended_scanners.go)
 	TypeOpenSearchApplication = "aws:opensearchservice:application"
+	// NovaAct (novaact_scanners.go)
+	TypeNovaActWorkflowDefinition = "aws:nova-act:workflow-definition"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

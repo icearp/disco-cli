@@ -562,6 +562,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeRUMAppMonitor: "AWS::RUM::AppMonitor",
 		// OSIS — disco "osis" segment vs CFN "OSIS".
 		TypeOSISPipeline: "AWS::OSIS::Pipeline",
+		// NovaAct — disco "nova-act" segment vs CFN "NovaAct".
+		TypeNovaActWorkflowDefinition: "AWS::NovaAct::WorkflowDefinition",
 	}
 }
 
