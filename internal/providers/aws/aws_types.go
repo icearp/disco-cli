@@ -987,6 +987,8 @@ const (
 	TypeHealthLakeFHIRDatastore = "aws:health-lake:fhir-datastore"
 	// HealthImaging (healthimaging_scanners.go)
 	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
+	// Grafana (grafana_scanners.go)
+	TypeGrafanaWorkspace = "aws:grafana:workspace"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

@@ -17,7 +17,7 @@ func init() {
 			{Service: "guardduty", DiscoType: TypeGuardDutyDetector},
 			{Service: "guardduty", DiscoType: TypeGuardDutyFilter},
 			{Service: "guardduty", DiscoType: TypeGuardDutyIPSet},
-			{Service: "guardduty", DiscoType: TypeGuardDutyMember, Synthetic: true},
+			{Service: "guardduty", DiscoType: TypeGuardDutyMember},
 			{Service: "guardduty", DiscoType: TypeGuardDutyMalwareProtectionPlan},
 			{Service: "guardduty", DiscoType: TypeGuardDutyPublishingDestination},
 			{Service: "guardduty", DiscoType: TypeGuardDutyThreatEntitySet},

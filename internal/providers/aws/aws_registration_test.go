@@ -139,6 +139,7 @@ var expectedAWSServices = []string{
 	"aws:interconnect",
 	"aws:health-lake",
 	"aws:health-imaging",
+	"aws:grafana",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
