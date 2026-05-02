@@ -16,6 +16,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "docdb", DiscoType: TypeDocDBCluster},
 			{Service: "docdb", DiscoType: TypeDocDBInstance},
+			{Service: "docdb", DiscoType: TypeDocDBDBClusterParameterGroup},
+			{Service: "docdb", DiscoType: TypeDocDBDBSubnetGroup},
+			{Service: "docdb", DiscoType: TypeDocDBEventSubscription},
+			{Service: "docdb", DiscoType: TypeDocDBGlobalCluster},
 		},
 	})
 }
@@ -25,6 +29,10 @@ func init() {
 type docdbAPI interface {
 	DescribeDBClusters(context.Context, *docdb.DescribeDBClustersInput, ...func(*docdb.Options)) (*docdb.DescribeDBClustersOutput, error)
 	DescribeDBInstances(context.Context, *docdb.DescribeDBInstancesInput, ...func(*docdb.Options)) (*docdb.DescribeDBInstancesOutput, error)
+	DescribeDBClusterParameterGroups(context.Context, *docdb.DescribeDBClusterParameterGroupsInput, ...func(*docdb.Options)) (*docdb.DescribeDBClusterParameterGroupsOutput, error)
+	DescribeDBSubnetGroups(context.Context, *docdb.DescribeDBSubnetGroupsInput, ...func(*docdb.Options)) (*docdb.DescribeDBSubnetGroupsOutput, error)
+	DescribeEventSubscriptions(context.Context, *docdb.DescribeEventSubscriptionsInput, ...func(*docdb.Options)) (*docdb.DescribeEventSubscriptionsOutput, error)
+	DescribeGlobalClusters(context.Context, *docdb.DescribeGlobalClustersInput, ...func(*docdb.Options)) (*docdb.DescribeGlobalClustersOutput, error)
 }
 
 // scanDocDB discovers Amazon DocumentDB clusters and instances in one
@@ -48,6 +56,15 @@ func scanDocDB(ctx context.Context, acct *account, region string, st *store.Stor
 
 	{
 		t, i, ferr := scanDocDBInstances(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanDocDBExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

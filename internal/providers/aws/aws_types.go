@@ -1066,8 +1066,12 @@ const (
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
-	TypeDocDBCluster  = "aws:docdb:cluster"
-	TypeDocDBInstance = "aws:docdb:instance"
+	TypeDocDBCluster                 = "aws:docdb:cluster"
+	TypeDocDBInstance                = "aws:docdb:instance"
+	TypeDocDBDBClusterParameterGroup = "aws:docdb:db-cluster-parameter-group"
+	TypeDocDBDBSubnetGroup           = "aws:docdb:db-subnet-group"
+	TypeDocDBEventSubscription       = "aws:docdb:event-subscription"
+	TypeDocDBGlobalCluster           = "aws:docdb:global-cluster"
 	// Neptune (neptune_scanners.go, neptune_resolvers.go)
 	TypeNeptuneCluster                 = "aws:neptune:cluster"
 	TypeNeptuneInstance                = "aws:neptune:instance"
