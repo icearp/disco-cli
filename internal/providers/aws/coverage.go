@@ -469,6 +469,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDevOpsGuruNotificationChannel:            "AWS::DevOpsGuru::NotificationChannel",
 		TypeDevOpsGuruResourceCollection:             "AWS::DevOpsGuru::ResourceCollection",
 		TypeDevOpsGuruLogAnomalyDetectionIntegration: "AWS::DevOpsGuru::LogAnomalyDetectionIntegration",
+		// DAX — disco "dax" segment vs CFN "DAX".
+		TypeDAXCluster:        "AWS::DAX::Cluster",
+		TypeDAXParameterGroup: "AWS::DAX::ParameterGroup",
+		TypeDAXSubnetGroup:    "AWS::DAX::SubnetGroup",
 	}
 }
 

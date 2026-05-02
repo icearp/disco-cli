@@ -804,6 +804,10 @@ const (
 	TypeDevOpsGuruNotificationChannel            = "aws:devops-guru:notification-channel"
 	TypeDevOpsGuruResourceCollection             = "aws:devops-guru:resource-collection"
 	TypeDevOpsGuruLogAnomalyDetectionIntegration = "aws:devops-guru:log-anomaly-detection-integration"
+	// DAX (dax_scanners.go)
+	TypeDAXCluster        = "aws:dax:cluster"
+	TypeDAXParameterGroup = "aws:dax:parameter-group"
+	TypeDAXSubnetGroup    = "aws:dax:subnet-group"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
