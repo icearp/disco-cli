@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Personalize (personalize_scanners.go).
+	TypePersonalizeDataset      = "aws:personalize:dataset"
+	TypePersonalizeDatasetGroup = "aws:personalize:dataset-group"
+	TypePersonalizeSchema       = "aws:personalize:schema"
+	TypePersonalizeSolution     = "aws:personalize:solution"
 	// PinpointEmail (pinpointemail_scanners.go).
 	TypePinpointEmailConfigurationSet                 = "aws:pinpoint-email:configuration-set"
 	TypePinpointEmailConfigurationSetEventDestination = "aws:pinpoint-email:configuration-set-event-destination"

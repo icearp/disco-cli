@@ -229,6 +229,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.25.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig v1.32.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.26.23 // indirect
