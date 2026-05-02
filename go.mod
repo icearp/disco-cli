@@ -228,6 +228,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/lexmodelsv2 v1.60.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.25.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17 // indirect

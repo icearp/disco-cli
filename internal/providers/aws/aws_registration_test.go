@@ -161,6 +161,7 @@ var expectedAWSServices = []string{
 	"aws:refactor-spaces",
 	"aws:pinpoint-email",
 	"aws:personalize",
+	"aws:lex",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

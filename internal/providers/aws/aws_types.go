@@ -1206,6 +1206,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Lex (lex_scanners.go); SDK module is lexmodelsv2.
+	TypeLexBot            = "aws:lex:bot"
+	TypeLexBotAlias       = "aws:lex:bot-alias"
+	TypeLexBotVersion     = "aws:lex:bot-version"
+	TypeLexResourcePolicy = "aws:lex:resource-policy"
 	// Personalize (personalize_scanners.go).
 	TypePersonalizeDataset      = "aws:personalize:dataset"
 	TypePersonalizeDatasetGroup = "aws:personalize:dataset-group"
