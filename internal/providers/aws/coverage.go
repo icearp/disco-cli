@@ -564,6 +564,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeOSISPipeline: "AWS::OSIS::Pipeline",
 		// NovaAct — disco "nova-act" segment vs CFN "NovaAct".
 		TypeNovaActWorkflowDefinition: "AWS::NovaAct::WorkflowDefinition",
+		// NotificationsContacts — disco "notifications-contacts" segment vs CFN "NotificationsContacts".
+		TypeNotificationsContactsEmailContact: "AWS::NotificationsContacts::EmailContact",
 	}
 }
 

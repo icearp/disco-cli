@@ -430,6 +430,8 @@ github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10 h1:fZdjuh4szziSdwiD
 github.com/aws/aws-sdk-go-v2/service/networkmanager v1.41.10/go.mod h1:x0O7AHep2gwquyfW6gmNql2OM4LEloyJGFflJfEJV+U=
 github.com/aws/aws-sdk-go-v2/service/notifications v1.7.22 h1:oraTweag1UyJwch3PWrfkkHiOzMZSGuqnLA7+yuFPWI=
 github.com/aws/aws-sdk-go-v2/service/notifications v1.7.22/go.mod h1:2ShOanXPWp9GRHTHQP4gV2+YCrfiXL5gpchgRJzfdf4=
+github.com/aws/aws-sdk-go-v2/service/notificationscontacts v1.5.25 h1:VzqadovDs6JCtH+pIzFiRrMfxfwiRCxcyIE584L68EI=
+github.com/aws/aws-sdk-go-v2/service/notificationscontacts v1.5.25/go.mod h1:OC9ulnk7D/U4pJ8aF5yc5E5UDNTUYeVYNorOytuPL+g=
 github.com/aws/aws-sdk-go-v2/service/novaact v1.0.8 h1:qVpCAKMJMdfx1eUrjx7ZJiQrJtlWhgqnU9LwvNRvavw=
 github.com/aws/aws-sdk-go-v2/service/novaact v1.0.8/go.mod h1:NfPjgLkseMaiZLV4ZChNEHGaVC+cA1Q2H8sB+FhaGF8=
 github.com/aws/aws-sdk-go-v2/service/oam v1.23.17 h1:Vi98KQ0Dt+Tmh8famoMaejiNcQbpDzUXUByx5CUIRQU=

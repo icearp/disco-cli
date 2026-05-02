@@ -959,6 +959,8 @@ const (
 	TypeOpenSearchApplication = "aws:opensearchservice:application"
 	// NovaAct (novaact_scanners.go)
 	TypeNovaActWorkflowDefinition = "aws:nova-act:workflow-definition"
+	// NotificationsContacts (notificationscontacts_scanners.go)
+	TypeNotificationsContactsEmailContact = "aws:notifications-contacts:email-contact"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

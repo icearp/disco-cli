@@ -126,6 +126,7 @@ var expectedAWSServices = []string{
 	"aws:pipes",
 	"aws:osis",
 	"aws:nova-act",
+	"aws:notifications-contacts",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
