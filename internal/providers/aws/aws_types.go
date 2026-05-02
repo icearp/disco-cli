@@ -1202,6 +1202,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// RefactorSpaces (refactorspaces_scanners.go); SDK module is
+	// migrationhubrefactorspaces, CFN segment is "RefactorSpaces".
+	TypeRefactorSpacesApplication = "aws:refactor-spaces:application"
+	TypeRefactorSpacesEnvironment = "aws:refactor-spaces:environment"
+	TypeRefactorSpacesRoute       = "aws:refactor-spaces:route"
+	TypeRefactorSpacesService     = "aws:refactor-spaces:service"
 	// Route53RecoveryControl (route53recoverycontrol_scanners.go).
 	TypeR53RCCluster        = "aws:route53-recovery-control:cluster"
 	TypeR53RCControlPanel   = "aws:route53-recovery-control:control-panel"

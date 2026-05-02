@@ -158,6 +158,7 @@ var expectedAWSServices = []string{
 	"aws:s3files",
 	"aws:route53-recovery-readiness",
 	"aws:route53-recovery-control",
+	"aws:refactor-spaces",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
