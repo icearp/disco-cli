@@ -572,6 +572,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeMediaStoreContainer: "AWS::MediaStore::Container",
 		// LookoutEquipment — disco "lookout-equipment" segment vs CFN "LookoutEquipment".
 		TypeLookoutEquipmentInferenceScheduler: "AWS::LookoutEquipment::InferenceScheduler",
+		// LaunchWizard — disco "launch-wizard" segment vs CFN "LaunchWizard".
+		TypeLaunchWizardDeployment: "AWS::LaunchWizard::Deployment",
 	}
 }
 

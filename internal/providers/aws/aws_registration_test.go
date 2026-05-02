@@ -131,6 +131,7 @@ var expectedAWSServices = []string{
 	"aws:mwaa",
 	"aws:media-store",
 	"aws:lookout-equipment",
+	"aws:launch-wizard",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
