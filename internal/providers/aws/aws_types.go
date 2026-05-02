@@ -1197,6 +1197,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// LakeFormation (lakeformation_scanners.go).
+	TypeLakeFormationDataCellsFilter      = "aws:lakeformation:data-cells-filter"
+	TypeLakeFormationDataLakeSettings     = "aws:lakeformation:data-lake-settings"
+	TypeLakeFormationPrincipalPermissions = "aws:lakeformation:principal-permissions"
+	TypeLakeFormationTag                  = "aws:lakeformation:tag"
 	// MediaTailor (mediatailor_scanners.go).
 	TypeMediaTailorChannel               = "aws:mediatailor:channel"
 	TypeMediaTailorChannelPolicy         = "aws:mediatailor:channel-policy"

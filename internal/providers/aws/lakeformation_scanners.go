@@ -15,6 +15,10 @@ func init() {
 		fn:   scanLakeFormation,
 		emits: []coverage.TypeDecl{
 			{Service: "lakeformation", DiscoType: TypeLakeFormationResource},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationDataCellsFilter},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationDataLakeSettings},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationPrincipalPermissions},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationTag},
 		},
 	})
 }
@@ -23,6 +27,10 @@ func init() {
 // scanLakeFormationResources.
 type lakeformationAPI interface {
 	ListResources(context.Context, *lakeformation.ListResourcesInput, ...func(*lakeformation.Options)) (*lakeformation.ListResourcesOutput, error)
+	ListDataCellsFilter(context.Context, *lakeformation.ListDataCellsFilterInput, ...func(*lakeformation.Options)) (*lakeformation.ListDataCellsFilterOutput, error)
+	GetDataLakeSettings(context.Context, *lakeformation.GetDataLakeSettingsInput, ...func(*lakeformation.Options)) (*lakeformation.GetDataLakeSettingsOutput, error)
+	ListPermissions(context.Context, *lakeformation.ListPermissionsInput, ...func(*lakeformation.Options)) (*lakeformation.ListPermissionsOutput, error)
+	ListLFTags(context.Context, *lakeformation.ListLFTagsInput, ...func(*lakeformation.Options)) (*lakeformation.ListLFTagsOutput, error)
 }
 
 // scanLakeFormation discovers Lake Formation registered data locations in one
@@ -32,7 +40,19 @@ type lakeformationAPI interface {
 // scanned (cross-resource FK targets).
 func scanLakeFormation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := lakeformation.NewFromConfig(acct.cfg, func(o *lakeformation.Options) { o.Region = region })
-	return scanLakeFormationResources(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanLakeFormationResources(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanLakeFormationExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanLakeFormationResources holds the testable scan body.
