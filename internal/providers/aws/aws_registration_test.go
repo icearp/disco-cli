@@ -152,6 +152,7 @@ var expectedAWSServices = []string{
 	"aws:verifiedpermissions",
 	"aws:ssm-contacts",
 	"aws:service-catalog-app-registry",
+	"aws:security-lake",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

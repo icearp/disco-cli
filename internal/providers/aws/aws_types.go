@@ -1202,6 +1202,10 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// SecurityLake (securitylake_scanners.go).
+	TypeSecurityLakeAwsLogSource = "aws:security-lake:aws-log-source"
+	TypeSecurityLakeDataLake     = "aws:security-lake:data-lake"
+	TypeSecurityLakeSubscriber   = "aws:security-lake:subscriber"
 	// ServiceCatalogAppRegistry (servicecatalogappregistry_scanners.go).
 	TypeSCARApplication               = "aws:service-catalog-app-registry:application"
 	TypeSCARAttributeGroup            = "aws:service-catalog-app-registry:attribute-group"
