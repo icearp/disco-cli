@@ -188,6 +188,7 @@ var expectedAWSServices = []string{
 	"aws:m2",
 	"aws:kinesis-analytics",
 	"aws:kendra",
+	"aws:kafka-connect",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

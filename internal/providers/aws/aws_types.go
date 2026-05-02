@@ -1317,6 +1317,10 @@ const (
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
 	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
+	// KafkaConnect (kafkaconnect_scanners.go).
+	TypeKafkaConnectConnector           = "aws:kafka-connect:connector"
+	TypeKafkaConnectCustomPlugin        = "aws:kafka-connect:custom-plugin"
+	TypeKafkaConnectWorkerConfiguration = "aws:kafka-connect:worker-configuration"
 	// Kendra (kendra_scanners.go).
 	TypeKendraDataSource = "aws:kendra:data-source"
 	TypeKendraFaq        = "aws:kendra:faq"
