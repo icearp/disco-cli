@@ -241,6 +241,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.102 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/devopsagent v1.3.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/emrcontainers v1.40.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/fms v1.44.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.35.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/groundstation v1.41.1 // indirect

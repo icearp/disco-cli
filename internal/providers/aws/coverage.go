@@ -461,6 +461,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeARCZonalShiftConfiguration:  "AWS::ARCZonalShift::ZonalAutoshiftConfiguration",
 		// API Gateway v2 — VPC Link.
 		TypeAPIGatewayV2VpcLink: "AWS::ApiGatewayV2::VpcLink",
+		// EMRContainers — disco "emr-containers" segment vs CFN "EMRContainers".
+		TypeEMRContainersVirtualCluster: "AWS::EMRContainers::VirtualCluster",
+		TypeEMRContainersEndpoint:       "AWS::EMRContainers::Endpoint",
+		TypeEMRContainersSecurityConfig: "AWS::EMRContainers::SecurityConfiguration",
 	}
 }
 

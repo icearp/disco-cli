@@ -82,6 +82,7 @@ var expectedAWSServices = []string{
 	"aws:lightsail",
 	"aws:elasticbeanstalk",
 	"aws:emr",
+	"aws:emr-containers",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

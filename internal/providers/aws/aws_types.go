@@ -796,6 +796,10 @@ const (
 	TypeEMRStep                 = "aws:emr:step"
 	TypeEMRStudio               = "aws:emr:studio"
 	TypeEMRStudioSessionMapping = "aws:emr:studio-session-mapping"
+	// EMRContainers (emrcontainers_scanners.go)
+	TypeEMRContainersVirtualCluster = "aws:emr-containers:virtual-cluster"
+	TypeEMRContainersEndpoint       = "aws:emr-containers:endpoint"
+	TypeEMRContainersSecurityConfig = "aws:emr-containers:security-configuration"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
