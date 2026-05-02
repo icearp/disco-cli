@@ -997,6 +997,8 @@ const (
 	TypeEMRServerlessApplication = "aws:emr-serverless:application"
 	// ElementalInference (elementalinference_scanners.go)
 	TypeElementalInferenceFeed = "aws:elemental-inference:feed"
+	// DSQL (dsql_scanners.go)
+	TypeDSQLCluster = "aws:dsql:cluster"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
