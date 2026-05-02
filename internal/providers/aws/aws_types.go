@@ -1251,6 +1251,9 @@ const (
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
 	TypePCSQueue            = "aws:pcs:queue"
+	// Panorama (panorama_scanners.go).
+	TypePanoramaApplicationInstance = "aws:panorama:application-instance"
+	TypePanoramaPackage             = "aws:panorama:package"
 	// Proton (proton_scanners.go).
 	TypeProtonEnvironmentAccountConnection = "aws:proton:environment-account-connection"
 	TypeProtonEnvironmentTemplate          = "aws:proton:environment-template"

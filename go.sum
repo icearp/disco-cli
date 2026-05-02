@@ -380,6 +380,8 @@ github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3 h1:47FPswEE4RK
 github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3/go.mod h1:w/kwwh/dzVFrXLKUCj3M73lYUl+LrVn9gQ7RyiPNkZU=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2 h1:2TDersSNowBwSRTrnD0LxLilpr6Dr5coXwVsWO7f2rw=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2/go.mod h1:UMm4MKZDJMbuJZF5QOJBsVRMLeKiEXAgCXFpocWPDFo=
+github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23 h1:Sy7IZqg/B2A3MnqFPaZHFp7Oa4d2kdrTBzn6vtZ+SyI=
+github.com/aws/aws-sdk-go-v2/service/panorama v1.27.23/go.mod h1:HtpCtAcElVMl6bJvlyVcE4D+j8pwxWUOCYXH4vFMUyk=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23 h1:CtTEAf/iYhq8G9KLBJH0T3GOZQ6/Ejjt0+J66jdSfKk=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23/go.mod h1:rHRclwfqAZZNIE/8KCVZomUOeLyuUd8jdU9a5Z4NQX4=
 github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4 h1:sTErG/5KtqR5fvYSdkLHmagNuR8bhbNyVmVea2LYYEo=

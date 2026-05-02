@@ -181,6 +181,7 @@ var expectedAWSServices = []string{
 	"aws:redshift-serverless",
 	"aws:proton",
 	"aws:pcs",
+	"aws:panorama",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
