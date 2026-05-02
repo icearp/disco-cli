@@ -209,9 +209,12 @@ const (
 	TypeWAFv2RegexPatternSet      = "aws:wafv2:regex-pattern-set"
 	TypeWAFv2WebACLAssociation    = "aws:wafv2:web-acl-association"
 	// Network Firewall (networkfirewall_scanners.go, networkfirewall_resolvers.go)
-	TypeNetworkFirewallFirewall       = "aws:network-firewall:firewall"
-	TypeNetworkFirewallFirewallPolicy = "aws:network-firewall:firewall-policy"
-	TypeNetworkFirewallRuleGroup      = "aws:network-firewall:rule-group"
+	TypeNetworkFirewallFirewall                   = "aws:network-firewall:firewall"
+	TypeNetworkFirewallFirewallPolicy             = "aws:network-firewall:firewall-policy"
+	TypeNetworkFirewallRuleGroup                  = "aws:network-firewall:rule-group"
+	TypeNetworkFirewallLoggingConfiguration       = "aws:network-firewall:logging-configuration"
+	TypeNetworkFirewallTLSInspectionConfiguration = "aws:network-firewall:tls-inspection-configuration"
+	TypeNetworkFirewallVpcEndpointAssociation     = "aws:network-firewall:vpc-endpoint-association"
 	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
 	TypeEventsEventBus       = "aws:events:event-bus"
 	TypeEventsRule           = "aws:events:rule"

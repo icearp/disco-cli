@@ -20,6 +20,9 @@ func init() {
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewall},
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallFirewallPolicy},
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallRuleGroup},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallLoggingConfiguration},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallTLSInspectionConfiguration},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallVpcEndpointAssociation},
 		},
 	})
 }
@@ -33,6 +36,9 @@ type networkfirewallAPI interface {
 	DescribeFirewallPolicy(context.Context, *networkfirewall.DescribeFirewallPolicyInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeFirewallPolicyOutput, error)
 	ListRuleGroups(context.Context, *networkfirewall.ListRuleGroupsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListRuleGroupsOutput, error)
 	DescribeRuleGroup(context.Context, *networkfirewall.DescribeRuleGroupInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeRuleGroupOutput, error)
+	DescribeLoggingConfiguration(context.Context, *networkfirewall.DescribeLoggingConfigurationInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeLoggingConfigurationOutput, error)
+	ListTLSInspectionConfigurations(context.Context, *networkfirewall.ListTLSInspectionConfigurationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListTLSInspectionConfigurationsOutput, error)
+	ListVpcEndpointAssociations(context.Context, *networkfirewall.ListVpcEndpointAssociationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListVpcEndpointAssociationsOutput, error)
 }
 
 // scanNetworkFirewall discovers Network Firewall firewalls, firewall policies,
@@ -66,6 +72,16 @@ func scanNetworkFirewall(ctx context.Context, acct *account, region string, st *
 	// Phase 3: rule groups
 	{
 		t, i, ferr := scanNetworkFirewallRuleGroups(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Phase 4: extended types
+	{
+		t, i, ferr := scanNetworkFirewallExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
