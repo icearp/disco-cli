@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// EntityResolution (entityresolution_scanners.go).
+	TypeEntityResolutionIdMappingWorkflow = "aws:entityresolution:id-mapping-workflow"
+	TypeEntityResolutionIdNamespace       = "aws:entityresolution:id-namespace"
+	TypeEntityResolutionMatchingWorkflow  = "aws:entityresolution:matching-workflow"
+	TypeEntityResolutionPolicyStatement   = "aws:entityresolution:policy-statement"
+	TypeEntityResolutionSchemaMapping     = "aws:entityresolution:schema-mapping"
 	// IoTTwinMaker (iottwinmaker_scanners.go).
 	TypeIoTTwinMakerComponentType = "aws:iottwinmaker:component-type"
 	TypeIoTTwinMakerEntity        = "aws:iottwinmaker:entity"
