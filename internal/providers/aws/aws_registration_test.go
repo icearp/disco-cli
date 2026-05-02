@@ -159,6 +159,7 @@ var expectedAWSServices = []string{
 	"aws:route53-recovery-readiness",
 	"aws:route53-recovery-control",
 	"aws:refactor-spaces",
+	"aws:pinpoint-email",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

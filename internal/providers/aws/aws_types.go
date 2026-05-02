@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// PinpointEmail (pinpointemail_scanners.go).
+	TypePinpointEmailConfigurationSet                 = "aws:pinpoint-email:configuration-set"
+	TypePinpointEmailConfigurationSetEventDestination = "aws:pinpoint-email:configuration-set-event-destination"
+	TypePinpointEmailDedicatedIpPool                  = "aws:pinpoint-email:dedicated-ip-pool"
+	TypePinpointEmailIdentity                         = "aws:pinpoint-email:identity"
 	// RefactorSpaces (refactorspaces_scanners.go); SDK module is
 	// migrationhubrefactorspaces, CFN segment is "RefactorSpaces".
 	TypeRefactorSpacesApplication = "aws:refactor-spaces:application"
