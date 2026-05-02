@@ -1317,6 +1317,10 @@ const (
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
 	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
+	// KinesisAnalytics v1 (kinesisanalytics_scanners.go).
+	TypeKinesisAnalyticsApplication              = "aws:kinesis-analytics:application"
+	TypeKinesisAnalyticsApplicationOutput        = "aws:kinesis-analytics:application-output"
+	TypeKinesisAnalyticsApplicationReferenceData = "aws:kinesis-analytics:application-reference-data-source"
 	// KinesisAnalyticsV2 (kinesisanalyticsv2_scanners.go).
 	TypeKAV2Application                 = "aws:kinesis-analytics-v2:application"
 	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"

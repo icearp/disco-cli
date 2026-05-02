@@ -186,6 +186,7 @@ var expectedAWSServices = []string{
 	"aws:media-convert",
 	"aws:managed-blockchain",
 	"aws:m2",
+	"aws:kinesis-analytics",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
