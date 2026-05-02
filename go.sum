@@ -346,6 +346,8 @@ github.com/aws/aws-sdk-go-v2/service/notifications v1.7.22 h1:oraTweag1UyJwch3PW
 github.com/aws/aws-sdk-go-v2/service/notifications v1.7.22/go.mod h1:2ShOanXPWp9GRHTHQP4gV2+YCrfiXL5gpchgRJzfdf4=
 github.com/aws/aws-sdk-go-v2/service/observabilityadmin v1.15.0 h1:79a7UyWXzkx1WYp8IhPtgZPhMxb1IbRJNI9BkVEeuVQ=
 github.com/aws/aws-sdk-go-v2/service/observabilityadmin v1.15.0/go.mod h1:BXfyXkrz+WDrJkHfWlj/+/WtVS2mKDUsWc2UcgcvVLY=
+github.com/aws/aws-sdk-go-v2/service/odb v1.10.2 h1:HRAgXeTLBfzUR9Gay8lm4U3AliK54vAigswhIfYTngA=
+github.com/aws/aws-sdk-go-v2/service/odb v1.10.2/go.mod h1:2e7052lsNNzRF38Ogopkj2dlzFlSOQi3yX+uO8056pQ=
 github.com/aws/aws-sdk-go-v2/service/omics v1.41.1 h1:SX9TQP/8jQykob5OFfn+ZNWeNfr7OKjtwmtl0m4x4jA=
 github.com/aws/aws-sdk-go-v2/service/omics v1.41.1/go.mod h1:TgTnQ2kvXBNEflBR7Re/cGSk6gCsGoZ9UUAc0LlSEqU=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.66.0 h1:aBPbUvfgXI9M05r8y5vxaceF17LbL0orIWDz6l/LpU4=

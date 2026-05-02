@@ -214,6 +214,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/observabilityadmin v1.15.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/odb v1.10.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/rtbfabric v1.4.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3tables v1.15.2 // indirect

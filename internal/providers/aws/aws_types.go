@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// ODB (odb_scanners.go). Oracle Database@AWS.
+	TypeODBCloudAutonomousVmCluster   = "aws:odb:cloud-autonomous-vm-cluster"
+	TypeODBCloudExadataInfrastructure = "aws:odb:cloud-exadata-infrastructure"
+	TypeODBCloudVmCluster             = "aws:odb:cloud-vm-cluster"
+	TypeODBOdbNetwork                 = "aws:odb:odb-network"
+	TypeODBOdbPeeringConnection       = "aws:odb:odb-peering-connection"
 	// PCAConnectorAD (pcaconnectorad_scanners.go).
 	TypePCAConnectorADConnector             = "aws:pca-connector-ad:connector"
 	TypePCAConnectorADDirectoryRegistration = "aws:pca-connector-ad:directory-registration"
