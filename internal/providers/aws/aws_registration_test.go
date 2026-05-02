@@ -121,6 +121,7 @@ var expectedAWSServices = []string{
 	"aws:systems-manager-sap",
 	"aws:ssm-gui-connect",
 	"aws:sim-space-weaver",
+	"aws:rum",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

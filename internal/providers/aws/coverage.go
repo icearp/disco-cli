@@ -558,6 +558,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSSMGuiConnectPreferences: "AWS::SSMGuiConnect::Preferences",
 		// SimSpaceWeaver — disco "sim-space-weaver" segment vs CFN "SimSpaceWeaver".
 		TypeSimSpaceWeaverSimulation: "AWS::SimSpaceWeaver::Simulation",
+		// RUM — disco "rum" segment vs CFN "RUM".
+		TypeRUMAppMonitor: "AWS::RUM::AppMonitor",
 	}
 }
 

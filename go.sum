@@ -502,6 +502,8 @@ github.com/aws/aws-sdk-go-v2/service/route53resolver v1.42.7 h1:JdakoHW7bb1CDJP+
 github.com/aws/aws-sdk-go-v2/service/route53resolver v1.42.7/go.mod h1:OAvZZokn38D2+MY88EllrzDyl6MyEHTRAx0u5WvqBAI=
 github.com/aws/aws-sdk-go-v2/service/rtbfabric v1.4.2 h1:XdipnZOHg9wMjQj/jIcWzQQtm/yBMhb77+BAIO9SUhk=
 github.com/aws/aws-sdk-go-v2/service/rtbfabric v1.4.2/go.mod h1:uhn3w1D7WlfATt+BoLrrQhuX8ihCegplNOJblXJ8GSE=
+github.com/aws/aws-sdk-go-v2/service/rum v1.30.12 h1:WO4GCFUbqUPMZ7ICqGtqqT60aVIosYeVKl3cdeiil/s=
+github.com/aws/aws-sdk-go-v2/service/rum v1.30.12/go.mod h1:i8qJS9c/JjEF1vAfIz3HbIFx5+K5uC5pditPl2hy8Og=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0 h1:foqo/ocQ7WqKwy3FojGtZQJo0FR4vto9qnz9VaumbCo=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0/go.mod h1:uoA43SdFwacedBfSgfFSjjCvYe8aYBS7EnU5GZ/YKMM=
 github.com/aws/aws-sdk-go-v2/service/s3control v1.69.0 h1:rJNPSXP9gjaHz+OCnmeYCpk28AJefgIHv52re9uHVok=

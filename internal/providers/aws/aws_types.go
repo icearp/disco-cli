@@ -945,6 +945,8 @@ const (
 	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
 	// SimSpaceWeaver (simspaceweaver_scanners.go)
 	TypeSimSpaceWeaverSimulation = "aws:sim-space-weaver:simulation"
+	// RUM (rum_scanners.go)
+	TypeRUMAppMonitor = "aws:rum:app-monitor"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

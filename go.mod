@@ -303,6 +303,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/oam v1.23.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/paymentcryptography v1.29.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.11.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/rum v1.30.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/simspaceweaver v1.19.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssmguiconnect v1.5.16 // indirect
