@@ -576,6 +576,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeLaunchWizardDeployment: "AWS::LaunchWizard::Deployment",
 		// KendraRanking — disco "kendra-ranking" segment vs CFN "KendraRanking".
 		TypeKendraRankingExecutionPlan: "AWS::KendraRanking::ExecutionPlan",
+		// IoTCoreDeviceAdvisor — disco "iot-core-device-advisor" segment vs CFN "IoTCoreDeviceAdvisor".
+		TypeIoTDeviceAdvisorSuiteDefinition: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition",
 	}
 }
 

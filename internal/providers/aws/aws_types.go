@@ -973,6 +973,8 @@ const (
 	TypeLaunchWizardDeployment = "aws:launch-wizard:deployment"
 	// KendraRanking (kendraranking_scanners.go)
 	TypeKendraRankingExecutionPlan = "aws:kendra-ranking:execution-plan"
+	// IoTCoreDeviceAdvisor (iotdeviceadvisor_scanners.go)
+	TypeIoTDeviceAdvisorSuiteDefinition = "aws:iot-core-device-advisor:suite-definition"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

@@ -344,6 +344,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 h1:ZlvrNcHSFFWUR
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21/go.mod h1:cv3TNhVrssKR0O/xxLJVRfd2oazSnZnkUeTf6ctUwfQ=
 github.com/aws/aws-sdk-go-v2/service/iot v1.72.8 h1:2RF7aiG3/OYCdPFrYDc6NPJJQiN2EJ0xnaut8XlfxQU=
 github.com/aws/aws-sdk-go-v2/service/iot v1.72.8/go.mod h1:9OGjPSOz2OZbObVfBcn110WPW/XZ1k6rSCpky8EvfHQ=
+github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.36.23 h1:T44W74R9qxT6gO/tlq7Pl/D500mMRnhawXpgQYDNtyg=
+github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.36.23/go.mod h1:DL7UXGST0rfuUV8XmEh2hQlZhL8NZzjSg8+6RCpRK9Y=
 github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15 h1:NxDCOf8KihjG2mUgaoEA2G1iRYMadZyX7omcBF+HGk0=
 github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15/go.mod h1:zp6baKuUtng8OPxbxACY/bIUzru0GW6FWLDopb5onJU=
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22 h1:OLOxV1nQLHcFCdvgEoVoAfzm8O0LokNYFWJ2Lrp6Q6M=

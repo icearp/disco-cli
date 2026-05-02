@@ -133,6 +133,7 @@ var expectedAWSServices = []string{
 	"aws:lookout-equipment",
 	"aws:launch-wizard",
 	"aws:kendra-ranking",
+	"aws:iot-core-device-advisor",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
