@@ -300,6 +300,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mpa v1.7.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/mwaa v1.39.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mwaaserverless v1.0.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/notificationscontacts v1.5.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/novaact v1.0.8 // indirect

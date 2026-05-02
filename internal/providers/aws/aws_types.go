@@ -963,6 +963,8 @@ const (
 	TypeNotificationsContactsEmailContact = "aws:notifications-contacts:email-contact"
 	// MWAAServerless (mwaaserverless_scanners.go)
 	TypeMWAAServerlessWorkflow = "aws:mwaa-serverless:workflow"
+	// MWAA (mwaa_scanners.go)
+	TypeMWAAEnvironment = "aws:mwaa:environment"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

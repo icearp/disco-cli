@@ -128,6 +128,7 @@ var expectedAWSServices = []string{
 	"aws:nova-act",
 	"aws:notifications-contacts",
 	"aws:mwaa-serverless",
+	"aws:mwaa",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
