@@ -184,6 +184,7 @@ var expectedAWSServices = []string{
 	"aws:panorama",
 	"aws:neptune-graph",
 	"aws:media-convert",
+	"aws:managed-blockchain",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

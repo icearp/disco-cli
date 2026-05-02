@@ -1254,6 +1254,10 @@ const (
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
 	TypePCSQueue            = "aws:pcs:queue"
+	// ManagedBlockchain (managedblockchain_scanners.go).
+	TypeManagedBlockchainAccessor = "aws:managed-blockchain:accessor"
+	TypeManagedBlockchainMember   = "aws:managed-blockchain:member"
+	TypeManagedBlockchainNode     = "aws:managed-blockchain:node"
 	// MediaConvert (mediaconvert_scanners.go).
 	TypeMediaConvertJobTemplate = "aws:media-convert:job-template"
 	TypeMediaConvertPreset      = "aws:media-convert:preset"
