@@ -18,6 +18,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "stepfunctions", DiscoType: TypeSFNStateMachine},
 			{Service: "stepfunctions", DiscoType: TypeSFNActivity},
+			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineAlias},
+			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineVersion},
 		},
 	})
 }
@@ -28,6 +30,8 @@ type sfnAPI interface {
 	ListStateMachines(context.Context, *sfn.ListStateMachinesInput, ...func(*sfn.Options)) (*sfn.ListStateMachinesOutput, error)
 	DescribeStateMachine(context.Context, *sfn.DescribeStateMachineInput, ...func(*sfn.Options)) (*sfn.DescribeStateMachineOutput, error)
 	ListActivities(context.Context, *sfn.ListActivitiesInput, ...func(*sfn.Options)) (*sfn.ListActivitiesOutput, error)
+	ListStateMachineAliases(context.Context, *sfn.ListStateMachineAliasesInput, ...func(*sfn.Options)) (*sfn.ListStateMachineAliasesOutput, error)
+	ListStateMachineVersions(context.Context, *sfn.ListStateMachineVersionsInput, ...func(*sfn.Options)) (*sfn.ListStateMachineVersionsOutput, error)
 }
 
 // scanSFN discovers Step Functions state machines and activities in one region.
@@ -35,7 +39,12 @@ type sfnAPI interface {
 // (state DAG) lands in attributes for resolvers.
 func scanSFN(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := sfn.NewFromConfig(acct.cfg, func(o *sfn.Options) { o.Region = region })
-	return scanSFNStateMachines(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanSFNStateMachines(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return t, i, ferr
+	}
+	t2, i2, ferr := scanSFNStateMachineAliasesAndVersions(ctx, client, acct, region, st, scanID)
+	return t + t2, i + i2, ferr
 }
 
 // scanSFNStateMachines holds the testable scan body.
