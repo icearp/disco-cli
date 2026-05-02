@@ -28,9 +28,10 @@ func init() {
 		name: "aws:macie",
 		fn:   scanMacie,
 		emits: []coverage.TypeDecl{
-			// Macie session is a per-(account,region) singleton config — no
-			// CloudFormation type. Synthetic NativeID; treat as disco-only.
-			{Service: "macie", DiscoType: TypeMacieSession, Synthetic: true},
+			// Macie session is a per-(account,region) singleton config that
+			// CloudFormation does model as AWS::Macie::Session (per-region
+			// enablement); synth NativeID since the API exposes no ARN.
+			{Service: "macie", DiscoType: TypeMacieSession},
 			{Service: "macie", DiscoType: TypeMacieClassificationJob},
 			{Service: "macie", DiscoType: TypeMacieAllowList},
 			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier},
