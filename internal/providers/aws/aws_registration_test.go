@@ -140,6 +140,7 @@ var expectedAWSServices = []string{
 	"aws:health-lake",
 	"aws:health-imaging",
 	"aws:grafana",
+	"aws:fin-space",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

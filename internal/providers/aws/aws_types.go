@@ -989,6 +989,8 @@ const (
 	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
 	// Grafana (grafana_scanners.go)
 	TypeGrafanaWorkspace = "aws:grafana:workspace"
+	// FinSpace (finspace_scanners.go)
+	TypeFinSpaceEnvironment = "aws:fin-space:environment"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

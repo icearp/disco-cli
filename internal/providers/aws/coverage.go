@@ -584,6 +584,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeHealthLakeFHIRDatastore: "AWS::HealthLake::FHIRDatastore",
 		// HealthImaging — disco "health-imaging" segment vs CFN "HealthImaging".
 		TypeHealthImagingDatastore: "AWS::HealthImaging::Datastore",
+		// FinSpace — disco "fin-space" segment vs CFN "FinSpace".
+		TypeFinSpaceEnvironment: "AWS::FinSpace::Environment",
 	}
 }
 

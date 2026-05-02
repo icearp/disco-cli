@@ -1,0 +1,59 @@
+package aws
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/aws/aws-sdk-go-v2/service/finspace"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "aws:fin-space",
+		fn:   scanFinSpace,
+		emits: []coverage.TypeDecl{
+			{Service: "fin-space", DiscoType: TypeFinSpaceEnvironment},
+		},
+	})
+}
+
+type finSpaceAPI interface {
+	ListEnvironments(context.Context, *finspace.ListEnvironmentsInput, ...func(*finspace.Options)) (*finspace.ListEnvironmentsOutput, error)
+}
+
+// scanFinSpace discovers FinSpace environments.
+func scanFinSpace(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	client := finspace.NewFromConfig(acct.cfg, func(o *finspace.Options) { o.Region = region })
+
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListEnvironments(ctx, &finspace.ListEnvironmentsInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "finspace:ListEnvironments", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("finspace:ListEnvironments: %w", err)
+		}
+		for _, e := range out.Environments {
+			arn := sv(e.EnvironmentArn)
+			if arn == "" {
+				continue
+			}
+			status := string(e.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeFinSpaceEnvironment, NativeID: arn,
+				Name: e.Name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "fin-space environments")
+}
