@@ -228,6 +228,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig v1.32.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.26.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3files v1.0.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3outposts v1.34.14 // indirect

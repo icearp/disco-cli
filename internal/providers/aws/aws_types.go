@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Route53RecoveryControl (route53recoverycontrol_scanners.go).
+	TypeR53RCCluster        = "aws:route53-recovery-control:cluster"
+	TypeR53RCControlPanel   = "aws:route53-recovery-control:control-panel"
+	TypeR53RCRoutingControl = "aws:route53-recovery-control:routing-control"
+	TypeR53RCSafetyRule     = "aws:route53-recovery-control:safety-rule"
 	// Route53RecoveryReadiness (route53recoveryreadiness_scanners.go).
 	TypeR53RRCell           = "aws:route53-recovery-readiness:cell"
 	TypeR53RRReadinessCheck = "aws:route53-recovery-readiness:readiness-check"
