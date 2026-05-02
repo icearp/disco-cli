@@ -981,6 +981,8 @@ const (
 	TypeInternetMonitorMonitor = "aws:internet-monitor:monitor"
 	// Interconnect (interconnect_scanners.go)
 	TypeInterconnectConnection = "aws:interconnect:connection"
+	// IdentityStore extras
+	TypeIdentityStoreGroupMembership = "aws:identitystore:group-membership"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

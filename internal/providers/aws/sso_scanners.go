@@ -32,6 +32,7 @@ func init() {
 			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreUser},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup},
+			{Service: "identitystore", DiscoType: TypeIdentityStoreGroupMembership},
 		},
 	})
 }
@@ -54,6 +55,7 @@ type ssoadminAPI interface {
 type identitystoreAPI interface {
 	ListUsers(context.Context, *identitystore.ListUsersInput, ...func(*identitystore.Options)) (*identitystore.ListUsersOutput, error)
 	ListGroups(context.Context, *identitystore.ListGroupsInput, ...func(*identitystore.Options)) (*identitystore.ListGroupsOutput, error)
+	ListGroupMemberships(context.Context, *identitystore.ListGroupMembershipsInput, ...func(*identitystore.Options)) (*identitystore.ListGroupMembershipsOutput, error)
 }
 
 // scanSSOAdmin discovers IAM Identity Center (SSO) instances, permission
@@ -404,8 +406,78 @@ func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, 
 			total += t
 			inserted += i
 		}
+		{
+			t, i, ferr := scanIdentityStoreGroupMemberships(ctx, client, acct, region, identityStoreID, ownerAccountID, st, scanID)
+			if ferr != nil {
+				return total, inserted, ferr
+			}
+			total += t
+			inserted += i
+		}
 	}
 	return total, inserted, nil
+}
+
+// scanIdentityStoreGroupMemberships discovers per-group user memberships.
+// Synth ARN: arn:aws:identitystore::{ownerAccount}:membership/{identityStoreId}/{membershipId}.
+func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
+	groupPager := identitystore.NewListGroupsPaginator(client, &identitystore.ListGroupsInput{IdentityStoreId: &identityStoreID})
+	var groupIDs []string
+	for groupPager.HasMorePages() {
+		out, perr := groupPager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "identitystore:ListGroups(memberships)", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("identitystore:ListGroups(memberships): %w", perr)
+		}
+		for _, g := range out.Groups {
+			if g.GroupId != nil {
+				groupIDs = append(groupIDs, *g.GroupId)
+			}
+		}
+	}
+	var batch []*store.Resource
+	for _, gid := range groupIDs {
+		groupID := gid
+		mpager := identitystore.NewListGroupMembershipsPaginator(client, &identitystore.ListGroupMembershipsInput{
+			IdentityStoreId: &identityStoreID,
+			GroupId:         &groupID,
+		})
+		for mpager.HasMorePages() {
+			out, perr := mpager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "identitystore:ListGroupMemberships", acct.ID, region, perr)
+					break
+				}
+				return 0, 0, fmt.Errorf("identitystore:ListGroupMemberships g=%s: %w", groupID, perr)
+			}
+			for _, m := range out.GroupMemberships {
+				mid := sv(m.MembershipId)
+				if mid == "" {
+					continue
+				}
+				arn := fmt.Sprintf("arn:aws:identitystore::%s:membership/%s/%s", ownerAccountID, identityStoreID, mid)
+				label := mid
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeIdentityStoreGroupMembership, NativeID: arn,
+					Name: &label, Region: &region,
+					AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	n, uerr := st.UpsertResources(batch)
+	if uerr != nil {
+		return 0, 0, fmt.Errorf("upsert identitystore group-memberships: %w", uerr)
+	}
+	return len(batch), n, nil
 }
 
 func scanIdentityStoreUsers(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
