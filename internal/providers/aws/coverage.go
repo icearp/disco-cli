@@ -522,6 +522,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// PCAConnectorSCEP — disco "pca-connector-scep" segment vs CFN "PCAConnectorSCEP".
 		TypePCAConnectorSCEPConnector: "AWS::PCAConnectorSCEP::Connector",
 		TypePCAConnectorSCEPChallenge: "AWS::PCAConnectorSCEP::Challenge",
+		// PaymentCryptography — disco "payment-cryptography" segment vs CFN "PaymentCryptography".
+		TypePaymentCryptographyKey:   "AWS::PaymentCryptography::Key",
+		TypePaymentCryptographyAlias: "AWS::PaymentCryptography::Alias",
 	}
 }
 

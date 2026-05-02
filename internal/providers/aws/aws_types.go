@@ -887,6 +887,9 @@ const (
 	// PCAConnectorSCEP (pcaconnectorscep_scanners.go)
 	TypePCAConnectorSCEPConnector = "aws:pca-connector-scep:connector"
 	TypePCAConnectorSCEPChallenge = "aws:pca-connector-scep:challenge"
+	// PaymentCryptography (paymentcryptography_scanners.go)
+	TypePaymentCryptographyKey   = "aws:payment-cryptography:key"
+	TypePaymentCryptographyAlias = "aws:payment-cryptography:alias"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

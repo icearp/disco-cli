@@ -103,6 +103,7 @@ var expectedAWSServices = []string{
 	"aws:resilience-hub",
 	"aws:ram",
 	"aws:pca-connector-scep",
+	"aws:payment-cryptography",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
