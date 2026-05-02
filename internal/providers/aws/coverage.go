@@ -580,6 +580,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeIoTDeviceAdvisorSuiteDefinition: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition",
 		// InternetMonitor — disco "internet-monitor" segment vs CFN "InternetMonitor".
 		TypeInternetMonitorMonitor: "AWS::InternetMonitor::Monitor",
+		// HealthLake — disco "health-lake" segment vs CFN "HealthLake".
+		TypeHealthLakeFHIRDatastore: "AWS::HealthLake::FHIRDatastore",
 	}
 }
 
