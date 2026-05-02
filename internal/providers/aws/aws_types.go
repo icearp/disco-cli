@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// SecurityAgent (securityagent_scanners.go).
+	TypeSecurityAgentAgentSpace   = "aws:security-agent:agent-space"
+	TypeSecurityAgentApplication  = "aws:security-agent:application"
+	TypeSecurityAgentPentest      = "aws:security-agent:pentest"
+	TypeSecurityAgentTargetDomain = "aws:security-agent:target-domain"
 	// SecurityLake (securitylake_scanners.go).
 	TypeSecurityLakeAwsLogSource = "aws:security-lake:aws-log-source"
 	TypeSecurityLakeDataLake     = "aws:security-lake:data-lake"
