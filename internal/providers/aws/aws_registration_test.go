@@ -150,6 +150,7 @@ var expectedAWSServices = []string{
 	"aws:cases",
 	"aws:xray",
 	"aws:verifiedpermissions",
+	"aws:ssm-contacts",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

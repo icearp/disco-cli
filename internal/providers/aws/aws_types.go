@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// SSMContacts (ssmcontacts_scanners.go).
+	TypeSSMContactsContact        = "aws:ssm-contacts:contact"
+	TypeSSMContactsContactChannel = "aws:ssm-contacts:contact-channel"
+	TypeSSMContactsPlan           = "aws:ssm-contacts:plan"
+	TypeSSMContactsRotation       = "aws:ssm-contacts:rotation"
 	// VerifiedPermissions (verifiedpermissions_scanners.go).
 	TypeVerifiedPermissionsIdentitySource = "aws:verifiedpermissions:identity-source"
 	TypeVerifiedPermissionsPolicy         = "aws:verifiedpermissions:policy"
