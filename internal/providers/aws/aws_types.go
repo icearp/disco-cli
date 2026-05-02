@@ -1216,6 +1216,10 @@ const (
 	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
 	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
 	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
+	// DevOpsAgent (devopsagent_scanners.go).
+	TypeDevOpsAgentAgentSpace  = "aws:dev-ops-agent:agent-space"
+	TypeDevOpsAgentAssociation = "aws:dev-ops-agent:association"
+	TypeDevOpsAgentService     = "aws:dev-ops-agent:service"
 	// EventSchemas (eventschemas_scanners.go); SDK module is "schemas".
 	TypeEventSchemasDiscoverer     = "aws:event-schemas:discoverer"
 	TypeEventSchemasRegistry       = "aws:event-schemas:registry"
