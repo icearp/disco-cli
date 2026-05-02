@@ -860,6 +860,9 @@ const (
 	TypeSFNStateMachineVersion = "aws:stepfunctions:state-machine-version"
 	// SSMQuickSetup (ssmquicksetup_scanners.go)
 	TypeSSMQuickSetupConfigurationManager = "aws:ssm-quick-setup:configuration-manager"
+	// SSMIncidents (ssmincidents_scanners.go)
+	TypeSSMIncidentsReplicationSet = "aws:ssm-incidents:replication-set"
+	TypeSSMIncidentsResponsePlan   = "aws:ssm-incidents:response-plan"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
