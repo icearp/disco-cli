@@ -540,6 +540,12 @@ func (coverageProvider) Aliases() map[string]string {
 		// GreengrassV2 — disco "greengrass-v2" segment vs CFN "GreengrassV2".
 		TypeGreengrassV2ComponentVersion: "AWS::GreengrassV2::ComponentVersion",
 		TypeGreengrassV2Deployment:       "AWS::GreengrassV2::Deployment",
+		// EMR — disco "emr:instance-fleet" vs CFN "InstanceFleetConfig"; "instance-group" vs "InstanceGroupConfig".
+		TypeEMRInstanceFleet: "AWS::EMR::InstanceFleetConfig",
+		TypeEMRInstanceGroup: "AWS::EMR::InstanceGroupConfig",
+		// DirectoryService — disco "directory-service" segment vs CFN "DirectoryService".
+		TypeDSMicrosoftAD: "AWS::DirectoryService::MicrosoftAD",
+		TypeDSSimpleAD:    "AWS::DirectoryService::SimpleAD",
 	}
 }
 

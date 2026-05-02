@@ -922,6 +922,9 @@ const (
 	// FIS (fis_scanners.go)
 	TypeFISExperimentTemplate         = "aws:fis:experiment-template"
 	TypeFISTargetAccountConfiguration = "aws:fis:target-account-configuration"
+	// DirectoryService (directoryservice_scanners.go)
+	TypeDSMicrosoftAD = "aws:directory-service:microsoft-ad"
+	TypeDSSimpleAD    = "aws:directory-service:simple-ad"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

@@ -112,6 +112,7 @@ var expectedAWSServices = []string{
 	"aws:greengrass-v2",
 	"aws:forecast",
 	"aws:fis",
+	"aws:directory-service",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
