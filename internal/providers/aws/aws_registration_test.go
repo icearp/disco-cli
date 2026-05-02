@@ -141,6 +141,7 @@ var expectedAWSServices = []string{
 	"aws:health-imaging",
 	"aws:grafana",
 	"aws:fin-space",
+	"aws:evs",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

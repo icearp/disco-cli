@@ -298,6 +298,8 @@ github.com/aws/aws-sdk-go-v2/service/entityresolution v1.27.0 h1:MawXvXzeUzjaypy
 github.com/aws/aws-sdk-go-v2/service/entityresolution v1.27.0/go.mod h1:UWBpWtHZCtHELd9FLOui+Y+GAfRwjFi6lavMkKvzm9Q=
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.24 h1:RNZw+bUt/XamP/xYXKcNGdAzCKUO1hPl62Z8LEWTxzY=
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.24/go.mod h1:nTvm6jvJ5iqT+36oA7aW8SkzcncwDmiv29No3VNuuiQ=
+github.com/aws/aws-sdk-go-v2/service/evs v1.8.1 h1:AKAI7NIjK4O114NhfVHni8WznrshXJM3q96Yc1let4k=
+github.com/aws/aws-sdk-go-v2/service/evs v1.8.1/go.mod h1:CfV+SikA+gkA31MfLmMIo+1dN3+qNkKBjtQ/XSjipiY=
 github.com/aws/aws-sdk-go-v2/service/finspace v1.33.23 h1:82NyfnpmHfHzhedQ3hMRti2BUlWFR6Tpf5h5gtGjC8I=
 github.com/aws/aws-sdk-go-v2/service/finspace v1.33.23/go.mod h1:4BIGPIjoKsxB3CGsaJ3+uLn6zn2j6Uu3xQEcXMGz+C8=
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14 h1:sHXyginrCoA3WaOkHIyaesZ21xzdZfZh45JAJ+iC+Hs=

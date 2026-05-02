@@ -991,6 +991,8 @@ const (
 	TypeGrafanaWorkspace = "aws:grafana:workspace"
 	// FinSpace (finspace_scanners.go)
 	TypeFinSpaceEnvironment = "aws:fin-space:environment"
+	// EVS (evs_scanners.go)
+	TypeEVSEnvironment = "aws:evs:environment"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
