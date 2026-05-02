@@ -34,6 +34,7 @@ func init() {
 			{Service: "macie", DiscoType: TypeMacieClassificationJob},
 			{Service: "macie", DiscoType: TypeMacieAllowList},
 			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier},
+			{Service: "macie", DiscoType: TypeMacieFindingsFilter},
 		},
 	})
 }
@@ -48,6 +49,7 @@ type macie2API interface {
 	GetCustomDataIdentifier(context.Context, *macie2.GetCustomDataIdentifierInput, ...func(*macie2.Options)) (*macie2.GetCustomDataIdentifierOutput, error)
 	ListAllowLists(context.Context, *macie2.ListAllowListsInput, ...func(*macie2.Options)) (*macie2.ListAllowListsOutput, error)
 	GetAllowList(context.Context, *macie2.GetAllowListInput, ...func(*macie2.Options)) (*macie2.GetAllowListOutput, error)
+	ListFindingsFilters(context.Context, *macie2.ListFindingsFiltersInput, ...func(*macie2.Options)) (*macie2.ListFindingsFiltersOutput, error)
 }
 
 // scanMacie discovers Macie session config, classification jobs, custom data
@@ -97,6 +99,16 @@ func scanMacie(ctx context.Context, acct *account, region string, st *store.Stor
 	// Phase 4: allow lists.
 	{
 		t, i, ferr := scanMacieAllowLists(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Phase 5: findings filters.
+	{
+		t, i, ferr := scanMacieFindingsFilters(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

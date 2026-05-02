@@ -896,6 +896,8 @@ const (
 	// MPA (mpa_scanners.go)
 	TypeMPAApprovalTeam   = "aws:mpa:approval-team"
 	TypeMPAIdentitySource = "aws:mpa:identity-source"
+	// Macie extras (macie_extended_scanners.go)
+	TypeMacieFindingsFilter = "aws:macie:findings-filter"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
