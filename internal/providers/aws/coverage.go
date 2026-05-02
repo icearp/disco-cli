@@ -604,6 +604,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeConnectCampaignsV2Campaign: "AWS::ConnectCampaignsV2::Campaign",
 		// ConnectCampaigns — disco "connect-campaigns" segment vs CFN "ConnectCampaigns".
 		TypeConnectCampaignsCampaign: "AWS::ConnectCampaigns::Campaign",
+		// CodeStarNotifications — disco "codestar-notifications" segment vs CFN "CodeStarNotifications".
+		TypeCodeStarNotificationsNotificationRule: "AWS::CodeStarNotifications::NotificationRule",
 	}
 }
 

@@ -150,6 +150,7 @@ var expectedAWSServices = []string{
 	"aws:cur",
 	"aws:connect-campaigns-v2",
 	"aws:connect-campaigns",
+	"aws:codestar-notifications",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
