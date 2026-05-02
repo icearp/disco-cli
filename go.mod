@@ -318,6 +318,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/kendraranking v1.15.27 // indirect
 	github.com/aws/aws-sdk-go-v2/service/launchwizard v1.14.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lookoutequipment v1.36.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect

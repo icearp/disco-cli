@@ -971,6 +971,8 @@ const (
 	TypeLookoutEquipmentInferenceScheduler = "aws:lookout-equipment:inference-scheduler"
 	// LaunchWizard (launchwizard_scanners.go)
 	TypeLaunchWizardDeployment = "aws:launch-wizard:deployment"
+	// KendraRanking (kendraranking_scanners.go)
+	TypeKendraRankingExecutionPlan = "aws:kendra-ranking:execution-plan"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

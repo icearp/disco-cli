@@ -574,6 +574,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeLookoutEquipmentInferenceScheduler: "AWS::LookoutEquipment::InferenceScheduler",
 		// LaunchWizard — disco "launch-wizard" segment vs CFN "LaunchWizard".
 		TypeLaunchWizardDeployment: "AWS::LaunchWizard::Deployment",
+		// KendraRanking — disco "kendra-ranking" segment vs CFN "KendraRanking".
+		TypeKendraRankingExecutionPlan: "AWS::KendraRanking::ExecutionPlan",
 	}
 }
 

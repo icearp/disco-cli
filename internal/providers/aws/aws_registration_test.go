@@ -132,6 +132,7 @@ var expectedAWSServices = []string{
 	"aws:media-store",
 	"aws:lookout-equipment",
 	"aws:launch-wizard",
+	"aws:kendra-ranking",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
