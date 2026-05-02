@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// MediaTailor (mediatailor_scanners.go).
+	TypeMediaTailorChannel               = "aws:mediatailor:channel"
+	TypeMediaTailorChannelPolicy         = "aws:mediatailor:channel-policy"
+	TypeMediaTailorLiveSource            = "aws:mediatailor:live-source"
+	TypeMediaTailorPlaybackConfiguration = "aws:mediatailor:playback-configuration"
+	TypeMediaTailorSourceLocation        = "aws:mediatailor:source-location"
+	TypeMediaTailorVodSource             = "aws:mediatailor:vod-source"
 	// MemoryDB (memorydb_scanners.go).
 	TypeMemoryDBACL                = "aws:memorydb:acl"
 	TypeMemoryDBCluster            = "aws:memorydb:cluster"

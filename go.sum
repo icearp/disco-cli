@@ -322,6 +322,8 @@ github.com/aws/aws-sdk-go-v2/service/mediaconnect v1.48.2 h1:iT5xhOziO0Lm6mRgaoX
 github.com/aws/aws-sdk-go-v2/service/mediaconnect v1.48.2/go.mod h1:LcKdUwEuIHXayPjypC3VXZoPp8kNkxHAil8OdLJF0jk=
 github.com/aws/aws-sdk-go-v2/service/medialive v1.95.2 h1:u/1XgpywSl//ZMu0QAPFsZGWoDiBZv3+5qieq+vH83Q=
 github.com/aws/aws-sdk-go-v2/service/medialive v1.95.2/go.mod h1:YtEXuL0GNGkAeeFSs2wT/KTnaqykXJ52d+4MefPwJKg=
+github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2 h1:LE3qVc8rZ40Dimit60IwYFESOjUYW7q4Vq+xFvjFuek=
+github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2/go.mod h1:vYxDw6nIW7MEWJIZBiw8m+RMz7Q6i0VjL5YXoI6F6TY=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16 h1:sFFA8VBMMksHbFaV689agmYNnKeP162vtYg+4U/Orks=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16/go.mod h1:Iv+M4ZOQuUzzM7MeyFi/qBZRejA9vi689eZ//Zdxbac=
 github.com/aws/aws-sdk-go-v2/service/mq v1.34.21 h1:yWG4RLTuQr2T7BhHqAS/2pclPmwhozRU5mHrDuuwPiA=
