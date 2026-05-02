@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// Timestream (timestream_scanners.go); spans timestreamwrite,
+	// timestreamquery, and timestreaminfluxdb SDKs.
+	TypeTimestreamDatabase         = "aws:timestream:database"
+	TypeTimestreamInfluxDBCluster  = "aws:timestream:influx-db-cluster"
+	TypeTimestreamInfluxDBInstance = "aws:timestream:influx-db-instance"
+	TypeTimestreamScheduledQuery   = "aws:timestream:scheduled-query"
+	TypeTimestreamTable            = "aws:timestream:table"
 	// DataBrew (databrew_scanners.go).
 	TypeDataBrewDataset  = "aws:databrew:dataset"
 	TypeDataBrewJob      = "aws:databrew:job"
