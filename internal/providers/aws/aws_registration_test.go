@@ -134,6 +134,7 @@ var expectedAWSServices = []string{
 	"aws:launch-wizard",
 	"aws:kendra-ranking",
 	"aws:iot-core-device-advisor",
+	"aws:invoicing",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
