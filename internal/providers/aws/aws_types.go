@@ -852,6 +852,9 @@ const (
 	TypeAmplifyUIBuilderComponent = "aws:amplify-ui-builder:component"
 	TypeAmplifyUIBuilderForm      = "aws:amplify-ui-builder:form"
 	TypeAmplifyUIBuilderTheme     = "aws:amplify-ui-builder:theme"
+	// Synthetics (synthetics_scanners.go)
+	TypeSyntheticsCanary = "aws:synthetics:canary"
+	TypeSyntheticsGroup  = "aws:synthetics:group"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

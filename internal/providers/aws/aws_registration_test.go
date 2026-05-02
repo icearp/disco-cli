@@ -94,6 +94,7 @@ var expectedAWSServices = []string{
 	"aws:ce",
 	"aws:cassandra",
 	"aws:amplify-ui-builder",
+	"aws:synthetics",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
