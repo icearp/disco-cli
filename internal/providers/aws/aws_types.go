@@ -999,6 +999,8 @@ const (
 	TypeElementalInferenceFeed = "aws:elemental-inference:feed"
 	// DSQL (dsql_scanners.go)
 	TypeDSQLCluster = "aws:dsql:cluster"
+	// DocDBElastic (docdbelastic_scanners.go)
+	TypeDocDBElasticCluster = "aws:doc-db-elastic:cluster"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

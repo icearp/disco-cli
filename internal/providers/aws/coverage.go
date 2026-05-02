@@ -594,6 +594,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeElementalInferenceFeed: "AWS::ElementalInference::Feed",
 		// DSQL — disco "dsql" segment vs CFN "DSQL".
 		TypeDSQLCluster: "AWS::DSQL::Cluster",
+		// DocDBElastic — disco "doc-db-elastic" segment vs CFN "DocDBElastic".
+		TypeDocDBElasticCluster: "AWS::DocDBElastic::Cluster",
 	}
 }
 
