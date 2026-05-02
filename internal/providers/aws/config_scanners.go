@@ -17,6 +17,13 @@ func init() {
 			{Service: "config", DiscoType: TypeConfigRule},
 			{Service: "config", DiscoType: TypeConfigRecorder},
 			{Service: "config", DiscoType: TypeConfigDeliveryChannel},
+			{Service: "config", DiscoType: TypeConfigAggregationAuthorization},
+			{Service: "config", DiscoType: TypeConfigConfigurationAggregator},
+			{Service: "config", DiscoType: TypeConfigConformancePack},
+			{Service: "config", DiscoType: TypeConfigOrganizationConfigRule},
+			{Service: "config", DiscoType: TypeConfigOrganizationConformancePack},
+			{Service: "config", DiscoType: TypeConfigRemediationConfiguration},
+			{Service: "config", DiscoType: TypeConfigStoredQuery},
 		},
 	})
 }
@@ -27,6 +34,13 @@ type configserviceAPI interface {
 	DescribeConfigurationRecorders(context.Context, *configservice.DescribeConfigurationRecordersInput, ...func(*configservice.Options)) (*configservice.DescribeConfigurationRecordersOutput, error)
 	DescribeDeliveryChannels(context.Context, *configservice.DescribeDeliveryChannelsInput, ...func(*configservice.Options)) (*configservice.DescribeDeliveryChannelsOutput, error)
 	DescribeConfigRules(context.Context, *configservice.DescribeConfigRulesInput, ...func(*configservice.Options)) (*configservice.DescribeConfigRulesOutput, error)
+	DescribeAggregationAuthorizations(context.Context, *configservice.DescribeAggregationAuthorizationsInput, ...func(*configservice.Options)) (*configservice.DescribeAggregationAuthorizationsOutput, error)
+	DescribeConfigurationAggregators(context.Context, *configservice.DescribeConfigurationAggregatorsInput, ...func(*configservice.Options)) (*configservice.DescribeConfigurationAggregatorsOutput, error)
+	DescribeConformancePacks(context.Context, *configservice.DescribeConformancePacksInput, ...func(*configservice.Options)) (*configservice.DescribeConformancePacksOutput, error)
+	DescribeOrganizationConfigRules(context.Context, *configservice.DescribeOrganizationConfigRulesInput, ...func(*configservice.Options)) (*configservice.DescribeOrganizationConfigRulesOutput, error)
+	DescribeOrganizationConformancePacks(context.Context, *configservice.DescribeOrganizationConformancePacksInput, ...func(*configservice.Options)) (*configservice.DescribeOrganizationConformancePacksOutput, error)
+	DescribeRemediationConfigurations(context.Context, *configservice.DescribeRemediationConfigurationsInput, ...func(*configservice.Options)) (*configservice.DescribeRemediationConfigurationsOutput, error)
+	ListStoredQueries(context.Context, *configservice.ListStoredQueriesInput, ...func(*configservice.Options)) (*configservice.ListStoredQueriesOutput, error)
 }
 
 // scanConfig discovers AWS Config configuration recorders, delivery channels,
@@ -34,7 +48,19 @@ type configserviceAPI interface {
 // (Describe APIs return them without one); rules carry ConfigRuleArn natively.
 func scanConfig(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := configservice.NewFromConfig(acct.cfg, func(o *configservice.Options) { o.Region = region })
-	return scanConfigAll(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanConfigAll(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanConfigExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanConfigAll holds the testable scan body.
