@@ -129,6 +129,7 @@ var expectedAWSServices = []string{
 	"aws:notifications-contacts",
 	"aws:mwaa-serverless",
 	"aws:mwaa",
+	"aws:media-store",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

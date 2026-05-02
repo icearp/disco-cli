@@ -568,6 +568,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeNotificationsContactsEmailContact: "AWS::NotificationsContacts::EmailContact",
 		// MWAAServerless — disco "mwaa-serverless" segment vs CFN "MWAAServerless".
 		TypeMWAAServerlessWorkflow: "AWS::MWAAServerless::Workflow",
+		// MediaStore — disco "media-store" segment vs CFN "MediaStore".
+		TypeMediaStoreContainer: "AWS::MediaStore::Container",
 	}
 }
 
