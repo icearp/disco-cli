@@ -144,6 +144,7 @@ var expectedAWSServices = []string{
 	"aws:pca-connector-ad",
 	"aws:odb",
 	"aws:mediapackagev2",
+	"aws:mediapackage",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

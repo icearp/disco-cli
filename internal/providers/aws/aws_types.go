@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// MediaPackage (mediapackage_scanners.go); spans mediapackage (v1)
+	// + mediapackagevod SDKs.
+	TypeMediaPackageAsset                  = "aws:mediapackage:asset"
+	TypeMediaPackageChannel                = "aws:mediapackage:channel"
+	TypeMediaPackageOriginEndpoint         = "aws:mediapackage:origin-endpoint"
+	TypeMediaPackagePackagingConfiguration = "aws:mediapackage:packaging-configuration"
+	TypeMediaPackagePackagingGroup         = "aws:mediapackage:packaging-group"
 	// MediaPackageV2 (mediapackagev2_scanners.go).
 	TypeMediaPackageV2Channel              = "aws:mediapackagev2:channel"
 	TypeMediaPackageV2ChannelGroup         = "aws:mediapackagev2:channel-group"
