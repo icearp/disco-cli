@@ -1243,6 +1243,10 @@ const (
 	TypeS3ExpressAccessPoint     = "aws:s3express:access-point"
 	TypeS3ExpressBucketPolicy    = "aws:s3express:bucket-policy"
 	TypeS3ExpressDirectoryBucket = "aws:s3express:directory-bucket"
+	// RolesAnywhere (rolesanywhere_scanners.go).
+	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
+	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"
+	TypeRolesAnywhereTrustAnchor = "aws:roles-anywhere:trust-anchor"
 	// Route53Profiles (route53profiles_scanners.go).
 	TypeRoute53ProfilesProfile                    = "aws:route53-profiles:profile"
 	TypeRoute53ProfilesProfileAssociation         = "aws:route53-profiles:profile-association"
