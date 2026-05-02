@@ -382,6 +382,8 @@ github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2 h1:2TDersSNowBwSRTrnD
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2/go.mod h1:UMm4MKZDJMbuJZF5QOJBsVRMLeKiEXAgCXFpocWPDFo=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23 h1:CtTEAf/iYhq8G9KLBJH0T3GOZQ6/Ejjt0+J66jdSfKk=
 github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23/go.mod h1:rHRclwfqAZZNIE/8KCVZomUOeLyuUd8jdU9a5Z4NQX4=
+github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4 h1:sTErG/5KtqR5fvYSdkLHmagNuR8bhbNyVmVea2LYYEo=
+github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4/go.mod h1:2OGJaB8B0hHY3ZsIYzEevlMjLpWJCbHcBQJbNi5NGWw=
 github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9 h1:A4IEYxMDsn9a6zRyJFu1EBBNrHbgpHvCwbvZDNIHMuA=
 github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9/go.mod h1:cQVq7iT9bPeu3A3H1+olyenwR7Z6ofzpmRFwSrwggh0=
 github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23 h1:YEwsIfiIhbD4eVaM8GmvFAb5w3MBtNka6lWNBQAEEuc=

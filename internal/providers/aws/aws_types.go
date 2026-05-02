@@ -1247,6 +1247,10 @@ const (
 	TypeResourceExplorer2DefaultViewAssociation = "aws:resource-explorer-2:default-view-association"
 	TypeResourceExplorer2Index                  = "aws:resource-explorer-2:index"
 	TypeResourceExplorer2View                   = "aws:resource-explorer-2:view"
+	// PCS (pcs_scanners.go). AWS Parallel Computing Service.
+	TypePCSCluster          = "aws:pcs:cluster"
+	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
+	TypePCSQueue            = "aws:pcs:queue"
 	// Proton (proton_scanners.go).
 	TypeProtonEnvironmentAccountConnection = "aws:proton:environment-account-connection"
 	TypeProtonEnvironmentTemplate          = "aws:proton:environment-template"
