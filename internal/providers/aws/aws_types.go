@@ -1254,6 +1254,10 @@ const (
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
 	TypePCSQueue            = "aws:pcs:queue"
+	// NeptuneGraph (neptunegraph_scanners.go).
+	TypeNeptuneGraphGraph                = "aws:neptune-graph:graph"
+	TypeNeptuneGraphGraphSnapshot        = "aws:neptune-graph:graph-snapshot"
+	TypeNeptuneGraphPrivateGraphEndpoint = "aws:neptune-graph:private-graph-endpoint"
 	// Panorama (panorama_scanners.go).
 	TypePanoramaApplicationInstance = "aws:panorama:application-instance"
 	TypePanoramaPackage             = "aws:panorama:package"

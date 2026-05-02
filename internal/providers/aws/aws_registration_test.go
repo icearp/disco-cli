@@ -182,6 +182,7 @@ var expectedAWSServices = []string{
 	"aws:proton",
 	"aws:pcs",
 	"aws:panorama",
+	"aws:neptune-graph",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
