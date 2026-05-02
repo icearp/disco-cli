@@ -90,6 +90,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.62.2
 	github.com/aws/aws-sdk-go-v2/service/connect v1.172.1
+	github.com/aws/aws-sdk-go-v2/service/connectcases v1.40.2
 	github.com/aws/aws-sdk-go-v2/service/controltower v1.28.10
 	github.com/aws/aws-sdk-go-v2/service/customerprofiles v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.62.2
@@ -112,6 +113,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.33.23
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.54.10
 	github.com/aws/aws-sdk-go-v2/service/emr v1.59.2
+	github.com/aws/aws-sdk-go-v2/service/entityresolution v1.27.0
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.24
 	github.com/aws/aws-sdk-go-v2/service/firehose v1.42.14
 	github.com/aws/aws-sdk-go-v2/service/frauddetector v1.41.14
@@ -133,9 +135,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ivsrealtime v1.34.2
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
+	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.37.2
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.8
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.88.5
+	github.com/aws/aws-sdk-go-v2/service/lexmodelsv2 v1.60.4
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2
 	github.com/aws/aws-sdk-go-v2/service/location v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.1
@@ -147,6 +151,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/mediapackagevod v1.39.23
 	github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16
+	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.25.23
 	github.com/aws/aws-sdk-go-v2/service/mq v1.34.21
 	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.4
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.60.0
@@ -159,7 +164,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.2
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorad v1.15.23
+	github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23
+	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17
 	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.28.2
 	github.com/aws/aws-sdk-go-v2/service/qbusiness v1.34.8
 	github.com/aws/aws-sdk-go-v2/service/qconnect v1.30.0
@@ -168,15 +175,22 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.62.6
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.62.5
 	github.com/aws/aws-sdk-go-v2/service/route53globalresolver v1.2.0
+	github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig v1.32.16
+	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.26.23
 	github.com/aws/aws-sdk-go-v2/service/route53resolver v1.42.7
 	github.com/aws/aws-sdk-go-v2/service/rtbfabric v1.4.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0
 	github.com/aws/aws-sdk-go-v2/service/s3control v1.69.0
+	github.com/aws/aws-sdk-go-v2/service/s3files v1.0.2
+	github.com/aws/aws-sdk-go-v2/service/s3outposts v1.34.14
 	github.com/aws/aws-sdk-go-v2/service/s3tables v1.15.2
 	github.com/aws/aws-sdk-go-v2/service/sagemaker v1.244.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
+	github.com/aws/aws-sdk-go-v2/service/securityagent v1.0.2
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.69.1
+	github.com/aws/aws-sdk-go-v2/service/securitylake v1.25.15
 	github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.13
+	github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry v1.35.23
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.28
 	github.com/aws/aws-sdk-go-v2/service/ses v1.34.24
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.60.3
@@ -185,15 +199,18 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.15
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
+	github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.31.16
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.37.7
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10
 	github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb v1.19.2
 	github.com/aws/aws-sdk-go-v2/service/timestreamquery v1.36.16
 	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.22
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.32.3
 	github.com/aws/aws-sdk-go-v2/service/vpclattice v1.20.13
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.4
 	github.com/aws/aws-sdk-go-v2/service/workspacesweb v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/xray v1.36.23
 	github.com/aws/smithy-go v1.25.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/microsoft/kiota-abstractions-go v1.9.4
@@ -221,31 +238,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/connectcases v1.40.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/entityresolution v1.27.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
-	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.37.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/lexmodelsv2 v1.60.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.25.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/route53recoverycontrolconfig v1.32.16 // indirect
-	github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness v1.26.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3files v1.0.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3outposts v1.34.14 // indirect
-	github.com/aws/aws-sdk-go-v2/service/securityagent v1.0.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/securitylake v1.25.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry v1.35.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssmcontacts v1.31.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.32.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/xray v1.36.23 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
