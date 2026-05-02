@@ -139,6 +139,7 @@ var expectedAWSServices = []string{
 	"aws:databrew",
 	"aws:timestream",
 	"aws:servicediscovery",
+	"aws:s3tables",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

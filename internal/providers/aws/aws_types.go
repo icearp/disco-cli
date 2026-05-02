@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// S3Tables (s3tables_scanners.go).
+	TypeS3TablesNamespace         = "aws:s3tables:namespace"
+	TypeS3TablesTable             = "aws:s3tables:table"
+	TypeS3TablesTableBucket       = "aws:s3tables:table-bucket"
+	TypeS3TablesTableBucketPolicy = "aws:s3tables:table-bucket-policy"
+	TypeS3TablesTablePolicy       = "aws:s3tables:table-policy"
 	// ServiceDiscovery / Cloud Map (servicediscovery_scanners.go).
 	TypeServiceDiscoveryHttpNamespace       = "aws:servicediscovery:http-namespace"
 	TypeServiceDiscoveryPrivateDnsNamespace = "aws:servicediscovery:private-dns-namespace"
