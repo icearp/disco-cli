@@ -578,6 +578,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeKendraRankingExecutionPlan: "AWS::KendraRanking::ExecutionPlan",
 		// IoTCoreDeviceAdvisor — disco "iot-core-device-advisor" segment vs CFN "IoTCoreDeviceAdvisor".
 		TypeIoTDeviceAdvisorSuiteDefinition: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition",
+		// InternetMonitor — disco "internet-monitor" segment vs CFN "InternetMonitor".
+		TypeInternetMonitorMonitor: "AWS::InternetMonitor::Monitor",
 	}
 }
 

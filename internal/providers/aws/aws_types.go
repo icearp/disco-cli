@@ -977,6 +977,8 @@ const (
 	TypeIoTDeviceAdvisorSuiteDefinition = "aws:iot-core-device-advisor:suite-definition"
 	// Invoicing (invoicing_scanners.go)
 	TypeInvoicingInvoiceUnit = "aws:invoicing:invoice-unit"
+	// InternetMonitor (internetmonitor_scanners.go)
+	TypeInternetMonitorMonitor = "aws:internet-monitor:monitor"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
