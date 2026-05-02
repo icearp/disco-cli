@@ -1212,6 +1212,11 @@ const (
 	TypeGlobalAcceleratorCrossAccountAttachment = "aws:global-accelerator:cross-account-attachment"
 	TypeGlobalAcceleratorEndpointGroup          = "aws:global-accelerator:endpoint-group"
 	TypeGlobalAcceleratorListener               = "aws:global-accelerator:listener"
+	// EventSchemas (eventschemas_scanners.go); SDK module is "schemas".
+	TypeEventSchemasDiscoverer     = "aws:event-schemas:discoverer"
+	TypeEventSchemasRegistry       = "aws:event-schemas:registry"
+	TypeEventSchemasRegistryPolicy = "aws:event-schemas:registry-policy"
+	TypeEventSchemasSchema         = "aws:event-schemas:schema"
 	// GroundStation (groundstation_scanners.go).
 	TypeGroundStationConfig                = "aws:ground-station:config"
 	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"

@@ -165,6 +165,7 @@ var expectedAWSServices = []string{
 	"aws:kinesis-analytics-v2",
 	"aws:ground-station",
 	"aws:global-accelerator",
+	"aws:event-schemas",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
