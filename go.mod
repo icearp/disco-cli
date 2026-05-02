@@ -304,6 +304,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/paymentcryptography v1.29.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.11.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssmsap v1.26.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/uxc v1.0.3 // indirect

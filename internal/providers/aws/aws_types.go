@@ -939,6 +939,8 @@ const (
 	TypeVoiceIDDomain = "aws:voice-id:domain"
 	// UXC (uxc_scanners.go)
 	TypeUXCAccountCustomization = "aws:uxc:account-customization"
+	// SystemsManagerSAP (ssmsap_scanners.go)
+	TypeSSMSAPApplication = "aws:systems-manager-sap:application"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

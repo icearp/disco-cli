@@ -118,6 +118,7 @@ var expectedAWSServices = []string{
 	"aws:workspaces-thin-client",
 	"aws:voice-id",
 	"aws:uxc",
+	"aws:systems-manager-sap",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

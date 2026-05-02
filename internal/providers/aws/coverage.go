@@ -552,6 +552,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeVoiceIDDomain: "AWS::VoiceID::Domain",
 		// UXC — disco "uxc" segment vs CFN "UXC".
 		TypeUXCAccountCustomization: "AWS::UXC::AccountCustomization",
+		// SystemsManagerSAP — disco "systems-manager-sap" segment vs CFN "SystemsManagerSAP".
+		TypeSSMSAPApplication: "AWS::SystemsManagerSAP::Application",
 	}
 }
 
