@@ -306,6 +306,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect
+	github.com/aws/aws-sdk-go-v2/service/uxc v1.0.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/voiceid v1.30.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/workspacesthinclient v1.20.23 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

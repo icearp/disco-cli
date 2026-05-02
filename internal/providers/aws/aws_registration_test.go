@@ -117,6 +117,7 @@ var expectedAWSServices = []string{
 	"aws:budgets",
 	"aws:workspaces-thin-client",
 	"aws:voice-id",
+	"aws:uxc",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

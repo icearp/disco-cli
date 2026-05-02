@@ -550,6 +550,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeWorkSpacesThinClientEnvironment: "AWS::WorkSpacesThinClient::Environment",
 		// VoiceID — disco "voice-id" segment vs CFN "VoiceID".
 		TypeVoiceIDDomain: "AWS::VoiceID::Domain",
+		// UXC — disco "uxc" segment vs CFN "UXC".
+		TypeUXCAccountCustomization: "AWS::UXC::AccountCustomization",
 	}
 }
 

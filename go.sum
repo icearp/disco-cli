@@ -578,6 +578,8 @@ github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.22 h1:Lfy9A2LCZQjBxbO
 github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.22/go.mod h1:+xjYH9SjlUiY7V8wT1fMGnuDr7cM8enOHSXaYvMIt6Q=
 github.com/aws/aws-sdk-go-v2/service/transfer v1.72.0 h1:RbzzKZwU/fPSDpO731YSRDQqbp/h6IycNV5pgVCbJVk=
 github.com/aws/aws-sdk-go-v2/service/transfer v1.72.0/go.mod h1:NuALErcQ4g5s7KJef/5aoMwFmWn6deuczObKXYnuVRg=
+github.com/aws/aws-sdk-go-v2/service/uxc v1.0.3 h1:IITkqJoAxK9qNzDXCAOisBMcUVhHM5AgUkAXHKu1JwY=
+github.com/aws/aws-sdk-go-v2/service/uxc v1.0.3/go.mod h1:sD2byZmMTGnne1H+za5t3bdPCicEknO9MIqMy0wlR8o=
 github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.32.3 h1:I8Oymk71ACQOSRkO3NLFLv7YCFY4zagVeeDFrHVYTQ0=
 github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.32.3/go.mod h1:lQ9Sg9AKiZ7OE/MdjWWN6V6PQS1Sv4Yzf1gj8Usuakc=
 github.com/aws/aws-sdk-go-v2/service/voiceid v1.30.16 h1:VlLK1z8r7biHI4O+y4VTb2fr0s6ifYCyr3QqNiBeq9U=
