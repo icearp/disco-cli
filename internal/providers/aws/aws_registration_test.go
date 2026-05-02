@@ -190,6 +190,7 @@ var expectedAWSServices = []string{
 	"aws:kendra",
 	"aws:kafka-connect",
 	"aws:iot-events",
+	"aws:fms",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
