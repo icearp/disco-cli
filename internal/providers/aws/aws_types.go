@@ -1184,6 +1184,14 @@ const (
 	// Amazon Managed Prometheus / APS (aps_scanners.go, aps_resolvers.go); SDK module is `amp`.
 	TypeAPSWorkspace = "aws:aps:workspace"
 	TypeAPSScraper   = "aws:aps:scraper"
+	// AppMesh (appmesh_scanners.go).
+	TypeAppMeshMesh           = "aws:appmesh:mesh"
+	TypeAppMeshGatewayRoute   = "aws:appmesh:gateway-route"
+	TypeAppMeshRoute          = "aws:appmesh:route"
+	TypeAppMeshVirtualGateway = "aws:appmesh:virtual-gateway"
+	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
+	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
+	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
 	// ARC Region Switch (arcregionswitch_scanners.go, arcregionswitch_resolvers.go).
 	TypeARCRegionSwitchPlan = "aws:arc-region-switch:plan"
 	// ARC Zonal Shift (arczonalshift_scanners.go, arczonalshift_resolvers.go).
