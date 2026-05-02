@@ -1254,6 +1254,10 @@ const (
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
 	TypePCSQueue            = "aws:pcs:queue"
+	// M2 (m2_scanners.go). Mainframe Modernization.
+	TypeM2Application = "aws:m2:application"
+	TypeM2Deployment  = "aws:m2:deployment"
+	TypeM2Environment = "aws:m2:environment"
 	// ManagedBlockchain (managedblockchain_scanners.go).
 	TypeManagedBlockchainAccessor = "aws:managed-blockchain:accessor"
 	TypeManagedBlockchainMember   = "aws:managed-blockchain:member"
