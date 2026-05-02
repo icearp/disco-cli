@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// MediaPackageV2 (mediapackagev2_scanners.go).
+	TypeMediaPackageV2Channel              = "aws:mediapackagev2:channel"
+	TypeMediaPackageV2ChannelGroup         = "aws:mediapackagev2:channel-group"
+	TypeMediaPackageV2ChannelPolicy        = "aws:mediapackagev2:channel-policy"
+	TypeMediaPackageV2OriginEndpoint       = "aws:mediapackagev2:origin-endpoint"
+	TypeMediaPackageV2OriginEndpointPolicy = "aws:mediapackagev2:origin-endpoint-policy"
 	// ODB (odb_scanners.go). Oracle Database@AWS.
 	TypeODBCloudAutonomousVmCluster   = "aws:odb:cloud-autonomous-vm-cluster"
 	TypeODBCloudExadataInfrastructure = "aws:odb:cloud-exadata-infrastructure"
