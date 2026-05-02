@@ -985,6 +985,8 @@ const (
 	TypeIdentityStoreGroupMembership = "aws:identitystore:group-membership"
 	// HealthLake (healthlake_scanners.go)
 	TypeHealthLakeFHIRDatastore = "aws:health-lake:fhir-datastore"
+	// HealthImaging (healthimaging_scanners.go)
+	TypeHealthImagingDatastore = "aws:health-imaging:datastore"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

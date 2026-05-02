@@ -326,6 +326,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kendraranking v1.15.27 // indirect
 	github.com/aws/aws-sdk-go-v2/service/launchwizard v1.14.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lookoutequipment v1.36.16 // indirect
+	github.com/aws/aws-sdk-go-v2/service/medicalimaging v1.24.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.19 // indirect

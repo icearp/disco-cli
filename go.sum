@@ -430,6 +430,8 @@ github.com/aws/aws-sdk-go-v2/service/mediastore v1.29.23 h1:yxt0mlXvIz6tBqE6tE+8
 github.com/aws/aws-sdk-go-v2/service/mediastore v1.29.23/go.mod h1:8nxl+cuTs2USuUurU51GknJf37qAFtSRsrpSomYqqsA=
 github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2 h1:LE3qVc8rZ40Dimit60IwYFESOjUYW7q4Vq+xFvjFuek=
 github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2/go.mod h1:vYxDw6nIW7MEWJIZBiw8m+RMz7Q6i0VjL5YXoI6F6TY=
+github.com/aws/aws-sdk-go-v2/service/medicalimaging v1.24.2 h1:LeFcURujd6+MLgDTLNgYrjEJfCuJ5oK7AVkkgrSgkwQ=
+github.com/aws/aws-sdk-go-v2/service/medicalimaging v1.24.2/go.mod h1:K+hD0KXm3ga2Nr92WKvYW4BbsrhCHEJ4CDdcNlGcebQ=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16 h1:sFFA8VBMMksHbFaV689agmYNnKeP162vtYg+4U/Orks=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16/go.mod h1:Iv+M4ZOQuUzzM7MeyFi/qBZRejA9vi689eZ//Zdxbac=
 github.com/aws/aws-sdk-go-v2/service/migrationhubrefactorspaces v1.25.23 h1:9rzINlfCRh3dnxKGU+JxqVv7LVsiKvq9lb9k6v2AS/s=

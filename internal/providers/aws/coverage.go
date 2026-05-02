@@ -582,6 +582,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeInternetMonitorMonitor: "AWS::InternetMonitor::Monitor",
 		// HealthLake — disco "health-lake" segment vs CFN "HealthLake".
 		TypeHealthLakeFHIRDatastore: "AWS::HealthLake::FHIRDatastore",
+		// HealthImaging — disco "health-imaging" segment vs CFN "HealthImaging".
+		TypeHealthImagingDatastore: "AWS::HealthImaging::Datastore",
 	}
 }
 
