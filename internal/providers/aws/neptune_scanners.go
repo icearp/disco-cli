@@ -16,6 +16,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "neptune", DiscoType: TypeNeptuneCluster},
 			{Service: "neptune", DiscoType: TypeNeptuneInstance},
+			{Service: "neptune", DiscoType: TypeNeptuneDBClusterParameterGroup},
+			{Service: "neptune", DiscoType: TypeNeptuneDBParameterGroup},
+			{Service: "neptune", DiscoType: TypeNeptuneDBSubnetGroup},
+			{Service: "neptune", DiscoType: TypeNeptuneEventSubscription},
 		},
 	})
 }
@@ -25,6 +29,10 @@ func init() {
 type neptuneAPI interface {
 	DescribeDBClusters(context.Context, *neptune.DescribeDBClustersInput, ...func(*neptune.Options)) (*neptune.DescribeDBClustersOutput, error)
 	DescribeDBInstances(context.Context, *neptune.DescribeDBInstancesInput, ...func(*neptune.Options)) (*neptune.DescribeDBInstancesOutput, error)
+	DescribeDBClusterParameterGroups(context.Context, *neptune.DescribeDBClusterParameterGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBClusterParameterGroupsOutput, error)
+	DescribeDBParameterGroups(context.Context, *neptune.DescribeDBParameterGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBParameterGroupsOutput, error)
+	DescribeDBSubnetGroups(context.Context, *neptune.DescribeDBSubnetGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBSubnetGroupsOutput, error)
+	DescribeEventSubscriptions(context.Context, *neptune.DescribeEventSubscriptionsInput, ...func(*neptune.Options)) (*neptune.DescribeEventSubscriptionsOutput, error)
 }
 
 // scanNeptune discovers Amazon Neptune clusters and instances in one
@@ -54,6 +62,15 @@ func scanNeptune(ctx context.Context, acct *account, region string, st *store.St
 
 	{
 		t, i, ferr := scanNeptuneInstances(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanNeptuneExtended(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
