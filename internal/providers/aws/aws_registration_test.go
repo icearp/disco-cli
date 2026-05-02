@@ -173,6 +173,7 @@ var expectedAWSServices = []string{
 	"aws:work-spaces",
 	"aws:support-app",
 	"aws:s3vectors",
+	"aws:s3express",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

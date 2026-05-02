@@ -1239,6 +1239,10 @@ const (
 	TypeS3VectorsIndex              = "aws:s3vectors:index"
 	TypeS3VectorsVectorBucket       = "aws:s3vectors:vector-bucket"
 	TypeS3VectorsVectorBucketPolicy = "aws:s3vectors:vector-bucket-policy"
+	// S3Express (s3express_scanners.go).
+	TypeS3ExpressAccessPoint     = "aws:s3express:access-point"
+	TypeS3ExpressBucketPolicy    = "aws:s3express:bucket-policy"
+	TypeS3ExpressDirectoryBucket = "aws:s3express:directory-bucket"
 	// SupportApp (supportapp_scanners.go). Global service callable via us-east-1.
 	TypeSupportAppAccountAlias                = "aws:support-app:account-alias"
 	TypeSupportAppSlackChannelConfiguration   = "aws:support-app:slack-channel-configuration"
