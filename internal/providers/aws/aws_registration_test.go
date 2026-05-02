@@ -133,6 +133,7 @@ var expectedAWSServices = []string{
 	"aws:directconnect",
 	"aws:appmesh",
 	"aws:observabilityadmin",
+	"aws:memorydb",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

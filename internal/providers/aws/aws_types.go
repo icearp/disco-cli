@@ -1197,6 +1197,13 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// MemoryDB (memorydb_scanners.go).
+	TypeMemoryDBACL                = "aws:memorydb:acl"
+	TypeMemoryDBCluster            = "aws:memorydb:cluster"
+	TypeMemoryDBMultiRegionCluster = "aws:memorydb:multi-region-cluster"
+	TypeMemoryDBParameterGroup     = "aws:memorydb:parameter-group"
+	TypeMemoryDBSubnetGroup        = "aws:memorydb:subnet-group"
+	TypeMemoryDBUser               = "aws:memorydb:user"
 	// ObservabilityAdmin (observabilityadmin_scanners.go). Disco service segment
 	// "observabilityadmin"; CFN segment "ObservabilityAdmin".
 	TypeObservabilityAdminOrganizationCentralizationRule = "aws:observabilityadmin:organization-centralization-rule"
