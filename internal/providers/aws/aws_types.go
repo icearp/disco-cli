@@ -1197,6 +1197,12 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// IoTTwinMaker (iottwinmaker_scanners.go).
+	TypeIoTTwinMakerComponentType = "aws:iottwinmaker:component-type"
+	TypeIoTTwinMakerEntity        = "aws:iottwinmaker:entity"
+	TypeIoTTwinMakerScene         = "aws:iottwinmaker:scene"
+	TypeIoTTwinMakerSyncJob       = "aws:iottwinmaker:sync-job"
+	TypeIoTTwinMakerWorkspace     = "aws:iottwinmaker:workspace"
 	// MediaPackage (mediapackage_scanners.go); spans mediapackage (v1)
 	// + mediapackagevod SDKs.
 	TypeMediaPackageAsset                  = "aws:mediapackage:asset"

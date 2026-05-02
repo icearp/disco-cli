@@ -211,6 +211,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.29.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mediapackage v1.39.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mediapackagev2 v1.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mediapackagevod v1.39.23 // indirect

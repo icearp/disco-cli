@@ -300,6 +300,8 @@ github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22 h1:OLOxV1nQLHcFCdvgEo
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22/go.mod h1:QFjUn8isVhJqTBHnZBXL3xTLrxJSAuJGejRmdshNIu0=
 github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.52.21 h1:WCGgLnCnzm83h/wwACscruerN7aF2I0WfIriWZPSWj8=
 github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.52.21/go.mod h1:ESZZbHob3xVSkHnqhna8TImwHIcwvv3hzgP1GJQVHbs=
+github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.29.23 h1:piriWNzl5TJlg3tHgGlVCm7XBpEAnAvfYMwmwqTSLvM=
+github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.29.23/go.mod h1:uHzo+VyqXF6jM1y3/o+dIrx1DUjlrFfKdr914tnNHVY=
 github.com/aws/aws-sdk-go-v2/service/iotwireless v1.55.1 h1:WI86X0Dm6dSoaKVtvqaS9uHSAEOeqoDpRS/EsSVJCtE=
 github.com/aws/aws-sdk-go-v2/service/iotwireless v1.55.1/go.mod h1:99fkJJ+5AnuS5NN+guW2wASnzPKo3eehF+3jT3D5bZE=
 github.com/aws/aws-sdk-go-v2/service/ivs v1.50.1 h1:H/tTA4a7nmiFacIKeQjK/S8m7Ah/OXzSSLwPXEtD3l8=
