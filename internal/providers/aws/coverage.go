@@ -465,6 +465,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEMRContainersVirtualCluster: "AWS::EMRContainers::VirtualCluster",
 		TypeEMRContainersEndpoint:       "AWS::EMRContainers::Endpoint",
 		TypeEMRContainersSecurityConfig: "AWS::EMRContainers::SecurityConfiguration",
+		// DevOpsGuru — disco "devops-guru" segment vs CFN "DevOpsGuru".
+		TypeDevOpsGuruNotificationChannel:            "AWS::DevOpsGuru::NotificationChannel",
+		TypeDevOpsGuruResourceCollection:             "AWS::DevOpsGuru::ResourceCollection",
+		TypeDevOpsGuruLogAnomalyDetectionIntegration: "AWS::DevOpsGuru::LogAnomalyDetectionIntegration",
 	}
 }
 

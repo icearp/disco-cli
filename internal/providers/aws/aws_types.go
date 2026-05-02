@@ -800,6 +800,10 @@ const (
 	TypeEMRContainersVirtualCluster = "aws:emr-containers:virtual-cluster"
 	TypeEMRContainersEndpoint       = "aws:emr-containers:endpoint"
 	TypeEMRContainersSecurityConfig = "aws:emr-containers:security-configuration"
+	// DevOpsGuru (devopsguru_scanners.go)
+	TypeDevOpsGuruNotificationChannel            = "aws:devops-guru:notification-channel"
+	TypeDevOpsGuruResourceCollection             = "aws:devops-guru:resource-collection"
+	TypeDevOpsGuruLogAnomalyDetectionIntegration = "aws:devops-guru:log-anomaly-detection-integration"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"

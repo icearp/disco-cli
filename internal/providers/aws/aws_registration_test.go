@@ -83,6 +83,7 @@ var expectedAWSServices = []string{
 	"aws:elasticbeanstalk",
 	"aws:emr",
 	"aws:emr-containers",
+	"aws:devops-guru",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
