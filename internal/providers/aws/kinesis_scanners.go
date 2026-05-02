@@ -17,6 +17,8 @@ func init() {
 		fn:   scanKinesis,
 		emits: []coverage.TypeDecl{
 			{Service: "kinesis", DiscoType: TypeKinesisStream},
+			{Service: "kinesis", DiscoType: TypeKinesisStreamConsumer},
+			{Service: "kinesis", DiscoType: TypeKinesisResourcePolicy},
 		},
 	})
 }
@@ -27,6 +29,8 @@ type kinesisAPI interface {
 	ListStreams(context.Context, *kinesis.ListStreamsInput, ...func(*kinesis.Options)) (*kinesis.ListStreamsOutput, error)
 	DescribeStreamSummary(context.Context, *kinesis.DescribeStreamSummaryInput, ...func(*kinesis.Options)) (*kinesis.DescribeStreamSummaryOutput, error)
 	ListTagsForStream(context.Context, *kinesis.ListTagsForStreamInput, ...func(*kinesis.Options)) (*kinesis.ListTagsForStreamOutput, error)
+	ListStreamConsumers(context.Context, *kinesis.ListStreamConsumersInput, ...func(*kinesis.Options)) (*kinesis.ListStreamConsumersOutput, error)
+	GetResourcePolicy(context.Context, *kinesis.GetResourcePolicyInput, ...func(*kinesis.Options)) (*kinesis.GetResourcePolicyOutput, error)
 }
 
 // scanKinesis discovers Kinesis Data Streams in one region. ListStreams
@@ -34,7 +38,12 @@ type kinesisAPI interface {
 // encryption + metadata without the expensive shard enumeration.
 func scanKinesis(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kinesis.NewFromConfig(acct.cfg, func(o *kinesis.Options) { o.Region = region })
-	return scanKinesisStreams(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanKinesisStreams(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return t, i, ferr
+	}
+	t2, i2, ferr := scanKinesisExtended(ctx, client, acct, region, st, scanID)
+	return t + t2, i + i2, ferr
 }
 
 // scanKinesisStreams holds the testable scan body.

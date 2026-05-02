@@ -907,6 +907,9 @@ const (
 	// KinesisVideo (kinesisvideo_scanners.go)
 	TypeKinesisVideoStream           = "aws:kinesis-video:stream"
 	TypeKinesisVideoSignalingChannel = "aws:kinesis-video:signaling-channel"
+	// Kinesis extras (kinesis_extended_scanners.go)
+	TypeKinesisStreamConsumer = "aws:kinesis:stream-consumer"
+	TypeKinesisResourcePolicy = "aws:kinesis:resource-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
