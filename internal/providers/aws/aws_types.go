@@ -472,6 +472,11 @@ const (
 	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-vault"
 	TypeBackupPlan                    = "aws:backup:plan"
 	TypeBackupSelection               = "aws:backup:selection"
+	TypeBackupFramework               = "aws:backup:framework"
+	TypeBackupReportPlan              = "aws:backup:report-plan"
+	TypeBackupRestoreTestingPlan      = "aws:backup:restore-testing-plan"
+	TypeBackupRestoreTestingSelection = "aws:backup:restore-testing-selection"
+	TypeBackupTieringConfiguration    = "aws:backup:tiering-configuration"
 	// Backup Gateway (backupgateway_scanners.go)
 	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
 	// BCM Data Exports (bcmdataexports_scanners.go)

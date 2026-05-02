@@ -19,6 +19,11 @@ func init() {
 			{Service: "backup", DiscoType: TypeBackupLogicallyAirGappedVault},
 			{Service: "backup", DiscoType: TypeBackupPlan},
 			{Service: "backup", DiscoType: TypeBackupSelection},
+			{Service: "backup", DiscoType: TypeBackupFramework},
+			{Service: "backup", DiscoType: TypeBackupReportPlan},
+			{Service: "backup", DiscoType: TypeBackupRestoreTestingPlan},
+			{Service: "backup", DiscoType: TypeBackupRestoreTestingSelection},
+			{Service: "backup", DiscoType: TypeBackupTieringConfiguration},
 		},
 	})
 }
@@ -28,6 +33,11 @@ type backupAPI interface {
 	ListBackupVaults(context.Context, *backup.ListBackupVaultsInput, ...func(*backup.Options)) (*backup.ListBackupVaultsOutput, error)
 	ListBackupPlans(context.Context, *backup.ListBackupPlansInput, ...func(*backup.Options)) (*backup.ListBackupPlansOutput, error)
 	ListBackupSelections(context.Context, *backup.ListBackupSelectionsInput, ...func(*backup.Options)) (*backup.ListBackupSelectionsOutput, error)
+	ListFrameworks(context.Context, *backup.ListFrameworksInput, ...func(*backup.Options)) (*backup.ListFrameworksOutput, error)
+	ListReportPlans(context.Context, *backup.ListReportPlansInput, ...func(*backup.Options)) (*backup.ListReportPlansOutput, error)
+	ListRestoreTestingPlans(context.Context, *backup.ListRestoreTestingPlansInput, ...func(*backup.Options)) (*backup.ListRestoreTestingPlansOutput, error)
+	ListRestoreTestingSelections(context.Context, *backup.ListRestoreTestingSelectionsInput, ...func(*backup.Options)) (*backup.ListRestoreTestingSelectionsOutput, error)
+	ListTieringConfigurations(context.Context, *backup.ListTieringConfigurationsInput, ...func(*backup.Options)) (*backup.ListTieringConfigurationsOutput, error)
 }
 
 // scanBackup discovers AWS Backup vaults, plans, and per-plan selections.
@@ -36,7 +46,19 @@ type backupAPI interface {
 // for a stable NativeID across scans.
 func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
-	return scanBackupAll(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanBackupAll(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanBackupExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanBackupAll holds the testable scan body.
