@@ -301,6 +301,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/mpa v1.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/oam v1.23.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/osis v1.21.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/paymentcryptography v1.29.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pcaconnectorscep v1.11.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/pipes v1.23.22 // indirect

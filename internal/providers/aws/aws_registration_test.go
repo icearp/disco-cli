@@ -124,6 +124,7 @@ var expectedAWSServices = []string{
 	"aws:rum",
 	"aws:rbin",
 	"aws:pipes",
+	"aws:osis",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

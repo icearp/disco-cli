@@ -951,6 +951,8 @@ const (
 	TypeRbinRule = "aws:rbin:rule"
 	// Pipes (pipes_scanners.go)
 	TypePipesPipe = "aws:pipes:pipe"
+	// OSIS (osis_scanners.go)
+	TypeOSISPipeline = "aws:osis:pipeline"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
