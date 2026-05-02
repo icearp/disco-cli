@@ -1206,6 +1206,10 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// GroundStation (groundstation_scanners.go).
+	TypeGroundStationConfig                = "aws:ground-station:config"
+	TypeGroundStationDataflowEndpointGroup = "aws:ground-station:dataflow-endpoint-group"
+	TypeGroundStationMissionProfile        = "aws:ground-station:mission-profile"
 	// KinesisAnalyticsV2 (kinesisanalyticsv2_scanners.go).
 	TypeKAV2Application                 = "aws:kinesis-analytics-v2:application"
 	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"
