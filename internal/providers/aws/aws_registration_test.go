@@ -149,6 +149,7 @@ var expectedAWSServices = []string{
 	"aws:entityresolution",
 	"aws:cases",
 	"aws:xray",
+	"aws:verifiedpermissions",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// VerifiedPermissions (verifiedpermissions_scanners.go).
+	TypeVerifiedPermissionsIdentitySource = "aws:verifiedpermissions:identity-source"
+	TypeVerifiedPermissionsPolicy         = "aws:verifiedpermissions:policy"
+	TypeVerifiedPermissionsPolicyStore    = "aws:verifiedpermissions:policy-store"
+	TypeVerifiedPermissionsPolicyTemplate = "aws:verifiedpermissions:policy-template"
 	// XRay (xray_scanners.go).
 	TypeXRayGroup          = "aws:xray:group"
 	TypeXRayResourcePolicy = "aws:xray:resource-policy"
