@@ -21,6 +21,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "controltower", DiscoType: TypeControlTowerLandingZone},
 			{Service: "controltower", DiscoType: TypeControlTowerEnabledBaseline},
+			{Service: "controltower", DiscoType: TypeControlTowerEnabledControl},
 		},
 	})
 }
@@ -230,6 +231,20 @@ func scanControlTowerEnabledBaselines(ctx context.Context, client controltowerAP
 				}{Baseline: b, EnabledControls: controls}),
 				DiscoveredBy: scanID,
 			})
+			// Also emit each EnabledControl as its own row for AWS::ControlTower::EnabledControl coverage.
+			for _, c := range controls {
+				cArn := sv(c.Arn)
+				if cArn == "" {
+					continue
+				}
+				cLabel := cArn
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeControlTowerEnabledControl, NativeID: cArn,
+					Name: &cLabel, Region: &region,
+					AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				})
+			}
 		}
 	}
 	if len(batch) == 0 {
