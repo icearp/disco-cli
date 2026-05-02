@@ -22,6 +22,7 @@ func init() {
 			{Service: "organizations", DiscoType: TypeOrganizationsAccount},
 			{Service: "organizations", DiscoType: TypeOrganizationsOU},
 			{Service: "organizations", DiscoType: TypeOrganizationsSCP},
+			{Service: "organizations", DiscoType: TypeOrganizationsResourcePolicy},
 		},
 	})
 }
@@ -36,6 +37,7 @@ type organizationsAPI interface {
 	ListPolicies(context.Context, *organizations.ListPoliciesInput, ...func(*organizations.Options)) (*organizations.ListPoliciesOutput, error)
 	DescribePolicy(context.Context, *organizations.DescribePolicyInput, ...func(*organizations.Options)) (*organizations.DescribePolicyOutput, error)
 	ListParents(context.Context, *organizations.ListParentsInput, ...func(*organizations.Options)) (*organizations.ListParentsOutput, error)
+	DescribeResourcePolicy(context.Context, *organizations.DescribeResourcePolicyInput, ...func(*organizations.Options)) (*organizations.DescribeResourcePolicyOutput, error)
 }
 
 // scanOrganizations discovers the AWS Organizations structure — organization,
@@ -246,7 +248,43 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	if err := st.RecordHierarchyBatch(closurePairs); err != nil {
 		return total, inserted, fmt.Errorf("org hierarchy closure: %w", err)
 	}
+
+	// Phase 5: organization resource policy (per-org singleton).
+	if t, i, ferr := scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID); ferr != nil {
+		return total, inserted, ferr
+	} else {
+		total += t
+		inserted += i
+	}
 	return total, inserted, nil
+}
+
+// scanOrganizationsResourcePolicy captures the organization-level resource
+// policy (singleton). Synth ARN: arn:aws:organizations::{a}:resourcepolicy.
+func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	out, err := client.DescribeResourcePolicy(ctx, &organizations.DescribeResourcePolicyInput{})
+	if err != nil {
+		if isAccessDenied(err) || isAPIErrorCode(err, "ResourcePolicyNotFoundException", "AWSOrganizationsNotInUseException") {
+			return 0, 0, nil
+		}
+		return 0, 0, fmt.Errorf("organizations:DescribeResourcePolicy: %w", err)
+	}
+	if out.ResourcePolicy == nil || out.ResourcePolicy.ResourcePolicySummary == nil {
+		return 0, 0, nil
+	}
+	arn := sv(out.ResourcePolicy.ResourcePolicySummary.Arn)
+	if arn == "" {
+		arn = fmt.Sprintf("arn:aws:organizations::%s:resourcepolicy", acct.ID)
+	}
+	region := ""
+	label := acct.ID
+	r := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeOrganizationsResourcePolicy, NativeID: arn,
+		Name: &label, Region: &region,
+		AttributesJSON: mustJSON(out.ResourcePolicy), DiscoveredBy: scanID,
+	}
+	return upsertBatch(st, []*store.Resource{r}, "organizations resource-policy")
 }
 
 // walkOUs recursively walks children of parentNativeID, upserting each OU and

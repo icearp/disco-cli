@@ -953,6 +953,8 @@ const (
 	TypePipesPipe = "aws:pipes:pipe"
 	// OSIS (osis_scanners.go)
 	TypeOSISPipeline = "aws:osis:pipeline"
+	// Organizations extras (organizations_extended_scanners.go)
+	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
