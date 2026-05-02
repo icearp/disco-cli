@@ -18,6 +18,11 @@ func init() {
 			{Service: "ssm", DiscoType: TypeSSMDocument},
 			{Service: "ssm", DiscoType: TypeSSMParameter},
 			{Service: "ssm", DiscoType: TypeSSMPatchBaseline},
+			{Service: "ssm", DiscoType: TypeSSMAssociation},
+			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindow},
+			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTarget},
+			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTask},
+			{Service: "ssm", DiscoType: TypeSSMResourceDataSync},
 		},
 	})
 }
@@ -27,6 +32,11 @@ type ssmAPI interface {
 	DescribeParameters(context.Context, *ssm.DescribeParametersInput, ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error)
 	ListDocuments(context.Context, *ssm.ListDocumentsInput, ...func(*ssm.Options)) (*ssm.ListDocumentsOutput, error)
 	DescribePatchBaselines(context.Context, *ssm.DescribePatchBaselinesInput, ...func(*ssm.Options)) (*ssm.DescribePatchBaselinesOutput, error)
+	ListAssociations(context.Context, *ssm.ListAssociationsInput, ...func(*ssm.Options)) (*ssm.ListAssociationsOutput, error)
+	DescribeMaintenanceWindows(context.Context, *ssm.DescribeMaintenanceWindowsInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowsOutput, error)
+	DescribeMaintenanceWindowTargets(context.Context, *ssm.DescribeMaintenanceWindowTargetsInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowTargetsOutput, error)
+	DescribeMaintenanceWindowTasks(context.Context, *ssm.DescribeMaintenanceWindowTasksInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowTasksOutput, error)
+	ListResourceDataSync(context.Context, *ssm.ListResourceDataSyncInput, ...func(*ssm.Options)) (*ssm.ListResourceDataSyncOutput, error)
 }
 
 // scanSSM discovers SSM parameters (metadata only — never values), customer-
@@ -38,7 +48,19 @@ type ssmAPI interface {
 // metadata alone.
 func scanSSM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
-	return scanSSMAll(ctx, client, acct, region, st, scanID)
+	t, i, ferr := scanSSMAll(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanSSMExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	return total, inserted, nil
 }
 
 // scanSSMAll holds the testable scan body.

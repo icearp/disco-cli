@@ -438,9 +438,14 @@ const (
 	// Firehose (firehose_scanners.go)
 	TypeFirehoseDeliveryStream = "aws:firehose:delivery-stream"
 	// SSM (ssm_scanners.go)
-	TypeSSMParameter     = "aws:ssm:parameter"
-	TypeSSMDocument      = "aws:ssm:document"
-	TypeSSMPatchBaseline = "aws:ssm:patch-baseline"
+	TypeSSMParameter               = "aws:ssm:parameter"
+	TypeSSMDocument                = "aws:ssm:document"
+	TypeSSMPatchBaseline           = "aws:ssm:patch-baseline"
+	TypeSSMAssociation             = "aws:ssm:association"
+	TypeSSMMaintenanceWindow       = "aws:ssm:maintenance-window"
+	TypeSSMMaintenanceWindowTarget = "aws:ssm:maintenance-window-target"
+	TypeSSMMaintenanceWindowTask   = "aws:ssm:maintenance-window-task"
+	TypeSSMResourceDataSync        = "aws:ssm:resource-data-sync"
 	// GuardDuty (guardduty_scanners.go)
 	TypeGuardDutyDetector              = "aws:guardduty:detector"
 	TypeGuardDutyFilter                = "aws:guardduty:filter"
