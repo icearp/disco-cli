@@ -178,6 +178,7 @@ var expectedAWSServices = []string{
 	"aws:roles-anywhere",
 	"aws:resource-explorer-2",
 	"aws:rekognition",
+	"aws:redshift-serverless",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

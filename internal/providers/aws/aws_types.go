@@ -1251,6 +1251,10 @@ const (
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"
 	TypeRolesAnywhereTrustAnchor = "aws:roles-anywhere:trust-anchor"
+	// RedshiftServerless (redshiftserverless_scanners.go).
+	TypeRedshiftServerlessNamespace = "aws:redshift-serverless:namespace"
+	TypeRedshiftServerlessSnapshot  = "aws:redshift-serverless:snapshot"
+	TypeRedshiftServerlessWorkgroup = "aws:redshift-serverless:workgroup"
 	// Rekognition (rekognition_scanners.go).
 	TypeRekognitionCollection      = "aws:rekognition:collection"
 	TypeRekognitionProject         = "aws:rekognition:project"
