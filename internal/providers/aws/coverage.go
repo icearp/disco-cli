@@ -588,6 +588,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeFinSpaceEnvironment: "AWS::FinSpace::Environment",
 		// EVS — disco "evs" segment vs CFN "EVS".
 		TypeEVSEnvironment: "AWS::EVS::Environment",
+		// EMRServerless — disco "emr-serverless" segment vs CFN "EMRServerless".
+		TypeEMRServerlessApplication: "AWS::EMRServerless::Application",
 	}
 }
 

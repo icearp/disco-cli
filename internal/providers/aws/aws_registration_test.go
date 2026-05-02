@@ -142,6 +142,7 @@ var expectedAWSServices = []string{
 	"aws:grafana",
 	"aws:fin-space",
 	"aws:evs",
+	"aws:emr-serverless",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",

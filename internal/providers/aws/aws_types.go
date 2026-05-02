@@ -993,6 +993,8 @@ const (
 	TypeFinSpaceEnvironment = "aws:fin-space:environment"
 	// EVS (evs_scanners.go)
 	TypeEVSEnvironment = "aws:evs:environment"
+	// EMRServerless (emrserverless_scanners.go)
+	TypeEMRServerlessApplication = "aws:emr-serverless:application"
 	// CustomerProfiles (customerprofiles_scanners.go)
 	TypeCPDomain                        = "aws:customer-profiles:domain"
 	TypeCPCalculatedAttributeDefinition = "aws:customer-profiles:calculated-attribute-definition"
