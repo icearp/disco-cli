@@ -240,6 +240,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.102 // indirect
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/codestarconnections v1.35.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.18 // indirect
 	github.com/aws/aws-sdk-go-v2/service/devopsagent v1.3.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/devopsguru v1.40.14 // indirect

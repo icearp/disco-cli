@@ -473,6 +473,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDAXCluster:        "AWS::DAX::Cluster",
 		TypeDAXParameterGroup: "AWS::DAX::ParameterGroup",
 		TypeDAXSubnetGroup:    "AWS::DAX::SubnetGroup",
+		// CodeStarConnections — disco "codestar-connections" segment vs CFN "CodeStarConnections".
+		TypeCodeStarConnectionsConnection:        "AWS::CodeStarConnections::Connection",
+		TypeCodeStarConnectionsRepositoryLink:    "AWS::CodeStarConnections::RepositoryLink",
+		TypeCodeStarConnectionsSyncConfiguration: "AWS::CodeStarConnections::SyncConfiguration",
 	}
 }
 
