@@ -1202,6 +1202,11 @@ const (
 	TypeAppMeshVirtualNode    = "aws:appmesh:virtual-node"
 	TypeAppMeshVirtualRouter  = "aws:appmesh:virtual-router"
 	TypeAppMeshVirtualService = "aws:appmesh:virtual-service"
+	// ServiceCatalogAppRegistry (servicecatalogappregistry_scanners.go).
+	TypeSCARApplication               = "aws:service-catalog-app-registry:application"
+	TypeSCARAttributeGroup            = "aws:service-catalog-app-registry:attribute-group"
+	TypeSCARAttributeGroupAssociation = "aws:service-catalog-app-registry:attribute-group-association"
+	TypeSCARResourceAssociation       = "aws:service-catalog-app-registry:resource-association"
 	// SSMContacts (ssmcontacts_scanners.go).
 	TypeSSMContactsContact        = "aws:ssm-contacts:contact"
 	TypeSSMContactsContactChannel = "aws:ssm-contacts:contact-channel"
