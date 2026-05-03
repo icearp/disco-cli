@@ -18,6 +18,40 @@ func init() {
 	registerResolver(resolveConnectRoutingProfileRefs,
 		EdgeDecl{TypeConnectRoutingProfile, TypeConnectQueue, store.RelAttachedTo},
 	)
+	registerResolver(resolveConnectIntegrationAssociationTarget,
+		EdgeDecl{TypeConnectIntegrationAssociation, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeConnectIntegrationAssociation, TypeLexBot, store.RelUses},
+		EdgeDecl{TypeConnectIntegrationAssociation, TypeWisdomAssistant, store.RelUses},
+	)
+	registerResolver(resolveConnectInstanceStorageConfigRefs,
+		EdgeDecl{TypeConnectInstanceStorageConfig, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeConnectInstanceStorageConfig, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeConnectInstanceStorageConfig, TypeFirehoseDeliveryStream, store.RelUses},
+		EdgeDecl{TypeConnectInstanceStorageConfig, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveConnectUserRefs,
+		EdgeDecl{TypeConnectUser, TypeConnectSecurityProfile, store.RelAttachedTo},
+		EdgeDecl{TypeConnectUser, TypeConnectRoutingProfile, store.RelAttachedTo},
+		EdgeDecl{TypeConnectUser, TypeConnectUserHierarchyGroup, store.RelAttachedTo},
+	)
+	registerResolver(resolveConnectQuickConnectRefs,
+		EdgeDecl{TypeConnectQuickConnect, TypeConnectQueue, store.RelUses},
+		EdgeDecl{TypeConnectQuickConnect, TypeConnectContactFlow, store.RelUses},
+	)
+	registerResolver(resolveConnectTrafficDistributionGroupInstance,
+		EdgeDecl{TypeConnectTrafficDistributionGroup, TypeConnectInstance, store.RelAttachedTo},
+	)
+	registerResolver(resolveConnectContactFlowVersionParent,
+		EdgeDecl{TypeConnectContactFlowVersion, TypeConnectContactFlow, store.RelAttachedTo},
+	)
+	registerResolver(resolveConnectContactFlowModuleVersionAndAliasParent,
+		EdgeDecl{TypeConnectContactFlowModuleVersion, TypeConnectContactFlowModule, store.RelAttachedTo},
+		EdgeDecl{TypeConnectContactFlowModuleAlias, TypeConnectContactFlowModule, store.RelAttachedTo},
+	)
+	registerResolver(resolveConnectPhoneNumberTarget,
+		EdgeDecl{TypeConnectPhoneNumber, TypeConnectInstance, store.RelAttachedTo},
+		EdgeDecl{TypeConnectPhoneNumber, TypeConnectTrafficDistributionGroup, store.RelAttachedTo},
+	)
 }
 
 // connectInstanceIDFromARN extracts the instance ID from a Connect resource
@@ -192,6 +226,532 @@ func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert connect-routing-profile→queue: %w", err)
 			}
+		}
+	}
+	return nil
+}
+
+// resolveConnectIntegrationAssociationTarget reads `IntegrationArn` from each
+// IntegrationAssociationSummary and dispatches by ARN service segment to a
+// lambda function, lex bot, or wisdom assistant. FK-safe.
+func resolveConnectIntegrationAssociationTarget(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectIntegrationAssociation},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	lambdaSet, err := scannedIDSet(acct, st, TypeLambdaFunction)
+	if err != nil {
+		return err
+	}
+	lexSet, err := scannedIDSet(acct, st, TypeLexBot)
+	if err != nil {
+		return err
+	}
+	wisdomSet, err := scannedIDSet(acct, st, TypeWisdomAssistant)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			IntegrationArn *string `json:"IntegrationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ref := sv(attrs.IntegrationArn)
+		if ref == "" {
+			continue
+		}
+		var tgtType string
+		var set map[string]bool
+		switch {
+		case strings.HasPrefix(ref, "arn:aws:lambda:"):
+			tgtType, set = TypeLambdaFunction, lambdaSet
+		case strings.HasPrefix(ref, "arn:aws:lex:"):
+			tgtType, set = TypeLexBot, lexSet
+		case strings.HasPrefix(ref, "arn:aws:wisdom:"):
+			tgtType, set = TypeWisdomAssistant, wisdomSet
+		default:
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, tgtType, ref)
+		if !set[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-integration-association→%s: %w", tgtType, err)
+		}
+	}
+	return nil
+}
+
+// resolveConnectInstanceStorageConfigRefs walks each storage config's
+// per-shape sub-struct (S3Config / KinesisStreamConfig / KinesisFirehoseConfig
+// / KinesisVideoStreamConfig) and emits edges to the underlying storage and
+// optional KMS encryption key. FK-safe.
+func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectInstanceStorageConfig},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	streamSet, err := scannedIDSet(acct, st, TypeKinesisStream)
+	if err != nil {
+		return err
+	}
+	firehoseSet, err := scannedIDSet(acct, st, TypeFirehoseDeliveryStream)
+	if err != nil {
+		return err
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			S3Config *struct {
+				BucketName       *string `json:"BucketName"`
+				EncryptionConfig *struct {
+					KeyId *string `json:"KeyId"`
+				} `json:"EncryptionConfig"`
+			} `json:"S3Config"`
+			KinesisStreamConfig *struct {
+				StreamArn *string `json:"StreamArn"`
+			} `json:"KinesisStreamConfig"`
+			KinesisFirehoseConfig *struct {
+				FirehoseDeliveryStreamArn *string `json:"FirehoseDeliveryStreamArn"`
+			} `json:"KinesisFirehoseConfig"`
+			KinesisVideoStreamConfig *struct {
+				EncryptionConfig *struct {
+					KeyId *string `json:"KeyId"`
+				} `json:"EncryptionConfig"`
+			} `json:"KinesisVideoStreamConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if attrs.S3Config != nil {
+			if name := sv(attrs.S3Config.BucketName); name != "" {
+				tgtARN := s3BucketARNFromName(name)
+				tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, tgtARN)
+				if bucketSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-storage→s3: %w", err)
+					}
+				}
+			}
+			if attrs.S3Config.EncryptionConfig != nil {
+				if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.S3Config.EncryptionConfig.KeyId), region, acct.ID); ok {
+					if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-storage→kms (s3): %w", err)
+					}
+				}
+			}
+		}
+		if attrs.KinesisStreamConfig != nil {
+			if arn := sv(attrs.KinesisStreamConfig.StreamArn); arn != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeKinesisStream, arn)
+				if streamSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-storage→kinesis: %w", err)
+					}
+				}
+			}
+		}
+		if attrs.KinesisFirehoseConfig != nil {
+			if arn := sv(attrs.KinesisFirehoseConfig.FirehoseDeliveryStreamArn); arn != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, arn)
+				if firehoseSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-storage→firehose: %w", err)
+					}
+				}
+			}
+		}
+		if attrs.KinesisVideoStreamConfig != nil && attrs.KinesisVideoStreamConfig.EncryptionConfig != nil {
+			if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KinesisVideoStreamConfig.EncryptionConfig.KeyId), region, acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert connect-storage→kms (kvs): %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveConnectUserRefs walks each user's SecurityProfileIds[],
+// RoutingProfileId, and HierarchyGroupId and emits attached-to edges. The
+// scanner stores DescribeUserOutput so attrs root is `{"User": {...}}`.
+func resolveConnectUserRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectUser},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	spSet, err := scannedIDSet(acct, st, TypeConnectSecurityProfile)
+	if err != nil {
+		return err
+	}
+	rpSet, err := scannedIDSet(acct, st, TypeConnectRoutingProfile)
+	if err != nil {
+		return err
+	}
+	hgSet, err := scannedIDSet(acct, st, TypeConnectUserHierarchyGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			User struct {
+				SecurityProfileIds []string `json:"SecurityProfileIds"`
+				RoutingProfileId   *string  `json:"RoutingProfileId"`
+				HierarchyGroupId   *string  `json:"HierarchyGroupId"`
+			} `json:"User"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, spID := range attrs.User.SecurityProfileIds {
+			tgtARN := connectInstanceChildARN(r.NativeID, "security-profile", spID)
+			if tgtARN == "" {
+				continue
+			}
+			tgtID := store.ResourceID("aws", acct.ID, TypeConnectSecurityProfile, tgtARN)
+			if !spSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert connect-user→security-profile: %w", err)
+			}
+		}
+		if id := sv(attrs.User.RoutingProfileId); id != "" {
+			tgtARN := connectInstanceChildARN(r.NativeID, "routing-profile", id)
+			if tgtARN != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeConnectRoutingProfile, tgtARN)
+				if rpSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-user→routing-profile: %w", err)
+					}
+				}
+			}
+		}
+		if id := sv(attrs.User.HierarchyGroupId); id != "" {
+			tgtARN := connectInstanceChildARN(r.NativeID, "agent-group", id)
+			if tgtARN != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeConnectUserHierarchyGroup, tgtARN)
+				if hgSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert connect-user→hierarchy-group: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveConnectQuickConnectRefs walks each quick-connect's QueueConfig.QueueId
+// and {UserConfig|QueueConfig}.ContactFlowId and emits uses edges. Scanner
+// stores DescribeQuickConnectOutput so attrs root is `{"QuickConnect": {...}}`.
+func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectQuickConnect},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	queueSet, err := scannedIDSet(acct, st, TypeConnectQueue)
+	if err != nil {
+		return err
+	}
+	flowSet, err := scannedIDSet(acct, st, TypeConnectContactFlow)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			QuickConnect struct {
+				QuickConnectConfig struct {
+					UserConfig *struct {
+						ContactFlowId *string `json:"ContactFlowId"`
+					} `json:"UserConfig"`
+					QueueConfig *struct {
+						ContactFlowId *string `json:"ContactFlowId"`
+						QueueId       *string `json:"QueueId"`
+					} `json:"QueueConfig"`
+				} `json:"QuickConnectConfig"`
+			} `json:"QuickConnect"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		cfg := attrs.QuickConnect.QuickConnectConfig
+		emit := func(kind, id, tgtType string, set map[string]bool) error {
+			if id == "" {
+				return nil
+			}
+			tgtARN := connectInstanceChildARN(r.NativeID, kind, id)
+			if tgtARN == "" {
+				return nil
+			}
+			tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+			if !set[tgtID] {
+				return nil
+			}
+			return st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil)
+		}
+		if cfg.QueueConfig != nil {
+			if err := emit("queue", sv(cfg.QueueConfig.QueueId), TypeConnectQueue, queueSet); err != nil {
+				return fmt.Errorf("upsert connect-quick-connect→queue: %w", err)
+			}
+			if err := emit("contact-flow", sv(cfg.QueueConfig.ContactFlowId), TypeConnectContactFlow, flowSet); err != nil {
+				return fmt.Errorf("upsert connect-quick-connect→flow: %w", err)
+			}
+		}
+		if cfg.UserConfig != nil {
+			if err := emit("contact-flow", sv(cfg.UserConfig.ContactFlowId), TypeConnectContactFlow, flowSet); err != nil {
+				return fmt.Errorf("upsert connect-quick-connect→flow (user): %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveConnectTrafficDistributionGroupInstance reads InstanceArn from each
+// TDG and emits attached-to → connect:instance. Scanner attrs root:
+// `{"TrafficDistributionGroup": {...}}`.
+func resolveConnectTrafficDistributionGroupInstance(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectTrafficDistributionGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	instSet, err := scannedIDSet(acct, st, TypeConnectInstance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			TrafficDistributionGroup struct {
+				InstanceArn *string `json:"InstanceArn"`
+			} `json:"TrafficDistributionGroup"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.TrafficDistributionGroup.InstanceArn)
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeConnectInstance, arn)
+		if !instSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-tdg→instance: %w", err)
+		}
+	}
+	return nil
+}
+
+// connectVersionParentARN strips a trailing `:version` segment from a
+// version-shaped Connect ARN, recovering the parent (flow / module) ARN.
+// The version segment is the substring after the last `:` in the ARN; the
+// ARN's prefix colons are not affected because they precede the resource
+// path's last `/`.
+func connectVersionParentARN(versionARN string) string {
+	slash := strings.LastIndexByte(versionARN, '/')
+	if slash < 0 {
+		return ""
+	}
+	tail := versionARN[slash:]
+	i := strings.LastIndexByte(tail, ':')
+	if i <= 0 {
+		return ""
+	}
+	return versionARN[:slash] + tail[:i]
+}
+
+// resolveConnectContactFlowVersionParent links each contact-flow-version row
+// to its parent contact-flow by stripping the `:version` suffix from the
+// version's ARN. FK-safe.
+func resolveConnectContactFlowVersionParent(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowVersion},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	flowSet, err := scannedIDSet(acct, st, TypeConnectContactFlow)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		parent := connectVersionParentARN(r.NativeID)
+		if parent == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlow, parent)
+		if !flowSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-flow-version→flow: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveConnectContactFlowModuleVersionAndAliasParent links module versions
+// (via stripped `:version` suffix) and module aliases (via attrs
+// `ContactFlowModuleId` from the wrapped DescribeContactFlowModuleAliasOutput)
+// to their parent contact-flow-module. FK-safe.
+func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *store.Store) error {
+	moduleSet, err := scannedIDSet(acct, st, TypeConnectContactFlowModule)
+	if err != nil {
+		return err
+	}
+	versions, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleVersion},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range versions {
+		parent := connectVersionParentARN(r.NativeID)
+		if parent == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlowModule, parent)
+		if !moduleSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-module-version→module: %w", err)
+		}
+	}
+	aliases, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleAlias},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range aliases {
+		var attrs struct {
+			ContactFlowModuleAlias struct {
+				ContactFlowModuleId *string `json:"ContactFlowModuleId"`
+			} `json:"ContactFlowModuleAlias"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		id := sv(attrs.ContactFlowModuleAlias.ContactFlowModuleId)
+		if id == "" {
+			continue
+		}
+		tgtARN := connectInstanceChildARN(r.NativeID, "flow-module", id)
+		if tgtARN == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlowModule, tgtARN)
+		if !moduleSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-module-alias→module: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveConnectPhoneNumberTarget reads `TargetArn` from each phone number's
+// ClaimedPhoneNumberSummary and emits an attached-to edge to either the
+// parent connect:instance or connect:traffic-distribution-group, dispatched
+// by ARN segment. FK-safe.
+func resolveConnectPhoneNumberTarget(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectPhoneNumber},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	instSet, err := scannedIDSet(acct, st, TypeConnectInstance)
+	if err != nil {
+		return err
+	}
+	tdgSet, err := scannedIDSet(acct, st, TypeConnectTrafficDistributionGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ClaimedPhoneNumberSummary struct {
+				TargetArn *string `json:"TargetArn"`
+			} `json:"ClaimedPhoneNumberSummary"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.ClaimedPhoneNumberSummary.TargetArn)
+		if arn == "" {
+			continue
+		}
+		var tgtType string
+		var set map[string]bool
+		switch {
+		case strings.Contains(arn, ":traffic-distribution-group/"):
+			tgtType, set = TypeConnectTrafficDistributionGroup, tdgSet
+		case strings.Contains(arn, ":instance/"):
+			tgtType, set = TypeConnectInstance, instSet
+		default:
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, tgtType, arn)
+		if !set[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect-phone-number→%s: %w", tgtType, err)
 		}
 	}
 	return nil

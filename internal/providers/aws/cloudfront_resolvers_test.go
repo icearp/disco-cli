@@ -348,3 +348,157 @@ func TestResolveDistributionCertificates(t *testing.T) {
 	}
 	assertRelationship(t, rels, distID, certID, store.RelUses)
 }
+
+// --- Key Group → Public Keys ---
+
+// TestResolveCloudFrontKeyGroupPublicKeys verifies key-group → public-key edges
+// are emitted for each public key listed in KeyGroupConfig.Items.
+func TestResolveCloudFrontKeyGroupPublicKeys(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	pk1 := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontPublicKey, "K1ABC", "", "{}")
+	pk2 := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontPublicKey, "K2DEF", "", "{}")
+	kgAttrs := `{"KeyGroup":{"Id":"kg-1","KeyGroupConfig":{"Items":["K1ABC","K2DEF","K9MISSING"]}}}`
+	kgID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontKeyGroup, "kg-1", "", kgAttrs)
+
+	if err := resolveCloudFrontKeyGroupPublicKeys(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontKeyGroupPublicKeys: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(kgID)
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships (missing pk skipped), got %d", len(rels))
+	}
+	assertRelationship(t, rels, kgID, pk1, store.RelUses)
+	assertRelationship(t, rels, kgID, pk2, store.RelUses)
+}
+
+// TestResolveCloudFrontKeyGroupPublicKeys_Empty verifies no error / no edges
+// when no key groups exist.
+func TestResolveCloudFrontKeyGroupPublicKeys_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	if err := resolveCloudFrontKeyGroupPublicKeys(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontKeyGroupPublicKeys: %v", err)
+	}
+}
+
+// --- Realtime Log Config → Kinesis stream + IAM role ---
+
+// TestResolveCloudFrontRealtimeLogConfigTargets verifies realtime-log-config →
+// kinesis stream (uses) and → IAM role (assumes) edges.
+func TestResolveCloudFrontRealtimeLogConfigTargets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	streamARN := fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/my-stream", testRegion, acct.ID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/cf-realtime-log", acct.ID)
+	streamID := upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, streamARN, testRegion, "{}")
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+
+	rtlcARN := fmt.Sprintf("arn:aws:cloudfront::%s:realtime-log-config/my-rtlc", acct.ID)
+	attrs := fmt.Sprintf(`{"EndPoints":[{"KinesisStreamConfig":{"StreamARN":%q,"RoleARN":%q}}]}`, streamARN, roleARN)
+	rtlcID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontRealtimeLogConfig, rtlcARN, "", attrs)
+
+	if err := resolveCloudFrontRealtimeLogConfigTargets(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontRealtimeLogConfigTargets: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rtlcID)
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships, got %d", len(rels))
+	}
+	assertRelationship(t, rels, rtlcID, streamID, store.RelUses)
+	assertRelationship(t, rels, rtlcID, roleID, store.RelAssumes)
+}
+
+// TestResolveCloudFrontRealtimeLogConfigTargets_UnscannedTargetsSkipped checks
+// that targets not in the scan set silently skip (no FK error, no edge).
+func TestResolveCloudFrontRealtimeLogConfigTargets_UnscannedTargetsSkipped(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	rtlcARN := fmt.Sprintf("arn:aws:cloudfront::%s:realtime-log-config/my-rtlc", acct.ID)
+	missingStream := fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/missing", testRegion, acct.ID)
+	missingRole := fmt.Sprintf("arn:aws:iam::%s:role/missing", acct.ID)
+	attrs := fmt.Sprintf(`{"EndPoints":[{"KinesisStreamConfig":{"StreamARN":%q,"RoleARN":%q}}]}`,
+		missingStream, missingRole)
+	rtlcID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontRealtimeLogConfig, rtlcARN, "", attrs)
+
+	if err := resolveCloudFrontRealtimeLogConfigTargets(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontRealtimeLogConfigTargets: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rtlcID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships (FK-safe skip), got %d", len(rels))
+	}
+}
+
+// --- Streaming Distribution → S3 bucket ---
+
+// TestResolveCloudFrontStreamingDistributionOrigins verifies the S3 origin
+// bucket edge from a streaming distribution.
+func TestResolveCloudFrontStreamingDistributionOrigins(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	bucketARN := "arn:aws:s3:::media-bucket"
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	sdARN := fmt.Sprintf("arn:aws:cloudfront::%s:streaming-distribution/E1XYZ", acct.ID)
+	attrs := `{"S3Origin":{"DomainName":"media-bucket.s3.amazonaws.com"}}`
+	sdID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontStreamingDistribution, sdARN, "", attrs)
+
+	if err := resolveCloudFrontStreamingDistributionOrigins(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontStreamingDistributionOrigins: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sdID)
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, sdID, bucketID, store.RelUses)
+}
+
+// --- Monitoring Subscription → Distribution ---
+
+// TestResolveCloudFrontMonitoringSubscriptionParent verifies the
+// monitoring-subscription → distribution attached-to edge.
+func TestResolveCloudFrontMonitoringSubscriptionParent(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	distARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E1ABC", acct.ID)
+	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, distARN, "", "{}")
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontMonitoringSubscription, distARN, "", "{}")
+
+	if err := resolveCloudFrontMonitoringSubscriptionParent(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontMonitoringSubscriptionParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(subID)
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, subID, distID, store.RelAttachedTo)
+}
+
+// --- Connection Group → Anycast IP List ---
+
+// TestResolveCloudFrontConnectionGroupAnycast verifies the connection-group →
+// anycast-ip-list uses edge. The connection group carries the bare list ID; the
+// anycast list row carries the full ARN as NativeID.
+func TestResolveCloudFrontConnectionGroupAnycast(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	anycastID := "anycast-list-1"
+	anycastARN := fmt.Sprintf("arn:aws:cloudfront::%s:anycast-ip-list/%s", acct.ID, anycastID)
+	anyResID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontAnycastIPList, anycastARN, "", "{}")
+
+	cgARN := fmt.Sprintf("arn:aws:cloudfront::%s:connection-group/cg-1", acct.ID)
+	cgAttrs := fmt.Sprintf(`{"AnycastIpListId":%q}`, anycastID)
+	cgID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontConnectionGroup, cgARN, "", cgAttrs)
+
+	if err := resolveCloudFrontConnectionGroupAnycast(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontConnectionGroupAnycast: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cgID)
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, cgID, anyResID, store.RelUses)
+}

@@ -23,6 +23,12 @@ func init() {
 		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontOAI, store.RelUses},
 		EdgeDecl{TypeCloudFrontDistribution, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeCloudFrontDistributionTenant, TypeCloudFrontDistribution, store.RelUses},
+		EdgeDecl{TypeCloudFrontKeyGroup, TypeCloudFrontPublicKey, store.RelUses},
+		EdgeDecl{TypeCloudFrontRealtimeLogConfig, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeCloudFrontRealtimeLogConfig, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeCloudFrontStreamingDistribution, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeCloudFrontMonitoringSubscription, TypeCloudFrontDistribution, store.RelAttachedTo},
+		EdgeDecl{TypeCloudFrontConnectionGroup, TypeCloudFrontAnycastIPList, store.RelUses},
 	)
 }
 
@@ -37,7 +43,22 @@ func resolveCloudFrontRelationships(acct *account, st *store.Store) error {
 	if err := resolveDistributionTenants(acct, st); err != nil {
 		return err
 	}
-	return resolveDistributionCertificates(acct, st)
+	if err := resolveDistributionCertificates(acct, st); err != nil {
+		return err
+	}
+	if err := resolveCloudFrontKeyGroupPublicKeys(acct, st); err != nil {
+		return err
+	}
+	if err := resolveCloudFrontRealtimeLogConfigTargets(acct, st); err != nil {
+		return err
+	}
+	if err := resolveCloudFrontStreamingDistributionOrigins(acct, st); err != nil {
+		return err
+	}
+	if err := resolveCloudFrontMonitoringSubscriptionParent(acct, st); err != nil {
+		return err
+	}
+	return resolveCloudFrontConnectionGroupAnycast(acct, st)
 }
 
 // resolveDistributionCertificates links each distribution to its ACM
@@ -292,6 +313,236 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 		targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontDistribution, distARN)
 		if err := st.UpsertRelationship(t.ID, targetID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudfront tenant→distribution relationship: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCloudFrontKeyGroupPublicKeys emits "uses" edges from each key group to
+// the public keys it lists in KeyGroupConfig.Items[]. FK-safe via scannedIDSet.
+func resolveCloudFrontKeyGroupPublicKeys(acct *account, st *store.Store) error {
+	groups, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontKeyGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+	pkSet, err := scannedIDSet(acct, st, TypeCloudFrontPublicKey)
+	if err != nil {
+		return err
+	}
+	// KeyGroup attrs are stored as the wrapping summary `{KeyGroup: {Id, KeyGroupConfig: {Items: [...]}}}`.
+	for _, g := range groups {
+		var attrs struct {
+			KeyGroup *struct {
+				KeyGroupConfig *struct {
+					Items []string `json:"Items"`
+				} `json:"KeyGroupConfig"`
+			} `json:"KeyGroup"`
+		}
+		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.KeyGroup == nil || attrs.KeyGroup.KeyGroupConfig == nil {
+			continue
+		}
+		for _, pkID := range attrs.KeyGroup.KeyGroupConfig.Items {
+			targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontPublicKey, pkID)
+			if !pkSet[targetID] {
+				continue
+			}
+			if err := st.UpsertRelationship(g.ID, targetID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cloudfront key-group→public-key: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveCloudFrontRealtimeLogConfigTargets emits edges from each realtime-log
+// config to its Kinesis stream (uses) and IAM role (assumes). The scanner stores
+// the raw RealtimeLogConfig with EndPoints[].KinesisStreamConfig.{StreamARN,RoleARN}.
+// Both edges are FK-safe via scannedIDSet — cross-account refs silently skip.
+func resolveCloudFrontRealtimeLogConfigTargets(acct *account, st *store.Store) error {
+	cfgs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontRealtimeLogConfig},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(cfgs) == 0 {
+		return nil
+	}
+	streamSet, err := scannedIDSet(acct, st, TypeKinesisStream)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, c := range cfgs {
+		var attrs struct {
+			EndPoints []struct {
+				KinesisStreamConfig *struct {
+					StreamARN *string `json:"StreamARN"`
+					RoleARN   *string `json:"RoleARN"`
+				} `json:"KinesisStreamConfig"`
+			} `json:"EndPoints"`
+		}
+		if err := json.Unmarshal([]byte(c.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, ep := range attrs.EndPoints {
+			if ep.KinesisStreamConfig == nil {
+				continue
+			}
+			if streamARN := sv(ep.KinesisStreamConfig.StreamARN); streamARN != "" {
+				targetID := store.ResourceID("aws", acct.ID, TypeKinesisStream, streamARN)
+				if streamSet[targetID] {
+					if err := st.UpsertRelationship(c.ID, targetID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert cloudfront realtime-log→kinesis: %w", err)
+					}
+				}
+			}
+			if roleARN := sv(ep.KinesisStreamConfig.RoleARN); roleARN != "" {
+				targetID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+				if roleSet[targetID] {
+					if err := st.UpsertRelationship(c.ID, targetID, store.RelAssumes, "directed", nil); err != nil {
+						return fmt.Errorf("upsert cloudfront realtime-log→iam-role: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveCloudFrontStreamingDistributionOrigins emits "uses" edges from each
+// streaming distribution to the S3 bucket it serves (S3Origin.DomainName).
+func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Store) error {
+	sds, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontStreamingDistribution},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(sds) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, sd := range sds {
+		var attrs struct {
+			S3Origin *struct {
+				DomainName *string `json:"DomainName"`
+			} `json:"S3Origin"`
+		}
+		if err := json.Unmarshal([]byte(sd.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.S3Origin == nil {
+			continue
+		}
+		bucket := cloudfrontS3BucketFromDomain(sv(attrs.S3Origin.DomainName))
+		if bucket == "" {
+			continue
+		}
+		targetID := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket)
+		if !bucketSet[targetID] {
+			continue
+		}
+		if err := st.UpsertRelationship(sd.ID, targetID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudfront streaming-distribution→s3: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCloudFrontMonitoringSubscriptionParent emits "attached-to" edges from
+// each monitoring subscription to its parent distribution. The subscription's
+// NativeID is the parent distribution ARN (see scanCloudFrontMonitoringSubscriptions).
+func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Store) error {
+	subs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontMonitoringSubscription},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(subs) == 0 {
+		return nil
+	}
+	distSet, err := scannedIDSet(acct, st, TypeCloudFrontDistribution)
+	if err != nil {
+		return err
+	}
+	for _, s := range subs {
+		targetID := store.ResourceID("aws", acct.ID, TypeCloudFrontDistribution, s.NativeID)
+		if !distSet[targetID] {
+			continue
+		}
+		if err := st.UpsertRelationship(s.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudfront monitoring-sub→distribution: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCloudFrontConnectionGroupAnycast emits "uses" edges from each
+// connection group to the anycast IP list it references (AnycastIpListId).
+// Connection group carries the bare list ID; the anycast list rows store the
+// full ARN as NativeID — build a (bare-id → resourceID) lookup.
+func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) error {
+	groups, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontConnectionGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+	anyLists, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontAnycastIPList},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]string, len(anyLists))
+	for _, a := range anyLists {
+		// ARN form: arn:aws:cloudfront::<acct>:anycast-ip-list/<id>
+		if i := strings.LastIndex(a.NativeID, "/"); i >= 0 {
+			byID[a.NativeID[i+1:]] = a.ID
+		}
+	}
+	for _, g := range groups {
+		var attrs struct {
+			AnycastIpListId *string `json:"AnycastIpListId"`
+		}
+		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		anycastID := sv(attrs.AnycastIpListId)
+		if anycastID == "" {
+			continue
+		}
+		targetID, ok := byID[anycastID]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(g.ID, targetID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudfront connection-group→anycast-ip-list: %w", err)
 		}
 	}
 	return nil

@@ -1,0 +1,306 @@
+package aws
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
+)
+
+func init() {
+	registerResolver(resolveBedrockAgentRefs,
+		EdgeDecl{TypeBedrockAgent, TypeBedrockGuardrail, store.RelUses},
+	)
+	registerResolver(resolveBedrockAgentAlias,
+		EdgeDecl{TypeBedrockAgentAlias, TypeBedrockAgent, store.RelAttachedTo},
+	)
+	registerResolver(resolveBedrockDataSourceKB,
+		EdgeDecl{TypeBedrockDataSource, TypeBedrockKnowledgeBase, store.RelAttachedTo},
+	)
+	registerResolver(resolveBedrockGuardrailVersion,
+		EdgeDecl{TypeBedrockGuardrailVersion, TypeBedrockGuardrail, store.RelAttachedTo},
+	)
+	registerResolver(resolveBedrockFlowAlias,
+		EdgeDecl{TypeBedrockFlowAlias, TypeBedrockFlow, store.RelAttachedTo},
+	)
+	registerResolver(resolveBedrockFlowVersion,
+		EdgeDecl{TypeBedrockFlowVersion, TypeBedrockFlow, store.RelAttachedTo},
+	)
+	registerResolver(resolveBedrockPromptVersion,
+		EdgeDecl{TypeBedrockPromptVersion, TypeBedrockPrompt, store.RelAttachedTo},
+	)
+}
+
+// bedrockGuardrailARN rebuilds the canonical ARN for a guardrail. The
+// AgentSummary.GuardrailConfiguration carries either the bare guardrail ID
+// or the full ARN — callers handle both shapes.
+func bedrockGuardrailARN(region, acct, id string) string {
+	return fmt.Sprintf("arn:aws:bedrock:%s:%s:guardrail/%s", region, acct, id)
+}
+
+// resolveBedrockAgentRefs links each agent to the guardrail referenced via
+// AgentSummary.GuardrailConfiguration.GuardrailIdentifier (ID or ARN form).
+func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
+	agents, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgent},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	guardSet, err := scannedIDSet(acct, st, TypeBedrockGuardrail)
+	if err != nil {
+		return err
+	}
+	for _, r := range agents {
+		var attrs struct {
+			GuardrailConfiguration *struct {
+				GuardrailIdentifier *string `json:"GuardrailIdentifier"`
+			} `json:"GuardrailConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.GuardrailConfiguration == nil || sv(attrs.GuardrailConfiguration.GuardrailIdentifier) == "" {
+			continue
+		}
+		ref := sv(attrs.GuardrailConfiguration.GuardrailIdentifier)
+		// Handle bare-ID and full-ARN forms; build the canonical ARN.
+		gARN := ref
+		if !strings.HasPrefix(ref, "arn:") {
+			gARN = bedrockGuardrailARN(sv(r.Region), acct.ID, ref)
+		}
+		gID := store.ResourceID("aws", acct.ID, TypeBedrockGuardrail, gARN)
+		if !guardSet[gID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, gID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock-agent→guardrail: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveBedrockAgentAlias links each agent-alias row to its parent agent.
+// Alias NativeID shape: arn:aws:bedrock:{r}:{a}:agent-alias/{agentID}/{aliasID}.
+// Strip trailing /{aliasID} and swap segment to recover the agent ARN.
+func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
+	aliases, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentAlias},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	agentSet, err := scannedIDSet(acct, st, TypeBedrockAgent)
+	if err != nil {
+		return err
+	}
+	for _, r := range aliases {
+		// NativeID = arn:aws:bedrock:{r}:{a}:agent-alias/{agentID}/{aliasID}.
+		// Drop the trailing /{aliasID} segment, then swap the agent-alias
+		// path component for agent to recover the parent agent's ARN.
+		idx := strings.LastIndex(r.NativeID, "/")
+		if idx < 0 {
+			continue
+		}
+		head := r.NativeID[:idx] // arn:...:agent-alias/{agentID}
+		agentARN := strings.Replace(head, ":agent-alias/", ":agent/", 1)
+		agentID := store.ResourceID("aws", acct.ID, TypeBedrockAgent, agentARN)
+		if !agentSet[agentID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, agentID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock-agent-alias→agent: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveBedrockDataSourceKB links each data-source to its knowledge-base
+// via the KnowledgeBaseId field on DataSourceSummary.
+func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
+	dss, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockDataSource},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	kbSet, err := scannedIDSet(acct, st, TypeBedrockKnowledgeBase)
+	if err != nil {
+		return err
+	}
+	for _, r := range dss {
+		var attrs struct {
+			KnowledgeBaseId *string `json:"KnowledgeBaseId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		kb := sv(attrs.KnowledgeBaseId)
+		if kb == "" {
+			continue
+		}
+		kbID := store.ResourceID("aws", acct.ID, TypeBedrockKnowledgeBase,
+			bedrockKBARN(sv(r.Region), acct.ID, kb))
+		if !kbSet[kbID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, kbID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock-data-source→kb: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveBedrockGuardrailVersion links each guardrail-version row to its
+// parent guardrail. NativeID shape: {guardrailARN}:{version}; strip the
+// :{version} suffix to recover the parent ARN.
+func resolveBedrockGuardrailVersion(acct *account, st *store.Store) error {
+	return resolveBedrockVersionParent(acct, st,
+		TypeBedrockGuardrailVersion, TypeBedrockGuardrail, "bedrock-guardrail-version→guardrail")
+}
+
+// resolveBedrockPromptVersion mirrors guardrail-version: NativeID is
+// {promptARN}:{version}; strip suffix to find parent prompt.
+func resolveBedrockPromptVersion(acct *account, st *store.Store) error {
+	return resolveBedrockVersionParent(acct, st,
+		TypeBedrockPromptVersion, TypeBedrockPrompt, "bedrock-prompt-version→prompt")
+}
+
+// resolveBedrockVersionParent is the shared body for guardrail-version and
+// prompt-version — both types use a {parentARN}:{version} NativeID.
+func resolveBedrockVersionParent(acct *account, st *store.Store, childType, parentType, label string) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{childType},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	parentSet, err := scannedIDSet(acct, st, parentType)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		// Trim the final ":<version>" suffix; AWS ARNs use 5 colons before
+		// account/resource segments (arn:aws:svc:region:acct:resource), so
+		// the version-delimiter colon is the 6th — i.e. the last one.
+		idx := strings.LastIndex(r.NativeID, ":")
+		if idx < 0 {
+			continue
+		}
+		parentARN := r.NativeID[:idx]
+		parentID := store.ResourceID("aws", acct.ID, parentType, parentARN)
+		if !parentSet[parentID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, parentID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert %s: %w", label, err)
+		}
+	}
+	return nil
+}
+
+// loadBedrockFlowIDIndex builds {flow-id → flow-row-ID} so flow-alias and
+// flow-version resolvers can look up the parent flow without re-deriving
+// its ARN. FlowSummary.Id is the SDK's logical id; the row's NativeID is
+// the ARN.
+func loadBedrockFlowIDIndex(acct *account, st *store.Store) (map[string]string, error) {
+	flows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlow},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(flows))
+	for _, f := range flows {
+		var attrs struct {
+			Id *string `json:"Id"`
+		}
+		if json.Unmarshal([]byte(f.AttributesJSON), &attrs) != nil {
+			continue
+		}
+		if id := sv(attrs.Id); id != "" {
+			idx[id] = f.ID
+		}
+	}
+	return idx, nil
+}
+
+// resolveBedrockFlowAlias links flow-alias → flow via FlowId on
+// FlowAliasSummary.
+func resolveBedrockFlowAlias(acct *account, st *store.Store) error {
+	idx, err := loadBedrockFlowIDIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlowAlias},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			FlowId *string `json:"FlowId"`
+		}
+		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
+			continue
+		}
+		fid := sv(attrs.FlowId)
+		if fid == "" {
+			continue
+		}
+		flowRowID, ok := idx[fid]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, flowRowID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock-flow-alias→flow: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveBedrockFlowVersion links flow-version → flow. FlowVersionSummary
+// has only Id (the parent flow's id) — same lookup as flow-alias but on
+// the Id key rather than FlowId.
+func resolveBedrockFlowVersion(acct *account, st *store.Store) error {
+	idx, err := loadBedrockFlowIDIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlowVersion},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Id *string `json:"Id"`
+		}
+		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
+			continue
+		}
+		fid := sv(attrs.Id)
+		if fid == "" {
+			continue
+		}
+		flowRowID, ok := idx[fid]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, flowRowID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock-flow-version→flow: %w", err)
+		}
+	}
+	return nil
+}
