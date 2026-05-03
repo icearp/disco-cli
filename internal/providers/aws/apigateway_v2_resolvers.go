@@ -38,6 +38,7 @@ func init() {
 	)
 	registerResolver(resolveAPIGatewayV2IntegrationVpcLink,
 		EdgeDecl{TypeAPIGatewayV2Integration, TypeAPIGatewayV2VpcLink, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayV2Integration, TypeIAMRole, store.RelAssumes},
 	)
 	registerResolver(resolveAPIGatewayV2StageRefs,
 		EdgeDecl{TypeAPIGatewayV2Stage, TypeAPIGatewayV2Deployment, store.RelUses},
@@ -316,8 +317,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 }
 
 // resolveAPIGatewayV2IntegrationVpcLink wires VPC_LINK-typed integrations to
-// their vpc-link (ConnectionId). CredentialsArn skipped — store-side
-// `credential` key scrubbing redacts the value before resolvers see it.
+// their vpc-link (ConnectionId) and any CredentialsArn IAM role.
 func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Integration},
@@ -333,29 +333,38 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 	if err != nil {
 		return err
 	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
 	for _, r := range rows {
 		var attrs struct {
 			ConnectionId   *string `json:"ConnectionId"`
 			ConnectionType *string `json:"ConnectionType"`
+			CredentialsArn *string `json:"CredentialsArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if sv(attrs.ConnectionType) != "VPC_LINK" {
-			continue
-		}
-		cid := sv(attrs.ConnectionId)
-		if cid == "" {
-			continue
-		}
 		region := sv(r.Region)
-		vlARN := apigatewayARN(region, "vpclinks", cid)
-		tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2VpcLink, vlARN)
-		if !vlSet[tgtID] {
-			continue
+		if sv(attrs.ConnectionType) == "VPC_LINK" {
+			if cid := sv(attrs.ConnectionId); cid != "" {
+				vlARN := apigatewayARN(region, "vpclinks", cid)
+				tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2VpcLink, vlARN)
+				if vlSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert apigatewayv2 integ→vpc-link: %w", err)
+					}
+				}
+			}
 		}
-		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert apigatewayv2 integ→vpc-link: %w", err)
+		if role := sv(attrs.CredentialsArn); role != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			if roleSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert apigatewayv2 integ→role: %w", err)
+				}
+			}
 		}
 	}
 	return nil

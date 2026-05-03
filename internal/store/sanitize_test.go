@@ -231,3 +231,47 @@ func TestIsReferenceURI(t *testing.T) {
 		}
 	}
 }
+
+func TestIsAWSARN(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"arn:aws:iam::123456789012:role/MyRole", true},
+		{"arn:aws:secretsmanager:us-east-1:123:secret:db/pw", true},
+		{"arn:aws:apigateway:us-east-1::/apis/abc/integrations/i1", true},
+		{"arn:aws-cn:s3:::bucket/key", true},
+		{"arn:aws-us-gov:lambda:us-gov-west-1:123:function:f", true},
+		{"arn:awsfoo:s3:::bucket", false}, // partition must terminate at colon/dash
+		{"arn:aws:iam:role", false},       // only 3 colons
+		{"plain-secret-string", false},
+		{"https://example.com/secrets/foo", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := isAWSARN(tc.in); got != tc.want {
+			t.Errorf("isAWSARN(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestScrubAttributesAllowsARNUnderSensitiveKey(t *testing.T) {
+	in := `{"CredentialsArn":"arn:aws:iam::123456789012:role/MyRole","SecretString":"hunter2","SecretArn":"arn:aws:secretsmanager:us-east-1:123:secret:db/pw","Token":"raw-token"}`
+	out := scrubAttributes(in)
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if m["CredentialsArn"] != "arn:aws:iam::123456789012:role/MyRole" {
+		t.Errorf("CredentialsArn ARN should pass through: %v", m["CredentialsArn"])
+	}
+	if m["SecretArn"] != "arn:aws:secretsmanager:us-east-1:123:secret:db/pw" {
+		t.Errorf("SecretArn should pass through: %v", m["SecretArn"])
+	}
+	if m["SecretString"] != redactedPlaceholder {
+		t.Errorf("SecretString must still redact: %v", m["SecretString"])
+	}
+	if m["Token"] != redactedPlaceholder {
+		t.Errorf("Token must still redact: %v", m["Token"])
+	}
+}

@@ -127,14 +127,17 @@ func TestResolveAPIGatewayV2IntegrationVpcLink(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	vlARN := fmt.Sprintf("arn:aws:apigateway:%s::/vpclinks/vl1", testRegion)
 	vlID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2VpcLink, vlARN, testRegion, "{}")
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/r", acct.ID)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
 	intARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc/integrations/i1", testRegion)
-	attrs := `{"ConnectionId":"vl1","ConnectionType":"VPC_LINK"}`
+	attrs := fmt.Sprintf(`{"ConnectionId":"vl1","ConnectionType":"VPC_LINK","CredentialsArn":%q}`, roleARN)
 	intID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayV2Integration, intARN, testRegion, attrs)
 	if err := resolveAPIGatewayV2IntegrationVpcLink(acct, st); err != nil {
 		t.Fatalf("resolveAPIGatewayV2IntegrationVpcLink: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(intID)
 	assertRelationship(t, rels, intID, vlID, store.RelAttachedTo)
+	assertRelationship(t, rels, intID, rID, store.RelAssumes)
 }
 
 func TestResolveAPIGatewayV2StageRefs(t *testing.T) {

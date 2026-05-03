@@ -87,7 +87,7 @@ func scrubValue(v any) any {
 				t[k] = scrubValue(child)
 			default:
 				if isSensitiveKey(k) {
-					if s, ok := child.(string); ok && isReferenceURI(s) {
+					if s, ok := child.(string); ok && (isReferenceURI(s) || isAWSARN(s)) {
 						t[k] = s
 					} else {
 						t[k] = redactedPlaceholder
@@ -167,6 +167,30 @@ var keyVaultObjectPaths = []string{"/secrets/", "/keys/", "/certificates/"}
 // Vault reference URIs across all four cloud DNS suffixes; extend the lists
 // to add more pointer shapes (e.g. AWS Secrets Manager ARNs already FK by
 // shape, no allowlist needed).
+// isAWSARN reports whether s is shaped as an AWS ARN. ARNs are pointers
+// (service + region + account + resource path) and never embed secret
+// material, so a denylisted key whose value is an ARN — `CredentialsArn`,
+// `SecretArn`, `TokenSourceArn`, `AuthorizationHeaderArn`, etc. — is safe to
+// preserve so resolvers can wire the edge. Shape: `arn:<partition>:<service>:`
+// where partition matches `aws`, `aws-cn`, `aws-us-gov`. Requires at least
+// the five colons of a canonical ARN to avoid letting through bare strings
+// that merely start with "arn:".
+func isAWSARN(s string) bool {
+	if !strings.HasPrefix(s, "arn:aws") {
+		return false
+	}
+	// "arn:aws:s:r:a:..." → 5 colons minimum.
+	if strings.Count(s, ":") < 5 {
+		return false
+	}
+	// Reject `arn:awsfoo:...` — partition must terminate at colon.
+	rest := s[len("arn:aws"):]
+	if !(strings.HasPrefix(rest, ":") || strings.HasPrefix(rest, "-cn:") || strings.HasPrefix(rest, "-us-gov:") || strings.HasPrefix(rest, "-iso:") || strings.HasPrefix(rest, "-iso-b:")) {
+		return false
+	}
+	return true
+}
+
 func isReferenceURI(s string) bool {
 	if !strings.HasPrefix(s, "https://") {
 		return false
