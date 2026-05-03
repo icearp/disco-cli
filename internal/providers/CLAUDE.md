@@ -107,3 +107,7 @@ Production helpers that internally construct API clients (via ADC / `clientOptio
 ## List ops with required input filters
 
 Many AWS/Azure/GCP List ops reject blanket calls — they require a parent identifier (DescribeUserStackAssociations needs StackName, ListPolicies needs PolicyEngineId, ListIndexes needs VectorBucketName, ListServiceNetworkServiceAssociations needs ServiceNetworkIdentifier). The compile-time signature exposes the field as `*string` so empty input compiles but fails at runtime with `InvalidParameterCombinationException` / `validation error` / `Must provide at least one of: …`. Before writing a List paginator, grep the SDK package for `validators.go` — `ErrParamRequired` entries reveal required inputs. Fan-out per parent enumerated by an upstream sibling scanner phase; pass the parent IDs/ARNs as a slice argument.
+
+## List-only summary scanners block resolver work
+
+Some `List*` ops return only `{Arn, Name, Status}` summaries — DataSync `ListLocations` is canonical: full IAM/S3/EFS/FSx refs live on `DescribeLocation*` per subtype. Resolvers can't synthesize edges from data the scanner never fetched. Either skip the resolver with a note in the scanner header, or enrich the scanner via per-row Describe fan-out before adding the resolver. Precedent for the enrichment pattern: `scanStorageLens` in `aws/s3control_scanners.go`.

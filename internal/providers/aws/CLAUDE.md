@@ -267,3 +267,11 @@ Tooling:
 - `go run ./cmd/aws-resolver-audit/ --db <path>` — diffs declared metadata + DB edges against ARN/ID refs walked from `AttributesJSON`.
 
 Snapshot lives in `docs/aws-missing-resolvers.tsv` — refresh with `disco coverage --missing-resolvers --provider aws > docs/aws-missing-resolvers.tsv` after each resolver-shipping commit so future PRs diff against it.
+
+## NativeID parent-extraction = dominant child→parent shape
+
+Most service hierarchies encode the parent in the child's NativeID via `{parentARN}/<kind>/<id>` (Cognito user-pool children, Logs streams / metric-filters / subscription-filters / transformers, Deadline farm children, AppSync per-API children, MediaConnect VPC interfaces, Connect instance children, Glue partitions). Resolver pattern: `strings.Index(arn, "<segment>/")` + slice up to that point; wire one resolver per child cluster with `EdgeDecl`, FK-safe via `scannedIDSet(parentType)`. No need to walk parent attrs — the child already carries the link in its NativeID.
+
+## Don't parallelize agents over shared resolver registries
+
+`<service>_resolvers.go` `init()` blocks are append targets for every resolver added. Dispatching parallel agents that each write to the same `init()` produces registration calls without function bodies when one agent runs out of usage budget mid-task — the package fails to compile with N undefined symbols. Either dispatch one agent per service file, or have agents create new `<service>_extended_resolvers.go` files (separate `init()` blocks merge cleanly).
