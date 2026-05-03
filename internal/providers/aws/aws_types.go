@@ -1253,6 +1253,10 @@ const (
 	TypeInspector2CisScanConfiguration          = "aws:inspector2:cis-scan-configuration"
 	TypeInspector2CodeSecurityIntegration       = "aws:inspector2:code-security-integration"
 	TypeInspector2CodeSecurityScanConfiguration = "aws:inspector2:code-security-scan-configuration"
+	// Inspector v1 (inspector_v1_scanners.go) — legacy classic Inspector.
+	TypeInspectorAssessmentTarget   = "aws:inspector:assessment-target"
+	TypeInspectorAssessmentTemplate = "aws:inspector:assessment-template"
+	TypeInspectorResourceGroup      = "aws:inspector:resource-group"
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase = "aws:glue:database"
 	TypeGlueTable    = "aws:glue:table"
