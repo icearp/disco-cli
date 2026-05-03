@@ -284,16 +284,7 @@ aws:directory-service:microsoft-ad	directory-service
 aws:directory-service:simple-ad	directory-service
 aws:dlm:lifecycle-policy	dlm
 aws:dms:certificate	dms
-aws:dms:data-migration	dms
 aws:dms:data-provider	dms
-aws:dms:endpoint	dms
-aws:dms:event-subscription	dms
-aws:dms:instance-profile	dms
-aws:dms:migration-project	dms
-aws:dms:replication-config	dms
-aws:dms:replication-instance	dms
-aws:dms:replication-subnet-group	dms
-aws:dms:replication-task	dms
 aws:doc-db-elastic:cluster	doc-db-elastic
 aws:docdb:db-cluster-parameter-group	docdb
 aws:docdb:db-subnet-group	docdb
