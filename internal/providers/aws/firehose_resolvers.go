@@ -8,7 +8,13 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveFirehoseDeliveryStreamRelationships) }
+func init() {
+	registerResolver(resolveFirehoseDeliveryStreamRelationships,
+		EdgeDecl{TypeFirehoseDeliveryStream, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeFirehoseDeliveryStream, TypeS3Bucket, store.RelRoutesTo},
+		EdgeDecl{TypeFirehoseDeliveryStream, TypeKMSKey, store.RelUses},
+	)
+}
 
 // firehoseDestinationAttrs picks out the fields we care about across each of
 // the DestinationDescription sub-types. The AWS SDK struct is large; we only

@@ -10,8 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAthenaWorkgroupTargets)
-	registerResolver(resolveAthenaDataCatalogLambda)
+	registerResolver(resolveAthenaWorkgroupTargets,
+		EdgeDecl{TypeAthenaWorkgroup, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeAthenaWorkgroup, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveAthenaDataCatalogLambda,
+		EdgeDecl{TypeAthenaDataCatalog, TypeLambdaFunction, store.RelUses},
+	)
 }
 
 // athenaWorkGroupAttrs mirrors the verbatim WorkGroup fields used by the

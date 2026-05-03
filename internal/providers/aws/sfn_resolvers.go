@@ -10,7 +10,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSFNRelationships)
+	registerResolver(resolveSFNRelationships,
+		EdgeDecl{TypeSFNStateMachine, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeSFNStateMachine, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeSFNStateMachine, TypeLambdaFunction, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeSNSTopic, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeSQSQueue, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeKinesisStream, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeFirehoseDeliveryStream, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeDynamoDBTable, store.RelRoutesTo},
+		EdgeDecl{TypeSFNStateMachine, TypeSFNStateMachine, store.RelRoutesTo},
+	)
 }
 
 // resolveSFNRelationships links each state machine to its IAM role, any

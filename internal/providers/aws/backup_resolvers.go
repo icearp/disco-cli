@@ -8,7 +8,13 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveBackupRelationships) }
+func init() {
+	registerResolver(resolveBackupRelationships,
+		EdgeDecl{TypeBackupVault, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeBackupLogicallyAirGappedVault, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeBackupSelection, TypeIAMRole, store.RelAssumes},
+	)
+}
 
 // resolveBackupRelationships emits vault→KMS edges, selection→plan contains,
 // and selection→IAM-role assumes. Tag-condition expansion (selection → tagged

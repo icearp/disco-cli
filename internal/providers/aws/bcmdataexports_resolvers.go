@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveBCMDataExportsRelationships) }
+func init() {
+	registerResolver(resolveBCMDataExportsRelationships,
+		EdgeDecl{TypeBCMDataExportsExport, TypeS3Bucket, store.RelUses},
+	)
+}
 
 // bcmExportAttrs mirrors verbatim Export.DestinationConfigurations.S3Destination.
 type bcmExportAttrs struct {

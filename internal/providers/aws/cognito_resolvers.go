@@ -10,8 +10,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCognitoAppClientRelationships)
-	registerResolver(resolveCognitoIdentityPoolRelationships)
+	registerResolver(resolveCognitoAppClientRelationships,
+		EdgeDecl{TypeCognitoAppClient, TypeCognitoUserPool, store.RelAttachedTo},
+	)
+	registerResolver(resolveCognitoIdentityPoolRelationships,
+		EdgeDecl{TypeCognitoIdentityPool, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeCognitoIdentityPool, TypeCognitoUserPool, store.RelUses},
+		EdgeDecl{TypeCognitoIdentityPool, TypeCognitoAppClient, store.RelUses},
+	)
 }
 
 // resolveCognitoAppClientRelationships links each app client to its user pool.

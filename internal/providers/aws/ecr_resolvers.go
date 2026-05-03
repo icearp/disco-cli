@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveECRRepositoryRelationships) }
+func init() {
+	registerResolver(resolveECRRepositoryRelationships,
+		EdgeDecl{TypeECRRepository, TypeKMSKey, store.RelUses},
+	)
+}
 
 // resolveECRRepositoryRelationships links each ECR repository to the KMS key
 // that encrypts its image layers when encryption type is KMS. AES256

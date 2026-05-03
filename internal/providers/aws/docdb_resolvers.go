@@ -9,8 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDocDBClusterTargets)
-	registerResolver(resolveDocDBInstanceCluster)
+	registerResolver(resolveDocDBClusterTargets,
+		EdgeDecl{TypeDocDBCluster, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeDocDBCluster, TypeEC2SecurityGroup, store.RelUses},
+	)
+	registerResolver(resolveDocDBInstanceCluster,
+		EdgeDecl{TypeDocDBCluster, TypeDocDBInstance, store.RelContains},
+	)
 }
 
 // docdbClusterAttrs mirrors the verbatim DBCluster fields used by the

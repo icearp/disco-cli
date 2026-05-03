@@ -10,8 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSOPermissionSetInstance)
-	registerResolver(resolveSSOAccountAssignments)
+	registerResolver(resolveSSOPermissionSetInstance,
+		EdgeDecl{TypeSSOInstance, TypeSSOPermissionSet, store.RelContains},
+	)
+	registerResolver(resolveSSOAccountAssignments,
+		EdgeDecl{TypeSSOAccountAssignment, TypeSSOPermissionSet, store.RelUses},
+		EdgeDecl{TypeSSOAccountAssignment, TypeIdentityStoreUser, store.RelUses},
+		EdgeDecl{TypeSSOAccountAssignment, TypeIdentityStoreGroup, store.RelUses},
+		EdgeDecl{TypeSSOAccountAssignment, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
 }
 
 // ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so the

@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBeanstalkEnvironmentTargets)
+	registerResolver(resolveBeanstalkEnvironmentTargets,
+		EdgeDecl{TypeBeanstalkApplication, TypeBeanstalkEnvironment, store.RelContains},
+	)
 }
 
 // beanstalkEnvAttrs mirrors verbatim EnvironmentDescription fields used

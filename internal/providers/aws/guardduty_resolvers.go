@@ -10,8 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGuardDutyRelationships)
-	registerResolver(resolveGuardDutyMemberOrgAccount)
+	registerResolver(resolveGuardDutyRelationships,
+		EdgeDecl{TypeGuardDutyIPSet, TypeS3Bucket, store.RelUses},
+	)
+	registerResolver(resolveGuardDutyMemberOrgAccount,
+		EdgeDecl{TypeGuardDutyMember, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
 }
 
 // guardDutyMemberAttrs mirrors the verbatim Member fields used by the

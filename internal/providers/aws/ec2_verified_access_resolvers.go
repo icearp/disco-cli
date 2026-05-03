@@ -9,8 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVerifiedAccessGroupRelationships)
-	registerResolver(resolveVerifiedAccessEndpointRelationships)
+	registerResolver(resolveVerifiedAccessGroupRelationships,
+		EdgeDecl{TypeEC2VerifiedAccessGroup, TypeEC2VerifiedAccessInstance, store.RelAttachedTo},
+	)
+	registerResolver(resolveVerifiedAccessEndpointRelationships,
+		EdgeDecl{TypeEC2VerifiedAccessEndpoint, TypeEC2VerifiedAccessGroup, store.RelAttachedTo},
+	)
 }
 
 // resolveVerifiedAccessGroupRelationships links each Verified Access group to its instance.

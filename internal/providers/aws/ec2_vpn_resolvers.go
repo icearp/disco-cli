@@ -9,7 +9,10 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVPNConnectionRelationships)
+	registerResolver(resolveVPNConnectionRelationships,
+		EdgeDecl{TypeEC2VPNConnection, TypeEC2VPNGateway, store.RelAttachedTo},
+		EdgeDecl{TypeEC2VPNConnection, TypeEC2CustomerGateway, store.RelAttachedTo},
+	)
 }
 
 func resolveVPNConnectionRelationships(acct *account, st *store.Store) error {

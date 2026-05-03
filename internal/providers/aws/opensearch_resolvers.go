@@ -10,7 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOpenSearchDomainTargets)
+	registerResolver(resolveOpenSearchDomainTargets,
+		EdgeDecl{TypeOpenSearchDomain, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeOpenSearchDomain, TypeEC2Subnet, store.RelUses},
+		EdgeDecl{TypeOpenSearchDomain, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeOpenSearchDomain, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeOpenSearchDomain, TypeCognitoUserPool, store.RelUses},
+		EdgeDecl{TypeOpenSearchDomain, TypeCognitoIdentityPool, store.RelUses},
+		EdgeDecl{TypeOpenSearchDomain, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeOpenSearchDomain, TypeLogsLogGroup, store.RelUses},
+	)
 }
 
 // opensearchDomainAttrs mirrors the verbatim DomainStatus fields used by

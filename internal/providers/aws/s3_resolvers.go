@@ -10,12 +10,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveS3BucketPolicyRelationships)
-	registerResolver(resolveS3AccessGrantRelationships)
-	registerResolver(resolveS3AccessGrantsLocationRelationships)
-	registerResolver(resolveS3AccessPointRelationships)
-	registerResolver(resolveS3MRAPPolicyRelationships)
-	registerResolver(resolveS3BucketEncryptionRelationships)
+	registerResolver(resolveS3BucketPolicyRelationships,
+		EdgeDecl{TypeS3BucketPolicy, TypeS3Bucket, store.RelAttachedTo},
+	)
+	registerResolver(resolveS3AccessGrantRelationships,
+		EdgeDecl{TypeS3AccessGrant, TypeS3AccessGrantsInstance, store.RelAttachedTo},
+	)
+	registerResolver(resolveS3AccessGrantsLocationRelationships,
+		EdgeDecl{TypeS3AccessGrantsLocation, TypeS3AccessGrantsInstance, store.RelAttachedTo},
+	)
+	registerResolver(resolveS3AccessPointRelationships,
+		EdgeDecl{TypeS3AccessPoint, TypeS3Bucket, store.RelAttachedTo},
+	)
+	registerResolver(resolveS3MRAPPolicyRelationships,
+		EdgeDecl{TypeS3MultiRegionAccessPointPolicy, TypeS3MultiRegionAccessPoint, store.RelAttachedTo},
+	)
+	registerResolver(resolveS3BucketEncryptionRelationships,
+		EdgeDecl{TypeS3Bucket, TypeKMSKey, store.RelUses},
+	)
 }
 
 // resolveS3BucketEncryptionRelationships emits bucket→KMS `uses` edges from

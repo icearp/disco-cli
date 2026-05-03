@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDetectiveMemberOrgAccount)
+	registerResolver(resolveDetectiveMemberOrgAccount,
+		EdgeDecl{TypeDetectiveMember, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
 }
 
 // detectiveMemberAttrs mirrors the verbatim MemberDetail fields used by the

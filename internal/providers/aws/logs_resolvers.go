@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveLogsRelationships) }
+func init() {
+	registerResolver(resolveLogsRelationships,
+		EdgeDecl{TypeLogsDelivery, TypeLogsDeliverySource, store.RelUses},
+		EdgeDecl{TypeLogsDelivery, TypeLogsDeliveryDest, store.RelUses},
+		EdgeDecl{TypeLogsLogAnomalyDetector, TypeLogsLogGroup, store.RelUses},
+	)
+}
 
 // resolveLogsRelationships runs all CloudWatch Logs relationship passes.
 func resolveLogsRelationships(acct *account, st *store.Store) error {

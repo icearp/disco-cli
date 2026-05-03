@@ -8,7 +8,16 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAPSRelationships) }
+func init() {
+	registerResolver(resolveAPSRelationships,
+		EdgeDecl{TypeAPSWorkspace, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeAPSScraper, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeAPSScraper, TypeAPSWorkspace, store.RelUses},
+		EdgeDecl{TypeAPSScraper, TypeEKSCluster, store.RelUses},
+		EdgeDecl{TypeAPSScraper, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeAPSScraper, TypeEC2Subnet, store.RelAttachedTo},
+	)
+}
 
 // resolveAPSRelationships emits APS workspace and scraper edges.
 //

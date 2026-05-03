@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveELBClassicRelationships) }
+func init() {
+	registerResolver(resolveELBClassicRelationships,
+		EdgeDecl{TypeELBClassicLoadBalancer, TypeEC2VPC, store.RelAttachedTo},
+	)
+}
 
 // resolveELBClassicRelationships links each Classic load balancer to its VPC.
 // Classic ELBs without a VPC (EC2-Classic) produce no relationship.

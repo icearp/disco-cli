@@ -10,14 +10,37 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRDSInstanceRelationships)
-	registerResolver(resolveDBClusterRelationships)
-	registerResolver(resolveDBSubnetGroupRelationships)
-	registerResolver(resolveDBProxyRelationships)
-	registerResolver(resolveDBProxyEndpointRelationships)
-	registerResolver(resolveDBProxyTargetGroupRelationships)
-	registerResolver(resolveDBShardGroupRelationships)
-	registerResolver(resolveGlobalClusterRelationships)
+	registerResolver(resolveRDSInstanceRelationships,
+		EdgeDecl{TypeRDSDBInstance, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeRDSDBInstance, TypeRDSDBCluster, store.RelAttachedTo},
+		EdgeDecl{TypeRDSDBInstance, TypeRDSDBSubnetGroup, store.RelAttachedTo},
+		EdgeDecl{TypeRDSDBInstance, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeRDSDBInstance, TypeRDSDBParameterGroup, store.RelUses},
+		EdgeDecl{TypeRDSDBInstance, TypeRDSOptionGroup, store.RelUses},
+	)
+	registerResolver(resolveDBClusterRelationships,
+		EdgeDecl{TypeRDSDBCluster, TypeRDSDBSubnetGroup, store.RelAttachedTo},
+		EdgeDecl{TypeRDSDBCluster, TypeRDSDBClusterParameterGroup, store.RelUses},
+		EdgeDecl{TypeRDSDBCluster, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveDBSubnetGroupRelationships,
+		EdgeDecl{TypeRDSDBSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveDBProxyRelationships,
+		EdgeDecl{TypeRDSDBProxy, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveDBProxyEndpointRelationships,
+		EdgeDecl{TypeRDSDBProxyEndpoint, TypeRDSDBProxy, store.RelAttachedTo},
+	)
+	registerResolver(resolveDBProxyTargetGroupRelationships,
+		EdgeDecl{TypeRDSDBProxyTargetGroup, TypeRDSDBProxy, store.RelAttachedTo},
+	)
+	registerResolver(resolveDBShardGroupRelationships,
+		EdgeDecl{TypeRDSDBShardGroup, TypeRDSDBCluster, store.RelAttachedTo},
+	)
+	registerResolver(resolveGlobalClusterRelationships,
+		EdgeDecl{TypeRDSGlobalCluster, TypeRDSDBCluster, store.RelContains},
+	)
 }
 
 // resolveRDSInstanceRelationships links each DB instance to its VPC, cluster,

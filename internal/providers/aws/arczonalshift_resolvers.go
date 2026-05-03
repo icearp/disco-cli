@@ -7,7 +7,12 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveARCZonalShiftRelationships) }
+func init() {
+	registerResolver(resolveARCZonalShiftRelationships,
+		EdgeDecl{TypeARCZonalShiftConfiguration, TypeELBv2LoadBalancer, store.RelAttachedTo},
+		EdgeDecl{TypeARCZonalShiftConfiguration, TypeECSService, store.RelAttachedTo},
+	)
+}
 
 // resolveARCZonalShiftRelationships wires zonal-autoshift configurations to
 // their underlying managed resource via `attached-to`. The managed-resource

@@ -10,7 +10,20 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudFrontRelationships)
+	registerResolver(resolveCloudFrontRelationships,
+		EdgeDecl{TypeCloudFrontDistribution, TypeACMCertificate, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontCachePolicy, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontOriginRequestPolicy, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontResponseHeadersPolicy, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontRealtimeLogConfig, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontKeyGroup, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontFunction, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontOriginAccessControl, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontOAI, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistribution, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeCloudFrontDistributionTenant, TypeCloudFrontDistribution, store.RelUses},
+	)
 }
 
 // resolveCloudFrontRelationships runs all CloudFront sub-resolvers.

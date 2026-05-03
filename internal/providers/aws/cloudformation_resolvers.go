@@ -10,8 +10,41 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudFormationStackResources)
-	registerResolver(resolveCloudFormationStackSetInstances)
+	registerResolver(resolveCloudFormationStackResources,
+		EdgeDecl{TypeCloudFormationStack, TypeS3Bucket, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeIAMRole, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeIAMUser, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeIAMPolicy, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeLambdaFunction, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeLambdaLayerVersion, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEC2Instance, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEC2SecurityGroup, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEC2VPC, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEC2Subnet, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeDynamoDBTable, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeSNSTopic, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeSQSQueue, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeLogsLogGroup, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeKMSKey, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeSecretsManagerSecret, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeRDSDBInstance, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeRDSDBCluster, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeSFNStateMachine, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEventsRule, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEventsEventBus, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeEFSFileSystem, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeECRRepository, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeKinesisStream, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeSSMParameter, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeELBv2LoadBalancer, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeELBv2TargetGroup, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeAPIGatewayRestAPI, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeAPIGatewayV2API, store.RelContains},
+		EdgeDecl{TypeCloudFormationStack, TypeCloudFormationStack, store.RelContains},
+	)
+	registerResolver(resolveCloudFormationStackSetInstances,
+		EdgeDecl{TypeCloudFormationStackSet, TypeCloudFormationStack, store.RelContains},
+	)
 }
 
 // cfnStackAttrs mirrors the wrapped attrs persisted by scanCloudFormationStacks.

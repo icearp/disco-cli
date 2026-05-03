@@ -10,9 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSecretsManagerKMS)
-	registerResolver(resolveSecretsManagerRotation)
-	registerResolver(resolveSecretsManagerReplication)
+	registerResolver(resolveSecretsManagerKMS,
+		EdgeDecl{TypeSecretsManagerSecret, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveSecretsManagerRotation,
+		EdgeDecl{TypeSecretsManagerSecret, TypeLambdaFunction, store.RelUses},
+	)
+	registerResolver(resolveSecretsManagerReplication,
+		EdgeDecl{TypeSecretsManagerSecret, TypeSecretsManagerSecret, store.RelAttachedTo},
+	)
 }
 
 // resolveSecretsManagerReplication links each replica secret back to its

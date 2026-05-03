@@ -10,7 +10,10 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLakeFormationResourceTargets)
+	registerResolver(resolveLakeFormationResourceTargets,
+		EdgeDecl{TypeLakeFormationResource, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeLakeFormationResource, TypeIAMRole, store.RelAssumes},
+	)
 }
 
 // lakeFormationResourceAttrs mirrors the verbatim ResourceInfo fields used by

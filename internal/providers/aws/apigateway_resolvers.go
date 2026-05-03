@@ -36,7 +36,38 @@ func init() {
 			return err
 		}
 		return resolveAPIGatewayDomainCertRelationships(acct, st)
-	})
+	},
+		// resolveAPIGatewayStageRelationships
+		EdgeDecl{TypeAPIGatewayRestAPI, TypeAPIGatewayStage, store.RelContains},
+		EdgeDecl{TypeAPIGatewayStage, TypeAPIGatewayDeployment, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayStage, TypeAPIGatewayClientCertificate, store.RelUses},
+		EdgeDecl{TypeAPIGatewayStage, TypeWAFv2WebACL, store.RelUses},
+		// resolveAPIGatewayBasePathMappingRelationships
+		EdgeDecl{TypeAPIGatewayBasePathMapping, TypeAPIGatewayDomainName, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayBasePathMapping, TypeAPIGatewayPrivateDomainName, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayBasePathMapping, TypeAPIGatewayRestAPI, store.RelRoutesTo},
+		EdgeDecl{TypeAPIGatewayPrivateBasePathMapping, TypeAPIGatewayDomainName, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayPrivateBasePathMapping, TypeAPIGatewayPrivateDomainName, store.RelAttachedTo},
+		EdgeDecl{TypeAPIGatewayPrivateBasePathMapping, TypeAPIGatewayRestAPI, store.RelRoutesTo},
+		// resolveAPIGatewayUsagePlanKeyRelationships
+		EdgeDecl{TypeAPIGatewayUsagePlanKey, TypeAPIGatewayUsagePlan, store.RelAttachedTo},
+		// resolveAPIGatewayUsagePlanStages
+		EdgeDecl{TypeAPIGatewayUsagePlan, TypeAPIGatewayStage, store.RelAttachedTo},
+		// resolveAPIGatewayMethodRelationships
+		EdgeDecl{TypeAPIGatewayMethod, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeAPIGatewayMethod, TypeAPIGatewayVpcLink, store.RelAttachedTo},
+		// resolveAPIGatewayAuthorizerCognito
+		EdgeDecl{TypeAPIGatewayAuthorizer, TypeCognitoUserPool, store.RelUses},
+		// resolveAPIGatewayV2AuthorizerCognito
+		EdgeDecl{TypeAPIGatewayV2Authorizer, TypeCognitoUserPool, store.RelUses},
+		// resolveAPIGatewayV2VpcLinkRelationships
+		EdgeDecl{TypeAPIGatewayV2VpcLink, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeAPIGatewayV2VpcLink, TypeEC2Subnet, store.RelAttachedTo},
+		// resolveAPIGatewayDomainCertRelationships
+		EdgeDecl{TypeAPIGatewayDomainName, TypeACMCertificate, store.RelUses},
+		EdgeDecl{TypeAPIGatewayPrivateDomainName, TypeACMCertificate, store.RelUses},
+		EdgeDecl{TypeAPIGatewayDomainNameV2, TypeACMCertificate, store.RelUses},
+	)
 }
 
 // resolveAPIGatewayV2VpcLinkRelationships emits VPC-link → security-group

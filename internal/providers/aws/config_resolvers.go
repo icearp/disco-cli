@@ -9,7 +9,15 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveConfigRelationships) }
+func init() {
+	registerResolver(resolveConfigRelationships,
+		EdgeDecl{TypeConfigRecorder, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeConfigDeliveryChannel, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeConfigDeliveryChannel, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeConfigDeliveryChannel, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeConfigRule, TypeLambdaFunction, store.RelUses},
+	)
+}
 
 // resolveConfigRelationships wires AWS Config recorders, delivery channels,
 // and rules to their dependencies: IAM role, S3 bucket, KMS key, SNS topic,

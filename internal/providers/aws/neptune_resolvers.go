@@ -9,8 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNeptuneClusterTargets)
-	registerResolver(resolveNeptuneInstanceCluster)
+	registerResolver(resolveNeptuneClusterTargets,
+		EdgeDecl{TypeNeptuneCluster, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeNeptuneCluster, TypeEC2SecurityGroup, store.RelUses},
+	)
+	registerResolver(resolveNeptuneInstanceCluster,
+		EdgeDecl{TypeNeptuneCluster, TypeNeptuneInstance, store.RelContains},
+	)
 }
 
 // neptuneClusterAttrs mirrors the verbatim DBCluster fields used by

@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAutoScalingPlansRelationships) }
+func init() {
+	registerResolver(resolveAutoScalingPlansRelationships,
+		EdgeDecl{TypeAutoScalingPlansScalingPlan, TypeAutoScalingGroup, store.RelAttachedTo},
+	)
+}
 
 // resolveAutoScalingPlansRelationships emits edges from each scaling plan
 // to its scalable target resources. ScalingInstructions[] entries identify

@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSESEmailIdentityConfigSet)
+	registerResolver(resolveSESEmailIdentityConfigSet,
+		EdgeDecl{TypeSESEmailIdentity, TypeSESConfigurationSet, store.RelUses},
+	)
 }
 
 // sesEmailIdentityAttrs mirrors the verbatim GetEmailIdentityOutput fields

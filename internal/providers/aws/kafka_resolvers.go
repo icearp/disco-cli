@@ -8,7 +8,13 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveKafkaRelationships) }
+func init() {
+	registerResolver(resolveKafkaRelationships,
+		EdgeDecl{TypeMSKCluster, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeMSKCluster, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeMSKCluster, TypeKMSKey, store.RelUses},
+	)
+}
 
 // kafkaClusterAttrs is a minimal view of types.Cluster covering the fields
 // that carry edges to other scanned resources. Both Provisioned and Serverless

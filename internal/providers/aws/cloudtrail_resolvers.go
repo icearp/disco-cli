@@ -10,8 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudTrailRelationships)
-	registerResolver(resolveCloudTrailEventDataStoreRelationships)
+	registerResolver(resolveCloudTrailRelationships,
+		EdgeDecl{TypeCloudTrailTrail, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeCloudTrailTrail, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeCloudTrailTrail, TypeLogsLogGroup, store.RelUses},
+	)
+	registerResolver(resolveCloudTrailEventDataStoreRelationships,
+		EdgeDecl{TypeCloudTrailEventDataStore, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeCloudTrailEventDataStore, TypeIAMRole, store.RelAssumes},
+	)
 }
 
 // resolveCloudTrailRelationships links each trail to its S3 bucket, KMS key,

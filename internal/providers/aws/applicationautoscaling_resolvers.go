@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveApplicationAutoScalingRelationships) }
+func init() {
+	registerResolver(resolveApplicationAutoScalingRelationships,
+		EdgeDecl{TypeApplicationAutoScalingScalingPolicy, TypeApplicationAutoScalingScalableTarget, store.RelAttachedTo},
+	)
+}
 
 // resolveApplicationAutoScalingRelationships emits scaling-policy →
 // scalable-target attached-to edges. The scaling-policy attrs carry

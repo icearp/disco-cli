@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveBackupGatewayRelationships) }
+func init() {
+	registerResolver(resolveBackupGatewayRelationships,
+		EdgeDecl{TypeBackupGatewayHypervisor, TypeKMSKey, store.RelUses},
+	)
+}
 
 // resolveBackupGatewayRelationships emits hypervisor→KMS edges via the
 // shared KMS resolver index. KmsKeyArn is empty for hypervisors that use

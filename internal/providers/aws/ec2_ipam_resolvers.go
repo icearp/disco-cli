@@ -10,9 +10,16 @@ import (
 
 func init() {
 	registerResolver(resolveIPAMRelationships)
-	registerResolver(resolveIPAMScopeRelationships)
-	registerResolver(resolveIPAMPoolRelationships)
-	registerResolver(resolveIPAMResourceDiscoveryAssociationRelationships)
+	registerResolver(resolveIPAMScopeRelationships,
+		EdgeDecl{TypeEC2IPAMScope, TypeEC2IPAM, store.RelAttachedTo},
+	)
+	registerResolver(resolveIPAMPoolRelationships,
+		EdgeDecl{TypeEC2IPAMPool, TypeEC2IPAMScope, store.RelAttachedTo},
+	)
+	registerResolver(resolveIPAMResourceDiscoveryAssociationRelationships,
+		EdgeDecl{TypeEC2IPAMResourceDiscoveryAssociation, TypeEC2IPAM, store.RelAttachedTo},
+		EdgeDecl{TypeEC2IPAMResourceDiscoveryAssociation, TypeEC2IPAMResourceDiscovery, store.RelUses},
+	)
 }
 
 // resolveIPAMRelationships: IPAM scopes are owned by an IPAM — each scope

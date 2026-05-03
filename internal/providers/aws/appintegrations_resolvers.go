@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAppIntegrationsRelationships) }
+func init() {
+	registerResolver(resolveAppIntegrationsRelationships,
+		EdgeDecl{TypeAppIntegrationsEventIntegration, TypeEventsEventBus, store.RelUses},
+	)
+}
 
 // resolveAppIntegrationsRelationships emits event-integration → EventBridge bus
 // edges. EventBridgeBus is a bus name (not an ARN); reconstruct the bus ARN

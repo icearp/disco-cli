@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppFlowRelationships)
+	registerResolver(resolveAppFlowRelationships,
+		EdgeDecl{TypeAppFlowFlow, TypeKMSKey, store.RelUses},
+	)
 	registerResolver(resolveAppFlowConnectorProfileRelationships)
 }
 

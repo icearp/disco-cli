@@ -33,7 +33,23 @@ func init() {
 			return err
 		}
 		return resolveLambdaLayerRelationships(acct, st)
-	})
+	},
+		EdgeDecl{TypeLambdaFunction, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeLambdaFunction, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeLambdaFunction, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaFunction, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeLambdaFunction, TypeEFSAccessPoint, store.RelUses},
+		EdgeDecl{TypeLambdaAlias, TypeLambdaFunction, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaVersion, TypeLambdaFunction, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaESM, TypeLambdaFunction, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaESM, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeLambdaESM, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeLambdaESM, TypeMSKCluster, store.RelUses},
+		EdgeDecl{TypeLambdaEventInvokeConfig, TypeLambdaFunction, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaURL, TypeLambdaFunction, store.RelAttachedTo},
+		EdgeDecl{TypeLambdaFunction, TypeLambdaCodeSigningConfig, store.RelUses},
+		EdgeDecl{TypeLambdaFunction, TypeLambdaLayerVersion, store.RelUses},
+	)
 }
 
 // lambdaStripQualifier strips the version or alias qualifier from a qualified

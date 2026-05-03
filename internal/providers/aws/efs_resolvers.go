@@ -9,7 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEFSRelationships)
+	registerResolver(resolveEFSRelationships,
+		EdgeDecl{TypeEFSFileSystem, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeEFSFileSystem, TypeEFSMountTarget, store.RelContains},
+		EdgeDecl{TypeEFSMountTarget, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEFSFileSystem, TypeEFSAccessPoint, store.RelContains},
+	)
 }
 
 // resolveEFSRelationships runs all EFS sub-resolvers.

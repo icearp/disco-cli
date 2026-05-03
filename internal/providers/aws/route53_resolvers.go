@@ -24,7 +24,17 @@ func init() {
 			return err
 		}
 		return resolveRoute53AliasRelationships(acct, st)
-	})
+	},
+		EdgeDecl{TypeRoute53RecordSet, TypeRoute53HostedZone, store.RelAttachedTo},
+		EdgeDecl{TypeRoute53DNSSEC, TypeRoute53HostedZone, store.RelAttachedTo},
+		EdgeDecl{TypeRoute53KeySigningKey, TypeRoute53DNSSEC, store.RelAttachedTo},
+		EdgeDecl{TypeRoute53RecordSet, TypeRoute53HealthCheck, store.RelUses},
+		EdgeDecl{TypeRoute53RecordSet, TypeELBv2LoadBalancer, store.RelUses},
+		EdgeDecl{TypeRoute53RecordSet, TypeCloudFrontDistribution, store.RelUses},
+		EdgeDecl{TypeRoute53RecordSet, TypeAPIGatewayDomainName, store.RelUses},
+		EdgeDecl{TypeRoute53RecordSet, TypeAPIGatewayDomainNameV2, store.RelUses},
+		EdgeDecl{TypeRoute53RecordSet, TypeS3Bucket, store.RelUses},
+	)
 }
 
 // resolveRoute53AliasRelationships links record sets with AliasTarget.DNSName

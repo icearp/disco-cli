@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveApplicationInsightsRelationships) }
+func init() {
+	registerResolver(resolveApplicationInsightsRelationships,
+		EdgeDecl{TypeApplicationInsightsApplication, TypeSNSTopic, store.RelUses},
+	)
+}
 
 // resolveApplicationInsightsRelationships emits application → SNS topic edges
 // for OpsItemSNSTopicArn and SNSNotificationArn (legacy field). Both reference

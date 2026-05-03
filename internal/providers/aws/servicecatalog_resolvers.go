@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveServiceCatalogPortfolioProducts)
+	registerResolver(resolveServiceCatalogPortfolioProducts,
+		EdgeDecl{TypeServiceCatalogPortfolio, TypeServiceCatalogProduct, store.RelContains},
+	)
 }
 
 // servicecatalogPortfolioAttrs mirrors the wrapped attrs JSON written by

@@ -9,8 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveClientVPNEndpointRelationships)
-	registerResolver(resolveClientVPNTargetNetworkAssociationRelationships)
+	registerResolver(resolveClientVPNEndpointRelationships,
+		EdgeDecl{TypeEC2ClientVPNEndpoint, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveClientVPNTargetNetworkAssociationRelationships,
+		EdgeDecl{TypeEC2ClientVPNTargetNetworkAssociation, TypeEC2ClientVPNEndpoint, store.RelAttachedTo},
+		EdgeDecl{TypeEC2ClientVPNTargetNetworkAssociation, TypeEC2Subnet, store.RelAttachedTo},
+	)
 }
 
 // resolveClientVPNEndpointRelationships links each Client VPN endpoint to its VPC.

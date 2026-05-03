@@ -8,7 +8,14 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveMQRelationships) }
+func init() {
+	registerResolver(resolveMQRelationships,
+		EdgeDecl{TypeMQBroker, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeMQBroker, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeMQBroker, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeMQBroker, TypeMQConfiguration, store.RelUses},
+	)
+}
 
 // resolveMQRelationships emits broker → KMS / security-group / subnet /
 // configuration edges. ConfigurationId.Id (broker side) maps to Configuration.Id

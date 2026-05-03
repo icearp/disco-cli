@@ -9,10 +9,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBatchComputeEnvironmentTargets)
-	registerResolver(resolveBatchJobQueueComputeEnvs)
-	registerResolver(resolveBatchJobDefinitionTargets)
-	registerResolver(resolveBatchQuotaShareJobQueue)
+	registerResolver(resolveBatchComputeEnvironmentTargets,
+		EdgeDecl{TypeBatchComputeEnvironment, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeBatchComputeEnvironment, TypeEC2Subnet, store.RelUses},
+		EdgeDecl{TypeBatchComputeEnvironment, TypeEC2SecurityGroup, store.RelUses},
+	)
+	registerResolver(resolveBatchJobQueueComputeEnvs,
+		EdgeDecl{TypeBatchJobQueue, TypeBatchComputeEnvironment, store.RelUses},
+	)
+	registerResolver(resolveBatchJobDefinitionTargets,
+		EdgeDecl{TypeBatchJobDefinition, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeBatchJobDefinition, TypeECRRepository, store.RelUses},
+	)
+	registerResolver(resolveBatchQuotaShareJobQueue,
+		EdgeDecl{TypeBatchQuotaShare, TypeBatchJobQueue, store.RelAttachedTo},
+	)
 }
 
 // batchComputeEnvAttrs mirrors verbatim ComputeEnvironmentDetail fields.

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
+	awsprov "codeberg.org/icearp/disco/internal/providers/aws"
 	"github.com/spf13/cobra"
 )
 
@@ -56,6 +58,9 @@ func init() {
 	coverageCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageCmd.Flags().Bool("check-strict", false, "Exit non-zero if any upstream-missing rows are found")
+	coverageCmd.Flags().Bool("resolvers", false, "Resolver coverage mode (--provider aws): list every registered resolver and its declared EdgeDecl count; unannotated resolvers (count=0) surface as sweep targets")
+	coverageCmd.Flags().Bool("only-unannotated", false, "With --resolvers, omit resolvers that already declare ≥1 EdgeDecl")
+	coverageCmd.Flags().Bool("missing-resolvers", false, "Missing-resolver mode (--provider aws): list every emitted disco type that never appears as EdgeDecl.Source — the candidate gap inventory")
 	rootCmd.AddCommand(coverageCmd)
 }
 
@@ -69,6 +74,16 @@ func runCoverage(cmd *cobra.Command, _ []string) error {
 	services, _ := cmd.Flags().GetStringSlice("services")
 	timeout, _ := cmd.Flags().GetDuration("timeout")
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
+	resolversMode, _ := cmd.Flags().GetBool("resolvers")
+	onlyUnannotated, _ := cmd.Flags().GetBool("only-unannotated")
+	missingMode, _ := cmd.Flags().GetBool("missing-resolvers")
+
+	if resolversMode {
+		return runResolverCoverage(cmd.OutOrStdout(), provName, onlyUnannotated)
+	}
+	if missingMode {
+		return runMissingResolvers(cmd.OutOrStdout(), provName)
+	}
 
 	switch filter {
 	case "all", "covered", "uncovered", "synthetic", "upstream-missing":
@@ -135,6 +150,84 @@ func runCoverage(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	return nil
+}
+
+// runResolverCoverage prints per-resolver EdgeDecl counts. Surfaces resolvers
+// with zero declared edges so sweepers can find unannotated registrations.
+// AWS-only today; cross-provider extension would lift `ListResolvers` into
+// the coverage.Provider interface and switch on provider here.
+func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool) error {
+	if provName != "" && provName != "aws" {
+		return fmt.Errorf("--resolvers currently supports --provider aws (got %q)", provName)
+	}
+	infos := awsprov.ListResolvers()
+	annotated, unannotated := 0, 0
+	fmt.Fprintln(w, "RESOLVER\tEDGES")
+	for _, r := range infos {
+		if r.EdgeCount == 0 {
+			unannotated++
+			fmt.Fprintf(w, "%s\t0\n", r.Name)
+			continue
+		}
+		annotated++
+		if onlyUnannotated {
+			continue
+		}
+		fmt.Fprintf(w, "%s\t%d\n", r.Name, r.EdgeCount)
+	}
+	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", len(infos), annotated, unannotated)
+	return nil
+}
+
+// runMissingResolvers prints every emitted AWS disco type that never appears
+// as the Source of a declared EdgeDecl. These are the candidate resolver
+// gaps — types whose scanned rows produce zero outbound edges. Output is
+// sorted by service prefix then disco type so reruns diff cleanly.
+func runMissingResolvers(w stdoutWriter, provName string) error {
+	if provName != "" && provName != "aws" {
+		return fmt.Errorf("--missing-resolvers currently supports --provider aws (got %q)", provName)
+	}
+	prov, ok := coverage.Get("aws")
+	if !ok {
+		return fmt.Errorf("aws coverage provider not registered")
+	}
+	emitted := make(map[string]struct{})
+	for _, decl := range prov.Emits() {
+		emitted[decl.DiscoType] = struct{}{}
+	}
+	sources := make(map[string]struct{})
+	for _, e := range awsprov.CollectResolverEdges() {
+		sources[e.Source] = struct{}{}
+	}
+	orphans := make([]string, 0, len(emitted))
+	for t := range emitted {
+		if _, has := sources[t]; has {
+			continue
+		}
+		orphans = append(orphans, t)
+	}
+	sort.Strings(orphans)
+
+	fmt.Fprintln(w, "disco_type\tservice")
+	for _, t := range orphans {
+		svc := ""
+		if i := strings.Index(t, ":"); i >= 0 {
+			rest := t[i+1:]
+			if j := strings.Index(rest, ":"); j >= 0 {
+				svc = rest[:j]
+			}
+		}
+		fmt.Fprintf(w, "%s\t%s\n", t, svc)
+	}
+	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(orphans), len(emitted))
+	return nil
+}
+
+// stdoutWriter is the minimal io.Writer surface runResolverCoverage needs;
+// declared as an alias of cobra's `cmd.OutOrStdout()` return type. Keeps
+// the signature decoupled from any specific writer concrete type.
+type stdoutWriter interface {
+	Write(p []byte) (int, error)
 }
 
 // filterRows applies --filter and --services to a row slice.

@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAIOpsRelationships) }
+func init() {
+	registerResolver(resolveAIOpsRelationships,
+		EdgeDecl{TypeAIOpsInvestigationGroup, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeAIOpsInvestigationGroup, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeAIOpsInvestigationGroup, TypeSNSTopic, store.RelUses},
+	)
+}
 
 // resolveAIOpsRelationships emits edges from each AIOps investigation group to
 // its KMS key (uses), IAM role (uses), and SNS topics surfaced via the chatbot

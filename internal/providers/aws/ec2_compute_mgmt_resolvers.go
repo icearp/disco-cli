@@ -9,9 +9,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveInstanceRelationships)
-	registerResolver(resolveInstanceConnectEndpointRelationships)
-	registerResolver(resolveSecurityGroupVPCAssociationRelationships)
+	registerResolver(resolveInstanceRelationships,
+		EdgeDecl{TypeEC2Instance, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeEC2Instance, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEC2Instance, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeEC2Instance, TypeEC2Volume, store.RelAttachedTo},
+		EdgeDecl{TypeEC2Instance, TypeIAMInstanceProfile, store.RelUses},
+		EdgeDecl{TypeEC2Instance, TypeEC2KeyPair, store.RelUses},
+		EdgeDecl{TypeEC2Instance, TypeEC2Image, store.RelUses},
+		EdgeDecl{TypeEC2Instance, TypeEC2NetworkInterface, store.RelAttachedTo},
+	)
+	registerResolver(resolveInstanceConnectEndpointRelationships,
+		EdgeDecl{TypeEC2InstanceConnectEndpoint, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEC2InstanceConnectEndpoint, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveSecurityGroupVPCAssociationRelationships,
+		EdgeDecl{TypeEC2SecurityGroupVPCAssociation, TypeEC2SecurityGroup, store.RelAttachedTo},
+		EdgeDecl{TypeEC2SecurityGroupVPCAssociation, TypeEC2VPC, store.RelAttachedTo},
+	)
 }
 
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.

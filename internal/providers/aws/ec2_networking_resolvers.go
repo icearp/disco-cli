@@ -9,17 +9,59 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSubnetVPCRelationships)
-	registerResolver(resolveIGWRelationships)
-	registerResolver(resolveRouteTableRelationships)
-	registerResolver(resolveNatGatewayRelationships)
-	registerResolver(resolveEIPRelationships)
-	registerResolver(resolveNetworkInterfaceRelationships)
-	registerResolver(resolveNetworkACLRelationships)
-	registerResolver(resolveVPCEndpointRelationships)
-	registerResolver(resolveVPCPeeringRelationships)
-	registerResolver(resolveCarrierGatewayRelationships)
-	registerResolver(resolveVPCEndpointServicePermissionsRelationships)
+	registerResolver(resolveSubnetVPCRelationships,
+		EdgeDecl{TypeEC2Subnet, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveIGWRelationships,
+		EdgeDecl{TypeEC2InternetGateway, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveRouteTableRelationships,
+		EdgeDecl{TypeEC2RouteTable, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveRouteTableRoutes,
+		EdgeDecl{TypeEC2RouteTable, TypeEC2InternetGateway, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2VPNGateway, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2VPCEndpoint, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2NatGateway, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2TransitGateway, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2VPCPeeringConnection, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2NetworkInterface, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2EgressOnlyIGW, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2CarrierGateway, store.RelRoutesTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2Instance, store.RelRoutesTo},
+	)
+	registerResolver(resolveSecurityGroupVPC,
+		EdgeDecl{TypeEC2SecurityGroup, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveNatGatewayRelationships,
+		EdgeDecl{TypeEC2NatGateway, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEC2NatGateway, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveEIPRelationships,
+		EdgeDecl{TypeEC2EIP, TypeEC2Instance, store.RelAttachedTo},
+		EdgeDecl{TypeEC2EIP, TypeEC2NetworkInterface, store.RelAttachedTo},
+	)
+	registerResolver(resolveNetworkInterfaceRelationships,
+		EdgeDecl{TypeEC2NetworkInterface, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEC2NetworkInterface, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeEC2NetworkInterface, TypeEC2SecurityGroup, store.RelUses},
+	)
+	registerResolver(resolveNetworkACLRelationships,
+		EdgeDecl{TypeEC2NetworkACL, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeEC2NetworkACL, TypeEC2Subnet, store.RelAttachedTo},
+	)
+	registerResolver(resolveVPCEndpointRelationships,
+		EdgeDecl{TypeEC2VPCEndpoint, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveVPCPeeringRelationships,
+		EdgeDecl{TypeEC2VPCPeeringConnection, TypeEC2VPC, store.RelPeer},
+	)
+	registerResolver(resolveCarrierGatewayRelationships,
+		EdgeDecl{TypeEC2CarrierGateway, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveVPCEndpointServicePermissionsRelationships,
+		EdgeDecl{TypeEC2VPCEndpointServicePermissions, TypeEC2VPCEndpointService, store.RelAttachedTo},
+	)
 }
 
 func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {

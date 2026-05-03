@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveSSMRelationships) }
+func init() {
+	registerResolver(resolveSSMRelationships,
+		EdgeDecl{TypeSSMParameter, TypeKMSKey, store.RelUses},
+	)
+}
 
 // resolveSSMRelationships emits edges for SecureString parameters → KMS keys.
 // Alias-name references are normalized to the underlying key via the KMS index

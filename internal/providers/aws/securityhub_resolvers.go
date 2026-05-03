@@ -9,7 +9,11 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSecurityHubProductSubscriptions)
+	registerResolver(resolveSecurityHubProductSubscriptions,
+		EdgeDecl{TypeSecurityHubProductSubscription, TypeGuardDutyDetector, store.RelUses},
+		EdgeDecl{TypeSecurityHubProductSubscription, TypeConfigRecorder, store.RelUses},
+		EdgeDecl{TypeSecurityHubProductSubscription, TypeMacieSession, store.RelUses},
+	)
 }
 
 // resolveSecurityHubProductSubscriptions emits a uses edge from each Security

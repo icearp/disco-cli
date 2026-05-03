@@ -10,8 +10,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKMSAliases)
-	registerResolver(resolveKMSGrants)
+	registerResolver(resolveKMSAliases,
+		EdgeDecl{TypeKMSAlias, TypeKMSKey, store.RelAttachedTo},
+		EdgeDecl{TypeKMSKey, TypeKMSAlias, store.RelContains},
+	)
+	registerResolver(resolveKMSGrants,
+		EdgeDecl{TypeKMSGrant, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeKMSGrant, TypeIAMUser, store.RelUses},
+	)
+	registerResolver(resolveKMSGrantEncryptionContext,
+		EdgeDecl{TypeKMSGrant, TypeLambdaFunction, store.RelUses},
+	)
 }
 
 // resolveKMSGrants links each KMS grant to its grantee + retiring principal

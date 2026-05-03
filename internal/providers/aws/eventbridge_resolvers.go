@@ -10,8 +10,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEventBridgeRelationships)
-	registerResolver(resolveEventBridgeAPIDestinationConnection)
+	registerResolver(resolveEventBridgeRelationships,
+		EdgeDecl{TypeEventsRule, TypeEventsEventBus, store.RelAttachedTo},
+		EdgeDecl{TypeEventsRule, TypeLambdaFunction, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeSNSTopic, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeSQSQueue, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeKinesisStream, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeSFNStateMachine, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeFirehoseDeliveryStream, store.RelRoutesTo},
+		EdgeDecl{TypeEventsRule, TypeEventsAPIDestination, store.RelRoutesTo},
+	)
+	registerResolver(resolveEventBridgeAPIDestinationConnection,
+		EdgeDecl{TypeEventsAPIDestination, TypeEventsConnection, store.RelUses},
+	)
 }
 
 // resolveEventBridgeRelationships links each rule to its event bus and targets.

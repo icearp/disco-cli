@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveSQSQueueRelationships) }
+func init() {
+	registerResolver(resolveSQSQueueRelationships,
+		EdgeDecl{TypeSQSQueue, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeSQSQueue, TypeSQSQueue, store.RelRoutesTo},
+	)
+}
 
 // resolveSQSQueueRelationships links each queue to its KMS key and to the
 // dead-letter queue configured via RedrivePolicy.

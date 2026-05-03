@@ -12,8 +12,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOrganizationsSCPTargets)
-	registerResolver(resolveOrganizationsDelegatedAdmins)
+	registerResolver(resolveOrganizationsSCPTargets,
+		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsOU, store.RelAttachedTo},
+		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
+	registerResolver(resolveOrganizationsDelegatedAdmins,
+		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
 }
 
 // resolveOrganizationsSCPTargets attaches each SCP to the roots, OUs, and

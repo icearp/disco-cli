@@ -9,9 +9,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveFlowLogRelationships)
-	registerResolver(resolveNetworkInsightsAnalysisRelationships)
-	registerResolver(resolveNetworkInsightsAccessScopeAnalysisRelationships)
+	registerResolver(resolveFlowLogRelationships,
+		EdgeDecl{TypeEC2FlowLog, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeEC2FlowLog, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEC2FlowLog, TypeEC2NetworkInterface, store.RelAttachedTo},
+	)
+	registerResolver(resolveNetworkInsightsAnalysisRelationships,
+		EdgeDecl{TypeEC2NetworkInsightsAnalysis, TypeEC2NetworkInsightsPath, store.RelAttachedTo},
+	)
+	registerResolver(resolveNetworkInsightsAccessScopeAnalysisRelationships,
+		EdgeDecl{TypeEC2NetworkInsightsAccessScopeAnalysis, TypeEC2NetworkInsightsAccessScope, store.RelAttachedTo},
+	)
 }
 
 // resolveNetworkInsightsAnalysisRelationships links each analysis to its path.

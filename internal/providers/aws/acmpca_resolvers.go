@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveACMPCARelationships) }
+func init() {
+	registerResolver(resolveACMPCARelationships,
+		EdgeDecl{TypeACMPrivateCA, TypeS3Bucket, store.RelUses},
+	)
+}
 
 // resolveACMPCARelationships emits CA → S3 bucket edges for the CRL
 // distribution bucket when the RevocationConfiguration references one.

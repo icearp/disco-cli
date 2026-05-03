@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveSNSTopicRelationships) }
+func init() {
+	registerResolver(resolveSNSTopicRelationships,
+		EdgeDecl{TypeSNSTopic, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeSNSTopic, TypeSQSQueue, store.RelRoutesTo},
+	)
+}
 
 // resolveSNSTopicRelationships links each SNS topic to its KMS key (when a
 // customer-managed key encrypts messages at rest) and to the SQS queue

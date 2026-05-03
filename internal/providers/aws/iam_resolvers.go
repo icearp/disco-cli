@@ -17,16 +17,127 @@ import (
 )
 
 func init() {
-	registerResolver(resolveInstanceProfileRoles)
-	registerResolver(resolveInlinePolicyParents)
-	registerResolver(resolveAccessKeyUsers)
-	registerResolver(resolveMFADeviceToUser)
-	registerResolver(resolveManagedPolicyAttachments)
-	registerResolver(resolveUserGroupMemberships)
-	registerResolver(resolveIAMRoleFederatedTrust)
-	registerResolver(resolveIAMPolicyResources)
-	registerResolver(resolveIAMRoleCrossAccountTrust)
-	registerResolver(resolveIAMPermissionBoundaries)
+	registerResolver(resolveInstanceProfileRoles,
+		EdgeDecl{TypeIAMRole, TypeIAMInstanceProfile, store.RelContains},
+	)
+	registerResolver(resolveInlinePolicyParents,
+		EdgeDecl{TypeIAMRole, TypeIAMRolePolicy, store.RelContains},
+		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMRolePolicy, store.RelContains},
+		EdgeDecl{TypeIAMUser, TypeIAMUserPolicy, store.RelContains},
+		EdgeDecl{TypeIAMGroup, TypeIAMGroupPolicy, store.RelContains},
+	)
+	registerResolver(resolveAccessKeyUsers,
+		EdgeDecl{TypeIAMUser, TypeIAMAccessKey, store.RelContains},
+	)
+	registerResolver(resolveMFADeviceToUser,
+		EdgeDecl{TypeIAMUser, TypeIAMVirtualMFADevice, store.RelContains},
+	)
+	registerResolver(resolveManagedPolicyAttachments,
+		EdgeDecl{TypeIAMPolicy, TypeIAMRole, store.RelAttachedTo},
+		EdgeDecl{TypeIAMPolicy, TypeIAMServiceLinkedRole, store.RelAttachedTo},
+		EdgeDecl{TypeIAMPolicy, TypeIAMUser, store.RelAttachedTo},
+		EdgeDecl{TypeIAMPolicy, TypeIAMGroup, store.RelAttachedTo},
+	)
+	registerResolver(resolveUserGroupMemberships,
+		EdgeDecl{TypeIAMGroup, TypeIAMUser, store.RelContains},
+	)
+	registerResolver(resolveIAMRoleFederatedTrust,
+		EdgeDecl{TypeIAMRole, TypeIAMSAMLProvider, store.RelAssumes},
+		EdgeDecl{TypeIAMRole, TypeIAMOIDCProvider, store.RelAssumes},
+		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMSAMLProvider, store.RelAssumes},
+		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMOIDCProvider, store.RelAssumes},
+	)
+	registerResolver(resolveIAMPolicyResources,
+		// Each source policy type emits `uses` to every classifyPolicyResource
+		// target type. Sources: managed + role/user/group inline. Targets:
+		// KMS, S3, Secrets, DynamoDB, Lambda, Logs, SNS, SQS, SSM, Kinesis,
+		// ECR, IAM Role, IAM SLR, RDS instance/cluster, SFN, EventBridge,
+		// EFS.
+		EdgeDecl{TypeIAMPolicy, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeDynamoDBTable, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeSSMParameter, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeECRRepository, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeIAMServiceLinkedRole, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeRDSDBInstance, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeSFNStateMachine, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeEventsEventBus, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeEventsRule, store.RelUses},
+		EdgeDecl{TypeIAMPolicy, TypeEFSFileSystem, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeDynamoDBTable, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeSSMParameter, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeECRRepository, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeIAMServiceLinkedRole, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeRDSDBInstance, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeSFNStateMachine, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeEventsEventBus, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeEventsRule, store.RelUses},
+		EdgeDecl{TypeIAMRolePolicy, TypeEFSFileSystem, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeDynamoDBTable, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeSSMParameter, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeECRRepository, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeIAMServiceLinkedRole, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeRDSDBInstance, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeSFNStateMachine, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeEventsEventBus, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeEventsRule, store.RelUses},
+		EdgeDecl{TypeIAMUserPolicy, TypeEFSFileSystem, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeDynamoDBTable, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeSSMParameter, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeKinesisStream, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeECRRepository, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeIAMServiceLinkedRole, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeRDSDBInstance, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeSFNStateMachine, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeEventsEventBus, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeEventsRule, store.RelUses},
+		EdgeDecl{TypeIAMGroupPolicy, TypeEFSFileSystem, store.RelUses},
+	)
+	registerResolver(resolveIAMRoleCrossAccountTrust,
+		EdgeDecl{TypeIAMRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
+		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
+	)
+	registerResolver(resolveIAMPermissionBoundaries,
+		EdgeDecl{TypeIAMRole, TypeIAMPolicy, store.RelBoundedBy},
+		EdgeDecl{TypeIAMUser, TypeIAMPolicy, store.RelBoundedBy},
+	)
 	// Synthetic stub for cross-account trust principals whose owning account
 	// is out of scan scope (R5). Pure disco bookkeeping — no upstream
 	// CloudFormation resource type.

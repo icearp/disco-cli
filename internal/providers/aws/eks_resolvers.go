@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveEKSRelationships) }
+func init() {
+	registerResolver(resolveEKSRelationships,
+		EdgeDecl{TypeEKSCluster, TypeEC2VPC, store.RelAttachedTo},
+	)
+}
 
 func resolveEKSRelationships(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{

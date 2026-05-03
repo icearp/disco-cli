@@ -71,20 +71,80 @@ func registerService(e serviceEntry) {
 	registeredServices = append(registeredServices, e)
 }
 
+// EdgeDecl declares one (source disco type, target disco type, edge kind)
+// triple a resolver emits. Optional, but resolvers that declare their edges
+// let `disco coverage` and the aws-resolver-audit tool reason about resolver
+// coverage without observing actual DB edges (which require both endpoints
+// to be scanned in the current account).
+type EdgeDecl struct {
+	Source string // disco type emitting the edge (the resolver's source iteration type)
+	Target string // disco type the edge points at
+	Kind   string // store.Rel* constant — "attached-to", "uses", "routes-to", etc.
+}
+
 // resolverEntry describes a phase-2 relationship resolver. Name is derived
 // from the function's reflected name so error reports can identify the
-// failing resolver without each call site spelling its own name.
+// failing resolver without each call site spelling its own name. Emits is
+// optional — resolvers that declare their edge shapes power resolver
+// coverage tooling.
 type resolverEntry struct {
-	name string
-	fn   func(acct *account, st *store.Store) error
+	name  string
+	fn    func(acct *account, st *store.Store) error
+	emits []EdgeDecl
 }
 
 // registeredResolvers is populated by each *_resolvers.go file's init().
 var registeredResolvers []resolverEntry
 
-// registerResolver adds a resolver to the package-level registry.
-func registerResolver(fn func(acct *account, st *store.Store) error) {
-	registeredResolvers = append(registeredResolvers, resolverEntry{name: resolverName(fn), fn: fn})
+// registerResolver adds a resolver to the package-level registry. The
+// variadic `emits` argument is optional metadata — list every distinct
+// (source, target, kind) triple the resolver upserts. Resolvers without an
+// emits list still register, but their edge coverage is invisible to the
+// audit tooling.
+func registerResolver(fn func(acct *account, st *store.Store) error, emits ...EdgeDecl) {
+	registeredResolvers = append(registeredResolvers, resolverEntry{
+		name: resolverName(fn), fn: fn, emits: emits,
+	})
+}
+
+// CollectResolverEdges returns every EdgeDecl declared by every registered
+// resolver, deduplicated on (source, target, kind). Order is stable for
+// diff-friendly output.
+func CollectResolverEdges() []EdgeDecl {
+	seen := map[EdgeDecl]struct{}{}
+	out := make([]EdgeDecl, 0)
+	for _, r := range registeredResolvers {
+		for _, e := range r.emits {
+			if _, dup := seen[e]; dup {
+				continue
+			}
+			seen[e] = struct{}{}
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ResolverInfo summarises one registered resolver for coverage tooling:
+// the unqualified function name and the count of declared EdgeDecls.
+// EdgeCount==0 marks an unannotated resolver — either a deliberate no-op
+// (sidecar populator, audit-stub) or a sweep target that hasn't been
+// annotated yet. The two cases are indistinguishable at this layer; cmd-side
+// tooling surfaces the list and the human triages.
+type ResolverInfo struct {
+	Name      string
+	EdgeCount int
+}
+
+// ListResolvers returns one ResolverInfo per registered resolver in
+// registration order. Used by `disco coverage --resolvers` to discover
+// unannotated registrations.
+func ListResolvers() []ResolverInfo {
+	out := make([]ResolverInfo, 0, len(registeredResolvers))
+	for _, r := range registeredResolvers {
+		out = append(out, ResolverInfo{Name: r.name, EdgeCount: len(r.emits)})
+	}
+	return out
 }
 
 // resolverName returns the unqualified function name from runtime reflection,

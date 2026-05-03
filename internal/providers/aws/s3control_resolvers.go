@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveStorageLensRelationships)
+	registerResolver(resolveStorageLensRelationships,
+		EdgeDecl{TypeS3StorageLens, TypeS3Bucket, store.RelUses},
+	)
 }
 
 // resolveStorageLensRelationships emits uses edges from each S3 Storage Lens

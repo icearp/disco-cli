@@ -8,7 +8,18 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveElastiCacheRelationships) }
+func init() {
+	registerResolver(resolveElastiCacheRelationships,
+		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheReplicationGroup, store.RelAttachedTo},
+		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheSubnetGroup, store.RelAttachedTo},
+		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheParameterGroup, store.RelUses},
+		EdgeDecl{TypeElastiCacheReplicationGroup, TypeElastiCacheSubnetGroup, store.RelAttachedTo},
+		EdgeDecl{TypeElastiCacheReplicationGroup, TypeElastiCacheUserGroup, store.RelAttachedTo},
+		EdgeDecl{TypeElastiCacheGlobalReplicationGroup, TypeElastiCacheReplicationGroup, store.RelContains},
+		EdgeDecl{TypeElastiCacheUserGroup, TypeElastiCacheUser, store.RelContains},
+		EdgeDecl{TypeElastiCacheServerlessCache, TypeElastiCacheUserGroup, store.RelAttachedTo},
+	)
+}
 
 // resolveElastiCacheRelationships orchestrates all ElastiCache relationship resolution.
 func resolveElastiCacheRelationships(acct *account, st *store.Store) error {

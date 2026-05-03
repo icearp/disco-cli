@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveACMCertificateRelationships) }
+func init() {
+	registerResolver(resolveACMCertificateRelationships,
+		EdgeDecl{TypeACMCertificate, TypeACMPrivateCA, store.RelUses},
+	)
+}
 
 // resolveACMCertificateRelationships links each private ACM certificate to its
 // issuing Private CA. Public (AMAZON_ISSUED) and IMPORTED certificates have no

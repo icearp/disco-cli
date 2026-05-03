@@ -9,7 +9,10 @@ import (
 )
 
 func init() {
-	registerResolver(resolveWAFv2Relationships)
+	registerResolver(resolveWAFv2Relationships,
+		EdgeDecl{TypeWAFv2WebACL, TypeWAFv2RuleGroup, store.RelUses},
+		EdgeDecl{TypeWAFv2WebACL, TypeWAFv2IPSet, store.RelUses},
+	)
 }
 
 // resolveWAFv2Relationships links each WebACL to the rule groups and IP sets it

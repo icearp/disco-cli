@@ -9,8 +9,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNetworkFirewallFirewallRelationships)
-	registerResolver(resolveNetworkFirewallPolicyRelationships)
+	registerResolver(resolveNetworkFirewallFirewallRelationships,
+		EdgeDecl{TypeNetworkFirewallFirewall, TypeNetworkFirewallFirewallPolicy, store.RelUses},
+		EdgeDecl{TypeNetworkFirewallFirewall, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeNetworkFirewallFirewall, TypeEC2Subnet, store.RelAttachedTo},
+	)
+	registerResolver(resolveNetworkFirewallPolicyRelationships,
+		EdgeDecl{TypeNetworkFirewallFirewallPolicy, TypeNetworkFirewallRuleGroup, store.RelUses},
+	)
 }
 
 // nfFirewallAttrs extracts the fields on DescribeFirewall's response needed

@@ -9,7 +9,28 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAutoScalingRelationships) }
+func init() {
+	registerResolver(resolveAutoScalingRelationships,
+		// resolveAutoScalingGroupEdges
+		EdgeDecl{TypeAutoScalingGroup, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeAutoScalingGroup, TypeAutoScalingLaunchConfiguration, store.RelUses},
+		EdgeDecl{TypeAutoScalingGroup, TypeEC2LaunchTemplate, store.RelUses},
+		EdgeDecl{TypeAutoScalingGroup, TypeELBv2TargetGroup, store.RelAttachedTo},
+		EdgeDecl{TypeAutoScalingGroup, TypeEC2Instance, store.RelContains},
+		EdgeDecl{TypeAutoScalingGroup, TypeEC2Subnet, store.RelUses},
+		// resolveAutoScalingLaunchConfigEdges
+		EdgeDecl{TypeAutoScalingLaunchConfiguration, TypeIAMInstanceProfile, store.RelUses},
+		EdgeDecl{TypeAutoScalingLaunchConfiguration, TypeEC2SecurityGroup, store.RelUses},
+		// resolveAutoScalingChildEdges — child→ASG attached-to + LifecycleHook outbound
+		EdgeDecl{TypeAutoScalingLifecycleHook, TypeAutoScalingGroup, store.RelAttachedTo},
+		EdgeDecl{TypeAutoScalingScalingPolicy, TypeAutoScalingGroup, store.RelAttachedTo},
+		EdgeDecl{TypeAutoScalingScheduledAction, TypeAutoScalingGroup, store.RelAttachedTo},
+		EdgeDecl{TypeAutoScalingWarmPool, TypeAutoScalingGroup, store.RelAttachedTo},
+		EdgeDecl{TypeAutoScalingLifecycleHook, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeAutoScalingLifecycleHook, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeAutoScalingLifecycleHook, TypeSQSQueue, store.RelUses},
+	)
+}
 
 // resolveAutoScalingRelationships wires edges among the EC2 Auto Scaling
 // resource family. ASGs anchor most edges (instances, target groups,

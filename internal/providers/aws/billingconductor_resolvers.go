@@ -7,7 +7,9 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBillingConductor)
+	registerResolver(resolveBillingConductor,
+		EdgeDecl{TypeBillingConductorCustomLineItem, TypeBillingConductorBillingGroup, store.RelAttachedTo},
+	)
 }
 
 // billingConductorCustomLineItemAttrs is a partial projection of the

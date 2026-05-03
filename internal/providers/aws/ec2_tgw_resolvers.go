@@ -9,12 +9,26 @@ import (
 )
 
 func init() {
-	registerResolver(resolveTGWAttachmentRelationships)
-	registerResolver(resolveTGWConnectRelationships)
-	registerResolver(resolveTGWConnectPeerRelationships)
-	registerResolver(resolveTGWMulticastDomainRelationships)
-	registerResolver(resolveTGWRouteTableRelationships)
-	registerResolver(resolveTGWVPCAttachmentRelationships)
+	registerResolver(resolveTGWAttachmentRelationships,
+		EdgeDecl{TypeEC2TransitGatewayAttachment, TypeEC2TransitGateway, store.RelAttachedTo},
+		EdgeDecl{TypeEC2TransitGatewayAttachment, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveTGWConnectRelationships,
+		EdgeDecl{TypeEC2TransitGatewayConnect, TypeEC2TransitGateway, store.RelAttachedTo},
+	)
+	registerResolver(resolveTGWConnectPeerRelationships,
+		EdgeDecl{TypeEC2TransitGatewayConnectPeer, TypeEC2TransitGatewayConnect, store.RelAttachedTo},
+	)
+	registerResolver(resolveTGWMulticastDomainRelationships,
+		EdgeDecl{TypeEC2TransitGatewayMulticastDomain, TypeEC2TransitGateway, store.RelAttachedTo},
+	)
+	registerResolver(resolveTGWRouteTableRelationships,
+		EdgeDecl{TypeEC2TransitGatewayRouteTable, TypeEC2TransitGateway, store.RelAttachedTo},
+	)
+	registerResolver(resolveTGWVPCAttachmentRelationships,
+		EdgeDecl{TypeEC2TransitGatewayVPCAttachment, TypeEC2TransitGateway, store.RelAttachedTo},
+		EdgeDecl{TypeEC2TransitGatewayVPCAttachment, TypeEC2VPC, store.RelAttachedTo},
+	)
 }
 
 func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {

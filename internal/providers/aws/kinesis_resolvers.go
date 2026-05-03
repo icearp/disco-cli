@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveKinesisStreamRelationships) }
+func init() {
+	registerResolver(resolveKinesisStreamRelationships,
+		EdgeDecl{TypeKinesisStream, TypeKMSKey, store.RelUses},
+	)
+}
 
 // resolveKinesisStreamRelationships links each stream to its KMS key when
 // KMS encryption is enabled.

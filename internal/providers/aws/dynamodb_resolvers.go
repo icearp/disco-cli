@@ -17,7 +17,11 @@ func init() {
 			return err
 		}
 		return resolveDynamoDBGlobalTableRelationships(acct, st)
-	})
+	},
+		EdgeDecl{TypeDynamoDBTable, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeDynamoDBTable, TypeDynamoDBStream, store.RelContains},
+		EdgeDecl{TypeDynamoDBGlobalTable, TypeDynamoDBTable, store.RelContains},
+	)
 }
 
 // resolveDynamoDBTableRelationships links each table to its KMS key when a

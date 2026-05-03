@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveAmplifyRelationships) }
+func init() {
+	registerResolver(resolveAmplifyRelationships,
+		EdgeDecl{TypeAmplifyApp, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeAmplifyBranch, TypeIAMRole, store.RelUses},
+	)
+}
 
 // resolveAmplifyRelationships emits app/branch → IAM role edges:
 //   - app.IamServiceRoleArn (uses)

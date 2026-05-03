@@ -9,7 +9,11 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAuditManagerAssessmentTargets)
+	registerResolver(resolveAuditManagerAssessmentTargets,
+		EdgeDecl{TypeAuditManagerAssessment, TypeAuditManagerFramework, store.RelUses},
+		EdgeDecl{TypeAuditManagerAssessment, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeAuditManagerAssessment, TypeS3Bucket, store.RelUses},
+	)
 }
 
 // auditManagerAssessmentAttrs mirrors the verbatim Assessment fields used

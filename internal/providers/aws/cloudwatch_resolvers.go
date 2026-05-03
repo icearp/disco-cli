@@ -10,7 +10,22 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveCloudWatchRelationships) }
+func init() {
+	registerResolver(resolveCloudWatchRelationships,
+		EdgeDecl{TypeCloudWatchAlarm, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeCloudWatchCompositeAlarm, TypeSNSTopic, store.RelUses},
+		EdgeDecl{TypeCloudWatchCompositeAlarm, TypeCloudWatchAlarm, store.RelContains},
+		EdgeDecl{TypeCloudWatchCompositeAlarm, TypeCloudWatchCompositeAlarm, store.RelContains},
+		EdgeDecl{TypeCloudWatchAlarm, TypeEC2Instance, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeRDSDBInstance, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeSQSQueue, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeDynamoDBTable, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeELBv2LoadBalancer, store.RelUses},
+		EdgeDecl{TypeCloudWatchAlarm, TypeEKSCluster, store.RelUses},
+	)
+}
 
 // resolveCloudWatchRelationships runs all CloudWatch relationship passes.
 func resolveCloudWatchRelationships(acct *account, st *store.Store) error {
