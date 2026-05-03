@@ -1,0 +1,81 @@
+package aws
+
+import (
+	"fmt"
+	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
+)
+
+func TestWisdomVersionParentARN(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x:5", "arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x"},
+		{"arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x", ""},
+		{"arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x:notnum", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		if got := wisdomVersionParentARN(c.in); got != c.want {
+			t.Errorf("wisdomVersionParentARN(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestResolveWisdomAssistantChildren(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	asARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc", testRegion, acct.ID)
+	asID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAssistant, asARN, testRegion, "{}")
+	agARN := asARN + "/aiagent/agent-1"
+	attrs := fmt.Sprintf(`{"AssistantArn":%q}`, asARN)
+	agID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAIAgent, agARN, testRegion, attrs)
+	if err := resolveWisdomAssistantChildren(acct, st); err != nil {
+		t.Fatalf("resolveWisdomAssistantChildren: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(agID)
+	assertRelationship(t, rels, agID, asID, store.RelAttachedTo)
+}
+
+func TestResolveWisdomVersionParent(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	agARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc/aiagent/x", testRegion, acct.ID)
+	agID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAIAgent, agARN, testRegion, "{}")
+	vARN := agARN + ":5"
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAIAgentVersion, vARN, testRegion, "{}")
+	if err := resolveWisdomVersionParent(acct, st); err != nil {
+		t.Fatalf("resolveWisdomVersionParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(vID)
+	assertRelationship(t, rels, vID, agID, store.RelAttachedTo)
+}
+
+func TestResolveWisdomAssistantAssociationKnowledgeBase(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomKnowledgeBase, kbARN, testRegion, "{}")
+	aaARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc/association/aa-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"AssociationData":{"KnowledgeBaseAssociation":{"KnowledgeBaseArn":%q}}}`, kbARN)
+	aaID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAssistantAssociation, aaARN, testRegion, attrs)
+	if err := resolveWisdomAssistantAssociationKnowledgeBase(acct, st); err != nil {
+		t.Fatalf("resolveWisdomAssistantAssociationKnowledgeBase: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aaID)
+	assertRelationship(t, rels, aaID, kbID, store.RelUses)
+}
+
+func TestResolveWisdomKnowledgeBaseChildren(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomKnowledgeBase, kbARN, testRegion, "{}")
+	mtARN := kbARN + "/messageTemplate/mt-1"
+	attrs := fmt.Sprintf(`{"KnowledgeBaseArn":%q}`, kbARN)
+	mtID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomMessageTemplate, mtARN, testRegion, attrs)
+	if err := resolveWisdomKnowledgeBaseChildren(acct, st); err != nil {
+		t.Fatalf("resolveWisdomKnowledgeBaseChildren: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mtID)
+	assertRelationship(t, rels, mtID, kbID, store.RelAttachedTo)
+}
