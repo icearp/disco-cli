@@ -25,6 +25,7 @@ func init() {
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchDashboard},
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchInsightRule},
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchMetricStream},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchOTelEnrichment},
 		},
 	})
 }
@@ -40,6 +41,7 @@ type cloudwatchAPI interface {
 	DescribeInsightRules(context.Context, *cloudwatch.DescribeInsightRulesInput, ...func(*cloudwatch.Options)) (*cloudwatch.DescribeInsightRulesOutput, error)
 	ListMetricStreams(context.Context, *cloudwatch.ListMetricStreamsInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListMetricStreamsOutput, error)
 	GetMetricStream(context.Context, *cloudwatch.GetMetricStreamInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetMetricStreamOutput, error)
+	GetOTelEnrichment(context.Context, *cloudwatch.GetOTelEnrichmentInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetOTelEnrichmentOutput, error)
 }
 
 // scanCloudWatch discovers all CloudWatch resources in one region by calling
@@ -54,6 +56,7 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 		scanCWDashboards,
 		scanCWInsightRules,
 		scanCWMetricStreams,
+		scanCWOTelEnrichment,
 	}
 	for _, fn := range fns {
 		t, i, err := fn(ctx, client, acct, region, st, scanID)
@@ -397,4 +400,31 @@ func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *accoun
 		}
 	}
 	return total, inserted, nil
+}
+
+// scanCWOTelEnrichment discovers the singleton OTel enrichment configuration
+// per (account, region). The API has no List op — GetOTelEnrichment returns
+// a Status (Running/Stopped). Synth NativeID:
+// arn:aws:cloudwatch:{r}:{a}:otel-enrichment.
+func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	out, err := client.GetOTelEnrichment(ctx, &cloudwatch.GetOTelEnrichmentInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "cloudwatch:GetOTelEnrichment", acct.ID, region, err)
+		}
+		// Service not available in this region — soft skip.
+		if isAPIErrorCode(err, "ValidationException", "UnknownOperationException") {
+			return 0, 0, nil
+		}
+		return 0, 0, fmt.Errorf("cloudwatch:GetOTelEnrichment: %w", err)
+	}
+	arn := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:otel-enrichment", region, acct.ID)
+	name := "otel-enrichment"
+	r := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeCloudWatchOTelEnrichment, NativeID: arn,
+		Name: &name, Region: &region,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+	}
+	return upsertBatch(st, []*store.Resource{r}, "cloudwatch otel-enrichment")
 }

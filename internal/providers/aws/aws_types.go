@@ -406,6 +406,7 @@ const (
 	TypeCloudWatchDashboard       = "aws:cloudwatch:dashboard"
 	TypeCloudWatchInsightRule     = "aws:cloudwatch:insight-rule"
 	TypeCloudWatchMetricStream    = "aws:cloudwatch:metric-stream"
+	TypeCloudWatchOTelEnrichment  = "aws:cloudwatch:otel-enrichment"
 	// CloudWatch Logs (logs_scanners.go)
 	TypeLogsAccountPolicy      = "aws:logs:account-policy"
 	TypeLogsDelivery           = "aws:logs:delivery"
