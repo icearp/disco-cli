@@ -275,3 +275,15 @@ Most service hierarchies encode the parent in the child's NativeID via `{parentA
 ## Don't parallelize agents over shared resolver registries
 
 `<service>_resolvers.go` `init()` blocks are append targets for every resolver added. Dispatching parallel agents that each write to the same `init()` produces registration calls without function bodies when one agent runs out of usage budget mid-task — the package fails to compile with N undefined symbols. Either dispatch one agent per service file, or have agents create new `<service>_extended_resolvers.go` files (separate `init()` blocks merge cleanly).
+
+## Per-op region gates (sub-API only available in one region)
+
+Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if region != "us-east-1" { return 0, 0, nil }` at the top of `scanLSDistributions`), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
+
+## Per-region feature gap → InvalidRequestException, silent skip
+
+Some sub-APIs work in subset of regions only. The rejection comes back as `InvalidRequestException: Feature not supported yet` rather than `AccessDeniedException`. This is per-region, not per-account, so `markServiceDisabled` is wrong shape (other phases of the service still work in this region). Detect via code+message predicate and return `(0, 0, nil)` for a silent skip — the warn would fire on every scan in non-supporting regions otherwise. Precedent: `isIoTSiteWiseFeatureUnsupported` in `iotsitewise_scanners.go` (ListComputationModels works us-east-1 / eu-west-1, fails us-west-2).
+
+## DNS probe to confirm global-service region
+
+Before relying on AWS docs (or existing scanner code) for which region a global service lives in, probe with `getent hosts <svc>.<region>.amazonaws.com` across candidate regions — only the correct endpoint resolves; others return NXDOMAIN. Session live-scan revealed three scanner errors this way: `route53-recovery-readiness` + `route53-recovery-control` are us-west-2 only (not us-east-1), and `route53globalresolver` is us-east-2 only on the `.api.aws` TLD.
