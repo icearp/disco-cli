@@ -243,6 +243,7 @@ const (
 	TypeCognitoLogDeliveryConfiguration            = "aws:cognito:log-delivery-configuration"
 	TypeCognitoTerms                               = "aws:cognito:terms"
 	TypeCognitoIdentityPoolRoleAttachment          = "aws:cognito:identity-pool-role-attachment"
+	TypeCognitoManagedLoginBranding                = "aws:cognito:managed-login-branding"
 	// AppStream (appstream_scanners.go)
 	TypeAppStreamAppBlock                          = "aws:appstream:app-block"
 	TypeAppStreamAppBlockBuilder                   = "aws:appstream:app-block-builder"

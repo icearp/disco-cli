@@ -30,6 +30,7 @@ func init() {
 			{Service: "cognito", DiscoType: TypeCognitoLogDeliveryConfiguration},
 			{Service: "cognito", DiscoType: TypeCognitoTerms},
 			{Service: "cognito", DiscoType: TypeCognitoIdentityPoolRoleAttachment},
+			{Service: "cognito", DiscoType: TypeCognitoManagedLoginBranding},
 		},
 	})
 }
@@ -42,6 +43,7 @@ type cognitoidpAPI interface {
 	DescribeUserPool(context.Context, *cognitoidp.DescribeUserPoolInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolOutput, error)
 	ListUserPoolClients(context.Context, *cognitoidp.ListUserPoolClientsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListUserPoolClientsOutput, error)
 	DescribeUserPoolClient(context.Context, *cognitoidp.DescribeUserPoolClientInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolClientOutput, error)
+	DescribeManagedLoginBrandingByClient(context.Context, *cognitoidp.DescribeManagedLoginBrandingByClientInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeManagedLoginBrandingByClientOutput, error)
 	DescribeUserPoolDomain(context.Context, *cognitoidp.DescribeUserPoolDomainInput, ...func(*cognitoidp.Options)) (*cognitoidp.DescribeUserPoolDomainOutput, error)
 	ListGroups(context.Context, *cognitoidp.ListGroupsInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListGroupsOutput, error)
 	ListIdentityProviders(context.Context, *cognitoidp.ListIdentityProvidersInput, ...func(*cognitoidp.Options)) (*cognitoidp.ListIdentityProvidersOutput, error)
@@ -95,6 +97,7 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 		mu          sync.Mutex
 		poolBatch   []*store.Resource
 		clientBatch []*store.Resource
+		mlbBatch    []*store.Resource
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, poolID := range poolIDs {
@@ -162,6 +165,33 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 					mu.Lock()
 					clientBatch = append(clientBatch, cr)
 					mu.Unlock()
+
+					// Managed Login Branding lookup. NoSuchManagedLoginBranding when
+					// the app client has no branding configured — silent skip.
+					mlbOut, mlbErr := idpClient.DescribeManagedLoginBrandingByClient(gctx, &cognitoidp.DescribeManagedLoginBrandingByClientInput{
+						UserPoolId: &poolID,
+						ClientId:   &clientID,
+					})
+					if mlbErr != nil {
+						continue
+					}
+					if mlbOut.ManagedLoginBranding == nil {
+						continue
+					}
+					mlbID := sv(mlbOut.ManagedLoginBranding.ManagedLoginBrandingId)
+					if mlbID == "" {
+						continue
+					}
+					mlbArn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/branding/%s", region, acct.ID, poolID, mlbID)
+					mlbLabel := mlbID
+					mu.Lock()
+					mlbBatch = append(mlbBatch, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeCognitoManagedLoginBranding, NativeID: mlbArn,
+						Name: &mlbLabel, Region: &region,
+						AttributesJSON: mustJSON(mlbOut.ManagedLoginBranding), DiscoveredBy: scanID,
+					})
+					mu.Unlock()
 				}
 			}
 			return nil
@@ -184,6 +214,14 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 			return 0, 0, fmt.Errorf("upsert Cognito app clients: %w", err)
 		}
 		total += len(clientBatch)
+		inserted += n
+	}
+	if len(mlbBatch) > 0 {
+		n, err := st.UpsertResources(mlbBatch)
+		if err != nil {
+			return 0, 0, fmt.Errorf("upsert Cognito managed-login-branding: %w", err)
+		}
+		total += len(mlbBatch)
 		inserted += n
 	}
 
