@@ -110,3 +110,40 @@ func TestResolveLogsGroupAnomalyDetectors_NoDetectors(t *testing.T) {
 		t.Fatalf("resolveLogsGroupAnomalyDetectors (no detectors): %v", err)
 	}
 }
+
+// --- resolveLogsDeliveryDestTarget ---
+
+func TestResolveLogsDeliveryDestTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	lgARN := "arn:aws:logs:us-east-1:123456789012:log-group:/aws/svc"
+	bktARN := "arn:aws:s3:::dest-bucket"
+	fhARN := "arn:aws:firehose:us-east-1:123456789012:deliverystream/log-stream"
+
+	lgID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, lgARN, "us-east-1", "{}")
+	bktID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bktARN, "us-east-1", "{}")
+	fhID := upsertTestResource(t, st, "aws", acct.ID, TypeFirehoseDeliveryStream, fhARN, "us-east-1", "{}")
+
+	dlARN := "arn:aws:logs:us-east-1:123456789012:delivery-destination:to-lg"
+	dlAttrs := `{"DeliveryDestinationConfiguration":{"DestinationResourceArn":"` + lgARN + `:*"}}`
+	dlID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsDeliveryDest, dlARN, "us-east-1", dlAttrs)
+
+	dsARN := "arn:aws:logs:us-east-1:123456789012:delivery-destination:to-s3"
+	dsAttrs := `{"DeliveryDestinationConfiguration":{"DestinationResourceArn":"` + bktARN + `"}}`
+	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsDeliveryDest, dsARN, "us-east-1", dsAttrs)
+
+	dfARN := "arn:aws:logs:us-east-1:123456789012:delivery-destination:to-fh"
+	dfAttrs := `{"DeliveryDestinationConfiguration":{"DestinationResourceArn":"` + fhARN + `"}}`
+	dfID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsDeliveryDest, dfARN, "us-east-1", dfAttrs)
+
+	if err := resolveLogsDeliveryDestTarget(acct, st); err != nil {
+		t.Fatalf("resolveLogsDeliveryDestTarget: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dlID)
+	assertRelationship(t, rels, dlID, lgID, "uses")
+	rels, _ = st.RelationshipsFrom(dsID)
+	assertRelationship(t, rels, dsID, bktID, "uses")
+	rels, _ = st.RelationshipsFrom(dfID)
+	assertRelationship(t, rels, dfID, fhID, "uses")
+}

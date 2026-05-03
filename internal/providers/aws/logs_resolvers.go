@@ -14,12 +14,18 @@ func init() {
 		EdgeDecl{TypeLogsDelivery, TypeLogsDeliverySource, store.RelUses},
 		EdgeDecl{TypeLogsDelivery, TypeLogsDeliveryDest, store.RelUses},
 		EdgeDecl{TypeLogsLogAnomalyDetector, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeLogsDeliveryDest, TypeLogsLogGroup, store.RelUses},
+		EdgeDecl{TypeLogsDeliveryDest, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeLogsDeliveryDest, TypeFirehoseDeliveryStream, store.RelUses},
 	)
 }
 
 // resolveLogsRelationships runs all CloudWatch Logs relationship passes.
 func resolveLogsRelationships(acct *account, st *store.Store) error {
 	if err := resolveLogsDeliveryLinks(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLogsDeliveryDestTarget(acct, st); err != nil {
 		return err
 	}
 	return resolveLogsGroupAnomalyDetectors(acct, st)
@@ -104,6 +110,84 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert delivery→destination relationship: %w", err)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// resolveLogsDeliveryDestTarget wires each delivery-destination to its
+// underlying receive resource — log group, S3 bucket, or Firehose delivery
+// stream — via DeliveryDestinationConfiguration.DestinationResourceArn.
+func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
+	dests, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeLogsDeliveryDest},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(dests) == 0 {
+		return nil
+	}
+	lgSet, err := scannedIDSet(acct, st, TypeLogsLogGroup)
+	if err != nil {
+		return err
+	}
+	bktSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	fhSet, err := scannedIDSet(acct, st, TypeFirehoseDeliveryStream)
+	if err != nil {
+		return err
+	}
+	for _, d := range dests {
+		var attrs struct {
+			DeliveryDestinationConfiguration *struct {
+				DestinationResourceArn *string `json:"DestinationResourceArn"`
+			} `json:"DeliveryDestinationConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(d.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.DeliveryDestinationConfiguration == nil {
+			continue
+		}
+		raw := sv(attrs.DeliveryDestinationConfiguration.DestinationResourceArn)
+		if raw == "" {
+			continue
+		}
+		var tgtType, tgtARN string
+		switch {
+		case strings.HasPrefix(raw, "arn:aws:logs:"):
+			tgtType = TypeLogsLogGroup
+			tgtARN = strings.TrimSuffix(raw, ":*")
+		case strings.HasPrefix(raw, "arn:aws:s3:"):
+			tgtType = TypeS3Bucket
+			tgtARN = raw
+		case strings.HasPrefix(raw, "arn:aws:firehose:"):
+			tgtType = TypeFirehoseDeliveryStream
+			tgtARN = raw
+		default:
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+		var present bool
+		switch tgtType {
+		case TypeLogsLogGroup:
+			present = lgSet[tgtID]
+		case TypeS3Bucket:
+			present = bktSet[tgtID]
+		case TypeFirehoseDeliveryStream:
+			present = fhSet[tgtID]
+		}
+		if !present {
+			continue
+		}
+		if err := st.UpsertRelationship(d.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert delivery-dest→target: %w", err)
 		}
 	}
 	return nil
