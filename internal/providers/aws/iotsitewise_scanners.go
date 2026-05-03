@@ -3,12 +3,24 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise/types"
 )
+
+// isIoTSiteWiseFeatureUnsupported reports whether err is the per-region
+// `InvalidRequestException: Feature not supported yet` shape that
+// IoT SiteWise raises when a sub-API is not available in the calling
+// region (ListComputationModels is the canonical case — works in
+// us-east-1 / eu-west-1 but rejects in us-west-2). Distinct from a
+// real validation error, which carries a different message body.
+func isIoTSiteWiseFeatureUnsupported(err error) bool {
+	return isAPIErrorCode(err, "InvalidRequestException") &&
+		strings.Contains(err.Error(), "Feature not supported")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -203,6 +215,9 @@ func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *acco
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTSiteWiseFeatureUnsupported(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotsitewise:ListComputationModels", acct.ID, region, perr)
 				return 0, 0, nil

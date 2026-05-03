@@ -241,7 +241,15 @@ func scanLSDiskSnapshots(ctx context.Context, client lightsailAPI, acct *account
 	return upsertBatch(st, batch, "lightsail disk-snapshots")
 }
 
+// scanLSDistributions: Lightsail distribution APIs are us-east-1-only —
+// AWS rejects calls from any other region with `InvalidInputException:
+// Distribution-related APIs are only available in the us-east-1 Region`.
+// Gate the phase rather than per-region clienting since the API is
+// genuinely global, just exposed solely on us-east-1.
 func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	if region != "us-east-1" {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
 	var token *string
 	for {
@@ -275,7 +283,14 @@ func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account
 	return upsertBatch(st, batch, "lightsail distributions")
 }
 
+// scanLSDomains: Lightsail domain APIs are us-east-1-only — same gate as
+// scanLSDistributions; AWS rejects calls from any other region with
+// `InvalidInputException: Domain-related APIs are only available in the
+// us-east-1 Region`.
 func scanLSDomains(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	if region != "us-east-1" {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
 	var token *string
 	for {
