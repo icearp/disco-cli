@@ -3,11 +3,19 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/voiceid"
 )
+
+// isVoiceIDNotEnabled disambiguates the "no longer accepting new customers"
+// state from a real IAM denial — both surface as AccessDeniedException.
+// Precedent: isMacieNotEnabled (per aws/CLAUDE.md "Macie variant").
+func isVoiceIDNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "New customer access is no longer available")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -32,6 +40,9 @@ func scanVoiceID(ctx context.Context, acct *account, region string, st *store.St
 	for {
 		out, err := client.ListDomains(ctx, &voiceid.ListDomainsInput{NextToken: nextToken})
 		if err != nil {
+			if isVoiceIDNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "voice-id:ListDomains", acct.ID, region, err)
 			}

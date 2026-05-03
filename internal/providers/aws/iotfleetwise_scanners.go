@@ -3,11 +3,20 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
 )
+
+// isIoTFleetWiseFeatureNotAuthorized disambiguates the per-feature "Account
+// is not authorized to use this feature" gate from a real IAM denial. Used
+// on opt-in surfaces like ListStateTemplates that account base IoTFleetWise
+// access does not unlock.
+func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "not authorized to use this feature")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -218,6 +227,9 @@ func scanIoTFWStateTemplates(ctx context.Context, client iotFWAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseFeatureNotAuthorized(perr) {
+				return 0, 0, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListStateTemplates", acct.ID, region, perr)
 				return 0, 0, nil

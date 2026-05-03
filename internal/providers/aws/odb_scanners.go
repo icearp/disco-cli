@@ -3,11 +3,19 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/odb"
 )
+
+// isOdbNotOnboarded disambiguates the "isn't onboarded to the service"
+// not-subscribed state from a real IAM denial. Oracle Database@AWS requires
+// a Marketplace subscription before any list op succeeds.
+func isOdbNotOnboarded(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "isn't onboarded to the service")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -58,6 +66,9 @@ func scanODBAutonomousVmClusters(ctx context.Context, client odbAPI, acct *accou
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isOdbNotOnboarded(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "odb:ListCloudAutonomousVmClusters", acct.ID, region, err)
 			}
@@ -85,6 +96,9 @@ func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isOdbNotOnboarded(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "odb:ListCloudExadataInfrastructures", acct.ID, region, err)
 			}
@@ -112,6 +126,9 @@ func scanODBVmClusters(ctx context.Context, client odbAPI, acct *account, region
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isOdbNotOnboarded(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "odb:ListCloudVmClusters", acct.ID, region, err)
 			}
@@ -139,6 +156,9 @@ func scanODBNetworks(ctx context.Context, client odbAPI, acct *account, region s
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isOdbNotOnboarded(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "odb:ListOdbNetworks", acct.ID, region, err)
 			}
@@ -166,6 +186,9 @@ func scanODBPeeringConnections(ctx context.Context, client odbAPI, acct *account
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isOdbNotOnboarded(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "odb:ListOdbPeeringConnections", acct.ID, region, err)
 			}

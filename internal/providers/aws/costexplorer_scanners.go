@@ -56,6 +56,9 @@ func scanCEAnomalyMonitors(ctx context.Context, client costExplorerAPI, acct *ac
 	for {
 		out, err := client.GetAnomalyMonitors(ctx, &costexplorer.GetAnomalyMonitorsInput{NextPageToken: nextToken})
 		if err != nil {
+			if isCostExplorerNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalyMonitors", acct.ID, region, err)
 			}
@@ -87,6 +90,9 @@ func scanCEAnomalySubscriptions(ctx context.Context, client costExplorerAPI, acc
 	for {
 		out, err := client.GetAnomalySubscriptions(ctx, &costexplorer.GetAnomalySubscriptionsInput{NextPageToken: nextToken})
 		if err != nil {
+			if isCostExplorerNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalySubscriptions", acct.ID, region, err)
 			}
@@ -118,6 +124,9 @@ func scanCECostCategories(ctx context.Context, client costExplorerAPI, acct *acc
 	for {
 		out, err := client.ListCostCategoryDefinitions(ctx, &costexplorer.ListCostCategoryDefinitionsInput{NextToken: nextToken})
 		if err != nil {
+			if isCostExplorerNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "ce:ListCostCategoryDefinitions", acct.ID, region, err)
 			}

@@ -3,11 +3,18 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
 )
+
+// isFMSNotEnabled disambiguates the "no default admin" not-onboarded state
+// from a real IAM denial.
+func isFMSNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "No default admin could be found")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -57,6 +64,9 @@ func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region s
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isFMSNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "fms:ListPolicies", acct.ID, region, err)
 			}
@@ -85,6 +95,9 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 	for {
 		out, err := client.ListResourceSets(ctx, &fms.ListResourceSetsInput{NextToken: nextToken})
 		if err != nil {
+			if isFMSNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "fms:ListResourceSets", acct.ID, region, err)
 			}

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -59,6 +60,14 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	org := descOrg.Organization
 	if org == nil {
 		return 0, 0, nil
+	}
+	// Org write/list APIs (ListRoots, ListAccounts, ListPolicies,
+	// ListOrganizationalUnitsForParent) reject calls from member accounts
+	// with an opaque AccessDeniedException. DescribeOrganization succeeds
+	// from any member, exposing MasterAccountId — short-circuit cleanly
+	// when we are not the management account.
+	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
+		return 0, 0, markServiceDisabled(errors.New("organizations: not the management account"))
 	}
 	orgRes := &store.Resource{
 		Provider:       "aws",

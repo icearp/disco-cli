@@ -3,11 +3,18 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/simspaceweaver"
 )
+
+// isSimSpaceWeaverNotEnabled disambiguates the not-allowlisted state from a
+// real IAM denial — both surface as AccessDeniedException.
+func isSimSpaceWeaverNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "not allowlisted")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -32,6 +39,9 @@ func scanSimSpaceWeaver(ctx context.Context, acct *account, region string, st *s
 	for {
 		out, err := client.ListSimulations(ctx, &simspaceweaver.ListSimulationsInput{NextToken: nextToken})
 		if err != nil {
+			if isSimSpaceWeaverNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "simspaceweaver:ListSimulations", acct.ID, region, err)
 			}

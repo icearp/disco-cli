@@ -31,8 +31,13 @@ type r53rrAPI interface {
 
 // scanR53RecoveryReadiness discovers Route53 Recovery Readiness cells,
 // readiness checks, recovery groups, and resource sets via paginated List*
-// calls. ARNs are native on every type.
+// calls. ARNs are native on every type. Service is global with a single
+// us-east-1 endpoint — gate so multi-region scans skip the DNS-lookup
+// failures that otherwise warn from every other region.
 func scanR53RecoveryReadiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	if region != "us-east-1" {
+		return 0, 0, nil
+	}
 	client := route53recoveryreadiness.NewFromConfig(acct.cfg, func(o *route53recoveryreadiness.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

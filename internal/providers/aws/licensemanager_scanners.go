@@ -3,11 +3,20 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
 )
+
+// isLicenseManagerNotSetUp disambiguates the "Service role not found" setup
+// gap from a real IAM denial. License Manager requires creating the
+// AWSServiceRoleForAWSLicenseManagerRole; missing it surfaces as
+// AccessDeniedException with the same "Service role not found" message.
+func isLicenseManagerNotSetUp(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "Service role not found")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -56,6 +65,9 @@ func scanLMLicenses(ctx context.Context, client licenseManagerAPI, acct *account
 	for {
 		out, err := client.ListLicenses(ctx, &licensemanager.ListLicensesInput{NextToken: nextToken})
 		if err != nil {
+			if isLicenseManagerNotSetUp(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "license-manager:ListLicenses", acct.ID, region, err)
 			}
@@ -88,6 +100,9 @@ func scanLMGrants(ctx context.Context, client licenseManagerAPI, acct *account, 
 	for {
 		out, err := client.ListDistributedGrants(ctx, &licensemanager.ListDistributedGrantsInput{NextToken: nextToken})
 		if err != nil {
+			if isLicenseManagerNotSetUp(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "license-manager:ListDistributedGrants", acct.ID, region, err)
 			}

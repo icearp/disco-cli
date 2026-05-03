@@ -3,10 +3,18 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
 )
+
+// isInspector2FeatureNotEnabled disambiguates the "Invoking account is not
+// enabled" feature-gate state on Inspector v2 sub-phases (CIS scans, code
+// security) from a real IAM denial.
+func isInspector2FeatureNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "Invoking account is not enabled")
+}
 
 // scanInspector2Extended discovers Inspector v2 CIS scan configurations,
 // code security integrations, and code security scan configurations. ARNs
@@ -41,6 +49,9 @@ func scanInspector2CisConfigs(ctx context.Context, client inspector2API, acct *a
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isInspector2FeatureNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "inspector2:ListCisScanConfigurations", acct.ID, region, err)
 			}

@@ -3,11 +3,25 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator"
 )
+
+// isCostExplorerNotEnabled disambiguates the "User not enabled for cost
+// explorer access" / linked-account state from a real IAM denial. Shared by
+// BCM Pricing Calculator + Cost Explorer scanners since both gate on the
+// same account-level Cost Explorer enablement.
+func isCostExplorerNotEnabled(err error) bool {
+	if !isAccessDenied(err) {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not enabled for cost explorer") ||
+		strings.Contains(msg, "doesn't have access to cost category")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -42,6 +56,9 @@ func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricin
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isCostExplorerNotEnabled(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "bcmpricingcalculator:ListBillScenarios", acct.ID, region, perr)
 			}

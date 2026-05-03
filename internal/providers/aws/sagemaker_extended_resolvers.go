@@ -106,7 +106,7 @@ func init() {
 	registerResolver(resolveSageMakerPipeline,
 		EdgeDecl{TypeSageMakerPipeline, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveSageMakerProject)// Project has no edge-bearing attributes beyond the service-catalog
+	registerResolver(resolveSageMakerProject) // Project has no edge-bearing attributes beyond the service-catalog
 	// product details, which point at non-disco resource types.
 
 	registerResolver(resolveSageMakerMlflowTrackingServer,

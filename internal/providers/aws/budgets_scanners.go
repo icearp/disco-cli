@@ -3,11 +3,18 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/budgets"
 )
+
+// isBudgetsLinkedAccount disambiguates the "linked account, ask payer to
+// enable budgets" state from a real IAM denial.
+func isBudgetsLinkedAccount(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "linked account")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -58,6 +65,9 @@ func scanBudgetsBudgets(ctx context.Context, client budgetsAPI, acct *account, r
 			NextToken: nextToken,
 		})
 		if err != nil {
+			if isBudgetsLinkedAccount(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "budgets:DescribeBudgets", acct.ID, region, err)
 			}
@@ -93,6 +103,9 @@ func scanBudgetsActions(ctx context.Context, client budgetsAPI, acct *account, r
 			NextToken: nextToken,
 		})
 		if err != nil {
+			if isBudgetsLinkedAccount(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "budgets:DescribeBudgetActionsForAccount", acct.ID, region, err)
 			}

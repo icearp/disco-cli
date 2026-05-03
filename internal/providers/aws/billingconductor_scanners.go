@@ -3,12 +3,19 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/billingconductor"
 )
+
+// isBillingConductorPayerOnly disambiguates the "Only payer account is
+// authorized" state from a real IAM denial.
+func isBillingConductorPayerOnly(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "Only payer account is authorized")
+}
 
 // AWS Billing Conductor is a global service — endpoints resolve only via
 // us-east-1.
@@ -78,6 +85,9 @@ func scanBillingConductorBillingGroups(ctx context.Context, client billingConduc
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isBillingConductorPayerOnly(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListBillingGroups", acct.ID, region, perr)
 			}
@@ -121,6 +131,9 @@ func scanBillingConductorCustomLineItems(ctx context.Context, client billingCond
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isBillingConductorPayerOnly(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListCustomLineItems", acct.ID, region, perr)
 			}
@@ -164,6 +177,9 @@ func scanBillingConductorPricingPlans(ctx context.Context, client billingConduct
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isBillingConductorPayerOnly(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListPricingPlans", acct.ID, region, perr)
 			}
@@ -207,6 +223,9 @@ func scanBillingConductorPricingRules(ctx context.Context, client billingConduct
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isBillingConductorPayerOnly(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListPricingRules", acct.ID, region, perr)
 			}

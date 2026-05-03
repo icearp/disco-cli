@@ -3,12 +3,19 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/securitylake"
 	sltypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
 )
+
+// isSecurityLakeNotEnabled disambiguates the "must be a delegated Security
+// Lake administrator account" not-enabled state from a real IAM denial.
+func isSecurityLakeNotEnabled(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "delegated Security Lake administrator")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -54,6 +61,9 @@ func scanSecurityLake(ctx context.Context, acct *account, region string, st *sto
 func scanSLDataLakes(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.ListDataLakes(ctx, &securitylake.ListDataLakesInput{Regions: []string{region}})
 	if err != nil {
+		if isSecurityLakeNotEnabled(err) {
+			return 0, 0, markServiceDisabled(err)
+		}
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "securitylake:ListDataLakes", acct.ID, region, err)
 		}
@@ -83,6 +93,9 @@ func scanSLSubscribers(ctx context.Context, client securityLakeAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isSecurityLakeNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "securitylake:ListSubscribers", acct.ID, region, err)
 			}
@@ -113,6 +126,9 @@ func scanSLAwsLogSources(ctx context.Context, client securityLakeAPI, acct *acco
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isSecurityLakeNotEnabled(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "securitylake:ListLogSources", acct.ID, region, err)
 			}

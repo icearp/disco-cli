@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -10,6 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/timestreamquery"
 	"github.com/aws/aws-sdk-go-v2/service/timestreamwrite"
 )
+
+// isTimestreamLiveAnalyticsClosed disambiguates the "Only existing
+// Timestream for LiveAnalytics customers can access the service"
+// closed-to-new-customers state from a real IAM denial.
+func isTimestreamLiveAnalyticsClosed(err error) bool {
+	return isAccessDenied(err) && strings.Contains(err.Error(), "existing Timestream for LiveAnalytics customers")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -70,6 +78,9 @@ func scanTSDatabases(ctx context.Context, client tsWriteAPI, acct *account, regi
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isTimestreamLiveAnalyticsClosed(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListDatabases", acct.ID, region, err)
 			}
@@ -97,6 +108,9 @@ func scanTSTables(ctx context.Context, client tsWriteAPI, acct *account, region 
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isTimestreamLiveAnalyticsClosed(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListTables", acct.ID, region, err)
 			}
@@ -125,6 +139,9 @@ func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isTimestreamLiveAnalyticsClosed(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListScheduledQueries", acct.ID, region, err)
 			}
