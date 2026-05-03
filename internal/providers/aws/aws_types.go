@@ -1619,7 +1619,10 @@ const (
 	TypeS3FilesFileSystemPolicy = "aws:s3files:file-system-policy"
 	TypeS3FilesMountTarget      = "aws:s3files:mount-target"
 	// S3Outposts (s3outposts_scanners.go).
-	TypeS3OutpostsEndpoint = "aws:s3outposts:endpoint"
+	TypeS3OutpostsEndpoint     = "aws:s3outposts:endpoint"
+	TypeS3OutpostsBucket       = "aws:s3outposts:bucket"
+	TypeS3OutpostsAccessPoint  = "aws:s3outposts:access-point"
+	TypeS3OutpostsBucketPolicy = "aws:s3outposts:bucket-policy"
 	// SecurityAgent (securityagent_scanners.go).
 	TypeSecurityAgentAgentSpace   = "aws:security-agent:agent-space"
 	TypeSecurityAgentApplication  = "aws:security-agent:application"
