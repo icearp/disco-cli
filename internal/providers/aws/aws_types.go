@@ -411,6 +411,8 @@ const (
 	TypeCloud9EnvironmentEC2 = "aws:cloud9:environment-ec2"
 	// Chime (chime_scanners.go)
 	TypeChimeAppInstance = "aws:chime:app-instance"
+	// ACM account-config (acm_scanners.go)
+	TypeACMAccount = "aws:acm:account"
 	// CloudWatch Logs (logs_scanners.go)
 	TypeLogsAccountPolicy      = "aws:logs:account-policy"
 	TypeLogsDelivery           = "aws:logs:delivery"

@@ -15,6 +15,7 @@ func init() {
 		fn:   scanACM,
 		emits: []coverage.TypeDecl{
 			{Service: "acm", DiscoType: TypeACMCertificate},
+			{Service: "acm", DiscoType: TypeACMAccount},
 		},
 	})
 }
@@ -24,6 +25,7 @@ type acmAPI interface {
 	ListCertificates(context.Context, *acm.ListCertificatesInput, ...func(*acm.Options)) (*acm.ListCertificatesOutput, error)
 	DescribeCertificate(context.Context, *acm.DescribeCertificateInput, ...func(*acm.Options)) (*acm.DescribeCertificateOutput, error)
 	ListTagsForCertificate(context.Context, *acm.ListTagsForCertificateInput, ...func(*acm.Options)) (*acm.ListTagsForCertificateOutput, error)
+	GetAccountConfiguration(context.Context, *acm.GetAccountConfigurationInput, ...func(*acm.Options)) (*acm.GetAccountConfigurationOutput, error)
 }
 
 // scanACM discovers ACM certificates in one region. ListCertificates returns
@@ -32,7 +34,37 @@ type acmAPI interface {
 // DomainValidationOptions, etc.). Tags fetched via ListTagsForCertificate.
 func scanACM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := acm.NewFromConfig(acct.cfg, func(o *acm.Options) { o.Region = region })
-	return scanACMCertificates(ctx, client, acct, region, st, scanID)
+	t1, i1, err := scanACMCertificates(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return t1, i1, err
+	}
+	t2, i2, err := scanACMAccountConfig(ctx, client, acct, region, st, scanID)
+	if err != nil {
+		return t1, i1, err
+	}
+	return t1 + t2, i1 + i2, nil
+}
+
+// scanACMAccountConfig discovers the per-(account, region) ACM expiry-events
+// configuration as a single aws:acm:account row. NativeID is synthesized:
+// arn:aws:acm:{r}:{a}:account.
+func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	out, err := client.GetAccountConfiguration(ctx, &acm.GetAccountConfigurationInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "acm:GetAccountConfiguration", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("acm:GetAccountConfiguration: %w", err)
+	}
+	arn := fmt.Sprintf("arn:aws:acm:%s:%s:account", region, acct.ID)
+	name := "account"
+	r := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeACMAccount, NativeID: arn,
+		Name: &name, Region: &region,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+	}
+	return upsertBatch(st, []*store.Resource{r}, "acm account-config")
 }
 
 // scanACMCertificates holds the testable scan body.
