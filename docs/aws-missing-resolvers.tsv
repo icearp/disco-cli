@@ -271,16 +271,8 @@ aws:dax:cluster	dax
 aws:dax:parameter-group	dax
 aws:dax:subnet-group	dax
 aws:deadline:farm	deadline
-aws:deadline:fleet	deadline
 aws:deadline:license-endpoint	deadline
-aws:deadline:limit	deadline
-aws:deadline:metered-product	deadline
 aws:deadline:monitor	deadline
-aws:deadline:queue	deadline
-aws:deadline:queue-environment	deadline
-aws:deadline:queue-fleet-association	deadline
-aws:deadline:queue-limit-association	deadline
-aws:deadline:storage-profile	deadline
 aws:detective:graph	detective
 aws:detective:organization-admin	detective
 aws:dev-ops-agent:agent-space	dev-ops-agent
