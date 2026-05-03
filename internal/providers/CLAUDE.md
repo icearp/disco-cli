@@ -103,3 +103,7 @@ Resolver tests should construct attrs via `json.Marshal` of the real SDK struct,
 ### Test-seam pattern for helpers that build their own clients
 
 Production helpers that internally construct API clients (via ADC / `clientOptions` / `azidentity.DefaultAzureCredential`) can't be aimed at httptest fakes or SDK fake transports. Split into thin outer wrapper + inner `*In` / `*WithClient` core that takes the pre-resolved values (region list, client, customer ID). Tests call the inner core directly; production code uses the outer wrapper. Precedent: `gcpRegionFanoutScan` / `gcpRegionFanoutScanIn` in `gcp/gcp.go`; Azure `scanX` / `scanXWithClient` in `compute_disks_scanners.go`.
+
+## List ops with required input filters
+
+Many AWS/Azure/GCP List ops reject blanket calls — they require a parent identifier (DescribeUserStackAssociations needs StackName, ListPolicies needs PolicyEngineId, ListIndexes needs VectorBucketName, ListServiceNetworkServiceAssociations needs ServiceNetworkIdentifier). The compile-time signature exposes the field as `*string` so empty input compiles but fails at runtime with `InvalidParameterCombinationException` / `validation error` / `Must provide at least one of: …`. Before writing a List paginator, grep the SDK package for `validators.go` — `ErrParamRequired` entries reveal required inputs. Fan-out per parent enumerated by an upstream sibling scanner phase; pass the parent IDs/ARNs as a slice argument.

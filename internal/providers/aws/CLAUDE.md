@@ -231,3 +231,19 @@ Scanner-side wrapper containers (`{"lb": <LB>, "type": ...}` in `elb_scanners.go
 ## VPC subtree wired via `attached-to`, not `contains`
 
 `ec2_networking_resolvers.go` emits `child → vpc` `RelAttachedTo` for subnet, IGW, route-table, NAT gateway, VPC endpoint, network ACL, peering. No `RecordHierarchyBatch` call wires VPC as a closure parent — VPC has zero `contains` rows. Graphs and `disco list --hierarchy` see VPC only via the reverse `attached-to` edges. Add hierarchy wiring deliberately if a feature needs VPC→child closure traversal.
+
+## Probe-first for low-TPS multi-phase services
+
+Services with ≥20 sub-phase List ops AND a low per-account TPS quota (SageMaker is the canonical case) burn minutes when adaptive retry's token bucket throttles — every phase pays the penalty even on dormant accounts. Add a phase-0 probe of 2-3 cheap `MaxResults=1` List ops covering the highest-signal surfaces; short-circuit the full fan-out on empty. Precedent: `sagemakerInUseProbe` (sagemaker_scanners.go) probes ListDomains + ListNotebookInstances + ListEndpoints. Accept false negatives (pipelines-only / training-jobs-only accounts) for the wall-time win.
+
+## Expected-state singletons → silent no-op, not warn
+
+Singleton-config Get/List ops return distinct error codes when the config has not been opted into (`SigningConfigurationNotFoundException`, `NotConfiguredException`, `RegistryPolicyNotFoundException`, `ResourceNotFoundException`, `TagOptionNotMigratedException`, `UnauthorizedException` from org-only APIs called by non-mgmt accounts). These are the **default state**, not warnings. Return `(0, 0, nil)` directly — do NOT route through `skipIfAccessDenied`, which records a `ScanWarning` and clutters the per-region warnings block. Real IAM denies still warn via `isAccessDenied`.
+
+## ThrottlingException is dispatch-level transient
+
+`isTransientNetworkError` (aws.go) matches `ThrottlingException` / `Throttling` / `ThrottledException` / `RateExceededException`. Post-retry throttle exhaust (SDK retryer burned its 10-attempt adaptive budget) warn-skips at `scanRegion` dispatch automatically. Scanners do NOT need inline `isAPIErrorCode(err, "ThrottlingException")` handling — same shape as RequestTimeout/ServiceUnavailable.
+
+## AppStream DescribeUsers: SAML auth-type rejected
+
+The SDK enum `appstreamtypes.AuthenticationType` exposes USERPOOL, SAML, API. AWS rejects SAML on `DescribeUsers` (`'SAML' is not a supported authentication type for describing users`); SAML federation users are not first-class user-pool entries. Iterate USERPOOL + API only.
