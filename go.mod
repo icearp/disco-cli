@@ -84,6 +84,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/braket v1.40.2
 	github.com/aws/aws-sdk-go-v2/service/budgets v1.43.6
 	github.com/aws/aws-sdk-go-v2/service/chatbot v1.14.23
+	github.com/aws/aws-sdk-go-v2/service/chimesdkidentity v1.27.22
 	github.com/aws/aws-sdk-go-v2/service/cleanrooms v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/cleanroomsml v1.22.7
 	github.com/aws/aws-sdk-go-v2/service/cloud9 v1.33.22

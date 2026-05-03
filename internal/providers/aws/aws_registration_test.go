@@ -155,6 +155,7 @@ var expectedAWSServices = []string{
 	"aws:code-guru-profiler",
 	"aws:codecommit",
 	"aws:cloud9",
+	"aws:chime",
 	"aws:accessanalyzer",
 	"aws:aiops",
 	"aws:mq",
