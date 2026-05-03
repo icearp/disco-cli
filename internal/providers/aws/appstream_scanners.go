@@ -522,13 +522,13 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 	return upsertBatch(st, batch, "appstream user-stack-associations")
 }
 
-// scanASUsers iterates the three AuthenticationType values (USERPOOL is
-// the standard; SAML/API typically empty but legal). DescribeUsers
-// requires AuthenticationType.
+// scanASUsers iterates the AuthenticationType values DescribeUsers actually
+// supports — USERPOOL (managed users) and API. SAML is not a valid filter
+// (SAML federation users are not first-class user-pool entries; AWS rejects
+// `'SAML' is not a supported authentication type for describing users`).
 func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	authTypes := []astypes.AuthenticationType{
 		astypes.AuthenticationTypeUserpool,
-		astypes.AuthenticationTypeSaml,
 		astypes.AuthenticationTypeApi,
 	}
 	var batch []*store.Resource
@@ -539,6 +539,9 @@ func scanASUsers(ctx context.Context, client appStreamAPI, acct *account, region
 			out, err := client.DescribeUsers(ctx, &appstream.DescribeUsersInput{AuthenticationType: auth, NextToken: token})
 			if err != nil {
 				if isAccessDenied(err) {
+					break
+				}
+				if isAPIErrorCode(err, "InvalidParameterValueException") {
 					break
 				}
 				return 0, 0, fmt.Errorf("appstream:DescribeUsers %s: %w", auth, err)

@@ -90,7 +90,7 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 		func() (int, int, error) { return scanVLResourceGateways(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanVLSNRA(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanVLSNSA(ctx, client, acct, region, st, scanID, netARNs) },
-		func() (int, int, error) { return scanVLSNVA(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanVLSNVA(ctx, client, acct, region, st, scanID, netARNs) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -521,29 +521,39 @@ func scanVLSNSA(ctx context.Context, client vpcLatticeAPI, acct *account, region
 	return upsertBatch(st, batch, "vpclattice service-network-service-associations")
 }
 
-func scanVLSNVA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := vpclattice.NewListServiceNetworkVpcAssociationsPaginator(client, &vpclattice.ListServiceNetworkVpcAssociationsInput{})
+// scanVLSNVA requires either ServiceNetworkIdentifier or VpcIdentifier per
+// call. Fan-out across service-network ARNs enumerated by scanVLServiceNetworks.
+func scanVLSNVA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, netARNs []string) (int, int, error) {
+	if len(netARNs) == 0 {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworkVpcAssociations", acct.ID, region, perr)
-				return 0, 0, nil
+	for _, na := range netARNs {
+		netARN := na
+		pager := vpclattice.NewListServiceNetworkVpcAssociationsPaginator(client, &vpclattice.ListServiceNetworkVpcAssociationsInput{
+			ServiceNetworkIdentifier: &netARN,
+		})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworkVpcAssociations", acct.ID, region, perr)
+					return 0, 0, nil
+				}
+				return 0, 0, fmt.Errorf("vpclattice:ListServiceNetworkVpcAssociations %s: %w", netARN, perr)
 			}
-			return 0, 0, fmt.Errorf("vpclattice:ListServiceNetworkVpcAssociations: %w", perr)
-		}
-		for _, a := range out.Items {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
+			for _, a := range out.Items {
+				arn := sv(a.Arn)
+				if arn == "" {
+					continue
+				}
+				label := sv(a.Id)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeVpcLatticeServiceNetworkVpcAssociation, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				})
 			}
-			label := sv(a.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeServiceNetworkVpcAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
 		}
 	}
 	return upsertBatch(st, batch, "vpclattice service-network-vpc-associations")

@@ -88,6 +88,11 @@ func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, a
 				_ = skipIfAccessDenied(st, "iot:ListV2LoggingLevels", acct.ID, region, perr)
 				return 0, 0, nil
 			}
+			// NotConfiguredException = SetV2LoggingOptions never called
+			// (default state). No levels to enumerate.
+			if isAPIErrorCode(perr, "NotConfiguredException") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("iot:ListV2LoggingLevels: %w", perr)
 		}
 		for _, l := range out.LogTargetConfigurations {
