@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/appsync"
+	appsynctypes "github.com/aws/aws-sdk-go-v2/service/appsync/types"
 )
 
 func init() {
@@ -25,6 +26,7 @@ func init() {
 			{Service: "appsync", DiscoType: TypeAppSyncGraphQLApi},
 			{Service: "appsync", DiscoType: TypeAppSyncGraphQLSchema},
 			{Service: "appsync", DiscoType: TypeAppSyncSourceApiAssociation},
+			{Service: "appsync", DiscoType: TypeAppSyncResolver},
 		},
 	})
 }
@@ -40,6 +42,8 @@ type appSyncAPI interface {
 	ListSourceApiAssociations(context.Context, *appsync.ListSourceApiAssociationsInput, ...func(*appsync.Options)) (*appsync.ListSourceApiAssociationsOutput, error)
 	GetApiCache(context.Context, *appsync.GetApiCacheInput, ...func(*appsync.Options)) (*appsync.GetApiCacheOutput, error)
 	GetApiAssociation(context.Context, *appsync.GetApiAssociationInput, ...func(*appsync.Options)) (*appsync.GetApiAssociationOutput, error)
+	ListTypes(context.Context, *appsync.ListTypesInput, ...func(*appsync.Options)) (*appsync.ListTypesOutput, error)
+	ListResolvers(context.Context, *appsync.ListResolversInput, ...func(*appsync.Options)) (*appsync.ListResolversOutput, error)
 }
 
 // asyncSplitApis routes API IDs to GraphQL vs Event API buckets based
@@ -98,6 +102,9 @@ func scanAppSync(ctx context.Context, acct *account, region string, st *store.St
 		},
 		func() (int, int, error) {
 			return scanASCDomainNameAssocs(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) {
+			return scanASCResolvers(ctx, client, acct, region, st, scanID, apis.graphqlIDs)
 		},
 	} {
 		t, i, ferr := phase()
@@ -474,4 +481,82 @@ func scanASCDomainNameAssocs(ctx context.Context, client appSyncAPI, acct *accou
 		})
 	}
 	return upsertBatch(st, batch, "appsync domain-name-api-associations")
+}
+
+// scanASCResolvers fans out per (api, type) to ListResolvers. Type names come
+// from ListTypes(Format=SDL); a GraphQL schema with N user-defined types
+// triggers N ListResolvers calls per API. Per-(api, type) errors tolerate
+// AccessDenied + NotFoundException without aborting siblings.
+func scanASCResolvers(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, apiIDs []string) (int, int, error) {
+	if len(apiIDs) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, apiID := range apiIDs {
+		// First enumerate type names via ListTypes(Format=SDL).
+		var typeNames []string
+		var typesToken *string
+		for {
+			tout, terr := client.ListTypes(ctx, &appsync.ListTypesInput{
+				ApiId:     &apiID,
+				Format:    appsynctypes.TypeDefinitionFormatSdl,
+				NextToken: typesToken,
+			})
+			if terr != nil {
+				if isAccessDenied(terr) {
+					_ = skipIfAccessDenied(st, "appsync:ListTypes", acct.ID, region, terr)
+					break
+				}
+				if isAPIErrorCode(terr, "NotFoundException") {
+					break
+				}
+				return 0, 0, fmt.Errorf("appsync:ListTypes %s: %w", apiID, terr)
+			}
+			for _, t := range tout.Types {
+				if name := sv(t.Name); name != "" {
+					typeNames = append(typeNames, name)
+				}
+			}
+			if tout.NextToken == nil || *tout.NextToken == "" {
+				break
+			}
+			typesToken = tout.NextToken
+		}
+
+		// Per type, paginate resolvers.
+		for _, typeName := range typeNames {
+			var resToken *string
+			for {
+				rout, rerr := client.ListResolvers(ctx, &appsync.ListResolversInput{
+					ApiId:     &apiID,
+					TypeName:  &typeName,
+					NextToken: resToken,
+				})
+				if rerr != nil {
+					if isAccessDenied(rerr) || isAPIErrorCode(rerr, "NotFoundException") {
+						break
+					}
+					return 0, 0, fmt.Errorf("appsync:ListResolvers %s/%s: %w", apiID, typeName, rerr)
+				}
+				for _, r := range rout.Resolvers {
+					arn := sv(r.ResolverArn)
+					if arn == "" {
+						continue
+					}
+					label := sv(r.FieldName)
+					batch = append(batch, &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeAppSyncResolver, NativeID: arn,
+						Name: &label, Region: &region,
+						AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+					})
+				}
+				if rout.NextToken == nil || *rout.NextToken == "" {
+					break
+				}
+				resToken = rout.NextToken
+			}
+		}
+	}
+	return upsertBatch(st, batch, "appsync resolvers")
 }

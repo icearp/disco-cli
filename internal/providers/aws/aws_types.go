@@ -658,6 +658,7 @@ const (
 	TypeAppSyncGraphQLApi               = "aws:appsync:graphql-api"
 	TypeAppSyncGraphQLSchema            = "aws:appsync:graphql-schema"
 	TypeAppSyncSourceApiAssociation     = "aws:appsync:source-api-association"
+	TypeAppSyncResolver                 = "aws:appsync:resolver"
 	// QuickSight (quicksight_scanners.go)
 	TypeQuickSightActionConnector   = "aws:quicksight:action-connector"
 	TypeQuickSightAnalysis          = "aws:quicksight:analysis"
@@ -1351,6 +1352,8 @@ const (
 	TypeServiceCatalogLaunchTemplateConstraint         = "aws:servicecatalog:launch-template-constraint"
 	TypeServiceCatalogResourceUpdateConstraint         = "aws:servicecatalog:resource-update-constraint"
 	TypeServiceCatalogStackSetConstraint               = "aws:servicecatalog:stack-set-constraint"
+	TypeServiceCatalogPortfolioProductAssociation      = "aws:servicecatalog:portfolio-product-association"
+	TypeServiceCatalogServiceActionAssociation         = "aws:servicecatalog:service-action-association"
 	// MediaLive (medialive_scanners.go)
 	TypeMediaLiveChannel                      = "aws:medialive:channel"
 	TypeMediaLiveChannelPlacementGroup        = "aws:medialive:channel-placement-group"
