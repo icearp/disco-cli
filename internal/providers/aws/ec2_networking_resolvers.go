@@ -64,6 +64,137 @@ func init() {
 	)
 }
 
+// routeTargetRule maps a Routes[] field name to the target's disco type and
+// ARN-kind segment. The resolver dispatches on the first non-empty field per
+// route. `gatewayPrefix` filters `GatewayId` between IGW (`igw-`) and VGW
+// (`vgw-`); empty means "match unconditionally".
+type routeTargetRule struct {
+	field         string
+	gatewayPrefix string
+	dtype         string
+	arnKind       string
+}
+
+// routeTargetRules orders dispatch — first matching rule wins per route.
+var routeTargetRules = []routeTargetRule{
+	{"GatewayId", "igw-", TypeEC2InternetGateway, "internet-gateway"},
+	{"GatewayId", "vgw-", TypeEC2VPNGateway, "vpn-gateway"},
+	{"GatewayId", "vpce-", TypeEC2VPCEndpoint, "vpc-endpoint"},
+	{"NatGatewayId", "", TypeEC2NatGateway, "natgateway"},
+	{"TransitGatewayId", "", TypeEC2TransitGateway, "transit-gateway"},
+	{"VpcPeeringConnectionId", "", TypeEC2VPCPeeringConnection, "vpc-peering-connection"},
+	{"NetworkInterfaceId", "", TypeEC2NetworkInterface, "network-interface"},
+	{"EgressOnlyInternetGatewayId", "", TypeEC2EgressOnlyIGW, "egress-only-internet-gateway"},
+	{"CarrierGatewayId", "", TypeEC2CarrierGateway, "carrier-gateway"},
+	{"VpcEndpointId", "", TypeEC2VPCEndpoint, "vpc-endpoint"},
+	{"InstanceId", "", TypeEC2Instance, "instance"},
+}
+
+// resolveRouteTableRoutes walks each route-table's `Routes[]` and emits a
+// `routes-to` edge from the route-table to whichever target type the route's
+// non-empty field references. Skips `local`-gateway routes (no target
+// resource). FK-safe: target id-sets pre-built per type, edge skipped when
+// target unscanned.
+func resolveRouteTableRoutes(acct *account, st *store.Store) error {
+	rts, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	// Pre-load id sets for every target type the route can name.
+	idSets := map[string]map[string]bool{}
+	for _, rule := range routeTargetRules {
+		if _, ok := idSets[rule.dtype]; ok {
+			continue
+		}
+		set, err := scannedIDSet(acct, st, rule.dtype)
+		if err != nil {
+			return fmt.Errorf("load id-set %s: %w", rule.dtype, err)
+		}
+		idSets[rule.dtype] = set
+	}
+	for _, r := range rts {
+		var attrs struct {
+			Routes []map[string]any `json:"Routes"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		for _, route := range attrs.Routes {
+			if err := emitRouteEdge(st, acct, r.ID, region, route, idSets); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// emitRouteEdge picks the first matching rule for a single route and emits
+// the edge if the target id is in the local store. Returns the first
+// upsert error.
+func emitRouteEdge(st *store.Store, acct *account, rtID, region string, route map[string]any, idSets map[string]map[string]bool) error {
+	for _, rule := range routeTargetRules {
+		v, _ := route[rule.field].(string)
+		if v == "" {
+			continue
+		}
+		// `GatewayId="local"` is the implicit VPC-internal gateway — no
+		// target resource exists. Skip to avoid phantom edge.
+		if rule.field == "GatewayId" && v == "local" {
+			return nil
+		}
+		if rule.gatewayPrefix != "" && !hasPrefix(v, rule.gatewayPrefix) {
+			continue
+		}
+		tgtNative := ec2ARN(region, acct.ID, rule.arnKind, v)
+		tgtID := store.ResourceID("aws", acct.ID, rule.dtype, tgtNative)
+		if !idSets[rule.dtype][tgtID] {
+			return nil // target unscanned — first-match rule, no further dispatch
+		}
+		if err := st.UpsertRelationship(rtID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert route-table→%s: %w", rule.arnKind, err)
+		}
+		return nil
+	}
+	return nil
+}
+
+// hasPrefix is a tiny inline alias kept here to dodge an extra import for a
+// single `strings.HasPrefix` call.
+func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
+
+// resolveSecurityGroupVPC links each security group to its VPC.
+// EC2-Classic SGs (no VpcId) are skipped — the platform is deprecated.
+func resolveSecurityGroupVPC(acct *account, st *store.Store) error {
+	sgs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2SecurityGroup},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range sgs {
+		var attrs struct {
+			VpcID *string `json:"VpcID"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.VpcID == nil || *attrs.VpcID == "" {
+			continue
+		}
+		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sg→vpc relationship: %w", err)
+		}
+	}
+	return nil
+}
+
 func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Subnet},
@@ -261,17 +392,37 @@ func resolveNetworkACLRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
 	for _, r := range nacls {
 		var attrs struct {
-			VpcID *string `json:"VpcID"`
+			VpcID        *string `json:"VpcID"`
+			Associations []struct {
+				SubnetID *string `json:"SubnetID"`
+			} `json:"Associations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
+		region := sv(r.Region)
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nacl→vpc relationship: %w", err)
+			}
+		}
+		for _, assoc := range attrs.Associations {
+			if assoc.SubnetID == nil || *assoc.SubnetID == "" {
+				continue
+			}
+			subID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *assoc.SubnetID))
+			if !subnetSet[subID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, subID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert nacl→subnet relationship: %w", err)
 			}
 		}
 	}

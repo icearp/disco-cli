@@ -86,6 +86,90 @@ func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
+func TestResolveRouteTableRoutes(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
+	attrs := `{"Routes":[
+		{"GatewayId":"local"},
+		{"GatewayId":"igw-001","DestinationCidrBlock":"0.0.0.0/0"},
+		{"NatGatewayId":"nat-001"},
+		{"TransitGatewayId":"tgw-001"},
+		{"VpcPeeringConnectionId":"pcx-001"},
+		{"GatewayId":"vpce-001"},
+		{"InstanceId":"i-001"}
+	]}`
+	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, rtARN, testRegion, attrs)
+	igwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InternetGateway, ec2ARN(testRegion, acct.ID, "internet-gateway", "igw-001"), testRegion, "{}")
+	natID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NatGateway, ec2ARN(testRegion, acct.ID, "natgateway", "nat-001"), testRegion, "{}")
+	tgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-001"), testRegion, "{}")
+	pcxID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCPeeringConnection, ec2ARN(testRegion, acct.ID, "vpc-peering-connection", "pcx-001"), testRegion, "{}")
+	vpceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-001"), testRegion, "{}")
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, ec2ARN(testRegion, acct.ID, "instance", "i-001"), testRegion, "{}")
+
+	if err := resolveRouteTableRoutes(acct, st); err != nil {
+		t.Fatalf("resolveRouteTableRoutes: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(rtID, store.RelRoutesTo)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 6 {
+		t.Fatalf("expected 6 routes-to edges, got %d", len(rels))
+	}
+	for _, want := range []string{igwID, natID, tgwID, pcxID, vpceID, instID} {
+		assertRelationship(t, rels, rtID, want, store.RelRoutesTo)
+	}
+}
+
+func TestResolveRouteTableRoutes_UnscannedTargetsSkipped(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
+	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, rtARN, testRegion,
+		`{"Routes":[{"GatewayId":"igw-missing"},{"NatGatewayId":"nat-missing"}]}`)
+	if err := resolveRouteTableRoutes(acct, st); err != nil {
+		t.Fatalf("resolveRouteTableRoutes: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rtID, store.RelRoutesTo)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 routes-to edges (FK-safe skip), got %d", len(rels))
+	}
+}
+
+func TestResolveSecurityGroupVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-001")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, `{"VpcId":"vpc-001"}`)
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
+
+	if err := resolveSecurityGroupVPC(acct, st); err != nil {
+		t.Fatalf("resolveSecurityGroupVPC: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(sgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, sgID, vpcID, store.RelAttachedTo)
+}
+
+func TestResolveSecurityGroupVPC_EmptyAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(testRegion, acct.ID, "security-group", "sg-bare"), testRegion, "{}")
+	if err := resolveSecurityGroupVPC(acct, st); err != nil {
+		t.Fatalf("resolveSecurityGroupVPC: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sgID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
 func TestResolveNatGatewayRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -200,8 +284,11 @@ func TestResolveNetworkACLRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	naclARN := ec2ARN(testRegion, acct.ID, "network-acl", "acl-001")
-	naclID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkACL, naclARN, testRegion, `{"VpcId":"vpc-001"}`)
+	attrs := `{"VpcId":"vpc-001","Associations":[{"SubnetId":"subnet-001"},{"SubnetId":"subnet-002"}]}`
+	naclID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkACL, naclARN, testRegion, attrs)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
+	sub1 := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-001"), testRegion, "{}")
+	sub2 := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-002"), testRegion, "{}")
 
 	if err := resolveNetworkACLRelationships(acct, st); err != nil {
 		t.Fatalf("resolveNetworkACLRelationships: %v", err)
@@ -210,10 +297,12 @@ func TestResolveNetworkACLRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	if len(rels) != 1 {
-		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	if len(rels) != 3 {
+		t.Fatalf("expected 3 relationships (vpc + 2 subnets), got %d", len(rels))
 	}
 	assertRelationship(t, rels, naclID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, rels, naclID, sub1, store.RelAttachedTo)
+	assertRelationship(t, rels, naclID, sub2, store.RelAttachedTo)
 }
 
 func TestResolveNetworkACLRelationships_EmptyAttrs(t *testing.T) {

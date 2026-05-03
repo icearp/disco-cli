@@ -113,3 +113,64 @@ func TestResolveKMSGrants_EmptyAttrs(t *testing.T) {
 		t.Fatalf("resolveKMSGrants: %v", err)
 	}
 }
+
+// TestResolveKMSGrantEncryptionContext_Lambda verifies a uses edge from a
+// grant to the Lambda function named in
+// `Constraints.EncryptionContextEquals["aws:lambda:FunctionArn"]`.
+func TestResolveKMSGrantEncryptionContext_Lambda(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:my-fn", testRegion, acct.ID)
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, `{}`)
+
+	grantARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123/grant/g-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"GrantId":"g-1","Constraints":{"EncryptionContextEquals":{"aws:lambda:FunctionArn":%q}}}`, fnARN)
+	grantID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, testRegion, attrs)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err != nil {
+		t.Fatalf("resolveKMSGrantEncryptionContext: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(grantID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, grantID, fnID, store.RelUses)
+}
+
+// TestResolveKMSGrantEncryptionContext_UnscannedFunction confirms FK-safe
+// skip when the named function has no row in the local store.
+func TestResolveKMSGrantEncryptionContext_UnscannedFunction(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	grantARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123/grant/g-1", testRegion, acct.ID)
+	attrs := `{"GrantId":"g-1","Constraints":{"EncryptionContextEquals":{"aws:lambda:FunctionArn":"arn:aws:lambda:us-east-1:131546573061:function:missing"}}}`
+	grantID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, testRegion, attrs)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err != nil {
+		t.Fatalf("resolveKMSGrantEncryptionContext: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(grantID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships for unscanned target, got %d", len(rels))
+	}
+}
+
+// TestResolveKMSGrantEncryptionContext_EmptyConstraints confirms no panic and
+// no edges when the grant carries no Constraints block.
+func TestResolveKMSGrantEncryptionContext_EmptyConstraints(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	grantARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123/grant/g-1", testRegion, acct.ID)
+	grantID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, testRegion, `{"GrantId":"g-1"}`)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err != nil {
+		t.Fatalf("resolveKMSGrantEncryptionContext: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(grantID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships, got %d", len(rels))
+	}
+}
