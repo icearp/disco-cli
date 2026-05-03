@@ -1,0 +1,115 @@
+package aws
+
+import (
+	"fmt"
+	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
+)
+
+func TestResolveAppStreamFleetRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/Stream", acct.ID)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+	dARN := fmt.Sprintf("arn:aws:appstream:%s:%s:directory-config/corp.example.com", testRegion, acct.ID)
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamDirectoryConfig, dARN, testRegion, "{}")
+	fARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"VpcConfig":{"SubnetIds":["subnet-1"],"SecurityGroupIds":["sg-1"]},"IamRoleArn":%q,"DomainJoinInfo":{"DirectoryName":"corp.example.com"}}`, roleARN)
+	fID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamFleet, fARN, testRegion, attrs)
+	if err := resolveAppStreamFleetRefs(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamFleetRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(fID)
+	assertRelationship(t, rels, fID, subID, store.RelAttachedTo)
+	assertRelationship(t, rels, fID, sgID, store.RelUses)
+	assertRelationship(t, rels, fID, rID, store.RelAssumes)
+	assertRelationship(t, rels, fID, dID, store.RelUses)
+}
+
+func TestResolveAppStreamApplicationAppBlock(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	abARN := fmt.Sprintf("arn:aws:appstream:%s:%s:app-block/B1", testRegion, acct.ID)
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamAppBlock, abARN, testRegion, "{}")
+	appARN := fmt.Sprintf("arn:aws:appstream:%s:%s:application/App1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"AppBlockArn":%q}`, abARN)
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamApplication, appARN, testRegion, attrs)
+	if err := resolveAppStreamApplicationAppBlock(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamApplicationAppBlock: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(appID)
+	assertRelationship(t, rels, appID, abID, store.RelUses)
+}
+
+func TestResolveAppStreamApplicationFleetAssoc(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	fARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F1", testRegion, acct.ID)
+	fID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamFleet, fARN, testRegion, "{}")
+	appARN := fmt.Sprintf("arn:aws:appstream:%s:%s:application/App1", testRegion, acct.ID)
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamApplication, appARN, testRegion, "{}")
+	aARN := fmt.Sprintf("arn:aws:appstream:%s:%s:application-fleet-association/F1/%s", testRegion, acct.ID, appARN)
+	attrs := fmt.Sprintf(`{"FleetName":"F1","ApplicationArn":%q}`, appARN)
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamApplicationFleetAssociation, aARN, testRegion, attrs)
+	if err := resolveAppStreamApplicationFleetAssoc(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamApplicationFleetAssoc: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, fID, store.RelAttachedTo)
+	assertRelationship(t, rels, aID, appID, store.RelAttachedTo)
+}
+
+func TestResolveAppStreamEntitlementStack(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamStack, sARN, testRegion, "{}")
+	eARN := fmt.Sprintf("arn:aws:appstream:%s:%s:entitlement/S1/E1", testRegion, acct.ID)
+	attrs := `{"StackName":"S1"}`
+	eID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamEntitlement, eARN, testRegion, attrs)
+	if err := resolveAppStreamEntitlementStack(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamEntitlementStack: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(eID)
+	assertRelationship(t, rels, eID, sID, store.RelAttachedTo)
+}
+
+func TestResolveAppStreamStackFleetAssoc(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamStack, sARN, testRegion, "{}")
+	fARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F1", testRegion, acct.ID)
+	fID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamFleet, fARN, testRegion, "{}")
+	aARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack-fleet-association/S1/F1", testRegion, acct.ID)
+	attrs := `{"StackName":"S1","FleetName":"F1"}`
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamStackFleetAssociation, aARN, testRegion, attrs)
+	if err := resolveAppStreamStackFleetAssoc(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamStackFleetAssoc: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, sID, store.RelAttachedTo)
+	assertRelationship(t, rels, aID, fID, store.RelAttachedTo)
+}
+
+func TestResolveAppStreamApplicationEntitlementAssoc(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamStack, sARN, testRegion, "{}")
+	eARN := fmt.Sprintf("arn:aws:appstream:%s:%s:entitlement/S1/E1", testRegion, acct.ID)
+	eID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamEntitlement, eARN, testRegion, "{}")
+	aARN := fmt.Sprintf("arn:aws:appstream:%s:%s:application-entitlement-association/S1/E1/App1", testRegion, acct.ID)
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamApplicationEntitlementAssociation, aARN, testRegion, "{}")
+	if err := resolveAppStreamApplicationEntitlementAssoc(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamApplicationEntitlementAssoc: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, sID, store.RelAttachedTo)
+	assertRelationship(t, rels, aID, eID, store.RelAttachedTo)
+}
