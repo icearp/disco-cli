@@ -187,6 +187,11 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 			_ = skipIfAccessDenied(st, "ecr:GetSigningConfiguration", acct.ID, region, err)
 			return 0, 0, nil
 		}
+		// SigningConfigurationNotFoundException = no signing config set for the
+		// account/region (default state). Treat as no-op.
+		if isAPIErrorCode(err, "SigningConfigurationNotFoundException") {
+			return 0, 0, nil
+		}
 		return 0, 0, fmt.Errorf("ecr:GetSigningConfiguration: %w", err)
 	}
 	arn := ecrSingletonARN(region, acct.ID, "signing-configuration")

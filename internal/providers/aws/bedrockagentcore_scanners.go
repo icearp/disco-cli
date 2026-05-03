@@ -68,6 +68,13 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 	total += t
 	inserted += i
 
+	engineIDs, t, i, ferr := scanBACPolicyEngines(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gwIDs) },
 		func() (int, int, error) { return scanBACRuntimeEndpoints(ctx, client, acct, region, st, scanID, rtIDs) },
@@ -79,8 +86,7 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 		func() (int, int, error) { return scanBACEvaluators(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBACMemories(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBACOnlineEvalConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanBACPolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanBACPolicyEngines(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACPolicies(ctx, client, acct, region, st, scanID, engineIDs) },
 		func() (int, int, error) { return scanBACWorkloadIdentities(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
@@ -406,53 +412,67 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 	return upsertBatch(st, batch, "bedrockagentcore online-eval-configs")
 }
 
-func scanBACPolicies(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bac.NewListPoliciesPaginator(client, &bac.ListPoliciesInput{})
+// scanBACPolicies requires PolicyEngineId per call. Fan-out across engine IDs
+// enumerated by scanBACPolicyEngines.
+func scanBACPolicies(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engineIDs []string) (int, int, error) {
+	if len(engineIDs) == 0 {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrockagentcore:ListPolicies", acct.ID, region, perr)
-				return 0, 0, nil
+	for _, eid := range engineIDs {
+		engineID := eid
+		pager := bac.NewListPoliciesPaginator(client, &bac.ListPoliciesInput{PolicyEngineId: &engineID})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "bedrockagentcore:ListPolicies", acct.ID, region, perr)
+					return 0, 0, nil
+				}
+				return 0, 0, fmt.Errorf("bedrockagentcore:ListPolicies %s: %w", engineID, perr)
 			}
-			return 0, 0, fmt.Errorf("bedrockagentcore:ListPolicies: %w", perr)
-		}
-		for _, p := range out.Policies {
-			arn := sv(p.PolicyArn)
-			if arn == "" {
-				continue
+			for _, p := range out.Policies {
+				arn := sv(p.PolicyArn)
+				if arn == "" {
+					continue
+				}
+				label := sv(p.Name)
+				if label == "" {
+					label = sv(p.PolicyId)
+				}
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeBedrockAgentCorePolicy, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				})
 			}
-			label := sv(p.Name)
-			if label == "" {
-				label = sv(p.PolicyId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockAgentCorePolicy, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
 		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore policies")
 }
 
-func scanBACPolicyEngines(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanBACPolicyEngines lists engines and returns their IDs so scanBACPolicies
+// can fan-out per engine.
+func scanBACPolicyEngines(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := bac.NewListPolicyEnginesPaginator(client, &bac.ListPolicyEnginesInput{})
+	var ids []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagentcore:ListPolicyEngines", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("bedrockagentcore:ListPolicyEngines: %w", perr)
+			return nil, 0, 0, fmt.Errorf("bedrockagentcore:ListPolicyEngines: %w", perr)
 		}
 		for _, p := range out.PolicyEngines {
 			arn := sv(p.PolicyEngineArn)
 			if arn == "" {
 				continue
+			}
+			if id := sv(p.PolicyEngineId); id != "" {
+				ids = append(ids, id)
 			}
 			label := sv(p.Name)
 			if label == "" {
@@ -465,7 +485,8 @@ func scanBACPolicyEngines(ctx context.Context, client bedrockAgentCoreAPI, acct 
 			})
 		}
 	}
-	return upsertBatch(st, batch, "bedrockagentcore policy-engines")
+	t, i, err := upsertBatch(st, batch, "bedrockagentcore policy-engines")
+	return ids, t, i, err
 }
 
 func scanBACRuntimes(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

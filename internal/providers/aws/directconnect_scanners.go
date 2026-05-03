@@ -44,8 +44,6 @@ func scanDirectConnect(ctx context.Context, acct *account, region string, st *st
 		func() (int, int, error) { return scanDXConnections(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanDXLags(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanDXVirtualInterfaces(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDXGateways(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDXGatewayAssociations(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -54,6 +52,21 @@ func scanDirectConnect(ctx context.Context, acct *account, region string, st *st
 		total += t
 		inserted += i
 	}
+
+	gwIDs, t, i, ferr := scanDXGateways(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanDXGatewayAssociations(ctx, client, acct, region, st, scanID, gwIDs)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	return total, inserted, nil
 }
 
@@ -163,25 +176,27 @@ func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, r
 
 // scanDXGateways lists DirectConnectGateway objects. Gateways are global;
 // gate to us-east-1 to dedupe across multi-region scans.
-func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	if region != "us-east-1" {
-		return 0, 0, nil
+		return nil, 0, 0, nil
 	}
 	input := &directconnect.DescribeDirectConnectGatewaysInput{}
+	var ids []string
 	var batch []*store.Resource
 	for {
 		out, err := client.DescribeDirectConnectGateways(ctx, input)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "directconnect:DescribeDirectConnectGateways", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "directconnect:DescribeDirectConnectGateways", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("directconnect:DescribeDirectConnectGateways: %w", err)
+			return nil, 0, 0, fmt.Errorf("directconnect:DescribeDirectConnectGateways: %w", err)
 		}
 		for _, g := range out.DirectConnectGateways {
 			id := sv(g.DirectConnectGatewayId)
 			if id == "" {
 				continue
 			}
+			ids = append(ids, id)
 			// DX gateway ARNs omit the region segment (global).
 			arn := fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s", acct.ID, id)
 			name := sv(g.DirectConnectGatewayName)
@@ -201,44 +216,51 @@ func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region str
 		}
 		input.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "directconnect gateways")
+	t, i, err := upsertBatch(st, batch, "directconnect gateways")
+	return ids, t, i, err
 }
 
-func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if region != "us-east-1" {
+// scanDXGatewayAssociations requires DirectConnectGatewayId per call. Fan-out
+// across gateway IDs enumerated by scanDXGateways.
+func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string, gwIDs []string) (int, int, error) {
+	if region != "us-east-1" || len(gwIDs) == 0 {
 		return 0, 0, nil
 	}
-	input := &directconnect.DescribeDirectConnectGatewayAssociationsInput{}
 	var batch []*store.Resource
-	for {
-		out, err := client.DescribeDirectConnectGatewayAssociations(ctx, input)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "directconnect:DescribeDirectConnectGatewayAssociations", acct.ID, region, err)
+	for _, gw := range gwIDs {
+		gwID := gw
+		input := &directconnect.DescribeDirectConnectGatewayAssociationsInput{
+			DirectConnectGatewayId: &gwID,
+		}
+		for {
+			out, err := client.DescribeDirectConnectGatewayAssociations(ctx, input)
+			if err != nil {
+				if isAccessDenied(err) {
+					return 0, 0, skipIfAccessDenied(st, "directconnect:DescribeDirectConnectGatewayAssociations", acct.ID, region, err)
+				}
+				return 0, 0, fmt.Errorf("directconnect:DescribeDirectConnectGatewayAssociations %s: %w", gwID, err)
 			}
-			return 0, 0, fmt.Errorf("directconnect:DescribeDirectConnectGatewayAssociations: %w", err)
-		}
-		for _, a := range out.DirectConnectGatewayAssociations {
-			id := sv(a.AssociationId)
-			if id == "" {
-				continue
+			for _, a := range out.DirectConnectGatewayAssociations {
+				id := sv(a.AssociationId)
+				if id == "" {
+					continue
+				}
+				assocGwID := sv(a.DirectConnectGatewayId)
+				arn := fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s/association/%s", acct.ID, assocGwID, id)
+				label := id
+				state := string(a.AssociationState)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeDirectConnectDirectConnectGatewayAssociation, NativeID: arn,
+					Name: &label, Region: &region, Status: &state,
+					AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				})
 			}
-			// Association NativeID synth: parent gateway ARN + /association/{id}.
-			gwID := sv(a.DirectConnectGatewayId)
-			arn := fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s/association/%s", acct.ID, gwID, id)
-			label := id
-			state := string(a.AssociationState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDirectConnectDirectConnectGatewayAssociation, NativeID: arn,
-				Name: &label, Region: &region, Status: &state,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
+			if out.NextToken == nil || *out.NextToken == "" {
+				break
+			}
+			input.NextToken = out.NextToken
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
 	}
 	return upsertBatch(st, batch, "directconnect gateway-associations")
 }

@@ -64,7 +64,7 @@ func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *a
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
+			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListCentralizationRulesForOrganization", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("observabilityadmin:ListCentralizationRulesForOrganization: %w", err)
@@ -91,7 +91,7 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
+			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRulesForOrganization", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryRulesForOrganization: %w", err)

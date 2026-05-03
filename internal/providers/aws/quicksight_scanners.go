@@ -50,7 +50,7 @@ type quickSightAPI interface {
 // or the edition lacks the feature; ResourceNotFoundException when
 // a region/feature is not supported. All treated as soft-skips.
 func qsSoftSkip(err error) bool {
-	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException")
+	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException")
 }
 
 func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

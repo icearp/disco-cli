@@ -39,7 +39,7 @@ func scanS3Vectors(ctx context.Context, acct *account, region string, st *store.
 	total += t
 	inserted += i
 
-	t, i, ferr = scanS3VIndexes(ctx, client, acct, region, st, scanID)
+	t, i, ferr = scanS3VIndexes(ctx, client, acct, region, st, scanID, bucketARNs)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -87,28 +87,39 @@ func scanS3VVectorBuckets(ctx context.Context, client s3vectorsAPI, acct *accoun
 	return arns, t, i, err
 }
 
-func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := s3vectors.NewListIndexesPaginator(client, &s3vectors.ListIndexesInput{})
+// scanS3VIndexes requires VectorBucketArn (or Name) per call. Fan-out across
+// bucket ARNs enumerated by scanS3VVectorBuckets.
+func scanS3VIndexes(ctx context.Context, client s3vectorsAPI, acct *account, region string, st *store.Store, scanID string, bucketARNs []string) (int, int, error) {
+	if len(bucketARNs) == 0 {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "s3vectors:ListIndexes", acct.ID, region, err)
+	for _, ba := range bucketARNs {
+		bucketARN := ba
+		pager := s3vectors.NewListIndexesPaginator(client, &s3vectors.ListIndexesInput{VectorBucketArn: &bucketARN})
+		for pager.HasMorePages() {
+			out, err := pager.NextPage(ctx)
+			if err != nil {
+				if isAccessDenied(err) {
+					return 0, 0, skipIfAccessDenied(st, "s3vectors:ListIndexes", acct.ID, region, err)
+				}
+				if isAPIErrorCode(err, "NotFoundException", "ResourceNotFoundException") {
+					break
+				}
+				return 0, 0, fmt.Errorf("s3vectors:ListIndexes %s: %w", bucketARN, err)
 			}
-			return 0, 0, fmt.Errorf("s3vectors:ListIndexes: %w", err)
-		}
-		for _, idx := range out.Indexes {
-			arn := sv(idx.IndexArn)
-			if arn == "" {
-				continue
+			for _, idx := range out.Indexes {
+				arn := sv(idx.IndexArn)
+				if arn == "" {
+					continue
+				}
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeS3VectorsIndex, NativeID: arn,
+					Name: idx.IndexName, Region: &region,
+					AttributesJSON: mustJSON(idx), DiscoveredBy: scanID,
+				})
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeS3VectorsIndex, NativeID: arn,
-				Name: idx.IndexName, Region: &region,
-				AttributesJSON: mustJSON(idx), DiscoveredBy: scanID,
-			})
 		}
 	}
 	return upsertBatch(st, batch, "s3vectors indexes")

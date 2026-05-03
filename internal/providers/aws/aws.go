@@ -426,7 +426,11 @@ func isTransientNetworkError(err error) bool {
 	return isAPIErrorCode(err,
 		"RequestTimeout", "RequestTimeoutException", "RequestCanceled",
 		"ServiceUnavailable", "ServiceUnavailableException",
-		"InternalServerError", "InternalFailure", "InternalServerErrorException")
+		"InternalServerError", "InternalFailure", "InternalServerErrorException",
+		// Post-retry throttling exhaust: SDK retryer already burned its budget,
+		// the error reaching us is a momentary TPS pressure spike. Treat as
+		// transient so siblings continue rather than aborting the region.
+		"ThrottlingException", "Throttling", "ThrottledException", "RateExceededException")
 }
 
 // skipIfTransient mirrors skipIfAccessDenied for transient network/service

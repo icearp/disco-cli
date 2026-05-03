@@ -156,6 +156,11 @@ func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *accou
 				_ = skipIfAccessDenied(st, "servicecatalog:ListTagOptions", acct.ID, region, perr)
 				return nil, 0, 0, nil
 			}
+			// TagOptionNotMigratedException = catalog has not migrated TagOptions
+			// to the new admin API; nothing to list in this account/region.
+			if isAPIErrorCode(perr, "TagOptionNotMigratedException") {
+				return nil, 0, 0, nil
+			}
 			return nil, 0, 0, fmt.Errorf("servicecatalog:ListTagOptions: %w", perr)
 		}
 		for _, t := range out.TagOptionDetails {

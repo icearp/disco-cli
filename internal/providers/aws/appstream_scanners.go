@@ -83,7 +83,9 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 		func() (int, int, error) {
 			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, stackNames)
 		},
-		func() (int, int, error) { return scanASUserStackAssocs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanASUserStackAssocs(ctx, client, acct, region, st, scanID, stackNames)
+		},
 		func() (int, int, error) { return scanASUsers(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanASAppEntitlementAssocs(ctx, client, acct, region, st, scanID, entKeys)
@@ -475,35 +477,47 @@ func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *acco
 	return upsertBatch(st, batch, "appstream stack-fleet-associations")
 }
 
-func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanASUserStackAssocs requires either StackName or UserName as a filter —
+// blanket DescribeUserStackAssociations rejects empty input. Fan out per
+// stack name enumerated by scanASStacks.
+func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, int, error) {
+	if len(stackNames) == 0 {
+		return 0, 0, nil
+	}
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.DescribeUserStackAssociations(ctx, &appstream.DescribeUserStackAssociationsInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeUserStackAssociations", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeUserStackAssociations: %w", err)
-		}
-		for _, a := range out.UserStackAssociations {
-			user := sv(a.UserName)
-			stack := sv(a.StackName)
-			if user == "" || stack == "" {
-				continue
-			}
-			arn := asARN(region, acct.ID, "user-stack-association", stack+"/"+string(a.AuthenticationType)+"/"+user)
-			label := stack + "/" + user
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamStackUserAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+	for _, sn := range stackNames {
+		stackName := sn
+		var token *string
+		for {
+			out, err := client.DescribeUserStackAssociations(ctx, &appstream.DescribeUserStackAssociationsInput{
+				StackName: &stackName,
+				NextToken: token,
 			})
+			if err != nil {
+				if isAccessDenied(err) {
+					return 0, 0, skipIfAccessDenied(st, "appstream:DescribeUserStackAssociations", acct.ID, region, err)
+				}
+				return 0, 0, fmt.Errorf("appstream:DescribeUserStackAssociations %s: %w", stackName, err)
+			}
+			for _, a := range out.UserStackAssociations {
+				user := sv(a.UserName)
+				stack := sv(a.StackName)
+				if user == "" || stack == "" {
+					continue
+				}
+				arn := asARN(region, acct.ID, "user-stack-association", stack+"/"+string(a.AuthenticationType)+"/"+user)
+				label := stack + "/" + user
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeAppStreamStackUserAssociation, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				})
+			}
+			if out.NextToken == nil || *out.NextToken == "" {
+				break
+			}
+			token = out.NextToken
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
 	}
 	return upsertBatch(st, batch, "appstream user-stack-associations")
 }

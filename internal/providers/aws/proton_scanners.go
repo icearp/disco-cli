@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/proton"
+	protontypes "github.com/aws/aws-sdk-go-v2/service/proton/types"
 )
 
 func init() {
@@ -47,33 +48,49 @@ func scanProton(ctx context.Context, acct *account, region string, st *store.Sto
 	return total, inserted, nil
 }
 
+// scanProtonAccountConnections requires RequestedBy per call. Iterate both
+// enum values to capture connections requested from either side. Dedup by
+// ARN since one connection appears under exactly one RequestedBy value, but
+// be defensive in case AWS evolves the API.
 func scanProtonAccountConnections(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListEnvironmentAccountConnectionsPaginator(client, &proton.ListEnvironmentAccountConnectionsInput{})
+	seen := map[string]struct{}{}
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListEnvironmentAccountConnections", acct.ID, region, err)
+	for _, rb := range []protontypes.EnvironmentAccountConnectionRequesterAccountType{
+		protontypes.EnvironmentAccountConnectionRequesterAccountTypeManagementAccount,
+		protontypes.EnvironmentAccountConnectionRequesterAccountTypeEnvironmentAccount,
+	} {
+		pager := proton.NewListEnvironmentAccountConnectionsPaginator(client, &proton.ListEnvironmentAccountConnectionsInput{
+			RequestedBy: rb,
+		})
+		for pager.HasMorePages() {
+			out, err := pager.NextPage(ctx)
+			if err != nil {
+				if isAccessDenied(err) {
+					return 0, 0, skipIfAccessDenied(st, "proton:ListEnvironmentAccountConnections", acct.ID, region, err)
+				}
+				return 0, 0, fmt.Errorf("proton:ListEnvironmentAccountConnections %s: %w", rb, err)
 			}
-			return 0, 0, fmt.Errorf("proton:ListEnvironmentAccountConnections: %w", err)
-		}
-		for _, c := range out.EnvironmentAccountConnections {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
+			for _, c := range out.EnvironmentAccountConnections {
+				arn := sv(c.Arn)
+				if arn == "" {
+					continue
+				}
+				if _, dup := seen[arn]; dup {
+					continue
+				}
+				seen[arn] = struct{}{}
+				label := sv(c.EnvironmentName)
+				if label == "" {
+					label = sv(c.Id)
+				}
+				status := string(c.Status)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeProtonEnvironmentAccountConnection, NativeID: arn,
+					Name: &label, Region: &region, Status: &status,
+					AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				})
 			}
-			label := sv(c.EnvironmentName)
-			if label == "" {
-				label = sv(c.Id)
-			}
-			status := string(c.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonEnvironmentAccountConnection, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
 		}
 	}
 	return upsertBatch(st, batch, "proton environment-account-connections")

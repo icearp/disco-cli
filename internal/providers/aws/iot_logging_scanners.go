@@ -49,6 +49,11 @@ func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *acco
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "iot:GetV2LoggingOptions", acct.ID, region, err)
 		}
+		// NotConfiguredException = SetV2LoggingOptions was never called for this
+		// account/region (default state). Treat as no-op.
+		if isAPIErrorCode(err, "NotConfiguredException") {
+			return 0, 0, nil
+		}
 		return 0, 0, fmt.Errorf("iot:GetV2LoggingOptions: %w", err)
 	}
 	arn := fmt.Sprintf("arn:aws:iot:%s:%s:logging", region, acct.ID)
