@@ -31,8 +31,13 @@ type r53rcAPI interface {
 
 // scanR53RecoveryControl discovers Route53 Recovery Control clusters,
 // control panels, routing controls, and safety rules. Routing controls and
-// safety rules fan out per control panel.
+// safety rules fan out per control panel. Service is global with a single
+// us-west-2 endpoint — gate so multi-region scans skip the DNS-lookup
+// failures that otherwise warn from every other region.
 func scanR53RecoveryControl(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	if region != "us-west-2" {
+		return 0, 0, nil
+	}
 	client := route53recoverycontrolconfig.NewFromConfig(acct.cfg, func(o *route53recoverycontrolconfig.Options) { o.Region = region })
 
 	t, i, ferr := scanR53RCClusters(ctx, client, acct, region, st, scanID)
