@@ -130,6 +130,14 @@ Some AWS APIs return distinct exception code when account has not subscribed to 
 
 **Gate-only phase-0 (no upsert).** Account/region config that gates a service but isn't an ARN'd resource uses `gateXxx(ctx, client, acct, st) error` — calls Describe purely for disabled-sentinel side-effect (`markServiceDisabled` on not-subscribed, nil otherwise). No `store.Resource` built. Distinct from "Multi-phase orchestration" above, which DOES upsert the phase-1 detection row. Precedent: `gateShieldSubscription` in `shield_scanners.go`.
 
+**Member-account variant — DescribeOrganization probe.** Organizations List* ops (`ListRoots` / `ListAccounts` / `ListPolicies` / `ListOrganizationalUnitsForParent`) reject member-account calls with opaque `AccessDeniedException`. `DescribeOrganization` succeeds from any member and exposes `MasterAccountId`. Probe at top of `scanOrganizations`: if `sv(org.MasterAccountId) != acct.ID`, return `markServiceDisabled(errors.New("not the management account"))`. Member-account scans surface `(service disabled)` instead of N AccessDenied warnings. Precedent: `organizations_scanners.go`.
+
+**Shared not-enabled predicate across services.** When two services gate on the same account-level enablement (e.g. Cost Explorer access blocks both `aws:ce` and `aws:bcmpricingcalculator`), declare one predicate (`isCostExplorerNotEnabled` in `bcmpricingcalculator_scanners.go`) and have both scanners' dispatcher call it before falling through to `skipIfAccessDenied`. Avoids drift between two near-identical message matchers.
+
+## Multi-region DNS NXDOMAIN = global service
+
+A transient warning of shape `dial tcp: lookup <svc>.<region>.amazonaws.com on …: no such host` firing from every non-`us-east-1` region (and only those) is the symptom of a global service registered as per-region. The endpoint does not exist outside `us-east-1`; `isTransientNetworkError` warn-skips it N-1 times per multi-region scan. Fix: early-return at the top of `scanX` — `if region != "us-east-1" { return 0, 0, nil }` — same shape as Route53 / Budgets / CloudFront. Precedent: `route53recoveryreadiness_scanners.go`.
+
 ## Multi-phase parent + children closure-wiring helper
 
 Scanners modeling per-(acct,region) singleton parent with N child phases (Macie session + jobs/CDIs/allow-lists, Security Hub hub + insights/standards/product-subs) factor closure-wiring into one `upsertXChildren(st, parentARN, acct, batch, kind)` helper. Helper does `UpsertResources(batch)` + `RecordHierarchyBatch([][2]string{{child.ID, parentID}})` together. Don't inline per phase — three+ duplicated copies of same closure-pair build = sign to extract. Precedent: `upsertMacieChildren` (`macie_scanners.go:343`), `upsertSecurityHubChildren` (`securityhub_scanners.go`).
