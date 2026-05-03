@@ -189,10 +189,8 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 		if err := sem.Acquire(ctx, 1); err != nil {
 			return nil, err
 		}
-		wg.Add(1)
-		go func(ref apiRef) {
+		wg.Go(func() {
 			defer sem.Release(1)
-			defer wg.Done()
 			doc, err := fetchDiscoveryDoc(ctx, client, ref.url)
 			if err != nil {
 				// Silent skip — partial fetch better than aborting the whole
@@ -204,7 +202,7 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 			mu.Lock()
 			out = append(out, types...)
 			mu.Unlock()
-		}(ref)
+		})
 	}
 	wg.Wait()
 

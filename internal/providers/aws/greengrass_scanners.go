@@ -88,7 +88,7 @@ func scanGGConnector(ctx context.Context, client greengrassAPI, acct *account, r
 		func(token *string) (*greengrass.ListConnectorDefinitionsOutput, error) {
 			return client.ListConnectorDefinitions(ctx, &greengrass.ListConnectorDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListConnectorDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListConnectorDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -110,7 +110,7 @@ func scanGGCore(ctx context.Context, client greengrassAPI, acct *account, region
 		func(token *string) (*greengrass.ListCoreDefinitionsOutput, error) {
 			return client.ListCoreDefinitions(ctx, &greengrass.ListCoreDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListCoreDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListCoreDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -132,7 +132,7 @@ func scanGGDevice(ctx context.Context, client greengrassAPI, acct *account, regi
 		func(token *string) (*greengrass.ListDeviceDefinitionsOutput, error) {
 			return client.ListDeviceDefinitions(ctx, &greengrass.ListDeviceDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListDeviceDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListDeviceDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -154,7 +154,7 @@ func scanGGFunction(ctx context.Context, client greengrassAPI, acct *account, re
 		func(token *string) (*greengrass.ListFunctionDefinitionsOutput, error) {
 			return client.ListFunctionDefinitions(ctx, &greengrass.ListFunctionDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListFunctionDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListFunctionDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -176,7 +176,7 @@ func scanGGLogger(ctx context.Context, client greengrassAPI, acct *account, regi
 		func(token *string) (*greengrass.ListLoggerDefinitionsOutput, error) {
 			return client.ListLoggerDefinitions(ctx, &greengrass.ListLoggerDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListLoggerDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListLoggerDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -198,7 +198,7 @@ func scanGGResource(ctx context.Context, client greengrassAPI, acct *account, re
 		func(token *string) (*greengrass.ListResourceDefinitionsOutput, error) {
 			return client.ListResourceDefinitions(ctx, &greengrass.ListResourceDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListResourceDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListResourceDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {
@@ -220,7 +220,7 @@ func scanGGSubscription(ctx context.Context, client greengrassAPI, acct *account
 		func(token *string) (*greengrass.ListSubscriptionDefinitionsOutput, error) {
 			return client.ListSubscriptionDefinitions(ctx, &greengrass.ListSubscriptionDefinitionsInput{NextToken: token})
 		},
-		func(o *greengrass.ListSubscriptionDefinitionsOutput) (interface{}, *string) {
+		func(o *greengrass.ListSubscriptionDefinitionsOutput) (any, *string) {
 			return o.Definitions, o.NextToken
 		})
 	if err != nil {

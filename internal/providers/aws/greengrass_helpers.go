@@ -23,7 +23,7 @@ func ggListDefs[Out any](
 	ctx context.Context, acct *account, region string, st *store.Store, scanID string,
 	op string, dtype string,
 	listFn func(*string) (Out, error),
-	extract func(Out) (interface{}, *string),
+	extract func(Out) (any, *string),
 ) ([]string, int, int, error) {
 	var ids []string
 	var batch []*store.Resource

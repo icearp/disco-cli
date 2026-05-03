@@ -165,12 +165,10 @@ func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 
 	var wg sync.WaitGroup
 	for _, fn := range phases {
-		wg.Add(1)
-		go func(fn func() (int, int, error)) {
-			defer wg.Done()
+		wg.Go(func() {
 			t, n, e := fn()
 			addTotals(t, n, e)
-		}(fn)
+		})
 	}
 	wg.Wait()
 	return total, inserted, firstErr
