@@ -65,7 +65,12 @@ func scanObsCentralizationRules(ctx context.Context, client obsAdminAPI, acct *a
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
+			// Org-only API: silent no-op when called from non-org-management or
+			// non-org account. Real IAM denies still warn via isAccessDenied.
+			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
+				return 0, 0, nil
+			}
+			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListCentralizationRulesForOrganization", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("observabilityadmin:ListCentralizationRulesForOrganization: %w", err)
@@ -92,7 +97,12 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
+			// Org-only API: silent no-op when called from non-org-management or
+			// non-org account. Real IAM denies still warn via isAccessDenied.
+			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
+				return 0, 0, nil
+			}
+			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRulesForOrganization", acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryRulesForOrganization: %w", err)
@@ -205,7 +215,11 @@ func scanObsTelemetryPipelines(ctx context.Context, client obsAdminAPI, acct *ac
 func scanObsTelemetryEnrichment(ctx context.Context, client obsAdminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetTelemetryEnrichmentStatus(ctx, &observabilityadmin.GetTelemetryEnrichmentStatusInput{})
 	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
+		// ResourceNotFoundException = enrichment not configured (default state). Silent.
+		if isAPIErrorCode(err, "ResourceNotFoundException") {
+			return 0, 0, nil
+		}
+		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "observabilityadmin:GetTelemetryEnrichmentStatus", acct.ID, region, err)
 		}
 		return 0, 0, fmt.Errorf("observabilityadmin:GetTelemetryEnrichmentStatus: %w", err)

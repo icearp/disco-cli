@@ -17,7 +17,6 @@ func init() {
 			{Service: "redshift", DiscoType: TypeRedshiftCluster},
 			{Service: "redshift", DiscoType: TypeRedshiftSubnetGroup},
 			{Service: "redshift", DiscoType: TypeRedshiftClusterParameterGroup},
-			{Service: "redshift", DiscoType: TypeRedshiftClusterSecurityGroup},
 			{Service: "redshift", DiscoType: TypeRedshiftEndpointAccess},
 			{Service: "redshift", DiscoType: TypeRedshiftEndpointAuthorization},
 			{Service: "redshift", DiscoType: TypeRedshiftEventSubscription},
@@ -66,9 +65,9 @@ func scanRedshift(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) {
 			return scanRedshiftClusterParameterGroups(ctx, client, acct, region, st, scanID)
 		},
-		func() (int, int, error) {
-			return scanRedshiftClusterSecurityGroups(ctx, client, acct, region, st, scanID)
-		},
+		// AWS::Redshift::ClusterSecurityGroup discontinued by AWS — modern
+		// Redshift uses VPC SGs already covered via aws:ec2:security-group.
+		// DescribeClusterSecurityGroups returns InvalidParameterValue.
 		func() (int, int, error) { return scanRedshiftEndpointAccess(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanRedshiftEndpointAuthorization(ctx, client, acct, region, st, scanID)

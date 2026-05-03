@@ -240,7 +240,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/pcs v1.17.4
 	github.com/aws/aws-sdk-go-v2/service/personalize v1.47.9
 	github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.23
-	github.com/aws/aws-sdk-go-v2/service/pinpointemail v1.29.17
 	github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2 v1.28.2
 	github.com/aws/aws-sdk-go-v2/service/pipes v1.23.22
 	github.com/aws/aws-sdk-go-v2/service/proton v1.39.17

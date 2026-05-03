@@ -38,6 +38,13 @@ type r53grAPI interface {
 type r53grRef struct{ id, arn string }
 
 func scanRoute53GlobalResolver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	// Route 53 Global Resolver is global; single regional endpoint
+	// (route53globalresolver.us-east-1.api.aws). Gate to us-east-1 to avoid
+	// DNS-lookup failures in regions where the endpoint does not exist and
+	// to dedupe across multi-region scans.
+	if region != "us-east-1" {
+		return 0, 0, nil
+	}
 	client := route53globalresolver.NewFromConfig(acct.cfg, func(o *route53globalresolver.Options) { o.Region = region })
 
 	resolvers, t, i, ferr := scanR53GRResolvers(ctx, client, acct, region, st, scanID)

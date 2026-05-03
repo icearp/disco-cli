@@ -332,7 +332,6 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeRedshiftCluster:               "AWS::Redshift::Cluster",
 		TypeRedshiftSubnetGroup:           "AWS::Redshift::ClusterSubnetGroup",
 		TypeRedshiftClusterParameterGroup: "AWS::Redshift::ClusterParameterGroup",
-		TypeRedshiftClusterSecurityGroup:  "AWS::Redshift::ClusterSecurityGroup",
 		TypeRedshiftEndpointAccess:        "AWS::Redshift::EndpointAccess",
 		TypeRedshiftEndpointAuthorization: "AWS::Redshift::EndpointAuthorization",
 		TypeRedshiftEventSubscription:     "AWS::Redshift::EventSubscription",

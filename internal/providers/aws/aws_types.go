@@ -1314,7 +1314,6 @@ const (
 	TypeRedshiftCluster               = "aws:redshift:cluster"
 	TypeRedshiftSubnetGroup           = "aws:redshift:subnet-group"
 	TypeRedshiftClusterParameterGroup = "aws:redshift:cluster-parameter-group"
-	TypeRedshiftClusterSecurityGroup  = "aws:redshift:cluster-security-group"
 	TypeRedshiftEndpointAccess        = "aws:redshift:endpoint-access"
 	TypeRedshiftEndpointAuthorization = "aws:redshift:endpoint-authorization"
 	TypeRedshiftEventSubscription     = "aws:redshift:event-subscription"
@@ -1598,11 +1597,6 @@ const (
 	TypePersonalizeDatasetGroup = "aws:personalize:dataset-group"
 	TypePersonalizeSchema       = "aws:personalize:schema"
 	TypePersonalizeSolution     = "aws:personalize:solution"
-	// PinpointEmail (pinpointemail_scanners.go).
-	TypePinpointEmailConfigurationSet                 = "aws:pinpoint-email:configuration-set"
-	TypePinpointEmailConfigurationSetEventDestination = "aws:pinpoint-email:configuration-set-event-destination"
-	TypePinpointEmailDedicatedIpPool                  = "aws:pinpoint-email:dedicated-ip-pool"
-	TypePinpointEmailIdentity                         = "aws:pinpoint-email:identity"
 	// RefactorSpaces (refactorspaces_scanners.go); SDK module is
 	// migrationhubrefactorspaces, CFN segment is "RefactorSpaces".
 	TypeRefactorSpacesApplication = "aws:refactor-spaces:application"

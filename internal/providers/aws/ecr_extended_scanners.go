@@ -91,8 +91,11 @@ func scanECRPullTimeUpdateExclusions(ctx context.Context, client ecrExtAPI, acct
 func scanECRRegistryPolicy(ctx context.Context, client ecrExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetRegistryPolicy(ctx, &ecr.GetRegistryPolicyInput{})
 	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "RegistryPolicyNotFoundException") {
-			_ = skipIfAccessDenied(st, "ecr:GetRegistryPolicy", acct.ID, region, err)
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "ecr:GetRegistryPolicy", acct.ID, region, err)
+		}
+		// RegistryPolicyNotFoundException = no policy set (default state). Silent.
+		if isAPIErrorCode(err, "RegistryPolicyNotFoundException") {
 			return 0, 0, nil
 		}
 		return 0, 0, fmt.Errorf("ecr:GetRegistryPolicy: %w", err)

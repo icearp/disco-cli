@@ -14,7 +14,6 @@ import (
 // use a manual Marker loop.
 type redshiftExtAPI interface {
 	DescribeClusterParameterGroups(context.Context, *redshift.DescribeClusterParameterGroupsInput, ...func(*redshift.Options)) (*redshift.DescribeClusterParameterGroupsOutput, error)
-	DescribeClusterSecurityGroups(context.Context, *redshift.DescribeClusterSecurityGroupsInput, ...func(*redshift.Options)) (*redshift.DescribeClusterSecurityGroupsOutput, error)
 	DescribeEndpointAccess(context.Context, *redshift.DescribeEndpointAccessInput, ...func(*redshift.Options)) (*redshift.DescribeEndpointAccessOutput, error)
 	DescribeEndpointAuthorization(context.Context, *redshift.DescribeEndpointAuthorizationInput, ...func(*redshift.Options)) (*redshift.DescribeEndpointAuthorizationOutput, error)
 	DescribeEventSubscriptions(context.Context, *redshift.DescribeEventSubscriptionsInput, ...func(*redshift.Options)) (*redshift.DescribeEventSubscriptionsOutput, error)
@@ -53,35 +52,6 @@ func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtA
 		}
 	}
 	return upsertBatch(st, batch, "redshift cluster-parameter-groups")
-}
-
-func scanRedshiftClusterSecurityGroups(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeClusterSecurityGroupsPaginator(client, &redshift.DescribeClusterSecurityGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) || isAPIErrorCode(perr, "InvalidParameterValue") {
-				_ = skipIfAccessDenied(st, "redshift:DescribeClusterSecurityGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeClusterSecurityGroups: %w", perr)
-		}
-		for _, sg := range out.ClusterSecurityGroups {
-			name := sv(sg.ClusterSecurityGroupName)
-			if name == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "securitygroup", name)
-			label := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftClusterSecurityGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(sg), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift cluster-security-groups")
 }
 
 func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
