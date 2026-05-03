@@ -19,6 +19,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "glue", DiscoType: TypeGlueDatabase},
 			{Service: "glue", DiscoType: TypeGlueTable},
+			{Service: "glue", DiscoType: TypeGluePartition},
+			{Service: "glue", DiscoType: TypeGlueTableOptimizer},
 		},
 	})
 }
@@ -28,6 +30,9 @@ func init() {
 type glueAPI interface {
 	GetDatabases(context.Context, *glue.GetDatabasesInput, ...func(*glue.Options)) (*glue.GetDatabasesOutput, error)
 	GetTables(context.Context, *glue.GetTablesInput, ...func(*glue.Options)) (*glue.GetTablesOutput, error)
+	GetPartitions(context.Context, *glue.GetPartitionsInput, ...func(*glue.Options)) (*glue.GetPartitionsOutput, error)
+	ListTableOptimizerRuns(context.Context, *glue.ListTableOptimizerRunsInput, ...func(*glue.Options)) (*glue.ListTableOptimizerRunsOutput, error)
+	GetTableOptimizer(context.Context, *glue.GetTableOptimizerInput, ...func(*glue.Options)) (*glue.GetTableOptimizerOutput, error)
 	ListRegistries(context.Context, *glue.ListRegistriesInput, ...func(*glue.Options)) (*glue.ListRegistriesOutput, error)
 	GetRegistry(context.Context, *glue.GetRegistryInput, ...func(*glue.Options)) (*glue.GetRegistryOutput, error)
 	ListSchemas(context.Context, *glue.ListSchemasInput, ...func(*glue.Options)) (*glue.ListSchemasOutput, error)
@@ -74,8 +79,28 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 		return total, inserted, nil
 	}
 
+	var tableRefs []glueTableRef
 	{
-		t, i, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames)
+		t, i, refs, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+		tableRefs = refs
+	}
+
+	if len(tableRefs) > 0 {
+		t, i, ferr := scanGluePartitions(ctx, client, acct, region, st, scanID, tableRefs)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	if len(tableRefs) > 0 {
+		t, i, ferr := scanGlueTableOptimizers(ctx, client, acct, region, st, scanID, tableRefs)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -171,7 +196,18 @@ func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, regio
 	return dbNames, len(batch), n, nil
 }
 
-func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total, inserted int, err error) {
+// glueTableRef identifies a Glue table by (db, table, catalogId, isIceberg).
+// catalogId is empty for the default catalog. isIceberg is true when the
+// table's parameters carry table_type=ICEBERG; only Iceberg tables support
+// table-optimizers, so this gates the optimizer fan-out.
+type glueTableRef struct {
+	db        string
+	table     string
+	catalogID string
+	isIceberg bool
+}
+
+func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, dbNames []string) (total, inserted int, refs []glueTableRef, err error) {
 	sem := semaphore.NewWeighted(fanoutMed)
 	var (
 		mu    sync.Mutex
@@ -181,7 +217,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 	g, gctx := errgroup.WithContext(ctx)
 	for _, dbName := range dbNames {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, 0, nil, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -212,9 +248,16 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 						AttributesJSON: mustJSON(tbl),
 						DiscoveredBy:   scanID,
 					}
+					ref := glueTableRef{
+						db:        dbName,
+						table:     name,
+						catalogID: sv(tbl.CatalogId),
+						isIceberg: tbl.Parameters["table_type"] == "ICEBERG",
+					}
 					mu.Lock()
 					batch = append(batch, r)
 					pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, TypeGlueTable, arn), parentID})
+					refs = append(refs, ref)
 					mu.Unlock()
 				}
 			}
@@ -222,17 +265,17 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, 0, nil, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, refs, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert glue tables: %w", uerr)
+		return 0, 0, nil, fmt.Errorf("upsert glue tables: %w", uerr)
 	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure glue tables: %w", err)
+		return 0, 0, nil, fmt.Errorf("closure glue tables: %w", err)
 	}
-	return len(batch), n, nil
+	return len(batch), n, refs, nil
 }

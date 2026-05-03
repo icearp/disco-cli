@@ -1259,8 +1259,10 @@ const (
 	TypeInspectorAssessmentTemplate = "aws:inspector:assessment-template"
 	TypeInspectorResourceGroup      = "aws:inspector:resource-group"
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
-	TypeGlueDatabase = "aws:glue:database"
-	TypeGlueTable    = "aws:glue:table"
+	TypeGlueDatabase       = "aws:glue:database"
+	TypeGlueTable          = "aws:glue:table"
+	TypeGluePartition      = "aws:glue:partition"
+	TypeGlueTableOptimizer = "aws:glue:table-optimizer"
 	// Bedrock — Agents family (bedrock_agents_scanners.go)
 	TypeBedrockAgent         = "aws:bedrock:agent"
 	TypeBedrockAgentAlias    = "aws:bedrock:agent-alias"
