@@ -86,6 +86,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/chatbot v1.14.23
 	github.com/aws/aws-sdk-go-v2/service/cleanrooms v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/cleanroomsml v1.22.7
+	github.com/aws/aws-sdk-go-v2/service/cloud9 v1.33.22
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.71.9
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.61.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.10
@@ -93,9 +94,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.68.0
 	github.com/aws/aws-sdk-go-v2/service/codeartifact v1.38.23
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.15
+	github.com/aws/aws-sdk-go-v2/service/codecommit v1.33.14
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.35.15
+	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.29.22
+	github.com/aws/aws-sdk-go-v2/service/codegurureviewer v1.34.22
 	github.com/aws/aws-sdk-go-v2/service/codepipeline v1.46.23
 	github.com/aws/aws-sdk-go-v2/service/codestarconnections v1.35.15
+	github.com/aws/aws-sdk-go-v2/service/codestarnotifications v1.31.23
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.23
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/comprehend v1.40.23
@@ -333,10 +338,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/codecommit v1.33.14 // indirect
-	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.29.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/codegurureviewer v1.34.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/codestarnotifications v1.31.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.11.23 // indirect

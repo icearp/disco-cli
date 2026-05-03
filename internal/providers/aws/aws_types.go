@@ -407,6 +407,8 @@ const (
 	TypeCloudWatchInsightRule     = "aws:cloudwatch:insight-rule"
 	TypeCloudWatchMetricStream    = "aws:cloudwatch:metric-stream"
 	TypeCloudWatchOTelEnrichment  = "aws:cloudwatch:otel-enrichment"
+	// Cloud9 (cloud9_scanners.go)
+	TypeCloud9EnvironmentEC2 = "aws:cloud9:environment-ec2"
 	// CloudWatch Logs (logs_scanners.go)
 	TypeLogsAccountPolicy      = "aws:logs:account-policy"
 	TypeLogsDelivery           = "aws:logs:delivery"
