@@ -19,6 +19,67 @@ func init() {
 		EdgeDecl{TypeElastiCacheUserGroup, TypeElastiCacheUser, store.RelContains},
 		EdgeDecl{TypeElastiCacheServerlessCache, TypeElastiCacheUserGroup, store.RelAttachedTo},
 	)
+	registerResolver(resolveElastiCacheSubnetGroupVPC,
+		EdgeDecl{TypeElastiCacheSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeElastiCacheSubnetGroup, TypeEC2Subnet, store.RelAttachedTo},
+	)
+}
+
+// resolveElastiCacheSubnetGroupVPC wires subnet-group → VPC (VpcId) and
+// subnets (Subnets[].SubnetIdentifier).
+func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheSubnetGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcId   *string `json:"VpcId"`
+			Subnets []struct {
+				SubnetIdentifier *string `json:"SubnetIdentifier"`
+			} `json:"Subnets"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if v := sv(attrs.VpcId); v != "" {
+			vpcARN := ec2ARN(region, acct.ID, "vpc", v)
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			if vpcSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ec sg→vpc: %w", err)
+				}
+			}
+		}
+		for _, s := range attrs.Subnets {
+			id := sv(s.SubnetIdentifier)
+			if id == "" {
+				continue
+			}
+			subARN := ec2ARN(region, acct.ID, "subnet", id)
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, subARN)
+			if subnetSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ec sg→subnet: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveElastiCacheRelationships orchestrates all ElastiCache relationship resolution.

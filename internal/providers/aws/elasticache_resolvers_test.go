@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -389,4 +390,22 @@ func TestIsDefaultElastiCachePG(t *testing.T) {
 			t.Errorf("isDefaultElastiCachePG(%q) = %v, want %v", c.name, got, c.want)
 		}
 	}
+}
+
+func TestResolveElastiCacheSubnetGroupVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
+	sgARN := fmt.Sprintf("arn:aws:elasticache:%s:%s:subnetgroup:default", testRegion, acct.ID)
+	attrs := `{"VpcId":"vpc-1","Subnets":[{"SubnetIdentifier":"subnet-1"}]}`
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeElastiCacheSubnetGroup, sgARN, testRegion, attrs)
+	if err := resolveElastiCacheSubnetGroupVPC(acct, st); err != nil {
+		t.Fatalf("resolveElastiCacheSubnetGroupVPC: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sgID)
+	assertRelationship(t, rels, sgID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, rels, sgID, subID, store.RelAttachedTo)
 }
