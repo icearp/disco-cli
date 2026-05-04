@@ -123,18 +123,16 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 // full ~1500-policy catalogue. To preserve the legacy "scan every AWS-
 // managed policy" behaviour, scanIAMAuthDetails first runs a stub
 // `ListPolicies(Scope=AWS)` pass (metadata only, no document enrichment —
-// avoids the GetPolicyVersion fan-out that triggered IAM throttling). The
-// subsequent GAAD pass overwrites attached managed-policy rows with their
-// full PolicyVersion-enriched form. Unattached catalogue policies keep
-// their stub row — they exist as FK targets for resolveManagedPolicyAttachments
-// and the walker silently skips no-document rows.
+// avoids the GetPolicyVersion fan-out that triggered IAM throttling).
+// Order: GAAD first (rich attached-policy + entity rows, captures attached
+// AWS-managed ARNs), then catalogue stub for the unattached remainder.
+// Reversing the historical catalogue-first order keeps each row upserted
+// exactly once so per-service totals == inserted on a fresh DB. Unattached
+// catalogue policies keep their stub form — they exist as FK targets for
+// resolveManagedPolicyAttachments and the walker silently skips no-document
+// rows.
 func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	t0, n0, err := scanIAMAWSManagedCatalogue(ctx, client, acct, st, scanID)
-	total += t0
-	inserted += n0
-	if err != nil {
-		return total, inserted, err
-	}
+	attachedManagedARNs := map[string]bool{}
 
 	maxItems := int32(1000)
 	pager := iam.NewGetAccountAuthorizationDetailsPaginator(client, &iam.GetAccountAuthorizationDetailsInput{
@@ -229,6 +227,9 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 			arn := sv(p.Arn)
 			name := sv(p.PolicyName)
 			managed := strings.HasPrefix(arn, "arn:aws:iam::aws:")
+			if managed {
+				attachedManagedARNs[arn] = true
+			}
 			wrapped := struct {
 				Policy        iamtypes.ManagedPolicyDetail `json:"Policy"`
 				PolicyVersion *iamtypes.PolicyVersion      `json:"PolicyVersion,omitempty"`
@@ -256,16 +257,23 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 			inserted += n
 		}
 	}
-	return total, inserted, nil
+
+	t0, n0, err := scanIAMAWSManagedCatalogue(ctx, client, acct, st, scanID, attachedManagedARNs)
+	total += t0
+	inserted += n0
+	return total, inserted, err
 }
 
 // scanIAMAWSManagedCatalogue lists every AWS-managed policy ARN
-// (`Scope=AWS`) and upserts a stub row per policy. No GetPolicyVersion
-// enrichment — those rows carry metadata only. The subsequent GAAD pass
-// overwrites attached entries with version-enriched rows; unattached
-// entries keep their stub form. ListPolicies returns ~1500 entries across
-// ~15 paginated calls — cheap, no per-policy fan-out, no throttling risk.
-func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+// (`Scope=AWS`) and upserts a stub row per policy that the prior GAAD pass
+// did not already enrich. No GetPolicyVersion enrichment — those rows carry
+// metadata only. ListPolicies returns ~1500 entries across ~15 paginated
+// calls — cheap, no per-policy fan-out, no throttling risk. `skipARNs`
+// holds the attached-managed ARN set GAAD already inserted with rich
+// PolicyVersion bodies; the catalogue pass skips those to avoid a redundant
+// second upsert that would inflate the per-service `total` count above
+// `inserted`.
+func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string, skipARNs map[string]bool) (total, inserted int, err error) {
 	pager := iam.NewListPoliciesPaginator(client, &iam.ListPoliciesInput{
 		Scope: iamtypes.PolicyScopeTypeAws,
 	})
@@ -280,6 +288,9 @@ func scanIAMAWSManagedCatalogue(ctx context.Context, client iamAPI, acct *accoun
 		var batch []*store.Resource
 		for _, p := range page.Policies {
 			arn := sv(p.Arn)
+			if skipARNs[arn] {
+				continue
+			}
 			name := sv(p.PolicyName)
 			// Wrap shape mirrors the GAAD-pass output so resolvers see one
 			// consistent JSON shape regardless of whether the policy was
