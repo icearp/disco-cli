@@ -132,6 +132,24 @@ func TestResolveAppStreamAppBlockS3(t *testing.T) {
 	assertRelationship(t, rels, abID, bID, store.RelUses)
 }
 
+func TestResolveAppStreamDirectoryConfigCA(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	dcARN := fmt.Sprintf("arn:aws:appstream:%s:%s:directory-config/corp.example.com", testRegion, acct.ID)
+	caARN := fmt.Sprintf("arn:aws:acm-pca:%s:%s:certificate-authority/abc-123", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"CertificateBasedAuthProperties":{"CertificateAuthorityArn":%q,"Status":"ENABLED"}}`, caARN)
+
+	dcID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamDirectoryConfig, dcARN, testRegion, attrs)
+	caID := upsertTestResource(t, st, "aws", acct.ID, TypeACMPrivateCA, caARN, testRegion, "{}")
+
+	if err := resolveAppStreamDirectoryConfigCA(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamDirectoryConfigCA: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dcID)
+	assertRelationship(t, rels, dcID, caID, store.RelUses)
+}
+
 func TestResolveAppStreamStackAccessEndpoints(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

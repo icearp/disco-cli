@@ -50,6 +50,55 @@ func init() {
 	registerResolver(resolveAppStreamStackAccessEndpoints,
 		EdgeDecl{TypeAppStreamStack, TypeEC2VPCEndpoint, store.RelUses},
 	)
+	registerResolver(resolveAppStreamDirectoryConfigCA,
+		EdgeDecl{TypeAppStreamDirectoryConfig, TypeACMPrivateCA, store.RelUses},
+	)
+}
+
+// resolveAppStreamDirectoryConfigCA wires each directory-config to its
+// ACM Private CA via CertificateBasedAuthProperties.CertificateAuthorityArn.
+// The other DirectoryConfig fields (DirectoryName, ServiceAccountCredentials,
+// OrganizationalUnitDistinguishedNames) carry AD-domain identifiers and
+// credentials, not refs to disco-tracked resources.
+func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamDirectoryConfig}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	caSet, err := scannedIDSet(acct, st, TypeACMPrivateCA)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			CertificateBasedAuthProperties *struct {
+				CertificateAuthorityArn *string `json:"CertificateAuthorityArn"`
+			} `json:"CertificateBasedAuthProperties"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.CertificateBasedAuthProperties == nil {
+			continue
+		}
+		ca := sv(attrs.CertificateBasedAuthProperties.CertificateAuthorityArn)
+		if ca == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeACMPrivateCA, ca)
+		if !caSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert appstream directory-config→pca: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveAppStreamStackAccessEndpoints wires each stack to the interface VPC
