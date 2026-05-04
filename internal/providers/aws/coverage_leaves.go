@@ -324,7 +324,6 @@ var leafTypes = map[string]bool{
 	// names). Cross-service refs (KMS, custom encryption) live on
 	// GetTable Describe; not enriched today, treat as leaf until enriched.
 	"aws:cassandra:keyspace": true,
-	"aws:cassandra:table":    true,
 	"aws:cassandra:type":     true,
 	// Cost-domain types — internal cost-API IDs only; no scanned-resource refs.
 	"aws:bcmpricingcalculator:bill-scenario": true,

@@ -25,6 +25,7 @@ type cassandraAPI interface {
 	ListKeyspaces(context.Context, *keyspaces.ListKeyspacesInput, ...func(*keyspaces.Options)) (*keyspaces.ListKeyspacesOutput, error)
 	ListTables(context.Context, *keyspaces.ListTablesInput, ...func(*keyspaces.Options)) (*keyspaces.ListTablesOutput, error)
 	ListTypes(context.Context, *keyspaces.ListTypesInput, ...func(*keyspaces.Options)) (*keyspaces.ListTypesOutput, error)
+	GetTable(context.Context, *keyspaces.GetTableInput, ...func(*keyspaces.Options)) (*keyspaces.GetTableOutput, error)
 }
 
 // scanCassandra discovers Amazon Keyspaces (Apache Cassandra-compatible)
@@ -112,11 +113,27 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []str
 				if arn == "" {
 					continue
 				}
+				// Enrich with GetTable body — EncryptionSpecification.KmsKeyIdentifier
+				// is not on the list-summary shape. Fall back to summary on per-row
+				// failure.
+				attrs := mustJSON(t)
+				ksn := ksName
+				tn := sv(t.TableName)
+				if tn != "" {
+					gout, gerr := client.GetTable(ctx, &keyspaces.GetTableInput{KeyspaceName: &ksn, TableName: &tn})
+					if gerr != nil {
+						if isAccessDenied(gerr) {
+							_ = skipIfAccessDenied(st, "cassandra:GetTable", acct.ID, region, gerr)
+						}
+					} else if gout != nil {
+						attrs = mustJSON(gout)
+					}
+				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeCassandraTable, NativeID: arn,
 					Name: t.TableName, Region: &region,
-					AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
+					AttributesJSON: attrs, DiscoveredBy: scanID,
 				})
 			}
 			if out.NextToken == nil || *out.NextToken == "" {
