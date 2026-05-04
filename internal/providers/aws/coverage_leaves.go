@@ -492,4 +492,134 @@ var leafTypes = map[string]bool{
 	"aws:ivs:playback-key-pair":           true,
 	"aws:ivs:playback-restriction-policy": true,
 	"aws:ivs:public-key":                  true,
+	// SES Mail Manager — addon-subscription / address-list / relay /
+	// rule-set / traffic-policy summaries carry no scanned cross-service
+	// refs (KMS / IAM lives on Get* — Tier C1 enrichment task).
+	"aws:ses:mailmanager-addon-subscription": true,
+	"aws:ses:mailmanager-address-list":       true,
+	"aws:ses:mailmanager-relay":              true,
+	"aws:ses:mailmanager-rule-set":           true,
+	"aws:ses:mailmanager-traffic-policy":     true,
+	// SageMaker leftovers — project / code-repository / *lifecycle-config /
+	// app-image-config / workteam refs (IAM/KMS/S3) live on Describe* per
+	// resource; List* summaries are leaf-shape today.
+	"aws:sagemaker:app-image-config":                   true,
+	"aws:sagemaker:code-repository":                    true,
+	"aws:sagemaker:notebook-instance-lifecycle-config": true,
+	"aws:sagemaker:project":                            true,
+	"aws:sagemaker:studio-lifecycle-config":            true,
+	"aws:sagemaker:workteam":                           true,
+	// Workspaces Web — browser-settings / data-protection-settings /
+	// ip-access-settings / session-logger / trust-store / user-settings —
+	// portal/web-acl/customer-managed-policy refs live on associated
+	// portal Describe; List* summaries are leaf today.
+	"aws:workspaces-web:browser-settings":         true,
+	"aws:workspaces-web:data-protection-settings": true,
+	"aws:workspaces-web:ip-access-settings":       true,
+	"aws:workspaces-web:session-logger":           true,
+	"aws:workspaces-web:trust-store":              true,
+	"aws:workspaces-web:user-settings":            true,
+	// MediaConnect — flow/bridge/gateway/router-* refs live on Describe*.
+	"aws:mediaconnect:bridge":                   true,
+	"aws:mediaconnect:flow":                     true,
+	"aws:mediaconnect:gateway":                  true,
+	"aws:mediaconnect:router-input":             true,
+	"aws:mediaconnect:router-network-interface": true,
+	"aws:mediaconnect:router-output":            true,
+	// Location service summary-only types.
+	"aws:location:api-key":             true,
+	"aws:location:geofence-collection": true,
+	"aws:location:map":                 true,
+	"aws:location:place-index":         true,
+	"aws:location:route-calculator":    true,
+	"aws:location:tracker":             true,
+	// Timestream LiveAnalytics + InfluxDB — refs (KMS, S3, VPC) live on
+	// Describe* per resource.
+	"aws:timestream:database":           true,
+	"aws:timestream:influx-db-cluster":  true,
+	"aws:timestream:influx-db-instance": true,
+	"aws:timestream:scheduled-query":    true,
+	"aws:timestream:table":              true,
+	// SSM document/maintenance-window/patch-baseline — already wired as
+	// targets of association/maintenance-window-task; source-side refs
+	// (Requires, Attachments) need Describe enrichment.
+	"aws:ssm:document":                          true,
+	"aws:ssm:maintenance-window":                true,
+	"aws:ssm:patch-baseline":                    true,
+	"aws:ssm-contacts:contact":                  true,
+	"aws:ssm-contacts:plan":                     true,
+	"aws:ssm-incidents:response-plan":           true,
+	"aws:ssm-quick-setup:configuration-manager": true,
+	"aws:ssm-gui-connect:preferences":           true,
+	// Logs leftover types — log-group/integration/scheduled-query/resource-policy/
+	// delivery-source — KMS/source refs need Describe enrichment.
+	"aws:logs:delivery-source": true,
+	"aws:logs:integration":     true,
+	"aws:logs:log-group":       true,
+	"aws:logs:resource-policy": true,
+	"aws:logs:scheduled-query": true,
+	// Route53 recovery — internal cluster/control-panel/safety-rule/cell/
+	// readiness-check/recovery-group/resource-set hierarchies; refs are
+	// internal IDs not scanned ARNs.
+	"aws:route53-recovery-control:cluster":           true,
+	"aws:route53-recovery-control:control-panel":     true,
+	"aws:route53-recovery-control:routing-control":   true,
+	"aws:route53-recovery-control:safety-rule":       true,
+	"aws:route53-recovery-readiness:cell":            true,
+	"aws:route53-recovery-readiness:readiness-check": true,
+	"aws:route53-recovery-readiness:recovery-group":  true,
+	"aws:route53-recovery-readiness:resource-set":    true,
+	// Route53 profiles — VPC/profile-resource refs live on Describe*.
+	"aws:route53-profiles:profile":                      true,
+	"aws:route53-profiles:profile-association":          true,
+	"aws:route53-profiles:profile-resource-association": true,
+	// Route53 leftovers (cidr-collection, hosted-zone, health-check) —
+	// hosted-zone is target of recordsets (already wired via record→zone
+	// reverse), health-check is target of recordsets, cidr-collection
+	// holds CIDR blocks (no x-service refs).
+	"aws:route53:cidr-collection": true,
+	"aws:route53:health-check":    true,
+	"aws:route53:hosted-zone":     true,
+	// Lake Formation — permissions data is principal+resource pairs
+	// already covered indirectly via principal/resource scans.
+	"aws:lakeformation:data-cells-filter":     true,
+	"aws:lakeformation:data-lake-settings":    true,
+	"aws:lakeformation:principal-permissions": true,
+	"aws:lakeformation:tag":                   true,
+	// Kinesis Analytics / kinesis-video / kinesis-extras — refs need
+	// Describe enrichment.
+	"aws:kinesis-analytics:application":      true,
+	"aws:kinesis-analytics-v2:application":   true,
+	"aws:kinesis-video:signaling-channel":    true,
+	"aws:kinesis-video:stream":               true,
+	"aws:kinesis:resource-policy":            true,
+	"aws:kinesis:stream-consumer":            true,
+	"aws:kafka:configuration":                true,
+	"aws:kafka-connect:custom-plugin":        true,
+	"aws:kafka-connect:worker-configuration": true,
+	// Imagebuilder leftover catalog types — refs (parent image, ECR,
+	// SNS topic) live on Describe*; List* is leaf today.
+	"aws:imagebuilder:component":                  true,
+	"aws:imagebuilder:container-recipe":           true,
+	"aws:imagebuilder:distribution-configuration": true,
+	"aws:imagebuilder:image-recipe":               true,
+	"aws:imagebuilder:workflow":                   true,
+	// Iot leftover — fleet-metric / custom-metric / topic-rule-destination /
+	// software-package* / iot-events all summary-only without DescribeXxx
+	// enrichment.
+	"aws:iot:custom-metric":                        true,
+	"aws:iot:fleet-metric":                         true,
+	"aws:iot:software-package":                     true,
+	"aws:iot:software-package-version":             true,
+	"aws:iot:topic-rule-destination":               true,
+	"aws:iot-events:alarm-model":                   true,
+	"aws:iot-events:detector-model":                true,
+	"aws:iot-events:input":                         true,
+	"aws:iot-core-device-advisor:suite-definition": true,
+	"aws:iotsitewise:asset-model":                  true,
+	"aws:iotsitewise:computation-model":            true,
+	"aws:iotsitewise:dashboard":                    true,
+	"aws:iotsitewise:dataset":                      true,
+	"aws:iottwinmaker:workspace":                   true,
+	"aws:iotfleetwise:signal-catalog":              true,
 }
