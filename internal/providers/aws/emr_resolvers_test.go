@@ -55,3 +55,43 @@ func TestResolveEMRStudioVPC(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(stID)
 	assertRelationship(t, rels, stID, vpcID, store.RelAttachedTo)
 }
+
+func TestResolveEMRClusterRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	clARN := emrARN(testRegion, acct.ID, "cluster", "j-XYZ")
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/EMR_DefaultRole"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-emr"
+	snARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
+	attrs := `{"ServiceRole":"EMR_DefaultRole","LogEncryptionKmsKeyId":"` + keyARN +
+		`","Ec2InstanceAttributes":{"Ec2KeyName":"emrkey","Ec2SubnetId":"subnet-1","EmrManagedMasterSecurityGroup":"sg-1"}}`
+
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRCluster, clARN, testRegion, attrs)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, snARN, testRegion, "{}")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
+
+	kpName := "emrkey"
+	kpRegion := testRegion
+	kpARN := ec2ARN(testRegion, acct.ID, "key-pair", "key-emr")
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeEC2KeyPair, NativeID: kpARN,
+		Region: &kpRegion, Name: &kpName, AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}); err != nil {
+		t.Fatalf("upsert keypair: %v", err)
+	}
+	kpID := store.ResourceID("aws", acct.ID, TypeEC2KeyPair, kpARN)
+
+	if err := resolveEMRClusterRefs(acct, st); err != nil {
+		t.Fatalf("resolveEMRClusterRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, rID, store.RelAssumes)
+	assertRelationship(t, rels, cID, kID, store.RelUses)
+	assertRelationship(t, rels, cID, snID, store.RelAttachedTo)
+	assertRelationship(t, rels, cID, sgID, store.RelAttachedTo)
+	assertRelationship(t, rels, cID, kpID, store.RelUses)
+}

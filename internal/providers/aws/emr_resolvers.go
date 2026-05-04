@@ -21,6 +21,137 @@ func init() {
 	registerResolver(resolveEMRStudioVPC,
 		EdgeDecl{TypeEMRStudio, TypeEC2VPC, store.RelAttachedTo},
 	)
+	registerResolver(resolveEMRClusterRefs,
+		EdgeDecl{TypeEMRCluster, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeEMRCluster, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeEMRCluster, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeEMRCluster, TypeEC2SecurityGroup, store.RelAttachedTo},
+		EdgeDecl{TypeEMRCluster, TypeEC2KeyPair, store.RelUses},
+	)
+}
+
+// resolveEMRClusterRefs walks the DescribeCluster body and emits service /
+// auto-scaling roles, log-encryption KMS, EC2 subnet + master/slave SGs +
+// key-pair edges. ServiceRole and AutoScalingRole are bare role names; build
+// `arn:aws:iam::{acct}:role/{name}` for FK-safe lookup.
+func resolveEMRClusterRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRCluster}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	kpRows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	keyByNameRegion := make(map[string]string, len(kpRows))
+	for _, kp := range kpRows {
+		if kp.Name == nil {
+			continue
+		}
+		keyByNameRegion[sv(kp.Region)+"\x00"+*kp.Name] = kp.ID
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ServiceRole           *string `json:"ServiceRole"`
+			AutoScalingRole       *string `json:"AutoScalingRole"`
+			LogEncryptionKmsKeyID *string `json:"LogEncryptionKmsKeyId"`
+			Ec2InstanceAttributes *struct {
+				Ec2KeyName                     *string  `json:"Ec2KeyName"`
+				Ec2SubnetID                    *string  `json:"Ec2SubnetId"`
+				EmrManagedMasterSecurityGroup  *string  `json:"EmrManagedMasterSecurityGroup"`
+				EmrManagedSlaveSecurityGroup   *string  `json:"EmrManagedSlaveSecurityGroup"`
+				ServiceAccessSecurityGroup     *string  `json:"ServiceAccessSecurityGroup"`
+				AdditionalMasterSecurityGroups []string `json:"AdditionalMasterSecurityGroups"`
+				AdditionalSlaveSecurityGroups  []string `json:"AdditionalSlaveSecurityGroups"`
+			} `json:"Ec2InstanceAttributes"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		for _, role := range []*string{attrs.ServiceRole, attrs.AutoScalingRole} {
+			n := sv(role)
+			if n == "" {
+				continue
+			}
+			rarn := "arn:aws:iam::" + acct.ID + ":role/" + n
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			if !roleSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+				return fmt.Errorf("upsert emr-cluster→role: %w", err)
+			}
+		}
+		if ref := sv(attrs.LogEncryptionKmsKeyID); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, region, acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert emr-cluster→kms: %w", err)
+				}
+			}
+		}
+		if attrs.Ec2InstanceAttributes != nil {
+			ea := attrs.Ec2InstanceAttributes
+			if sn := sv(ea.Ec2SubnetID); sn != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				if subnetSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert emr-cluster→subnet: %w", err)
+					}
+				}
+			}
+			sgs := []string{
+				sv(ea.EmrManagedMasterSecurityGroup),
+				sv(ea.EmrManagedSlaveSecurityGroup),
+				sv(ea.ServiceAccessSecurityGroup),
+			}
+			sgs = append(sgs, ea.AdditionalMasterSecurityGroups...)
+			sgs = append(sgs, ea.AdditionalSlaveSecurityGroups...)
+			for _, sg := range sgs {
+				if sg == "" {
+					continue
+				}
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				if !sgSet[tgt] {
+					continue
+				}
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert emr-cluster→sg: %w", err)
+				}
+			}
+			if kn := sv(ea.Ec2KeyName); kn != "" {
+				if kID, ok := keyByNameRegion[region+"\x00"+kn]; ok {
+					if err := st.UpsertRelationship(r.ID, kID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert emr-cluster→keypair: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveEMRStudioVPC wires each EMR Studio to its VPC (StudioSummary.VpcId).

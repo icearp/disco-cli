@@ -646,7 +646,6 @@ var leafTypes = map[string]bool{
 	// EMR cluster + security-configuration — cluster summary lacks VPC/IAM
 	// (lives on DescribeCluster body — deferred); security-configuration is
 	// pure encryption JSON.
-	"aws:emr:cluster":                true,
 	"aws:emr:security-configuration": true,
 	// IdentityStore user + group — identity rows; membership wired via
 	// dedicated resolver, but user/group themselves have no outbound refs.

@@ -27,6 +27,7 @@ func init() {
 
 type emrAPI interface {
 	ListClusters(context.Context, *emr.ListClustersInput, ...func(*emr.Options)) (*emr.ListClustersOutput, error)
+	DescribeCluster(context.Context, *emr.DescribeClusterInput, ...func(*emr.Options)) (*emr.DescribeClusterOutput, error)
 	ListInstanceFleets(context.Context, *emr.ListInstanceFleetsInput, ...func(*emr.Options)) (*emr.ListInstanceFleetsOutput, error)
 	ListInstanceGroups(context.Context, *emr.ListInstanceGroupsInput, ...func(*emr.Options)) (*emr.ListInstanceGroupsOutput, error)
 	ListSecurityConfigurations(context.Context, *emr.ListSecurityConfigurationsInput, ...func(*emr.Options)) (*emr.ListSecurityConfigurationsOutput, error)
@@ -70,10 +71,15 @@ func scanEMR(ctx context.Context, acct *account, region string, st *store.Store,
 			if id != "" {
 				clusters = append(clusters, clusterRef{id: id, arn: arn})
 			}
+			attrsJSON := mustJSON(c)
+			idLocal := id
+			if dout, derr := client.DescribeCluster(ctx, &emr.DescribeClusterInput{ClusterId: &idLocal}); derr == nil && dout.Cluster != nil {
+				attrsJSON = mustJSON(dout.Cluster)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeEMRCluster, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
