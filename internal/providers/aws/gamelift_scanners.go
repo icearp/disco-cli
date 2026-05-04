@@ -138,6 +138,11 @@ func scanGLContainerFleets(ctx context.Context, client gameLiftAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// GameLift Containers is not deployed in every region; AWS
+			// returns UnsupportedRegionException there. Silent-skip.
+			if isAPIErrorCode(perr, "UnsupportedRegionException") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "gamelift:ListContainerFleets", acct.ID, region, perr)
 				return 0, 0, nil

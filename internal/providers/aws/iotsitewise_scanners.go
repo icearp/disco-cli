@@ -315,6 +315,9 @@ func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, regi
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTSiteWiseFeatureUnsupported(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotsitewise:ListDatasets", acct.ID, region, perr)
 				return 0, 0, nil

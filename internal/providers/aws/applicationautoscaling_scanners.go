@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -77,6 +78,12 @@ func scanApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 		for {
 			out, derr := client.DescribeScalableTargets(ctx, &applicationautoscaling.DescribeScalableTargetsInput{ServiceNamespace: ns, NextToken: nextToken})
 			if derr != nil {
+				// Per-region namespace-enum gap: AWS rejects namespaces not
+				// enumerated in this region's set with a ValidationException
+				// listing the allowed members. Silent-skip the namespace.
+				if isAPIErrorCode(derr, "ValidationException") && strings.Contains(derr.Error(), "Member must satisfy enum value set") {
+					break
+				}
 				if isAccessDenied(derr) {
 					_ = skipIfAccessDenied(st, "application-autoscaling:DescribeScalableTargets", acct.ID, region, derr)
 					break
@@ -128,6 +135,9 @@ func scanApplicationAutoScalingScalingPolicies(ctx context.Context, client appli
 		for p.HasMorePages() {
 			page, perr := p.NextPage(ctx)
 			if perr != nil {
+				if isAPIErrorCode(perr, "ValidationException") && strings.Contains(perr.Error(), "Member must satisfy enum value set") {
+					break
+				}
 				if isAccessDenied(perr) {
 					_ = skipIfAccessDenied(st, "application-autoscaling:DescribeScalingPolicies", acct.ID, region, perr)
 					break

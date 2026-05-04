@@ -413,7 +413,9 @@ func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *accou
 			return 0, 0, skipIfAccessDenied(st, "cloudwatch:GetOTelEnrichment", acct.ID, region, err)
 		}
 		// Service not available in this region — soft skip.
-		if isAPIErrorCode(err, "ValidationException", "UnknownOperationException") {
+		// `InvalidAction` ("Operation not supported") fires in regions where
+		// the OTel enrichment op is not deployed.
+		if isAPIErrorCode(err, "ValidationException", "UnknownOperationException", "InvalidAction") {
 			return 0, 0, nil
 		}
 		return 0, 0, fmt.Errorf("cloudwatch:GetOTelEnrichment: %w", err)

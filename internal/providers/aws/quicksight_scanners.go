@@ -404,7 +404,11 @@ func scanQSCustomPermissions(ctx context.Context, client quickSightAPI, acct *ac
 
 func scanQSActionConnectors(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	id := acct.ID
-	pager := quicksight.NewListActionConnectorsPaginator(client, &quicksight.ListActionConnectorsInput{AwsAccountId: &id})
+	// SDK paginator nils MaxResults when Limit==0; AWS rejects with
+	// ValidationException. Force a valid page size (max 100).
+	pager := quicksight.NewListActionConnectorsPaginator(client, &quicksight.ListActionConnectorsInput{AwsAccountId: &id}, func(o *quicksight.ListActionConnectorsPaginatorOptions) {
+		o.Limit = 100
+	})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
