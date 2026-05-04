@@ -2,7 +2,7 @@
 # aws-next-service.sh — emit next AWS service to scaffold + its uncovered CFN types.
 #
 # Sorts uncovered services by type-count desc (biggest gain first), drops any
-# service listed in docs/aws-skip.md (untracked, see .gitignore), prints the
+# service listed in docs/aws-missing-services.md (untracked, see .gitignore), prints the
 # top service and its uncovered resource types.
 #
 # Usage:
@@ -15,7 +15,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-skip_file="docs/aws-skip.md"
+skip_file="docs/aws-missing-services.md"
 skip_filter='cat'
 if [[ -f "$skip_file" ]]; then
   # Lines of form "- AWS::Service::Type" treated as skipped types. Use awk

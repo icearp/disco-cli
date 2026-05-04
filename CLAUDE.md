@@ -66,6 +66,11 @@ Namespaced lowercase: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:
 
 Viper reads `xdg.ConfigHome/disco/config.yaml`, env prefix `DISCO_`. `--db` flag (or `$DISCO_DB`) overrides DB path; default `xdg.DataHome/disco/disco.db`. Linux: `~/.config/disco/` + `~/.local/share/disco/`. macOS/Windows: both collapse to platform app-data dir. Paths resolved via `github.com/adrg/xdg` in `cmd/paths.go` (`configDir()`, `dataDir()`). `defaultDBPath()` = pure getter — directory creation is `store.Open()` job.
 
+## Coverage gap docs (`docs/`)
+
+- `docs/aws-missing-services.md` — scanner-layer skip list (CFN types not scanned). Gitignored, per-dev. Read by `scripts/aws-next-service.sh`.
+- `docs/aws-missing-resolvers.md` — resolver-layer gaps: audit workflow + orphan-types TSV (fenced block). Tracked. Refresh via `disco coverage --missing-resolvers --provider aws`.
+
 ## Nested guidance
 
 Path-scoped `CLAUDE.md` files auto-load when working in subtrees:

@@ -40,4 +40,4 @@ go.work.sum
 .claude/
 
 # AWS provider scaffolding skip log (untracked, per-dev notes)
-docs/aws-skip.md
+docs/aws-missing-services.md

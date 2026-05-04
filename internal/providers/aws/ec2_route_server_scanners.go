@@ -22,7 +22,7 @@ func init() {
 // peers (the BGP-speaking neighbours). RouteServerAssociation +
 // RouteServerPropagation skipped — they are association/propagation
 // fields on existing scanned resources (route table, route server) and
-// have no separate SDK list op (see docs/aws-skip.md).
+// have no separate SDK list op (see docs/aws-missing-services.md).
 func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {

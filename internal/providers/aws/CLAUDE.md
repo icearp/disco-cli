@@ -266,7 +266,7 @@ Tooling:
 - `go run ./cmd/aws-resolver-audit/ --list-edges` — every declared (src, tgt, kind) triple.
 - `go run ./cmd/aws-resolver-audit/ --db <path>` — diffs declared metadata + DB edges against ARN/ID refs walked from `AttributesJSON`.
 
-Snapshot lives in `docs/aws-missing-resolvers.tsv` — refresh with `disco coverage --missing-resolvers --provider aws > docs/aws-missing-resolvers.tsv` after each resolver-shipping commit so future PRs diff against it.
+Snapshot lives in the orphan-types fenced block of `docs/aws-missing-resolvers.md` — refresh with `disco coverage --missing-resolvers --provider aws` after each resolver-shipping commit and replace the block contents so future PRs diff against it.
 
 ## NativeID parent-extraction = dominant child→parent shape
 

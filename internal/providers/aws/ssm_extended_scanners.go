@@ -14,7 +14,7 @@ import (
 //
 // AWS::SSM::ResourcePolicy is not enumerable: GetResourcePolicies requires a
 // ResourceArn and SSM exposes no list API for resources that have policies
-// attached. Skipped — see docs/aws-skip.md.
+// attached. Skipped — see docs/aws-missing-services.md.
 func scanSSMExtended(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	t, i, ferr := scanSSMAssociations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {

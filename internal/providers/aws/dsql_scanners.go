@@ -21,6 +21,7 @@ func init() {
 
 type dsqlAPI interface {
 	ListClusters(context.Context, *dsql.ListClustersInput, ...func(*dsql.Options)) (*dsql.ListClustersOutput, error)
+	GetCluster(context.Context, *dsql.GetClusterInput, ...func(*dsql.Options)) (*dsql.GetClusterOutput, error)
 }
 
 // scanDSQL discovers Aurora DSQL clusters.
@@ -43,11 +44,15 @@ func scanDSQL(ctx context.Context, acct *account, region string, st *store.Store
 				continue
 			}
 			label := sv(c.Identifier)
+			attrsJSON := mustJSON(c)
+			if gout, gerr := client.GetCluster(ctx, &dsql.GetClusterInput{Identifier: c.Identifier}); gerr == nil {
+				attrsJSON = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDSQLCluster, NativeID: arn,
 				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
