@@ -54,3 +54,33 @@ func TestResolveIVSIngestConfigStage(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(icID)
 	assertRelationship(t, rels, icID, stID, store.RelAttachedTo)
 }
+
+func TestResolveIVSRecordingConfigS3(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	bName := "ivs-rec-bucket"
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bName, testRegion, "{}")
+	rcARN := fmt.Sprintf("arn:aws:ivs:%s:%s:recording-configuration/rc-1", testRegion, acct.ID)
+	rcAttrs := fmt.Sprintf(`{"DestinationConfiguration":{"S3":{"BucketName":%q}}}`, bName)
+	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeIVSRecordingConfiguration, rcARN, testRegion, rcAttrs)
+	if err := resolveIVSRecordingConfigS3(acct, st); err != nil {
+		t.Fatalf("resolveIVSRecordingConfigS3: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rcID)
+	assertRelationship(t, rels, rcID, bID, store.RelUses)
+}
+
+func TestResolveIVSStorageConfigS3(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	bName := "ivs-store-bucket"
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bName, testRegion, "{}")
+	scARN := fmt.Sprintf("arn:aws:ivs:%s:%s:storage-configuration/sc-1", testRegion, acct.ID)
+	scAttrs := fmt.Sprintf(`{"S3":{"BucketName":%q}}`, bName)
+	scID := upsertTestResource(t, st, "aws", acct.ID, TypeIVSStorageConfiguration, scARN, testRegion, scAttrs)
+	if err := resolveIVSStorageConfigS3(acct, st); err != nil {
+		t.Fatalf("resolveIVSStorageConfigS3: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(scID)
+	assertRelationship(t, rels, scID, bID, store.RelUses)
+}

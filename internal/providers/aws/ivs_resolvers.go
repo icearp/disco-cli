@@ -19,6 +19,81 @@ func init() {
 	registerResolver(resolveIVSIngestConfigStage,
 		EdgeDecl{TypeIVSIngestConfiguration, TypeIVSStage, store.RelAttachedTo},
 	)
+	registerResolver(resolveIVSRecordingConfigS3,
+		EdgeDecl{TypeIVSRecordingConfiguration, TypeS3Bucket, store.RelUses},
+	)
+	registerResolver(resolveIVSStorageConfigS3,
+		EdgeDecl{TypeIVSStorageConfiguration, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveIVSRecordingConfigS3 wires each recording-configuration to the S3
+// bucket recordings are written to (DestinationConfiguration.S3.BucketName).
+func resolveIVSRecordingConfigS3(acct *account, st *store.Store) error {
+	return resolveIVSS3Bucket(acct, st, TypeIVSRecordingConfiguration,
+		func(raw []byte) string {
+			var attrs struct {
+				DestinationConfiguration *struct {
+					S3 *struct {
+						BucketName *string `json:"BucketName"`
+					} `json:"S3"`
+				} `json:"DestinationConfiguration"`
+			}
+			if err := json.Unmarshal(raw, &attrs); err != nil ||
+				attrs.DestinationConfiguration == nil ||
+				attrs.DestinationConfiguration.S3 == nil {
+				return ""
+			}
+			return sv(attrs.DestinationConfiguration.S3.BucketName)
+		}, "recording-configuration")
+}
+
+// resolveIVSStorageConfigS3 wires each storage-configuration to its S3 bucket
+// (S3.BucketName).
+func resolveIVSStorageConfigS3(acct *account, st *store.Store) error {
+	return resolveIVSS3Bucket(acct, st, TypeIVSStorageConfiguration,
+		func(raw []byte) string {
+			var attrs struct {
+				S3 *struct {
+					BucketName *string `json:"BucketName"`
+				} `json:"S3"`
+			}
+			if err := json.Unmarshal(raw, &attrs); err != nil || attrs.S3 == nil {
+				return ""
+			}
+			return sv(attrs.S3.BucketName)
+		}, "storage-configuration")
+}
+
+func resolveIVSS3Bucket(acct *account, st *store.Store, sourceType string, extract func([]byte) string, label string) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		bucket := extract([]byte(r.AttributesJSON))
+		if bucket == "" {
+			continue
+		}
+		bArn := "arn:aws:s3:::" + bucket
+		tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, bArn)
+		if !bucketSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert ivs %s→s3: %w", label, err)
+		}
+	}
+	return nil
 }
 
 func resolveIVSChannelRefs(acct *account, st *store.Store) error {
