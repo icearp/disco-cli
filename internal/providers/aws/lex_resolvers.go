@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,48 @@ func init() {
 		EdgeDecl{TypeLexBotVersion, TypeLexBot, store.RelAttachedTo},
 		EdgeDecl{TypeLexResourcePolicy, TypeLexBot, store.RelAttachedTo},
 	)
+	registerResolver(resolveLexBotRole,
+		EdgeDecl{TypeLexBot, TypeIAMRole, store.RelAssumes},
+	)
+}
+
+// resolveLexBotRole wires each Lex V2 bot to its execution IAM role
+// (DescribeBotOutput.RoleArn — populated by Phase-1 enrichment in scanLexBots).
+// FK-safe.
+func resolveLexBotRole(acct *account, st *store.Store) error {
+	bots, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLexBot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(bots) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, b := range bots {
+		var attrs struct {
+			RoleArn *string `json:"RoleArn"`
+		}
+		if err := json.Unmarshal([]byte(b.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.RoleArn)
+		if arn == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		if !roleSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(b.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert lex bot→role: %w", err)
+		}
+	}
+	return nil
 }
 
 // lexBotARNFromBotChild rebuilds `arn:aws:lex:r:a:bot/{botId}` from any of:

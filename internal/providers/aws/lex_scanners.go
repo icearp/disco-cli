@@ -24,6 +24,7 @@ func init() {
 
 type lexAPI interface {
 	ListBots(context.Context, *lexmodelsv2.ListBotsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListBotsOutput, error)
+	DescribeBot(context.Context, *lexmodelsv2.DescribeBotInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.DescribeBotOutput, error)
 	ListBotAliases(context.Context, *lexmodelsv2.ListBotAliasesInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListBotAliasesOutput, error)
 	ListBotVersions(context.Context, *lexmodelsv2.ListBotVersionsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListBotVersionsOutput, error)
 	DescribeResourcePolicy(context.Context, *lexmodelsv2.DescribeResourcePolicyInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.DescribeResourcePolicyOutput, error)
@@ -90,11 +91,20 @@ func scanLexBots(ctx context.Context, client lexAPI, acct *account, region strin
 			arn := fmt.Sprintf("arn:aws:lex:%s:%s:bot/%s", region, acct.ID, id)
 			bots = append(bots, lexBot{id, arn})
 			status := string(b.BotStatus)
+			// Enrich via DescribeBot — list returns BotSummary (skeleton);
+			// RoleArn lives on DescribeBotOutput. Fall back to summary on error.
+			var attrsJSON string
+			bid := id
+			if dout, derr := client.DescribeBot(ctx, &lexmodelsv2.DescribeBotInput{BotId: &bid}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			} else {
+				attrsJSON = mustJSON(b)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLexBot, NativeID: arn,
 				Name: b.BotName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}

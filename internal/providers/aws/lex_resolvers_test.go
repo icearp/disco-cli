@@ -41,3 +41,18 @@ func TestResolveLexChildrenToBot(t *testing.T) {
 		assertRelationship(t, rels, c, botID, store.RelAttachedTo)
 	}
 }
+
+func TestResolveLexBotRole(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/lex-exec", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	botARN := fmt.Sprintf("arn:aws:lex:%s:%s:bot/B1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"RoleArn":%q}`, roleARN)
+	botID := upsertTestResource(t, st, "aws", acct.ID, TypeLexBot, botARN, testRegion, attrs)
+	if err := resolveLexBotRole(acct, st); err != nil {
+		t.Fatalf("resolveLexBotRole: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(botID)
+	assertRelationship(t, rels, botID, roleID, store.RelAssumes)
+}
