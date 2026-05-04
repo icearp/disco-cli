@@ -531,7 +531,6 @@ var leafTypes = map[string]bool{
 	"aws:cloudtrail:channel":                                   true,
 	"aws:cloudtrail:dashboard":                                 true,
 	"aws:code-build:source-credential":                         true,
-	"aws:codecommit:repository":                                true,
 	"aws:codedeploy:application":                               true,
 	"aws:codedeploy:deployment-config":                         true,
 	"aws:code-guru-profiler:profiling-group":                   true,

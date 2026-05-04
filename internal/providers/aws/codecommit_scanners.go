@@ -21,6 +21,7 @@ func init() {
 
 type codeCommitAPI interface {
 	ListRepositories(context.Context, *codecommit.ListRepositoriesInput, ...func(*codecommit.Options)) (*codecommit.ListRepositoriesOutput, error)
+	GetRepository(context.Context, *codecommit.GetRepositoryInput, ...func(*codecommit.Options)) (*codecommit.GetRepositoryOutput, error)
 }
 
 // scanCodeCommit discovers CodeCommit repositories. CodeCommit is closed
@@ -45,11 +46,15 @@ func scanCodeCommit(ctx context.Context, acct *account, region string, st *store
 				continue
 			}
 			arn := fmt.Sprintf("arn:aws:codecommit:%s:%s:%s", region, acct.ID, name)
+			attrsJSON := mustJSON(r)
+			if gout, gerr := client.GetRepository(ctx, &codecommit.GetRepositoryInput{RepositoryName: r.RepositoryName}); gerr == nil && gout.RepositoryMetadata != nil {
+				attrsJSON = mustJSON(gout.RepositoryMetadata)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCodeCommitRepository, NativeID: arn,
 				Name: &name, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
