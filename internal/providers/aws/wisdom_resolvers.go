@@ -29,6 +29,50 @@ func init() {
 	registerResolver(resolveWisdomAssistantAssociationKnowledgeBase,
 		EdgeDecl{TypeWisdomAssistantAssociation, TypeWisdomKnowledgeBase, store.RelUses},
 	)
+	registerResolver(resolveWisdomKMSRefs,
+		EdgeDecl{TypeWisdomAssistant, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeWisdomKnowledgeBase, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveWisdomKMSRefs wires assistant + knowledge-base to their customer
+// managed KMS key (ServerSideEncryptionConfiguration.KmsKeyId).
+func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, rtype := range []string{TypeWisdomAssistant, TypeWisdomKnowledgeBase} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				ServerSideEncryptionConfiguration *struct {
+					KmsKeyId *string `json:"KmsKeyId"`
+				} `json:"ServerSideEncryptionConfiguration"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			if attrs.ServerSideEncryptionConfiguration == nil {
+				continue
+			}
+			ref := sv(attrs.ServerSideEncryptionConfiguration.KmsKeyId)
+			if ref == "" {
+				continue
+			}
+			if keyID, ok := kmsIdx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert wisdom %s→kms: %w", rtype, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype, parentType, fieldName, label string) error {

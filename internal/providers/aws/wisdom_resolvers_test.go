@@ -79,3 +79,23 @@ func TestResolveWisdomKnowledgeBaseChildren(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(mtID)
 	assertRelationship(t, rels, mtID, kbID, store.RelAttachedTo)
 }
+
+func TestResolveWisdomKMSRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	aARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/a-1", testRegion, acct.ID)
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomAssistant, aARN, testRegion,
+		fmt.Sprintf(`{"ServerSideEncryptionConfiguration":{"KmsKeyId":"%s"}}`, keyARN))
+	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomKnowledgeBase, kbARN, testRegion,
+		fmt.Sprintf(`{"ServerSideEncryptionConfiguration":{"KmsKeyId":"%s"}}`, keyARN))
+	if err := resolveWisdomKMSRefs(acct, st); err != nil {
+		t.Fatalf("resolveWisdomKMSRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, keyID, store.RelUses)
+	rels, _ = st.RelationshipsFrom(kbID)
+	assertRelationship(t, rels, kbID, keyID, store.RelUses)
+}
