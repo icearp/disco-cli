@@ -41,6 +41,86 @@ func init() {
 	registerResolver(resolveGlobalClusterRelationships,
 		EdgeDecl{TypeRDSGlobalCluster, TypeRDSDBCluster, store.RelContains},
 	)
+	registerResolver(resolveRDSIntegrationRefs,
+		EdgeDecl{TypeRDSIntegration, TypeRDSDBCluster, store.RelAttachedTo},
+		EdgeDecl{TypeRDSIntegration, TypeRedshiftCluster, store.RelAttachedTo},
+		EdgeDecl{TypeRDSIntegration, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeRDSIntegration, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveRDSIntegrationRefs wires zero-ETL integrations to their source
+// (RDS / Aurora cluster) + target (Redshift provisioned cluster or Serverless
+// namespace) + KMS CMEK. SourceArn / TargetArn dispatch by ARN substring.
+func resolveRDSIntegrationRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSIntegration}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	rdsSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	rsSet, err := scannedIDSet(acct, st, TypeRedshiftCluster)
+	if err != nil {
+		return err
+	}
+	rsnsSet, err := scannedIDSet(acct, st, TypeRedshiftServerlessNamespace)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SourceArn *string `json:"SourceArn"`
+			TargetArn *string `json:"TargetArn"`
+			KMSKeyID  *string `json:"KMSKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if src := sv(attrs.SourceArn); strings.Contains(src, ":rds:") && strings.Contains(src, ":cluster:") {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBCluster, src)
+			if rdsSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-integration→source: %w", err)
+				}
+			}
+		}
+		tgtArn := sv(attrs.TargetArn)
+		switch {
+		case strings.Contains(tgtArn, ":redshift:") && strings.Contains(tgtArn, ":cluster:"):
+			tgt := store.ResourceID("aws", acct.ID, TypeRedshiftCluster, tgtArn)
+			if rsSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-integration→redshift: %w", err)
+				}
+			}
+		case strings.Contains(tgtArn, ":redshift-serverless:") && strings.Contains(tgtArn, ":namespace/"):
+			tgt := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, tgtArn)
+			if rsnsSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-integration→rs-namespace: %w", err)
+				}
+			}
+		}
+		if ref := sv(attrs.KMSKeyID); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-integration→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveRDSInstanceRelationships links each DB instance to its VPC, cluster,

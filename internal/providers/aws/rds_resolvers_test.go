@@ -517,3 +517,28 @@ func TestResolveDBClusterRelationships_KMS(t *testing.T) {
 	}
 	assertRelationship(t, rels, clusterID, keyID, store.RelUses)
 }
+
+func TestResolveRDSIntegrationRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	srcARN := rdsARN(region, acct.ID, "cluster", "src")
+	tgtARN := "arn:aws:redshift:" + region + ":" + acct.ID + ":cluster:tgt"
+	keyARN := "arn:aws:kms:" + region + ":" + acct.ID + ":key/k-int"
+	intgARN := "arn:aws:rds:" + region + ":" + acct.ID + ":integration:i-1"
+	attrs := `{"SourceArn":"` + srcARN + `","TargetArn":"` + tgtARN + `","KMSKeyId":"` + keyARN + `"}`
+
+	intgID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSIntegration, intgARN, region, attrs)
+	srcID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, srcARN, region, "{}")
+	tgtID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster, tgtARN, region, "{}")
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, region, "{}")
+
+	if err := resolveRDSIntegrationRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSIntegrationRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(intgID)
+	assertRelationship(t, rels, intgID, srcID, store.RelAttachedTo)
+	assertRelationship(t, rels, intgID, tgtID, store.RelAttachedTo)
+	assertRelationship(t, rels, intgID, keyID, store.RelUses)
+}

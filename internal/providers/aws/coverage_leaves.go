@@ -634,7 +634,6 @@ var leafTypes = map[string]bool{
 	"aws:quicksight:data-set":                                  true,
 	"aws:quicksight:data-source":                               true,
 	"aws:quicksight:folder":                                    true,
-	"aws:rds:integration":                                      true,
 	"aws:refactor-spaces:environment":                          true,
 	"aws:resource-groups:group":                                true,
 	"aws:roles-anywhere:trust-anchor":                          true,
