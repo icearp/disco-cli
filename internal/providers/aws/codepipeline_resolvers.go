@@ -12,6 +12,96 @@ func init() {
 	registerResolver(resolveCodePipelineWebhookToPipeline,
 		EdgeDecl{TypeCodePipelineWebhook, TypeCodePipelinePipeline, store.RelAttachedTo},
 	)
+	registerResolver(resolveCodePipelinePipelineRefs,
+		EdgeDecl{TypeCodePipelinePipeline, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeCodePipelinePipeline, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeCodePipelinePipeline, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveCodePipelinePipelineRefs wires each pipeline to its service role,
+// artifact-store S3 buckets and KMS keys. GetPipeline body shape: top-level
+// Pipeline.RoleArn + ArtifactStore (or ArtifactStores map per region).
+func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodePipelinePipeline}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	type artifactStore struct {
+		Location      *string `json:"Location"`
+		EncryptionKey *struct {
+			ID *string `json:"Id"`
+		} `json:"EncryptionKey"`
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Pipeline *struct {
+				RoleArn        *string                  `json:"RoleArn"`
+				ArtifactStore  *artifactStore           `json:"ArtifactStore"`
+				ArtifactStores map[string]artifactStore `json:"ArtifactStores"`
+			} `json:"Pipeline"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Pipeline == nil {
+			continue
+		}
+		region := sv(r.Region)
+		if rarn := sv(attrs.Pipeline.RoleArn); rarn != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			if roleSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert codepipeline→role: %w", err)
+				}
+			}
+		}
+		stores := []artifactStore{}
+		if attrs.Pipeline.ArtifactStore != nil {
+			stores = append(stores, *attrs.Pipeline.ArtifactStore)
+		}
+		for _, as := range attrs.Pipeline.ArtifactStores {
+			stores = append(stores, as)
+		}
+		for _, as := range stores {
+			if loc := sv(as.Location); loc != "" {
+				barn := "arn:aws:s3:::" + loc
+				tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+				if bucketSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert codepipeline→s3: %w", err)
+					}
+				}
+			}
+			if as.EncryptionKey != nil {
+				if ref := sv(as.EncryptionKey.ID); ref != "" {
+					if keyID, ok := idx.resolveKMSKeyID(ref, region, acct.ID); ok {
+						if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+							return fmt.Errorf("upsert codepipeline→kms: %w", err)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveCodePipelineWebhookToPipeline wires each webhook to its target

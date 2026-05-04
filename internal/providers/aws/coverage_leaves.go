@@ -543,7 +543,6 @@ var leafTypes = map[string]bool{
 	"aws:code-guru-profiler:profiling-group":                   true,
 	"aws:code-guru-reviewer:repository-association":            true,
 	"aws:codepipeline:custom-action-type":                      true,
-	"aws:codepipeline:pipeline":                                true,
 	"aws:codestar-connections:connection":                      true,
 	"aws:config:organization-conformance-pack":                 true,
 	"aws:config:stored-query":                                  true,

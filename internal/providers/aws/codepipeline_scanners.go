@@ -26,6 +26,7 @@ type codePipelineAPI interface {
 	ListPipelines(context.Context, *codepipeline.ListPipelinesInput, ...func(*codepipeline.Options)) (*codepipeline.ListPipelinesOutput, error)
 	ListActionTypes(context.Context, *codepipeline.ListActionTypesInput, ...func(*codepipeline.Options)) (*codepipeline.ListActionTypesOutput, error)
 	ListWebhooks(context.Context, *codepipeline.ListWebhooksInput, ...func(*codepipeline.Options)) (*codepipeline.ListWebhooksOutput, error)
+	GetPipeline(context.Context, *codepipeline.GetPipelineInput, ...func(*codepipeline.Options)) (*codepipeline.GetPipelineOutput, error)
 }
 
 // scanCodePipeline discovers pipelines, custom action types (Owner=Custom
@@ -66,11 +67,15 @@ func scanCPPipelines(ctx context.Context, client codePipelineAPI, acct *account,
 				continue
 			}
 			arn := fmt.Sprintf("arn:aws:codepipeline:%s:%s:%s", region, acct.ID, name)
+			attrsJSON := mustJSON(p)
+			if gout, gerr := client.GetPipeline(ctx, &codepipeline.GetPipelineInput{Name: p.Name}); gerr == nil {
+				attrsJSON = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCodePipelinePipeline, NativeID: arn,
 				Name: &name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
