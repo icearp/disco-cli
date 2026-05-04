@@ -81,3 +81,53 @@ func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveS3MRAPRegionBuckets,
+		EdgeDecl{TypeS3MultiRegionAccessPoint, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveS3MRAPRegionBuckets wires each multi-region access point to the
+// underlying buckets in its Regions[] report. FK-safe: buckets in
+// non-scanned regions/accounts skip silently.
+func resolveS3MRAPRegionBuckets(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPoint}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Regions []struct {
+				Bucket *string `json:"Bucket"`
+			} `json:"Regions"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, reg := range attrs.Regions {
+			b := sv(reg.Bucket)
+			if b == "" {
+				continue
+			}
+			barn := "arn:aws:s3:::" + b
+			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+			if !bucketSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert s3-mrap→bucket: %w", err)
+			}
+		}
+	}
+	return nil
+}

@@ -676,9 +676,8 @@ var leafTypes = map[string]bool{
 	"aws:odb:odb-peering-connection":       true,
 	// S3 catalog leaves — access-grants-instance/multi-region-access-point/
 	// storage-lens-group refs live on Get* per resource (deferred).
-	"aws:s3:access-grants-instance":    true,
-	"aws:s3:multi-region-access-point": true,
-	"aws:s3:storage-lens-group":        true,
+	"aws:s3:access-grants-instance": true,
+	"aws:s3:storage-lens-group":     true,
 	// S3Vectors preview SDK.
 	"aws:s3vectors:index":                true,
 	"aws:s3vectors:vector-bucket":        true,

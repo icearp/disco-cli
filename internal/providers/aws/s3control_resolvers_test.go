@@ -92,3 +92,20 @@ func TestResolveStorageLens_EmptyAttrs(t *testing.T) {
 		t.Fatalf("resolveStorageLensRelationships: %v", err)
 	}
 }
+
+func TestResolveS3MRAPRegionBuckets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	mrapARN := "arn:aws:s3::" + testAccountID + ":accesspoint/myMrap"
+	bARN := "arn:aws:s3:::primary-data"
+	attrs := `{"Regions":[{"Bucket":"primary-data"},{"Bucket":"unscanned"}]}`
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeS3MultiRegionAccessPoint, mrapARN, "", attrs)
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bARN, "us-east-1", "{}")
+
+	if err := resolveS3MRAPRegionBuckets(acct, st); err != nil {
+		t.Fatalf("resolveS3MRAPRegionBuckets: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mID)
+	assertRelationship(t, rels, mID, bID, store.RelUses)
+}
