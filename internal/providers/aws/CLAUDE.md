@@ -287,3 +287,15 @@ Some sub-APIs work in subset of regions only. The rejection comes back as `Inval
 ## DNS probe to confirm global-service region
 
 Before relying on AWS docs (or existing scanner code) for which region a global service lives in, probe with `getent hosts <svc>.<region>.amazonaws.com` across candidate regions — only the correct endpoint resolves; others return NXDOMAIN. Session live-scan revealed three scanner errors this way: `route53-recovery-readiness` + `route53-recovery-control` are us-west-2 only (not us-east-1), and `route53globalresolver` is us-east-2 only on the `.api.aws` TLD.
+
+## Re-upsert parent with Describe body via ON CONFLICT
+
+Scanner pattern when (1) `List*` is upserted first to enumerate children, then (2) `Describe*` per parent fans out to emit child rows. Parent attrs end up as the list-summary shape — strip-of-detail. To wire parent-side resolvers (e.g. `ServiceExecutionRole`, `CloudWatchLoggingOptions[]` on KDA app), append the parent row to the second-pass batch with `mustJSON(detailBody)`. UpsertResources ON CONFLICT updates `attributes`, so the second upsert replaces the summary JSON in place. Precedent: `scanKinesisAnalyticsV1` / `scanKinesisAnalyticsV2` (kinesisanalytics{,v2}_scanners.go). Cheaper than a third API round-trip.
+
+## Re-verify leaf-flag comments before trusting them
+
+`coverage_leaves.go` entries often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: sanitize.go's shape-bounded ARN allowlist (`isAWSARN` in `internal/store/sanitize.go`) was added after `appflow:connector-profile` was flagged blocked, leaving the entry's claim stale until commit `abd36e2`. Before adding a sidecar workaround for what a comment says is "blocked", grep `internal/store/sanitize.go` for recent `isAWSARN` / `keyVaultDNSSuffixes` extensions and try the direct path first. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
+
+## Parent-row "leaf" ≠ no edges
+
+Many parent types (mediaconnect:flow, kinesis:stream, eventbridge:rule) appear leaf-flagged because their existing resolvers emit *child→parent* `attached-to`, not parent→outbound. To demote, identify a NEW outbound edge from the parent's own SDK body to a *non-child* type — RelContains/closure to children doesn't count. Precedents: `mediaconnect:bridge → mediaconnect:gateway` via `PlacementArn` (commit 5ccaf80) demoted the parent; `mediaconnect:flow` stayed flagged because every Flow body field maps to an existing child type. Confirm via SDK doc grep on the body struct *before* scanner enrichment work — if every ref-bearing field is already spawned as a child row, the parent is genuinely leaf.
