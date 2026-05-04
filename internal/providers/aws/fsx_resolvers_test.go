@@ -40,3 +40,30 @@ func TestResolveFSxSnapshotToVolume(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(snID)
 	assertRelationship(t, rels, snID, vID, store.RelAttachedTo)
 }
+
+func TestResolveFSxFileSystemRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fsARN2 := fsxARN(testRegion, acct.ID, "file-system", "fs-abc")
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-fsx"
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
+	subnetARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	eniARN := ec2ARN(testRegion, acct.ID, "network-interface", "eni-1")
+	attrs := `{"KmsKeyId":"` + keyARN + `","VpcId":"vpc-1","SubnetIds":["subnet-1"],"NetworkInterfaceIds":["eni-1"]}`
+
+	fsID := upsertTestResource(t, st, "aws", acct.ID, TypeFSxFileSystem, fsARN2, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subnetARN, testRegion, "{}")
+	eID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkInterface, eniARN, testRegion, "{}")
+
+	if err := resolveFSxFileSystemRefs(acct, st); err != nil {
+		t.Fatalf("resolveFSxFileSystemRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(fsID)
+	assertRelationship(t, rels, fsID, kID, store.RelUses)
+	assertRelationship(t, rels, fsID, vID, store.RelAttachedTo)
+	assertRelationship(t, rels, fsID, snID, store.RelAttachedTo)
+	assertRelationship(t, rels, fsID, eID, store.RelAttachedTo)
+}

@@ -578,7 +578,6 @@ var leafTypes = map[string]bool{
 	"aws:fin-space:environment":                                true,
 	"aws:forecast:dataset":                                     true,
 	"aws:forecast:dataset-group":                               true,
-	"aws:fsx:file-system":                                      true,
 	"aws:fsx:s3-access-point-attachment":                       true,
 	"aws:global-accelerator:accelerator":                       true,
 	"aws:grafana:workspace":                                    true,
