@@ -22,6 +22,9 @@ func init() {
 		EdgeDecl{TypeMediaConnectFlowOutput, TypeMediaConnectFlow, store.RelAttachedTo},
 		EdgeDecl{TypeMediaConnectFlowEntitlement, TypeMediaConnectFlow, store.RelAttachedTo},
 	)
+	registerResolver(resolveMediaConnectBridgePlacement,
+		EdgeDecl{TypeMediaConnectBridge, TypeMediaConnectGateway, store.RelAttachedTo},
+	)
 }
 
 // resolveMediaConnectBridgeChildren attaches bridge-output / bridge-source to
@@ -169,6 +172,45 @@ func resolveMediaConnectFlowChildren(acct *account, st *store.Store) error {
 			if err := emit(sv(e.EntitlementArn), TypeMediaConnectFlowEntitlement, entSet); err != nil {
 				return fmt.Errorf("upsert mc-flow-entitlement→flow: %w", err)
 			}
+		}
+	}
+	return nil
+}
+
+// resolveMediaConnectBridgePlacement wires each bridge to the placement
+// gateway it runs on (PlacementArn — already on the ListedBridge summary
+// shape, no Describe fan-out needed).
+func resolveMediaConnectBridgePlacement(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaConnectBridge}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	gwSet, err := scannedIDSet(acct, st, TypeMediaConnectGateway)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			PlacementArn *string `json:"PlacementArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ga := sv(attrs.PlacementArn)
+		if ga == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeMediaConnectGateway, ga)
+		if !gwSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert mediaconnect bridge→gateway: %w", err)
 		}
 	}
 	return nil

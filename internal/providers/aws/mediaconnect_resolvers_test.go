@@ -71,3 +71,21 @@ func TestResolveMediaConnectFlowChildren(t *testing.T) {
 	rels, _ = st.RelationshipsFrom(entID)
 	assertRelationship(t, rels, entID, fID, store.RelAttachedTo)
 }
+
+func TestResolveMediaConnectBridgePlacement(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	bARN := fmt.Sprintf("arn:aws:mediaconnect:%s:%s:bridge:1", testRegion, acct.ID)
+	gARN := fmt.Sprintf("arn:aws:mediaconnect:%s:%s:gateway:gw-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"PlacementArn":%q}`, gARN)
+
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaConnectBridge, bARN, testRegion, attrs)
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaConnectGateway, gARN, testRegion, "{}")
+
+	if err := resolveMediaConnectBridgePlacement(acct, st); err != nil {
+		t.Fatalf("resolveMediaConnectBridgePlacement: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(bID)
+	assertRelationship(t, rels, bID, gID, store.RelAttachedTo)
+}

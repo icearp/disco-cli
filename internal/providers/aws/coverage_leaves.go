@@ -500,8 +500,9 @@ var leafTypes = map[string]bool{
 	// ip-access-settings / session-logger / trust-store / user-settings —
 	// portal/web-acl/customer-managed-policy refs live on associated
 	// portal Describe; List* summaries are leaf today.
-	// MediaConnect — flow/bridge/gateway/router-* refs live on Describe*.
-	"aws:mediaconnect:bridge":                   true,
+	// MediaConnect — flow/gateway carry only intra-service child refs already
+	// wired via per-child resolvers; bridge has PlacementArn → gateway and
+	// is a source-side resolver. router-* refs live on Describe*.
 	"aws:mediaconnect:flow":                     true,
 	"aws:mediaconnect:gateway":                  true,
 	"aws:mediaconnect:router-input":             true,
