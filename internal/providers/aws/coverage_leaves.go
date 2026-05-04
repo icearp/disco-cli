@@ -325,4 +325,83 @@ var leafTypes = map[string]bool{
 	"aws:route53resolver:firewall-domain-list": true,
 	"aws:route53resolver:firewall-rule-group":  true,
 	"aws:route53resolver:outpost-resolver":     true,
+	// IAM auth singletons. Already covered as targets via user→key/mfa
+	// hierarchy (resolveAccessKeyUsers, resolveMFADeviceToUser) and
+	// role→saml/oidc-provider (iam policy walker). No outbound source edges.
+	"aws:iam:access-key":         true,
+	"aws:iam:virtual-mfa-device": true,
+	"aws:iam:server-certificate": true,
+	"aws:iam:saml-provider":      true,
+	"aws:iam:oidc-provider":      true,
+	// Cassandra (Keyspaces) — list ops return summary only (ResourceArn,
+	// names). Cross-service refs (KMS, custom encryption) live on
+	// GetTable Describe; not enriched today, treat as leaf until enriched.
+	"aws:cassandra:keyspace": true,
+	"aws:cassandra:table":    true,
+	"aws:cassandra:type":     true,
+	// Cost-domain types — internal cost-API IDs only; no scanned-resource refs.
+	"aws:bcmpricingcalculator:bill-scenario": true,
+	"aws:billing:billing-view":               true,
+	"aws:billingconductor:billing-group":     true,
+	"aws:billingconductor:pricing-plan":      true,
+	"aws:billingconductor:pricing-rule":      true,
+	"aws:braket:spending-limit":              true,
+	"aws:budgets:budgets-action":             true,
+	"aws:ce:anomaly-monitor":                 true,
+	"aws:ce:anomaly-subscription":            true,
+	"aws:ce:cost-category":                   true,
+	"aws:cur:report-definition":              true,
+	"aws:invoicing:invoice-unit":             true,
+	// SMS-Voice (Pinpoint v2 messaging) — phone-numbers, pools, sender-IDs
+	// are external telco assets; configuration-set/opt-out-list/protect-config
+	// are config singletons.
+	"aws:sms-voice:configuration-set":     true,
+	"aws:sms-voice:opt-out-list":          true,
+	"aws:sms-voice:phone-number":          true,
+	"aws:sms-voice:pool":                  true,
+	"aws:sms-voice:protect-configuration": true,
+	"aws:sms-voice:sender-id":             true,
+	// Pinpoint message templates — content blobs, no resource refs.
+	"aws:pinpoint:email-template":  true,
+	"aws:pinpoint:in-app-template": true,
+	"aws:pinpoint:push-template":   true,
+	"aws:pinpoint:sms-template":    true,
+	// Personalize schema is a JSON document, not a graph node.
+	"aws:personalize:schema": true,
+	// QuickSight content artefacts (theme/template/topic/custom-permissions).
+	// Refs to data-sets / data-sources live on analysis/dashboard, not these.
+	"aws:quicksight:theme":              true,
+	"aws:quicksight:template":           true,
+	"aws:quicksight:topic":              true,
+	"aws:quicksight:custom-permissions": true,
+	// Chatbot channel configurations — channel IDs are external Slack/Teams,
+	// not disco resources. SNS topics referenced lives on top-level
+	// resolveChatbotSNSTopics; configuration rows themselves are leaves.
+	"aws:chatbot:slack-channel-configuration":           true,
+	"aws:chatbot:microsoft-teams-channel-configuration": true,
+	"aws:chatbot:custom-action":                         true,
+	// Support App Slack — same Slack-external story as Chatbot.
+	"aws:support-app:slack-channel-configuration":   true,
+	"aws:support-app:slack-workspace-configuration": true,
+	// SES legacy receipt-* types — SES v1 only; modern SES uses Mail Manager
+	// (already wired). Receipt-rule covered as target via receipt-rule-set.
+	"aws:ses:receipt-filter":   true,
+	"aws:ses:receipt-rule-set": true,
+	// Preview-stage SDK services — schemas published ahead of GA APIs;
+	// re-evaluate when scanner emits richer attrs.
+	"aws:route53globalresolver:access-source":           true,
+	"aws:route53globalresolver:access-token":            true,
+	"aws:route53globalresolver:dns-view":                true,
+	"aws:route53globalresolver:firewall-domain-list":    true,
+	"aws:route53globalresolver:firewall-rule":           true,
+	"aws:route53globalresolver:global-resolver":         true,
+	"aws:route53globalresolver:hosted-zone-association": true,
+	"aws:security-agent:agent-space":                    true,
+	"aws:security-agent:application":                    true,
+	"aws:security-agent:pentest":                        true,
+	"aws:security-agent:target-domain":                  true,
+	"aws:dev-ops-agent:agent-space":                     true,
+	"aws:dev-ops-agent:association":                     true,
+	"aws:dev-ops-agent:service":                         true,
+	"aws:nova-act:workflow-definition":                  true,
 }
