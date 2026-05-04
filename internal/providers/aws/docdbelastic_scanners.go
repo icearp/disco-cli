@@ -21,6 +21,7 @@ func init() {
 
 type docDBElasticAPI interface {
 	ListClusters(context.Context, *docdbelastic.ListClustersInput, ...func(*docdbelastic.Options)) (*docdbelastic.ListClustersOutput, error)
+	GetCluster(context.Context, *docdbelastic.GetClusterInput, ...func(*docdbelastic.Options)) (*docdbelastic.GetClusterOutput, error)
 }
 
 // scanDocDBElastic discovers DocumentDB Elastic clusters.
@@ -43,11 +44,15 @@ func scanDocDBElastic(ctx context.Context, acct *account, region string, st *sto
 				continue
 			}
 			status := string(c.Status)
+			attrsJSON := mustJSON(c)
+			if gout, gerr := client.GetCluster(ctx, &docdbelastic.GetClusterInput{ClusterArn: c.ClusterArn}); gerr == nil && gout.Cluster != nil {
+				attrsJSON = mustJSON(gout.Cluster)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDocDBElasticCluster, NativeID: arn,
 				Name: c.ClusterName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

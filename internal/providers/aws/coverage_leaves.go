@@ -560,7 +560,6 @@ var leafTypes = map[string]bool{
 	"aws:datazone:domain":                                      true,
 	"aws:directconnect:direct-connect-gateway":                 true,
 	"aws:directconnect:lag":                                    true,
-	"aws:doc-db-elastic:cluster":                               true,
 	"aws:ec2:ipam":                                             true,
 	"aws:ec2:ipam-prefix-list-resolver":                        true,
 	"aws:ec2:ipam-resource-discovery":                          true,
