@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -59,6 +60,61 @@ func init() {
 	registerResolver(resolveNMConnectPeerRefs,
 		EdgeDecl{TypeNetworkManagerConnectPeer, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
+	registerResolver(resolveNMCorePLAssocRefs,
+		EdgeDecl{TypeNetworkManagerCoreNetworkPrefixListAssociation, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
+		EdgeDecl{TypeNetworkManagerCoreNetworkPrefixListAssociation, TypeEC2PrefixList, store.RelAttachedTo},
+	)
+}
+
+// resolveNMCorePLAssocRefs wires core-network-prefix-list-association →
+// core-network (NativeID strip on `/prefix-list-association/`) and EC2 prefix-
+// list (PrefixListArn).
+func resolveNMCorePLAssocRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkManagerCoreNetworkPrefixListAssociation}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	cnSet, err := scannedIDSet(acct, st, TypeNetworkManagerCoreNetwork)
+	if err != nil {
+		return err
+	}
+	plSet, err := scannedIDSet(acct, st, TypeEC2PrefixList)
+	if err != nil {
+		return err
+	}
+	const seg = "/prefix-list-association/"
+	for _, r := range rows {
+		i := strings.Index(r.NativeID, seg)
+		if i > 0 {
+			parent := r.NativeID[:i]
+			tgtID := store.ResourceID("aws", acct.ID, TypeNetworkManagerCoreNetwork, parent)
+			if cnSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert nm pla→cn: %w", err)
+				}
+			}
+		}
+		var attrs struct {
+			PrefixListArn *string `json:"PrefixListArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if pl := sv(attrs.PrefixListArn); pl != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2PrefixList, pl)
+			if plSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert nm pla→pl: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nmGlobalNetworkID rebuilds the canonical NetworkManager GlobalNetwork ARN

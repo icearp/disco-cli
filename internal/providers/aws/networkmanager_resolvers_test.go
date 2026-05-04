@@ -454,3 +454,21 @@ func TestResolveNMConnectPeerRefs_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveNMCorePLAssocRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cnARN := fmt.Sprintf("arn:aws:networkmanager::%s:core-network/core-1", acct.ID)
+	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork, cnARN, testRegion, "{}")
+	plARN := fmt.Sprintf("arn:aws:ec2:%s:%s:prefix-list/pl-1", testRegion, acct.ID)
+	plID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2PrefixList, plARN, testRegion, "{}")
+	paARN := fmt.Sprintf("%s/prefix-list-association/%s", cnARN, plARN)
+	paID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetworkPrefixListAssociation, paARN, testRegion,
+		fmt.Sprintf(`{"PrefixListArn":"%s"}`, plARN))
+	if err := resolveNMCorePLAssocRefs(acct, st); err != nil {
+		t.Fatalf("resolveNMCorePLAssocRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(paID)
+	assertRelationship(t, rels, paID, cnID, store.RelAttachedTo)
+	assertRelationship(t, rels, paID, plID, store.RelAttachedTo)
+}
