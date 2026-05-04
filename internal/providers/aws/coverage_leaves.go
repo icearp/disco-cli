@@ -745,8 +745,6 @@ var leafTypes = map[string]bool{
 	"aws:location:route-calculator": true,
 	// Timestream LiveAnalytics + InfluxDB — refs (KMS, S3, VPC) live on
 	// Describe* per resource.
-	"aws:timestream:influx-db-cluster":  true,
-	"aws:timestream:influx-db-instance": true,
 	// SSM document/maintenance-window/patch-baseline — already wired as
 	// targets of association/maintenance-window-task; source-side refs
 	// (Attachments) still need additional Describe enrichment beyond Requires.

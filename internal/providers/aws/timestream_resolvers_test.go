@@ -7,6 +7,34 @@ import (
 	"codeberg.org/icearp/disco/internal/store"
 )
 
+func TestResolveTSInfluxRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cARN := fmt.Sprintf("arn:aws:timestream-influxdb:%s:%s:db-cluster/c1", testRegion, acct.ID)
+	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
+	secretARN := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:influx-auth-AbCd", testRegion, acct.ID)
+	bName := "influx-logs"
+	bARN := "arn:aws:s3:::" + bName
+	attrs := fmt.Sprintf(`{"VpcSubnetIds":["subnet-1"],"VpcSecurityGroupIds":["sg-1"],"InfluxAuthParametersSecretArn":%q,"LogDeliveryConfiguration":{"S3Configuration":{"BucketName":%q}}}`, secretARN, bName)
+
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeTimestreamInfluxDBCluster, cARN, testRegion, attrs)
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
+	secID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secretARN, testRegion, "{}")
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bARN, testRegion, "{}")
+
+	if err := resolveTSInfluxRefs(acct, st); err != nil {
+		t.Fatalf("resolveTSInfluxRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, subID, store.RelAttachedTo)
+	assertRelationship(t, rels, cID, sgID, store.RelUses)
+	assertRelationship(t, rels, cID, secID, store.RelUses)
+	assertRelationship(t, rels, cID, bID, store.RelUses)
+}
+
 func TestResolveTSDatabaseKMS(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

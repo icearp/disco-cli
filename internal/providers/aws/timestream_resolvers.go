@@ -22,6 +22,102 @@ func init() {
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeSNSTopic, store.RelRoutesTo},
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(resolveTSInfluxRefs,
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeEC2SecurityGroup, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveTSInfluxRefs wires each Timestream-for-InfluxDB cluster + instance
+// to its VPC subnets, security groups, auth-parameters secret, and log
+// delivery S3 bucket. Cluster + instance share the same field set; resolver
+// loops both types.
+func resolveTSInfluxRefs(acct *account, st *store.Store) error {
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	secretSet, err := scannedIDSet(acct, st, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, ttyp := range []string{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBInstance} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				VpcSubnetIds                  []string `json:"VpcSubnetIds"`
+				VpcSecurityGroupIds           []string `json:"VpcSecurityGroupIds"`
+				InfluxAuthParametersSecretArn *string  `json:"InfluxAuthParametersSecretArn"`
+				LogDeliveryConfiguration      *struct {
+					S3Configuration *struct {
+						BucketName *string `json:"BucketName"`
+					} `json:"S3Configuration"`
+				} `json:"LogDeliveryConfiguration"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			region := sv(r.Region)
+			for _, sub := range attrs.VpcSubnetIds {
+				sARN := ec2ARN(region, acct.ID, "subnet", sub)
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
+				if !subnetSet[tgt] {
+					continue
+				}
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ts-influx→subnet: %w", err)
+				}
+			}
+			for _, sg := range attrs.VpcSecurityGroupIds {
+				gARN := ec2ARN(region, acct.ID, "security-group", sg)
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, gARN)
+				if !sgSet[tgt] {
+					continue
+				}
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ts-influx→sg: %w", err)
+				}
+			}
+			if sa := sv(attrs.InfluxAuthParametersSecretArn); sa != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+				if secretSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert ts-influx→secret: %w", err)
+					}
+				}
+			}
+			if attrs.LogDeliveryConfiguration != nil && attrs.LogDeliveryConfiguration.S3Configuration != nil {
+				if b := sv(attrs.LogDeliveryConfiguration.S3Configuration.BucketName); b != "" {
+					tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+					if bucketSet[tgt] {
+						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+							return fmt.Errorf("upsert ts-influx→s3: %w", err)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveTSDatabaseKMS wires each Timestream LiveAnalytics database to its

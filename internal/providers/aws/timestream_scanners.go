@@ -46,6 +46,8 @@ type tsQueryAPI interface {
 type tsInfluxAPI interface {
 	ListDbClusters(context.Context, *timestreaminfluxdb.ListDbClustersInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbClustersOutput, error)
 	ListDbInstances(context.Context, *timestreaminfluxdb.ListDbInstancesInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbInstancesOutput, error)
+	GetDbCluster(context.Context, *timestreaminfluxdb.GetDbClusterInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbClusterOutput, error)
+	GetDbInstance(context.Context, *timestreaminfluxdb.GetDbInstanceInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbInstanceOutput, error)
 }
 
 // scanTimestream discovers Timestream resources across three SDK clients:
@@ -195,11 +197,26 @@ func scanTSInfluxClusters(ctx context.Context, client tsInfluxAPI, acct *account
 				continue
 			}
 			status := string(c.Status)
+			// Enrich with GetDbCluster body — VpcSubnetIds, VpcSecurityGroupIds,
+			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are not on
+			// the list-summary shape.
+			attrs := mustJSON(c)
+			cid := c.Id
+			if cid != nil {
+				gout, gerr := client.GetDbCluster(ctx, &timestreaminfluxdb.GetDbClusterInput{DbClusterId: cid})
+				if gerr != nil {
+					if isAccessDenied(gerr) {
+						_ = skipIfAccessDenied(st, "timestream:GetDbCluster", acct.ID, region, gerr)
+					}
+				} else if gout != nil {
+					attrs = mustJSON(gout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeTimestreamInfluxDBCluster, NativeID: arn,
 				Name: c.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -217,17 +234,32 @@ func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *accoun
 			}
 			return 0, 0, fmt.Errorf("timestream:ListDbInstances: %w", err)
 		}
-		for _, i := range out.Items {
-			arn := sv(i.Arn)
+		for _, inst := range out.Items {
+			arn := sv(inst.Arn)
 			if arn == "" {
 				continue
 			}
-			status := string(i.Status)
+			status := string(inst.Status)
+			// Enrich with GetDbInstance body — VpcSubnetIds, VpcSecurityGroupIds,
+			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are not on
+			// the list-summary shape.
+			attrs := mustJSON(inst)
+			iid := inst.Id
+			if iid != nil {
+				gout, gerr := client.GetDbInstance(ctx, &timestreaminfluxdb.GetDbInstanceInput{Identifier: iid})
+				if gerr != nil {
+					if isAccessDenied(gerr) {
+						_ = skipIfAccessDenied(st, "timestream:GetDbInstance", acct.ID, region, gerr)
+					}
+				} else if gout != nil {
+					attrs = mustJSON(gout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeTimestreamInfluxDBInstance, NativeID: arn,
-				Name: i.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(i), DiscoveredBy: scanID,
+				Name: inst.Name, Region: &region, Status: &status,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
