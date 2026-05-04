@@ -549,7 +549,6 @@ var leafTypes = map[string]bool{
 	"aws:connect-campaigns:campaign":                           true,
 	"aws:connect-campaigns-v2:campaign":                        true,
 	"aws:controltower:enabled-control":                         true,
-	"aws:datazone:domain":                                      true,
 	"aws:directconnect:direct-connect-gateway":                 true,
 	"aws:directconnect:lag":                                    true,
 	"aws:ec2:ipam":                                             true,

@@ -137,10 +137,13 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 				continue
 			}
 			dd := &dzDomain{id: id}
-			// fetch RootDomainUnitId for downstream walk
+			attrsJSON := mustJSON(d)
+			// Fetch the full body for RootDomainUnitId (downstream walk) and
+			// resolver-side fields (KmsKeyIdentifier, *Role).
 			gout, derr := client.GetDomain(ctx, &datazone.GetDomainInput{Identifier: &id})
 			if derr == nil {
 				dd.rootUnitID = sv(gout.RootDomainUnitId)
+				attrsJSON = mustJSON(gout)
 			} else if !isAccessDenied(derr) {
 				return nil, 0, 0, fmt.Errorf("datazone:GetDomain %s: %w", id, derr)
 			}
@@ -152,7 +155,7 @@ func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account,
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDataZoneDomain, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}

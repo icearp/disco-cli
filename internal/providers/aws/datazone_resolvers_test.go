@@ -57,3 +57,24 @@ func TestResolveDataZoneEnvActionsToEnvironment(t *testing.T) {
 	rels, _ = st.RelationshipsFrom(stID)
 	assertRelationship(t, rels, stID, envID, store.RelAttachedTo)
 }
+
+func TestResolveDataZoneDomainRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	dARN := "arn:aws:datazone:us-east-1:" + testAccountID + ":domain/dom-1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-dz"
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/dz"
+	attrs := `{"KmsKeyIdentifier":"` + keyARN + `","DomainExecutionRole":"` + roleARN + `"}`
+
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneDomain, dARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+
+	if err := resolveDataZoneDomainRefs(acct, st); err != nil {
+		t.Fatalf("resolveDataZoneDomainRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, kID, store.RelUses)
+	assertRelationship(t, rels, dID, rID, store.RelAssumes)
+}
