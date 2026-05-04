@@ -45,3 +45,20 @@ func TestResolveKinesisStreamRelationships_AWSManagedKey(t *testing.T) {
 		t.Errorf("expected 0 rels for AWS-managed key, got %d", len(rels))
 	}
 }
+
+func TestResolveKinesisStreamConsumerToStream(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	streamARN := "arn:aws:kinesis:us-east-1:" + testAccountID + ":stream/orders"
+	consumerARN := streamARN + "/consumer/proc:1700000000"
+
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStreamConsumer, consumerARN, testRegion, "{}")
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, streamARN, testRegion, "{}")
+
+	if err := resolveKinesisStreamConsumerToStream(acct, st); err != nil {
+		t.Fatalf("resolveKinesisStreamConsumerToStream: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, sID, store.RelAttachedTo)
+}

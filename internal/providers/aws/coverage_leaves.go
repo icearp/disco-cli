@@ -805,7 +805,6 @@ var leafTypes = map[string]bool{
 	"aws:kinesis-video:signaling-channel":    true,
 	"aws:kinesis-video:stream":               true,
 	"aws:kinesis:resource-policy":            true,
-	"aws:kinesis:stream-consumer":            true,
 	"aws:kafka:configuration":                true,
 	"aws:kafka-connect:custom-plugin":        true,
 	"aws:kafka-connect:worker-configuration": true,
