@@ -84,3 +84,22 @@ func TestResolveDetectiveMemberOrgAccount_MalformedAttrs(t *testing.T) {
 		t.Fatalf("resolveDetectiveMemberOrgAccount: %v", err)
 	}
 }
+
+func TestResolveDetectiveOrgAdminRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	gARN := detectiveGraphARN()
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeDetectiveGraph, gARN, testRegion, "{}")
+	orgARN := fmt.Sprintf("arn:aws:organizations::%s:account/o-1/210987654321", acct.ID)
+	orgID := upsertTestResource(t, st, "aws", acct.ID, TypeOrganizationsAccount, orgARN, "",
+		`{"Id":"210987654321","Arn":"`+orgARN+`"}`)
+	oaARN := fmt.Sprintf("arn:aws:detective:%s:%s:organization-admin/210987654321", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"AccountId":"210987654321","GraphArn":"%s"}`, gARN)
+	oaID := upsertTestResource(t, st, "aws", acct.ID, TypeDetectiveOrganizationAdmin, oaARN, testRegion, attrs)
+	if err := resolveDetectiveOrgAdminRefs(acct, st); err != nil {
+		t.Fatalf("resolveDetectiveOrgAdminRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(oaID)
+	assertRelationship(t, rels, oaID, gID, store.RelAttachedTo)
+	assertRelationship(t, rels, oaID, orgID, store.RelAttachedTo)
+}

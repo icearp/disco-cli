@@ -12,6 +12,59 @@ func init() {
 	registerResolver(resolveDetectiveMemberOrgAccount,
 		EdgeDecl{TypeDetectiveMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(resolveDetectiveOrgAdminRefs,
+		EdgeDecl{TypeDetectiveOrganizationAdmin, TypeDetectiveGraph, store.RelAttachedTo},
+		EdgeDecl{TypeDetectiveOrganizationAdmin, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
+}
+
+// resolveDetectiveOrgAdminRefs wires each delegated-administrator row to its
+// behavior graph (GraphArn) and to the Organizations account row when the org
+// tree is scanned.
+func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDetectiveOrganizationAdmin}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	graphSet, err := scannedIDSet(acct, st, TypeDetectiveGraph)
+	if err != nil {
+		return err
+	}
+	orgArnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			AccountId *string `json:"AccountId"`
+			GraphArn  *string `json:"GraphArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if g := sv(attrs.GraphArn); g != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeDetectiveGraph, g)
+			if graphSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert detective oa→graph: %w", err)
+				}
+			}
+		}
+		if a := sv(attrs.AccountId); a != "" && len(orgArnByID) > 0 {
+			if orgARN, ok := orgArnByID[a]; ok {
+				orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+				if err := st.UpsertRelationship(r.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert detective oa→org account: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // detectiveMemberAttrs mirrors the verbatim MemberDetail fields used by the
