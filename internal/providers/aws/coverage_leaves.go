@@ -526,6 +526,84 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-input":             true,
 	"aws:mediaconnect:router-network-interface": true,
 	"aws:mediaconnect:router-output":            true,
+	// IdentityStore user + group — identity rows; membership wired via
+	// dedicated resolver, but user/group themselves have no outbound refs.
+	"aws:identitystore:user":  true,
+	"aws:identitystore:group": true,
+	// Managed Blockchain accessor/member/node — network type not scanned,
+	// no other targets.
+	"aws:managed-blockchain:accessor": true,
+	"aws:managed-blockchain:member":   true,
+	"aws:managed-blockchain:node":     true,
+	// MediaConvert job-template/preset/queue — refs (KMS for queue, IAM)
+	// only on Get* per-resource. Deferred.
+	"aws:media-convert:job-template": true,
+	"aws:media-convert:preset":       true,
+	"aws:media-convert:queue":        true,
+	// MediaTailor channel/playback-config/source-location — refs (CDN, ad
+	// servers) external; intra-service refs on Get bodies. Deferred.
+	"aws:mediatailor:channel":                true,
+	"aws:mediatailor:playback-configuration": true,
+	"aws:mediatailor:source-location":        true,
+	// ODB (Oracle Database@AWS) preview-stage SDK.
+	"aws:odb:cloud-autonomous-vm-cluster":  true,
+	"aws:odb:cloud-exadata-infrastructure": true,
+	"aws:odb:cloud-vm-cluster":             true,
+	"aws:odb:odb-network":                  true,
+	"aws:odb:odb-peering-connection":       true,
+	// S3 catalog leaves — access-grants-instance/multi-region-access-point/
+	// storage-lens-group refs live on Get* per resource (deferred).
+	"aws:s3:access-grants-instance":    true,
+	"aws:s3:multi-region-access-point": true,
+	"aws:s3:storage-lens-group":        true,
+	// S3Vectors preview SDK.
+	"aws:s3vectors:index":                true,
+	"aws:s3vectors:vector-bucket":        true,
+	"aws:s3vectors:vector-bucket-policy": true,
+	// Batch consumable-resource/scheduling-policy/service-environment —
+	// pure config rows, no x-service refs.
+	"aws:batch:consumable-resource": true,
+	"aws:batch:scheduling-policy":   true,
+	"aws:batch:service-environment": true,
+	// Cleanrooms-ML configured-model-algorithm + association + training-
+	// dataset — KMS/IAM refs on Get*, not list summary.
+	"aws:cleanrooms-ml:configured-model-algorithm":             true,
+	"aws:cleanrooms-ml:configured-model-algorithm-association": true,
+	"aws:cleanrooms-ml:training-dataset":                       true,
+	// DevOps Guru config rows.
+	"aws:devops-guru:log-anomaly-detection-integration": true,
+	"aws:devops-guru:notification-channel":              true,
+	"aws:devops-guru:resource-collection":               true,
+	// X-Ray group + resource-policy (config singletons).
+	"aws:xray:group":           true,
+	"aws:xray:resource-policy": true,
+	// Security Lake data-lake/aws-log-source/subscriber — refs on Get
+	// bodies, deferred.
+	"aws:security-lake:aws-log-source": true,
+	"aws:security-lake:data-lake":      true,
+	"aws:security-lake:subscriber":     true,
+	// VPC Lattice list-summary types — refs (cert ARN, security groups,
+	// auth-policy) live on Get* per resource. Domain-verification is name-
+	// only. Deferred enrichment.
+	"aws:vpclattice:domain-verification": true,
+	"aws:vpclattice:service":             true,
+	"aws:vpclattice:service-network":     true,
+	// WAFv2 ip-set/regex-pattern-set/rule-group — pure rule-data containers,
+	// no x-service refs (rule-group rules name OTHER rule-groups via
+	// statement nesting which is separate parser surface).
+	"aws:wafv2:ip-set":            true,
+	"aws:wafv2:regex-pattern-set": true,
+	"aws:wafv2:rule-group":        true,
+	// rtbfabric (preview-stage SDK).
+	"aws:rtbfabric:link":              true,
+	"aws:rtbfabric:requester-gateway": true,
+	"aws:rtbfabric:responder-gateway": true,
+	// Workspaces classic — connection-alias/workspaces-pool/workspace
+	// summaries lack ARNs for downstream refs (KMS/directory live on
+	// Describe-per-id deferred).
+	"aws:work-spaces:connection-alias": true,
+	"aws:work-spaces:workspaces-pool":  true,
+	"aws:work-spaces:workspace":        true,
 	// AppRegistry application + attribute-group are name containers (links
 	// arrive via {ag,resource}-assoc resolvers). No outbound refs on summary.
 	"aws:service-catalog-app-registry:application":     true,
