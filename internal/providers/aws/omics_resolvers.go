@@ -12,6 +12,12 @@ func init() {
 	registerResolver(resolveOmicsWorkflowVersionParent,
 		EdgeDecl{TypeOmicsWorkflowVersion, TypeOmicsWorkflow, store.RelAttachedTo},
 	)
+	registerResolver(resolveOmicsStoreKMS,
+		EdgeDecl{TypeOmicsAnnotationStore, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeOmicsVariantStore, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeOmicsReferenceStore, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeOmicsSequenceStore, TypeKMSKey, store.RelUses},
+	)
 }
 
 // resolveOmicsWorkflowVersionParent wires each workflow-version to its
@@ -75,4 +81,54 @@ func omicsWorkflowIDIndex(acct *account, st *store.Store) (map[string]string, er
 		}
 	}
 	return idx, nil
+}
+
+// resolveOmicsStoreKMS wires every omics store row (annotation/variant/
+// reference/sequence) to the KMS key in SseConfig.KeyArn. Single resolver fans
+// over the four types so the KMS index is loaded once per account.
+func resolveOmicsStoreKMS(acct *account, st *store.Store) error {
+	storeTypes := []string{
+		TypeOmicsAnnotationStore,
+		TypeOmicsVariantStore,
+		TypeOmicsReferenceStore,
+		TypeOmicsSequenceStore,
+	}
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: storeTypes, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SseConfig *struct {
+				KeyArn *string `json:"KeyArn"`
+			} `json:"SseConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.SseConfig == nil {
+			continue
+		}
+		ref := sv(attrs.SseConfig.KeyArn)
+		if ref == "" {
+			continue
+		}
+		id, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID)
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert omics store→kms: %w", err)
+		}
+	}
+	return nil
 }
