@@ -193,6 +193,10 @@ func runMissingResolvers(w stdoutWriter, provName string) error {
 	}
 	emitted := make(map[string]struct{})
 	for _, decl := range prov.Emits() {
+		if decl.Leaf {
+			// Intentional no-edge type — excluded from gap inventory.
+			continue
+		}
 		emitted[decl.DiscoType] = struct{}{}
 	}
 	sources := make(map[string]struct{})
