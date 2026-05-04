@@ -73,7 +73,6 @@ var leafTypes = map[string]bool{
 	"aws:iot:scheduled-audit":                         true,
 	"aws:iot:billing-group":                           true,
 	"aws:iot:thing-type":                              true,
-	"aws:iot:certificate":                             true,
 	"aws:iot:ca-certificate":                          true,
 	"aws:iot:certificate-provider":                    true,
 	"aws:iot:command":                                 true,

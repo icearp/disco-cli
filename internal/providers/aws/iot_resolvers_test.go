@@ -337,3 +337,24 @@ func TestResolveIoTThingPrincipalAttachmentRefs_EmptyAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveIoTCertificateCA(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	caID := "ca-abc"
+	caARN := "arn:aws:iot:us-east-1:" + testAccountID + ":cacert/" + caID
+	certID := "cert-xyz"
+	certARN := "arn:aws:iot:us-east-1:" + testAccountID + ":cert/" + certID
+
+	caAttrs := `{"CertificateDescription":{"CertificateId":"` + caID + `"}}`
+	cAttrs := `{"CertificateDescription":{"CaCertificateId":"` + caID + `"}}`
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTCertificate, certARN, testRegion, cAttrs)
+	caResID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTCACertificate, caARN, testRegion, caAttrs)
+
+	if err := resolveIoTCertificateCA(acct, st); err != nil {
+		t.Fatalf("resolveIoTCertificateCA: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, caResID, store.RelAttachedTo)
+}

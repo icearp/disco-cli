@@ -986,3 +986,76 @@ func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) err
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveIoTCertificateCA,
+		EdgeDecl{TypeIoTCertificate, TypeIoTCACertificate, store.RelAttachedTo},
+	)
+}
+
+// resolveIoTCertificateCA wires each device certificate to its issuing CA
+// certificate via CertificateDescription.CaCertificateId. The CA cert's
+// NativeID is its full ARN; build a (region, ID) → resource id index from
+// scanned CA cert rows since CertificateId alone doesn't yield the ARN shape.
+func resolveIoTCertificateCA(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTCertificate}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	caRows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTCACertificate}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	// Index CA certs by (region, certificate-id); fall back to bare-id index.
+	caByRegionID := make(map[string]string, len(caRows))
+	for _, c := range caRows {
+		var caAttrs struct {
+			CertificateDescription *struct {
+				CertificateID *string `json:"CertificateId"`
+			} `json:"CertificateDescription"`
+		}
+		if err := json.Unmarshal([]byte(c.AttributesJSON), &caAttrs); err != nil {
+			continue
+		}
+		if caAttrs.CertificateDescription == nil {
+			continue
+		}
+		id := sv(caAttrs.CertificateDescription.CertificateID)
+		if id == "" {
+			continue
+		}
+		caByRegionID[sv(c.Region)+"\x00"+id] = c.ID
+	}
+	for _, r := range rows {
+		var attrs struct {
+			CertificateDescription *struct {
+				CaCertificateID *string `json:"CaCertificateId"`
+			} `json:"CertificateDescription"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.CertificateDescription == nil {
+			continue
+		}
+		caID := sv(attrs.CertificateDescription.CaCertificateID)
+		if caID == "" {
+			continue
+		}
+		tgt, ok := caByRegionID[sv(r.Region)+"\x00"+caID]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert iot-cert→ca-cert: %w", err)
+		}
+	}
+	return nil
+}
