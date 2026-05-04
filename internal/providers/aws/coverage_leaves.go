@@ -552,7 +552,6 @@ var leafTypes = map[string]bool{
 	"aws:connect-campaigns:campaign":                           true,
 	"aws:connect-campaigns-v2:campaign":                        true,
 	"aws:controltower:enabled-control":                         true,
-	"aws:customer-profiles:domain":                             true,
 	"aws:databrew:dataset":                                     true,
 	"aws:databrew:ruleset":                                     true,
 	"aws:datasync:agent":                                       true,

@@ -28,6 +28,7 @@ func init() {
 
 type cpAPI interface {
 	ListDomains(context.Context, *customerprofiles.ListDomainsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListDomainsOutput, error)
+	GetDomain(context.Context, *customerprofiles.GetDomainInput, ...func(*customerprofiles.Options)) (*customerprofiles.GetDomainOutput, error)
 	ListRecommenders(context.Context, *customerprofiles.ListRecommendersInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListRecommendersOutput, error)
 	ListCalculatedAttributeDefinitions(context.Context, *customerprofiles.ListCalculatedAttributeDefinitionsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListCalculatedAttributeDefinitionsOutput, error)
 	ListEventStreams(context.Context, *customerprofiles.ListEventStreamsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListEventStreamsOutput, error)
@@ -100,10 +101,14 @@ func scanCPDomains(ctx context.Context, client cpAPI, acct *account, region stri
 			arn := cpARN(region, acct.ID, name)
 			label := name
 			names = append(names, name)
+			attrsJSON := mustJSON(d)
+			if gout, gerr := client.GetDomain(ctx, &customerprofiles.GetDomainInput{DomainName: d.DomainName}); gerr == nil {
+				attrsJSON = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCPDomain, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

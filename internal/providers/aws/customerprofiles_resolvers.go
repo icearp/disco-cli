@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -18,6 +19,59 @@ func init() {
 		EdgeDecl{TypeCPRecommender, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPSegmentDefinition, TypeCPDomain, store.RelAttachedTo},
 	)
+	registerResolver(resolveCPDomainRefs,
+		EdgeDecl{TypeCPDomain, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeCPDomain, TypeSQSQueue, store.RelRoutesTo},
+	)
+}
+
+// resolveCPDomainRefs wires each domain to its CMEK (DefaultEncryptionKey)
+// and SQS dead-letter queue (DeadLetterQueueUrl). GetDomain body shape.
+func resolveCPDomainRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCPDomain}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	sqsSet, err := scannedIDSet(acct, st, TypeSQSQueue)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DefaultEncryptionKey *string `json:"DefaultEncryptionKey"`
+			DeadLetterQueueURL   *string `json:"DeadLetterQueueUrl"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if ref := sv(attrs.DefaultEncryptionKey); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cp-domain→kms: %w", err)
+				}
+			}
+		}
+		if dlq := sv(attrs.DeadLetterQueueURL); dlq != "" {
+			if qarn := sqsQueueARNFromURL(dlq); qarn != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeSQSQueue, qarn)
+				if sqsSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert cp-domain→sqs-dlq: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // cpDomainARNFromChild extracts `arn:aws:profile:r:a:domains/{name}` from any
