@@ -429,3 +429,54 @@ func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store)
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveAppStreamAppBlockS3,
+		EdgeDecl{TypeAppStreamAppBlock, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveAppStreamAppBlockS3 wires each AppBlock to its source bucket via
+// SourceS3Location.S3Bucket. PostSetupScriptDetails / SetupScriptDetails
+// also carry script S3 paths but they typically reuse the source bucket.
+func resolveAppStreamAppBlockS3(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamAppBlock}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SourceS3Location *struct {
+				S3Bucket *string `json:"S3Bucket"`
+			} `json:"SourceS3Location"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.SourceS3Location == nil {
+			continue
+		}
+		b := sv(attrs.SourceS3Location.S3Bucket)
+		if b == "" {
+			continue
+		}
+		barn := "arn:aws:s3:::" + b
+		tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+		if !bucketSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert appstream-app-block→s3: %w", err)
+		}
+	}
+	return nil
+}

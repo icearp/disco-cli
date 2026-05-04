@@ -113,3 +113,21 @@ func TestResolveAppStreamApplicationEntitlementAssoc(t *testing.T) {
 	assertRelationship(t, rels, aID, sID, store.RelAttachedTo)
 	assertRelationship(t, rels, aID, eID, store.RelAttachedTo)
 }
+
+func TestResolveAppStreamAppBlockS3(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	abARN := "arn:aws:appstream:us-east-1:" + testAccountID + ":app-block/myBlock"
+	bARN := "arn:aws:s3:::appstream-source"
+	attrs := `{"SourceS3Location":{"S3Bucket":"appstream-source"}}`
+
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamAppBlock, abARN, testRegion, attrs)
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bARN, testRegion, "{}")
+
+	if err := resolveAppStreamAppBlockS3(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamAppBlockS3: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(abID)
+	assertRelationship(t, rels, abID, bID, store.RelUses)
+}
