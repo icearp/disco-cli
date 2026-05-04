@@ -412,4 +412,78 @@ var leafTypes = map[string]bool{
 	"aws:glue:registry":                      true,
 	"aws:glue:schema-version-metadata":       true,
 	"aws:glue:integration-resource-property": true,
+	// RDS-shape parameter / subnet / event-sub / global-cluster types — all
+	// summary-only with no scanned cross-service refs (KMS/SG/Subnet edges
+	// land on DBCluster / DBInstance which are already wired source-side).
+	"aws:rds:db-parameter-group":             true,
+	"aws:rds:db-security-group":              true, // deprecated EC2-Classic SG
+	"aws:rds:custom-db-engine-version":       true,
+	"aws:docdb:db-cluster-parameter-group":   true,
+	"aws:docdb:db-subnet-group":              true,
+	"aws:docdb:event-subscription":           true,
+	"aws:docdb:global-cluster":               true,
+	"aws:docdb:instance":                     true, // covered as cluster contains instance
+	"aws:neptune:db-cluster-parameter-group": true,
+	"aws:neptune:db-parameter-group":         true,
+	"aws:neptune:db-subnet-group":            true,
+	"aws:neptune:event-subscription":         true,
+	"aws:neptune:instance":                   true,
+	"aws:dax:parameter-group":                true,
+	"aws:memorydb:parameter-group":           true,
+	"aws:memorydb:multi-region-cluster":      true,
+	"aws:memorydb:user":                      true,
+	// Lifecycle / data-protection / catalogue policies — config + targets
+	// expressed as resource-tag matchers, not direct ARN refs.
+	"aws:dlm:lifecycle-policy": true,
+	"aws:rbin:rule":            true,
+	// Resource Access Manager — share + permission types are policy ARNs,
+	// not pointers to scanned resources.
+	"aws:ram:permission":     true,
+	"aws:ram:resource-share": true,
+	// Resource Explorer 2 — view + index + default-view-association are
+	// query metadata, no scanned target refs.
+	"aws:resource-explorer-2:default-view-association": true,
+	"aws:resource-explorer-2:index":                    true,
+	"aws:resource-explorer-2:view":                     true,
+	// Proton — template + cross-account env-connection types, no scanned-
+	// resource refs at the summary level.
+	"aws:proton:environment-account-connection": true,
+	"aws:proton:environment-template":           true,
+	"aws:proton:service-template":               true,
+	// Transfer Family summary-only types — refs (AccessRole, As2Config, etc.)
+	// live on Describe responses; mark Leaf until scanner enriches.
+	"aws:transfer:certificate": true,
+	"aws:transfer:connector":   true,
+	"aws:transfer:profile":     true,
+	"aws:transfer:web-app":     true,
+	"aws:transfer:workflow":    true,
+	// Personalize content rows.
+	"aws:personalize:dataset":       true,
+	"aws:personalize:dataset-group": true,
+	"aws:personalize:solution":      true,
+	// Rekognition — collection/project/stream-processor refs live on
+	// Describe responses, not list summaries.
+	"aws:rekognition:collection":       true,
+	"aws:rekognition:project":          true,
+	"aws:rekognition:stream-processor": true,
+	// FMS — policy/resource-set/notification-channel summary-only.
+	"aws:fms:policy":               true,
+	"aws:fms:resource-set":         true,
+	"aws:fms:notification-channel": true,
+	// EventSchemas — registry-only metadata.
+	"aws:event-schemas:discoverer": true,
+	"aws:event-schemas:registry":   true,
+	"aws:event-schemas:schema":     true,
+	// Observability Admin telemetry rule family — config singletons that
+	// reference services by name, not scanned ARNs.
+	"aws:observabilityadmin:organization-centralization-rule": true,
+	"aws:observabilityadmin:organization-telemetry-rule":      true,
+	"aws:observabilityadmin:s3-table-integration":             true,
+	"aws:observabilityadmin:telemetry-enrichment":             true,
+	"aws:observabilityadmin:telemetry-pipelines":              true,
+	"aws:observabilityadmin:telemetry-rule":                   true,
+	// Notifications config — channel-association + notification-config
+	// reference Notifications-internal IDs only.
+	"aws:notifications:managed-notification-additional-channel-association": true,
+	"aws:notifications:notification-configuration":                          true,
 }
