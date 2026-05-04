@@ -1,0 +1,207 @@
+package aws
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
+)
+
+func init() {
+	registerResolver(resolveTSDatabaseKMS,
+		EdgeDecl{TypeTimestreamDatabase, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveTSTableMagneticS3,
+		EdgeDecl{TypeTimestreamTable, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeTimestreamTable, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveTSScheduledQueryRefs,
+		EdgeDecl{TypeTimestreamScheduledQuery, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeTimestreamScheduledQuery, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeTimestreamScheduledQuery, TypeSNSTopic, store.RelRoutesTo},
+		EdgeDecl{TypeTimestreamScheduledQuery, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveTSDatabaseKMS wires each Timestream LiveAnalytics database to its
+// CMK (KmsKeyId — present on the ListDatabases summary so no Describe needed).
+func resolveTSDatabaseKMS(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamDatabase}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyId *string `json:"KmsKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		k := sv(attrs.KmsKeyId)
+		if k == "" {
+			continue
+		}
+		if keyID, ok := idx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert timestream database→kms: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveTSTableMagneticS3 wires each Timestream LiveAnalytics table to the
+// S3 bucket + KMS key holding its rejected-records error report
+// (MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration).
+func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamTable}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			MagneticStoreWriteProperties *struct {
+				MagneticStoreRejectedDataLocation *struct {
+					S3Configuration *struct {
+						BucketName *string `json:"BucketName"`
+						KmsKeyId   *string `json:"KmsKeyId"`
+					} `json:"S3Configuration"`
+				} `json:"MagneticStoreRejectedDataLocation"`
+			} `json:"MagneticStoreWriteProperties"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.MagneticStoreWriteProperties == nil ||
+			attrs.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation == nil ||
+			attrs.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration == nil {
+			continue
+		}
+		s3c := attrs.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration
+		if b := sv(s3c.BucketName); b != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+			if bucketSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert timestream table→s3: %w", err)
+				}
+			}
+		}
+		if k := sv(s3c.KmsKeyId); k != "" {
+			if keyID, ok := idx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert timestream table→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveTSScheduledQueryRefs wires each scheduled query to its execution
+// role, CMK, SNS notification topic, and error-report S3 bucket. All four
+// fields land on the DescribeScheduledQuery body (scanner enriches per row).
+func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamScheduledQuery}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	topicSet, err := scannedIDSet(acct, st, TypeSNSTopic)
+	if err != nil {
+		return err
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ScheduledQueryExecutionRoleArn *string `json:"ScheduledQueryExecutionRoleArn"`
+			KmsKeyId                       *string `json:"KmsKeyId"`
+			NotificationConfiguration      *struct {
+				SnsConfiguration *struct {
+					TopicArn *string `json:"TopicArn"`
+				} `json:"SnsConfiguration"`
+			} `json:"NotificationConfiguration"`
+			ErrorReportConfiguration *struct {
+				S3Configuration *struct {
+					BucketName *string `json:"BucketName"`
+				} `json:"S3Configuration"`
+			} `json:"ErrorReportConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if ra := sv(attrs.ScheduledQueryExecutionRoleArn); ra != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			if roleSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert timestream sq→role: %w", err)
+				}
+			}
+		}
+		if k := sv(attrs.KmsKeyId); k != "" {
+			if keyID, ok := idx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert timestream sq→kms: %w", err)
+				}
+			}
+		}
+		if attrs.NotificationConfiguration != nil && attrs.NotificationConfiguration.SnsConfiguration != nil {
+			if ta := sv(attrs.NotificationConfiguration.SnsConfiguration.TopicArn); ta != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeSNSTopic, ta)
+				if topicSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert timestream sq→sns: %w", err)
+					}
+				}
+			}
+		}
+		if attrs.ErrorReportConfiguration != nil && attrs.ErrorReportConfiguration.S3Configuration != nil {
+			if b := sv(attrs.ErrorReportConfiguration.S3Configuration.BucketName); b != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+b)
+				if bucketSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert timestream sq→s3: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}

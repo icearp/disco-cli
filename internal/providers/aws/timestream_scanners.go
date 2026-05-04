@@ -40,6 +40,7 @@ type tsWriteAPI interface {
 
 type tsQueryAPI interface {
 	ListScheduledQueries(context.Context, *timestreamquery.ListScheduledQueriesInput, ...func(*timestreamquery.Options)) (*timestreamquery.ListScheduledQueriesOutput, error)
+	DescribeScheduledQuery(context.Context, *timestreamquery.DescribeScheduledQueryInput, ...func(*timestreamquery.Options)) (*timestreamquery.DescribeScheduledQueryOutput, error)
 }
 
 type tsInfluxAPI interface {
@@ -153,11 +154,24 @@ func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *accoun
 				continue
 			}
 			state := string(q.State)
+			// Enrich with DescribeScheduledQuery body — KmsKeyId,
+			// ScheduledQueryExecutionRoleArn, ErrorReportConfiguration, and
+			// NotificationConfiguration are not on the list-summary shape.
+			attrs := mustJSON(q)
+			qarn := arn
+			dout, derr := client.DescribeScheduledQuery(ctx, &timestreamquery.DescribeScheduledQueryInput{ScheduledQueryArn: &qarn})
+			if derr != nil {
+				if isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "timestream:DescribeScheduledQuery", acct.ID, region, derr)
+				}
+			} else if dout != nil && dout.ScheduledQuery != nil {
+				attrs = mustJSON(dout.ScheduledQuery)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeTimestreamScheduledQuery, NativeID: arn,
 				Name: q.Name, Region: &region, Status: &state,
-				AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
