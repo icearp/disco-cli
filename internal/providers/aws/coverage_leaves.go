@@ -186,7 +186,6 @@ var leafTypes = map[string]bool{
 	"aws:appstream:user":                                         true,
 	"aws:appsync:api":                                            true,
 	"aws:appsync:domain-name":                                    true,
-	"aws:appsync:graphql-api":                                    true,
 	"aws:apigateway:api-key":                                     true,
 	"aws:apigateway:client-certificate":                          true,
 	"aws:apigateway:domain-name-access-association":              true,

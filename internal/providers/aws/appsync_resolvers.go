@@ -449,3 +449,107 @@ func resolveAppSyncDomainNameApiAssoc(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveAppSyncGraphQLAPIRefs,
+		EdgeDecl{TypeAppSyncGraphQLApi, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeAppSyncGraphQLApi, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeAppSyncGraphQLApi, TypeCognitoUserPool, store.RelUses},
+	)
+}
+
+// resolveAppSyncGraphQLAPIRefs wires GraphqlApi → Lambda authorizer
+// (LambdaAuthorizerConfig.AuthorizerUri), IAM CloudWatch logs role
+// (LogConfig.CloudWatchLogsRoleArn), MergedApi execution role, and
+// Cognito user pool (UserPoolConfig.UserPoolId / per-region).
+func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncGraphQLApi}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	lambdaSet, err := scannedIDSet(acct, st, TypeLambdaFunction)
+	if err != nil {
+		return err
+	}
+	upSet, err := scannedIDSet(acct, st, TypeCognitoUserPool)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			MergedApiExecutionRoleArn *string `json:"MergedApiExecutionRoleArn"`
+			LambdaAuthorizerConfig    *struct {
+				AuthorizerUri *string `json:"AuthorizerUri"`
+			} `json:"LambdaAuthorizerConfig"`
+			LogConfig *struct {
+				CloudWatchLogsRoleArn *string `json:"CloudWatchLogsRoleArn"`
+			} `json:"LogConfig"`
+			UserPoolConfig *struct {
+				UserPoolID *string `json:"UserPoolId"`
+				AwsRegion  *string `json:"AwsRegion"`
+			} `json:"UserPoolConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		emitRole := func(rarn string) error {
+			if !strings.Contains(rarn, ":role/") {
+				return nil
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			if !roleSet[tgt] {
+				return nil
+			}
+			return st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil)
+		}
+		if err := emitRole(sv(attrs.MergedApiExecutionRoleArn)); err != nil {
+			return fmt.Errorf("upsert appsync→merged-role: %w", err)
+		}
+		if attrs.LogConfig != nil {
+			if err := emitRole(sv(attrs.LogConfig.CloudWatchLogsRoleArn)); err != nil {
+				return fmt.Errorf("upsert appsync→logs-role: %w", err)
+			}
+		}
+		if attrs.LambdaAuthorizerConfig != nil {
+			larn := sv(attrs.LambdaAuthorizerConfig.AuthorizerUri)
+			if strings.Contains(larn, ":lambda:") && strings.Contains(larn, ":function:") {
+				// Strip optional :version/:alias suffix to canonical function ARN.
+				if i := strings.Index(larn, ":function:"); i > 0 {
+					tail := larn[i+len(":function:"):]
+					if j := strings.IndexByte(tail, ':'); j > 0 {
+						larn = larn[:i+len(":function:")+j]
+					}
+				}
+				tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+				if lambdaSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert appsync→lambda: %w", err)
+					}
+				}
+			}
+		}
+		if attrs.UserPoolConfig != nil {
+			upID := sv(attrs.UserPoolConfig.UserPoolID)
+			upRegion := sv(attrs.UserPoolConfig.AwsRegion)
+			if upID != "" && upRegion != "" {
+				upARN := "arn:aws:cognito-idp:" + upRegion + ":" + acct.ID + ":userpool/" + upID
+				tgt := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+				if upSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert appsync→user-pool: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
