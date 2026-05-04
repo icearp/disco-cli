@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -18,6 +19,14 @@ func init() {
 	)
 	registerResolver(resolveR53RFirewallRuleGroupAssoc,
 		EdgeDecl{TypeRoute53ResolverFirewallRuleGroupAssociation, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveR53RResolverRuleEndpoint,
+		EdgeDecl{TypeRoute53ResolverResolverRule, TypeRoute53ResolverResolverEndpoint, store.RelAttachedTo},
+	)
+	registerResolver(resolveR53RQueryLogConfigDestination,
+		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeS3Bucket, store.RelRoutesTo},
+		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeLogsLogGroup, store.RelRoutesTo},
+		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeFirehoseDeliveryStream, store.RelRoutesTo},
 	)
 }
 
@@ -104,6 +113,107 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert resolver-rule-assoc→rule: %w", err)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// resolveR53RResolverRuleEndpoint links each forwarding ResolverRule to the
+// outbound ResolverEndpoint that handles its queries.
+func resolveR53RResolverRuleEndpoint(acct *account, st *store.Store) error {
+	rules, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeRoute53ResolverResolverRule},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	epSet, err := scannedIDSet(acct, st, TypeRoute53ResolverResolverEndpoint)
+	if err != nil {
+		return err
+	}
+	for _, r := range rules {
+		var attrs struct {
+			ResolverEndpointID *string `json:"ResolverEndpointId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.ResolverEndpointID == nil || *attrs.ResolverEndpointID == "" {
+			continue
+		}
+		epARN := r53rARN(sv(r.Region), acct.ID, "resolver-endpoint", *attrs.ResolverEndpointID)
+		epID := store.ResourceID("aws", acct.ID, TypeRoute53ResolverResolverEndpoint, epARN)
+		if !epSet[epID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, epID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert resolver-rule→endpoint: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveR53RQueryLogConfigDestination dispatches each query-log config's
+// DestinationArn to S3 bucket / CloudWatch log group / Firehose delivery
+// stream by ARN substring. FK-safe; cross-account or unscanned targets skip.
+func resolveR53RQueryLogConfigDestination(acct *account, st *store.Store) error {
+	cfgs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeRoute53ResolverResolverQueryLoggingConfig},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(cfgs) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	lgSet, err := scannedIDSet(acct, st, TypeLogsLogGroup)
+	if err != nil {
+		return err
+	}
+	fhSet, err := scannedIDSet(acct, st, TypeFirehoseDeliveryStream)
+	if err != nil {
+		return err
+	}
+	for _, r := range cfgs {
+		var attrs struct {
+			DestinationArn *string `json:"DestinationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		dest := sv(attrs.DestinationArn)
+		if dest == "" {
+			continue
+		}
+		var (
+			tgtType string
+			tgtSet  map[string]bool
+		)
+		switch {
+		case strings.Contains(dest, ":s3:"):
+			tgtType, tgtSet = TypeS3Bucket, bucketSet
+		case strings.Contains(dest, ":logs:") && strings.Contains(dest, ":log-group:"):
+			tgtType, tgtSet = TypeLogsLogGroup, lgSet
+			dest = strings.TrimSuffix(dest, ":*")
+		case strings.Contains(dest, ":firehose:") && strings.Contains(dest, ":deliverystream/"):
+			tgtType, tgtSet = TypeFirehoseDeliveryStream, fhSet
+		default:
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, tgtType, dest)
+		if !tgtSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert query-log-config→%s: %w", tgtType, err)
 		}
 	}
 	return nil

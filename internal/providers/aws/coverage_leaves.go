@@ -319,4 +319,10 @@ var leafTypes = map[string]bool{
 	"aws:greengrass:resource-definition":                true,
 	"aws:greengrass:subscription-definition":            true,
 	"aws:greengrass-v2:component-version":               true,
+	// Route 53 Resolver leaves: domain lists are bare name+pattern catalogs;
+	// firewall rule-groups own FirewallRules but no scanned cross-service refs;
+	// outpost-resolvers reference an Outposts ARN which disco does not scan.
+	"aws:route53resolver:firewall-domain-list": true,
+	"aws:route53resolver:firewall-rule-group":  true,
+	"aws:route53resolver:outpost-resolver":     true,
 }

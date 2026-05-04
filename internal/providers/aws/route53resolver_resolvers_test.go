@@ -96,3 +96,58 @@ func TestResolveR53RFirewallRuleGroupAssoc(t *testing.T) {
 	}
 	assertRelationship(t, rels, assocID, vpcID, store.RelAttachedTo)
 }
+
+func TestResolveR53RResolverRuleEndpoint(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	epARN := r53rARN(testRegion, acct.ID, "resolver-endpoint", "rslvr-out-1")
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverEndpoint, epARN, testRegion, `{}`)
+	ruleARN := r53rARN(testRegion, acct.ID, "resolver-rule", "rslvr-rr-1")
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRule, ruleARN, testRegion, `{"ResolverEndpointId":"rslvr-out-1"}`)
+
+	if err := resolveR53RResolverRuleEndpoint(acct, st); err != nil {
+		t.Fatalf("resolveR53RResolverRuleEndpoint: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(ruleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, ruleID, epID, store.RelAttachedTo)
+}
+
+func TestResolveR53RQueryLogConfigDestination_S3LogsFirehose(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	bucketARN := "arn:aws:s3:::log-dump"
+	bucketID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, testRegion, `{}`)
+	lgARN := logGroupNativeIDFromName(acct.ID, testRegion, "/aws/route53/queries")
+	lgID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, lgARN, testRegion, `{}`)
+	fhARN := "arn:aws:firehose:" + testRegion + ":" + acct.ID + ":deliverystream/dns-logs"
+	fhID := upsertTestResource(t, st, "aws", acct.ID, TypeFirehoseDeliveryStream, fhARN, testRegion, `{}`)
+
+	cfgS3 := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "s3"), testRegion, `{"DestinationArn":"`+bucketARN+`"}`)
+	cfgLG := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "lg"), testRegion, `{"DestinationArn":"`+lgARN+`:*"}`)
+	cfgFH := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "fh"), testRegion, `{"DestinationArn":"`+fhARN+`"}`)
+
+	if err := resolveR53RQueryLogConfigDestination(acct, st); err != nil {
+		t.Fatalf("resolveR53RQueryLogConfigDestination: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cfgS3)
+	assertRelationship(t, rels, cfgS3, bucketID, store.RelRoutesTo)
+	rels, _ = st.RelationshipsFrom(cfgLG)
+	assertRelationship(t, rels, cfgLG, lgID, store.RelRoutesTo)
+	rels, _ = st.RelationshipsFrom(cfgFH)
+	assertRelationship(t, rels, cfgFH, fhID, store.RelRoutesTo)
+}
+
+func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "bare"), testRegion, `{}`)
+	if err := resolveR53RQueryLogConfigDestination(acct, st); err != nil {
+		t.Fatalf("resolveR53RQueryLogConfigDestination: %v", err)
+	}
+}
