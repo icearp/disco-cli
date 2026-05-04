@@ -526,6 +526,23 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-input":             true,
 	"aws:mediaconnect:router-network-interface": true,
 	"aws:mediaconnect:router-output":            true,
+	// PCS cluster — list summary has no outbound refs (network/scheduler
+	// config lives on Get body — deferred enrichment).
+	"aws:pcs:cluster": true,
+	// Omics scaffolding rows — configuration/run-group/workflow list summaries
+	// surface no x-service refs. Workflow.Definition references container
+	// images via ContainerRegistryMap on Get, but parsing is non-trivial
+	// (registry-map → ECR repo) and deferred.
+	"aws:omics:configuration": true,
+	"aws:omics:run-group":     true,
+	"aws:omics:workflow":      true,
+	// Organizations identity rows — accounts + OUs have no outbound refs
+	// (parent membership is upserted via RecordHierarchyBatch as `contains`
+	// rows, not source-side edges). Resource-policy is account-scoped
+	// singleton with policy doc walking out of scope.
+	"aws:organizations:account":         true,
+	"aws:organizations:ou":              true,
+	"aws:organizations:resource-policy": true,
 	// Location service summary-only types (KMS edges shipped for tracker +
 	// geofence-collection via Describe enrichment; remaining four have no
 	// outbound refs even on Describe).
