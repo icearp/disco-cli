@@ -540,8 +540,6 @@ var leafTypes = map[string]bool{
 	"aws:emr-containers:security-configuration":                true,
 	"aws:evs:environment":                                      true,
 	"aws:fin-space:environment":                                true,
-	"aws:forecast:dataset":                                     true,
-	"aws:forecast:dataset-group":                               true,
 	"aws:fsx:s3-access-point-attachment":                       true,
 	"aws:global-accelerator:accelerator":                       true,
 	"aws:grafana:workspace":                                    true,

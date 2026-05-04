@@ -23,6 +23,8 @@ func init() {
 type forecastAPI interface {
 	ListDatasets(context.Context, *forecast.ListDatasetsInput, ...func(*forecast.Options)) (*forecast.ListDatasetsOutput, error)
 	ListDatasetGroups(context.Context, *forecast.ListDatasetGroupsInput, ...func(*forecast.Options)) (*forecast.ListDatasetGroupsOutput, error)
+	DescribeDataset(context.Context, *forecast.DescribeDatasetInput, ...func(*forecast.Options)) (*forecast.DescribeDatasetOutput, error)
+	DescribeDatasetGroup(context.Context, *forecast.DescribeDatasetGroupInput, ...func(*forecast.Options)) (*forecast.DescribeDatasetGroupOutput, error)
 }
 
 // scanForecast discovers Forecast datasets and dataset groups.
@@ -61,11 +63,24 @@ func scanForecastDatasets(ctx context.Context, client forecastAPI, acct *account
 			if arn == "" {
 				continue
 			}
+			// Enrich with DescribeDataset body — EncryptionConfig (KMSKeyArn +
+			// RoleArn) and DataSource fields are not on the list-summary shape.
+			// Fall back to summary on per-row failure.
+			attrs := mustJSON(d)
+			darn := arn
+			dout, derr := client.DescribeDataset(ctx, &forecast.DescribeDatasetInput{DatasetArn: &darn})
+			if derr != nil {
+				if isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "forecast:DescribeDataset", acct.ID, region, derr)
+				}
+			} else if dout != nil {
+				attrs = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeForecastDataset, NativeID: arn,
 				Name: d.DatasetName, Region: &region,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -92,11 +107,23 @@ func scanForecastDatasetGroups(ctx context.Context, client forecastAPI, acct *ac
 			if arn == "" {
 				continue
 			}
+			// Enrich with DescribeDatasetGroup body — DatasetArns[] (member
+			// dataset ARNs) is not on the list-summary shape.
+			attrs := mustJSON(g)
+			garn := arn
+			gout, gerr := client.DescribeDatasetGroup(ctx, &forecast.DescribeDatasetGroupInput{DatasetGroupArn: &garn})
+			if gerr != nil {
+				if isAccessDenied(gerr) {
+					_ = skipIfAccessDenied(st, "forecast:DescribeDatasetGroup", acct.ID, region, gerr)
+				}
+			} else if gout != nil {
+				attrs = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeForecastDatasetGroup, NativeID: arn,
 				Name: g.DatasetGroupName, Region: &region,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
