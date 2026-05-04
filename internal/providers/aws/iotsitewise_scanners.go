@@ -46,6 +46,7 @@ type iotSWAPI interface {
 	ListAssetModels(context.Context, *iotsitewise.ListAssetModelsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListAssetModelsOutput, error)
 	DescribeAssetModel(context.Context, *iotsitewise.DescribeAssetModelInput, ...func(*iotsitewise.Options)) (*iotsitewise.DescribeAssetModelOutput, error)
 	ListComputationModels(context.Context, *iotsitewise.ListComputationModelsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListComputationModelsOutput, error)
+	DescribeComputationModel(context.Context, *iotsitewise.DescribeComputationModelInput, ...func(*iotsitewise.Options)) (*iotsitewise.DescribeComputationModelOutput, error)
 	ListDashboards(context.Context, *iotsitewise.ListDashboardsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDashboardsOutput, error)
 	ListDatasets(context.Context, *iotsitewise.ListDatasetsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDatasetsOutput, error)
 	DescribeDataset(context.Context, *iotsitewise.DescribeDatasetInput, ...func(*iotsitewise.Options)) (*iotsitewise.DescribeDatasetOutput, error)
@@ -249,10 +250,24 @@ func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *acco
 			if label == "" {
 				label = sv(c.Id)
 			}
+			// Enrich with DescribeComputationModel body — DataBinding refs to
+			// asset-models / assets are not on the list-summary shape. Fall back
+			// to summary on per-row failure.
+			attrs := mustJSON(c)
+			if cid := c.Id; cid != nil {
+				dout, derr := client.DescribeComputationModel(ctx, &iotsitewise.DescribeComputationModelInput{ComputationModelId: cid})
+				if derr != nil {
+					if isAccessDenied(derr) {
+						_ = skipIfAccessDenied(st, "iotsitewise:DescribeComputationModel", acct.ID, region, derr)
+					}
+				} else if dout != nil {
+					attrs = mustJSON(dout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTSWComputationModel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}

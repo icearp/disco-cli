@@ -29,6 +29,10 @@ func init() {
 	registerResolver(resolveIoTSWAssetModelHierarchies,
 		EdgeDecl{TypeIoTSWAssetModel, TypeIoTSWAssetModel, store.RelUses},
 	)
+	registerResolver(resolveIoTSWComputationModelBindings,
+		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAssetModel, store.RelUses},
+		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAsset, store.RelUses},
+	)
 	// Hierarchy emitted at scan time: portal contains project, project contains
 	// dashboard. Declared so coverage gap-analysis treats portal/project as
 	// containing parents rather than orphans.
@@ -181,6 +185,87 @@ func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 			return fmt.Errorf("upsert iotsitewise portal→iam-role: %w", err)
+		}
+	}
+	return nil
+}
+
+// computationBindingValue mirrors the SDK ComputationModelDataBindingValue
+// shape for JSON walk. Recursive via List.
+type computationBindingValue struct {
+	AssetModelProperty *struct {
+		AssetModelId *string `json:"AssetModelId"`
+	} `json:"AssetModelProperty"`
+	AssetProperty *struct {
+		AssetId *string `json:"AssetId"`
+	} `json:"AssetProperty"`
+	List []computationBindingValue `json:"List"`
+}
+
+// resolveIoTSWComputationModelBindings wires each computation-model to the
+// asset-models and assets referenced in ComputationModelDataBinding values.
+// The map entries (and nested List entries) carry either AssetModelProperty
+// or AssetProperty bindings — walk both, build target ARNs from per-region
+// (id) shape, FK-safe.
+func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWComputationModel}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	modelSet, err := scannedIDSet(acct, st, TypeIoTSWAssetModel)
+	if err != nil {
+		return err
+	}
+	assetSet, err := scannedIDSet(acct, st, TypeIoTSWAsset)
+	if err != nil {
+		return err
+	}
+	var walk func(v computationBindingValue, region string, srcID string) error
+	walk = func(v computationBindingValue, region string, srcID string) error {
+		if v.AssetModelProperty != nil {
+			if id := sv(v.AssetModelProperty.AssetModelId); id != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeIoTSWAssetModel, iotSWARN(region, acct.ID, "asset-model", id))
+				if modelSet[tgt] {
+					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert iotsitewise computation-model→asset-model: %w", err)
+					}
+				}
+			}
+		}
+		if v.AssetProperty != nil {
+			if id := sv(v.AssetProperty.AssetId); id != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeIoTSWAsset, iotSWARN(region, acct.ID, "asset", id))
+				if assetSet[tgt] {
+					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert iotsitewise computation-model→asset: %w", err)
+					}
+				}
+			}
+		}
+		for _, c := range v.List {
+			if err := walk(c, region, srcID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ComputationModelDataBinding map[string]computationBindingValue `json:"ComputationModelDataBinding"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		for _, v := range attrs.ComputationModelDataBinding {
+			if err := walk(v, region, r.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

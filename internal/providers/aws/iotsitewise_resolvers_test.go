@@ -83,6 +83,27 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 	assertRelationship(t, rels, gID, thingID, store.RelUses)
 }
 
+func TestResolveIoTSWComputationModelBindings(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cmARN := iotSWARN(testRegion, acct.ID, "computation-model", "cm-1")
+	mARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-1")
+	aARN := iotSWARN(testRegion, acct.ID, "asset", "a-1")
+	attrs := `{"ComputationModelDataBinding":{"v1":{"AssetModelProperty":{"AssetModelId":"m-1","PropertyId":"p-1"}},"v2":{"AssetProperty":{"AssetId":"a-1","PropertyId":"p-1"}}}}`
+
+	cmID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWComputationModel, cmARN, testRegion, attrs)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAssetModel, mARN, testRegion, "{}")
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAsset, aARN, testRegion, "{}")
+
+	if err := resolveIoTSWComputationModelBindings(acct, st); err != nil {
+		t.Fatalf("resolveIoTSWComputationModelBindings: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cmID)
+	assertRelationship(t, rels, cmID, mID, store.RelUses)
+	assertRelationship(t, rels, cmID, aID, store.RelUses)
+}
+
 func TestResolveIoTSWAssetModelHierarchies(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
