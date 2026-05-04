@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -38,6 +39,50 @@ func init() {
 		EdgeDecl{TypeConnectDataTableAttribute, TypeConnectDataTable, store.RelAttachedTo},
 		EdgeDecl{TypeConnectDataTableRecord, TypeConnectDataTable, store.RelAttachedTo},
 	)
+	registerResolver(resolveConnectInstanceServiceRole,
+		EdgeDecl{TypeConnectInstance, TypeIAMRole, store.RelAssumes},
+	)
+}
+
+// resolveConnectInstanceServiceRole wires each Connect instance to its
+// service-linked IAM role (DescribeInstanceOutput.Instance.ServiceRole).
+// FK-safe.
+func resolveConnectInstanceServiceRole(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectInstance}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Instance *struct {
+				ServiceRole *string `json:"ServiceRole"`
+			} `json:"Instance"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.Instance == nil {
+			continue
+		}
+		arn := sv(attrs.Instance.ServiceRole)
+		if arn == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+		if !roleSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert connect instance→role: %w", err)
+		}
+	}
+	return nil
 }
 
 // connectInstanceARNFromChild rebuilds the parent instance ARN

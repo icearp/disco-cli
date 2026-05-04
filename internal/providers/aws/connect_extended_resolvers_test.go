@@ -20,6 +20,21 @@ func TestConnectInstanceARNFromChild(t *testing.T) {
 	}
 }
 
+func TestResolveConnectInstanceServiceRole(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/aws-service-role/connect.amazonaws.com/AWSServiceRoleForAmazonConnect_abc", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	iARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"Instance":{"Arn":%q,"ServiceRole":%q}}`, iARN, roleARN)
+	iID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectInstance, iARN, testRegion, attrs)
+	if err := resolveConnectInstanceServiceRole(acct, st); err != nil {
+		t.Fatalf("resolveConnectInstanceServiceRole: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(iID)
+	assertRelationship(t, rels, iID, roleID, store.RelAssumes)
+}
+
 func TestResolveConnectChildrenToInstance(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
