@@ -553,3 +553,120 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveAppSyncEventApiRefs,
+		EdgeDecl{TypeAppSyncApi, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeAppSyncApi, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeAppSyncApi, TypeCognitoUserPool, store.RelUses},
+		EdgeDecl{TypeAppSyncApi, TypeWAFv2WebACL, store.RelUses},
+	)
+}
+
+// resolveAppSyncEventApiRefs walks each AppSync Event API's EventConfig
+// for AuthProviders (Cognito + Lambda authorizer) and LogConfig
+// (CloudWatchLogsRoleArn), plus top-level WafWebAclArn.
+func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncApi}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	lambdaSet, err := scannedIDSet(acct, st, TypeLambdaFunction)
+	if err != nil {
+		return err
+	}
+	upSet, err := scannedIDSet(acct, st, TypeCognitoUserPool)
+	if err != nil {
+		return err
+	}
+	waclSet, err := scannedIDSet(acct, st, TypeWAFv2WebACL)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			WafWebAclArn *string `json:"WafWebAclArn"`
+			EventConfig  *struct {
+				AuthProviders []struct {
+					CognitoConfig *struct {
+						UserPoolID *string `json:"UserPoolId"`
+						AwsRegion  *string `json:"AwsRegion"`
+					} `json:"CognitoConfig"`
+					LambdaAuthorizerConfig *struct {
+						AuthorizerUri *string `json:"AuthorizerUri"`
+					} `json:"LambdaAuthorizerConfig"`
+				} `json:"AuthProviders"`
+				LogConfig *struct {
+					CloudWatchLogsRoleArn *string `json:"CloudWatchLogsRoleArn"`
+				} `json:"LogConfig"`
+			} `json:"EventConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if wa := sv(attrs.WafWebAclArn); strings.Contains(wa, ":wafv2:") {
+			tgt := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, wa)
+			if waclSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert appsync-api→waf: %w", err)
+				}
+			}
+		}
+		if attrs.EventConfig == nil {
+			continue
+		}
+		if attrs.EventConfig.LogConfig != nil {
+			rarn := sv(attrs.EventConfig.LogConfig.CloudWatchLogsRoleArn)
+			if strings.Contains(rarn, ":role/") {
+				tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+				if roleSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+						return fmt.Errorf("upsert appsync-api→logs-role: %w", err)
+					}
+				}
+			}
+		}
+		for _, ap := range attrs.EventConfig.AuthProviders {
+			if ap.LambdaAuthorizerConfig != nil {
+				larn := sv(ap.LambdaAuthorizerConfig.AuthorizerUri)
+				if strings.Contains(larn, ":lambda:") && strings.Contains(larn, ":function:") {
+					if i := strings.Index(larn, ":function:"); i > 0 {
+						tail := larn[i+len(":function:"):]
+						if j := strings.IndexByte(tail, ':'); j > 0 {
+							larn = larn[:i+len(":function:")+j]
+						}
+					}
+					tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, larn)
+					if lambdaSet[tgt] {
+						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+							return fmt.Errorf("upsert appsync-api→lambda: %w", err)
+						}
+					}
+				}
+			}
+			if ap.CognitoConfig != nil {
+				upID := sv(ap.CognitoConfig.UserPoolID)
+				upRegion := sv(ap.CognitoConfig.AwsRegion)
+				if upID != "" && upRegion != "" {
+					upARN := "arn:aws:cognito-idp:" + upRegion + ":" + acct.ID + ":userpool/" + upID
+					tgt := store.ResourceID("aws", acct.ID, TypeCognitoUserPool, upARN)
+					if upSet[tgt] {
+						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+							return fmt.Errorf("upsert appsync-api→user-pool: %w", err)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}

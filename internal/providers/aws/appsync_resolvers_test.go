@@ -127,3 +127,33 @@ func TestResolveAppSyncGraphQLAPIRefs(t *testing.T) {
 	assertRelationship(t, rels, aID, lID, store.RelUses)
 	assertRelationship(t, rels, aID, uID, store.RelUses)
 }
+
+func TestResolveAppSyncEventApiRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	apiARN := "arn:aws:appsync:us-east-1:" + testAccountID + ":apis/eventApi/api"
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/eb-logs"
+	lambdaARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:authz-event"
+	upARN := "arn:aws:cognito-idp:us-east-1:" + testAccountID + ":userpool/us-east-1_evt"
+	waclARN := "arn:aws:wafv2:us-east-1:" + testAccountID + ":regional/webacl/myWaf/abcd"
+	attrs := `{"WafWebAclArn":"` + waclARN + `","EventConfig":{` +
+		`"LogConfig":{"CloudWatchLogsRoleArn":"` + roleARN + `"},` +
+		`"AuthProviders":[{"CognitoConfig":{"UserPoolId":"us-east-1_evt","AwsRegion":"us-east-1"}},` +
+		`{"LambdaAuthorizerConfig":{"AuthorizerUri":"` + lambdaARN + `"}}]}}`
+
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncApi, apiARN, testRegion, attrs)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+	lID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, lambdaARN, testRegion, "{}")
+	uID := upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPool, upARN, testRegion, "{}")
+	wID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2WebACL, waclARN, testRegion, "{}")
+
+	if err := resolveAppSyncEventApiRefs(acct, st); err != nil {
+		t.Fatalf("resolveAppSyncEventApiRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, rID, store.RelAssumes)
+	assertRelationship(t, rels, aID, lID, store.RelUses)
+	assertRelationship(t, rels, aID, uID, store.RelUses)
+	assertRelationship(t, rels, aID, wID, store.RelUses)
+}
