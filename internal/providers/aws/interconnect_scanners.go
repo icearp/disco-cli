@@ -2,11 +2,14 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/interconnect"
+	smithy "github.com/aws/smithy-go"
 )
 
 func init() {
@@ -23,6 +26,21 @@ type interconnectAPI interface {
 	ListConnections(context.Context, *interconnect.ListConnectionsInput, ...func(*interconnect.Options)) (*interconnect.ListConnectionsOutput, error)
 }
 
+// isInterconnectClosedToAccount reports whether err is the empty-message
+// AccessDenied shape AWS returns for accounts not registered for the
+// (closed-to-new-customers) Interconnect service. Real per-op IAM denials
+// always carry an action-identifying message.
+func isInterconnectClosedToAccount(err error) bool {
+	if !isAccessDenied(err) {
+		return false
+	}
+	var ae smithy.APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return strings.TrimSpace(ae.ErrorMessage()) == ""
+}
+
 // scanInterconnect discovers Interconnect connections.
 func scanInterconnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := interconnect.NewFromConfig(acct.cfg, func(o *interconnect.Options) { o.Region = region })
@@ -32,6 +50,9 @@ func scanInterconnect(ctx context.Context, acct *account, region string, st *sto
 	for {
 		out, err := client.ListConnections(ctx, &interconnect.ListConnectionsInput{NextToken: nextToken})
 		if err != nil {
+			if isInterconnectClosedToAccount(err) {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "interconnect:ListConnections", acct.ID, region, err)
 			}

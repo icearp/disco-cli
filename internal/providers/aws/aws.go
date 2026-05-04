@@ -132,6 +132,12 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 					st.ReportService(svc.name, 0, 0, 0, true)
 					return
 				}
+				// NXDOMAIN = service not deployed in this scope. Silent-skip
+				// (no warning) — distinct from a transient DNS outage.
+				if isDNSNotFound(err) {
+					st.ReportService(svc.name, 0, 0, 0, true)
+					return
+				}
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
 					st.ReportService(svc.name, 0, 0, 0, false)
@@ -203,6 +209,12 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
+					st.ReportService(svc.name, 0, 0, 0, true)
+					return
+				}
+				// NXDOMAIN = service not deployed in this region. Silent-skip
+				// (no warning) — distinct from a transient DNS outage.
+				if isDNSNotFound(err) {
 					st.ReportService(svc.name, 0, 0, 0, true)
 					return
 				}
@@ -393,6 +405,19 @@ func skipIfAccessDenied(st *store.Store, service, accountID, region string, err 
 		Message:  err.Error(),
 	})
 	return nil
+}
+
+// isDNSNotFound reports whether err is an NXDOMAIN — the AWS endpoint host
+// for this service+region does not exist. This is a permanent fact about
+// region availability, not a transient outage. Real DNS server problems
+// surface as timeouts / SERVFAIL, not NXDOMAIN. Used to silent-skip
+// per-region service-not-deployed cases without recording a warning.
+func isDNSNotFound(err error) bool {
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return dnsErr.IsNotFound
+	}
+	return false
 }
 
 // isTransientNetworkError reports whether err looks like a momentary network
