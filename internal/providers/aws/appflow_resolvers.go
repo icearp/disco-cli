@@ -12,25 +12,49 @@ func init() {
 	registerResolver(resolveAppFlowRelationships,
 		EdgeDecl{TypeAppFlowFlow, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveAppFlowConnectorProfileRelationships)
+	registerResolver(resolveAppFlowConnectorProfileRelationships,
+		EdgeDecl{TypeAppFlowConnectorProfile, TypeSecretsManagerSecret, store.RelUses},
+	)
 }
 
-// resolveAppFlowConnectorProfileRelationships is a no-op audit-stub.
-//
-// The natural edge here is connector-profile → Secrets Manager via
-// `CredentialsArn`, but `internal/store/sanitize.go` scrubs any attrs key
-// matching `credential` (denylist substring), so by the time the resolver
-// reads `AttributesJSON` the ARN has already been replaced with
-// "[REDACTED]". Deferred until either (1) sanitize.go gains an exception
-// for ARN-typed credential fields, or (2) the scanner stashes
-// CredentialsArn on `account` as a sidecar (per the providers/CLAUDE.md
-// "Non-resource config fetches → sidecar on `account`" precedent).
-//
-// Connector-profile rows still upsert; this resolver registers so the
-// resolver-registration test stays uniform.
+// resolveAppFlowConnectorProfileRelationships wires each connector profile to
+// the Secrets Manager secret holding its credentials (CredentialsArn). The
+// sanitize.go denylist redacts scalars under `credential`-substring keys, but
+// its shape-bounded allowlist preserves AWS ARN values verbatim, so the ARN
+// survives scrubbing and is readable here.
 func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store) error {
-	_ = acct
-	_ = st
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppFlowConnectorProfile}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	secretSet, err := scannedIDSet(acct, st, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			CredentialsArn *string `json:"CredentialsArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ca := sv(attrs.CredentialsArn)
+		if ca == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, ca)
+		if !secretSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert appflow connector-profile→secret: %w", err)
+		}
+	}
 	return nil
 }
 

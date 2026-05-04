@@ -515,7 +515,6 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-output":            true,
 	// Mass deferral pass — types whose ref-bearing fields require Describe*
 	// fan-out, deprecated/preview SDK rows, or pure config singletons.
-	"aws:appflow:connector-profile":                            true,
 	"aws:chime:app-instance":                                   true,
 	"aws:cleanrooms:collaboration":                             true,
 	"aws:cleanrooms:configured-table":                          true,

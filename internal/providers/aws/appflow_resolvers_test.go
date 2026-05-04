@@ -2,35 +2,34 @@ package aws
 
 import (
 	"testing"
+
+	"codeberg.org/icearp/disco/internal/store"
 )
 
-// TestResolveAppFlowConnectorProfileRelationships_NoOp documents the
-// deferred-edge contract: until sanitize.go gains an ARN exception or the
-// scanner stashes CredentialsArn as a sidecar, the resolver intentionally
-// emits zero edges. Test guards against accidental edge emission breaking
-// the no-op contract.
-func TestResolveAppFlowConnectorProfileRelationships_NoOp(t *testing.T) {
+// TestResolveAppFlowConnectorProfileToSecret verifies the connector-profile
+// → Secrets Manager edge via CredentialsArn (preserved through sanitize.go's
+// shape-bounded ARN allowlist despite living under the `credential` denylist
+// substring).
+func TestResolveAppFlowConnectorProfileToSecret(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	region := testRegion
 
-	profileARN := "arn:aws:appflow:us-east-1:123456789012:connectorprofile/sfdc"
-	profileID := upsertTestResource(t, st, "aws", acct.ID, TypeAppFlowConnectorProfile, profileARN, region, "{}")
+	profileARN := "arn:aws:appflow:us-east-1:" + testAccountID + ":connectorprofile/sfdc"
+	secretARN := "arn:aws:secretsmanager:us-east-1:" + testAccountID + ":secret:appflow!sfdc-creds-AbCdEf"
+	attrs := `{"CredentialsArn":"` + secretARN + `"}`
+
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeAppFlowConnectorProfile, profileARN, testRegion, attrs)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secretARN, testRegion, "{}")
 
 	if err := resolveAppFlowConnectorProfileRelationships(acct, st); err != nil {
 		t.Fatalf("resolveAppFlowConnectorProfileRelationships: %v", err)
 	}
-	rels, err := st.RelationshipsFrom(profileID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	if len(rels) != 0 {
-		t.Errorf("expected no edges; got %+v", rels)
-	}
+	rels, _ := st.RelationshipsFrom(pID)
+	assertRelationship(t, rels, pID, sID, store.RelUses)
 }
 
-// TestResolveAppFlowConnectorProfileRelationships_Empty verifies that the
-// resolver runs cleanly with zero seeded profiles.
+// TestResolveAppFlowConnectorProfileRelationships_Empty verifies the resolver
+// runs cleanly with zero seeded profiles.
 func TestResolveAppFlowConnectorProfileRelationships_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
