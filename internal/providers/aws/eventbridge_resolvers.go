@@ -156,3 +156,112 @@ func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) 
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveEventBridgeBusRefs,
+		EdgeDecl{TypeEventsEventBus, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeEventsEventBus, TypeSQSQueue, store.RelRoutesTo},
+	)
+	registerResolver(resolveEventBridgeConnectionRefs,
+		EdgeDecl{TypeEventsConnection, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeEventsConnection, TypeSecretsManagerSecret, store.RelUses},
+	)
+}
+
+// resolveEventBridgeBusRefs wires each event-bus to its KmsKeyIdentifier
+// (CMEK) and DeadLetterConfig.Arn (SQS DLQ).
+func resolveEventBridgeBusRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsEventBus}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	sqsSet, err := scannedIDSet(acct, st, TypeSQSQueue)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyIdentifier *string `json:"KmsKeyIdentifier"`
+			DeadLetterConfig *struct {
+				Arn *string `json:"Arn"`
+			} `json:"DeadLetterConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if ref := sv(attrs.KmsKeyIdentifier); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert event-bus→kms: %w", err)
+				}
+			}
+		}
+		if attrs.DeadLetterConfig != nil {
+			if dlqARN := sv(attrs.DeadLetterConfig.Arn); strings.Contains(dlqARN, ":sqs:") {
+				tgt := store.ResourceID("aws", acct.ID, TypeSQSQueue, dlqARN)
+				if sqsSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert event-bus→sqs-dlq: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveEventBridgeConnectionRefs wires each connection to its CMEK and
+// Secrets Manager auth secret (SecretArn).
+func resolveEventBridgeConnectionRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsConnection}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	secretSet, err := scannedIDSet(acct, st, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyIdentifier *string `json:"KmsKeyIdentifier"`
+			SecretArn        *string `json:"SecretArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if ref := sv(attrs.KmsKeyIdentifier); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert connection→kms: %w", err)
+				}
+			}
+		}
+		if sa := sv(attrs.SecretArn); strings.Contains(sa, ":secretsmanager:") {
+			tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+			if secretSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert connection→secret: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}

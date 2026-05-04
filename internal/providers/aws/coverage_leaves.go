@@ -567,8 +567,6 @@ var leafTypes = map[string]bool{
 	"aws:elasticloadbalancingv2:trust-store":                   true,
 	"aws:elemental-inference:feed":                             true,
 	"aws:emr-containers:security-configuration":                true,
-	"aws:events:connection":                                    true,
-	"aws:events:event-bus":                                     true,
 	"aws:evs:environment":                                      true,
 	"aws:fin-space:environment":                                true,
 	"aws:forecast:dataset":                                     true,

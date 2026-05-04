@@ -35,6 +35,7 @@ type eventbridgeAPI interface {
 	ListTargetsByRule(context.Context, *eventbridge.ListTargetsByRuleInput, ...func(*eventbridge.Options)) (*eventbridge.ListTargetsByRuleOutput, error)
 	ListApiDestinations(context.Context, *eventbridge.ListApiDestinationsInput, ...func(*eventbridge.Options)) (*eventbridge.ListApiDestinationsOutput, error)
 	ListConnections(context.Context, *eventbridge.ListConnectionsInput, ...func(*eventbridge.Options)) (*eventbridge.ListConnectionsOutput, error)
+	DescribeConnection(context.Context, *eventbridge.DescribeConnectionInput, ...func(*eventbridge.Options)) (*eventbridge.DescribeConnectionOutput, error)
 	ListArchives(context.Context, *eventbridge.ListArchivesInput, ...func(*eventbridge.Options)) (*eventbridge.ListArchivesOutput, error)
 	ListEndpoints(context.Context, *eventbridge.ListEndpointsInput, ...func(*eventbridge.Options)) (*eventbridge.ListEndpointsOutput, error)
 	DescribeEventBus(context.Context, *eventbridge.DescribeEventBusInput, ...func(*eventbridge.Options)) (*eventbridge.DescribeEventBusOutput, error)
@@ -77,6 +78,10 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 		}
 		for _, b := range out.EventBuses {
 			arn := sv(b.Arn)
+			attrsJSON := mustJSON(b)
+			if dout, derr := client.DescribeEventBus(ctx, &eventbridge.DescribeEventBusInput{Name: b.Name}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -85,7 +90,7 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 				NativeID:       arn,
 				Name:           b.Name,
 				Region:         &region,
-				AttributesJSON: mustJSON(b),
+				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
 			}
 			busBatch = append(busBatch, r)
@@ -195,6 +200,10 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 		for _, c := range out.Connections {
 			arn := sv(c.ConnectionArn)
 			status := string(c.ConnectionState)
+			attrsJSON := mustJSON(c)
+			if dout, derr := client.DescribeConnection(ctx, &eventbridge.DescribeConnectionInput{Name: c.Name}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			connBatch = append(connBatch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -204,7 +213,7 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 				Name:           c.Name,
 				Region:         &region,
 				Status:         &status,
-				AttributesJSON: mustJSON(c),
+				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
 			})
 		}

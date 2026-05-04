@@ -188,3 +188,45 @@ func TestResolveEventBridgeRelationships_NoAttrs(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveEventBridgeBusRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	busARN := "arn:aws:events:us-east-1:" + testAccountID + ":event-bus/my-bus"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-bus"
+	dlqARN := "arn:aws:sqs:us-east-1:" + testAccountID + ":dlq"
+	attrs := `{"KmsKeyIdentifier":"` + keyARN + `","DeadLetterConfig":{"Arn":"` + dlqARN + `"}}`
+
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	qID := upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, dlqARN, testRegion, "{}")
+
+	if err := resolveEventBridgeBusRefs(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeBusRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(bID)
+	assertRelationship(t, rels, bID, kID, store.RelUses)
+	assertRelationship(t, rels, bID, qID, store.RelRoutesTo)
+}
+
+func TestResolveEventBridgeConnectionRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	connARN := "arn:aws:events:us-east-1:" + testAccountID + ":connection/c1/abc"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-conn"
+	secARN := "arn:aws:secretsmanager:us-east-1:" + testAccountID + ":secret:eb-conn-abc"
+	attrs := `{"KmsKeyIdentifier":"` + keyARN + `","SecretArn":"` + secARN + `"}`
+
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeEventsConnection, connARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secARN, testRegion, "{}")
+
+	if err := resolveEventBridgeConnectionRefs(acct, st); err != nil {
+		t.Fatalf("resolveEventBridgeConnectionRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, kID, store.RelUses)
+	assertRelationship(t, rels, cID, sID, store.RelUses)
+}
