@@ -613,7 +613,6 @@ var leafTypes = map[string]bool{
 	"aws:quicksight:analysis":                                  true,
 	"aws:quicksight:dashboard":                                 true,
 	"aws:quicksight:data-set":                                  true,
-	"aws:quicksight:data-source":                               true,
 	"aws:quicksight:folder":                                    true,
 	"aws:refactor-spaces:environment":                          true,
 	"aws:resource-groups:group":                                true,

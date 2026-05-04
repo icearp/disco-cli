@@ -141,3 +141,64 @@ func resolveQuickSightRefreshScheduleParent(acct *account, st *store.Store) erro
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveQSDataSourceRefs,
+		EdgeDecl{TypeQuickSightDataSource, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeQuickSightDataSource, TypeQuickSightVPCConnection, store.RelAttachedTo},
+	)
+}
+
+// resolveQSDataSourceRefs wires each QuickSight data source to its Secrets
+// Manager auth secret and QS VPC connection (if VPC-routed). Underlying
+// data refs (RDS / Redshift / Athena / etc.) live in DataSourceParameters
+// union — skipped to avoid SDK-union JSON ambiguity.
+func resolveQSDataSourceRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQuickSightDataSource}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	secretSet, err := scannedIDSet(acct, st, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	vpcConnSet, err := scannedIDSet(acct, st, TypeQuickSightVPCConnection)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SecretArn               *string `json:"SecretArn"`
+			VpcConnectionProperties *struct {
+				VpcConnectionArn *string `json:"VpcConnectionArn"`
+			} `json:"VpcConnectionProperties"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if sa := sv(attrs.SecretArn); strings.Contains(sa, ":secretsmanager:") {
+			tgt := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, sa)
+			if secretSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert qs-data-source→secret: %w", err)
+				}
+			}
+		}
+		if attrs.VpcConnectionProperties != nil {
+			if va := sv(attrs.VpcConnectionProperties.VpcConnectionArn); va != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeQuickSightVPCConnection, va)
+				if vpcConnSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert qs-data-source→vpc-conn: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}

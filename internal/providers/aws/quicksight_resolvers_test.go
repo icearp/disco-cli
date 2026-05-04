@@ -44,3 +44,24 @@ func TestResolveQuickSightRefreshScheduleParent(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(rsID)
 	assertRelationship(t, rels, rsID, dsID, store.RelAttachedTo)
 }
+
+func TestResolveQSDataSourceRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	dsARN := "arn:aws:quicksight:us-east-1:" + testAccountID + ":datasource/ds-1"
+	secARN := "arn:aws:secretsmanager:us-east-1:" + testAccountID + ":secret:qs-rds"
+	vcARN := "arn:aws:quicksight:us-east-1:" + testAccountID + ":vpcConnection/vc-1"
+	attrs := `{"SecretArn":"` + secARN + `","VpcConnectionProperties":{"VpcConnectionArn":"` + vcARN + `"}}`
+
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightDataSource, dsARN, testRegion, attrs)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeSecretsManagerSecret, secARN, testRegion, "{}")
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightVPCConnection, vcARN, testRegion, "{}")
+
+	if err := resolveQSDataSourceRefs(acct, st); err != nil {
+		t.Fatalf("resolveQSDataSourceRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, sID, store.RelUses)
+	assertRelationship(t, rels, dID, vID, store.RelAttachedTo)
+}
