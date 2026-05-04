@@ -197,6 +197,20 @@ func scanLaunchTemplates(ctx context.Context, client ec2API, acct *account, regi
 			var out []*store.Resource
 			for _, lt := range page.LaunchTemplates {
 				name := sv(lt.LaunchTemplateName)
+				attrsJSON := mustJSON(lt)
+				// Fetch the default version's LaunchTemplateData so resolvers
+				// can wire AMI / IAM / SG / subnet / KMS edges. `$Default`
+				// reserves expansion server-side; one version returned.
+				ltID := sv(lt.LaunchTemplateId)
+				if vout, verr := client.DescribeLaunchTemplateVersions(ctx, &ec2.DescribeLaunchTemplateVersionsInput{
+					LaunchTemplateId: &ltID,
+					Versions:         []string{"$Default"},
+				}); verr == nil && len(vout.LaunchTemplateVersions) > 0 {
+					attrsJSON = mustJSON(map[string]any{
+						"LaunchTemplate": lt,
+						"DefaultVersion": vout.LaunchTemplateVersions[0],
+					})
+				}
 				out = append(out, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
@@ -207,7 +221,7 @@ func scanLaunchTemplates(ctx context.Context, client ec2API, acct *account, regi
 					Region:         &region,
 					CreatedAt:      tp(lt.CreateTime),
 					TagsJSON:       awsTagsJSON(lt.Tags),
-					AttributesJSON: mustJSON(lt),
+					AttributesJSON: attrsJSON,
 					DiscoveredBy:   scanID,
 				})
 			}

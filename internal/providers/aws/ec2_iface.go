@@ -56,6 +56,7 @@ type ec2API interface {
 	DescribeIpamScopes(context.Context, *ec2.DescribeIpamScopesInput, ...func(*ec2.Options)) (*ec2.DescribeIpamScopesOutput, error)
 	DescribeIpams(context.Context, *ec2.DescribeIpamsInput, ...func(*ec2.Options)) (*ec2.DescribeIpamsOutput, error)
 	DescribeLaunchTemplates(context.Context, *ec2.DescribeLaunchTemplatesInput, ...func(*ec2.Options)) (*ec2.DescribeLaunchTemplatesOutput, error)
+	DescribeLaunchTemplateVersions(context.Context, *ec2.DescribeLaunchTemplateVersionsInput, ...func(*ec2.Options)) (*ec2.DescribeLaunchTemplateVersionsOutput, error)
 	DescribeLocalGatewayRouteTables(context.Context, *ec2.DescribeLocalGatewayRouteTablesInput, ...func(*ec2.Options)) (*ec2.DescribeLocalGatewayRouteTablesOutput, error)
 	DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociations(context.Context, *ec2.DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsOutput, error)
 	DescribeLocalGatewayRouteTableVpcAssociations(context.Context, *ec2.DescribeLocalGatewayRouteTableVpcAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeLocalGatewayRouteTableVpcAssociationsOutput, error)

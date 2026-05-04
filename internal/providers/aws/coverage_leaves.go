@@ -555,7 +555,6 @@ var leafTypes = map[string]bool{
 	"aws:ec2:ipam":                                             true,
 	"aws:ec2:ipam-prefix-list-resolver":                        true,
 	"aws:ec2:ipam-resource-discovery":                          true,
-	"aws:ec2:launch-template":                                  true,
 	"aws:ec2:local-gateway-route-table":                        true,
 	"aws:ec2:local-gateway-virtual-interface-group":            true,
 	"aws:ec2:transit-gateway":                                  true,
