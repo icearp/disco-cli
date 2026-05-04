@@ -41,3 +41,17 @@ func TestResolveEMRStudioSessionMappingToStudio(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(smID)
 	assertRelationship(t, rels, smID, stID, store.RelAttachedTo)
 }
+
+func TestResolveEMRStudioVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+	stARN := emrARN(testRegion, acct.ID, "studio", "es-1")
+	stID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRStudio, stARN, testRegion, `{"VpcId":"vpc-1"}`)
+	if err := resolveEMRStudioVPC(acct, st); err != nil {
+		t.Fatalf("resolveEMRStudioVPC: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(stID)
+	assertRelationship(t, rels, stID, vpcID, store.RelAttachedTo)
+}

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,47 @@ func init() {
 	registerResolver(resolveEMRStudioSessionMappingToStudio,
 		EdgeDecl{TypeEMRStudioSessionMapping, TypeEMRStudio, store.RelAttachedTo},
 	)
+	registerResolver(resolveEMRStudioVPC,
+		EdgeDecl{TypeEMRStudio, TypeEC2VPC, store.RelAttachedTo},
+	)
+}
+
+// resolveEMRStudioVPC wires each EMR Studio to its VPC (StudioSummary.VpcId).
+// FK-safe.
+func resolveEMRStudioVPC(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRStudio}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcID *string `json:"VpcId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		v := sv(attrs.VpcID)
+		if v == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", v))
+		if !vpcSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert emr studio→vpc: %w", err)
+		}
+	}
+	return nil
 }
 
 // emrParentARN trims a `/segment/...` tail off a child NativeID to recover
