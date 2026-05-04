@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -40,4 +41,44 @@ func TestResolveIoTSWAccessPolicyTarget(t *testing.T) {
 	assertRelationship(t, rels, apPortalID, pID, store.RelAttachedTo)
 	rels, _ = st.RelationshipsFrom(apPrjID)
 	assertRelationship(t, rels, apPrjID, prjID, store.RelAttachedTo)
+}
+
+func TestResolveIoTSWPortalRole(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/iotsw-portal", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	pARN := iotSWARN(testRegion, acct.ID, "portal", "p-1")
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWPortal, pARN, testRegion,
+		fmt.Sprintf(`{"RoleArn":%q}`, roleARN))
+	if err := resolveIoTSWPortalRole(acct, st); err != nil {
+		t.Fatalf("resolveIoTSWPortalRole: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(pID)
+	assertRelationship(t, rels, pID, roleID, store.RelAssumes)
+}
+
+func TestResolveIoTSWGatewayThing(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	thingName := "core-device-1"
+	thingARN := fmt.Sprintf("arn:aws:iot:%s:%s:thing/%s", testRegion, acct.ID, thingName)
+	regionVal := testRegion
+	thingRow := &store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeIoTThing,
+		NativeID: thingARN, Name: &thingName, Region: &regionVal,
+		AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}
+	if _, err := st.UpsertResource(thingRow); err != nil {
+		t.Fatalf("upsert thing: %v", err)
+	}
+	thingID := store.ResourceID("aws", acct.ID, TypeIoTThing, thingARN)
+	gARN := iotSWARN(testRegion, acct.ID, "gateway", "gw-1")
+	gAttrs := fmt.Sprintf(`{"GatewayPlatform":{"GreengrassV2":{"CoreDeviceThingName":%q}}}`, thingName)
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWGateway, gARN, testRegion, gAttrs)
+	if err := resolveIoTSWGatewayThing(acct, st); err != nil {
+		t.Fatalf("resolveIoTSWGatewayThing: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(gID)
+	assertRelationship(t, rels, gID, thingID, store.RelUses)
 }

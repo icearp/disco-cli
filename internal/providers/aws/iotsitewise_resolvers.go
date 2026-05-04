@@ -16,6 +16,28 @@ func init() {
 		EdgeDecl{TypeIoTSWAccessPolicy, TypeIoTSWPortal, store.RelAttachedTo},
 		EdgeDecl{TypeIoTSWAccessPolicy, TypeIoTSWProject, store.RelAttachedTo},
 	)
+	registerResolver(resolveIoTSWPortalRole,
+		EdgeDecl{TypeIoTSWPortal, TypeIAMRole, store.RelAssumes},
+	)
+	registerResolver(resolveIoTSWGatewayThing,
+		EdgeDecl{TypeIoTSWGateway, TypeIoTThing, store.RelUses},
+	)
+	// Hierarchy emitted at scan time: portal contains project, project contains
+	// dashboard. Declared so coverage gap-analysis treats portal/project as
+	// containing parents rather than orphans.
+	registerResolver(noopIoTSWHierarchy,
+		EdgeDecl{TypeIoTSWPortal, TypeIoTSWProject, store.RelContains},
+		EdgeDecl{TypeIoTSWProject, TypeIoTSWDashboard, store.RelContains},
+	)
+}
+
+// noopIoTSWHierarchy is a placeholder: the IoT SiteWise scanner emits the
+// portal→project and project→dashboard contains edges directly via
+// RecordHierarchyBatch in scanIoTSWProjects / scanIoTSWDashboards. This
+// resolver only carries the EdgeDecl metadata so coverage tooling sees the
+// edges as wired.
+func noopIoTSWHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveIoTSWAssetToModel wires each asset to the asset-model it was
@@ -114,6 +136,98 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 					}
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// resolveIoTSWPortalRole wires each portal to the IAM service role that grants
+// portal users access to IoT SiteWise resources (RoleArn).
+func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWPortal}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			RoleArn *string `json:"RoleArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ra := sv(attrs.RoleArn)
+		if ra == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+		if !roleSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert iotsitewise portal→iam-role: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveIoTSWGatewayThing wires each Greengrass V2 gateway to the IoT thing
+// that hosts its core device runtime
+// (GatewayPlatform.GreengrassV2.CoreDeviceThingName).
+func resolveIoTSWGatewayThing(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWGateway}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	thingByNameRegion := map[string]string{}
+	thingRows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTThing}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, t := range thingRows {
+		if name := sv(t.Name); name != "" {
+			thingByNameRegion[sv(t.Region)+"|"+name] = t.ID
+		}
+	}
+	for _, r := range rows {
+		var attrs struct {
+			GatewayPlatform *struct {
+				GreengrassV2 *struct {
+					CoreDeviceThingName *string `json:"CoreDeviceThingName"`
+				} `json:"GreengrassV2"`
+			} `json:"GatewayPlatform"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.GatewayPlatform == nil || attrs.GatewayPlatform.GreengrassV2 == nil {
+			continue
+		}
+		name := sv(attrs.GatewayPlatform.GreengrassV2.CoreDeviceThingName)
+		if name == "" {
+			continue
+		}
+		tgtID, ok := thingByNameRegion[sv(r.Region)+"|"+name]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert iotsitewise gateway→thing: %w", err)
 		}
 	}
 	return nil
