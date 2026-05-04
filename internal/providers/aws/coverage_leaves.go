@@ -766,12 +766,11 @@ var leafTypes = map[string]bool{
 	// SSM document/maintenance-window/patch-baseline — already wired as
 	// targets of association/maintenance-window-task; source-side refs
 	// (Attachments) still need additional Describe enrichment beyond Requires.
-	"aws:ssm:maintenance-window":                true,
-	"aws:ssm:patch-baseline":                    true,
-	"aws:ssm-contacts:contact":                  true,
-	"aws:ssm-contacts:plan":                     true,
-	"aws:ssm-quick-setup:configuration-manager": true,
-	"aws:ssm-gui-connect:preferences":           true,
+	"aws:ssm:maintenance-window":      true,
+	"aws:ssm:patch-baseline":          true,
+	"aws:ssm-contacts:contact":        true,
+	"aws:ssm-contacts:plan":           true,
+	"aws:ssm-gui-connect:preferences": true,
 	// Logs leftover types — log-group/integration/scheduled-query/resource-policy/
 	// delivery-source — KMS/source refs need Describe enrichment.
 	"aws:logs:delivery-source": true,

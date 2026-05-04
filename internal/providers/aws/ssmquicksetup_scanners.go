@@ -21,6 +21,7 @@ func init() {
 
 type ssmQuickSetupAPI interface {
 	ListConfigurationManagers(context.Context, *ssmquicksetup.ListConfigurationManagersInput, ...func(*ssmquicksetup.Options)) (*ssmquicksetup.ListConfigurationManagersOutput, error)
+	GetConfigurationManager(context.Context, *ssmquicksetup.GetConfigurationManagerInput, ...func(*ssmquicksetup.Options)) (*ssmquicksetup.GetConfigurationManagerOutput, error)
 }
 
 // scanSSMQuickSetup discovers SSM Quick Setup configuration managers.
@@ -43,11 +44,24 @@ func scanSSMQuickSetup(ctx context.Context, acct *account, region string, st *st
 			if arn == "" {
 				continue
 			}
+			// Enrich with GetConfigurationManager body — ConfigurationDefinitions[]
+			// carries LocalDeploymentAdministrationRoleArn refs absent from the
+			// list-summary shape. Fall back to summary on per-row failure.
+			attrs := mustJSON(c)
+			marn := arn
+			gout, gerr := client.GetConfigurationManager(ctx, &ssmquicksetup.GetConfigurationManagerInput{ManagerArn: &marn})
+			if gerr != nil {
+				if isAccessDenied(gerr) {
+					_ = skipIfAccessDenied(st, "ssm-quicksetup:GetConfigurationManager", acct.ID, region, gerr)
+				}
+			} else if gout != nil {
+				attrs = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSSMQuickSetupConfigurationManager, NativeID: arn,
 				Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
