@@ -25,6 +25,10 @@ func (s *stubBackup) ListBackupPlans(_ context.Context, _ *backup.ListBackupPlan
 	return &backup.ListBackupPlansOutput{BackupPlansList: s.plans}, nil
 }
 
+func (s *stubBackup) GetBackupPlan(_ context.Context, _ *backup.GetBackupPlanInput, _ ...func(*backup.Options)) (*backup.GetBackupPlanOutput, error) {
+	return &backup.GetBackupPlanOutput{}, nil
+}
+
 func (s *stubBackup) ListBackupSelections(_ context.Context, in *backup.ListBackupSelectionsInput, _ ...func(*backup.Options)) (*backup.ListBackupSelectionsOutput, error) {
 	id := ""
 	if in.BackupPlanId != nil {

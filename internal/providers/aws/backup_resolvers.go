@@ -87,3 +87,61 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveBackupPlanVaultRefs,
+		EdgeDecl{TypeBackupPlan, TypeBackupVault, store.RelRoutesTo},
+	)
+}
+
+// resolveBackupPlanVaultRefs walks each plan's Rules[] and emits a
+// routes-to edge to the TargetBackupVaultName. GetBackupPlan body shape:
+// {"BackupPlan":{"Rules":[{"TargetBackupVaultName":"..."}]}}.
+func resolveBackupPlanVaultRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBackupPlan}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vaultSet, err := scannedIDSet(acct, st, TypeBackupVault)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			BackupPlan *struct {
+				Rules []struct {
+					TargetBackupVaultName *string `json:"TargetBackupVaultName"`
+				} `json:"Rules"`
+			} `json:"BackupPlan"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.BackupPlan == nil {
+			continue
+		}
+		region := sv(r.Region)
+		seen := make(map[string]bool, len(attrs.BackupPlan.Rules))
+		for _, rule := range attrs.BackupPlan.Rules {
+			n := sv(rule.TargetBackupVaultName)
+			if n == "" || seen[n] {
+				continue
+			}
+			seen[n] = true
+			vARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:%s", region, acct.ID, n)
+			tgt := store.ResourceID("aws", acct.ID, TypeBackupVault, vARN)
+			if !vaultSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert backup-plan→vault: %w", err)
+			}
+		}
+	}
+	return nil
+}

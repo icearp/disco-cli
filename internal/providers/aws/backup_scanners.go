@@ -32,6 +32,7 @@ func init() {
 type backupAPI interface {
 	ListBackupVaults(context.Context, *backup.ListBackupVaultsInput, ...func(*backup.Options)) (*backup.ListBackupVaultsOutput, error)
 	ListBackupPlans(context.Context, *backup.ListBackupPlansInput, ...func(*backup.Options)) (*backup.ListBackupPlansOutput, error)
+	GetBackupPlan(context.Context, *backup.GetBackupPlanInput, ...func(*backup.Options)) (*backup.GetBackupPlanOutput, error)
 	ListBackupSelections(context.Context, *backup.ListBackupSelectionsInput, ...func(*backup.Options)) (*backup.ListBackupSelectionsOutput, error)
 	ListFrameworks(context.Context, *backup.ListFrameworksInput, ...func(*backup.Options)) (*backup.ListFrameworksOutput, error)
 	ListReportPlans(context.Context, *backup.ListReportPlansInput, ...func(*backup.Options)) (*backup.ListReportPlansOutput, error)
@@ -132,6 +133,10 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			if planARN == "" || planID == "" {
 				continue
 			}
+			attrsJSON := mustJSON(p)
+			if gout, gerr := client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{BackupPlanId: &planID}); gerr == nil {
+				attrsJSON = mustJSON(gout)
+			}
 			planBatch = append(planBatch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -141,7 +146,7 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 				Name:           p.BackupPlanName,
 				Region:         &region,
 				CreatedAt:      tp(p.CreationDate),
-				AttributesJSON: mustJSON(p),
+				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
 			})
 

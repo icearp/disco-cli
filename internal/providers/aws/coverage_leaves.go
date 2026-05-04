@@ -527,7 +527,6 @@ var leafTypes = map[string]bool{
 	// Mass deferral pass — types whose ref-bearing fields require Describe*
 	// fan-out, deprecated/preview SDK rows, or pure config singletons.
 	"aws:appflow:connector-profile":                            true,
-	"aws:backup:plan":                                          true,
 	"aws:chime:app-instance":                                   true,
 	"aws:cleanrooms:collaboration":                             true,
 	"aws:cleanrooms:configured-table":                          true,

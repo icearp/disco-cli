@@ -81,3 +81,21 @@ func TestResolveBackupRelationships_SkipsManagedKey(t *testing.T) {
 		t.Errorf("unexpected rels: %+v", rels)
 	}
 }
+
+func TestResolveBackupPlanVaultRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	planARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-plan:plan-1", testRegion, acct.ID)
+	vaultARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:my-vault", testRegion, acct.ID)
+	attrs := `{"BackupPlan":{"Rules":[{"TargetBackupVaultName":"my-vault"}]}}`
+
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeBackupPlan, planARN, testRegion, attrs)
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeBackupVault, vaultARN, testRegion, "{}")
+
+	if err := resolveBackupPlanVaultRefs(acct, st); err != nil {
+		t.Fatalf("resolveBackupPlanVaultRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(pID)
+	assertRelationship(t, rels, pID, vID, store.RelRoutesTo)
+}
