@@ -411,9 +411,13 @@ func scanQSActionConnectors(ctx context.Context, client quickSightAPI, acct *acc
 	})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
+		// ListActionConnectors raises 500 InternalFailure in regions where
+		// the (newish) feature is not deployed. The global 10-attempt
+		// adaptive retryer eats ~2m before giving up. Clamp this op's
+		// retry budget so the soft-skip path triggers fast.
+		out, perr := pager.NextPage(ctx, func(o *quicksight.Options) { o.RetryMaxAttempts = 2 })
 		if perr != nil {
-			if qsSoftSkip(perr) {
+			if qsSoftSkip(perr) || isAPIErrorCode(perr, "InternalFailure") {
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("quicksight:ListActionConnectors: %w", perr)
