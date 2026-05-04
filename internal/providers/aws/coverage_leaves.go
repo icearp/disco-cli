@@ -715,7 +715,6 @@ var leafTypes = map[string]bool{
 	// Get* per-resource bodies (deferred enrichment).
 	"aws:entityresolution:id-mapping-workflow": true,
 	"aws:entityresolution:id-namespace":        true,
-	"aws:entityresolution:matching-workflow":   true,
 	"aws:entityresolution:schema-mapping":      true,
 	// WorkSpaces Web TrustStore has no CMK and no outbound refs beyond
 	// AssociatedPortalArns (already wired Portal→TrustStore inward).

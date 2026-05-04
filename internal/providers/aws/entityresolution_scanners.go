@@ -27,6 +27,7 @@ type entityResolutionAPI interface {
 	ListIdMappingWorkflows(context.Context, *entityresolution.ListIdMappingWorkflowsInput, ...func(*entityresolution.Options)) (*entityresolution.ListIdMappingWorkflowsOutput, error)
 	ListIdNamespaces(context.Context, *entityresolution.ListIdNamespacesInput, ...func(*entityresolution.Options)) (*entityresolution.ListIdNamespacesOutput, error)
 	ListMatchingWorkflows(context.Context, *entityresolution.ListMatchingWorkflowsInput, ...func(*entityresolution.Options)) (*entityresolution.ListMatchingWorkflowsOutput, error)
+	GetMatchingWorkflow(context.Context, *entityresolution.GetMatchingWorkflowInput, ...func(*entityresolution.Options)) (*entityresolution.GetMatchingWorkflowOutput, error)
 	ListSchemaMappings(context.Context, *entityresolution.ListSchemaMappingsInput, ...func(*entityresolution.Options)) (*entityresolution.ListSchemaMappingsOutput, error)
 	GetPolicy(context.Context, *entityresolution.GetPolicyInput, ...func(*entityresolution.Options)) (*entityresolution.GetPolicyOutput, error)
 }
@@ -154,11 +155,25 @@ func scanERMatchingWorkflows(ctx context.Context, client entityResolutionAPI, ac
 				continue
 			}
 			arns = append(arns, arn)
+			// Enrich with GetMatchingWorkflow body — RoleArn, KMS, InputSourceConfig
+			// (Glue tables), OutputSourceConfig (S3 path) are not on the list-summary.
+			attrs := mustJSON(w)
+			wname := sv(w.WorkflowName)
+			if wname != "" {
+				gout, gerr := client.GetMatchingWorkflow(ctx, &entityresolution.GetMatchingWorkflowInput{WorkflowName: &wname})
+				if gerr != nil {
+					if isAccessDenied(gerr) {
+						_ = skipIfAccessDenied(st, "entityresolution:GetMatchingWorkflow", acct.ID, region, gerr)
+					}
+				} else if gout != nil {
+					attrs = mustJSON(gout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeEntityResolutionMatchingWorkflow, NativeID: arn,
 				Name: w.WorkflowName, Region: &region,
-				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
