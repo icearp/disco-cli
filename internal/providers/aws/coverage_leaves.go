@@ -526,6 +526,10 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-input":             true,
 	"aws:mediaconnect:router-network-interface": true,
 	"aws:mediaconnect:router-output":            true,
+	// CloudFront continuous-deployment-policy + function — CDP carries
+	// staging DNS names not distribution ARNs; function is JS code body.
+	"aws:cloudfront:continuous-deployment-policy": true,
+	"aws:cloudfront:function":                     true,
 	// EMR cluster + security-configuration — cluster summary lacks VPC/IAM
 	// (lives on DescribeCluster body — deferred); security-configuration is
 	// pure encryption JSON.

@@ -30,6 +30,62 @@ func init() {
 		EdgeDecl{TypeCloudFrontMonitoringSubscription, TypeCloudFrontDistribution, store.RelAttachedTo},
 		EdgeDecl{TypeCloudFrontConnectionGroup, TypeCloudFrontAnycastIPList, store.RelUses},
 	)
+	registerResolver(resolveCloudFrontVpcOriginEndpoint,
+		EdgeDecl{TypeCloudFrontVpcOrigin, TypeELBv2LoadBalancer, store.RelRoutesTo},
+		EdgeDecl{TypeCloudFrontVpcOrigin, TypeEC2Instance, store.RelRoutesTo},
+	)
+}
+
+// resolveCloudFrontVpcOriginEndpoint wires each CloudFront VPC origin to its
+// backend OriginEndpointArn (ALB/NLB or EC2 instance ARN). FK-safe.
+func resolveCloudFrontVpcOriginEndpoint(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontVpcOrigin}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	lbSet, err := scannedIDSet(acct, st, TypeELBv2LoadBalancer)
+	if err != nil {
+		return err
+	}
+	instSet, err := scannedIDSet(acct, st, TypeEC2Instance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			OriginEndpointArn *string `json:"OriginEndpointArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.OriginEndpointArn)
+		if arn == "" {
+			continue
+		}
+		var ttyp string
+		var set map[string]bool
+		switch {
+		case strings.Contains(arn, ":loadbalancer/"):
+			ttyp, set = TypeELBv2LoadBalancer, lbSet
+		case strings.Contains(arn, ":instance/"):
+			ttyp, set = TypeEC2Instance, instSet
+		default:
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, ttyp, arn)
+		if !set[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cloudfront vpc-origin→%s: %w", ttyp, err)
+		}
+	}
+	return nil
 }
 
 // resolveCloudFrontRelationships runs all CloudFront sub-resolvers.

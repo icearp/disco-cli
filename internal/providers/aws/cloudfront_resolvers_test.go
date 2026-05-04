@@ -502,3 +502,18 @@ func TestResolveCloudFrontConnectionGroupAnycast(t *testing.T) {
 	}
 	assertRelationship(t, rels, cgID, anyResID, store.RelUses)
 }
+
+func TestResolveCloudFrontVpcOriginEndpoint(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	lbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/net/my-nlb/abc", testRegion, acct.ID)
+	lbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, testRegion, "{}")
+	voARN := fmt.Sprintf("arn:aws:cloudfront:us-east-1:%s:vpcorigin/v-1", acct.ID)
+	voAttrs := fmt.Sprintf(`{"OriginEndpointArn":%q}`, lbARN)
+	voID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontVpcOrigin, voARN, "", voAttrs)
+	if err := resolveCloudFrontVpcOriginEndpoint(acct, st); err != nil {
+		t.Fatalf("resolveCloudFrontVpcOriginEndpoint: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(voID)
+	assertRelationship(t, rels, voID, lbID, store.RelRoutesTo)
+}
