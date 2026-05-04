@@ -526,13 +526,13 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-input":             true,
 	"aws:mediaconnect:router-network-interface": true,
 	"aws:mediaconnect:router-output":            true,
-	// Location service summary-only types.
-	"aws:location:api-key":             true,
-	"aws:location:geofence-collection": true,
-	"aws:location:map":                 true,
-	"aws:location:place-index":         true,
-	"aws:location:route-calculator":    true,
-	"aws:location:tracker":             true,
+	// Location service summary-only types (KMS edges shipped for tracker +
+	// geofence-collection via Describe enrichment; remaining four have no
+	// outbound refs even on Describe).
+	"aws:location:api-key":          true,
+	"aws:location:map":              true,
+	"aws:location:place-index":      true,
+	"aws:location:route-calculator": true,
 	// Timestream LiveAnalytics + InfluxDB — refs (KMS, S3, VPC) live on
 	// Describe* per resource.
 	"aws:timestream:database":           true,

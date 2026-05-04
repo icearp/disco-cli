@@ -25,3 +25,23 @@ func TestResolveLocationTrackerConsumerRefs(t *testing.T) {
 	assertRelationship(t, rels, tcID, tID, store.RelAttachedTo)
 	assertRelationship(t, rels, tcID, gcID, store.RelUses)
 }
+
+func TestResolveLocationKMSRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, fmt.Sprintf(`{"KeyId":"abc-123","Arn":%q}`, keyARN))
+	gcARN := locARN(testRegion, acct.ID, "geofence-collection", "g1")
+	gcAttrs := fmt.Sprintf(`{"KmsKeyId":%q}`, keyARN)
+	gcID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationGeofenceCollection, gcARN, testRegion, gcAttrs)
+	tARN := locARN(testRegion, acct.ID, "tracker", "t1")
+	tAttrs := fmt.Sprintf(`{"KmsKeyId":%q}`, keyARN)
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationTracker, tARN, testRegion, tAttrs)
+	if err := resolveLocationKMSRefs(acct, st); err != nil {
+		t.Fatalf("resolveLocationKMSRefs: %v", err)
+	}
+	for _, src := range []string{gcID, tID} {
+		rels, _ := st.RelationshipsFrom(src)
+		assertRelationship(t, rels, src, keyID, store.RelUses)
+	}
+}

@@ -14,6 +14,49 @@ func init() {
 		EdgeDecl{TypeLocationTrackerConsumer, TypeLocationTracker, store.RelAttachedTo},
 		EdgeDecl{TypeLocationTrackerConsumer, TypeLocationGeofenceCollection, store.RelUses},
 	)
+	registerResolver(resolveLocationKMSRefs,
+		EdgeDecl{TypeLocationGeofenceCollection, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeLocationTracker, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveLocationKMSRefs wires geofence-collections + trackers to their
+// customer-managed KMS key. KmsKeyId field populated by Phase-1 Describe
+// enrichment in scanLocationGeofenceCollections / scanLocationTrackers.
+func resolveLocationKMSRefs(acct *account, st *store.Store) error {
+	kidx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, ttyp := range []string{TypeLocationGeofenceCollection, TypeLocationTracker} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
+			Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				KmsKeyID *string `json:"KmsKeyId"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			k := sv(attrs.KmsKeyID)
+			if k == "" {
+				continue
+			}
+			keyID, ok := kidx.resolveKMSKeyID(k, sv(r.Region), acct.ID)
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert location %s→kms: %w", ttyp, err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveLocationTrackerConsumerRefs links each tracker-consumer to its parent

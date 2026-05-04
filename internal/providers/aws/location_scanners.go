@@ -33,6 +33,8 @@ type locationAPI interface {
 	ListRouteCalculators(context.Context, *location.ListRouteCalculatorsInput, ...func(*location.Options)) (*location.ListRouteCalculatorsOutput, error)
 	ListTrackers(context.Context, *location.ListTrackersInput, ...func(*location.Options)) (*location.ListTrackersOutput, error)
 	ListTrackerConsumers(context.Context, *location.ListTrackerConsumersInput, ...func(*location.Options)) (*location.ListTrackerConsumersOutput, error)
+	DescribeGeofenceCollection(context.Context, *location.DescribeGeofenceCollectionInput, ...func(*location.Options)) (*location.DescribeGeofenceCollectionOutput, error)
+	DescribeTracker(context.Context, *location.DescribeTrackerInput, ...func(*location.Options)) (*location.DescribeTrackerOutput, error)
 }
 
 func locARN(region, acct, kind, name string) string {
@@ -124,10 +126,19 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 			}
 			arn := locARN(region, acct.ID, "geofence-collection", name)
 			label := name
+			// Enrich via DescribeGeofenceCollection — list returns summary
+			// (no KmsKeyId); KMS edge needs Describe body.
+			var attrsJSON string
+			cn := name
+			if dout, derr := client.DescribeGeofenceCollection(ctx, &location.DescribeGeofenceCollectionInput{CollectionName: &cn}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			} else {
+				attrsJSON = mustJSON(c)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLocationGeofenceCollection, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -242,10 +253,18 @@ func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account
 			arn := locARN(region, acct.ID, "tracker", name)
 			label := name
 			names = append(names, name)
+			// Enrich via DescribeTracker — list returns summary (no KmsKeyId).
+			var attrsJSON string
+			tn := name
+			if dout, derr := client.DescribeTracker(ctx, &location.DescribeTrackerInput{TrackerName: &tn}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			} else {
+				attrsJSON = mustJSON(t)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLocationTracker, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
