@@ -85,3 +85,54 @@ func TestResolveDeadlineMeteredProductParent(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(mpID)
 	assertRelationship(t, rels, mpID, leID, store.RelAttachedTo)
 }
+
+func TestResolveDeadlineFarmKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	fARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
+	fID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineFarm, fARN, testRegion,
+		fmt.Sprintf(`{"KmsKeyArn":"%s"}`, keyARN))
+	if err := resolveDeadlineFarmKMS(acct, st); err != nil {
+		t.Fatalf("resolveDeadlineFarmKMS: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(fID)
+	assertRelationship(t, rels, fID, keyID, store.RelUses)
+}
+
+func TestResolveDeadlineLicenseEndpointVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+	leARN := fmt.Sprintf("arn:aws:deadline:%s:%s:license-endpoint/le-1", testRegion, acct.ID)
+	leID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineLicenseEndpoint, leARN, testRegion,
+		`{"VpcId":"vpc-1"}`)
+	if err := resolveDeadlineLicenseEndpointVPC(acct, st); err != nil {
+		t.Fatalf("resolveDeadlineLicenseEndpointVPC: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(leID)
+	assertRelationship(t, rels, leID, vpcID, store.RelAttachedTo)
+}
+
+func TestResolveDeadlineMonitorRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/dl-role", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	instARN := "arn:aws:sso:::instance/ssoins-1"
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, instARN, "", "{}")
+	appARN := fmt.Sprintf("arn:aws:sso::%s:application/ssoins-1/apl-1", acct.ID)
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOApplication, appARN, "", "{}")
+	mARN := fmt.Sprintf("arn:aws:deadline:%s:%s:monitor/m-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"RoleArn":"%s","IdentityCenterInstanceArn":"%s","IdentityCenterApplicationArn":"%s"}`, roleARN, instARN, appARN)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineMonitor, mARN, testRegion, attrs)
+	if err := resolveDeadlineMonitorRefs(acct, st); err != nil {
+		t.Fatalf("resolveDeadlineMonitorRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mID)
+	assertRelationship(t, rels, mID, roleID, store.RelUses)
+	assertRelationship(t, rels, mID, instID, store.RelAttachedTo)
+	assertRelationship(t, rels, mID, appID, store.RelAttachedTo)
+}

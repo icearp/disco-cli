@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,146 @@ func init() {
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineQueue, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineLimit, store.RelAttachedTo},
 	)
+	registerResolver(resolveDeadlineFarmKMS,
+		EdgeDecl{TypeDeadlineFarm, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveDeadlineLicenseEndpointVPC,
+		EdgeDecl{TypeDeadlineLicenseEndpoint, TypeEC2VPC, store.RelAttachedTo},
+	)
+	registerResolver(resolveDeadlineMonitorRefs,
+		EdgeDecl{TypeDeadlineMonitor, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeDeadlineMonitor, TypeSSOInstance, store.RelAttachedTo},
+		EdgeDecl{TypeDeadlineMonitor, TypeSSOApplication, store.RelAttachedTo},
+	)
+}
+
+// resolveDeadlineFarmKMS wires farm → customer KMS key (KmsKeyArn).
+func resolveDeadlineFarmKMS(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineFarm}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyArn *string `json:"KmsKeyArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if k := sv(attrs.KmsKeyArn); k != "" {
+			if keyID, ok := kmsIdx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert deadline farm→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveDeadlineLicenseEndpointVPC wires license-endpoint → VPC (VpcId).
+func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineLicenseEndpoint}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcId *string `json:"VpcId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if v := sv(attrs.VpcId); v != "" {
+			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", v)
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
+			if vpcSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert deadline le→vpc: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveDeadlineMonitorRefs wires monitor → IAM role (RoleArn) and Identity
+// Center instance + application (IdentityCenter*Arn).
+func resolveDeadlineMonitorRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineMonitor}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	insSet, err := scannedIDSet(acct, st, TypeSSOInstance)
+	if err != nil {
+		return err
+	}
+	appSet, err := scannedIDSet(acct, st, TypeSSOApplication)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			RoleArn                      *string `json:"RoleArn"`
+			IdentityCenterInstanceArn    *string `json:"IdentityCenterInstanceArn"`
+			IdentityCenterApplicationArn *string `json:"IdentityCenterApplicationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if role := sv(attrs.RoleArn); role != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			if roleSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert deadline monitor→role: %w", err)
+				}
+			}
+		}
+		if i := sv(attrs.IdentityCenterInstanceArn); i != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeSSOInstance, i)
+			if insSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert deadline monitor→sso-instance: %w", err)
+				}
+			}
+		}
+		if a := sv(attrs.IdentityCenterApplicationArn); a != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeSSOApplication, a)
+			if appSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert deadline monitor→sso-app: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // deadlineFarmARNFromChild extracts the parent farm ARN from a deadline
