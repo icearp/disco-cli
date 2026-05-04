@@ -1,0 +1,169 @@
+package aws
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
+)
+
+func init() {
+	registerResolver(resolveServiceDiscoveryServiceNamespace,
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryHttpNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPrivateDnsNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPublicDnsNamespace, store.RelAttachedTo},
+	)
+	registerResolver(resolveServiceDiscoveryNamespaceHostedZone,
+		EdgeDecl{TypeServiceDiscoveryPrivateDnsNamespace, TypeRoute53HostedZone, store.RelUses},
+		EdgeDecl{TypeServiceDiscoveryPublicDnsNamespace, TypeRoute53HostedZone, store.RelUses},
+	)
+	registerResolver(resolveServiceDiscoveryInstanceService,
+		EdgeDecl{TypeServiceDiscoveryInstance, TypeServiceDiscoveryService, store.RelAttachedTo},
+	)
+}
+
+// sdNamespaceARN rebuilds a Cloud Map namespace ARN from its raw ID.
+func sdNamespaceARN(region, acct, nsID string) string {
+	return fmt.Sprintf("arn:aws:servicediscovery:%s:%s:namespace/%s", region, acct, nsID)
+}
+
+// resolveServiceDiscoveryServiceNamespace wires each Cloud Map service to
+// its parent namespace via DnsConfig.NamespaceId (ServiceSummary has no
+// top-level NamespaceId — the field is on DnsConfig). FK-safe across all
+// three namespace flavours.
+func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeServiceDiscoveryService},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	nsTypes := []string{
+		TypeServiceDiscoveryHttpNamespace,
+		TypeServiceDiscoveryPrivateDnsNamespace,
+		TypeServiceDiscoveryPublicDnsNamespace,
+	}
+	nsSets := map[string]map[string]bool{}
+	for _, t := range nsTypes {
+		set, err := scannedIDSet(acct, st, t)
+		if err != nil {
+			return err
+		}
+		nsSets[t] = set
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DnsConfig *struct {
+				NamespaceID *string `json:"NamespaceId"`
+			} `json:"DnsConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.DnsConfig == nil {
+			continue
+		}
+		nsID := sv(attrs.DnsConfig.NamespaceID)
+		if nsID == "" {
+			continue
+		}
+		nsARN := sdNamespaceARN(sv(r.Region), acct.ID, nsID)
+		for _, t := range nsTypes {
+			tgt := store.ResourceID("aws", acct.ID, t, nsARN)
+			if !nsSets[t][tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert servicediscovery service→%s: %w", t, err)
+			}
+			break
+		}
+	}
+	return nil
+}
+
+// resolveServiceDiscoveryNamespaceHostedZone wires private/public DNS
+// namespaces to the Route 53 hosted zone Cloud Map auto-creates
+// (Properties.DnsProperties.HostedZoneId). HTTP namespaces have no zone.
+func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) error {
+	hzSet, err := scannedIDSet(acct, st, TypeRoute53HostedZone)
+	if err != nil {
+		return err
+	}
+	for _, ttyp := range []string{TypeServiceDiscoveryPrivateDnsNamespace, TypeServiceDiscoveryPublicDnsNamespace} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
+			Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				Properties *struct {
+					DnsProperties *struct {
+						HostedZoneID *string `json:"HostedZoneId"`
+					} `json:"DnsProperties"`
+				} `json:"Properties"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil ||
+				attrs.Properties == nil || attrs.Properties.DnsProperties == nil {
+				continue
+			}
+			hz := sv(attrs.Properties.DnsProperties.HostedZoneID)
+			if hz == "" {
+				continue
+			}
+			// Route53 hosted-zone NativeID = `arn:aws:route53:::hostedzone/{id}`.
+			// HostedZoneId may carry `/hostedzone/` prefix; strip.
+			hz = strings.TrimPrefix(hz, "/hostedzone/")
+			hzARN := "arn:aws:route53:::hostedzone/" + hz
+			tgt := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, hzARN)
+			if !hzSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert servicediscovery %s→hosted-zone: %w", ttyp, err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveServiceDiscoveryInstanceService wires each Cloud Map instance to
+// its parent service via the synthetic NativeID shape
+// `arn:aws:servicediscovery:r:a:service/{sid}/instance/{iid}`.
+func resolveServiceDiscoveryInstanceService(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeServiceDiscoveryInstance},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	svcSet, err := scannedIDSet(acct, st, TypeServiceDiscoveryService)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		i := strings.Index(r.NativeID, "/instance/")
+		if i < 0 {
+			continue
+		}
+		parent := r.NativeID[:i]
+		tgt := store.ResourceID("aws", acct.ID, TypeServiceDiscoveryService, parent)
+		if !svcSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert servicediscovery instance→service: %w", err)
+		}
+	}
+	return nil
+}
