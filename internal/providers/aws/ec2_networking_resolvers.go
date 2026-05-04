@@ -17,6 +17,7 @@ func init() {
 	)
 	registerResolver(resolveRouteTableRelationships,
 		EdgeDecl{TypeEC2RouteTable, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeEC2RouteTable, TypeEC2Subnet, store.RelAttachedTo},
 	)
 	registerResolver(resolveRouteTableRoutes,
 		EdgeDecl{TypeEC2RouteTable, TypeEC2InternetGateway, store.RelRoutesTo},
@@ -257,17 +258,37 @@ func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
 	for _, r := range rts {
 		var attrs struct {
-			VpcID *string `json:"VpcID"`
+			VpcID        *string `json:"VpcID"`
+			Associations []struct {
+				SubnetID *string `json:"SubnetID"`
+			} `json:"Associations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
+		region := sv(r.Region)
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert route-table→vpc relationship: %w", err)
+			}
+		}
+		for _, assoc := range attrs.Associations {
+			if assoc.SubnetID == nil || *assoc.SubnetID == "" {
+				continue
+			}
+			subID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *assoc.SubnetID))
+			if !subnetSet[subID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, subID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert route-table→subnet relationship: %w", err)
 			}
 		}
 	}

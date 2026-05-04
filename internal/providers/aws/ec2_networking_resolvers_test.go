@@ -57,8 +57,10 @@ func TestResolveRouteTableRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
-	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, rtARN, testRegion, `{"VpcId":"vpc-001"}`)
+	attrs := `{"VpcId":"vpc-001","Associations":[{"SubnetId":"subnet-001"},{"Main":true},{"SubnetId":"subnet-unscanned"}]}`
+	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, rtARN, testRegion, attrs)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
+	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-001"), testRegion, "{}")
 
 	if err := resolveRouteTableRelationships(acct, st); err != nil {
 		t.Fatalf("resolveRouteTableRelationships: %v", err)
@@ -67,10 +69,11 @@ func TestResolveRouteTableRelationships(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
-	if len(rels) != 1 {
-		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	if len(rels) != 2 {
+		t.Fatalf("expected 2 relationships, got %d", len(rels))
 	}
 	assertRelationship(t, rels, rtID, vpcID, store.RelAttachedTo)
+	assertRelationship(t, rels, rtID, subnetID, store.RelAttachedTo)
 }
 
 func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
