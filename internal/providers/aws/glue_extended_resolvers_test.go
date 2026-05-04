@@ -114,3 +114,51 @@ func TestResolveGlueSecurityConfigKMS(t *testing.T) {
 	}
 	assertRelationship(t, rels, scID, keyID, store.RelUses)
 }
+
+func TestResolveGlueDataCatalogEncryptionKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/cat-key", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	dceARN := fmt.Sprintf("arn:aws:glue:%s:%s:data-catalog-encryption-settings", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"DataCatalogEncryptionSettings":{"EncryptionAtRest":{"SseAwsKmsKeyId":%q}}}`, keyARN)
+	dceID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueDataCatalogEncryptionSettings, dceARN, testRegion, attrs)
+	if err := resolveGlueDataCatalogEncryptionKMS(acct, st); err != nil {
+		t.Fatalf("resolveGlueDataCatalogEncryptionKMS: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dceID)
+	assertRelationship(t, rels, dceID, keyID, store.RelUses)
+}
+
+func TestResolveGlueWorkflowGraphNodes(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	jobARN := fmt.Sprintf("arn:aws:glue:%s:%s:job/etl-1", testRegion, acct.ID)
+	jobID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueJob, jobARN, testRegion, "{}")
+	trgARN := fmt.Sprintf("arn:aws:glue:%s:%s:trigger/t-1", testRegion, acct.ID)
+	trgID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueTrigger, trgARN, testRegion, "{}")
+	wfARN := fmt.Sprintf("arn:aws:glue:%s:%s:workflow/wf-1", testRegion, acct.ID)
+	wfAttrs := `{"Graph":{"Nodes":[{"Name":"etl-1","Type":"JOB"},{"Name":"t-1","Type":"TRIGGER"}]}}`
+	wfID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueWorkflow, wfARN, testRegion, wfAttrs)
+	if err := resolveGlueWorkflowGraphNodes(acct, st); err != nil {
+		t.Fatalf("resolveGlueWorkflowGraphNodes: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(wfID)
+	assertRelationship(t, rels, wfID, jobID, store.RelContains)
+	assertRelationship(t, rels, wfID, trgID, store.RelContains)
+}
+
+func TestResolveGlueIdentityCenterRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	ssoARN := "arn:aws:sso:::instance/ssoins-abc"
+	ssoID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, ssoARN, "", "{}")
+	icARN := fmt.Sprintf("arn:aws:glue:%s:%s:identity-center-configuration", testRegion, acct.ID)
+	icAttrs := fmt.Sprintf(`{"InstanceArn":%q}`, ssoARN)
+	icID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueIdentityCenterConfiguration, icARN, testRegion, icAttrs)
+	if err := resolveGlueIdentityCenterRefs(acct, st); err != nil {
+		t.Fatalf("resolveGlueIdentityCenterRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(icID)
+	assertRelationship(t, rels, icID, ssoID, store.RelUses)
+}

@@ -35,6 +35,17 @@ func init() {
 	registerResolver(resolveGlueSecurityConfigKMS,
 		EdgeDecl{TypeGlueSecurityConfiguration, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(resolveGlueDataCatalogEncryptionKMS,
+		EdgeDecl{TypeGlueDataCatalogEncryptionSettings, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveGlueWorkflowGraphNodes,
+		EdgeDecl{TypeGlueWorkflow, TypeGlueJob, store.RelContains},
+		EdgeDecl{TypeGlueWorkflow, TypeGlueTrigger, store.RelContains},
+		EdgeDecl{TypeGlueWorkflow, TypeGlueCrawler, store.RelContains},
+	)
+	registerResolver(resolveGlueIdentityCenterRefs,
+		EdgeDecl{TypeGlueIdentityCenterConfiguration, TypeSSOInstance, store.RelUses},
+	)
 }
 
 // resolveGlueTriggerWorkflow links a trigger to its workflow (WorkflowName)
@@ -429,6 +440,187 @@ func resolveGlueSecurityConfigKMS(acct *account, st *store.Store) error {
 			if err := emit(sv(j.KmsKeyArn)); err != nil {
 				return fmt.Errorf("upsert glue-sc→kms (jb): %w", err)
 			}
+		}
+	}
+	return nil
+}
+
+// resolveGlueDataCatalogEncryptionKMS wires the per-region data-catalog
+// encryption singleton to the KMS keys used for catalog and connection-password
+// encryption (EncryptionAtRest.SseAwsKmsKeyId, ConnectionPasswordEncryption.AwsKmsKeyId).
+func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDataCatalogEncryptionSettings},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DataCatalogEncryptionSettings *struct {
+				EncryptionAtRest *struct {
+					SseAwsKmsKeyId *string `json:"SseAwsKmsKeyId"`
+				} `json:"EncryptionAtRest"`
+				ConnectionPasswordEncryption *struct {
+					AwsKmsKeyId *string `json:"AwsKmsKeyId"`
+				} `json:"ConnectionPasswordEncryption"`
+			} `json:"DataCatalogEncryptionSettings"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.DataCatalogEncryptionSettings == nil {
+			continue
+		}
+		region := sv(r.Region)
+		seen := map[string]bool{}
+		emit := func(ref string) error {
+			if ref == "" {
+				return nil
+			}
+			id, ok := idx.resolveKMSKeyID(ref, region, acct.ID)
+			if !ok || seen[id] {
+				return nil
+			}
+			seen[id] = true
+			return st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil)
+		}
+		if e := attrs.DataCatalogEncryptionSettings.EncryptionAtRest; e != nil {
+			if err := emit(sv(e.SseAwsKmsKeyId)); err != nil {
+				return fmt.Errorf("upsert glue data-catalog-encryption→kms: %w", err)
+			}
+		}
+		if c := attrs.DataCatalogEncryptionSettings.ConnectionPasswordEncryption; c != nil {
+			if err := emit(sv(c.AwsKmsKeyId)); err != nil {
+				return fmt.Errorf("upsert glue data-catalog-encryption→kms: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveGlueWorkflowGraphNodes walks each workflow's Graph.Nodes[] and emits
+// contains → job/trigger/crawler by Type discriminator. The JSON shape is the
+// SDK Workflow struct as marshalled by mustJSON.
+func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueWorkflow},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	jobSet, err := scannedIDSet(acct, st, TypeGlueJob)
+	if err != nil {
+		return err
+	}
+	trigSet, err := scannedIDSet(acct, st, TypeGlueTrigger)
+	if err != nil {
+		return err
+	}
+	crawlSet, err := scannedIDSet(acct, st, TypeGlueCrawler)
+	if err != nil {
+		return err
+	}
+	var pairs [][2]string
+	for _, r := range rows {
+		var attrs struct {
+			Graph *struct {
+				Nodes []struct {
+					Name *string `json:"Name"`
+					Type *string `json:"Type"`
+				} `json:"Nodes"`
+			} `json:"Graph"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Graph == nil {
+			continue
+		}
+		region := sv(r.Region)
+		seen := map[string]bool{}
+		for _, n := range attrs.Graph.Nodes {
+			name := sv(n.Name)
+			if name == "" {
+				continue
+			}
+			var childID string
+			switch sv(n.Type) {
+			case "JOB":
+				childID = store.ResourceID("aws", acct.ID, TypeGlueJob, glueResourceARN(region, acct.ID, "job", name))
+				if !jobSet[childID] {
+					childID = ""
+				}
+			case "TRIGGER":
+				childID = store.ResourceID("aws", acct.ID, TypeGlueTrigger, glueResourceARN(region, acct.ID, "trigger", name))
+				if !trigSet[childID] {
+					childID = ""
+				}
+			case "CRAWLER":
+				childID = store.ResourceID("aws", acct.ID, TypeGlueCrawler, glueResourceARN(region, acct.ID, "crawler", name))
+				if !crawlSet[childID] {
+					childID = ""
+				}
+			}
+			if childID == "" || seen[childID] {
+				continue
+			}
+			seen[childID] = true
+			pairs = append(pairs, [2]string{childID, r.ID})
+		}
+	}
+	if len(pairs) == 0 {
+		return nil
+	}
+	return st.RecordHierarchyBatch(pairs)
+}
+
+// resolveGlueIdentityCenterRefs links the per-region Glue Identity Center
+// configuration to its parent SSO instance (InstanceArn).
+func resolveGlueIdentityCenterRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueIdentityCenterConfiguration},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	ssoSet, err := scannedIDSet(acct, st, TypeSSOInstance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			InstanceArn *string `json:"InstanceArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ia := sv(attrs.InstanceArn)
+		if ia == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeSSOInstance, ia)
+		if !ssoSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert glue identity-center→sso-instance: %w", err)
 		}
 	}
 	return nil
