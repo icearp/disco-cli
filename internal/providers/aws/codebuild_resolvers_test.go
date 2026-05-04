@@ -52,3 +52,51 @@ func TestResolveCodeBuildProjectRefs(t *testing.T) {
 	assertRelationship(t, rels, projID, bucketID, store.RelUses)
 	assertRelationship(t, rels, projID, lgID, store.RelUses)
 }
+
+func TestResolveCodeBuildFleetRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	flARN := "arn:aws:codebuild:us-east-1:" + testAccountID + ":fleet/myfleet"
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/cb-fleet"
+	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
+	snARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
+	attrs := `{"FleetServiceRole":"` + roleARN + `","VpcConfig":{"VpcId":"vpc-1","Subnets":["subnet-1"],"SecurityGroupIds":["sg-1"]}}`
+
+	fID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeBuildFleet, flARN, testRegion, attrs)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, snARN, testRegion, "{}")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
+
+	if err := resolveCodeBuildFleetRefs(acct, st); err != nil {
+		t.Fatalf("resolveCodeBuildFleetRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(fID)
+	assertRelationship(t, rels, fID, rID, store.RelAssumes)
+	assertRelationship(t, rels, fID, vID, store.RelAttachedTo)
+	assertRelationship(t, rels, fID, snID, store.RelAttachedTo)
+	assertRelationship(t, rels, fID, sgID, store.RelAttachedTo)
+}
+
+func TestResolveCodeBuildReportGroupRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	rgARN := "arn:aws:codebuild:us-east-1:" + testAccountID + ":report-group/rg1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-rg"
+	bucketARN := "arn:aws:s3:::cb-reports"
+	attrs := `{"ExportConfig":{"S3Destination":{"Bucket":"cb-reports","EncryptionKey":"` + keyARN + `"}}}`
+
+	rgID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeBuildReportGroup, rgARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, testRegion, "{}")
+
+	if err := resolveCodeBuildReportGroupRefs(acct, st); err != nil {
+		t.Fatalf("resolveCodeBuildReportGroupRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rgID)
+	assertRelationship(t, rels, rgID, kID, store.RelUses)
+	assertRelationship(t, rels, rgID, bID, store.RelUses)
+}

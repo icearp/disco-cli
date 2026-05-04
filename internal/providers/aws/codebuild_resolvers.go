@@ -19,6 +19,154 @@ func init() {
 		EdgeDecl{TypeCodeBuildProject, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeCodeBuildProject, TypeLogsLogGroup, store.RelUses},
 	)
+	registerResolver(resolveCodeBuildFleetRefs,
+		EdgeDecl{TypeCodeBuildFleet, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeCodeBuildFleet, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeCodeBuildFleet, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeCodeBuildFleet, TypeEC2SecurityGroup, store.RelAttachedTo},
+	)
+	registerResolver(resolveCodeBuildReportGroupRefs,
+		EdgeDecl{TypeCodeBuildReportGroup, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeCodeBuildReportGroup, TypeS3Bucket, store.RelUses},
+	)
+}
+
+// resolveCodeBuildFleetRefs walks each enriched fleet (BatchGetFleets) and
+// emits FleetServiceRole (IAM) + VpcConfig (VPC, subnets, SGs).
+func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeBuildFleet}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			FleetServiceRole *string `json:"FleetServiceRole"`
+			VpcConfig        *struct {
+				VpcID            *string  `json:"VpcId"`
+				Subnets          []string `json:"Subnets"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
+			} `json:"VpcConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if rarn := sv(attrs.FleetServiceRole); strings.Contains(rarn, ":role/") {
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+			if roleSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cb-fleet→role: %w", err)
+				}
+			}
+		}
+		if attrs.VpcConfig != nil {
+			if v := sv(attrs.VpcConfig.VpcID); v != "" {
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+				if vpcSet[tgt] {
+					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+						return fmt.Errorf("upsert cb-fleet→vpc: %w", err)
+					}
+				}
+			}
+			for _, sn := range attrs.VpcConfig.Subnets {
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+				if !subnetSet[tgt] {
+					continue
+				}
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cb-fleet→subnet: %w", err)
+				}
+			}
+			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
+				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+				if !sgSet[tgt] {
+					continue
+				}
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cb-fleet→sg: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveCodeBuildReportGroupRefs walks each enriched report-group
+// (BatchGetReportGroups) and emits ExportConfig.S3Destination edges:
+// EncryptionKey (KMS) and Bucket (S3).
+func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeBuildReportGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ExportConfig *struct {
+				S3Destination *struct {
+					Bucket        *string `json:"Bucket"`
+					EncryptionKey *string `json:"EncryptionKey"`
+				} `json:"S3Destination"`
+			} `json:"ExportConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.ExportConfig == nil || attrs.ExportConfig.S3Destination == nil {
+			continue
+		}
+		s3 := attrs.ExportConfig.S3Destination
+		if ref := sv(s3.EncryptionKey); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cb-rg→kms: %w", err)
+				}
+			}
+		}
+		if b := sv(s3.Bucket); b != "" {
+			barn := "arn:aws:s3:::" + b
+			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+			if bucketSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cb-rg→s3: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveCodeBuildProjectRefs walks each enriched CodeBuild project body

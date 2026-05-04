@@ -536,8 +536,6 @@ var leafTypes = map[string]bool{
 	"aws:cloud9:environment-ec2":                               true,
 	"aws:cloudtrail:channel":                                   true,
 	"aws:cloudtrail:dashboard":                                 true,
-	"aws:code-build:fleet":                                     true,
-	"aws:code-build:report-group":                              true,
 	"aws:code-build:source-credential":                         true,
 	"aws:codecommit:repository":                                true,
 	"aws:codedeploy:application":                               true,
