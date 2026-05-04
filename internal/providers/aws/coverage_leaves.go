@@ -486,4 +486,10 @@ var leafTypes = map[string]bool{
 	// reference Notifications-internal IDs only.
 	"aws:notifications:managed-notification-additional-channel-association": true,
 	"aws:notifications:notification-configuration":                          true,
+	// IVS leaves — encoder/playback/public-key are config artefacts,
+	// neither parents nor cross-service refs.
+	"aws:ivs:encoder-configuration":       true,
+	"aws:ivs:playback-key-pair":           true,
+	"aws:ivs:playback-restriction-policy": true,
+	"aws:ivs:public-key":                  true,
 }

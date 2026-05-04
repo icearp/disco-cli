@@ -84,3 +84,18 @@ func TestResolveIVSStorageConfigS3(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(scID)
 	assertRelationship(t, rels, scID, bID, store.RelUses)
 }
+
+func TestResolveIVSStageStorageConfig(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	scARN := fmt.Sprintf("arn:aws:ivs:%s:%s:storage-configuration/sc-1", testRegion, acct.ID)
+	scID := upsertTestResource(t, st, "aws", acct.ID, TypeIVSStorageConfiguration, scARN, testRegion, "{}")
+	stARN := fmt.Sprintf("arn:aws:ivs:%s:%s:stage/s1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"AutoParticipantRecordingConfiguration":{"StorageConfigurationArn":%q}}`, scARN)
+	stID := upsertTestResource(t, st, "aws", acct.ID, TypeIVSStage, stARN, testRegion, attrs)
+	if err := resolveIVSStageStorageConfig(acct, st); err != nil {
+		t.Fatalf("resolveIVSStageStorageConfig: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(stID)
+	assertRelationship(t, rels, stID, scID, store.RelUses)
+}

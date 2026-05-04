@@ -25,6 +25,52 @@ func init() {
 	registerResolver(resolveIVSStorageConfigS3,
 		EdgeDecl{TypeIVSStorageConfiguration, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(resolveIVSStageStorageConfig,
+		EdgeDecl{TypeIVSStage, TypeIVSStorageConfiguration, store.RelUses},
+	)
+}
+
+// resolveIVSStageStorageConfig wires each Stage to the StorageConfiguration
+// it auto-records into (AutoParticipantRecordingConfiguration.StorageConfigurationArn).
+func resolveIVSStageStorageConfig(acct *account, st *store.Store) error {
+	stages, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIVSStage}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(stages) == 0 {
+		return nil
+	}
+	scSet, err := scannedIDSet(acct, st, TypeIVSStorageConfiguration)
+	if err != nil {
+		return err
+	}
+	for _, s := range stages {
+		var attrs struct {
+			AutoParticipantRecordingConfiguration *struct {
+				StorageConfigurationArn *string `json:"StorageConfigurationArn"`
+			} `json:"AutoParticipantRecordingConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.AutoParticipantRecordingConfiguration == nil {
+			continue
+		}
+		arn := sv(attrs.AutoParticipantRecordingConfiguration.StorageConfigurationArn)
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeIVSStorageConfiguration, arn)
+		if !scSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(s.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert ivs stage→storage-configuration: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveIVSRecordingConfigS3 wires each recording-configuration to the S3
