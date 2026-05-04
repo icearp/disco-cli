@@ -131,3 +131,21 @@ func TestResolveAppStreamAppBlockS3(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(abID)
 	assertRelationship(t, rels, abID, bID, store.RelUses)
 }
+
+func TestResolveAppStreamStackAccessEndpoints(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	stackARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
+	vpceARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-abc123")
+	attrs := `{"AccessEndpoints":[{"EndpointType":"STREAMING","VpceId":"vpce-abc123"}]}`
+
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamStack, stackARN, testRegion, attrs)
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, vpceARN, testRegion, "{}")
+
+	if err := resolveAppStreamStackAccessEndpoints(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamStackAccessEndpoints: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, vID, store.RelUses)
+}

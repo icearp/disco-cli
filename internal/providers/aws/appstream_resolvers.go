@@ -47,6 +47,54 @@ func init() {
 		EdgeDecl{TypeAppStreamApplicationEntitlementAssociation, TypeAppStreamStack, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamApplicationEntitlementAssociation, TypeAppStreamEntitlement, store.RelAttachedTo},
 	)
+	registerResolver(resolveAppStreamStackAccessEndpoints,
+		EdgeDecl{TypeAppStreamStack, TypeEC2VPCEndpoint, store.RelUses},
+	)
+}
+
+// resolveAppStreamStackAccessEndpoints wires each stack to the interface VPC
+// endpoints listed in AccessEndpoints[]. The endpoint is referenced by VpceId
+// (a bare `vpce-…` id); rebuild the disco-shape VPCe ARN per region+acct and
+// look up FK-safe.
+func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamStack}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpceSet, err := scannedIDSet(acct, st, TypeEC2VPCEndpoint)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			AccessEndpoints []struct {
+				VpceId *string `json:"VpceId"`
+			} `json:"AccessEndpoints"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		for _, ae := range attrs.AccessEndpoints {
+			id := sv(ae.VpceId)
+			if id == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", id))
+			if !vpceSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert appstream stack→vpce: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 type appstreamVpcRoleAttrs struct {

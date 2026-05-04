@@ -180,7 +180,6 @@ var leafTypes = map[string]bool{
 	"aws:appintegrations:application":                            true,
 	"aws:appintegrations:data-integration":                       true,
 	"aws:appstream:directory-config":                             true,
-	"aws:appstream:stack":                                        true,
 	"aws:appstream:user":                                         true,
 	"aws:appsync:domain-name":                                    true,
 	"aws:apigateway:api-key":                                     true,
