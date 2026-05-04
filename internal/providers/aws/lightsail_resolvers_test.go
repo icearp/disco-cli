@@ -90,3 +90,96 @@ func TestResolveLightsailAlarmTarget(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(aID)
 	assertRelationship(t, rels, aID, iID, store.RelUses)
 }
+
+func TestResolveLightsailInstanceDisks(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	dARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Disk/d-1", testRegion, acct.ID)
+	dID := upsertLightsailRow(t, st, acct, TypeLightsailDisk, dARN, "data-disk", testRegion, "{}")
+	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
+	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "i-1", testRegion,
+		`{"Hardware":{"Disks":[{"Name":"data-disk"}]}}`)
+	if err := resolveLightsailInstanceDisks(acct, st); err != nil {
+		t.Fatalf("resolveLightsailInstanceDisks: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(iID)
+	assertRelationship(t, rels, iID, dID, store.RelAttachedTo)
+}
+
+func TestResolveLightsailDiskAttachedInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
+	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "host-1", testRegion, "{}")
+	dARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Disk/d-1", testRegion, acct.ID)
+	dID := upsertLightsailRow(t, st, acct, TypeLightsailDisk, dARN, "d-1", testRegion, `{"AttachedTo":"host-1"}`)
+	if err := resolveLightsailDiskAttachedInstance(acct, st); err != nil {
+		t.Fatalf("resolveLightsailDiskAttachedInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, iID, store.RelAttachedTo)
+}
+
+func TestResolveLightsailStaticIPAttachedInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
+	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "host-1", testRegion, "{}")
+	sARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:StaticIp/sip-1", testRegion, acct.ID)
+	sID := upsertLightsailRow(t, st, acct, TypeLightsailStaticIp, sARN, "ip-a", testRegion, `{"AttachedTo":"host-1"}`)
+	if err := resolveLightsailStaticIPAttachedInstance(acct, st); err != nil {
+		t.Fatalf("resolveLightsailStaticIPAttachedInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, iID, store.RelAttachedTo)
+}
+
+func TestResolveLightsailLoadBalancerRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
+	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "be-1", testRegion, "{}")
+	cARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Certificate/c-1", testRegion, acct.ID)
+	cID := upsertLightsailRow(t, st, acct, TypeLightsailCertificate, cARN, "cert-x", testRegion, "{}")
+	lbARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:LoadBalancer/lb-1", testRegion, acct.ID)
+	lbAttrs := `{"InstanceHealthSummary":[{"InstanceName":"be-1"}],"TlsCertificateSummaries":[{"Name":"cert-x","IsAttached":true}]}`
+	lbID := upsertLightsailRow(t, st, acct, TypeLightsailLoadBalancer, lbARN, "lb-x", testRegion, lbAttrs)
+	if err := resolveLightsailLoadBalancerRefs(acct, st); err != nil {
+		t.Fatalf("resolveLightsailLoadBalancerRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(lbID)
+	assertRelationship(t, rels, lbID, iID, store.RelAttachedTo)
+	assertRelationship(t, rels, lbID, cID, store.RelUses)
+}
+
+func TestResolveLightsailDistributionOrigin(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", "us-west-2", acct.ID)
+	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "origin-i", "us-west-2", "{}")
+	cARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Certificate/c-1", "us-east-1", acct.ID)
+	cID := upsertLightsailRow(t, st, acct, TypeLightsailCertificate, cARN, "cert-x", "us-east-1", "{}")
+	dARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Distribution/d-1", "us-east-1", acct.ID)
+	dAttrs := `{"Origin":{"Name":"origin-i","ResourceType":"Instance","RegionName":"us-west-2"},"CertificateName":"cert-x"}`
+	dID := upsertLightsailRow(t, st, acct, TypeLightsailDistribution, dARN, "d-1", "us-east-1", dAttrs)
+	if err := resolveLightsailDistributionOrigin(acct, st); err != nil {
+		t.Fatalf("resolveLightsailDistributionOrigin: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, iID, store.RelUses)
+	assertRelationship(t, rels, dID, cID, store.RelUses)
+}
+
+func TestResolveLightsailCertificateDomain(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	dARN := fmt.Sprintf("arn:aws:lightsail:us-east-1:%s:Domain/d-1", acct.ID)
+	dID := upsertLightsailRow(t, st, acct, TypeLightsailDomain, dARN, "example.com", "us-east-1", "{}")
+	cARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Certificate/c-1", testRegion, acct.ID)
+	cID := upsertLightsailRow(t, st, acct, TypeLightsailCertificate, cARN, "cert-x", testRegion, `{"DomainName":"example.com"}`)
+	if err := resolveLightsailCertificateDomain(acct, st); err != nil {
+		t.Fatalf("resolveLightsailCertificateDomain: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, dID, store.RelUses)
+}
