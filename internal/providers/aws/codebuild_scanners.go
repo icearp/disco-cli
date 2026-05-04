@@ -27,6 +27,7 @@ type codeBuildAPI interface {
 	ListProjects(context.Context, *codebuild.ListProjectsInput, ...func(*codebuild.Options)) (*codebuild.ListProjectsOutput, error)
 	ListReportGroups(context.Context, *codebuild.ListReportGroupsInput, ...func(*codebuild.Options)) (*codebuild.ListReportGroupsOutput, error)
 	ListSourceCredentials(context.Context, *codebuild.ListSourceCredentialsInput, ...func(*codebuild.Options)) (*codebuild.ListSourceCredentialsOutput, error)
+	BatchGetProjects(context.Context, *codebuild.BatchGetProjectsInput, ...func(*codebuild.Options)) (*codebuild.BatchGetProjectsOutput, error)
 }
 
 // scanCodeBuild discovers CodeBuild fleets, projects, report groups, and
@@ -80,8 +81,11 @@ func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, regio
 }
 
 func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	// List names first, then BatchGetProjects (max 100 per call) for full
+	// Project bodies — list returns names only; ServiceRole/VpcConfig/
+	// EncryptionKey/Artifacts/LogsConfig refs live on Project.
 	pager := codebuild.NewListProjectsPaginator(client, &codebuild.ListProjectsInput{})
-	var batch []*store.Resource
+	var names []string
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
@@ -90,17 +94,36 @@ func scanCBProjects(ctx context.Context, client codeBuildAPI, acct *account, reg
 			}
 			return 0, 0, fmt.Errorf("codebuild:ListProjects: %w", err)
 		}
-		for _, name := range out.Projects {
-			if name == "" {
+		for _, n := range out.Projects {
+			if n != "" {
+				names = append(names, n)
+			}
+		}
+	}
+	var batch []*store.Resource
+	for i := 0; i < len(names); i += 100 {
+		end := i + 100
+		if end > len(names) {
+			end = len(names)
+		}
+		out, err := client.BatchGetProjects(ctx, &codebuild.BatchGetProjectsInput{Names: names[i:end]})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "codebuild:BatchGetProjects", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("codebuild:BatchGetProjects: %w", err)
+		}
+		for _, p := range out.Projects {
+			arn := sv(p.Arn)
+			if arn == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:codebuild:%s:%s:project/%s", region, acct.ID, name)
-			label := name
+			label := sv(p.Name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCodeBuildProject, NativeID: arn,
 				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(map[string]string{"ProjectName": name}), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
 	}
