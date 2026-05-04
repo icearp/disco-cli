@@ -1,23 +1,55 @@
 package aws
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 )
 
-func init() { registerResolver(resolveARCRegionSwitchRelationships) }
+func init() {
+	registerResolver(resolveARCRegionSwitchRelationships,
+		EdgeDecl{TypeARCRegionSwitchPlan, TypeIAMRole, store.RelAssumes},
+	)
+}
 
-// resolveARCRegionSwitchRelationships is a no-op by design.
-//
-// AbbreviatedPlan fields surfaced by ListPlans (Arn, Name, Owner,
-// RecoveryApproach, Regions, ActivePlanExecution, ExecutionRole, etc.) carry
-// no cross-resource ARNs to scanned resources at this fidelity. The full
-// GetPlan response embeds Workflow.Step actions with target ARNs (Lambda,
-// EC2 ASG, ECS service, Route 53 health check), but that requires a per-plan
-// Describe fan-out that warrants its own iteration.
-//
-// Audit: scanned arcregionswitch SDK 2026-04-30. Wire edges here once the
-// per-plan Describe fan-out lands and the workflow-step targets are
-// embedded.
-func resolveARCRegionSwitchRelationships(_ *account, _ *store.Store) error {
+// resolveARCRegionSwitchRelationships wires each plan to its execution role
+// (AbbreviatedPlan.ExecutionRole). Workflow.Step targets (Lambda, ASG, ECS,
+// Route 53 health check) live on GetPlan body — deferred enrichment.
+func resolveARCRegionSwitchRelationships(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeARCRegionSwitchPlan}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ExecutionRole *string `json:"ExecutionRole"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		rarn := sv(attrs.ExecutionRole)
+		if !strings.Contains(rarn, ":role/") {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, rarn)
+		if !roleSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert arc-plan→role: %w", err)
+		}
+	}
 	return nil
 }

@@ -199,7 +199,6 @@ var leafTypes = map[string]bool{
 	"aws:aps:anomaly-detector":                                   true,
 	"aws:aps:resource-policy":                                    true,
 	"aws:aps:rule-groups-namespace":                              true,
-	"aws:arc-region-switch:plan":                                 true,
 	"aws:arc-zonal-shift:autoshift-observer-notification-status": true,
 	"aws:b2bi:capability":                                        true,
 	"aws:b2bi:partnership":                                       true,
