@@ -40,3 +40,37 @@ func TestResolveDataBrewRefs(t *testing.T) {
 	rels, _ = st.RelationshipsFrom(schID)
 	assertRelationship(t, rels, schID, jobID, store.RelUses)
 }
+
+func TestResolveDataBrewDatasetRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	dsARN := "arn:aws:databrew:us-east-1:" + testAccountID + ":dataset/d1"
+	bARN := "arn:aws:s3:::brew-input"
+	attrs := `{"Input":{"S3InputDefinition":{"Bucket":"brew-input"}}}`
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewDataset, dsARN, testRegion, attrs)
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bARN, testRegion, "{}")
+
+	if err := resolveDataBrewDatasetRefs(acct, st); err != nil {
+		t.Fatalf("resolveDataBrewDatasetRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, bID, store.RelUses)
+}
+
+func TestResolveDataBrewRulesetTarget(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	rsARN := "arn:aws:databrew:us-east-1:" + testAccountID + ":ruleset/r1"
+	dsARN := "arn:aws:databrew:us-east-1:" + testAccountID + ":dataset/d1"
+	attrs := `{"TargetArn":"` + dsARN + `"}`
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewRuleset, rsARN, testRegion, attrs)
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewDataset, dsARN, testRegion, "{}")
+
+	if err := resolveDataBrewRulesetTarget(acct, st); err != nil {
+		t.Fatalf("resolveDataBrewRulesetTarget: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rID)
+	assertRelationship(t, rels, rID, dID, store.RelUses)
+}

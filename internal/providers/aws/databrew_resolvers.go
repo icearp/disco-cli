@@ -172,3 +172,98 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveDataBrewDatasetRefs,
+		EdgeDecl{TypeDataBrewDataset, TypeS3Bucket, store.RelUses},
+	)
+	registerResolver(resolveDataBrewRulesetTarget,
+		EdgeDecl{TypeDataBrewRuleset, TypeDataBrewDataset, store.RelUses},
+	)
+}
+
+// resolveDataBrewDatasetRefs wires each dataset to its S3 source bucket via
+// Input.S3InputDefinition.Bucket. Datasets sourced from Glue catalog
+// reference Glue tables that are not first-class disco resources, so
+// DataCatalogInputDefinition is skipped.
+func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewDataset}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Input *struct {
+				S3InputDefinition *struct {
+					Bucket *string `json:"Bucket"`
+				} `json:"S3InputDefinition"`
+			} `json:"Input"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Input == nil || attrs.Input.S3InputDefinition == nil {
+			continue
+		}
+		b := sv(attrs.Input.S3InputDefinition.Bucket)
+		if b == "" {
+			continue
+		}
+		barn := "arn:aws:s3:::" + b
+		tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, barn)
+		if !bucketSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert databrew-dataset→s3: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveDataBrewRulesetTarget wires each ruleset to its target dataset
+// via TargetArn (a databrew dataset ARN).
+func resolveDataBrewRulesetTarget(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewRuleset}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	dsSet, err := scannedIDSet(acct, st, TypeDataBrewDataset)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			TargetArn *string `json:"TargetArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ta := sv(attrs.TargetArn)
+		if ta == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeDataBrewDataset, ta)
+		if !dsSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert databrew-ruleset→dataset: %w", err)
+		}
+	}
+	return nil
+}
