@@ -266,3 +266,17 @@ func TestResolveBedrockFlowVersion_UnscannedSkipped(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveBedrockARPolicyVersion(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	pARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:automated-reasoning-policy/p-1", testRegion, acct.ID)
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAutomatedReasoningPolicy, pARN, testRegion, "{}")
+	vARN := pARN + ":1"
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAutomatedReasoningPolicyVersion, vARN, testRegion, "{}")
+	if err := resolveBedrockARPolicyVersion(acct, st); err != nil {
+		t.Fatalf("resolveBedrockARPolicyVersion: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(vID)
+	assertRelationship(t, rels, vID, pID, store.RelAttachedTo)
+}

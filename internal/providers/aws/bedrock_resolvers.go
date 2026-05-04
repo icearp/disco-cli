@@ -31,6 +31,42 @@ func init() {
 	registerResolver(resolveBedrockPromptVersion,
 		EdgeDecl{TypeBedrockPromptVersion, TypeBedrockPrompt, store.RelAttachedTo},
 	)
+	registerResolver(resolveBedrockARPolicyVersion,
+		EdgeDecl{TypeBedrockAutomatedReasoningPolicyVersion, TypeBedrockAutomatedReasoningPolicy, store.RelAttachedTo},
+	)
+}
+
+// resolveBedrockARPolicyVersion wires automated-reasoning-policy-version to its
+// parent policy. NativeID shape: `{policyArn}:{ver}`; strip from the last `:`.
+func resolveBedrockARPolicyVersion(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAutomatedReasoningPolicyVersion}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	pSet, err := scannedIDSet(acct, st, TypeBedrockAutomatedReasoningPolicy)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		i := strings.LastIndex(r.NativeID, ":")
+		if i <= 0 {
+			continue
+		}
+		parent := r.NativeID[:i]
+		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAutomatedReasoningPolicy, parent)
+		if !pSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock arpv→arp: %w", err)
+		}
+	}
+	return nil
 }
 
 // bedrockGuardrailARN rebuilds the canonical ARN for a guardrail. The
