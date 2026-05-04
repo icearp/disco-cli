@@ -20,6 +20,7 @@ func init() {
 	)
 	registerResolver(resolveKMSGrantEncryptionContext,
 		EdgeDecl{TypeKMSGrant, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeKMSGrant, TypeEC2Volume, store.RelUses},
 	)
 }
 
@@ -112,8 +113,8 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 	if len(grants) == 0 {
 		return nil
 	}
-	// Pre-load id sets for every target type the dispatch map names. One
-	// pass, no per-grant DB hits.
+	// Pre-load id sets for every target type the dispatch map names plus
+	// EC2 volume (bare-id encryption-context key, not full ARN).
 	idSets := map[string]map[string]bool{}
 	for _, dtype := range kmsEncCtxARNDispatch {
 		if _, ok := idSets[dtype]; ok {
@@ -125,6 +126,10 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 		}
 		idSets[dtype] = set
 	}
+	volSet, err := scannedIDSet(acct, st, TypeEC2Volume)
+	if err != nil {
+		return fmt.Errorf("load id-set %s: %w", TypeEC2Volume, err)
+	}
 	for _, gr := range grants {
 		var a struct {
 			Constraints struct {
@@ -135,10 +140,24 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(gr.AttributesJSON), &a); err != nil {
 			continue
 		}
+		region := sv(gr.Region)
 		for _, ctx := range []map[string]string{a.Constraints.EncryptionContextEquals, a.Constraints.EncryptionContextSubset} {
 			for k, v := range ctx {
+				if v == "" {
+					continue
+				}
+				if k == "aws:ebs:id" {
+					volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", v))
+					if !volSet[volID] {
+						continue
+					}
+					if err := st.UpsertRelationship(gr.ID, volID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert kms-grant→%s: %w", TypeEC2Volume, err)
+					}
+					continue
+				}
 				dtype, ok := kmsEncCtxARNDispatch[k]
-				if !ok || v == "" {
+				if !ok {
 					continue
 				}
 				tgtID := store.ResourceID("aws", acct.ID, dtype, v)
