@@ -34,6 +34,195 @@ func init() {
 	registerResolver(resolveBedrockARPolicyVersion,
 		EdgeDecl{TypeBedrockAutomatedReasoningPolicyVersion, TypeBedrockAutomatedReasoningPolicy, store.RelAttachedTo},
 	)
+	registerResolver(resolveBedrockKBStorageRefs,
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeKendraIndex, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeOSSCollection, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeNeptuneGraphGraph, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeSecretsManagerSecret, store.RelUses},
+		EdgeDecl{TypeBedrockKnowledgeBase, TypeS3Bucket, store.RelUses},
+	)
+	registerResolver(resolveBedrockDataSourceRefs,
+		EdgeDecl{TypeBedrockDataSource, TypeS3Bucket, store.RelUses},
+		EdgeDecl{TypeBedrockDataSource, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveBedrockKBStorageRefs wires knowledge-base → IAM role + variant
+// storage backend resources from GetKnowledgeBase enrichment. Backend
+// dispatch on KnowledgeBaseConfiguration / StorageConfiguration variants.
+func resolveBedrockKBStorageRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockKnowledgeBase}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	kendraSet, err := scannedIDSet(acct, st, TypeKendraIndex)
+	if err != nil {
+		return err
+	}
+	ossSet, err := scannedIDSet(acct, st, TypeOSSCollection)
+	if err != nil {
+		return err
+	}
+	graphSet, err := scannedIDSet(acct, st, TypeNeptuneGraphGraph)
+	if err != nil {
+		return err
+	}
+	rdsSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	secretSet, err := scannedIDSet(acct, st, TypeSecretsManagerSecret)
+	if err != nil {
+		return err
+	}
+	s3Set, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	emit := func(srcID, tgtARN, ttype string, set map[string]bool, label string) error {
+		if tgtARN == "" {
+			return nil
+		}
+		tgtID := store.ResourceID("aws", acct.ID, ttype, tgtARN)
+		if !set[tgtID] {
+			return nil
+		}
+		if err := st.UpsertRelationship(srcID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bedrock kb→%s: %w", label, err)
+		}
+		return nil
+	}
+	for _, r := range rows {
+		var attrs struct {
+			RoleArn                    *string `json:"RoleArn"`
+			KnowledgeBaseConfiguration *struct {
+				KendraKnowledgeBaseConfiguration *struct {
+					KendraIndexArn *string `json:"KendraIndexArn"`
+				} `json:"KendraKnowledgeBaseConfiguration"`
+			} `json:"KnowledgeBaseConfiguration"`
+			StorageConfiguration *struct {
+				OpensearchServerlessConfiguration *struct {
+					CollectionArn *string `json:"CollectionArn"`
+				} `json:"OpensearchServerlessConfiguration"`
+				NeptuneAnalyticsConfiguration *struct {
+					GraphArn *string `json:"GraphArn"`
+				} `json:"NeptuneAnalyticsConfiguration"`
+				RdsConfiguration *struct {
+					ResourceArn          *string `json:"ResourceArn"`
+					CredentialsSecretArn *string `json:"CredentialsSecretArn"`
+				} `json:"RdsConfiguration"`
+				S3VectorsConfiguration *struct {
+					VectorBucketArn *string `json:"VectorBucketArn"`
+				} `json:"S3VectorsConfiguration"`
+			} `json:"StorageConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if err := emit(r.ID, sv(attrs.RoleArn), TypeIAMRole, roleSet, "role"); err != nil {
+			return err
+		}
+		if attrs.KnowledgeBaseConfiguration != nil && attrs.KnowledgeBaseConfiguration.KendraKnowledgeBaseConfiguration != nil {
+			if err := emit(r.ID, sv(attrs.KnowledgeBaseConfiguration.KendraKnowledgeBaseConfiguration.KendraIndexArn), TypeKendraIndex, kendraSet, "kendra"); err != nil {
+				return err
+			}
+		}
+		if sc := attrs.StorageConfiguration; sc != nil {
+			if sc.OpensearchServerlessConfiguration != nil {
+				if err := emit(r.ID, sv(sc.OpensearchServerlessConfiguration.CollectionArn), TypeOSSCollection, ossSet, "oss"); err != nil {
+					return err
+				}
+			}
+			if sc.NeptuneAnalyticsConfiguration != nil {
+				if err := emit(r.ID, sv(sc.NeptuneAnalyticsConfiguration.GraphArn), TypeNeptuneGraphGraph, graphSet, "neptune-graph"); err != nil {
+					return err
+				}
+			}
+			if sc.RdsConfiguration != nil {
+				if err := emit(r.ID, sv(sc.RdsConfiguration.ResourceArn), TypeRDSDBCluster, rdsSet, "rds"); err != nil {
+					return err
+				}
+				if err := emit(r.ID, sv(sc.RdsConfiguration.CredentialsSecretArn), TypeSecretsManagerSecret, secretSet, "secret"); err != nil {
+					return err
+				}
+			}
+			if sc.S3VectorsConfiguration != nil {
+				if err := emit(r.ID, sv(sc.S3VectorsConfiguration.VectorBucketArn), TypeS3Bucket, s3Set, "s3"); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveBedrockDataSourceRefs wires data-source → S3 bucket
+// (DataSourceConfiguration.S3Configuration.BucketArn) and KMS key
+// (ServerSideEncryptionConfiguration.KmsKeyArn) from GetDataSource.
+func resolveBedrockDataSourceRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockDataSource}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	s3Set, err := scannedIDSet(acct, st, TypeS3Bucket)
+	if err != nil {
+		return err
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DataSourceConfiguration *struct {
+				S3Configuration *struct {
+					BucketArn *string `json:"BucketArn"`
+				} `json:"S3Configuration"`
+			} `json:"DataSourceConfiguration"`
+			ServerSideEncryptionConfiguration *struct {
+				KmsKeyArn *string `json:"KmsKeyArn"`
+			} `json:"ServerSideEncryptionConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.DataSourceConfiguration != nil && attrs.DataSourceConfiguration.S3Configuration != nil {
+			if b := sv(attrs.DataSourceConfiguration.S3Configuration.BucketArn); b != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeS3Bucket, b)
+				if s3Set[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert bedrock ds→s3: %w", err)
+					}
+				}
+			}
+		}
+		if attrs.ServerSideEncryptionConfiguration != nil {
+			if k := sv(attrs.ServerSideEncryptionConfiguration.KmsKeyArn); k != "" {
+				if keyID, ok := kmsIdx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+					if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert bedrock ds→kms: %w", err)
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveBedrockARPolicyVersion wires automated-reasoning-policy-version to its

@@ -280,3 +280,39 @@ func TestResolveBedrockARPolicyVersion(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(vID)
 	assertRelationship(t, rels, vID, pID, store.RelAttachedTo)
 }
+
+func TestResolveBedrockKBStorageRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/kb-role", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	cARN := fmt.Sprintf("arn:aws:aoss:%s:%s:collection/c-1", testRegion, acct.ID)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeOSSCollection, cARN, testRegion, "{}")
+	kbARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"RoleArn":"%s","StorageConfiguration":{"OpensearchServerlessConfiguration":{"CollectionArn":"%s"}}}`, roleARN, cARN)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockKnowledgeBase, kbARN, testRegion, attrs)
+	if err := resolveBedrockKBStorageRefs(acct, st); err != nil {
+		t.Fatalf("resolveBedrockKBStorageRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(kbID)
+	assertRelationship(t, rels, kbID, roleID, store.RelUses)
+	assertRelationship(t, rels, kbID, cID, store.RelUses)
+}
+
+func TestResolveBedrockDataSourceRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	bARN := "arn:aws:s3:::my-bucket"
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bARN, testRegion, "{}")
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	dsARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:knowledge-base/kb-1/data-source/ds-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"DataSourceConfiguration":{"S3Configuration":{"BucketArn":"%s"}},"ServerSideEncryptionConfiguration":{"KmsKeyArn":"%s"}}`, bARN, keyARN)
+	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockDataSource, dsARN, testRegion, attrs)
+	if err := resolveBedrockDataSourceRefs(acct, st); err != nil {
+		t.Fatalf("resolveBedrockDataSourceRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dsID)
+	assertRelationship(t, rels, dsID, bID, store.RelUses)
+	assertRelationship(t, rels, dsID, keyID, store.RelUses)
+}
