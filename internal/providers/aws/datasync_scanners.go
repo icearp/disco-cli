@@ -49,6 +49,8 @@ type dataSyncAPI interface {
 	DescribeLocationFsxOntap(context.Context, *datasync.DescribeLocationFsxOntapInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxOntapOutput, error)
 	DescribeLocationFsxOpenZfs(context.Context, *datasync.DescribeLocationFsxOpenZfsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxOpenZfsOutput, error)
 	DescribeLocationFsxWindows(context.Context, *datasync.DescribeLocationFsxWindowsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxWindowsOutput, error)
+	DescribeAgent(context.Context, *datasync.DescribeAgentInput, ...func(*datasync.Options)) (*datasync.DescribeAgentOutput, error)
+	DescribeTask(context.Context, *datasync.DescribeTaskInput, ...func(*datasync.Options)) (*datasync.DescribeTaskOutput, error)
 }
 
 // dsDescribeLocation dispatches DescribeLocation* per disco type and returns
@@ -165,10 +167,15 @@ func scanDSAgents(ctx context.Context, client dataSyncAPI, acct *account, region
 			if label == "" {
 				label = arn
 			}
+			attrsJSON := mustJSON(a)
+			arnLocal := arn
+			if dout, derr := client.DescribeAgent(ctx, &datasync.DescribeAgentInput{AgentArn: &arnLocal}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDataSyncAgent, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -196,10 +203,15 @@ func scanDSTasks(ctx context.Context, client dataSyncAPI, acct *account, region 
 			if label == "" {
 				label = arn
 			}
+			attrsJSON := mustJSON(t)
+			arnLocal := arn
+			if dout, derr := client.DescribeTask(ctx, &datasync.DescribeTaskInput{TaskArn: &arnLocal}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDataSyncTask, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}

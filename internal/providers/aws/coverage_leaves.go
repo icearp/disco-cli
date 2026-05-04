@@ -551,8 +551,6 @@ var leafTypes = map[string]bool{
 	"aws:controltower:enabled-control":                         true,
 	"aws:databrew:dataset":                                     true,
 	"aws:databrew:ruleset":                                     true,
-	"aws:datasync:agent":                                       true,
-	"aws:datasync:task":                                        true,
 	"aws:datazone:domain":                                      true,
 	"aws:directconnect:direct-connect-gateway":                 true,
 	"aws:directconnect:lag":                                    true,

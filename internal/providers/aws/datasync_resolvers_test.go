@@ -88,3 +88,45 @@ func TestResolveDataSyncOnPremAgents(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(locID)
 	assertRelationship(t, rels, locID, agID, store.RelUses)
 }
+
+func TestResolveDataSyncAgentRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	agARN := "arn:aws:datasync:us-east-1:" + testAccountID + ":agent/agent-1"
+	vpceARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-1")
+	snARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
+	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
+	attrs := `{"PrivateLinkConfig":{"VpcEndpointId":"vpce-1","SubnetArns":["` + snARN + `"],"SecurityGroupArns":["` + sgARN + `"]}}`
+
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeDataSyncAgent, agARN, testRegion, attrs)
+	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, vpceARN, testRegion, "{}")
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, snARN, testRegion, "{}")
+	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
+
+	if err := resolveDataSyncAgentRefs(acct, st); err != nil {
+		t.Fatalf("resolveDataSyncAgentRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(aID)
+	assertRelationship(t, rels, aID, vID, store.RelAttachedTo)
+	assertRelationship(t, rels, aID, snID, store.RelAttachedTo)
+	assertRelationship(t, rels, aID, sgID, store.RelAttachedTo)
+}
+
+func TestResolveDataSyncTaskRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tARN := "arn:aws:datasync:us-east-1:" + testAccountID + ":task/task-1"
+	lgARN := "arn:aws:logs:us-east-1:" + testAccountID + ":log-group:/datasync/lg1"
+	attrs := `{"CloudWatchLogGroupArn":"` + lgARN + `:*"}`
+
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeDataSyncTask, tARN, testRegion, attrs)
+	lID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, lgARN, testRegion, "{}")
+
+	if err := resolveDataSyncTaskRefs(acct, st); err != nil {
+		t.Fatalf("resolveDataSyncTaskRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(tID)
+	assertRelationship(t, rels, tID, lID, store.RelUses)
+}

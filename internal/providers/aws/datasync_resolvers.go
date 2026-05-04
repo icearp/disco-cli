@@ -356,3 +356,134 @@ func resolveDataSyncOnPremAgents(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveDataSyncAgentRefs,
+		EdgeDecl{TypeDataSyncAgent, TypeEC2VPCEndpoint, store.RelAttachedTo},
+		EdgeDecl{TypeDataSyncAgent, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeDataSyncAgent, TypeEC2SecurityGroup, store.RelAttachedTo},
+	)
+	registerResolver(resolveDataSyncTaskRefs,
+		EdgeDecl{TypeDataSyncTask, TypeLogsLogGroup, store.RelUses},
+	)
+}
+
+// resolveDataSyncAgentRefs wires PrivateLinkConfig: VPC endpoint id +
+// subnet ARNs + SG ARNs.
+func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncAgent}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpceSet, err := scannedIDSet(acct, st, TypeEC2VPCEndpoint)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			PrivateLinkConfig *struct {
+				VpcEndpointID     *string  `json:"VpcEndpointId"`
+				SubnetArns        []string `json:"SubnetArns"`
+				SecurityGroupArns []string `json:"SecurityGroupArns"`
+			} `json:"PrivateLinkConfig"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.PrivateLinkConfig == nil {
+			continue
+		}
+		region := sv(r.Region)
+		if vid := sv(attrs.PrivateLinkConfig.VpcEndpointID); vid != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", vid))
+			if vpceSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert datasync-agent→vpce: %w", err)
+				}
+			}
+		}
+		for _, sa := range attrs.PrivateLinkConfig.SubnetArns {
+			if sa == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sa)
+			if !subnetSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert datasync-agent→subnet: %w", err)
+			}
+		}
+		for _, sg := range attrs.PrivateLinkConfig.SecurityGroupArns {
+			if sg == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sg)
+			if !sgSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert datasync-agent→sg: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveDataSyncTaskRefs wires CloudWatchLogGroupArn (strip :* suffix per
+// AWS SDK convention) + source/dest location ARNs already covered by
+// per-location resolvers.
+func resolveDataSyncTaskRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncTask}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	lgSet, err := scannedIDSet(acct, st, TypeLogsLogGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			CloudWatchLogGroupArn *string `json:"CloudWatchLogGroupArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		lg := sv(attrs.CloudWatchLogGroupArn)
+		if lg == "" {
+			continue
+		}
+		// Logs ARNs sometimes carry trailing :* — strip per CLAUDE.md
+		// CloudWatch convention before lookup.
+		const tail = ":*"
+		if len(lg) > len(tail) && lg[len(lg)-len(tail):] == tail {
+			lg = lg[:len(lg)-len(tail)]
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lg)
+		if !lgSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert datasync-task→log-group: %w", err)
+		}
+	}
+	return nil
+}
