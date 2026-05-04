@@ -29,6 +29,61 @@ func init() {
 		EdgeDecl{TypeSSMResourceDataSync, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSSMResourceDataSync, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(resolveSSMDocumentRequires,
+		EdgeDecl{TypeSSMDocument, TypeSSMDocument, store.RelUses},
+	)
+}
+
+// resolveSSMDocumentRequires walks each customer-owned SSM document's
+// `Requires[]` (DocumentDescription field, populated by Phase-1 DescribeDocument
+// enrichment in scanSSMAll). Each entry names a sibling SSM document by name
+// or ARN; map to in-region NativeID + emit `uses` edge. FK-safe.
+func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
+	docs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMDocument},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(docs) == 0 {
+		return nil
+	}
+	docByNameRegion := map[string]string{}
+	for _, d := range docs {
+		if name := sv(d.Name); name != "" {
+			docByNameRegion[sv(d.Region)+"|"+name] = d.ID
+		}
+	}
+	for _, d := range docs {
+		var attrs struct {
+			Requires []struct {
+				Name *string `json:"Name"`
+			} `json:"Requires"`
+		}
+		if err := json.Unmarshal([]byte(d.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, req := range attrs.Requires {
+			name := sv(req.Name)
+			if name == "" {
+				continue
+			}
+			// Field accepts ARN or bare name; strip any leading
+			// `arn:aws:ssm:...:document/` prefix to recover bare name.
+			if i := strings.Index(name, ":document/"); i >= 0 {
+				name = name[i+len(":document/"):]
+			}
+			tgtID, ok := docByNameRegion[sv(d.Region)+"|"+name]
+			if !ok || tgtID == d.ID {
+				continue
+			}
+			if err := st.UpsertRelationship(d.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert ssm document→requires: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveSSMRelationships emits edges for SecureString parameters → KMS keys.

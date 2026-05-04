@@ -542,8 +542,7 @@ var leafTypes = map[string]bool{
 	"aws:timestream:table":              true,
 	// SSM document/maintenance-window/patch-baseline — already wired as
 	// targets of association/maintenance-window-task; source-side refs
-	// (Requires, Attachments) need Describe enrichment.
-	"aws:ssm:document":                          true,
+	// (Attachments) still need additional Describe enrichment beyond Requires.
 	"aws:ssm:maintenance-window":                true,
 	"aws:ssm:patch-baseline":                    true,
 	"aws:ssm-contacts:contact":                  true,

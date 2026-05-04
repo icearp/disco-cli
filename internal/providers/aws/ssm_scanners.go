@@ -31,6 +31,7 @@ func init() {
 type ssmAPI interface {
 	DescribeParameters(context.Context, *ssm.DescribeParametersInput, ...func(*ssm.Options)) (*ssm.DescribeParametersOutput, error)
 	ListDocuments(context.Context, *ssm.ListDocumentsInput, ...func(*ssm.Options)) (*ssm.ListDocumentsOutput, error)
+	DescribeDocument(context.Context, *ssm.DescribeDocumentInput, ...func(*ssm.Options)) (*ssm.DescribeDocumentOutput, error)
 	DescribePatchBaselines(context.Context, *ssm.DescribePatchBaselinesInput, ...func(*ssm.Options)) (*ssm.DescribePatchBaselinesOutput, error)
 	ListAssociations(context.Context, *ssm.ListAssociationsInput, ...func(*ssm.Options)) (*ssm.ListAssociationsOutput, error)
 	DescribeMaintenanceWindows(context.Context, *ssm.DescribeMaintenanceWindowsInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowsOutput, error)
@@ -133,6 +134,14 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			}
 			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", region, acct.ID, name)
 			dtype := string(d.DocumentType)
+			// Enrich with DescribeDocument — list returns DocumentIdentifier
+			// (skeleton); Requires field (cross-doc refs) only on Describe body.
+			var attrsJSON string
+			if dout, derr := client.DescribeDocument(ctx, &ssm.DescribeDocumentInput{Name: d.Name}); derr == nil && dout.Document != nil {
+				attrsJSON = mustJSON(dout.Document)
+			} else {
+				attrsJSON = mustJSON(d)
+			}
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -143,7 +152,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 				Region:         &region,
 				Status:         &dtype,
 				CreatedAt:      tp(d.CreatedDate),
-				AttributesJSON: mustJSON(d),
+				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
 			}
 			docBatch = append(docBatch, r)

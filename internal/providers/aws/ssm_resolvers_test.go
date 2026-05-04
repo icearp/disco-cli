@@ -88,6 +88,38 @@ func TestResolveSSMAssociationDocument(t *testing.T) {
 	assertRelationship(t, rels, asID, docID, store.RelUses)
 }
 
+func TestResolveSSMDocumentRequires(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	regionVal := testRegion
+	parentName, parentNameVal := "ParentDoc", "ParentDoc"
+	parentARN := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", testRegion, acct.ID, parentName)
+	childName, childNameVal := "ChildDoc", "ChildDoc"
+	childARN := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", testRegion, acct.ID, childName)
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeSSMDocument,
+		NativeID: childARN, Name: &childNameVal, Region: &regionVal,
+		AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}); err != nil {
+		t.Fatalf("upsert child: %v", err)
+	}
+	parentAttrs := fmt.Sprintf(`{"Requires":[{"Name":%q}]}`, childName)
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeSSMDocument,
+		NativeID: parentARN, Name: &parentNameVal, Region: &regionVal,
+		AttributesJSON: parentAttrs, DiscoveredBy: testScanID,
+	}); err != nil {
+		t.Fatalf("upsert parent: %v", err)
+	}
+	parentID := store.ResourceID("aws", acct.ID, TypeSSMDocument, parentARN)
+	childID := store.ResourceID("aws", acct.ID, TypeSSMDocument, childARN)
+	if err := resolveSSMDocumentRequires(acct, st); err != nil {
+		t.Fatalf("resolveSSMDocumentRequires: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(parentID)
+	assertRelationship(t, rels, parentID, childID, store.RelUses)
+}
+
 func TestResolveSSMMaintenanceWindowTargetParent(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
