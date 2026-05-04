@@ -25,6 +25,7 @@ type kendraAPI interface {
 	ListIndices(context.Context, *kendra.ListIndicesInput, ...func(*kendra.Options)) (*kendra.ListIndicesOutput, error)
 	ListDataSources(context.Context, *kendra.ListDataSourcesInput, ...func(*kendra.Options)) (*kendra.ListDataSourcesOutput, error)
 	ListFaqs(context.Context, *kendra.ListFaqsInput, ...func(*kendra.Options)) (*kendra.ListFaqsOutput, error)
+	DescribeIndex(context.Context, *kendra.DescribeIndexInput, ...func(*kendra.Options)) (*kendra.DescribeIndexOutput, error)
 }
 
 // scanKendra discovers Kendra indices, per-index data sources, and per-index
@@ -77,11 +78,15 @@ func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, reg
 			ids = append(ids, id)
 			arn := fmt.Sprintf("arn:aws:kendra:%s:%s:index/%s", region, acct.ID, id)
 			status := string(idx.Status)
+			attrsJSON := mustJSON(idx)
+			if dout, derr := client.DescribeIndex(ctx, &kendra.DescribeIndexInput{Id: idx.Id}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeKendraIndex, NativeID: arn,
 				Name: idx.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(idx), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}

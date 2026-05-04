@@ -590,7 +590,6 @@ var leafTypes = map[string]bool{
 	"aws:internet-monitor:monitor":                             true,
 	"aws:ivs-chat:logging-configuration":                       true,
 	"aws:ivs-chat:room":                                        true,
-	"aws:kendra:index":                                         true,
 	"aws:kendra-ranking:execution-plan":                        true,
 	"aws:launch-wizard:deployment":                             true,
 	"aws:license-manager:license":                              true,
