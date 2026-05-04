@@ -404,4 +404,12 @@ var leafTypes = map[string]bool{
 	"aws:dev-ops-agent:association":                     true,
 	"aws:dev-ops-agent:service":                         true,
 	"aws:nova-act:workflow-definition":                  true,
+	// Glue catalog leaves — pure config/metadata, no scanned cross-service
+	// refs in the List/Describe payloads.
+	"aws:glue:classifier":                    true,
+	"aws:glue:custom-entity-type":            true,
+	"aws:glue:usage-profile":                 true,
+	"aws:glue:registry":                      true,
+	"aws:glue:schema-version-metadata":       true,
+	"aws:glue:integration-resource-property": true,
 }
