@@ -38,3 +38,21 @@ func TestResolveQBusinessDataSourceToIndex(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(dsID)
 	assertRelationship(t, rels, dsID, idxID, store.RelAttachedTo)
 }
+
+func TestResolveQBusinessDataAccessorRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/qb-isv", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	idcARN := fmt.Sprintf("arn:aws:sso::%s:application/ssoins-1/apl-abc", acct.ID)
+	idcID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOApplication, idcARN, "", "{}")
+	daARN := fmt.Sprintf("arn:aws:qbusiness:%s:%s:application/a1/data-accessor/da1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"Principal":"%s","IdcApplicationArn":"%s"}`, roleARN, idcARN)
+	daID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessDataAccessor, daARN, testRegion, attrs)
+	if err := resolveQBusinessDataAccessorRefs(acct, st); err != nil {
+		t.Fatalf("resolveQBusinessDataAccessorRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(daID)
+	assertRelationship(t, rels, daID, roleID, store.RelUses)
+	assertRelationship(t, rels, daID, idcID, store.RelAttachedTo)
+}

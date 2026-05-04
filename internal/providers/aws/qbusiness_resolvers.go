@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,10 @@ import (
 )
 
 func init() {
+	registerResolver(resolveQBusinessDataAccessorRefs,
+		EdgeDecl{TypeQBusinessDataAccessor, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeQBusinessDataAccessor, TypeSSOApplication, store.RelAttachedTo},
+	)
 	registerResolver(resolveQBusinessChildrenToApp,
 		EdgeDecl{TypeQBusinessIndex, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessPlugin, TypeQBusinessApplication, store.RelAttachedTo},
@@ -68,6 +73,54 @@ func resolveQBusinessChildrenToApp(acct *account, st *store.Store) error {
 			}
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert qbusiness %s→app: %w", ctype, err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveQBusinessDataAccessorRefs wires data-accessor → IAM role (Principal)
+// and SSO Identity Center application (IdcApplicationArn).
+func resolveQBusinessDataAccessorRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQBusinessDataAccessor}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	idcSet, err := scannedIDSet(acct, st, TypeSSOApplication)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Principal         *string `json:"Principal"`
+			IdcApplicationArn *string `json:"IdcApplicationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if p := sv(attrs.Principal); p != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, p)
+			if roleSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert qb da→role: %w", err)
+				}
+			}
+		}
+		if a := sv(attrs.IdcApplicationArn); a != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeSSOApplication, a)
+			if idcSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert qb da→sso-app: %w", err)
+				}
 			}
 		}
 	}
