@@ -24,6 +24,7 @@ type ssmIncidentsAPI interface {
 	ListReplicationSets(context.Context, *ssmincidents.ListReplicationSetsInput, ...func(*ssmincidents.Options)) (*ssmincidents.ListReplicationSetsOutput, error)
 	GetReplicationSet(context.Context, *ssmincidents.GetReplicationSetInput, ...func(*ssmincidents.Options)) (*ssmincidents.GetReplicationSetOutput, error)
 	ListResponsePlans(context.Context, *ssmincidents.ListResponsePlansInput, ...func(*ssmincidents.Options)) (*ssmincidents.ListResponsePlansOutput, error)
+	GetResponsePlan(context.Context, *ssmincidents.GetResponsePlanInput, ...func(*ssmincidents.Options)) (*ssmincidents.GetResponsePlanOutput, error)
 }
 
 // scanSSMIncidents discovers Incident Manager replication sets and response
@@ -106,11 +107,24 @@ func scanSSMIResponsePlans(ctx context.Context, client ssmIncidentsAPI, acct *ac
 			if arn == "" {
 				continue
 			}
+			// Enrich with GetResponsePlan body — Engagements (ssm-contacts ARNs)
+			// and other refs are not on the list-summary shape. Fall back to
+			// summary on per-row failure.
+			attrs := mustJSON(p)
+			parn := arn
+			gout, gerr := client.GetResponsePlan(ctx, &ssmincidents.GetResponsePlanInput{Arn: &parn})
+			if gerr != nil {
+				if isAccessDenied(gerr) {
+					_ = skipIfAccessDenied(st, "ssm-incidents:GetResponsePlan", acct.ID, region, gerr)
+				}
+			} else if gout != nil {
+				attrs = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSSMIncidentsResponsePlan, NativeID: arn,
 				Name: p.Name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

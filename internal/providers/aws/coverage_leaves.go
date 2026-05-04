@@ -770,7 +770,6 @@ var leafTypes = map[string]bool{
 	"aws:ssm:patch-baseline":                    true,
 	"aws:ssm-contacts:contact":                  true,
 	"aws:ssm-contacts:plan":                     true,
-	"aws:ssm-incidents:response-plan":           true,
 	"aws:ssm-quick-setup:configuration-manager": true,
 	"aws:ssm-gui-connect:preferences":           true,
 	// Logs leftover types — log-group/integration/scheduled-query/resource-policy/
