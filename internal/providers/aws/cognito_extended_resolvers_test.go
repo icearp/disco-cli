@@ -55,6 +55,48 @@ func TestResolveCognitoUserPoolGroupRole(t *testing.T) {
 	assertRelationship(t, rels, groupID, roleID, store.RelAssumes)
 }
 
+func TestResolveCognitoUserPoolRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	lamARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:pre-signup", testRegion, acct.ID)
+	lamID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, lamARN, testRegion, "{}")
+	senderARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:custom-email", testRegion, acct.ID)
+	senderID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, senderARN, testRegion, "{}")
+	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123", testRegion, acct.ID)
+	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, fmt.Sprintf(`{"KeyId":"abc-123","Arn":%q}`, keyARN))
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/sns-caller", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	sesARN := fmt.Sprintf("arn:aws:ses:%s:%s:identity/no-reply@example.com", testRegion, acct.ID)
+	sesID := upsertTestResource(t, st, "aws", acct.ID, TypeSESEmailIdentity, sesARN, testRegion, "{}")
+	acmARN := fmt.Sprintf("arn:aws:acm:%s:%s:certificate/cert-1", testRegion, acct.ID)
+	acmID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, acmARN, testRegion, "{}")
+
+	poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s_pool", testRegion, acct.ID, testRegion)
+	attrs := fmt.Sprintf(`{
+		"LambdaConfig":{
+			"PreSignUp":%q,
+			"CustomEmailSender":{"LambdaArn":%q},
+			"KMSKeyID":%q
+		},
+		"EmailConfiguration":{"SourceArn":%q},
+		"SmsConfiguration":{"SnsCallerArn":%q},
+		"CustomDomainConfig":{"CertificateArn":%q}
+	}`, lamARN, senderARN, keyARN, sesARN, roleARN, acmARN)
+	poolID := upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPool, poolARN, testRegion, attrs)
+
+	if err := resolveCognitoUserPoolRefs(acct, st); err != nil {
+		t.Fatalf("resolveCognitoUserPoolRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(poolID)
+	assertRelationship(t, rels, poolID, lamID, store.RelUses)
+	assertRelationship(t, rels, poolID, senderID, store.RelUses)
+	assertRelationship(t, rels, poolID, keyID, store.RelUses)
+	assertRelationship(t, rels, poolID, sesID, store.RelUses)
+	assertRelationship(t, rels, poolID, roleID, store.RelAssumes)
+	assertRelationship(t, rels, poolID, acmID, store.RelUses)
+}
+
 func TestResolveCognitoIdentityPoolRoleAttachment(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
