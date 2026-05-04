@@ -25,6 +25,58 @@ func init() {
 		EdgeDecl{TypeCloudWatchAlarm, TypeELBv2LoadBalancer, store.RelUses},
 		EdgeDecl{TypeCloudWatchAlarm, TypeEKSCluster, store.RelUses},
 	)
+	registerResolver(resolveCWMetricStreamRefs,
+		EdgeDecl{TypeCloudWatchMetricStream, TypeFirehoseDeliveryStream, store.RelUses},
+		EdgeDecl{TypeCloudWatchMetricStream, TypeIAMRole, store.RelUses},
+	)
+}
+
+// resolveCWMetricStreamRefs wires metric-stream → Firehose delivery-stream
+// (FirehoseArn) and IAM role (RoleArn).
+func resolveCWMetricStreamRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudWatchMetricStream}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	fhSet, err := scannedIDSet(acct, st, TypeFirehoseDeliveryStream)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			FirehoseArn *string `json:"FirehoseArn"`
+			RoleArn     *string `json:"RoleArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if f := sv(attrs.FirehoseArn); f != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeFirehoseDeliveryStream, f)
+			if fhSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cw ms→firehose: %w", err)
+				}
+			}
+		}
+		if role := sv(attrs.RoleArn); role != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+			if roleSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cw ms→role: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveCloudWatchRelationships runs all CloudWatch relationship passes.

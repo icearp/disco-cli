@@ -369,3 +369,21 @@ func TestResolveAlarmDimension_MetricMath(t *testing.T) {
 	}
 	assertRelationship(t, rels, alarmID, fnID, "uses")
 }
+
+func TestResolveCWMetricStreamRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	fhARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/cw-stream", testRegion, acct.ID)
+	fhID := upsertTestResource(t, st, "aws", acct.ID, TypeFirehoseDeliveryStream, fhARN, testRegion, "{}")
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/cw-ms", acct.ID)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
+	msARN := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:metric-stream/ms-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"FirehoseArn":"%s","RoleArn":"%s"}`, fhARN, roleARN)
+	msID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudWatchMetricStream, msARN, testRegion, attrs)
+	if err := resolveCWMetricStreamRefs(acct, st); err != nil {
+		t.Fatalf("resolveCWMetricStreamRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(msID)
+	assertRelationship(t, rels, msID, fhID, store.RelUses)
+	assertRelationship(t, rels, msID, roleID, store.RelUses)
+}
