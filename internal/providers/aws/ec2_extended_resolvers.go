@@ -55,6 +55,21 @@ func init() {
 	registerResolver(resolveEC2FleetLaunchTemplate,
 		EdgeDecl{TypeEC2Fleet, TypeEC2LaunchTemplate, store.RelUses},
 	)
+	registerResolver(resolveEC2TGWMeteringPolicyRefs,
+		EdgeDecl{TypeEC2TransitGatewayMeteringPolicy, TypeEC2TransitGateway, store.RelAttachedTo},
+		EdgeDecl{TypeEC2TransitGatewayMeteringPolicy, TypeEC2TransitGatewayAttachment, store.RelAttachedTo},
+	)
+	registerResolver(resolveEC2VPCEndpointConnectionNotificationRefs,
+		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeEC2VPCEndpoint, store.RelAttachedTo},
+		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeEC2VPCEndpointService, store.RelAttachedTo},
+		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeSNSTopic, store.RelUses},
+	)
+	registerResolver(resolveEC2RouteServerSNS,
+		EdgeDecl{TypeEC2RouteServer, TypeSNSTopic, store.RelUses},
+	)
+	registerResolver(resolveEC2CapacityReservationFleetMembers,
+		EdgeDecl{TypeEC2CapacityReservationFleet, TypeEC2CapacityReservation, store.RelContains},
+	)
 }
 
 // resolveEC2VolumeKMS links each EBS volume to the KMS key encrypting it.
@@ -722,4 +737,209 @@ func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// resolveEC2TGWMeteringPolicyRefs links each TGW metering policy to its parent
+// transit gateway and to the middlebox attachments the policy meters.
+func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMeteringPolicy},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	tgSet, err := scannedIDSet(acct, st, TypeEC2TransitGateway)
+	if err != nil {
+		return err
+	}
+	attSet, err := scannedIDSet(acct, st, TypeEC2TransitGatewayAttachment)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			TransitGatewayId       *string  `json:"TransitGatewayId"`
+			MiddleboxAttachmentIds []string `json:"MiddleboxAttachmentIds"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if id := sv(attrs.TransitGatewayId); id != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(region, acct.ID, "transit-gateway", id))
+			if tgSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert tgw-metering-policy→tgw: %w", err)
+				}
+			}
+		}
+		for _, aid := range attrs.MiddleboxAttachmentIds {
+			if aid == "" {
+				continue
+			}
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGatewayAttachment, ec2ARN(region, acct.ID, "transit-gateway-attachment", aid))
+			if !attSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert tgw-metering-policy→tgw-attachment: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveEC2VPCEndpointConnectionNotificationRefs wires each connection
+// notification to the endpoint or service it watches plus the SNS topic that
+// receives the events.
+func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointConnectionNotification},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpceSet, err := scannedIDSet(acct, st, TypeEC2VPCEndpoint)
+	if err != nil {
+		return err
+	}
+	svcSet, err := scannedIDSet(acct, st, TypeEC2VPCEndpointService)
+	if err != nil {
+		return err
+	}
+	snsSet, err := scannedIDSet(acct, st, TypeSNSTopic)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcEndpointId             *string `json:"VpcEndpointId"`
+			ServiceId                 *string `json:"ServiceId"`
+			ConnectionNotificationArn *string `json:"ConnectionNotificationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if id := sv(attrs.VpcEndpointId); id != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", id))
+			if vpceSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert vpce-conn-notif→vpc-endpoint: %w", err)
+				}
+			}
+		}
+		if id := sv(attrs.ServiceId); id != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpointService, ec2ARN(region, acct.ID, "vpc-endpoint-service", id))
+			if svcSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert vpce-conn-notif→vpce-service: %w", err)
+				}
+			}
+		}
+		if topicARN := sv(attrs.ConnectionNotificationArn); topicARN != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+			if snsSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert vpce-conn-notif→sns: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveEC2RouteServerSNS links each route server to the SNS topic that
+// receives BGP status notifications.
+func resolveEC2RouteServerSNS(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteServer},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	snsSet, err := scannedIDSet(acct, st, TypeSNSTopic)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SnsTopicArn *string `json:"SnsTopicArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		topicARN := sv(attrs.SnsTopicArn)
+		if topicARN == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topicARN)
+		if !snsSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert route-server→sns: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveEC2CapacityReservationFleetMembers wires each capacity reservation
+// fleet to the individual capacity reservations it manages.
+func resolveEC2CapacityReservationFleetMembers(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2CapacityReservationFleet},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	crSet, err := scannedIDSet(acct, st, TypeEC2CapacityReservation)
+	if err != nil {
+		return err
+	}
+	var pairs [][2]string
+	for _, r := range rows {
+		var attrs struct {
+			InstanceTypeSpecifications []struct {
+				CapacityReservationId *string `json:"CapacityReservationId"`
+			} `json:"InstanceTypeSpecifications"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		seen := map[string]bool{}
+		for _, spec := range attrs.InstanceTypeSpecifications {
+			id := sv(spec.CapacityReservationId)
+			if id == "" || seen[id] {
+				continue
+			}
+			seen[id] = true
+			childID := store.ResourceID("aws", acct.ID, TypeEC2CapacityReservation, ec2ARN(region, acct.ID, "capacity-reservation", id))
+			if !crSet[childID] {
+				continue
+			}
+			pairs = append(pairs, [2]string{childID, r.ID})
+		}
+	}
+	if len(pairs) == 0 {
+		return nil
+	}
+	return st.RecordHierarchyBatch(pairs)
 }

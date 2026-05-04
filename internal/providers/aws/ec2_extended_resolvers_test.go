@@ -279,3 +279,81 @@ func TestClientVPNEndpointFromChildARN(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveEC2TGWMeteringPolicyRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	tgwID := "tgw-aaa"
+	tgwARN := ec2ARN(testRegion, acct.ID, "transit-gateway", tgwID)
+	tgwRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, tgwARN, testRegion, "{}")
+	attID := "tgw-attach-bbb"
+	attARN := ec2ARN(testRegion, acct.ID, "transit-gateway-attachment", attID)
+	attRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGatewayAttachment, attARN, testRegion, "{}")
+	mpARN := ec2ARN(testRegion, acct.ID, "transit-gateway-metering-policy", "tgmp-1")
+	mpAttrs := fmt.Sprintf(`{"TransitGatewayId":%q,"MiddleboxAttachmentIds":[%q]}`, tgwID, attID)
+	mpID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGatewayMeteringPolicy, mpARN, testRegion, mpAttrs)
+
+	if err := resolveEC2TGWMeteringPolicyRefs(acct, st); err != nil {
+		t.Fatalf("resolveEC2TGWMeteringPolicyRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mpID)
+	assertRelationship(t, rels, mpID, tgwRowID, store.RelAttachedTo)
+	assertRelationship(t, rels, mpID, attRowID, store.RelAttachedTo)
+}
+
+func TestResolveEC2VPCEndpointConnectionNotificationRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vpceID := "vpce-aaa"
+	vpceARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint", vpceID)
+	vpceRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, vpceARN, testRegion, "{}")
+	svcID := "vpce-svc-bbb"
+	svcARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint-service", svcID)
+	svcRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpointService, svcARN, testRegion, "{}")
+	topicARN := fmt.Sprintf("arn:aws:sns:%s:%s:my-topic", testRegion, acct.ID)
+	topicRowID := upsertTestResource(t, st, "aws", acct.ID, TypeSNSTopic, topicARN, testRegion, "{}")
+	notifARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint-connection-notification", "vpce-notif-1")
+	notifAttrs := fmt.Sprintf(`{"VpcEndpointId":%q,"ServiceId":%q,"ConnectionNotificationArn":%q}`, vpceID, svcID, topicARN)
+	notifID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpointConnectionNotification, notifARN, testRegion, notifAttrs)
+
+	if err := resolveEC2VPCEndpointConnectionNotificationRefs(acct, st); err != nil {
+		t.Fatalf("resolveEC2VPCEndpointConnectionNotificationRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(notifID)
+	assertRelationship(t, rels, notifID, vpceRowID, store.RelAttachedTo)
+	assertRelationship(t, rels, notifID, svcRowID, store.RelAttachedTo)
+	assertRelationship(t, rels, notifID, topicRowID, store.RelUses)
+}
+
+func TestResolveEC2RouteServerSNS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	topicARN := fmt.Sprintf("arn:aws:sns:%s:%s:rs-topic", testRegion, acct.ID)
+	topicRowID := upsertTestResource(t, st, "aws", acct.ID, TypeSNSTopic, topicARN, testRegion, "{}")
+	rsARN := ec2ARN(testRegion, acct.ID, "route-server", "rs-1")
+	rsAttrs := fmt.Sprintf(`{"SnsTopicArn":%q}`, topicARN)
+	rsID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteServer, rsARN, testRegion, rsAttrs)
+
+	if err := resolveEC2RouteServerSNS(acct, st); err != nil {
+		t.Fatalf("resolveEC2RouteServerSNS: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rsID)
+	assertRelationship(t, rels, rsID, topicRowID, store.RelUses)
+}
+
+func TestResolveEC2CapacityReservationFleetMembers(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	crID := "cr-aaa"
+	crARN := ec2ARN(testRegion, acct.ID, "capacity-reservation", crID)
+	crRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CapacityReservation, crARN, testRegion, "{}")
+	fleetARN := fmt.Sprintf("arn:aws:ec2:%s:%s:capacity-reservation-fleet/crf-1", testRegion, acct.ID)
+	fleetAttrs := fmt.Sprintf(`{"InstanceTypeSpecifications":[{"CapacityReservationId":%q}]}`, crID)
+	fleetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CapacityReservationFleet, fleetARN, testRegion, fleetAttrs)
+
+	if err := resolveEC2CapacityReservationFleetMembers(acct, st); err != nil {
+		t.Fatalf("resolveEC2CapacityReservationFleetMembers: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(fleetID)
+	assertRelationship(t, rels, fleetID, crRowID, store.RelContains)
+}
