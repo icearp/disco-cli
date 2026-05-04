@@ -304,7 +304,6 @@ var leafTypes = map[string]bool{
 	"aws:opensearchserverless:lifecycle-policy":         true,
 	"aws:opensearchserverless:security-config":          true,
 	"aws:opensearchserverless:security-policy":          true,
-	"aws:opensearchserverless:vpc-endpoint":             true,
 	"aws:opensearchserverless:collection-group":         true,
 	"aws:greengrass:connector-definition":               true,
 	"aws:greengrass:core-definition":                    true,

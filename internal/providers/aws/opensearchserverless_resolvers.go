@@ -76,3 +76,75 @@ func resolveOSSCollectionRefs(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveOSSVpcEndpointRefs,
+		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2SecurityGroup, store.RelAttachedTo},
+	)
+}
+
+// resolveOSSVpcEndpointRefs wires each OpenSearch Serverless VPC endpoint
+// to its VPC + subnets + security groups. BatchGetVpcEndpoint body shape.
+func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOSSVpcEndpoint}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcID            *string  `json:"VpcId"`
+			SubnetIDs        []string `json:"SubnetIds"`
+			SecurityGroupIDs []string `json:"SecurityGroupIds"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if v := sv(attrs.VpcID); v != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
+			if vpcSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert oss-vpce→vpc: %w", err)
+				}
+			}
+		}
+		for _, sn := range attrs.SubnetIDs {
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+			if !subnetSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert oss-vpce→subnet: %w", err)
+			}
+		}
+		for _, sg := range attrs.SecurityGroupIDs {
+			tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+			if !sgSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert oss-vpce→sg: %w", err)
+			}
+		}
+	}
+	return nil
+}

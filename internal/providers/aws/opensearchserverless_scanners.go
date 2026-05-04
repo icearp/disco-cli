@@ -34,6 +34,7 @@ type ossAPI interface {
 	ListSecurityConfigs(context.Context, *opensearchserverless.ListSecurityConfigsInput, ...func(*opensearchserverless.Options)) (*opensearchserverless.ListSecurityConfigsOutput, error)
 	ListSecurityPolicies(context.Context, *opensearchserverless.ListSecurityPoliciesInput, ...func(*opensearchserverless.Options)) (*opensearchserverless.ListSecurityPoliciesOutput, error)
 	ListVpcEndpoints(context.Context, *opensearchserverless.ListVpcEndpointsInput, ...func(*opensearchserverless.Options)) (*opensearchserverless.ListVpcEndpointsOutput, error)
+	BatchGetVpcEndpoint(context.Context, *opensearchserverless.BatchGetVpcEndpointInput, ...func(*opensearchserverless.Options)) (*opensearchserverless.BatchGetVpcEndpointOutput, error)
 }
 
 func ossARN(region, acct, kind, key string) string {
@@ -158,6 +159,28 @@ func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, regi
 			}
 			return 0, 0, fmt.Errorf("aoss:ListVpcEndpoints: %w", perr)
 		}
+		// Collect IDs first then BatchGetVpcEndpoint (chunks of 5 — AWS limit)
+		// to expose VpcId/SubnetIds/SecurityGroupIds for the resolver.
+		var ids []string
+		for _, v := range out.VpcEndpointSummaries {
+			if id := sv(v.Id); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		bodies := make(map[string]any, len(ids))
+		for i := 0; i < len(ids); i += 5 {
+			end := i + 5
+			if end > len(ids) {
+				end = len(ids)
+			}
+			bout, berr := client.BatchGetVpcEndpoint(ctx, &opensearchserverless.BatchGetVpcEndpointInput{Ids: ids[i:end]})
+			if berr != nil {
+				continue
+			}
+			for _, d := range bout.VpcEndpointDetails {
+				bodies[sv(d.Id)] = d
+			}
+		}
 		for _, v := range out.VpcEndpointSummaries {
 			id := sv(v.Id)
 			if id == "" {
@@ -168,10 +191,14 @@ func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, regi
 			if label == "" {
 				label = id
 			}
+			attrsJSON := mustJSON(v)
+			if body, ok := bodies[id]; ok {
+				attrsJSON = mustJSON(body)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeOSSVpcEndpoint, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
