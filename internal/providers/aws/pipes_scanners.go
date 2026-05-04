@@ -21,6 +21,7 @@ func init() {
 
 type pipesAPI interface {
 	ListPipes(context.Context, *pipes.ListPipesInput, ...func(*pipes.Options)) (*pipes.ListPipesOutput, error)
+	DescribePipe(context.Context, *pipes.DescribePipeInput, ...func(*pipes.Options)) (*pipes.DescribePipeOutput, error)
 }
 
 // scanPipes discovers EventBridge Pipes.
@@ -43,11 +44,15 @@ func scanPipes(ctx context.Context, acct *account, region string, st *store.Stor
 				continue
 			}
 			status := string(p.CurrentState)
+			attrsJSON := mustJSON(p)
+			if dout, derr := client.DescribePipe(ctx, &pipes.DescribePipeInput{Name: p.Name}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypePipesPipe, NativeID: arn,
 				Name: p.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

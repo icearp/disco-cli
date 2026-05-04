@@ -607,7 +607,6 @@ var leafTypes = map[string]bool{
 	"aws:pca-connector-scep:challenge":                         true,
 	"aws:pca-connector-scep:connector":                         true,
 	"aws:pinpoint:app":                                         true,
-	"aws:pipes:pipe":                                           true,
 	"aws:qbusiness:application":                                true,
 	"aws:quicksight:action-connector":                          true,
 	"aws:quicksight:analysis":                                  true,
