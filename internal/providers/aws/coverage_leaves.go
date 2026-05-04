@@ -585,7 +585,6 @@ var leafTypes = map[string]bool{
 	"aws:grafana:workspace":                                    true,
 	"aws:guardduty:detector":                                   true,
 	"aws:guardduty:malware-protection-plan":                    true,
-	"aws:health-imaging:datastore":                             true,
 	"aws:health-lake:fhir-datastore":                           true,
 	"aws:iam:foreign-account":                                  true,
 	"aws:iam:instance-profile":                                 true,

@@ -21,6 +21,7 @@ func init() {
 
 type healthImagingAPI interface {
 	ListDatastores(context.Context, *medicalimaging.ListDatastoresInput, ...func(*medicalimaging.Options)) (*medicalimaging.ListDatastoresOutput, error)
+	GetDatastore(context.Context, *medicalimaging.GetDatastoreInput, ...func(*medicalimaging.Options)) (*medicalimaging.GetDatastoreOutput, error)
 }
 
 // scanHealthImaging discovers HealthImaging (Medical Imaging) datastores.
@@ -47,11 +48,15 @@ func scanHealthImaging(ctx context.Context, acct *account, region string, st *st
 				arn = fmt.Sprintf("arn:aws:medical-imaging:%s:%s:datastore/%s", region, acct.ID, id)
 			}
 			status := string(d.DatastoreStatus)
+			attrsJSON := mustJSON(d)
+			if gout, gerr := client.GetDatastore(ctx, &medicalimaging.GetDatastoreInput{DatastoreId: d.DatastoreId}); gerr == nil && gout.DatastoreProperties != nil {
+				attrsJSON = mustJSON(gout.DatastoreProperties)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeHealthImagingDatastore, NativeID: arn,
 				Name: d.DatastoreName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
