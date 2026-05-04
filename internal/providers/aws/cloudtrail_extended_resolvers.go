@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,6 +15,56 @@ func init() {
 		EdgeDecl{TypeCloudTrailResourcePolicy, TypeCloudTrailEventDataStore, store.RelAttachedTo},
 		EdgeDecl{TypeCloudTrailResourcePolicy, TypeCloudTrailChannel, store.RelAttachedTo},
 	)
+	registerResolver(resolveCloudTrailChannelDestinations,
+		EdgeDecl{TypeCloudTrailChannel, TypeCloudTrailEventDataStore, store.RelRoutesTo},
+	)
+}
+
+// resolveCloudTrailChannelDestinations wires each channel to the event-data-stores
+// it ingests events into (Destinations[].Location filtered to Type=EVENT_DATA_STORE;
+// service-linked channels carry an Amazon-service name in Location, skipped).
+func resolveCloudTrailChannelDestinations(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudTrailChannel}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	edsSet, err := scannedIDSet(acct, st, TypeCloudTrailEventDataStore)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Destinations []struct {
+				Type     *string `json:"Type"`
+				Location *string `json:"Location"`
+			} `json:"Destinations"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, d := range attrs.Destinations {
+			if sv(d.Type) != "EVENT_DATA_STORE" {
+				continue
+			}
+			loc := sv(d.Location)
+			if loc == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeCloudTrailEventDataStore, loc)
+			if !edsSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cloudtrail channel→eds: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveCloudTrailResourcePolicyToParent wires each resource-policy back to

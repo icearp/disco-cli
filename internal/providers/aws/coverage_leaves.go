@@ -514,7 +514,6 @@ var leafTypes = map[string]bool{
 	"aws:cleanrooms:collaboration":                             true,
 	"aws:cleanrooms:configured-table":                          true,
 	"aws:cloud9:environment-ec2":                               true,
-	"aws:cloudtrail:channel":                                   true,
 	"aws:cloudtrail:dashboard":                                 true,
 	"aws:code-build:source-credential":                         true,
 	"aws:codedeploy:application":                               true,
