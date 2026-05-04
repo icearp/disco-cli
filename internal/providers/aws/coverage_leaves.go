@@ -560,7 +560,6 @@ var leafTypes = map[string]bool{
 	"aws:kendra-ranking:execution-plan":                        true,
 	"aws:launch-wizard:deployment":                             true,
 	"aws:license-manager:license":                              true,
-	"aws:lookout-equipment:inference-scheduler":                true,
 	"aws:m2:application":                                       true,
 	"aws:m2:environment":                                       true,
 	"aws:mediapackage:channel":                                 true,

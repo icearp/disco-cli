@@ -21,6 +21,7 @@ func init() {
 
 type lookoutEquipmentAPI interface {
 	ListInferenceSchedulers(context.Context, *lookoutequipment.ListInferenceSchedulersInput, ...func(*lookoutequipment.Options)) (*lookoutequipment.ListInferenceSchedulersOutput, error)
+	DescribeInferenceScheduler(context.Context, *lookoutequipment.DescribeInferenceSchedulerInput, ...func(*lookoutequipment.Options)) (*lookoutequipment.DescribeInferenceSchedulerOutput, error)
 }
 
 // scanLookoutEquipment discovers Lookout for Equipment inference schedulers.
@@ -43,11 +44,25 @@ func scanLookoutEquipment(ctx context.Context, acct *account, region string, st 
 				continue
 			}
 			status := string(s.Status)
+			// Enrich with DescribeInferenceScheduler body — RoleArn,
+			// ServerSideKmsKeyId, DataInput/OutputConfiguration are not on the
+			// list-summary shape. Fall back to summary on per-row failure.
+			attrs := mustJSON(s)
+			if s.InferenceSchedulerName != nil {
+				dout, derr := client.DescribeInferenceScheduler(ctx, &lookoutequipment.DescribeInferenceSchedulerInput{InferenceSchedulerName: s.InferenceSchedulerName})
+				if derr != nil {
+					if isAccessDenied(derr) {
+						_ = skipIfAccessDenied(st, "lookoutequipment:DescribeInferenceScheduler", acct.ID, region, derr)
+					}
+				} else if dout != nil {
+					attrs = mustJSON(dout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLookoutEquipmentInferenceScheduler, NativeID: arn,
 				Name: s.InferenceSchedulerName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
