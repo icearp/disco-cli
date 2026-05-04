@@ -25,6 +25,19 @@ func init() {
 	})
 }
 
+// cassandraSystemKeyspaces lists the AWS-managed system keyspaces shipped
+// with every Amazon Keyspaces region. Their tables/types are catalogue
+// rows owned by AWS — they use AWS-managed encryption (no useful KMS
+// edges) and qualify for ManagedByProvider=true. Skip GetTable
+// enrichment on them; the per-region GetTable fan-out is dominated by
+// these ~40+ tables.
+var cassandraSystemKeyspaces = map[string]bool{
+	"system":                  true,
+	"system_schema":           true,
+	"system_schema_mcs":       true,
+	"system_multiregion_info": true,
+}
+
 type cassandraAPI interface {
 	ListKeyspaces(context.Context, *keyspaces.ListKeyspacesInput, ...func(*keyspaces.Options)) (*keyspaces.ListKeyspacesOutput, error)
 	ListTables(context.Context, *keyspaces.ListTablesInput, ...func(*keyspaces.Options)) (*keyspaces.ListTablesOutput, error)
@@ -83,7 +96,9 @@ func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *acco
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCassandraKeyspace, NativeID: arn,
 				Name: &name, Region: &region,
-				AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
+				AttributesJSON:    mustJSON(k),
+				ManagedByProvider: cassandraSystemKeyspaces[name],
+				DiscoveredBy:      scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
@@ -149,9 +164,12 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []str
 			defer sem.Release(1)
 			arn := sv(p.tbl.ResourceArn)
 			attrs := mustJSON(p.tbl)
+			managed := cassandraSystemKeyspaces[p.ks]
 			ksn := p.ks
 			tn := sv(p.tbl.TableName)
-			if tn != "" {
+			// Skip GetTable on AWS-managed system keyspaces — they use
+			// AWS-managed encryption and yield no useful edges.
+			if !managed && tn != "" {
 				gout, gerr := client.GetTable(gctx, &keyspaces.GetTableInput{KeyspaceName: &ksn, TableName: &tn})
 				if gerr != nil {
 					if isAccessDenied(gerr) {
@@ -165,7 +183,9 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []str
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCassandraTable, NativeID: arn,
 				Name: p.tbl.TableName, Region: &region,
-				AttributesJSON: attrs, DiscoveredBy: scanID,
+				AttributesJSON:    attrs,
+				ManagedByProvider: managed,
+				DiscoveredBy:      scanID,
 			}
 			mu.Lock()
 			batch = append(batch, r)
@@ -206,7 +226,9 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeCassandraType, NativeID: arn,
 					Name: &typeName, Region: &region,
-					AttributesJSON: mustJSON(map[string]string{"KeyspaceName": ksName, "TypeName": typeName}), DiscoveredBy: scanID,
+					AttributesJSON:    mustJSON(map[string]string{"KeyspaceName": ksName, "TypeName": typeName}),
+					ManagedByProvider: cassandraSystemKeyspaces[ksName],
+					DiscoveredBy:      scanID,
 				})
 			}
 			if out.NextToken == nil || *out.NextToken == "" {
