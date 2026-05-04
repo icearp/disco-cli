@@ -839,7 +839,6 @@ var leafTypes = map[string]bool{
 	"aws:iot-events:detector-model":                true,
 	"aws:iot-events:input":                         true,
 	"aws:iot-core-device-advisor:suite-definition": true,
-	"aws:iotsitewise:asset-model":                  true,
 	"aws:iotsitewise:computation-model":            true,
 	"aws:iotsitewise:dashboard":                    true,
 	"aws:iottwinmaker:workspace":                   true,

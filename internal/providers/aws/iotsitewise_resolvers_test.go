@@ -83,6 +83,24 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 	assertRelationship(t, rels, gID, thingID, store.RelUses)
 }
 
+func TestResolveIoTSWAssetModelHierarchies(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	parentARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-parent")
+	childARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-child")
+	attrs := `{"AssetModelHierarchies":[{"ChildAssetModelId":"m-child"}]}`
+
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAssetModel, parentARN, testRegion, attrs)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAssetModel, childARN, testRegion, "{}")
+
+	if err := resolveIoTSWAssetModelHierarchies(acct, st); err != nil {
+		t.Fatalf("resolveIoTSWAssetModelHierarchies: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(pID)
+	assertRelationship(t, rels, pID, cID, store.RelUses)
+}
+
 func TestResolveIoTSWDatasetRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

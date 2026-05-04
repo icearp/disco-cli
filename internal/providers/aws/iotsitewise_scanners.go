@@ -44,6 +44,7 @@ type iotSWAPI interface {
 	ListAccessPolicies(context.Context, *iotsitewise.ListAccessPoliciesInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListAccessPoliciesOutput, error)
 	ListAssets(context.Context, *iotsitewise.ListAssetsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListAssetsOutput, error)
 	ListAssetModels(context.Context, *iotsitewise.ListAssetModelsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListAssetModelsOutput, error)
+	DescribeAssetModel(context.Context, *iotsitewise.DescribeAssetModelInput, ...func(*iotsitewise.Options)) (*iotsitewise.DescribeAssetModelOutput, error)
 	ListComputationModels(context.Context, *iotsitewise.ListComputationModelsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListComputationModelsOutput, error)
 	ListDashboards(context.Context, *iotsitewise.ListDashboardsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDashboardsOutput, error)
 	ListDatasets(context.Context, *iotsitewise.ListDatasetsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDatasetsOutput, error)
@@ -164,10 +165,24 @@ func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, r
 			if id != "" {
 				ids = append(ids, id)
 			}
+			// Enrich with DescribeAssetModel body — AssetModelHierarchies[].ChildAssetModelId
+			// are not on the list-summary shape. Fall back to summary on per-row failure.
+			attrs := mustJSON(m)
+			if id != "" {
+				mid := id
+				dout, derr := client.DescribeAssetModel(ctx, &iotsitewise.DescribeAssetModelInput{AssetModelId: &mid})
+				if derr != nil {
+					if isAccessDenied(derr) {
+						_ = skipIfAccessDenied(st, "iotsitewise:DescribeAssetModel", acct.ID, region, derr)
+					}
+				} else if dout != nil {
+					attrs = mustJSON(dout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTSWAssetModel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}

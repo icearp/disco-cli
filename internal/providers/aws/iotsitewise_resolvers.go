@@ -26,6 +26,9 @@ func init() {
 		EdgeDecl{TypeIoTSWDataset, TypeBedrockKnowledgeBase, store.RelUses},
 		EdgeDecl{TypeIoTSWDataset, TypeIAMRole, store.RelAssumes},
 	)
+	registerResolver(resolveIoTSWAssetModelHierarchies,
+		EdgeDecl{TypeIoTSWAssetModel, TypeIoTSWAssetModel, store.RelUses},
+	)
 	// Hierarchy emitted at scan time: portal contains project, project contains
 	// dashboard. Declared so coverage gap-analysis treats portal/project as
 	// containing parents rather than orphans.
@@ -178,6 +181,51 @@ func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 			return fmt.Errorf("upsert iotsitewise portal→iam-role: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveIoTSWAssetModelHierarchies wires each asset-model to the child
+// asset-models declared in its AssetModelHierarchies (type-level reference:
+// any asset of this model can contain children of the referenced model type).
+// Self-edges and unscanned refs are skipped FK-safe.
+func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAssetModel}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	modelSet, err := scannedIDSet(acct, st, TypeIoTSWAssetModel)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			AssetModelHierarchies []struct {
+				ChildAssetModelId *string `json:"ChildAssetModelId"`
+			} `json:"AssetModelHierarchies"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		for _, h := range attrs.AssetModelHierarchies {
+			cid := sv(h.ChildAssetModelId)
+			if cid == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeIoTSWAssetModel, iotSWARN(region, acct.ID, "asset-model", cid))
+			if tgt == r.ID || !modelSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert iotsitewise asset-model→child: %w", err)
+			}
 		}
 	}
 	return nil
