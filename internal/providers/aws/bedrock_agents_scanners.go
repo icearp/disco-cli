@@ -200,10 +200,20 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 			if label == "" {
 				label = id
 			}
+			// Enrich via GetKnowledgeBase — adds RoleArn,
+			// KnowledgeBaseConfiguration variant (vector/SQL/Kendra),
+			// StorageConfiguration backend refs (S3/RDS/OSS/Pinecone/etc).
+			detail, derr := client.GetKnowledgeBase(ctx, &bedrockagent.GetKnowledgeBaseInput{KnowledgeBaseId: &id})
+			attrs := mustJSON(k)
+			if derr == nil && detail != nil && detail.KnowledgeBase != nil {
+				attrs = mustJSON(detail.KnowledgeBase)
+			} else if derr != nil && isAccessDenied(derr) {
+				_ = skipIfAccessDenied(st, "bedrockagent:GetKnowledgeBase", acct.ID, region, derr)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBedrockKnowledgeBase, NativeID: bedrockKBARN(region, acct.ID, id),
-				Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -242,10 +252,22 @@ func scanBedrockDataSources(ctx context.Context, client bedrockAgentAPI, acct *a
 				if label == "" {
 					label = id
 				}
+				// Enrich via GetDataSource — adds DataSourceConfiguration
+				// (S3/Confluence/Salesforce/SharePoint/Web variants) +
+				// ServerSideEncryptionConfiguration.KmsKeyArn.
+				detail, derr := client.GetDataSource(ctx, &bedrockagent.GetDataSourceInput{
+					KnowledgeBaseId: &kid, DataSourceId: &id,
+				})
+				attrs := mustJSON(d)
+				if derr == nil && detail != nil && detail.DataSource != nil {
+					attrs = mustJSON(detail.DataSource)
+				} else if derr != nil && isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "bedrockagent:GetDataSource", acct.ID, region, derr)
+				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeBedrockDataSource, NativeID: bedrockDataSourceARN(region, acct.ID, kbID, id),
-					Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+					Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 				})
 			}
 		}
