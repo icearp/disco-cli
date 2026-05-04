@@ -17,6 +17,131 @@ func init() {
 	registerResolver(resolveNetworkFirewallPolicyRelationships,
 		EdgeDecl{TypeNetworkFirewallFirewallPolicy, TypeNetworkFirewallRuleGroup, store.RelUses},
 	)
+	registerResolver(resolveNetworkFirewallRuleGroupKMS,
+		EdgeDecl{TypeNetworkFirewallRuleGroup, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(resolveNetworkFirewallTLSInspectionRefs,
+		EdgeDecl{TypeNetworkFirewallTLSInspectionConfiguration, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeNetworkFirewallTLSInspectionConfiguration, TypeACMCertificate, store.RelUses},
+	)
+}
+
+// resolveNetworkFirewallRuleGroupKMS reads
+// RuleGroupResponse.EncryptionConfiguration.KeyId from each rule-group's
+// DescribeRuleGroup body and emits a KMS edge.
+func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallRuleGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			RuleGroupResponse *struct {
+				EncryptionConfiguration *struct {
+					KeyID *string `json:"KeyId"`
+				} `json:"EncryptionConfiguration"`
+			} `json:"RuleGroupResponse"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.RuleGroupResponse == nil || attrs.RuleGroupResponse.EncryptionConfiguration == nil {
+			continue
+		}
+		ref := sv(attrs.RuleGroupResponse.EncryptionConfiguration.KeyID)
+		if ref == "" {
+			continue
+		}
+		if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+			if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert nfw rule-group→kms: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveNetworkFirewallTLSInspectionRefs wires TLS-inspection configs to
+// their CMEK and ACM certs. CertificateAuthority + Certificates[] both
+// carry CertificateArn refs.
+func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallTLSInspectionConfiguration}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	acmSet, err := scannedIDSet(acct, st, TypeACMCertificate)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			TLSInspectionConfigurationResponse *struct {
+				EncryptionConfiguration *struct {
+					KeyID *string `json:"KeyId"`
+				} `json:"EncryptionConfiguration"`
+				CertificateAuthority *struct {
+					CertificateArn *string `json:"CertificateArn"`
+				} `json:"CertificateAuthority"`
+				Certificates []struct {
+					CertificateArn *string `json:"CertificateArn"`
+				} `json:"Certificates"`
+			} `json:"TLSInspectionConfigurationResponse"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.TLSInspectionConfigurationResponse == nil {
+			continue
+		}
+		resp := attrs.TLSInspectionConfigurationResponse
+		if resp.EncryptionConfiguration != nil {
+			if ref := sv(resp.EncryptionConfiguration.KeyID); ref != "" {
+				if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+					if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert nfw tls→kms: %w", err)
+					}
+				}
+			}
+		}
+		var certARNs []string
+		if resp.CertificateAuthority != nil {
+			certARNs = append(certARNs, sv(resp.CertificateAuthority.CertificateArn))
+		}
+		for _, c := range resp.Certificates {
+			certARNs = append(certARNs, sv(c.CertificateArn))
+		}
+		for _, ca := range certARNs {
+			if ca == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, ca)
+			if !acmSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert nfw tls→acm: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // nfFirewallAttrs extracts the fields on DescribeFirewall's response needed

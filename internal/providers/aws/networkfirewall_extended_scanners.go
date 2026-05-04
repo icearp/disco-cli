@@ -92,11 +92,16 @@ func scanNFTLSInspectionConfigurations(ctx context.Context, client networkfirewa
 			if arn == "" {
 				continue
 			}
+			attrsJSON := mustJSON(c)
+			arnLocal := arn
+			if dout, derr := client.DescribeTLSInspectionConfiguration(ctx, &networkfirewall.DescribeTLSInspectionConfigurationInput{TLSInspectionConfigurationArn: &arnLocal}); derr == nil {
+				attrsJSON = mustJSON(dout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkFirewallTLSInspectionConfiguration, NativeID: arn,
 				Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

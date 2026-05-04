@@ -139,3 +139,45 @@ func TestResolveNetworkFirewall_EmptyAttrs(t *testing.T) {
 		t.Fatalf("resolveNetworkFirewallPolicyRelationships empty: %v", err)
 	}
 }
+
+func TestResolveNetworkFirewallRuleGroupKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	rgARN := "arn:aws:network-firewall:us-east-1:" + testAccountID + ":stateful-rulegroup/rg1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-rg"
+	attrs := `{"RuleGroupResponse":{"EncryptionConfiguration":{"KeyId":"` + keyARN + `"}}}`
+	rgID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallRuleGroup, rgARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+
+	if err := resolveNetworkFirewallRuleGroupKMS(acct, st); err != nil {
+		t.Fatalf("resolveNetworkFirewallRuleGroupKMS: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rgID)
+	assertRelationship(t, rels, rgID, kID, store.RelUses)
+}
+
+func TestResolveNetworkFirewallTLSInspectionRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tlsARN := "arn:aws:network-firewall:us-east-1:" + testAccountID + ":tls-configuration/t1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-tls"
+	caARN := "arn:aws:acm:us-east-1:" + testAccountID + ":certificate/abcd-ca"
+	cARN := "arn:aws:acm:us-east-1:" + testAccountID + ":certificate/abcd-c1"
+	attrs := `{"TLSInspectionConfigurationResponse":{"EncryptionConfiguration":{"KeyId":"` + keyARN +
+		`"},"CertificateAuthority":{"CertificateArn":"` + caARN +
+		`"},"Certificates":[{"CertificateArn":"` + cARN + `"}]}}`
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallTLSInspectionConfiguration, tlsARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	caID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, caARN, testRegion, "{}")
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, cARN, testRegion, "{}")
+
+	if err := resolveNetworkFirewallTLSInspectionRefs(acct, st); err != nil {
+		t.Fatalf("resolveNetworkFirewallTLSInspectionRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(tID)
+	assertRelationship(t, rels, tID, kID, store.RelUses)
+	assertRelationship(t, rels, tID, caID, store.RelUses)
+	assertRelationship(t, rels, tID, cID, store.RelUses)
+}

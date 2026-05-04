@@ -38,6 +38,7 @@ type networkfirewallAPI interface {
 	DescribeRuleGroup(context.Context, *networkfirewall.DescribeRuleGroupInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeRuleGroupOutput, error)
 	DescribeLoggingConfiguration(context.Context, *networkfirewall.DescribeLoggingConfigurationInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeLoggingConfigurationOutput, error)
 	ListTLSInspectionConfigurations(context.Context, *networkfirewall.ListTLSInspectionConfigurationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListTLSInspectionConfigurationsOutput, error)
+	DescribeTLSInspectionConfiguration(context.Context, *networkfirewall.DescribeTLSInspectionConfigurationInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeTLSInspectionConfigurationOutput, error)
 	ListVpcEndpointAssociations(context.Context, *networkfirewall.ListVpcEndpointAssociationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListVpcEndpointAssociationsOutput, error)
 }
 

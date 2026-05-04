@@ -605,8 +605,6 @@ var leafTypes = map[string]bool{
 	"aws:mq:configuration":                                     true,
 	"aws:mwaa-serverless:workflow":                             true,
 	"aws:neptune-graph:graph":                                  true,
-	"aws:network-firewall:rule-group":                          true,
-	"aws:network-firewall:tls-inspection-configuration":        true,
 	"aws:networkmanager:global-network":                        true,
 	"aws:oam:link":                                             true,
 	"aws:oam:sink":                                             true,
