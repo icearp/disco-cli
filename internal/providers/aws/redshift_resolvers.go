@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"codeberg.org/icearp/disco/internal/util"
@@ -20,6 +21,86 @@ func init() {
 		EdgeDecl{TypeRedshiftSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftSubnetGroup, TypeEC2Subnet, store.RelContains},
 	)
+	registerResolver(resolveRedshiftIntegrationRefs,
+		EdgeDecl{TypeRedshiftIntegration, TypeRDSDBCluster, store.RelUses},
+		EdgeDecl{TypeRedshiftIntegration, TypeRedshiftCluster, store.RelUses},
+		EdgeDecl{TypeRedshiftIntegration, TypeRedshiftServerlessNamespace, store.RelUses},
+		EdgeDecl{TypeRedshiftIntegration, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveRedshiftIntegrationRefs wires each zero-ETL integration to its
+// source (RDS / Redshift cluster) and target (Redshift cluster or Serverless
+// namespace) plus the optional CMK. Source/target ARN dispatch by service
+// segment. Mirrors resolveRDSIntegrationRefs in rds_resolvers.go.
+func resolveRedshiftIntegrationRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRedshiftIntegration}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	rdsClusterSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	rsClusterSet, err := scannedIDSet(acct, st, TypeRedshiftCluster)
+	if err != nil {
+		return err
+	}
+	nsSet, err := scannedIDSet(acct, st, TypeRedshiftServerlessNamespace)
+	if err != nil {
+		return err
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	dispatch := func(arn string) (string, string, bool) {
+		switch {
+		case strings.Contains(arn, ":rds:") && strings.Contains(arn, ":cluster:"):
+			id := store.ResourceID("aws", acct.ID, TypeRDSDBCluster, arn)
+			return id, TypeRDSDBCluster, rdsClusterSet[id]
+		case strings.Contains(arn, ":redshift:") && strings.Contains(arn, ":cluster:"):
+			id := store.ResourceID("aws", acct.ID, TypeRedshiftCluster, arn)
+			return id, TypeRedshiftCluster, rsClusterSet[id]
+		case strings.Contains(arn, ":redshift-serverless:") && strings.Contains(arn, ":namespace/"):
+			id := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, arn)
+			return id, TypeRedshiftServerlessNamespace, nsSet[id]
+		}
+		return "", "", false
+	}
+	for _, r := range rows {
+		var attrs struct {
+			SourceArn *string `json:"SourceArn"`
+			TargetArn *string `json:"TargetArn"`
+			KMSKeyID  *string `json:"KMSKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, a := range []string{sv(attrs.SourceArn), sv(attrs.TargetArn)} {
+			if a == "" {
+				continue
+			}
+			if id, _, ok := dispatch(a); ok {
+				if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert redshift integration→endpoint: %w", err)
+				}
+			}
+		}
+		if k := sv(attrs.KMSKeyID); k != "" {
+			if keyID, ok := kmsIdx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert redshift integration→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // redshiftClusterAttrs mirrors the verbatim Cluster fields used by the

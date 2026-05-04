@@ -249,7 +249,6 @@ var leafTypes = map[string]bool{
 	"aws:redshift:cluster-parameter-group":              true,
 	"aws:redshift:event-subscription":                   true,
 	"aws:redshift:scheduled-action":                     true,
-	"aws:redshift:integration":                          true,
 	"aws:redshift:endpoint-authorization":               true,
 	"aws:redshift:endpoint-access":                      true,
 	"aws:rds:db-engine-version":                         true,

@@ -112,3 +112,27 @@ func TestResolveRedshiftSubnetGroupTargets_HappyPath(t *testing.T) {
 	assertRelationship(t, rels, sgrpID, subAID, store.RelContains)
 	assertRelationship(t, rels, sgrpID, subBID, store.RelContains)
 }
+
+func TestResolveRedshiftIntegrationRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	intARN := fmt.Sprintf("arn:aws:redshift:%s:%s:integration:int-1", testRegion, acct.ID)
+	rdsARN := fmt.Sprintf("arn:aws:rds:%s:%s:cluster:src", testRegion, acct.ID)
+	nsARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:namespace/ns-1", testRegion, acct.ID)
+	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"SourceArn":%q,"TargetArn":%q,"KMSKeyId":%q}`, rdsARN, nsARN, kARN)
+
+	iID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftIntegration, intARN, testRegion, attrs)
+	rdsID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, rdsARN, testRegion, "{}")
+	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, "{}")
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
+
+	if err := resolveRedshiftIntegrationRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftIntegrationRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(iID)
+	assertRelationship(t, rels, iID, rdsID, store.RelUses)
+	assertRelationship(t, rels, iID, nsID, store.RelUses)
+	assertRelationship(t, rels, iID, kID, store.RelUses)
+}
