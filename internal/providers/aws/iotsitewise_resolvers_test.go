@@ -82,3 +82,24 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(gID)
 	assertRelationship(t, rels, gID, thingID, store.RelUses)
 }
+
+func TestResolveIoTSWDatasetRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	dARN := iotSWARN(testRegion, acct.ID, "dataset", "d-1")
+	kbARN := "arn:aws:bedrock:" + testRegion + ":" + testAccountID + ":knowledge-base/kb-xyz"
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/iotsw-ds"
+	attrs := fmt.Sprintf(`{"DatasetSource":{"SourceDetail":{"Kendra":{"KnowledgeBaseArn":%q,"RoleArn":%q}}}}`, kbARN, roleARN)
+
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWDataset, dARN, testRegion, attrs)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockKnowledgeBase, kbARN, testRegion, "{}")
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
+
+	if err := resolveIoTSWDatasetRefs(acct, st); err != nil {
+		t.Fatalf("resolveIoTSWDatasetRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(dID)
+	assertRelationship(t, rels, dID, kbID, store.RelUses)
+	assertRelationship(t, rels, dID, rID, store.RelAssumes)
+}

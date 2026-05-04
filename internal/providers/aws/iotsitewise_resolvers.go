@@ -22,6 +22,10 @@ func init() {
 	registerResolver(resolveIoTSWGatewayThing,
 		EdgeDecl{TypeIoTSWGateway, TypeIoTThing, store.RelUses},
 	)
+	registerResolver(resolveIoTSWDatasetRefs,
+		EdgeDecl{TypeIoTSWDataset, TypeBedrockKnowledgeBase, store.RelUses},
+		EdgeDecl{TypeIoTSWDataset, TypeIAMRole, store.RelAssumes},
+	)
 	// Hierarchy emitted at scan time: portal contains project, project contains
 	// dashboard. Declared so coverage gap-analysis treats portal/project as
 	// containing parents rather than orphans.
@@ -174,6 +178,65 @@ func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
 			return fmt.Errorf("upsert iotsitewise portal→iam-role: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveIoTSWDatasetRefs wires each dataset to its Bedrock knowledge-base
+// (Source.SourceDetail.Kendra.KnowledgeBaseArn — the SDK field is named
+// "Kendra" but carries a Bedrock KB ARN) and its IAM role.
+func resolveIoTSWDatasetRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWDataset}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	kbSet, err := scannedIDSet(acct, st, TypeBedrockKnowledgeBase)
+	if err != nil {
+		return err
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DatasetSource *struct {
+				SourceDetail *struct {
+					Kendra *struct {
+						KnowledgeBaseArn *string `json:"KnowledgeBaseArn"`
+						RoleArn          *string `json:"RoleArn"`
+					} `json:"Kendra"`
+				} `json:"SourceDetail"`
+			} `json:"DatasetSource"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.DatasetSource == nil || attrs.DatasetSource.SourceDetail == nil || attrs.DatasetSource.SourceDetail.Kendra == nil {
+			continue
+		}
+		k := attrs.DatasetSource.SourceDetail.Kendra
+		if kb := sv(k.KnowledgeBaseArn); kb != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeBedrockKnowledgeBase, kb)
+			if kbSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert iotsitewise dataset→bedrock-kb: %w", err)
+				}
+			}
+		}
+		if ra := sv(k.RoleArn); ra != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, ra)
+			if roleSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+					return fmt.Errorf("upsert iotsitewise dataset→iam-role: %w", err)
+				}
+			}
 		}
 	}
 	return nil

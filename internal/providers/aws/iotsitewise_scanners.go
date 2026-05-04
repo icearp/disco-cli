@@ -47,6 +47,7 @@ type iotSWAPI interface {
 	ListComputationModels(context.Context, *iotsitewise.ListComputationModelsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListComputationModelsOutput, error)
 	ListDashboards(context.Context, *iotsitewise.ListDashboardsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDashboardsOutput, error)
 	ListDatasets(context.Context, *iotsitewise.ListDatasetsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListDatasetsOutput, error)
+	DescribeDataset(context.Context, *iotsitewise.DescribeDatasetInput, ...func(*iotsitewise.Options)) (*iotsitewise.DescribeDatasetOutput, error)
 	ListGateways(context.Context, *iotsitewise.ListGatewaysInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListGatewaysOutput, error)
 	ListPortals(context.Context, *iotsitewise.ListPortalsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListPortalsOutput, error)
 	ListProjects(context.Context, *iotsitewise.ListProjectsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListProjectsOutput, error)
@@ -299,10 +300,24 @@ func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, regi
 			if label == "" {
 				label = sv(d.Id)
 			}
+			// Enrich with DescribeDataset body — Source.SourceDetail.Kendra.{KnowledgeBaseArn,RoleArn}
+			// are not on the list-summary shape. Fall back to summary on per-row failure.
+			attrs := mustJSON(d)
+			did := d.Id
+			if did != nil {
+				dout, derr := client.DescribeDataset(ctx, &iotsitewise.DescribeDatasetInput{DatasetId: did})
+				if derr != nil {
+					if isAccessDenied(derr) {
+						_ = skipIfAccessDenied(st, "iotsitewise:DescribeDataset", acct.ID, region, derr)
+					}
+				} else if dout != nil {
+					attrs = mustJSON(dout)
+				}
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTSWDataset, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}

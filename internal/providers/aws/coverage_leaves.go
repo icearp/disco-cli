@@ -842,7 +842,6 @@ var leafTypes = map[string]bool{
 	"aws:iotsitewise:asset-model":                  true,
 	"aws:iotsitewise:computation-model":            true,
 	"aws:iotsitewise:dashboard":                    true,
-	"aws:iotsitewise:dataset":                      true,
 	"aws:iottwinmaker:workspace":                   true,
 	"aws:iotfleetwise:signal-catalog":              true,
 }
