@@ -174,6 +174,9 @@ func scanGLContainerGroupDefs(ctx context.Context, client gameLiftAPI, acct *acc
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isAPIErrorCode(perr, "UnsupportedRegionException") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "gamelift:ListContainerGroupDefinitions", acct.ID, region, perr)
 				return 0, 0, nil
