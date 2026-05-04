@@ -83,6 +83,15 @@ new gaps as scanner coverage grows.
 | `aws:glue:integration` → KMS / RDS / Redshift / Kinesis / DynamoDB / S3 | `resolveGlueIntegrationRefs` substring-dispatches `SourceArn` + `TargetArn`, KMS via `loadKMSResolveIndex` |
 | `aws:glue:catalog` → `aws:redshift:cluster` | `resolveGlueCatalogTargets` reads `TargetRedshiftCatalog.CatalogArn` |
 | `aws:ivs:stage` → `aws:ivs:storage-configuration` | `resolveIVSStageStorageConfig` reads `AutoParticipantRecordingConfiguration.StorageConfigurationArn` |
+| `aws:cognito:user-pool` → lambda triggers / KMS / SES / IAM (SNS) / ACM | `resolveCognitoUserPoolRefs` walks LambdaConfig.{10 trigger ARNs + 4 nested LambdaArn}, KMSKeyID, EmailConfig.SourceArn, SmsConfig.SnsCallerArn, CustomDomainConfig.CertificateArn |
+| `aws:ssm:document` → `aws:ssm:document` (Requires[]) | scanner enriched with DescribeDocument; resolver maps `Requires[].Name` to in-region NativeID |
+| `aws:lex:bot` → `aws:iam:role` | scanner enriched with DescribeBot; resolver reads `RoleArn` |
+| `aws:connect:instance` → `aws:iam:role` | `resolveConnectInstanceServiceRole` reads `Instance.ServiceRole` (DescribeInstance body already wrapped) |
+| `aws:location:tracker` + `:geofence-collection` → `aws:kms:key` | scanner enriched with DescribeTracker + DescribeGeofenceCollection; resolver reuses `loadKMSResolveIndex` |
+| `aws:code-build:project` → IAM / KMS / VPC + subnet + SG / S3 / log-group | scanner enriched with `BatchGetProjects` (chunks of 100); resolver walks ServiceRole, ResourceAccessRole, EncryptionKey, VpcConfig, Artifacts/SecondaryArtifacts/Cache S3, LogsConfig.{CloudWatchLogs,S3Logs} |
+| `aws:servicediscovery:service` → namespace; private/public-dns-namespace → route53 hosted-zone; instance → service | `resolveServiceDiscoveryServiceNamespace` reads DnsConfig.NamespaceId; `resolveServiceDiscoveryNamespaceHostedZone` reads Properties.DnsProperties.HostedZoneId; `resolveServiceDiscoveryInstanceService` parent-extracts `/instance/` |
+| `aws:global-accelerator:listener` → accelerator; endpoint-group → listener + LB/EIP/EC2-instance; cross-account-attachment → same dispatch | `resolveGlobalAccelerator*` — parent extract via `gaParentARN` + endpoint dispatch on EndpointId shape (full ARN / `eipalloc-` / `i-`) |
+| `aws:pcs:compute-node-group` + `:queue` → `aws:pcs:cluster` | `resolvePCSChildrenToCluster` reads `ClusterId` field, builds parent ARN |
 
 ### Bonus shipped alongside r53r work
 
@@ -92,8 +101,9 @@ new gaps as scanner coverage grows.
 
 ### Phase 2 leaf-flag harvest (this session)
 
-The orphan inventory shrank from 453 to 227 across the same session by
-flagging 200+ types into `internal/providers/aws/coverage_leaves.go`.
+The orphan inventory shrank from 453 → 207 across two sessions: Phase 2
+flagged 200+ types into `internal/providers/aws/coverage_leaves.go`,
+then Phase 3+4 wired source-side resolvers + scanner enrichments.
 Each cluster represents either a no-out-edges singleton (IAM auth
 artefacts, cost-domain rows, Pinpoint v2 templates), a deprecated /
 preview-stage SDK (route53globalresolver, security-agent, dev-ops-agent,
@@ -130,7 +140,6 @@ aws:cloudfront:vpc-origin	cloudfront
 aws:cloudtrail:channel	cloudtrail
 aws:cloudtrail:dashboard	cloudtrail
 aws:code-build:fleet	code-build
-aws:code-build:project	code-build
 aws:code-build:report-group	code-build
 aws:code-build:source-credential	code-build
 aws:code-guru-profiler:profiling-group	code-guru-profiler
@@ -141,12 +150,10 @@ aws:codedeploy:deployment-config	codedeploy
 aws:codepipeline:custom-action-type	codepipeline
 aws:codepipeline:pipeline	codepipeline
 aws:codestar-connections:connection	codestar-connections
-aws:cognito:user-pool	cognito
 aws:config:organization-conformance-pack	config
 aws:config:stored-query	config
 aws:connect-campaigns-v2:campaign	connect-campaigns-v2
 aws:connect-campaigns:campaign	connect-campaigns
-aws:connect:instance	connect
 aws:controltower:enabled-control	controltower
 aws:customer-profiles:domain	customer-profiles
 aws:databrew:dataset	databrew
@@ -190,9 +197,6 @@ aws:forecast:dataset-group	forecast
 aws:fsx:file-system	fsx
 aws:fsx:s3-access-point-attachment	fsx
 aws:global-accelerator:accelerator	global-accelerator
-aws:global-accelerator:cross-account-attachment	global-accelerator
-aws:global-accelerator:endpoint-group	global-accelerator
-aws:global-accelerator:listener	global-accelerator
 aws:grafana:workspace	grafana
 aws:guardduty:detector	guardduty
 aws:guardduty:malware-protection-plan	guardduty
@@ -211,7 +215,6 @@ aws:ivs-chat:room	ivs-chat
 aws:kendra-ranking:execution-plan	kendra-ranking
 aws:kendra:index	kendra
 aws:launch-wizard:deployment	launch-wizard
-aws:lex:bot	lex
 aws:license-manager:license	license-manager
 aws:lightsail:bucket	lightsail
 aws:lightsail:container-service	lightsail
@@ -253,13 +256,7 @@ aws:odb:cloud-exadata-infrastructure	odb
 aws:odb:cloud-vm-cluster	odb
 aws:odb:odb-network	odb
 aws:odb:odb-peering-connection	odb
-aws:omics:configuration	omics
-aws:omics:run-group	omics
-aws:omics:workflow	omics
 aws:opensearchservice:application	opensearchservice
-aws:organizations:account	organizations
-aws:organizations:ou	organizations
-aws:organizations:resource-policy	organizations
 aws:osis:pipeline	osis
 aws:payment-cryptography:key	payment-cryptography
 aws:pca-connector-ad:service-principal-name	pca-connector-ad
@@ -267,9 +264,6 @@ aws:pca-connector-ad:template	pca-connector-ad
 aws:pca-connector-ad:template-group-access-control-entry	pca-connector-ad
 aws:pca-connector-scep:challenge	pca-connector-scep
 aws:pca-connector-scep:connector	pca-connector-scep
-aws:pcs:cluster	pcs
-aws:pcs:compute-node-group	pcs
-aws:pcs:queue	pcs
 aws:pinpoint:app	pinpoint
 aws:pipes:pipe	pipes
 aws:qbusiness:application	qbusiness
@@ -310,10 +304,6 @@ aws:service-catalog-app-registry:attribute-group	service-catalog-app-registry
 aws:service-catalog-app-registry:attribute-group-association	service-catalog-app-registry
 aws:service-catalog-app-registry:resource-association	service-catalog-app-registry
 aws:servicediscovery:http-namespace	servicediscovery
-aws:servicediscovery:instance	servicediscovery
-aws:servicediscovery:private-dns-namespace	servicediscovery
-aws:servicediscovery:public-dns-namespace	servicediscovery
-aws:servicediscovery:service	servicediscovery
 aws:sfn:activity	sfn
 aws:shield:drt-access	shield
 aws:shield:proactive-engagement	shield
