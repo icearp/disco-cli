@@ -2,12 +2,14 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
+	smithy "github.com/aws/smithy-go"
 )
 
 // isIoTFleetWiseFeatureNotAuthorized disambiguates the per-feature "Account
@@ -16,6 +18,22 @@ import (
 // access does not unlock.
 func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
 	return isAccessDenied(err) && strings.Contains(err.Error(), "not authorized to use this feature")
+}
+
+// isIoTFleetWiseClosedToAccount detects the closed-to-new-customers
+// account-level deny. AWS IoT FleetWise stopped accepting new customers;
+// list ops on unregistered accounts return AccessDeniedException with an
+// empty message body. Real per-op IAM denials always identify the action
+// in the message, so the empty-message variant is the closed-state signal.
+func isIoTFleetWiseClosedToAccount(err error) bool {
+	if !isAccessDenied(err) {
+		return false
+	}
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		return strings.TrimSpace(ae.ErrorMessage()) == ""
+	}
+	return false
 }
 
 func init() {
@@ -47,6 +65,10 @@ type iotFWAPI interface {
 func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := iotfleetwise.NewFromConfig(acct.cfg, func(o *iotfleetwise.Options) { o.Region = region })
 
+	if ferr := gateIoTFleetWise(ctx, client); ferr != nil {
+		return 0, 0, ferr
+	}
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanIoTFWCampaigns(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIoTFWDecoderManifests(ctx, client, acct, region, st, scanID) },
@@ -64,6 +86,20 @@ func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *sto
 		inserted += i
 	}
 	return total, inserted, nil
+}
+
+// gateIoTFleetWise probes the cheapest list op once. If it returns the
+// closed-to-new-customers shape (empty-message AccessDeniedException),
+// short-circuit the whole scanner via markServiceDisabled so the dispatcher
+// renders `(service disabled)` once instead of N per-phase warnings. Any
+// other error or success returns nil and the phase loop runs.
+func gateIoTFleetWise(ctx context.Context, client iotFWAPI) error {
+	mr := int32(1)
+	_, err := client.ListCampaigns(ctx, &iotfleetwise.ListCampaignsInput{MaxResults: &mr})
+	if err != nil && isIoTFleetWiseClosedToAccount(err) {
+		return markServiceDisabled(err)
+	}
+	return nil
 }
 
 func scanIoTFWCampaigns(ctx context.Context, client iotFWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
