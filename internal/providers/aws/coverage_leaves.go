@@ -508,12 +508,6 @@ var leafTypes = map[string]bool{
 	// ip-access-settings / session-logger / trust-store / user-settings —
 	// portal/web-acl/customer-managed-policy refs live on associated
 	// portal Describe; List* summaries are leaf today.
-	"aws:workspaces-web:browser-settings":         true,
-	"aws:workspaces-web:data-protection-settings": true,
-	"aws:workspaces-web:ip-access-settings":       true,
-	"aws:workspaces-web:session-logger":           true,
-	"aws:workspaces-web:trust-store":              true,
-	"aws:workspaces-web:user-settings":            true,
 	// MediaConnect — flow/bridge/gateway/router-* refs live on Describe*.
 	"aws:mediaconnect:bridge":                   true,
 	"aws:mediaconnect:flow":                     true,
@@ -738,6 +732,9 @@ var leafTypes = map[string]bool{
 	"aws:entityresolution:id-namespace":        true,
 	"aws:entityresolution:matching-workflow":   true,
 	"aws:entityresolution:schema-mapping":      true,
+	// WorkSpaces Web TrustStore has no CMK and no outbound refs beyond
+	// AssociatedPortalArns (already wired Portal→TrustStore inward).
+	"aws:workspaces-web:trust-store": true,
 	// PCS cluster — list summary has no outbound refs (network/scheduler
 	// config lives on Get body — deferred enrichment).
 	"aws:pcs:cluster": true,

@@ -74,3 +74,21 @@ func TestResolveWSWIdentityProviderPortal(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(idpID)
 	assertRelationship(t, rels, idpID, pID, store.RelAttachedTo)
 }
+
+func TestResolveWSWSettingsKMS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	bsARN := "arn:aws:workspaces-web:us-east-1:" + testAccountID + ":browserSettings/bs-1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-wsw"
+	attrs := `{"CustomerManagedKey":"` + keyARN + `"}`
+
+	bsID := upsertTestResource(t, st, "aws", acct.ID, TypeWSWBrowserSettings, bsARN, testRegion, attrs)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+
+	if err := resolveWSWSettingsKMS(acct, st); err != nil {
+		t.Fatalf("resolveWSWSettingsKMS: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(bsID)
+	assertRelationship(t, rels, bsID, kID, store.RelUses)
+}

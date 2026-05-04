@@ -268,3 +268,56 @@ func resolveWSWIdentityProviderPortal(acct *account, st *store.Store) error {
 	}
 	return nil
 }
+
+func init() {
+	registerResolver(resolveWSWSettingsKMS,
+		EdgeDecl{TypeWSWBrowserSettings, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeWSWDataProtectionSettings, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeWSWIPAccessSettings, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeWSWSessionLogger, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeWSWUserSettings, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveWSWSettingsKMS wires each WorkSpaces Web settings type to its
+// CustomerManagedKey CMEK. TrustStore has no CMK (no KmsKeyArn field on
+// the SDK type). All settings types share AssociatedPortalArns but the
+// reverse Portal→Settings edge is already wired by resolveWSWPortalRefs.
+func resolveWSWSettingsKMS(acct *account, st *store.Store) error {
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, t := range []string{
+		TypeWSWBrowserSettings,
+		TypeWSWDataProtectionSettings,
+		TypeWSWIPAccessSettings,
+		TypeWSWSessionLogger,
+		TypeWSWUserSettings,
+	} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				CustomerManagedKey *string `json:"CustomerManagedKey"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			ref := sv(attrs.CustomerManagedKey)
+			if ref == "" {
+				continue
+			}
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert wsw-%s→kms: %w", t, err)
+				}
+			}
+		}
+	}
+	return nil
+}
