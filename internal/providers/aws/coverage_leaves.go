@@ -238,7 +238,6 @@ var leafTypes = map[string]bool{
 	"aws:accessanalyzer:analyzer":                       true,
 	"aws:acm-pca:permission":                            true,
 	"aws:athena:data-catalog":                           true,
-	"aws:athena:work-group":                             true,
 	"aws:athena:named-query":                            true,
 	"aws:athena:prepared-statement":                     true,
 	"aws:codestar-notifications:notification-rule":      true,
