@@ -307,3 +307,32 @@ When AWS retires a service to new customers (existing customers keep access), li
 ## Two-pass scanner: keep total == inserted via skip-set dedup
 
 Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second is an ON CONFLICT update. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
+
+## NXDOMAIN at dispatcher = service not deployed in region
+
+`isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(service disabled)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.
+
+## Per-region feature-gap error codes are service-specific
+
+AWS surfaces "this sub-feature is not deployed in this region" under different codes per service. Build the silent-skip predicate against the exact code observed. Known shapes:
+
+- `UnsupportedRegionException` (gamelift Containers + FlexMatch)
+- `InvalidRequestException` + "Feature not supported yet" (iotsitewise)
+- `InvalidAction` "Operation not supported" (cloudwatch GetOTelEnrichment)
+- `ValidationException` + "Member must satisfy enum value set" (App Auto Scaling per-region namespace enum)
+- `AccessDeniedException` + canned message linking docs URL (workspaces:DescribeWorkspacesPools)
+- `InternalFailure` 500 post-retry (quicksight ListActionConnectors)
+
+Empty-message `AccessDeniedException` is a separate signal (closed-to-new-customers — see iotfleetwise / interconnect precedents).
+
+## SDK paginator `Limit=0` nils MaxResults → 400 ValidationException
+
+`New<Op>Paginator` constructors that expose a `Limit` paginator-option overwrite `params.MaxResults` to `nil` when `Limit==0` (default). Some AWS APIs reject the resulting empty MaxResults with `Value '0' at 'maxResults' failed to satisfy constraint`. Always pass an option-fn setting `o.Limit` to a valid page size: `NewListXxxPaginator(client, in, func(o *svc.ListXxxPaginatorOptions) { o.Limit = 100 })`. Precedent: `scanQSActionConnectors` (quicksight_scanners.go).
+
+## Clamp retries per-op for ops that return persistent 5xx
+
+Global config sets `WithRetryMaxAttempts(10)` + adaptive backoff for low-TPS services like IAM. Newer/region-gated ops sometimes return `InternalFailure` 500 (instead of clean 4xx) when their feature is not deployed; the global budget then burns ~2m before the call returns. Clamp on the offending op via paginator `NextPage` optFn or direct call optFn: `func(o *svc.Options) { o.RetryMaxAttempts = 2 }`. Pair with adding the post-retry code to the soft-skip predicate. Precedent: `scanQSActionConnectors` clamps + soft-skips `InternalFailure`.
+
+## AccessDenied disambiguation — canned doc URL = per-region feature gap
+
+Real per-action IAM denials carry the SDK-formatted body `User: arn:... is not authorized to perform: <action> on <resource>`. AWS's "this feature is not in this region" canned response is a different shape: generic "You do not have the permissions required to perform this action" + a docs URL marker. Detect via `isAccessDenied(err) && strings.Contains(err.Error(), "<service-doc-url-fragment>")` and silent-skip. Real denials still warn via `skipIfAccessDenied`. Precedent: `scanWSWorkspacesPools` checks `workspaces-access-control.html`.
