@@ -108,6 +108,9 @@ func scanIoTFWCampaigns(ctx context.Context, client iotFWAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListCampaigns", acct.ID, region, perr)
 				return 0, 0, nil
@@ -139,6 +142,9 @@ func scanIoTFWDecoderManifests(ctx context.Context, client iotFWAPI, acct *accou
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListDecoderManifests", acct.ID, region, perr)
 				return 0, 0, nil
@@ -170,6 +176,9 @@ func scanIoTFWFleets(ctx context.Context, client iotFWAPI, acct *account, region
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListFleets", acct.ID, region, perr)
 				return 0, 0, nil
@@ -201,6 +210,9 @@ func scanIoTFWModelManifests(ctx context.Context, client iotFWAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListModelManifests", acct.ID, region, perr)
 				return 0, 0, nil
@@ -232,6 +244,9 @@ func scanIoTFWSignalCatalogs(ctx context.Context, client iotFWAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListSignalCatalogs", acct.ID, region, perr)
 				return 0, 0, nil
@@ -266,6 +281,9 @@ func scanIoTFWStateTemplates(ctx context.Context, client iotFWAPI, acct *account
 			if isIoTFleetWiseFeatureNotAuthorized(perr) {
 				return 0, 0, markServiceDisabled(perr)
 			}
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListStateTemplates", acct.ID, region, perr)
 				return 0, 0, nil
@@ -297,6 +315,9 @@ func scanIoTFWVehicles(ctx context.Context, client iotFWAPI, acct *account, regi
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isIoTFleetWiseClosedToAccount(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iotfleetwise:ListVehicles", acct.ID, region, perr)
 				return 0, 0, nil
