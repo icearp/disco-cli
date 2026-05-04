@@ -158,3 +158,59 @@ func TestResolveSSOAccountAssignments_MalformedAttrs(t *testing.T) {
 		t.Fatalf("resolveSSOAccountAssignments: %v", err)
 	}
 }
+
+func TestResolveSSOApplicationInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	insID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, ssoInstanceARN(), testRegion, ssoInstanceAttrs())
+	appARN := "arn:aws:sso::" + acct.ID + ":application/" + testSSOInsID + "/apl-abc"
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOApplication, appARN, testRegion,
+		fmt.Sprintf(`{"InstanceArn":%q,"Name":"app1"}`, ssoInstanceARN()))
+
+	if err := resolveSSOApplicationInstance(acct, st); err != nil {
+		t.Fatalf("resolveSSOApplicationInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(appID)
+	assertRelationship(t, rels, appID, insID, store.RelAttachedTo)
+}
+
+func TestResolveSSOApplicationAssignmentRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, ssoInstanceARN(), testRegion, ssoInstanceAttrs())
+	appARN := "arn:aws:sso::" + acct.ID + ":application/" + testSSOInsID + "/apl-abc"
+	appID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOApplication, appARN, testRegion,
+		fmt.Sprintf(`{"InstanceArn":%q,"Name":"app1"}`, ssoInstanceARN()))
+
+	userPID := "user-1"
+	userARN := identityStoreUserNativeID(testOwnerAcct, testIdentityID, userPID)
+	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, userARN, testRegion, `{}`)
+
+	assignARN := appARN + "/assignment/USER/" + userPID
+	assignID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOApplicationAssignment, assignARN, testRegion,
+		fmt.Sprintf(`{"PrincipalId":%q,"PrincipalType":"USER","ApplicationArn":%q}`, userPID, appARN))
+
+	if err := resolveSSOApplicationAssignmentRefs(acct, st); err != nil {
+		t.Fatalf("resolveSSOApplicationAssignmentRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(assignID)
+	assertRelationship(t, rels, assignID, appID, store.RelAttachedTo)
+	assertRelationship(t, rels, assignID, userID, store.RelUses)
+}
+
+func TestResolveSSOAttrConfigInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	insID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, ssoInstanceARN(), testRegion, ssoInstanceAttrs())
+	cfgARN := ssoInstanceARN() + "/access-control-attribute-configuration"
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstanceAccessControlAttributeConfiguration, cfgARN, testRegion, `{}`)
+
+	if err := resolveSSOAttrConfigInstance(acct, st); err != nil {
+		t.Fatalf("resolveSSOAttrConfigInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cfgID)
+	assertRelationship(t, rels, cfgID, insID, store.RelAttachedTo)
+}

@@ -19,6 +19,17 @@ func init() {
 		EdgeDecl{TypeSSOAccountAssignment, TypeIdentityStoreGroup, store.RelUses},
 		EdgeDecl{TypeSSOAccountAssignment, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(resolveSSOApplicationInstance,
+		EdgeDecl{TypeSSOApplication, TypeSSOInstance, store.RelAttachedTo},
+	)
+	registerResolver(resolveSSOApplicationAssignmentRefs,
+		EdgeDecl{TypeSSOApplicationAssignment, TypeSSOApplication, store.RelAttachedTo},
+		EdgeDecl{TypeSSOApplicationAssignment, TypeIdentityStoreUser, store.RelUses},
+		EdgeDecl{TypeSSOApplicationAssignment, TypeIdentityStoreGroup, store.RelUses},
+	)
+	registerResolver(resolveSSOAttrConfigInstance,
+		EdgeDecl{TypeSSOInstanceAccessControlAttributeConfiguration, TypeSSOInstance, store.RelAttachedTo},
+	)
 }
 
 // ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so the
@@ -207,6 +218,174 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert sso assignment→org account: %w", err)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// resolveSSOApplicationInstance links each SSO application to the Identity
+// Center instance it is registered with via InstanceArn in the attrs.
+func resolveSSOApplicationInstance(acct *account, st *store.Store) error {
+	apps, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeSSOApplication},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(apps) == 0 {
+		return nil
+	}
+	idx, err := loadSSOInstanceIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, a := range apps {
+		var attrs struct {
+			InstanceArn *string `json:"InstanceArn"`
+		}
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		insArn := sv(attrs.InstanceArn)
+		insID, ok := idx.idByArn[insArn]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(a.ID, insID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sso application→instance: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveSSOApplicationAssignmentRefs wires each application-assignment to
+// its parent application (NativeID parent-extraction) and to the principal
+// identity-store user/group via PrincipalId + the parent application's
+// InstanceArn → identity-store ID lookup.
+func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
+	assigns, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeSSOApplicationAssignment},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(assigns) == 0 {
+		return nil
+	}
+	apps, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeSSOApplication},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	appByARN := make(map[string]string, len(apps))
+	appInstanceARN := make(map[string]string, len(apps))
+	for _, a := range apps {
+		appByARN[a.NativeID] = a.ID
+		var meta struct {
+			InstanceArn *string `json:"InstanceArn"`
+		}
+		_ = json.Unmarshal([]byte(a.AttributesJSON), &meta)
+		appInstanceARN[a.NativeID] = sv(meta.InstanceArn)
+	}
+	idx, err := loadSSOInstanceIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	userIDs, err := resourceIDSet(st, acct.ID, TypeIdentityStoreUser)
+	if err != nil {
+		return err
+	}
+	groupIDs, err := resourceIDSet(st, acct.ID, TypeIdentityStoreGroup)
+	if err != nil {
+		return err
+	}
+	for _, a := range assigns {
+		idxAssign := strings.Index(a.NativeID, "/assignment/")
+		if idxAssign < 0 {
+			continue
+		}
+		appARN := a.NativeID[:idxAssign]
+		appID, ok := appByARN[appARN]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(a.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sso app-assignment→application: %w", err)
+		}
+		var attrs struct {
+			PrincipalID   *string `json:"PrincipalId"`
+			PrincipalType string  `json:"PrincipalType"`
+		}
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		pid := sv(attrs.PrincipalID)
+		if pid == "" {
+			continue
+		}
+		insArn := appInstanceARN[appARN]
+		identityStoreID := idx.identityStoreID[insArn]
+		ownerAcct := idx.ownerAcct[insArn]
+		if ownerAcct == "" {
+			ownerAcct = acct.ID
+		}
+		if identityStoreID == "" {
+			continue
+		}
+		switch attrs.PrincipalType {
+		case "USER":
+			uID := store.ResourceID("aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(ownerAcct, identityStoreID, pid))
+			if _, ok := userIDs[uID]; ok {
+				if err := st.UpsertRelationship(a.ID, uID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert sso app-assignment→identity-store user: %w", err)
+				}
+			}
+		case "GROUP":
+			gID := store.ResourceID("aws", acct.ID, TypeIdentityStoreGroup, identityStoreGroupNativeID(ownerAcct, identityStoreID, pid))
+			if _, ok := groupIDs[gID]; ok {
+				if err := st.UpsertRelationship(a.ID, gID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert sso app-assignment→identity-store group: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveSSOAttrConfigInstance links each per-instance access-control
+// attribute config back to its instance. NativeID format is
+// "{instanceArn}/access-control-attribute-configuration".
+func resolveSSOAttrConfigInstance(acct *account, st *store.Store) error {
+	cfgs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID,
+		Types: []string{TypeSSOInstanceAccessControlAttributeConfiguration},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(cfgs) == 0 {
+		return nil
+	}
+	idx, err := loadSSOInstanceIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, c := range cfgs {
+		insArn := strings.TrimSuffix(c.NativeID, "/access-control-attribute-configuration")
+		insID, ok := idx.idByArn[insArn]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(c.ID, insID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sso attr-config→instance: %w", err)
 		}
 	}
 	return nil
