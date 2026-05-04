@@ -3,10 +3,14 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/keyspaces"
+	keyspacestypes "github.com/aws/aws-sdk-go-v2/service/keyspaces/types"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -92,7 +96,14 @@ func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *acco
 }
 
 func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+	// Phase 1: collect all (keyspace, table-summary) pairs from ListTables.
+	// AWS Keyspaces ships ~40+ system tables per region, so the per-table
+	// GetTable enrichment dominates wall time when run serially.
+	type pair struct {
+		ks  string
+		tbl keyspacestypes.TableSummary
+	}
+	var pairs []pair
 	for _, ks := range ksNames {
 		ksName := ks
 		var nextToken *string
@@ -109,38 +120,61 @@ func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []str
 				return 0, 0, fmt.Errorf("cassandra:ListTables ks=%s: %w", ksName, err)
 			}
 			for _, t := range out.Tables {
-				arn := sv(t.ResourceArn)
-				if arn == "" {
+				if sv(t.ResourceArn) == "" {
 					continue
 				}
-				// Enrich with GetTable body — EncryptionSpecification.KmsKeyIdentifier
-				// is not on the list-summary shape. Fall back to summary on per-row
-				// failure.
-				attrs := mustJSON(t)
-				ksn := ksName
-				tn := sv(t.TableName)
-				if tn != "" {
-					gout, gerr := client.GetTable(ctx, &keyspaces.GetTableInput{KeyspaceName: &ksn, TableName: &tn})
-					if gerr != nil {
-						if isAccessDenied(gerr) {
-							_ = skipIfAccessDenied(st, "cassandra:GetTable", acct.ID, region, gerr)
-						}
-					} else if gout != nil {
-						attrs = mustJSON(gout)
-					}
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeCassandraTable, NativeID: arn,
-					Name: t.TableName, Region: &region,
-					AttributesJSON: attrs, DiscoveredBy: scanID,
-				})
+				pairs = append(pairs, pair{ks: ksName, tbl: t})
 			}
 			if out.NextToken == nil || *out.NextToken == "" {
 				break
 			}
 			nextToken = out.NextToken
 		}
+	}
+
+	// Phase 2: parallel GetTable enrichment. EncryptionSpecification.KmsKeyIdentifier
+	// is only on the GetTable body. Fan-out at fanoutMed; fall back to summary
+	// attrs on per-row failure.
+	sem := semaphore.NewWeighted(fanoutMed)
+	var (
+		mu    sync.Mutex
+		batch []*store.Resource
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, p := range pairs {
+		if err := sem.Acquire(gctx, 1); err != nil {
+			return 0, 0, err
+		}
+		g.Go(func() error {
+			defer sem.Release(1)
+			arn := sv(p.tbl.ResourceArn)
+			attrs := mustJSON(p.tbl)
+			ksn := p.ks
+			tn := sv(p.tbl.TableName)
+			if tn != "" {
+				gout, gerr := client.GetTable(gctx, &keyspaces.GetTableInput{KeyspaceName: &ksn, TableName: &tn})
+				if gerr != nil {
+					if isAccessDenied(gerr) {
+						_ = skipIfAccessDenied(st, "cassandra:GetTable", acct.ID, region, gerr)
+					}
+				} else if gout != nil {
+					attrs = mustJSON(gout)
+				}
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCassandraTable, NativeID: arn,
+				Name: p.tbl.TableName, Region: &region,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
+			}
+			mu.Lock()
+			batch = append(batch, r)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
 	}
 	return upsertBatch(st, batch, "cassandra tables")
 }
