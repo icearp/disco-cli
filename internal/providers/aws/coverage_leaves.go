@@ -492,7 +492,6 @@ var leafTypes = map[string]bool{
 	"aws:sagemaker:app-image-config":                   true,
 	"aws:sagemaker:code-repository":                    true,
 	"aws:sagemaker:notebook-instance-lifecycle-config": true,
-	"aws:sagemaker:project":                            true,
 	"aws:sagemaker:studio-lifecycle-config":            true,
 	"aws:sagemaker:workteam":                           true,
 	// Workspaces Web — browser-settings / data-protection-settings /
