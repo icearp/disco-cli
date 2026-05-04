@@ -200,7 +200,6 @@ var leafTypes = map[string]bool{
 	"aws:arc-zonal-shift:autoshift-observer-notification-status": true,
 	"aws:b2bi:capability":                                        true,
 	"aws:b2bi:partnership":                                       true,
-	"aws:b2bi:profile":                                           true,
 	"aws:b2bi:transformer":                                       true,
 	"aws:budgets:budget":                                         true,
 	"aws:budgets:budget-action":                                  true,
