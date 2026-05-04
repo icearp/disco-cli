@@ -8,6 +8,8 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/datasync"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -36,6 +38,92 @@ type dataSyncAPI interface {
 	ListAgents(context.Context, *datasync.ListAgentsInput, ...func(*datasync.Options)) (*datasync.ListAgentsOutput, error)
 	ListTasks(context.Context, *datasync.ListTasksInput, ...func(*datasync.Options)) (*datasync.ListTasksOutput, error)
 	ListLocations(context.Context, *datasync.ListLocationsInput, ...func(*datasync.Options)) (*datasync.ListLocationsOutput, error)
+	DescribeLocationS3(context.Context, *datasync.DescribeLocationS3Input, ...func(*datasync.Options)) (*datasync.DescribeLocationS3Output, error)
+	DescribeLocationEfs(context.Context, *datasync.DescribeLocationEfsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationEfsOutput, error)
+	DescribeLocationNfs(context.Context, *datasync.DescribeLocationNfsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationNfsOutput, error)
+	DescribeLocationSmb(context.Context, *datasync.DescribeLocationSmbInput, ...func(*datasync.Options)) (*datasync.DescribeLocationSmbOutput, error)
+	DescribeLocationHdfs(context.Context, *datasync.DescribeLocationHdfsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationHdfsOutput, error)
+	DescribeLocationAzureBlob(context.Context, *datasync.DescribeLocationAzureBlobInput, ...func(*datasync.Options)) (*datasync.DescribeLocationAzureBlobOutput, error)
+	DescribeLocationObjectStorage(context.Context, *datasync.DescribeLocationObjectStorageInput, ...func(*datasync.Options)) (*datasync.DescribeLocationObjectStorageOutput, error)
+	DescribeLocationFsxLustre(context.Context, *datasync.DescribeLocationFsxLustreInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxLustreOutput, error)
+	DescribeLocationFsxOntap(context.Context, *datasync.DescribeLocationFsxOntapInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxOntapOutput, error)
+	DescribeLocationFsxOpenZfs(context.Context, *datasync.DescribeLocationFsxOpenZfsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxOpenZfsOutput, error)
+	DescribeLocationFsxWindows(context.Context, *datasync.DescribeLocationFsxWindowsInput, ...func(*datasync.Options)) (*datasync.DescribeLocationFsxWindowsOutput, error)
+}
+
+// dsDescribeLocation dispatches DescribeLocation* per disco type and returns
+// the marshalled enriched response, or empty string on miss/error.
+func dsDescribeLocation(ctx context.Context, client dataSyncAPI, dtype, arn string) (string, error) {
+	a := arn
+	switch dtype {
+	case TypeDataSyncLocationS3:
+		out, err := client.DescribeLocationS3(ctx, &datasync.DescribeLocationS3Input{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationEFS:
+		out, err := client.DescribeLocationEfs(ctx, &datasync.DescribeLocationEfsInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationNFS:
+		out, err := client.DescribeLocationNfs(ctx, &datasync.DescribeLocationNfsInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationSMB:
+		out, err := client.DescribeLocationSmb(ctx, &datasync.DescribeLocationSmbInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationHDFS:
+		out, err := client.DescribeLocationHdfs(ctx, &datasync.DescribeLocationHdfsInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationAzureBlob:
+		out, err := client.DescribeLocationAzureBlob(ctx, &datasync.DescribeLocationAzureBlobInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationObjectStorage:
+		out, err := client.DescribeLocationObjectStorage(ctx, &datasync.DescribeLocationObjectStorageInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationFSxLustre:
+		out, err := client.DescribeLocationFsxLustre(ctx, &datasync.DescribeLocationFsxLustreInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationFSxONTAP:
+		out, err := client.DescribeLocationFsxOntap(ctx, &datasync.DescribeLocationFsxOntapInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationFSxOpenZFS:
+		out, err := client.DescribeLocationFsxOpenZfs(ctx, &datasync.DescribeLocationFsxOpenZfsInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	case TypeDataSyncLocationFSxWindows:
+		out, err := client.DescribeLocationFsxWindows(ctx, &datasync.DescribeLocationFsxWindowsInput{LocationArn: &a})
+		if err != nil {
+			return "", err
+		}
+		return mustJSON(out), nil
+	}
+	return "", nil
 }
 
 func scanDataSync(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -155,7 +243,10 @@ func dataSyncLocationType(uri string) string {
 
 func scanDSLocations(ctx context.Context, client dataSyncAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := datasync.NewListLocationsPaginator(client, &datasync.ListLocationsInput{})
-	var batch []*store.Resource
+	type locRef struct {
+		arn, uri, dtype, label string
+	}
+	var refs []locRef
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -179,12 +270,55 @@ func scanDSLocations(ctx context.Context, client dataSyncAPI, acct *account, reg
 			if label == "" {
 				label = arn
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: dtype, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-			})
+			refs = append(refs, locRef{arn: arn, uri: uri, dtype: dtype, label: label})
 		}
+	}
+	// Per-row Describe enrichment under fanoutMed concurrency. Per-row
+	// AccessDenied / not-found falls back to summary attrs (LocationListEntry).
+	type result struct {
+		ref   locRef
+		attrs string
+	}
+	results := make([]result, len(refs))
+	g, gctx := errgroup.WithContext(ctx)
+	sem := semaphore.NewWeighted(int64(fanoutMed))
+	for i, ref := range refs {
+		i, ref := i, ref
+		if err := sem.Acquire(gctx, 1); err != nil {
+			return 0, 0, err
+		}
+		g.Go(func() error {
+			defer sem.Release(1)
+			attrs, derr := dsDescribeLocation(gctx, client, ref.dtype, ref.arn)
+			if derr != nil {
+				if isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "datasync:DescribeLocation*", acct.ID, region, derr)
+					attrs = ""
+				} else {
+					return derr
+				}
+			}
+			if attrs == "" {
+				attrs = mustJSON(map[string]string{"LocationArn": ref.arn, "LocationUri": ref.uri})
+			}
+			results[i] = result{ref: ref, attrs: attrs}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, fmt.Errorf("datasync:DescribeLocation*: %w", err)
+	}
+	batch := make([]*store.Resource, 0, len(results))
+	for _, r := range results {
+		if r.ref.arn == "" {
+			continue
+		}
+		label := r.ref.label
+		batch = append(batch, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: r.ref.dtype, NativeID: r.ref.arn,
+			Name: &label, Region: &region, AttributesJSON: r.attrs, DiscoveredBy: scanID,
+		})
 	}
 	return upsertBatch(st, batch, "datasync locations")
 }
