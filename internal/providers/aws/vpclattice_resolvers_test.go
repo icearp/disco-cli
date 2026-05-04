@@ -538,3 +538,20 @@ func TestResolveVPCLatticeResourceConfigurationGateway_UnscannedTargetSkipped(t 
 		t.Errorf("expected 0, got %d", len(rels))
 	}
 }
+
+func TestResolveVPCLatticeServiceCert(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	svcARN := "arn:aws:vpc-lattice:us-east-1:" + testAccountID + ":service/svc-1"
+	caARN := "arn:aws:acm:us-east-1:" + testAccountID + ":certificate/abcd"
+	attrs := `{"CertificateArn":"` + caARN + `"}`
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeService, svcARN, testRegion, attrs)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, caARN, testRegion, "{}")
+
+	if err := resolveVPCLatticeServiceCert(acct, st); err != nil {
+		t.Fatalf("resolveVPCLatticeServiceCert: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, cID, store.RelUses)
+}

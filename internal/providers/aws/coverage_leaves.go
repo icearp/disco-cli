@@ -718,7 +718,6 @@ var leafTypes = map[string]bool{
 	// auth-policy) live on Get* per resource. Domain-verification is name-
 	// only. Deferred enrichment.
 	"aws:vpclattice:domain-verification": true,
-	"aws:vpclattice:service":             true,
 	"aws:vpclattice:service-network":     true,
 	// WAFv2 ip-set/regex-pattern-set/rule-group — pure rule-data containers,
 	// no x-service refs (rule-group rules name OTHER rule-groups via

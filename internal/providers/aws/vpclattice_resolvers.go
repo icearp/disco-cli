@@ -551,3 +551,47 @@ func vlRuleParentListener(ruleARN string) (string, bool) {
 	}
 	return ruleARN[:i], true
 }
+
+func init() {
+	registerResolver(resolveVPCLatticeServiceCert,
+		EdgeDecl{TypeVpcLatticeService, TypeACMCertificate, store.RelUses},
+	)
+}
+
+// resolveVPCLatticeServiceCert wires each lattice service to its custom-
+// domain ACM certificate (CertificateArn). GetService body shape.
+func resolveVPCLatticeServiceCert(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeVpcLatticeService}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	acmSet, err := scannedIDSet(acct, st, TypeACMCertificate)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			CertificateArn *string `json:"CertificateArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		ca := sv(attrs.CertificateArn)
+		if ca == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, ca)
+		if !acmSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert vpclattice-service→acm: %w", err)
+		}
+	}
+	return nil
+}

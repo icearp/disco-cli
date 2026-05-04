@@ -34,6 +34,7 @@ func init() {
 
 type vpcLatticeAPI interface {
 	ListServices(context.Context, *vpclattice.ListServicesInput, ...func(*vpclattice.Options)) (*vpclattice.ListServicesOutput, error)
+	GetService(context.Context, *vpclattice.GetServiceInput, ...func(*vpclattice.Options)) (*vpclattice.GetServiceOutput, error)
 	ListServiceNetworks(context.Context, *vpclattice.ListServiceNetworksInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworksOutput, error)
 	ListListeners(context.Context, *vpclattice.ListListenersInput, ...func(*vpclattice.Options)) (*vpclattice.ListListenersOutput, error)
 	ListRules(context.Context, *vpclattice.ListRulesInput, ...func(*vpclattice.Options)) (*vpclattice.ListRulesOutput, error)
@@ -132,10 +133,14 @@ func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, re
 			if label == "" {
 				label = sv(s.Id)
 			}
+			attrsJSON := mustJSON(s)
+			if gout, gerr := client.GetService(ctx, &vpclattice.GetServiceInput{ServiceIdentifier: s.Id}); gerr == nil {
+				attrsJSON = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeVpcLatticeService, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
 			})
 		}
 	}
