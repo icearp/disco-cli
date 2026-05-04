@@ -264,7 +264,9 @@ func looksLikeRef(s string) bool {
 	return false
 }
 
-// idPrefixes — bare resource-ID prefixes worth classifying.
+// idPrefixes — bare resource-ID prefixes worth classifying. Used by
+// looksLikeRef as a presence test, so order does not affect correctness here
+// (classifyBareID is the order-sensitive consumer).
 var idPrefixes = []string{
 	"vpc-", "subnet-", "sg-", "eni-", "ami-", "i-", "vol-", "snap-",
 	"igw-", "nat-", "rtb-", "pl-", "eipalloc-", "tgw-", "vgw-", "cgw-",
@@ -349,46 +351,46 @@ func arnServiceAlias(s string) string {
 func arnKindSuffix(_ /*svc*/, kind string) string {
 	// Generic identity suffix mappings shared across services.
 	generic := map[string]string{
-		"key":              "key",
-		"alias":            "alias",
-		"function":         "function",
-		"layer":            "layer",
-		"role":             "role",
-		"user":             "user",
-		"group":            "group",
-		"policy":           "policy",
-		"instance-profile": "instance-profile",
-		"vpc":              "vpc",
-		"subnet":           "subnet",
-		"security-group":   "security-group",
+		"key":               "key",
+		"alias":             "alias",
+		"function":          "function",
+		"layer":             "layer",
+		"role":              "role",
+		"user":              "user",
+		"group":             "group",
+		"policy":            "policy",
+		"instance-profile":  "instance-profile",
+		"vpc":               "vpc",
+		"subnet":            "subnet",
+		"security-group":    "security-group",
 		"network-interface": "network-interface",
-		"volume":           "volume",
-		"snapshot":         "snapshot",
-		"image":            "image",
-		"instance":         "instance",
-		"key-pair":         "key-pair",
-		"loadbalancer":     "load-balancer",
-		"targetgroup":      "target-group",
-		"listener":         "listener",
-		"log-group":        "log-group",
-		"secret":           "secret",
-		"parameter":        "parameter",
-		"topic":            "topic",
-		"queue":            "queue",
-		"table":            "table",
-		"stream":           "stream",
-		"bucket":           "bucket",
-		"cluster":          "cluster",
-		"service":          "service",
-		"task-definition":  "task-definition",
-		"db":               "instance",  // RDS db: → instance
-		"cluster-snapshot": "cluster-snapshot",
-		"file-system":      "file-system",
-		"event-bus":        "event-bus",
-		"rule":             "rule",
-		"pipeline":         "pipeline",
-		"stateMachine":     "state-machine",
-		"activity":         "activity",
+		"volume":            "volume",
+		"snapshot":          "snapshot",
+		"image":             "image",
+		"instance":          "instance",
+		"key-pair":          "key-pair",
+		"loadbalancer":      "load-balancer",
+		"targetgroup":       "target-group",
+		"listener":          "listener",
+		"log-group":         "log-group",
+		"secret":            "secret",
+		"parameter":         "parameter",
+		"topic":             "topic",
+		"queue":             "queue",
+		"table":             "table",
+		"stream":            "stream",
+		"bucket":            "bucket",
+		"cluster":           "cluster",
+		"service":           "service",
+		"task-definition":   "task-definition",
+		"db":                "instance", // RDS db: → instance
+		"cluster-snapshot":  "cluster-snapshot",
+		"file-system":       "file-system",
+		"event-bus":         "event-bus",
+		"rule":              "rule",
+		"pipeline":          "pipeline",
+		"stateMachine":      "state-machine",
+		"activity":          "activity",
 	}
 	if s, ok := generic[kind]; ok {
 		return s
@@ -397,6 +399,8 @@ func arnKindSuffix(_ /*svc*/, kind string) string {
 }
 
 // classifyBareID maps a bare AWS ID (e.g. `vpc-abc123`) to a disco type.
+// Prefix order matters: longer/more-specific prefixes must precede shorter
+// shared prefixes (e.g. `igw-` before `i-`, `tgw-attach-` before `tgw-`).
 func classifyBareID(id string) string {
 	switch {
 	case strings.HasPrefix(id, "vpc-"):
@@ -409,14 +413,14 @@ func classifyBareID(id string) string {
 		return "aws:ec2:network-interface"
 	case strings.HasPrefix(id, "ami-"):
 		return "aws:ec2:image"
+	case strings.HasPrefix(id, "igw-"):
+		return "aws:ec2:internet-gateway"
 	case strings.HasPrefix(id, "i-"):
 		return "aws:ec2:instance"
 	case strings.HasPrefix(id, "vol-"):
 		return "aws:ec2:volume"
 	case strings.HasPrefix(id, "snap-"):
 		return "aws:ec2:snapshot"
-	case strings.HasPrefix(id, "igw-"):
-		return "aws:ec2:internet-gateway"
 	case strings.HasPrefix(id, "nat-"):
 		return "aws:ec2:nat-gateway"
 	case strings.HasPrefix(id, "rtb-"):
@@ -425,6 +429,12 @@ func classifyBareID(id string) string {
 		return "aws:ec2:prefix-list"
 	case strings.HasPrefix(id, "eipalloc-"):
 		return "aws:ec2:elastic-ip"
+	case strings.HasPrefix(id, "tgw-attach-"):
+		return "aws:ec2:transit-gateway-attachment"
+	case strings.HasPrefix(id, "tgw-rtb-"):
+		return "aws:ec2:transit-gateway-route-table"
+	case strings.HasPrefix(id, "tgw-mc-"):
+		return "aws:ec2:transit-gateway-multicast-domain"
 	case strings.HasPrefix(id, "tgw-"):
 		return "aws:ec2:transit-gateway"
 	case strings.HasPrefix(id, "vgw-"):
@@ -447,12 +457,12 @@ func classifyBareID(id string) string {
 		return "aws:ec2:launch-template"
 	case strings.HasPrefix(id, "fpga-"):
 		return "aws:ec2:fpga-image"
-	case strings.HasPrefix(id, "fs-"):
-		return "aws:efs:file-system"
 	case strings.HasPrefix(id, "fsmt-"):
 		return "aws:efs:mount-target"
 	case strings.HasPrefix(id, "fsap-"):
 		return "aws:efs:access-point"
+	case strings.HasPrefix(id, "fs-"):
+		return "aws:efs:file-system"
 	}
 	return ""
 }
