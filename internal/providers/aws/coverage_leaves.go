@@ -526,6 +526,32 @@ var leafTypes = map[string]bool{
 	"aws:mediaconnect:router-input":             true,
 	"aws:mediaconnect:router-network-interface": true,
 	"aws:mediaconnect:router-output":            true,
+	// AppRegistry application + attribute-group are name containers (links
+	// arrive via {ag,resource}-assoc resolvers). No outbound refs on summary.
+	"aws:service-catalog-app-registry:application":     true,
+	"aws:service-catalog-app-registry:attribute-group": true,
+	// MediaLive template-groups + multiplex + signal-map — template groups
+	// are name containers (children link via group→child resolver), multiplex
+	// has no x-service refs on List, signal-map refs (channel/cloudfront)
+	// live on Get body — deferred.
+	"aws:medialive:cloudwatch-alarm-template-group": true,
+	"aws:medialive:eventbridge-rule-template-group": true,
+	"aws:medialive:multiplex":                       true,
+	"aws:medialive:signal-map":                      true,
+	// Lightsail self-contained resources — bucket/container-service/database/
+	// domain. Lightsail is opinionated isolated stack: cross-service refs
+	// (KMS/IAM/VPC) absent. Existing resolvers handle distribution origins +
+	// certificate domains; remaining four are leaves.
+	"aws:lightsail:bucket":            true,
+	"aws:lightsail:container-service": true,
+	"aws:lightsail:database":          true,
+	"aws:lightsail:domain":            true,
+	// EntityResolution list summaries — RoleArn / KMS / Glue refs live on
+	// Get* per-resource bodies (deferred enrichment).
+	"aws:entityresolution:id-mapping-workflow": true,
+	"aws:entityresolution:id-namespace":        true,
+	"aws:entityresolution:matching-workflow":   true,
+	"aws:entityresolution:schema-mapping":      true,
 	// PCS cluster — list summary has no outbound refs (network/scheduler
 	// config lives on Get body — deferred enrichment).
 	"aws:pcs:cluster": true,
