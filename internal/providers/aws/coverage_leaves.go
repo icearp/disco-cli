@@ -603,7 +603,6 @@ var leafTypes = map[string]bool{
 	"aws:mpa:approval-team":                                    true,
 	"aws:mpa:identity-source":                                  true,
 	"aws:mq:configuration":                                     true,
-	"aws:mwaa:environment":                                     true,
 	"aws:mwaa-serverless:workflow":                             true,
 	"aws:neptune-graph:graph":                                  true,
 	"aws:network-firewall:rule-group":                          true,
