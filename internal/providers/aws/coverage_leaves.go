@@ -536,7 +536,6 @@ var leafTypes = map[string]bool{
 	"aws:codedeploy:application":                               true,
 	"aws:codedeploy:deployment-config":                         true,
 	"aws:code-guru-profiler:profiling-group":                   true,
-	"aws:code-guru-reviewer:repository-association":            true,
 	"aws:codepipeline:custom-action-type":                      true,
 	"aws:codestar-connections:connection":                      true,
 	"aws:config:organization-conformance-pack":                 true,
