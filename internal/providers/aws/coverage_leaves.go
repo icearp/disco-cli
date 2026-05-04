@@ -797,8 +797,6 @@ var leafTypes = map[string]bool{
 	"aws:lakeformation:tag":                   true,
 	// Kinesis Analytics / kinesis-video / kinesis-extras — refs need
 	// Describe enrichment.
-	"aws:kinesis-analytics:application":      true,
-	"aws:kinesis-analytics-v2:application":   true,
 	"aws:kinesis-video:signaling-channel":    true,
 	"aws:kinesis-video:stream":               true,
 	"aws:kinesis:resource-policy":            true,

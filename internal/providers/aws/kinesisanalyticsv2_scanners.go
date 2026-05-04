@@ -85,7 +85,17 @@ func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, s
 		if appARN == "" {
 			continue
 		}
+		// Re-upsert parent with detail body so resolvers see ServiceExecutionRole
+		// and CloudWatchLoggingOptionDescriptions[]. UpsertResources ON CONFLICT
+		// updates the attributes column.
+		appStatus := string(d.ApplicationStatus)
 		var subBatch []*store.Resource
+		subBatch = append(subBatch, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeKAV2Application, NativeID: appARN,
+			Name: d.ApplicationName, Region: &region, Status: &appStatus,
+			AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+		})
 		for _, lo := range d.CloudWatchLoggingOptionDescriptions {
 			id := sv(lo.CloudWatchLoggingOptionId)
 			if id == "" {
