@@ -20,6 +20,8 @@ type mailManagerAPI interface {
 	ListRelays(context.Context, *mailmanager.ListRelaysInput, ...func(*mailmanager.Options)) (*mailmanager.ListRelaysOutput, error)
 	ListRuleSets(context.Context, *mailmanager.ListRuleSetsInput, ...func(*mailmanager.Options)) (*mailmanager.ListRuleSetsOutput, error)
 	ListTrafficPolicies(context.Context, *mailmanager.ListTrafficPoliciesInput, ...func(*mailmanager.Options)) (*mailmanager.ListTrafficPoliciesOutput, error)
+	GetIngressPoint(context.Context, *mailmanager.GetIngressPointInput, ...func(*mailmanager.Options)) (*mailmanager.GetIngressPointOutput, error)
+	GetArchive(context.Context, *mailmanager.GetArchiveInput, ...func(*mailmanager.Options)) (*mailmanager.GetArchiveOutput, error)
 }
 
 func scanSESMailManager(ctx context.Context, client mailManagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -161,10 +163,18 @@ func scanMMArchives(ctx context.Context, client mailManagerAPI, acct *account, r
 			if label == "" {
 				label = id
 			}
+			// Enrich each archive via GetArchive — adds KmsKeyArn ref.
+			detail, derr := client.GetArchive(ctx, &mailmanager.GetArchiveInput{ArchiveId: &id})
+			attrs := mustJSON(a)
+			if derr == nil && detail != nil {
+				attrs = mustJSON(detail)
+			} else if derr != nil && isAccessDenied(derr) {
+				_ = skipIfAccessDenied(st, "mailmanager:GetArchive", acct.ID, region, derr)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSESMailManagerArchive, NativeID: mmARN(region, acct.ID, "archive", id),
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -192,10 +202,19 @@ func scanMMIngressPoints(ctx context.Context, client mailManagerAPI, acct *accou
 			if label == "" {
 				label = id
 			}
+			// Enrich via GetIngressPoint — adds RuleSetId, TrafficPolicyId
+			// cross-refs not present in summary.
+			detail, derr := client.GetIngressPoint(ctx, &mailmanager.GetIngressPointInput{IngressPointId: &id})
+			attrs := mustJSON(p)
+			if derr == nil && detail != nil {
+				attrs = mustJSON(detail)
+			} else if derr != nil && isAccessDenied(derr) {
+				_ = skipIfAccessDenied(st, "mailmanager:GetIngressPoint", acct.ID, region, derr)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSESMailManagerIngressPoint, NativeID: mmARN(region, acct.ID, "ingress-point", id),
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
