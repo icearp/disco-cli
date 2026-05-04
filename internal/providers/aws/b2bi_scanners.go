@@ -24,6 +24,7 @@ func init() {
 
 type b2biAPI interface {
 	ListCapabilities(context.Context, *b2bi.ListCapabilitiesInput, ...func(*b2bi.Options)) (*b2bi.ListCapabilitiesOutput, error)
+	GetCapability(context.Context, *b2bi.GetCapabilityInput, ...func(*b2bi.Options)) (*b2bi.GetCapabilityOutput, error)
 	ListPartnerships(context.Context, *b2bi.ListPartnershipsInput, ...func(*b2bi.Options)) (*b2bi.ListPartnershipsOutput, error)
 	ListProfiles(context.Context, *b2bi.ListProfilesInput, ...func(*b2bi.Options)) (*b2bi.ListProfilesOutput, error)
 	ListTransformers(context.Context, *b2bi.ListTransformersInput, ...func(*b2bi.Options)) (*b2bi.ListTransformersOutput, error)
@@ -68,11 +69,24 @@ func scanB2BICapabilities(ctx context.Context, client b2biAPI, acct *account, re
 				continue
 			}
 			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:capability/%s", region, acct.ID, id)
+			// Enrich with GetCapability body — InstructionsDocuments[].BucketName
+			// (S3 source) is not on the list-summary shape. Fall back to summary
+			// on per-row failure.
+			attrs := mustJSON(c)
+			cid := id
+			gout, gerr := client.GetCapability(ctx, &b2bi.GetCapabilityInput{CapabilityId: &cid})
+			if gerr != nil {
+				if isAccessDenied(gerr) {
+					_ = skipIfAccessDenied(st, "b2bi:GetCapability", acct.ID, region, gerr)
+				}
+			} else if gout != nil {
+				attrs = mustJSON(gout)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeB2BICapability, NativeID: arn,
 				Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
 	}
