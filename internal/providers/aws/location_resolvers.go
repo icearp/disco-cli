@@ -18,6 +18,82 @@ func init() {
 		EdgeDecl{TypeLocationGeofenceCollection, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLocationTracker, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(resolveLocationAPIKeyResources,
+		EdgeDecl{TypeLocationAPIKey, TypeLocationTracker, store.RelUses},
+		EdgeDecl{TypeLocationAPIKey, TypeLocationGeofenceCollection, store.RelUses},
+		EdgeDecl{TypeLocationAPIKey, TypeLocationMap, store.RelUses},
+		EdgeDecl{TypeLocationAPIKey, TypeLocationPlaceIndex, store.RelUses},
+		EdgeDecl{TypeLocationAPIKey, TypeLocationRouteCalculator, store.RelUses},
+	)
+}
+
+// resolveLocationAPIKeyResources wires each api-key to the Location resources
+// it grants access to (Restrictions.AllowResources[] — list of full ARNs of
+// trackers / geofence-collections / maps / place-indexes / route-calculators).
+// Dispatch by ARN segment substring; each target type checked FK-safe.
+func resolveLocationAPIKeyResources(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLocationAPIKey}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	sets := map[string]map[string]bool{}
+	for _, t := range []string{TypeLocationTracker, TypeLocationGeofenceCollection, TypeLocationMap, TypeLocationPlaceIndex, TypeLocationRouteCalculator} {
+		s, err := scannedIDSet(acct, st, t)
+		if err != nil {
+			return err
+		}
+		sets[t] = s
+	}
+	dispatch := func(arn string) string {
+		switch {
+		case strings.Contains(arn, ":tracker/"):
+			return TypeLocationTracker
+		case strings.Contains(arn, ":geofence-collection/"):
+			return TypeLocationGeofenceCollection
+		case strings.Contains(arn, ":map/"):
+			return TypeLocationMap
+		case strings.Contains(arn, ":place-index/"):
+			return TypeLocationPlaceIndex
+		case strings.Contains(arn, ":route-calculator/"):
+			return TypeLocationRouteCalculator
+		}
+		return ""
+	}
+	for _, r := range rows {
+		var attrs struct {
+			Restrictions *struct {
+				AllowResources []string `json:"AllowResources"`
+			} `json:"Restrictions"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.Restrictions == nil {
+			continue
+		}
+		for _, a := range attrs.Restrictions.AllowResources {
+			if a == "" {
+				continue
+			}
+			tt := dispatch(a)
+			if tt == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, tt, a)
+			if !sets[tt][tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert location api-key→resource: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveLocationKMSRefs wires geofence-collections + trackers to their

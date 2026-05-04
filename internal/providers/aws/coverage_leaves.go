@@ -740,7 +740,6 @@ var leafTypes = map[string]bool{
 	// Location service summary-only types (KMS edges shipped for tracker +
 	// geofence-collection via Describe enrichment; remaining four have no
 	// outbound refs even on Describe).
-	"aws:location:api-key":          true,
 	"aws:location:map":              true,
 	"aws:location:place-index":      true,
 	"aws:location:route-calculator": true,

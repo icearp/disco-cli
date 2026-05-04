@@ -45,3 +45,31 @@ func TestResolveLocationKMSRefs(t *testing.T) {
 		assertRelationship(t, rels, src, keyID, store.RelUses)
 	}
 }
+
+func TestResolveLocationAPIKeyResources(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	keyARN := locARN(testRegion, acct.ID, "api-key", "k1")
+	tARN := locARN(testRegion, acct.ID, "tracker", "tr1")
+	mARN := locARN(testRegion, acct.ID, "map", "m1")
+	pARN := locARN(testRegion, acct.ID, "place-index", "p1")
+	rcARN := locARN(testRegion, acct.ID, "route-calculator", "rc1")
+	gARN := locARN(testRegion, acct.ID, "geofence-collection", "g1")
+	attrs := fmt.Sprintf(`{"Restrictions":{"AllowResources":[%q,%q,%q,%q,%q]}}`, tARN, mARN, pARN, rcARN, gARN)
+
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationAPIKey, keyARN, testRegion, attrs)
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationTracker, tARN, testRegion, "{}")
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationMap, mARN, testRegion, "{}")
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationPlaceIndex, pARN, testRegion, "{}")
+	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationRouteCalculator, rcARN, testRegion, "{}")
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeLocationGeofenceCollection, gARN, testRegion, "{}")
+
+	if err := resolveLocationAPIKeyResources(acct, st); err != nil {
+		t.Fatalf("resolveLocationAPIKeyResources: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(kID)
+	for _, target := range []string{tID, mID, pID, rcID, gID} {
+		assertRelationship(t, rels, kID, target, store.RelUses)
+	}
+}
