@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -121,6 +122,15 @@ func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *acco
 	for {
 		out, err := client.DescribeWorkspacesPools(ctx, &workspaces.DescribeWorkspacesPoolsInput{NextToken: nextToken})
 		if err != nil {
+			// WorkSpaces Pools is a per-region sub-feature; in regions where
+			// it has not launched, AWS returns a canned AccessDeniedException
+			// pointing at the workspaces-access-control docs URL — distinct
+			// from a real IAM denial which carries the
+			// "is not authorized to perform: <action>" SDK-formatted body.
+			// Silent-skip on the canned shape; warn on real denials.
+			if isAccessDenied(err) && strings.Contains(err.Error(), "workspaces-access-control.html") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspacesPools", acct.ID, region, err)
 			}
