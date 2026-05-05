@@ -55,7 +55,30 @@ type asEntitlementKey struct {
 	entitlement string
 }
 
+// appStreamSupportedRegions enumerates regions where AppStream 2.0 is
+// deployed (per AWS service-availability docs). Other regions resolve
+// the appstream2.<region>.amazonaws.com endpoint via DNS but TCP-dial
+// times out — silent-skip rather than burn retries on every scan.
+var appStreamSupportedRegions = map[string]bool{
+	"us-east-1":      true,
+	"us-east-2":      true,
+	"us-west-2":      true,
+	"ap-northeast-1": true,
+	"ap-northeast-2": true,
+	"ap-southeast-1": true,
+	"ap-southeast-2": true,
+	"ca-central-1":   true,
+	"eu-central-1":   true,
+	"eu-west-1":      true,
+	"eu-west-2":      true,
+	"us-gov-east-1":  true,
+	"us-gov-west-1":  true,
+}
+
 func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	if !appStreamSupportedRegions[region] {
+		return 0, 0, nil
+	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })
 
 	stackNames, t, i, ferr := scanASStacks(ctx, client, acct, region, st, scanID)
