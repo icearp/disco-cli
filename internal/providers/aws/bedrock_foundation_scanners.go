@@ -248,9 +248,15 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			// Op not deployed in this region: ValidationException w/
-			// "operation is not recognized".
-			if isAPIErrorCode(perr, "ValidationException") && strings.Contains(perr.Error(), "operation is not recognized") {
+			// Op not deployed in this region. AWS returns two feature-gap
+			// shapes under ValidationException — older "operation is not
+			// recognized" and newer canned "You don't have the permissions
+			// to perform the requested operation." Real IAM denials surface
+			// as AccessDeniedException with an action-identifying body and
+			// route through skipIfAccessDenied below.
+			if isAPIErrorCode(perr, "ValidationException") &&
+				(strings.Contains(perr.Error(), "operation is not recognized") ||
+					strings.Contains(perr.Error(), "don't have the permissions to perform the requested operation")) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {

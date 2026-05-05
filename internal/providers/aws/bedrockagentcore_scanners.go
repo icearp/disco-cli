@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -258,6 +259,12 @@ func scanBACEvaluators(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// Per-region feature gap: gateway-level "Unable to determine
+			// service/operation name to be authorized" means the op is not
+			// recognised by the regional endpoint. Silent-skip.
+			if isAccessDenied(perr) && strings.Contains(perr.Error(), "Unable to determine service/operation name") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagentcore:ListEvaluators", acct.ID, region, perr)
 				return 0, 0, nil
@@ -387,6 +394,12 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// Per-region feature gap: gateway-level "Unable to determine
+			// service/operation name to be authorized" means the op is not
+			// recognised by the regional endpoint. Silent-skip.
+			if isAccessDenied(perr) && strings.Contains(perr.Error(), "Unable to determine service/operation name") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagentcore:ListOnlineEvaluationConfigs", acct.ID, region, perr)
 				return 0, 0, nil
