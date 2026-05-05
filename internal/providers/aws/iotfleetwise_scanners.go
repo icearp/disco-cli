@@ -2,14 +2,12 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/iotfleetwise"
-	smithy "github.com/aws/smithy-go"
 )
 
 // isIoTFleetWiseFeatureNotAuthorized disambiguates the per-feature "Account
@@ -18,22 +16,6 @@ import (
 // access does not unlock.
 func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
 	return isAccessDenied(err) && strings.Contains(err.Error(), "not authorized to use this feature")
-}
-
-// isIoTFleetWiseClosedToAccount detects the closed-to-new-customers
-// account-level deny. AWS IoT FleetWise stopped accepting new customers;
-// list ops on unregistered accounts return AccessDeniedException with an
-// empty message body. Real per-op IAM denials always identify the action
-// in the message, so the empty-message variant is the closed-state signal.
-func isIoTFleetWiseClosedToAccount(err error) bool {
-	if !isAccessDenied(err) {
-		return false
-	}
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		return strings.TrimSpace(ae.ErrorMessage()) == ""
-	}
-	return false
 }
 
 func init() {
@@ -96,7 +78,7 @@ func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *sto
 func gateIoTFleetWise(ctx context.Context, client iotFWAPI) error {
 	mr := int32(1)
 	_, err := client.ListCampaigns(ctx, &iotfleetwise.ListCampaignsInput{MaxResults: &mr})
-	if err != nil && isIoTFleetWiseClosedToAccount(err) {
+	if err != nil && isClosedToNewCustomers(err) {
 		return markServiceDisabled(err)
 	}
 	return nil
@@ -108,7 +90,7 @@ func scanIoTFWCampaigns(ctx context.Context, client iotFWAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -142,7 +124,7 @@ func scanIoTFWDecoderManifests(ctx context.Context, client iotFWAPI, acct *accou
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -176,7 +158,7 @@ func scanIoTFWFleets(ctx context.Context, client iotFWAPI, acct *account, region
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -210,7 +192,7 @@ func scanIoTFWModelManifests(ctx context.Context, client iotFWAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -244,7 +226,7 @@ func scanIoTFWSignalCatalogs(ctx context.Context, client iotFWAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -281,7 +263,7 @@ func scanIoTFWStateTemplates(ctx context.Context, client iotFWAPI, acct *account
 			if isIoTFleetWiseFeatureNotAuthorized(perr) {
 				return 0, 0, markServiceDisabled(perr)
 			}
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -315,7 +297,7 @@ func scanIoTFWVehicles(ctx context.Context, client iotFWAPI, acct *account, regi
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isIoTFleetWiseClosedToAccount(perr) {
+			if isClosedToNewCustomers(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {

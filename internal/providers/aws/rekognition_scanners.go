@@ -2,30 +2,12 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/rekognition"
-	"github.com/aws/smithy-go"
 )
-
-// isRekognitionClosedToAccount reports whether err is an empty-message
-// AccessDeniedException — Custom Labels Projects + Stream Processors are
-// closed to new customers in some regions. Real per-action IAM denials
-// always carry a non-empty message body.
-func isRekognitionClosedToAccount(err error) bool {
-	if !isAccessDenied(err) {
-		return false
-	}
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		return strings.TrimSpace(ae.ErrorMessage()) == ""
-	}
-	return false
-}
 
 func init() {
 	registerService(serviceEntry{
@@ -101,7 +83,7 @@ func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, 
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isRekognitionClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -133,7 +115,7 @@ func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *a
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
-			if isRekognitionClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

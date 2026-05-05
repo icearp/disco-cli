@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -385,6 +386,23 @@ var errServiceDisabled = errors.New("aws service not enabled")
 // detection step instead of nil.
 func markServiceDisabled(err error) error {
 	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
+}
+
+// isClosedToNewCustomers reports whether err is an AWS account-level
+// "service closed to new customers" denial — surfaced as
+// AccessDeniedException with an empty message body. Real per-action IAM
+// denials always identify the action in the message; the empty-message
+// variant is the closed-state signal. Precedent surfaces: Amazon Fraud
+// Detector, IoT FleetWise, Rekognition Custom Labels.
+func isClosedToNewCustomers(err error) bool {
+	if !isAccessDenied(err) {
+		return false
+	}
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		return strings.TrimSpace(ae.ErrorMessage()) == ""
+	}
+	return false
 }
 
 // skipIfAccessDenied records the error as a scan warning and returns nil,

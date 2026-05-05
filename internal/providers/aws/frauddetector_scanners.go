@@ -2,32 +2,12 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/frauddetector"
-	smithy "github.com/aws/smithy-go"
 )
-
-// isFraudDetectorClosedToAccount detects the closed-to-new-customers
-// account-level deny. Amazon Fraud Detector stopped accepting new
-// customers; list ops on unregistered accounts return AccessDeniedException
-// with an empty message body. Real per-op IAM denials always identify the
-// action in the message, so the empty-message variant is the closed-state
-// signal. See https://docs.aws.amazon.com/frauddetector/latest/ug/how-to-access-frauddetector.html.
-func isFraudDetectorClosedToAccount(err error) bool {
-	if !isAccessDenied(err) {
-		return false
-	}
-	var ae smithy.APIError
-	if errors.As(err, &ae) {
-		return strings.TrimSpace(ae.ErrorMessage()) == ""
-	}
-	return false
-}
 
 func init() {
 	registerService(serviceEntry{
@@ -88,7 +68,7 @@ func scanFraudDetector(ctx context.Context, acct *account, region string, st *st
 func gateFraudDetector(ctx context.Context, client fraudDetectorAPI) error {
 	mr := int32(1)
 	_, err := client.GetDetectors(ctx, &frauddetector.GetDetectorsInput{MaxResults: &mr})
-	if err != nil && isFraudDetectorClosedToAccount(err) {
+	if err != nil && isClosedToNewCustomers(err) {
 		return markServiceDisabled(err)
 	}
 	return nil
@@ -100,7 +80,7 @@ func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account
 	for {
 		out, err := client.GetDetectors(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -138,7 +118,7 @@ func scanFDEntityTypes(ctx context.Context, client fraudDetectorAPI, acct *accou
 	for {
 		out, err := client.GetEntityTypes(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -176,7 +156,7 @@ func scanFDEventTypes(ctx context.Context, client fraudDetectorAPI, acct *accoun
 	for {
 		out, err := client.GetEventTypes(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -214,7 +194,7 @@ func scanFDLabels(ctx context.Context, client fraudDetectorAPI, acct *account, r
 	for {
 		out, err := client.GetLabels(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -252,7 +232,7 @@ func scanFDLists(ctx context.Context, client fraudDetectorAPI, acct *account, re
 	for {
 		out, err := client.GetListsMetadata(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -290,7 +270,7 @@ func scanFDOutcomes(ctx context.Context, client fraudDetectorAPI, acct *account,
 	for {
 		out, err := client.GetOutcomes(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -328,7 +308,7 @@ func scanFDVariables(ctx context.Context, client fraudDetectorAPI, acct *account
 	for {
 		out, err := client.GetVariables(ctx, input)
 		if err != nil {
-			if isFraudDetectorClosedToAccount(err) {
+			if isClosedToNewCustomers(err) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
