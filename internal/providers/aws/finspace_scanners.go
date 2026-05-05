@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -32,6 +33,11 @@ func scanFinSpace(ctx context.Context, acct *account, region string, st *store.S
 	for {
 		out, err := client.ListEnvironments(ctx, &finspace.ListEnvironmentsInput{NextToken: nextToken})
 		if err != nil {
+			// Per-region feature gap: "You cannot access API in this region".
+			// FinSpace is deployed in a subset of regions only.
+			if isAccessDenied(err) && strings.Contains(err.Error(), "cannot access API in this region") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "finspace:ListEnvironments", acct.ID, region, err)
 			}
