@@ -130,7 +130,11 @@ Some AWS APIs return distinct exception code when account has not subscribed to 
 
 **Gate-only phase-0 (no upsert).** Account/region config that gates a service but isn't an ARN'd resource uses `gateXxx(ctx, client, acct, st) error` — calls Describe purely for disabled-sentinel side-effect (`markServiceDisabled` on not-subscribed, nil otherwise). No `store.Resource` built. Distinct from "Multi-phase orchestration" above, which DOES upsert the phase-1 detection row. Precedent: `gateShieldSubscription` in `shield_scanners.go`.
 
-**Member-account variant — DescribeOrganization probe.** Organizations List* ops (`ListRoots` / `ListAccounts` / `ListPolicies` / `ListOrganizationalUnitsForParent`) reject member-account calls with opaque `AccessDeniedException`. `DescribeOrganization` succeeds from any member and exposes `MasterAccountId`. Probe at top of `scanOrganizations`: if `sv(org.MasterAccountId) != acct.ID`, return `markServiceDisabled(errors.New("not the management account"))`. Member-account scans surface `(service disabled)` instead of N AccessDenied warnings. Precedent: `organizations_scanners.go`.
+**Standalone-account variant — AWSOrganizationsNotInUseException.** `organizations:DescribeOrganization` returns this code when the calling account has never joined an Organization. Detected at the top of `scanOrganizations` via `isAPIErrorCode(err, "AWSOrganizationsNotInUseException")` and routed through `markServiceDisabled`. Surfaces `(service disabled)` with no warning, matching the Shield `ResourceNotFoundException` / SecurityHub `InvalidAccessException` shape — not multi-phase, single detection point.
+
+**Member-account variant — DescribeOrganization probe.** Organizations List* ops (`ListRoots` / `ListAccounts` / `ListPolicies` / `ListOrganizationalUnitsForParent`) reject member-account calls with opaque `AccessDeniedException`. `DescribeOrganization` succeeds from any member and exposes `MasterAccountId`. `scanOrganizations` upserts the `aws:organizations:organization` row first (member-account scans still get the org metadata), then probes: if `sv(org.MasterAccountId) != acct.ID`, returns `(total, inserted, nil)` — service ran successfully on the member, just skipping the management-only phases. Returning `nil` (not `markServiceDisabled`) keeps the per-service progress line accurate (`(1 total, 1 new)` instead of a misleading `(service disabled)` suffix that would also zero the counts via the dispatch-level handler in `aws.go`). Replaces N AccessDenied warnings from the management-only phases. Precedent: `organizations_scanners.go`.
+
+**`errServiceDisabled` zeroes total/inserted at dispatch.** The dispatch handlers in `aws.go` (`scanRegion`, phase-1a) call `ReportService(svc.name, 0, 0, 0, true)` when `errors.Is(err, errServiceDisabled)` matches — `total`/`inserted` from the scanner are discarded. If the scanner did partial work (e.g. upserted one row before short-circuiting the rest of the phases), return `(total, inserted, nil)` instead of `markServiceDisabled(...)`. Use the sentinel only when zero rows were produced. Precedent: member-account path in `scanOrganizations`.
 
 **Shared not-enabled predicate across services.** When two services gate on the same account-level enablement (e.g. Cost Explorer access blocks both `aws:ce` and `aws:bcmpricingcalculator`), declare one predicate (`isCostExplorerNotEnabled` in `bcmpricingcalculator_scanners.go`) and have both scanners' dispatcher call it before falling through to `skipIfAccessDenied`. Avoids drift between two near-identical message matchers.
 
@@ -291,6 +295,10 @@ Before relying on AWS docs (or existing scanner code) for which region a global 
 ## Re-upsert parent with Describe body via ON CONFLICT
 
 Scanner pattern when (1) `List*` is upserted first to enumerate children, then (2) `Describe*` per parent fans out to emit child rows. Parent attrs end up as the list-summary shape — strip-of-detail. To wire parent-side resolvers (e.g. `ServiceExecutionRole`, `CloudWatchLoggingOptions[]` on KDA app), append the parent row to the second-pass batch with `mustJSON(detailBody)`. UpsertResources ON CONFLICT updates `attributes`, so the second upsert replaces the summary JSON in place. Precedent: `scanKinesisAnalyticsV1` / `scanKinesisAnalyticsV2` (kinesisanalytics{,v2}_scanners.go). Cheaper than a third API round-trip.
+
+## Adding a resolver for a previously-leaf type
+
+`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a type listed in `leafTypes` (`coverage_leaves.go`) appears as an `EdgeDecl.Source`. Drop the leaf entry in the same commit as the new resolver — the test is the only signal, no build error.
 
 ## Re-verify leaf-flag comments before trusting them
 

@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -101,6 +102,9 @@ func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, r
 				Type: TypeDAXParameterGroup, NativeID: arn,
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				// AWS-supplied default parameter groups are named "default.<engine>"
+				// (e.g. "default.dax.1.0"); customer groups carry user-chosen names.
+				ManagedByProvider: strings.HasPrefix(name, "default."),
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

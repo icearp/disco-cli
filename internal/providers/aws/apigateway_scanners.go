@@ -620,15 +620,18 @@ func scanAPIGatewayAccount(ctx context.Context, acct *account, region string, st
 	nativeID := apigatewayARN(region, "account")
 	name := "account"
 	n, err := st.UpsertResource(&store.Resource{
-		Provider:       "aws",
-		AccountID:      acct.ID,
-		AccountName:    &acct.Name,
-		Type:           TypeAPIGatewayAccount,
-		NativeID:       nativeID,
-		Name:           &name,
-		Region:         &region,
-		AttributesJSON: mustJSON(out),
-		DiscoveredBy:   scanID,
+		Provider:    "aws",
+		AccountID:   acct.ID,
+		AccountName: &acct.Name,
+		Type:        TypeAPIGatewayAccount,
+		NativeID:    nativeID,
+		Name:        &name,
+		Region:      &region,
+		// Per-region account-level CloudWatch role + throttle config singleton —
+		// not a user-created resource, hardcoded name "account".
+		ManagedByProvider: true,
+		AttributesJSON:    mustJSON(out),
+		DiscoveredBy:      scanID,
 	})
 	if err != nil {
 		return 0, 0, err

@@ -88,16 +88,19 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 				vtype = TypeBackupLogicallyAirGappedVault
 			}
 			vaultBatch = append(vaultBatch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           vtype,
-				NativeID:       arn,
-				Name:           v.BackupVaultName,
-				Region:         &region,
-				CreatedAt:      tp(v.CreationDate),
-				AttributesJSON: mustJSON(v),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        vtype,
+				NativeID:    arn,
+				Name:        v.BackupVaultName,
+				Region:      &region,
+				CreatedAt:   tp(v.CreationDate),
+				// AWS-supplied default vault carries CreatorRequestId="Default";
+				// customer-created vaults get a generated UUID-shaped value.
+				ManagedByProvider: sv(v.CreatorRequestId) == "Default",
+				AttributesJSON:    mustJSON(v),
+				DiscoveredBy:      scanID,
 			})
 		}
 	}

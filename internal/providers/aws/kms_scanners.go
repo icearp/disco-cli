@@ -180,6 +180,9 @@ func describeKMSKey(ctx context.Context, client kmsAPI, acct *account, region, s
 		Status:         &enabled,
 		AttributesJSON: mustJSON(attrs),
 		DiscoveredBy:   scanID,
+		// KeyManager "AWS" marks AWS-managed default keys (aws/<service>
+		// aliases) present in every account.
+		ManagedByProvider: md.KeyManager == types.KeyManagerTypeAws,
 	}
 	keyID := store.ResourceID("aws", acct.ID, TypeKMSKey, keyARN)
 	grants, pairs, gerr := listKMSGrants(ctx, client, acct, region, scanID, sv(md.KeyId), keyARN, keyID)

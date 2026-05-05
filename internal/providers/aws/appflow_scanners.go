@@ -78,16 +78,19 @@ func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account
 			nativeID := appflowConnectorNativeID(region, acct.ID, label)
 			name := label
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAppFlowConnector,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &region,
-				CreatedAt:      tp(c.RegisteredAt),
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeAppFlowConnector,
+				NativeID:    nativeID,
+				Name:        &name,
+				Region:      &region,
+				CreatedAt:   tp(c.RegisteredAt),
+				// AWS-shipped built-in connectors carry ConnectorOwner="AWS";
+				// customer-registered connectors carry the registering account ID.
+				ManagedByProvider: sv(c.ConnectorOwner) == "AWS",
+				AttributesJSON:    mustJSON(c),
+				DiscoveredBy:      scanID,
 			})
 		}
 		if len(batch) > 0 {

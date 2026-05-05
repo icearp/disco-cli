@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/docdb"
@@ -50,6 +51,9 @@ func scanDocDBClusterPGs(ctx context.Context, client docdbAPI, acct *account, re
 				Type: TypeDocDBDBClusterParameterGroup, NativeID: arn,
 				Name: g.DBClusterParameterGroupName, Region: &region,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				// AWS-supplied default groups are named "default.<engine-version>"
+				// (e.g. "default.docdb5.0"); customer groups carry user-chosen names.
+				ManagedByProvider: strings.HasPrefix(sv(g.DBClusterParameterGroupName), "default."),
 			})
 		}
 	}

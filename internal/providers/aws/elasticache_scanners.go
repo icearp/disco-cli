@@ -428,6 +428,9 @@ func scanElastiCacheUsers(ctx context.Context, client elasticacheAPI, acct *acco
 				AttributesJSON: mustJSON(u),
 				TagsJSON:       tagsJSON,
 				DiscoveredBy:   scanID,
+				// UserId "default" is the AWS-managed default user present in
+				// every account.
+				ManagedByProvider: sv(u.UserId) == "default",
 			})
 		}
 		if len(batch) > 0 {

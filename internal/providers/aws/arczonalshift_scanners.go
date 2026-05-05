@@ -64,16 +64,18 @@ func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acc
 	name := "autoshift-observer-notification-status"
 	status := string(out.Status)
 	r := &store.Resource{
-		Provider:       "aws",
-		AccountID:      acct.ID,
-		AccountName:    &acct.Name,
-		Type:           TypeARCZonalShiftObserverStatus,
-		NativeID:       arn,
-		Name:           &name,
-		Region:         &region,
-		Status:         &status,
-		AttributesJSON: mustJSON(out),
-		DiscoveredBy:   scanID,
+		Provider:    "aws",
+		AccountID:   acct.ID,
+		AccountName: &acct.Name,
+		Type:        TypeARCZonalShiftObserverStatus,
+		NativeID:    arn,
+		Name:        &name,
+		Region:      &region,
+		Status:      &status,
+		// Per-(acct,region) singleton notification-status config — not user-created.
+		ManagedByProvider: true,
+		AttributesJSON:    mustJSON(out),
+		DiscoveredBy:      scanID,
 	}
 	n, err := st.UpsertResources([]*store.Resource{r})
 	if err != nil {

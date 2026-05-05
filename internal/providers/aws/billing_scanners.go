@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/billing"
+	billingtypes "github.com/aws/aws-sdk-go-v2/service/billing/types"
 )
 
 // AWS Billing API is global — endpoints resolve only via us-east-1.
@@ -52,15 +53,18 @@ func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st 
 			}
 			name := sv(bv.Name)
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBillingView,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(bv),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeBillingView,
+				NativeID:    arn,
+				Name:        &name,
+				Region:      &region,
+				// AWS-supplied default billing view carries BillingViewType="Primary";
+				// customer-created views carry "Custom".
+				ManagedByProvider: bv.BillingViewType == billingtypes.BillingViewTypePrimary,
+				AttributesJSON:    mustJSON(bv),
+				DiscoveredBy:      scanID,
 			})
 		}
 		if len(batch) > 0 {

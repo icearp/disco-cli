@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -325,6 +326,9 @@ func scanACDeploymentStrategies(ctx context.Context, client appconfigAPI, acct *
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppConfigDeploymentStrategy, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				// AWS-managed default strategies use the literal "AppConfig." name prefix
+				// (AllAtOnce, Linear50PercentEvery30Seconds, Canary10Percent20Minutes, etc).
+				ManagedByProvider: strings.HasPrefix(label, "AppConfig."),
 			})
 		}
 	}
@@ -348,6 +352,7 @@ func scanACExtensions(ctx context.Context, client appconfigAPI, acct *account, r
 			if arn == "" {
 				continue
 			}
+			id := sv(e.Id)
 			label := sv(e.Name)
 			if label == "" {
 				label = arn
@@ -356,6 +361,10 @@ func scanACExtensions(ctx context.Context, client appconfigAPI, acct *account, r
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppConfigExtension, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+				// AWS-owned extensions carry an Id like "AWS.AppConfig.JiraIntegration" /
+				// "AWS.AppConfig.FeatureFlags" / "AWS.SNS" / "AWS.Lambda". Customer Ids are
+				// generated alphanumerics — Id-prefix is stable; Name is user-editable.
+				ManagedByProvider: strings.HasPrefix(id, "AWS."),
 			})
 		}
 	}

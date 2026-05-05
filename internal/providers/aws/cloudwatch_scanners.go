@@ -426,7 +426,9 @@ func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *accou
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeCloudWatchOTelEnrichment, NativeID: arn,
 		Name: &name, Region: &region,
-		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+		// Per-(acct,region) singleton account-level enrichment config — not user-created.
+		ManagedByProvider: true,
+		AttributesJSON:    mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "cloudwatch otel-enrichment")
 }

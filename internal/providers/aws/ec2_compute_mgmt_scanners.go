@@ -504,15 +504,17 @@ func scanSnapshotBlockPublicAccess(ctx context.Context, client ec2API, acct *acc
 	state := string(out.State)
 	nativeID := ec2ARN("", acct.ID, "snapshot-block-public-access", acct.ID)
 	n, err := st.UpsertResource(&store.Resource{
-		Provider:       "aws",
-		AccountID:      acct.ID,
-		AccountName:    &acct.Name,
-		Type:           TypeEC2SnapshotBlockPublicAccess,
-		NativeID:       nativeID,
-		Region:         &region,
-		Status:         &state,
-		AttributesJSON: mustJSON(map[string]string{"state": state}),
-		DiscoveredBy:   scanID,
+		Provider:    "aws",
+		AccountID:   acct.ID,
+		AccountName: &acct.Name,
+		Type:        TypeEC2SnapshotBlockPublicAccess,
+		NativeID:    nativeID,
+		Region:      &region,
+		Status:      &state,
+		// Per-(acct,region) singleton account-level snapshot public-access config.
+		ManagedByProvider: true,
+		AttributesJSON:    mustJSON(map[string]string{"state": state}),
+		DiscoveredBy:      scanID,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert snapshot-block-public-access: %w", err)

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -52,6 +51,11 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	// account (or lack permission) — skip the whole service cleanly.
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
+		// Standalone account — never joined an Organization. Default state,
+		// not a fault. Surface "(service disabled)" with no warning.
+		if isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
+			return 0, 0, markServiceDisabled(err)
+		}
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
 		}
@@ -61,14 +65,9 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	if org == nil {
 		return 0, 0, nil
 	}
-	// Org write/list APIs (ListRoots, ListAccounts, ListPolicies,
-	// ListOrganizationalUnitsForParent) reject calls from member accounts
-	// with an opaque AccessDeniedException. DescribeOrganization succeeds
-	// from any member, exposing MasterAccountId — short-circuit cleanly
-	// when we are not the management account.
-	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
-		return 0, 0, markServiceDisabled(errors.New("organizations: not the management account"))
-	}
+	// Upsert the organization row first — DescribeOrganization succeeds from
+	// any member account, so every successful scan can persist this row even
+	// when the member-account short-circuit below trips.
 	orgRes := &store.Resource{
 		Provider:       "aws",
 		AccountID:      acct.ID,
@@ -86,6 +85,17 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	}
 	total++
 	inserted += n
+	// Org write/list APIs (ListRoots, ListAccounts, ListPolicies,
+	// ListOrganizationalUnitsForParent) reject calls from member accounts
+	// with an opaque AccessDeniedException. DescribeOrganization succeeds
+	// from any member, exposing MasterAccountId — short-circuit cleanly
+	// when we are not the management account. The org row above is kept;
+	// return nil (not errServiceDisabled) so the per-service progress line
+	// reports the inserted org row without a misleading "(service disabled)"
+	// suffix — the service successfully produced its member-account view.
+	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
+		return total, inserted, nil
+	}
 
 	// Closure pairs collected across the whole scan. Self-entry for org root.
 	closurePairs := [][2]string{{orgID, orgID}}
@@ -114,6 +124,9 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 				Name:           root.Name,
 				AttributesJSON: mustJSON(root),
 				DiscoveredBy:   scanID,
+				// Org root (Id "r-xxxx") is the AWS-default container created
+				// when the org is created.
+				ManagedByProvider: true,
 			}
 			batch = append(batch, r)
 			rid := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, arn)
@@ -241,6 +254,9 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 				Name:           p.PolicySummary.Name,
 				AttributesJSON: mustJSON(p),
 				DiscoveredBy:   scanID,
+				// p-FullAWSAccess is the AWS-default SCP attached to every
+				// root/OU/account on org creation.
+				ManagedByProvider: sv(p.PolicySummary.Id) == "p-FullAWSAccess",
 			})
 		}
 		if len(batch) > 0 {

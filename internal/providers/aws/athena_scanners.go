@@ -178,16 +178,18 @@ func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, 
 			arn := athenaWorkGroupARN(region, acct.ID, name)
 			status := string(out.WorkGroup.State)
 			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAthenaWorkgroup,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(out.WorkGroup),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeAthenaWorkgroup,
+				NativeID:    arn,
+				Name:        &name,
+				Region:      &region,
+				Status:      &status,
+				// AWS-supplied default workgroup, named "primary"; auto-created per region.
+				ManagedByProvider: name == "primary",
+				AttributesJSON:    mustJSON(out.WorkGroup),
+				DiscoveredBy:      scanID,
 			}
 			mu.Lock()
 			batch = append(batch, r)

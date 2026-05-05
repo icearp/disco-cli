@@ -63,7 +63,6 @@ var leafTypes = map[string]bool{
 	"aws:ecr:pull-time-update-exclusion":              true,
 	"aws:ecr:registry-policy":                         true,
 	"aws:ecr:registry-scanning-configuration":         true,
-	"aws:ecr:replication-configuration":               true,
 	"aws:ecr:repository-creation-template":            true,
 	"aws:ecr:signing-configuration":                   true,
 	"aws:event-schemas:registry-policy":               true,

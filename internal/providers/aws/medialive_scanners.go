@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -225,6 +226,8 @@ func scanMLAlarmTemplates(ctx context.Context, client mediaLiveAPI, acct *accoun
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMediaLiveCloudWatchAlarmTemplate, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				// AWS-supplied default templates carry an Id prefixed "aws-".
+				ManagedByProvider: strings.HasPrefix(sv(a.Id), "aws-"),
 			})
 		}
 	}
@@ -256,6 +259,9 @@ func scanMLAlarmTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *a
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMediaLiveCloudWatchAlarmTemplateGroup, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				// AWS-supplied default groups carry an Id prefixed "aws-";
+				// customer groups get a generated alphanumeric Id.
+				ManagedByProvider: strings.HasPrefix(sv(g.Id), "aws-"),
 			})
 		}
 	}

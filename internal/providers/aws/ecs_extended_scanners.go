@@ -71,6 +71,9 @@ func scanECSCapacityProviders(ctx context.Context, client ecsExtAPI, acct *accou
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeECSCapacityProvider, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(cp), DiscoveredBy: scanID,
+				// Capacity providers with no Cluster binding (FARGATE / FARGATE_SPOT)
+				// are AWS-managed defaults present in every account.
+				ManagedByProvider: cp.Cluster == nil,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

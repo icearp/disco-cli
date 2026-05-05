@@ -104,6 +104,9 @@ func scanR53RFirewallDomainLists(ctx context.Context, client route53ResolverAPI,
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverFirewallDomainList, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				// Lists with no ManagedOwnerName are the AWS-default
+				// firewall domain lists present in every account.
+				ManagedByProvider: d.ManagedOwnerName == nil,
 			})
 		}
 	}

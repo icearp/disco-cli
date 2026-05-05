@@ -64,3 +64,67 @@ func TestResolveECRRepositoryRelationships_NoAttrs(t *testing.T) {
 		t.Fatalf("resolveECRRepositoryRelationships: %v", err)
 	}
 }
+
+// TestResolveECRReplicationConfiguration verifies prefix-match rules link the
+// replication-configuration to matching repos, an empty filter list links every
+// repo in the region, and other regions are not crossed.
+func TestResolveECRReplicationConfiguration(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cfgARN := "arn:aws:ecr:us-east-1:123456789012:replication-configuration"
+	cfgAttrs := `{"Rules":[
+		{"RepositoryFilters":[{"Filter":"prod-","FilterType":"PREFIX_MATCH"}],"Destinations":[{"Region":"us-west-2","RegistryId":"123456789012"}]},
+		{"RepositoryFilters":[],"Destinations":[{"Region":"eu-west-1","RegistryId":"123456789012"}]}
+	]}`
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeECRReplicationConfiguration, cfgARN, testRegion, cfgAttrs)
+
+	prodAPI := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, "arn:aws:ecr:us-east-1:123456789012:repository/prod-api", testRegion, "{}")
+	prodWeb := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, "arn:aws:ecr:us-east-1:123456789012:repository/prod-web", testRegion, "{}")
+	devTools := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, "arn:aws:ecr:us-east-1:123456789012:repository/dev-tools", testRegion, "{}")
+	// Different region — must NOT match (replication config is region-scoped).
+	otherRegion := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, "arn:aws:ecr:us-west-2:123456789012:repository/prod-other", "us-west-2", "{}")
+
+	if err := resolveECRReplicationConfiguration(acct, st); err != nil {
+		t.Fatalf("resolveECRReplicationConfiguration: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(cfgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	// Empty-filter rule covers all three same-region repos; prefix rule
+	// overlaps on prod-* but dedupes. Total: 3 edges, no edge to otherRegion.
+	assertRelationship(t, rels, cfgID, prodAPI, store.RelUses)
+	assertRelationship(t, rels, cfgID, prodWeb, store.RelUses)
+	assertRelationship(t, rels, cfgID, devTools, store.RelUses)
+	for _, r := range rels {
+		if r.ToID == otherRegion {
+			t.Errorf("unexpected cross-region replication edge to %s", otherRegion)
+		}
+	}
+	if len(rels) != 3 {
+		t.Errorf("expected 3 edges, got %d", len(rels))
+	}
+}
+
+// TestResolveECRReplicationConfiguration_NoRules verifies a config with no rules
+// (default state) emits no edges.
+func TestResolveECRReplicationConfiguration_NoRules(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cfgARN := "arn:aws:ecr:us-east-1:123456789012:replication-configuration"
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeECRReplicationConfiguration, cfgARN, testRegion, `{"Rules":[]}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, "arn:aws:ecr:us-east-1:123456789012:repository/app", testRegion, "{}")
+
+	if err := resolveECRReplicationConfiguration(acct, st); err != nil {
+		t.Fatalf("resolveECRReplicationConfiguration: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(cfgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 edges with empty Rules, got %d", len(rels))
+	}
+}

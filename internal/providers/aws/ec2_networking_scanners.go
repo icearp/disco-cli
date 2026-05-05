@@ -459,14 +459,16 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 	// Use account-level NativeID (no region) so the same resource is upserted each region.
 	nativeID := ec2ARN("", acct.ID, "vpc-block-public-access-options", acct.ID)
 	n, err := st.UpsertResource(&store.Resource{
-		Provider:       "aws",
-		AccountID:      acct.ID,
-		AccountName:    &acct.Name,
-		Type:           TypeEC2VPCBlockPublicAccessOptions,
-		NativeID:       nativeID,
-		Region:         &region,
-		AttributesJSON: mustJSON(opt),
-		DiscoveredBy:   scanID,
+		Provider:    "aws",
+		AccountID:   acct.ID,
+		AccountName: &acct.Name,
+		Type:        TypeEC2VPCBlockPublicAccessOptions,
+		NativeID:    nativeID,
+		Region:      &region,
+		// Per-account singleton VPC-level public-access config — not user-created.
+		ManagedByProvider: true,
+		AttributesJSON:    mustJSON(opt),
+		DiscoveredBy:      scanID,
 	})
 	if err != nil {
 		return 0, 0, fmt.Errorf("upsert vpc-block-public-access-options: %w", err)

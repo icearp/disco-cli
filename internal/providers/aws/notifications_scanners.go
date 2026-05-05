@@ -287,6 +287,9 @@ func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				// Always AWS-default — emitted only by AWS-managed
+				// notification configurations.
+				ManagedByProvider: true,
 			})
 		}
 	}

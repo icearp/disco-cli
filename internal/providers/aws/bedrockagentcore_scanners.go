@@ -284,6 +284,9 @@ func scanBACEvaluators(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBedrockAgentCoreEvaluator, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+				// AWS-supplied evaluators carry EvaluatorType="Builtin"; customer
+				// evaluators carry "Custom". Case-insensitive match guards drift.
+				ManagedByProvider: strings.EqualFold(string(e.EvaluatorType), "Builtin"),
 			})
 		}
 	}

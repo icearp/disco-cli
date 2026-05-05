@@ -19,6 +19,10 @@ func init() {
 	registerResolver(resolveOrganizationsDelegatedAdmins,
 		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(resolveOrganizationsManagementAccount,
+		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
+		EdgeDecl{TypeOrganization, TypeIAMForeignAccount, store.RelAttachedTo},
+	)
 }
 
 // resolveOrganizationsSCPTargets attaches each SCP to the roots, OUs, and
@@ -184,6 +188,94 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 		attrJSON := mustJSON(map[string]any{"DelegatedServices": services})
 		if err := st.UpsertRelationship(org.ID, acctResID, store.RelAttachedTo, "directed", &attrJSON); err != nil {
 			return fmt.Errorf("upsert org→delegated-admin: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveOrganizationsManagementAccount links each org row to the AWS account
+// identified by Organization.MasterAccountId. When the master account row is
+// already in the store (management-account scan), the edge points to the real
+// aws:organizations:account row. Otherwise (member-account scan, master not
+// scanned by this run) the resolver synthesizes an aws:iam:foreign-account
+// stub for the master account ID and points at it. The stub uses the same
+// shape as the IAM cross-account-trust resolver, so a later management scan
+// that upserts the real account row leaves the stub intact in its own
+// account-scoped slice.
+func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error {
+	orgs, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeOrganization},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(orgs) == 0 {
+		return nil
+	}
+	arnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	type pending struct {
+		fromID, masterAcctID string
+		realAccount          bool
+	}
+	var pendings []pending
+	stubByAcct := map[string]struct{}{}
+	for _, org := range orgs {
+		var attrs struct {
+			MasterAccountId *string `json:"MasterAccountId"`
+		}
+		if jerr := json.Unmarshal([]byte(org.AttributesJSON), &attrs); jerr != nil {
+			continue
+		}
+		master := sv(attrs.MasterAccountId)
+		if master == "" {
+			continue
+		}
+		if _, ok := arnByID[master]; ok {
+			pendings = append(pendings, pending{fromID: org.ID, masterAcctID: master, realAccount: true})
+			continue
+		}
+		stubByAcct[master] = struct{}{}
+		pendings = append(pendings, pending{fromID: org.ID, masterAcctID: master, realAccount: false})
+	}
+	if len(pendings) == 0 {
+		return nil
+	}
+	if len(stubByAcct) > 0 {
+		stubs := make([]*store.Resource, 0, len(stubByAcct))
+		for other := range stubByAcct {
+			nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
+			name := other
+			stubs = append(stubs, &store.Resource{
+				Provider:       "aws",
+				AccountID:      other,
+				Type:           TypeIAMForeignAccount,
+				NativeID:       nativeID,
+				Name:           &name,
+				AttributesJSON: fmt.Sprintf(`{"AccountId":%q,"Synthetic":true}`, other),
+				DiscoveredBy:   orgs[0].DiscoveredBy,
+			})
+		}
+		if _, err := st.UpsertResources(stubs); err != nil {
+			return fmt.Errorf("upsert org master-account stubs: %w", err)
+		}
+	}
+	edgeAttrs := mustJSON(map[string]string{"role": "management"})
+	for _, p := range pendings {
+		var toID string
+		if p.realAccount {
+			toID = store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, arnByID[p.masterAcctID])
+		} else {
+			toID = store.ResourceID("aws", p.masterAcctID, TypeIAMForeignAccount,
+				fmt.Sprintf("arn:aws:iam::%s:root", p.masterAcctID))
+		}
+		if err := st.UpsertRelationship(p.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
+			return fmt.Errorf("upsert org→management-account relationship: %w", err)
 		}
 	}
 	return nil

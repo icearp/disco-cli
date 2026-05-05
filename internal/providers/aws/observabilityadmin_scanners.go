@@ -102,6 +102,10 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 			if isAPIErrorCode(err, "AWSOrganizationsNotInUseException", "UnauthorizedException") {
 				return 0, 0, nil
 			}
+			// Telemetry evaluation not enabled at org level — feature gate, not error.
+			if isAPIErrorCode(err, "ValidationException") && strings.Contains(err.Error(), "Telemetry evaluation is not enabled") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "observabilityadmin:ListTelemetryRulesForOrganization", acct.ID, region, err)
 			}

@@ -275,15 +275,19 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 				label = arn
 			}
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBedrockIntelligentPromptRouter,
-				NativeID:       arn,
-				Name:           &label,
-				Region:         &region,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
+				Provider:    "aws",
+				AccountID:   acct.ID,
+				AccountName: &acct.Name,
+				Type:        TypeBedrockIntelligentPromptRouter,
+				NativeID:    arn,
+				Name:        &label,
+				Region:      &region,
+				// AWS-supplied default routers carry Type="Default"; customer-defined
+				// routers carry Type="Custom". SDK enum is lowercase but case-insensitive
+				// match guards against AWS surface drift.
+				ManagedByProvider: strings.EqualFold(string(p.Type), "Default"),
+				AttributesJSON:    mustJSON(p),
+				DiscoveredBy:      scanID,
 			})
 		}
 	}

@@ -11,10 +11,19 @@ import (
 	sltypes "github.com/aws/aws-sdk-go-v2/service/securitylake/types"
 )
 
-// isSecurityLakeNotEnabled disambiguates the "must be a delegated Security
-// Lake administrator account" not-enabled state from a real IAM denial.
+// isSecurityLakeNotEnabled disambiguates two not-enabled shapes from real
+// IAM denial: "must be a delegated Security Lake administrator account"
+// (delegation prerequisite missing) and the canned action-less
+// "account is not authorized to perform this operation" (Security Lake
+// not onboarded for the account at all). Real IAM denials always name
+// the action ("User: arn:... is not authorized to perform: <action>").
 func isSecurityLakeNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "delegated Security Lake administrator")
+	if !isAccessDenied(err) {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "delegated Security Lake administrator") ||
+		strings.Contains(msg, "account is not authorized to perform this operation")
 }
 
 func init() {

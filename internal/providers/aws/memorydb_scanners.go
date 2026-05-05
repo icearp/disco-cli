@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -158,6 +159,9 @@ func scanMemDBParameterGroups(ctx context.Context, client memorydbAPI, acct *acc
 				Type: TypeMemoryDBParameterGroup, NativeID: arn,
 				Name: p.Name, Region: &region,
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				// Names prefixed "default." (e.g. default.redis7) are the
+				// AWS-managed default parameter groups present in every region.
+				ManagedByProvider: strings.HasPrefix(sv(p.Name), "default."),
 			})
 		}
 	}

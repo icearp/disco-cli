@@ -41,6 +41,19 @@ var containerRedactKeys = []string{
 	"variables", // Lambda Environment.Variables, CodeBuild, StepFunctions
 }
 
+// nonSensitiveKeyExceptions are lower-cased exact key names that look
+// sensitive by substring match but carry pointer-shape / version metadata
+// rather than secret material. Bypass the denylist verbatim.
+//   - apikeyversion: aws:apigateway:account ApiKeyVersion is a numeric
+//     signing-version identifier ("1"), not key material.
+//   - passwordcount: aws:elasticache:user Authentication.PasswordCount is
+//     a small integer (0/1/2) reporting how many passwords are set on the
+//     user, not the password itself.
+var nonSensitiveKeyExceptions = []string{
+	"apikeyversion",
+	"passwordcount",
+}
+
 // scrubAttributes walks a JSON blob and redacts values under sensitive keys.
 // Returns the original bytes unchanged if parsing fails (malformed JSON is
 // caller's problem; we never want to silently drop data).
@@ -131,8 +144,13 @@ func redactAllScalars(v any) any {
 }
 
 // isSensitiveKey reports whether key contains any denylist substring.
+// Exact-name exceptions in nonSensitiveKeyExceptions bypass the denylist
+// for keys that look sensitive but carry only pointer/version metadata.
 func isSensitiveKey(key string) bool {
 	lk := strings.ToLower(key)
+	if slices.Contains(nonSensitiveKeyExceptions, lk) {
+		return false
+	}
 	for _, s := range sensitiveKeySubstrings {
 		if strings.Contains(lk, s) {
 			return true
