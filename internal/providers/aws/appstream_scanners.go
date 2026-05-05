@@ -407,7 +407,12 @@ func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, regio
 	var batch []*store.Resource
 	var token *string
 	for {
-		out, err := client.DescribeStacks(ctx, &appstream.DescribeStacksInput{NextToken: token})
+		// Clamp retries: us-west-1 endpoint frequently returns canceled /
+		// context-deadline, burning the 10-attempt global budget (~5m wall)
+		// before the dispatch-level transient handler surfaces the warning.
+		out, err := client.DescribeStacks(ctx, &appstream.DescribeStacksInput{NextToken: token}, func(o *appstream.Options) {
+			o.RetryMaxAttempts = 2
+		})
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "appstream:DescribeStacks", acct.ID, region, err)
