@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -363,6 +364,12 @@ func scanLambdaCapacityProviders(ctx context.Context, client lambdaAPI, acct *ac
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
+			// Per-region feature gap: gateway-level "Unable to determine
+			// service/operation name to be authorized" means the op is not
+			// recognised by the regional endpoint. Silent-skip.
+			if isAccessDenied(err) && strings.Contains(err.Error(), "Unable to determine service/operation name") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "lambda:ListCapacityProviders", acct.ID, region, err)
 			}
