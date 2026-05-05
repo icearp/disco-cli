@@ -3,11 +3,21 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/kendra"
 )
+
+// isKendraClosedToAccount detects the closed-to-new-customers state for
+// Amazon Kendra (discontinued for new customers in 2024). Surfaces as
+// NotAuthorizedException with the canned "Your account is not authorized
+// to make this call." body — distinct from per-action IAM denials.
+func isKendraClosedToAccount(err error) bool {
+	return isAPIErrorCode(err, "NotAuthorizedException") &&
+		strings.Contains(err.Error(), "not authorized to make this call")
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -65,6 +75,9 @@ func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isKendraClosedToAccount(err) {
+				return nil, 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return nil, 0, 0, skipIfAccessDenied(st, "kendra:ListIndices", acct.ID, region, err)
 			}
