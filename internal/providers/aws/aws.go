@@ -388,6 +388,17 @@ func markServiceDisabled(err error) error {
 	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
 }
 
+// isSCPExplicitDeny matches the AccessDeniedException AWS returns when an
+// op is blocked by an organisation service-control-policy. The body always
+// carries "explicit deny in a service control policy" alongside the action.
+// SCPs reflect environment policy, not a misconfig of the scanned account,
+// so these denials silent-skip rather than warn. Applies to any service —
+// SCPs can target any AWS action.
+func isSCPExplicitDeny(err error) bool {
+	return isAccessDenied(err) &&
+		strings.Contains(err.Error(), "explicit deny in a service control policy")
+}
+
 // isClosedToNewCustomers reports whether err is an AWS account-level
 // "service closed to new customers" denial — surfaced as
 // AccessDeniedException with an empty message body. Real per-action IAM

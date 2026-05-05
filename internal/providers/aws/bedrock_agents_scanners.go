@@ -101,6 +101,9 @@ func scanBedrockAgentList(ctx context.Context, client bedrockAgentAPI, acct *acc
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isSCPExplicitDeny(perr) {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagent:ListAgents", acct.ID, region, perr)
 				return nil, 0, 0, nil
@@ -184,6 +187,9 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isSCPExplicitDeny(perr) {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagent:ListKnowledgeBases", acct.ID, region, perr)
 				return nil, 0, 0, nil
@@ -295,6 +301,9 @@ func scanBedrockFlows(ctx context.Context, client bedrockAgentAPI, acct *account
 		})
 		if perr != nil {
 			if isAPIErrorCode(perr, "InternalServerErrorException", "InternalServerException") {
+				return nil, 0, 0, nil
+			}
+			if isSCPExplicitDeny(perr) {
 				return nil, 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -429,6 +438,9 @@ func scanBedrockPrompts(ctx context.Context, client bedrockAgentAPI, acct *accou
 		})
 		if perr != nil {
 			if isAPIErrorCode(perr, "InternalServerErrorException", "InternalServerException") {
+				return nil, 0, 0, nil
+			}
+			if isSCPExplicitDeny(perr) {
 				return nil, 0, 0, nil
 			}
 			if isAccessDenied(perr) {

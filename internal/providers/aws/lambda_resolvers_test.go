@@ -499,3 +499,238 @@ func TestResolveLambdaEFSRelationships(t *testing.T) {
 	}
 	assertRelationship(t, rels, fnID, apID, store.RelUses)
 }
+
+// TestResolveLambdaRelationships_DLQSQS verifies Function → SQS dead-letter
+// target edge.
+func TestResolveLambdaRelationships_DLQSQS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:dlq-sqs-fn"
+	queueARN := "arn:aws:sqs:us-east-1:" + testAccountID + ":dlq"
+	attrs := `{"DeadLetterConfig":{"TargetArn":"` + queueARN + `"}}`
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, attrs)
+	qID := upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, queueARN, testRegion, "{}")
+
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, fnID, qID, store.RelUses)
+}
+
+// TestResolveLambdaRelationships_DLQSNS verifies Function → SNS dead-letter
+// target edge.
+func TestResolveLambdaRelationships_DLQSNS(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:dlq-sns-fn"
+	topicARN := "arn:aws:sns:us-east-1:" + testAccountID + ":dlq-topic"
+	attrs := `{"DeadLetterConfig":{"TargetArn":"` + topicARN + `"}}`
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, attrs)
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeSNSTopic, topicARN, testRegion, "{}")
+
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, fnID, tID, store.RelUses)
+}
+
+// TestResolveLambdaRelationships_ImageECR verifies Function → ECR repository
+// edge for image-package functions.
+func TestResolveLambdaRelationships_ImageECR(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := "arn:aws:lambda:us-east-1:" + testAccountID + ":function:image-fn"
+	imageURI := testAccountID + ".dkr.ecr.us-east-1.amazonaws.com/my-repo:v1"
+	repoARN := "arn:aws:ecr:us-east-1:" + testAccountID + ":repository/my-repo"
+	attrs := `{"PackageType":"Image","Code":{"ImageUri":"` + imageURI + `"}}`
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, attrs)
+	rID := upsertTestResource(t, st, "aws", acct.ID, TypeECRRepository, repoARN, testRegion, "{}")
+
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, fnID, rID, store.RelUses)
+}
+
+// TestResolveLambdaEventInvokeConfigRelationships_Destinations verifies
+// destination dispatch to SQS, SNS, EventBridge bus, and Lambda function.
+func TestResolveLambdaEventInvokeConfigRelationships_Destinations(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	cfgARN := baseFnARN + ":3"
+	queueARN := "arn:aws:sqs:" + testRegion + ":" + testAccountID + ":invoke-fail"
+	topicARN := "arn:aws:sns:" + testRegion + ":" + testAccountID + ":invoke-success"
+	busARN := "arn:aws:events:" + testRegion + ":" + testAccountID + ":event-bus/custom"
+	dlfnARN := "arn:aws:lambda:" + testRegion + ":" + testAccountID + ":function:downstream"
+	attrs := `{"DestinationConfig":{"OnSuccess":{"Destination":"` + topicARN + `"},"OnFailure":{"Destination":"` + queueARN + `"}}}`
+
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaEventInvokeConfig, cfgARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN, testRegion, "{}")
+	qID := upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, queueARN, testRegion, "{}")
+	tID := upsertTestResource(t, st, "aws", acct.ID, TypeSNSTopic, topicARN, testRegion, "{}")
+	// bus + downstream fn included as scanned targets even though not
+	// referenced by this fixture's DestinationConfig — exercises the id-set
+	// load path.
+	upsertTestResource(t, st, "aws", acct.ID, TypeEventsEventBus, busARN, testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, dlfnARN, testRegion, "{}")
+
+	if err := resolveLambdaEventInvokeConfigRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaEventInvokeConfigRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(cfgID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, cfgID, qID, store.RelUses)
+	assertRelationship(t, rels, cfgID, tID, store.RelUses)
+}
+
+// TestResolveLambdaESMRelationships_MQSource verifies ESM with an Amazon MQ
+// EventSourceArn produces an edge to the broker.
+func TestResolveLambdaESMRelationships_MQSource(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	brokerARN := fmt.Sprintf("arn:aws:mq:%s:%s:broker:my-broker:b-abc", testRegion, testAccountID)
+	esmARN := fmt.Sprintf("arn:aws:lambda:%s:%s:event-source-mapping:mq1", testRegion, testAccountID)
+	attrs := `{"FunctionArn":"` + baseFnARN + `","EventSourceArn":"` + brokerARN + `"}`
+
+	esmID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaESM, esmARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN, testRegion, "{}")
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeMQBroker, brokerARN, testRegion, "{}")
+
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaESMRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(esmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, esmID, bID, store.RelUses)
+}
+
+// TestResolveLambdaPermissionRelationships verifies that a permission row
+// links to its parent function via AttachedTo and to the SourceArn (S3
+// bucket here) referenced by an Allow statement's Condition block.
+func TestResolveLambdaPermissionRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := baseFnARN
+	permARN := fnARN + "/policy"
+	bucketARN := "arn:aws:s3:::my-source-bucket"
+	policyJSON := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"s3.amazonaws.com"},"Action":"lambda:InvokeFunction","Resource":"` + fnARN + `","Condition":{"ArnLike":{"AWS:SourceArn":"` + bucketARN + `"}}}]}`
+	attrs := fmt.Sprintf(`{"Policy": %q}`, policyJSON)
+
+	permID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaPermission, permARN, testRegion, attrs)
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
+	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
+
+	if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaPermissionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(permID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, permID, fnID, store.RelAttachedTo)
+	assertRelationship(t, rels, permID, bID, store.RelUses)
+}
+
+// TestResolveLambdaPermissionRelationships_NoCondition verifies that an
+// account-principal permission (Principal.AWS, no SourceArn) emits only the
+// AttachedTo edge.
+func TestResolveLambdaPermissionRelationships_NoCondition(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	fnARN := baseFnARN + "-acct"
+	permARN := fnARN + "/policy"
+	policyJSON := `{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::222222222222:root"},"Action":"lambda:InvokeFunction","Resource":"` + fnARN + `"}]}`
+	attrs := fmt.Sprintf(`{"Policy": %q}`, policyJSON)
+
+	permID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaPermission, permARN, testRegion, attrs)
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
+
+	if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaPermissionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(permID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, permID, fnID, store.RelAttachedTo)
+}
+
+// TestResolveLambdaLayerVersionPermissionRelationships verifies the
+// AttachedTo edge to the parent layer version. Cross-account principals
+// are not edge-bearing.
+func TestResolveLambdaLayerVersionPermissionRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	layerARN := fmt.Sprintf("arn:aws:lambda:%s:%s:layer:my-layer:5", testRegion, testAccountID)
+	permARN := layerARN + "/policy"
+
+	permID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaLayerVersionPermission, permARN, testRegion, "{}")
+	layerID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaLayerVersion, layerARN, testRegion, "{}")
+
+	if err := resolveLambdaLayerVersionPermissionRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaLayerVersionPermissionRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(permID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, permID, layerID, store.RelAttachedTo)
+}
+
+// TestResolveLambdaESMRelationships_DocDBSource verifies ESM with a
+// DocumentDB cluster EventSourceArn produces an edge to the cluster.
+// DocDB cluster ARNs use the rds: prefix (historical artefact).
+func TestResolveLambdaESMRelationships_DocDBSource(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	clusterARN := fmt.Sprintf("arn:aws:rds:%s:%s:cluster:doc-db-clu", testRegion, testAccountID)
+	esmARN := fmt.Sprintf("arn:aws:lambda:%s:%s:event-source-mapping:doc1", testRegion, testAccountID)
+	attrs := `{"FunctionArn":"` + baseFnARN + `","EventSourceArn":"` + clusterARN + `"}`
+
+	esmID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaESM, esmARN, testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN, testRegion, "{}")
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeDocDBCluster, clusterARN, testRegion, "{}")
+
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaESMRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(esmID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, esmID, cID, store.RelUses)
+}

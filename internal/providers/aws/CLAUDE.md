@@ -228,6 +228,27 @@ Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, tr
 
 When stubbing SDK responses via `Stack.Initialize.Add(...)`, place with `smithymw.After` not `Before`. `RegisterServiceMetadata` is itself an Initialize middleware that populates op-name + service-id in ctx; a `Before` stub short-circuits ahead of it and `awsmw.GetOperationName(ctx)` returns `""`. Precedent: `middleware_testhelper_test.go` `stubResponses`.
 
+## Resource-policy SourceArn lives in Condition, not Resource
+
+Lambda function/layer permission policies, S3 bucket policies, SNS topic policies, SQS queue policies and similar resource-based policies put the principal target in `Condition.{ArnLike|ArnEquals|StringLike|StringEquals}["AWS:SourceArn"]`, NOT in `Statement[].Resource`. The IAM policy walker in `iam_resolvers.go` (`policyStmt` struct) only exposes Effect+Resource — don't extend it for resource-policy consumers; declare a focused per-resolver stmt type (`lambdaPermStmt` in lambda_resolvers.go) plus a string-or-array stmt-list wrapper. Condition values are `string` OR `[]string` (use `json.RawMessage` + try array first, fall back to single). Operator + key match is case-insensitive per IAM rules — `strings.EqualFold` on key, `strings.ToLower` on operator. Reuse `classifyPolicyResource` to dispatch the SourceArn to a scanned target.
+
+## Embed SDK type to enrich list-shape attrs
+
+When `List*` attrs need a sibling field from `Describe*`/`Get*` (e.g. Lambda `Code.ImageUri` from `GetFunction`, only on `PackageType=Image`), define a wrapper struct that EMBEDS the SDK list-shape type:
+
+```go
+type lambdaFunctionAttrs struct {
+    lambdatypes.FunctionConfiguration       // embedded — fields stay top-level on marshal
+    Code *lambdaFunctionCodeAttrs `json:"Code,omitempty"`
+}
+```
+
+Embedding (not nesting) flattens the SDK fields back to top level so existing resolvers reading `Role`/`KMSKeyArn`/`VpcConfig` keep working. Sibling key (`Code` here) carries the enrichment. Cheaper than the "Re-upsert parent with Describe body via ON CONFLICT" pattern when only one or two fields are needed and the Describe call is conditional. Precedent: `lambdaFunctionAttrs` (lambda_scanners.go).
+
+## ARN slot indexing after `strings.Split(arn, ":")`
+
+For colon-separated ARNs `arn:aws:<svc>:<region>:<acct>:<rtype>:<id>` Split returns 7 parts: `[0]=arn [1]=aws [2]=svc [3]=region [4]=acct [5]=rtype [6]=id`. Slash-separated ARNs (`...:rtype/id`) keep `[5]="rtype/id"`. When dispatching by resource-type segment, compare `parts[5] == "cluster"` (exact) — `strings.HasPrefix(parts[5], "cluster:")` always fails because Split already consumed the colon. Precedent: `lambdaESMSourceType` DocDB branch (lambda_resolvers.go).
+
 ## Wrapper-key json tags are lowercase by design
 
 The "Scanner attribute JSON uses PascalCase keys" rule applies to fields produced by `json.Marshal` on raw SDK structs. Hand-built wrapper containers that namespace the SDK payload (`{"lb": <LB>, "type": ...}` in `elb_scanners.go`, `{"rule": ..., "Targets": [...]}` via `ruleWithTargets` in `eventbridge_scanners.go`, `{"listenerArn": ..., "cert": ...}` in `elb_scanners.go`) deliberately use lowercase / camelCase outer keys to distinguish them from SDK fields. Resolver struct tags like `json:"lb"` / `json:"listenerArn"` / `json:"deadLetterTargetArn"` are correct — do not "fix" to PascalCase, and any tag-shape lint must allowlist these.

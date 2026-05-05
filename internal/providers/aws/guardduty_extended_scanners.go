@@ -3,10 +3,22 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 )
+
+// isGuardDutyMemberRestricted matches the BadRequestException AWS returns when
+// a member account calls a management-account-only GuardDuty op (e.g.
+// ListThreatEntitySets, ListTrustedEntitySets — entity sets are managed
+// centrally by the delegated admin and propagated read-only to members).
+// Code+message disambiguates from real validation errors that share the
+// BadRequestException code.
+func isGuardDutyMemberRestricted(err error) bool {
+	return isAPIErrorCode(err, "BadRequestException") &&
+		strings.Contains(err.Error(), "member accounts cannot manage")
+}
 
 // guardDutyExtAPI lists ops used by extended GuardDuty phases. Threat / Trusted
 // entity-set + threat-intel-set + publishing-destination are per-detector;
@@ -140,6 +152,9 @@ func scanGDThreatEntitySets(ctx context.Context, client guardDutyExtAPI, acct *a
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isGuardDutyMemberRestricted(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "guardduty:ListThreatEntitySets", acct.ID, region, perr)
 				return 0, 0, nil
@@ -198,6 +213,9 @@ func scanGDTrustedEntitySets(ctx context.Context, client guardDutyExtAPI, acct *
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isGuardDutyMemberRestricted(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "guardduty:ListTrustedEntitySets", acct.ID, region, perr)
 				return 0, 0, nil

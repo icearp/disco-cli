@@ -8,7 +8,26 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 )
+
+// lambdaFunctionAttrs wraps the SDK FunctionConfiguration with an enriched
+// Code block so image-package functions surface their ECR image URI in
+// AttributesJSON. The embedded type promotes all FunctionConfiguration
+// fields to top level — existing resolvers reading `Role`, `KMSKeyArn`,
+// `VpcConfig`, etc. continue to work unchanged. The `Code` sibling is
+// populated via GetFunction for PackageType=Image only.
+type lambdaFunctionAttrs struct {
+	lambdatypes.FunctionConfiguration
+	Code *lambdaFunctionCodeAttrs `json:"Code,omitempty"`
+}
+
+// lambdaFunctionCodeAttrs holds the verbatim Code fields disco needs.
+// ImageUri is the only edge-bearing field; ResolvedImageUri / RepositoryType
+// are not required for graph relationships.
+type lambdaFunctionCodeAttrs struct {
+	ImageUri *string `json:"ImageUri,omitempty"`
+}
 
 func init() {
 	registerService(serviceEntry{
@@ -46,6 +65,7 @@ type lambdaAPI interface {
 	ListEventSourceMappings(context.Context, *lambda.ListEventSourceMappingsInput, ...func(*lambda.Options)) (*lambda.ListEventSourceMappingsOutput, error)
 	ListLayers(context.Context, *lambda.ListLayersInput, ...func(*lambda.Options)) (*lambda.ListLayersOutput, error)
 	ListLayerVersions(context.Context, *lambda.ListLayerVersionsInput, ...func(*lambda.Options)) (*lambda.ListLayerVersionsOutput, error)
+	GetFunction(context.Context, *lambda.GetFunctionInput, ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error)
 	GetPolicy(context.Context, *lambda.GetPolicyInput, ...func(*lambda.Options)) (*lambda.GetPolicyOutput, error)
 	GetLayerVersionPolicy(context.Context, *lambda.GetLayerVersionPolicyInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionPolicyOutput, error)
 }
@@ -122,6 +142,21 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 		for _, fn := range page.Functions {
 			name := sv(fn.FunctionName)
 			fns = append(fns, lambdaFunctionSummary{name: name, arn: sv(fn.FunctionArn)})
+			// For image-package functions, fan out to GetFunction once to
+			// recover Code.ImageUri (not present in ListFunctions). ImageUri
+			// is the only edge-bearing field on Code — image → ECR
+			// repository edges are emitted by resolveLambdaRelationships.
+			attrs := lambdaFunctionAttrs{FunctionConfiguration: fn}
+			if fn.PackageType == lambdatypes.PackageTypeImage {
+				if out, gerr := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: &name}); gerr == nil {
+					if out.Code != nil && sv(out.Code.ImageUri) != "" {
+						uri := sv(out.Code.ImageUri)
+						attrs.Code = &lambdaFunctionCodeAttrs{ImageUri: &uri}
+					}
+				} else if !isAccessDenied(gerr) && !isAPIErrorCode(gerr, "ResourceNotFoundException") {
+					return nil, 0, 0, fmt.Errorf("lambda:GetFunction (%s): %w", name, gerr)
+				}
+			}
 			// Tags are not included in ListFunctions; fetch separately if needed.
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
@@ -131,7 +166,7 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 				NativeID:       sv(fn.FunctionArn),
 				Name:           &name,
 				Region:         &region,
-				AttributesJSON: mustJSON(fn),
+				AttributesJSON: mustJSON(attrs),
 				DiscoveredBy:   scanID,
 			})
 		}

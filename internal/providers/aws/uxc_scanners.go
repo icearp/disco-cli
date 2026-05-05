@@ -45,7 +45,7 @@ func scanUXC(ctx context.Context, acct *account, region string, st *store.Store,
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeUXCAccountCustomization, NativeID: arn,
 		Name: &label, Region: &region,
-		AttributesJSON:    mustJSON(out), DiscoveredBy: scanID,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 		ManagedByProvider: true,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "uxc account-customization")

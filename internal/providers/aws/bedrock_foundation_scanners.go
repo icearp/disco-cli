@@ -64,6 +64,9 @@ func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isSCPExplicitDeny(perr) {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListGuardrails", acct.ID, region, perr)
 				return nil, 0, 0, nil
@@ -158,6 +161,9 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 			// "User: arn:... is not authorized to perform: <action>" form.
 			// AR Policies is gated to limited regions/accounts.
 			if isAccessDenied(perr) && strings.Contains(perr.Error(), "not authorized to invoke this API operation") {
+				return nil, 0, 0, nil
+			}
+			if isSCPExplicitDeny(perr) {
 				return nil, 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -259,6 +265,9 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 					strings.Contains(perr.Error(), "don't have the permissions to perform the requested operation")) {
 				return 0, 0, nil
 			}
+			if isSCPExplicitDeny(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListPromptRouters", acct.ID, region, perr)
 				return 0, 0, nil
@@ -309,6 +318,9 @@ func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isSCPExplicitDeny(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListInferenceProfiles", acct.ID, region, perr)
 				return 0, 0, nil
@@ -356,6 +368,9 @@ func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct 
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isSCPExplicitDeny(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListEnforcedGuardrailsConfiguration", acct.ID, region, perr)
 				return 0, 0, nil

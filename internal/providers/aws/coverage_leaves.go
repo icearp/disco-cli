@@ -206,11 +206,9 @@ var leafTypes = map[string]bool{
 	"aws:amplify:domain":               true,
 	// Lambda code-signing-config / layer-version-permission / permission
 	// are config strings; capacity-provider has no scanned target type.
-	"aws:lambda:capacity-provider":        true,
-	"aws:lambda:code-signing-config":      true,
-	"aws:lambda:layer-version":            true,
-	"aws:lambda:layer-version-permission": true,
-	"aws:lambda:permission":               true,
+	"aws:lambda:capacity-provider":   true,
+	"aws:lambda:code-signing-config": true,
+	"aws:lambda:layer-version":       true,
 	// Resource catalog (Service Catalog / Resilience Hub).
 	"aws:resilience-hub:app":                      true,
 	"aws:resilience-hub:resiliency-policy":        true,

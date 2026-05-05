@@ -23,6 +23,17 @@ func isCostExplorerNotEnabled(err error) bool {
 		strings.Contains(msg, "doesn't have access to cost category")
 }
 
+// isMigrationRequiredIAMDeny matches the canned AccessDeniedException AWS
+// returns for accounts whose IAM policies still reference the legacy action
+// names of a service that has migrated to a new IAM action surface. Body:
+// "To use this feature, please obtain the required permissions. Migrate
+// the policies in your account to use the new IAM actions." Pre-migration
+// is environment policy, not a misconfig of this scanner — silent-skip.
+func isMigrationRequiredIAMDeny(err error) bool {
+	return isAccessDenied(err) &&
+		strings.Contains(err.Error(), "Migrate the policies in your account to use the new IAM actions")
+}
+
 func init() {
 	registerService(serviceEntry{
 		name: "aws:bcmpricingcalculator",
@@ -58,6 +69,9 @@ func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricin
 		if perr != nil {
 			if isCostExplorerNotEnabled(perr) {
 				return total, inserted, markServiceDisabled(perr)
+			}
+			if isMigrationRequiredIAMDeny(perr) {
+				return total, inserted, nil
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "bcmpricingcalculator:ListBillScenarios", acct.ID, region, perr)

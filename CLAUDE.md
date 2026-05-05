@@ -31,6 +31,7 @@ CGO_ENABLED=0 go test ./internal/store/... -run TestFoo -v
 
 # Vet and lint
 go vet ./...
+golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
 # Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
 gofmt -w .
@@ -137,7 +138,7 @@ Resolver-local struct fields rename safely with per-file `re.sub(r'\b' + old + r
 
 1. **KEEP THINGS SIMPLE**
 2. No reinvent wheel.
-3. Comment everything.
+3. Comment non-obvious WHY only — invariants, hidden constraints, surprising behavior. Skip WHAT-comments; well-named identifiers explain that.
 4. Human-readable code.
 5. No redundant code.
 6. First optimize scan speed, then min memory + CPU.

@@ -16,6 +16,15 @@ func isFMSNotEnabled(err error) bool {
 	return isAccessDenied(err) && strings.Contains(err.Error(), "No default admin could be found")
 }
 
+// isFMSAdminOnlyDenial matches the AccessDeniedException AWS returns when
+// a non-FMS-admin account calls a management-only op (ListPolicies,
+// ListResourceSets). Distinct from isFMSNotEnabled — admin exists, just
+// elsewhere in the org. Member accounts hit this every scan; silent-skip.
+func isFMSAdminOnlyDenial(err error) bool {
+	return isAccessDenied(err) &&
+		strings.Contains(err.Error(), "only available to AWS Firewall Manager Administrators")
+}
+
 func init() {
 	registerService(serviceEntry{
 		name: "aws:fms",
@@ -67,6 +76,9 @@ func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region s
 			if isFMSNotEnabled(err) {
 				return 0, 0, markServiceDisabled(err)
 			}
+			if isFMSAdminOnlyDenial(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "fms:ListPolicies", acct.ID, region, err)
 			}
@@ -97,6 +109,9 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 		if err != nil {
 			if isFMSNotEnabled(err) {
 				return 0, 0, markServiceDisabled(err)
+			}
+			if isFMSAdminOnlyDenial(err) {
+				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "fms:ListResourceSets", acct.ID, region, err)

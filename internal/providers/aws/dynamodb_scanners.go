@@ -8,6 +8,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -18,6 +19,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
 			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
+			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
 		},
 	})
 }
@@ -31,15 +33,27 @@ type dynamodbAPI interface {
 	DescribeGlobalTable(context.Context, *dynamodb.DescribeGlobalTableInput, ...func(*dynamodb.Options)) (*dynamodb.DescribeGlobalTableOutput, error)
 }
 
+// dynamodbStreamsAPI is the narrow set of DynamoDB Streams operations called by
+// scanDynamoDBStreams. Lives on a separate SDK package + endpoint from the
+// main dynamodb client.
+type dynamodbStreamsAPI interface {
+	ListStreams(context.Context, *dynamodbstreams.ListStreamsInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.ListStreamsOutput, error)
+	DescribeStream(context.Context, *dynamodbstreams.DescribeStreamInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.DescribeStreamOutput, error)
+}
+
 // scanDynamoDB is the orchestrator for all DynamoDB resource types in one region.
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
+	streamsClient := dynamodbstreams.NewFromConfig(acct.cfg, func(o *dynamodbstreams.Options) { o.Region = region })
 	return runScanners(ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanDynamoDBTables(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanDynamoDBGlobalTables(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDynamoDBStreams(ctx, streamsClient, acct, region, st, scanID)
 		},
 	)
 }
@@ -149,6 +163,82 @@ func scanDynamoDBGlobalTables(ctx context.Context, client dynamodbAPI, acct *acc
 			break
 		}
 		startName = page.LastEvaluatedGlobalTableName
+	}
+	return total, inserted, nil
+}
+
+// scanDynamoDBStreams discovers DynamoDB streams in one region. Streams are
+// first-class resources owned by tables: tables carry LatestStreamArn, the
+// table→stream `contains` resolver targets these rows. ListStreams has no SDK
+// paginator — manual ExclusiveStartStreamArn loop. DescribeStream enriches
+// each entry with status, view type, key schema, and the current shard page.
+func scanDynamoDBStreams(ctx context.Context, client dynamodbStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var startArn *string
+	for {
+		page, err := client.ListStreams(ctx, &dynamodbstreams.ListStreamsInput{
+			ExclusiveStartStreamArn: startArn,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListStreams", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("dynamodb:ListStreams: %w", err)
+		}
+
+		var (
+			mu    sync.Mutex
+			batch []*store.Resource
+		)
+		g, gctx := errgroup.WithContext(ctx)
+		for _, s := range page.Streams {
+			arn := s.StreamArn
+			g.Go(func() error {
+				desc, err := client.DescribeStream(gctx, &dynamodbstreams.DescribeStreamInput{StreamArn: arn})
+				if err != nil {
+					if isAccessDenied(err) {
+						return nil
+					}
+					return fmt.Errorf("dynamodb:DescribeStream %s: %w", sv(arn), err)
+				}
+				d := desc.StreamDescription
+				if d == nil {
+					return nil
+				}
+				r := &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeDynamoDBStream,
+					NativeID:       sv(d.StreamArn),
+					Name:           d.StreamLabel,
+					Region:         &region,
+					CreatedAt:      tp(d.CreationRequestDateTime),
+					Status:         sp(string(d.StreamStatus)),
+					AttributesJSON: mustJSON(d),
+					DiscoveredBy:   scanID,
+				}
+				mu.Lock()
+				batch = append(batch, r)
+				mu.Unlock()
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			return 0, 0, err
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return 0, 0, fmt.Errorf("upsert DynamoDB streams: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+
+		if page.LastEvaluatedStreamArn == nil {
+			break
+		}
+		startArn = page.LastEvaluatedStreamArn
 	}
 	return total, inserted, nil
 }
