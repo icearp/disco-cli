@@ -287,8 +287,16 @@ func scanBedrockFlows(ctx context.Context, client bedrockAgentAPI, acct *account
 	var ids []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
+		// Clamp retries: ListFlows returns persistent InternalServerError in
+		// regions where Flows isn't deployed; the global 10-attempt budget
+		// burns ~2 minutes before surfacing. Mirror the quicksight pattern.
+		out, perr := pager.NextPage(ctx, func(o *bedrockagent.Options) {
+			o.RetryMaxAttempts = 2
+		})
 		if perr != nil {
+			if isAPIErrorCode(perr, "InternalServerErrorException", "InternalServerException") {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagent:ListFlows", acct.ID, region, perr)
 				return nil, 0, 0, nil
