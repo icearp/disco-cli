@@ -26,9 +26,30 @@ type greengrassV2API interface {
 	ListDeployments(context.Context, *greengrassv2.ListDeploymentsInput, ...func(*greengrassv2.Options)) (*greengrassv2.ListDeploymentsOutput, error)
 }
 
+// greengrassV2Regions enumerates the AWS Regions where IoT Greengrass V2
+// control-plane operations are available. Superset of v1: adds
+// ap-southeast-5, ca-central-1, eu-south-2. Same 429-on-unsupported-region
+// behaviour as v1; allowlist short-circuits the SDK retry burn.
+// Source: https://docs.aws.amazon.com/general/latest/gr/greengrassv2.html
+var greengrassV2Regions = map[string]bool{
+	"us-east-1": true, "us-east-2": true, "us-west-2": true,
+	"ap-south-1":     true,
+	"ap-northeast-1": true, "ap-northeast-2": true,
+	"ap-southeast-1": true, "ap-southeast-2": true, "ap-southeast-5": true,
+	"ca-central-1": true,
+	"eu-central-1": true,
+	"eu-west-1":    true, "eu-west-2": true,
+	"eu-south-2":    true,
+	"cn-north-1":    true,
+	"us-gov-east-1": true, "us-gov-west-1": true,
+}
+
 // scanGreengrassV2 discovers Greengrass v2 component versions (per
 // component) and deployments.
 func scanGreengrassV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	if !greengrassV2Regions[region] {
+		return 0, 0, nil
+	}
 	client := greengrassv2.NewFromConfig(acct.cfg, func(o *greengrassv2.Options) { o.Region = region })
 
 	t, i, ferr := scanGGV2ComponentVersions(ctx, client, acct, region, st, scanID)
