@@ -151,6 +151,8 @@ func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, a
 		Region:         &region,
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
+		// Per-(acct, region) AWS-managed singleton config row.
+		ManagedByProvider: true,
 	}
 	n, uerr := st.UpsertResources([]*store.Resource{r})
 	if uerr != nil {

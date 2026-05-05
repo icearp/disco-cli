@@ -423,6 +423,9 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client s
 				Region:         &region,
 				AttributesJSON: mustJSON(out.StorageLensConfiguration),
 				DiscoveredBy:   scanID,
+				// Id "default-account-dashboard" identifies the AWS-managed
+				// default Storage Lens dashboard present in every account.
+				ManagedByProvider: id == "default-account-dashboard",
 			}
 			mu.Lock()
 			batch = append(batch, res)

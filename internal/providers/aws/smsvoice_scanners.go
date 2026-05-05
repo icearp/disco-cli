@@ -110,6 +110,9 @@ func scanSVOptOutLists(ctx context.Context, client smsVoiceAPI, acct *account, r
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSMSVoiceOptOutList, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+				// OptOutListName "Default" identifies the AWS-managed default
+				// opt-out list present in every account.
+				ManagedByProvider: sv(l.OptOutListName) == "Default",
 			})
 		}
 	}

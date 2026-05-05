@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -472,6 +473,10 @@ func scanIoTDomainConfigurations(ctx context.Context, client iotCertsAPI, acct *
 			Region:         &region,
 			AttributesJSON: mustJSON(out),
 			DiscoveredBy:   scanID,
+			// Names prefixed "iot:" identify the AWS-default domain
+			// configurations (iot:Data-ATS, iot:Jobs, iot:CredentialProvider)
+			// present in every account.
+			ManagedByProvider: strings.HasPrefix(dname, "iot:"),
 		}, nil
 	}, st, "iot domain configurations")
 }

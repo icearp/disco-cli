@@ -376,6 +376,9 @@ func scanDBSecurityGroups(ctx context.Context, client rdsAPI, acct *account, reg
 					Type: TypeRDSDBSecurityGroup, NativeID: sv(sg.DBSecurityGroupArn),
 					Name: &name, Region: &region, AttributesJSON: mustJSON(sg),
 					DiscoveredBy: scanID,
+					// DBSecurityGroupName "default" is the AWS-managed default
+					// EC2-Classic DB security group present in legacy accounts.
+					ManagedByProvider: name == "default",
 				})
 			}
 			return out

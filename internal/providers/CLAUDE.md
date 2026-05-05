@@ -18,6 +18,14 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 Resources owned by the cloud (Azure built-in policy/role definitions, AWS-managed IAM policies, AWS-owned prefix lists, IAM service-linked roles, AuditMgr Standard frameworks/controls) set `store.Resource.ManagedByProvider=true`. Hidden from `disco list` / `disco graph` by default; `--include-managed` opts in. In `graph`, managed nodes are terminal — appear when reached via direct edge but BFS does not expand through them. Detection lives at scan time, reads typed SDK field (e.g. `OwnerId == "AWS"`, `PolicyType == BuiltIn`, `RoleType == "BuiltInRole"`, role path `/aws-service-role/`). Where the SDK exposes a scope/type filter (IAM `PolicyScope`, AuditMgr `FrameworkType`/`ControlType`), loop both values in a single scanner and flag the managed pass — precedent: `scanIAMPolicies`, `scanAuditManagerFrameworks`, `scanAuditManagerControls`.
 
+## Don't mix `g.Wait()` with same-statement counter reads
+
+Go evaluates return-list expressions left-to-right. `return total, inserted, g.Wait()` reads `total`/`inserted` *before* `Wait()` blocks, so any counters mutated inside the goroutines come back as their pre-fan-out value. Same hazard for `return int(t.Load()), int(n.Load()), g.Wait()` with `atomic.Int64`. Always bind `err := g.Wait()` first, then return the counters. Precedents fixed: `aws/ec2_scanners.go::runScanners`, `azure/sql_scanners.go::scanSQL` (phase-3 return), `azure/sql_managed_scanners.go::scanSQLManaged` (phase-3 return).
+
+## Per-(acct, region) singleton config rows are provider-managed
+
+Account-level / region-level singleton config types (e.g. data-lake-settings, account-audit-configuration, encryption-configuration, replication-configuration, resolver-config) represent cloud state, not user-created resources. Set `ManagedByProvider: true` at upsert time so they hide from default `disco list` / `disco graph`. Precedents under `internal/providers/aws/`: ECR replication-configuration, ECR registry-scanning-configuration, IoT encryption-configuration, IoT account-audit-configuration, LakeFormation data-lake-settings, Route53Resolver resolver-config.
+
 ## Errors never abort scan
 
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:

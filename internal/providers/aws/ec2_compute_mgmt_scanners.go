@@ -126,6 +126,9 @@ func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, regio
 					TagsJSON:       awsTagsJSON(sg.Tags),
 					AttributesJSON: mustJSON(sg),
 					DiscoveredBy:   scanID,
+					// GroupName "default" is the AWS-default security group
+					// auto-created in every VPC.
+					ManagedByProvider: name == "default",
 				})
 			}
 			return out

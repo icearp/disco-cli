@@ -296,6 +296,23 @@ Before relying on AWS docs (or existing scanner code) for which region a global 
 
 Scanner pattern when (1) `List*` is upserted first to enumerate children, then (2) `Describe*` per parent fans out to emit child rows. Parent attrs end up as the list-summary shape — strip-of-detail. To wire parent-side resolvers (e.g. `ServiceExecutionRole`, `CloudWatchLoggingOptions[]` on KDA app), append the parent row to the second-pass batch with `mustJSON(detailBody)`. UpsertResources ON CONFLICT updates `attributes`, so the second upsert replaces the summary JSON in place. Precedent: `scanKinesisAnalyticsV1` / `scanKinesisAnalyticsV2` (kinesisanalytics{,v2}_scanners.go). Cheaper than a third API round-trip.
 
+## AWS-default identification heuristics (ManagedByProvider)
+
+Common predicates observed when flagging AWS-default rows at scan time:
+- Name / GroupName / RuleName / OptOutListName / DBSecurityGroupName == "default" or "Default"
+- Name prefix `default.` (memorydb:parameter-group)
+- Alias prefix `alias/aws/` (kms:alias)
+- DomainConfigurationName prefix `iot:` (iot:domain-configuration)
+- Id prefix `rslvr-autodefined-rr-` / `rslvr-autodefined-assoc-` (route53resolver rules + associations)
+- Org root rows with Id `r-xxxx` (organizations:ou)
+- SCP `p-FullAWSAccess` (organizations:scp)
+- SDK enum field equals service-managed sentinel (kms:key KeyManager=="AWS", mediaconvert:queue Type==SYSTEM, ecs:capacity-provider Cluster==nil for FARGATE)
+- Zero-time CreatedAt + canonical name (xray:sampling-rule "Default" RuleName)
+- All-empty user customisation (uxc:account-customization with AccountColor "none" and empty visible-* lists)
+- StorageLens Id == "default-account-dashboard"
+
+Verify the predicate against a real account if the SDK doc is ambiguous — observed behaviour wins.
+
 ## Adding a resolver for a previously-leaf type
 
 `TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a type listed in `leafTypes` (`coverage_leaves.go`) appears as an `EdgeDecl.Source`. Drop the leaf entry in the same commit as the new resolver — the test is the only signal, no build error.

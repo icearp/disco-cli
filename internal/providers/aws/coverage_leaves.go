@@ -36,7 +36,6 @@ var leafTypes = map[string]bool{
 	"aws:logs:account-policy":                  true,
 	"aws:ses:vdm-attributes":                   true,
 	"aws:support-app:account-alias":            true,
-	"aws:uxc:account-customization":            true,
 	"aws:notifications:notification-hub":       true,
 	"aws:notifications-contacts:email-contact": true,
 	// Public-access, encryption, replication, registry singletons.

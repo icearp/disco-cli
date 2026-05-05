@@ -78,6 +78,9 @@ func scanMemDBACLs(ctx context.Context, client memorydbAPI, acct *account, regio
 				Type: TypeMemoryDBACL, NativeID: arn,
 				Name: a.Name, Region: &region, Status: a.Status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				// Name "open-access" is the AWS-managed default ACL present
+				// in every account.
+				ManagedByProvider: sv(a.Name) == "open-access",
 			})
 		}
 	}
@@ -216,6 +219,9 @@ func scanMemDBUsers(ctx context.Context, client memorydbAPI, acct *account, regi
 				Type: TypeMemoryDBUser, NativeID: arn,
 				Name: u.Name, Region: &region, Status: u.Status,
 				AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
+				// Name "default" is the AWS-managed default user present in
+				// every account.
+				ManagedByProvider: sv(u.Name) == "default",
 			})
 		}
 	}

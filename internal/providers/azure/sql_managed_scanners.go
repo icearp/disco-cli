@@ -213,7 +213,11 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 			})
 		}
 	}
-	return total, inserted, g2.Wait()
+	// Wait BEFORE reading the counters — Go evaluates return-list expressions
+	// left-to-right, so inlining g2.Wait() at position 3 reads total/inserted
+	// while phase-3 goroutines are still running.
+	err = g2.Wait()
+	return total, inserted, err
 }
 
 // managedInstanceChildScanners returns closures for MI-level sub-resource scanners

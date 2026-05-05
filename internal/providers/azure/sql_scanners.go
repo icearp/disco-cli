@@ -221,7 +221,11 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred *azi
 			})
 		}
 	}
-	return total, inserted, g2.Wait()
+	// Wait BEFORE reading the counters — Go evaluates return-list expressions
+	// left-to-right, so inlining g2.Wait() at position 3 reads total/inserted
+	// while phase-3 goroutines are still running.
+	err = g2.Wait()
+	return total, inserted, err
 }
 
 // scanDatabases lists databases for a server, upserts them, and returns sqlDatabase

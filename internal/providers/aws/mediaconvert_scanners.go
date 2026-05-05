@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/mediaconvert"
+	mctypes "github.com/aws/aws-sdk-go-v2/service/mediaconvert/types"
 )
 
 func init() {
@@ -123,6 +124,9 @@ func scanMCQueues(ctx context.Context, client mediaConvertAPI, acct *account, re
 				Type: TypeMediaConvertQueue, NativeID: arn,
 				Name: q.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
+				// Type "SYSTEM" identifies the AWS-managed default queue
+				// present in every account.
+				ManagedByProvider: q.Type == mctypes.TypeSystem,
 			})
 		}
 	}

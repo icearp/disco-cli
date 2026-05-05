@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -104,9 +105,9 @@ func scanR53RFirewallDomainLists(ctx context.Context, client route53ResolverAPI,
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverFirewallDomainList, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-				// Lists with no ManagedOwnerName are the AWS-default
+				// Lists with ManagedOwnerName are the AWS-default
 				// firewall domain lists present in every account.
-				ManagedByProvider: d.ManagedOwnerName == nil,
+				ManagedByProvider: d.ManagedOwnerName != nil,
 			})
 		}
 	}
@@ -228,6 +229,8 @@ func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acc
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverConfig, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				// Per-VPC AWS-managed config row, one per VPC by default.
+				ManagedByProvider: true,
 			})
 		}
 	}
@@ -379,6 +382,10 @@ func scanR53RResolverRules(ctx context.Context, client route53ResolverAPI, acct 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverRule, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				// Ids prefixed "rslvr-autodefined-rr-" identify the
+				// AWS-default Internet Resolver rules present in every
+				// account.
+				ManagedByProvider: strings.HasPrefix(sv(r.Id), "rslvr-autodefined-rr-"),
 			})
 		}
 	}
@@ -411,6 +418,10 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ResolverResolverRuleAssociation, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				// Ids prefixed "rslvr-autodefined-assoc-" identify the
+				// AWS-default Internet Resolver associations attached to
+				// every VPC.
+				ManagedByProvider: strings.HasPrefix(id, "rslvr-autodefined-assoc-"),
 			})
 		}
 	}

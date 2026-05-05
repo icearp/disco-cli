@@ -71,6 +71,9 @@ func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region s
 				Type: TypeXRayGroup, NativeID: arn,
 				Name: g.GroupName, Region: &region,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				// GroupName "Default" identifies the AWS-managed default
+				// trace group present in every account.
+				ManagedByProvider: sv(g.GroupName) == "Default",
 			})
 		}
 	}
@@ -130,6 +133,9 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 				Type: TypeXRaySamplingRule, NativeID: arn,
 				Name: r.SamplingRule.RuleName, Region: &region,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				// RuleName "Default" identifies the AWS-managed default
+				// sampling rule present in every account.
+				ManagedByProvider: sv(r.SamplingRule.RuleName) == "Default",
 			})
 		}
 	}

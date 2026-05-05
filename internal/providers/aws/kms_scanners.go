@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -267,6 +268,10 @@ func scanKMSAliases(ctx context.Context, client kmsAPI, acct *account, region st
 				CreatedAt:      tp(a.CreationDate),
 				AttributesJSON: mustJSON(a),
 				DiscoveredBy:   scanID,
+				// Aliases prefixed "alias/aws/" point at AWS-managed default
+				// keys (alias/aws/s3, alias/aws/ebs, ...) present in every
+				// account.
+				ManagedByProvider: strings.HasPrefix(sv(a.AliasName), "alias/aws/"),
 			}
 			batch = append(batch, r)
 		}

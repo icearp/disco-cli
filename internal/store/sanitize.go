@@ -49,9 +49,12 @@ var containerRedactKeys = []string{
 //   - passwordcount: aws:elasticache:user Authentication.PasswordCount is
 //     a small integer (0/1/2) reporting how many passwords are set on the
 //     user, not the password itself.
+//   - currentkeymaterialid: aws:kms:key CurrentKeyMaterialId is an opaque
+//     identifier for the active key material version, not the material.
 var nonSensitiveKeyExceptions = []string{
 	"apikeyversion",
 	"passwordcount",
+	"currentkeymaterialid",
 }
 
 // scrubAttributes walks a JSON blob and redacts values under sensitive keys.

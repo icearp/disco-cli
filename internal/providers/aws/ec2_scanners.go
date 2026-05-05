@@ -73,7 +73,11 @@ func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, er
 			return err
 		})
 	}
-	return int(t.Load()), int(n.Load()), g.Wait()
+	// Block on Wait BEFORE loading the atomics — Go evaluates return-list
+	// expressions left-to-right, so loading the atomics inline with g.Wait()
+	// reads them while goroutines are still running and yields 0/0.
+	err := g.Wait()
+	return int(t.Load()), int(n.Load()), err
 }
 
 // ec2Pager is satisfied by every AWS SDK v2 EC2 paginator.
