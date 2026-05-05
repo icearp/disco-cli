@@ -89,6 +89,10 @@ func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *ac
 	for {
 		out, err := client.ListFlywheels(ctx, &comprehend.ListFlywheelsInput{NextToken: nextToken})
 		if err != nil {
+			// Per-region feature gap shape Comprehend uses.
+			if isAPIErrorCode(err, "InvalidRequestException") && strings.Contains(err.Error(), "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "comprehend:ListFlywheels", acct.ID, region, err)
 			}
