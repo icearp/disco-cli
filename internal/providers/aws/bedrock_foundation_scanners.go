@@ -153,6 +153,13 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// Feature-gap canned 403: "Your account is not authorized to invoke
+			// this API operation" — distinct from the per-action IAM-deny
+			// "User: arn:... is not authorized to perform: <action>" form.
+			// AR Policies is gated to limited regions/accounts.
+			if isAccessDenied(perr) && strings.Contains(perr.Error(), "not authorized to invoke this API operation") {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListAutomatedReasoningPolicies", acct.ID, region, perr)
 				return nil, 0, 0, nil
