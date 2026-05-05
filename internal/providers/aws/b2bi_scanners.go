@@ -36,6 +36,10 @@ type b2biAPI interface {
 func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := b2bi.NewFromConfig(acct.cfg, func(o *b2bi.Options) { o.Region = region })
 
+	if ferr := gateB2BI(ctx, client); ferr != nil {
+		return 0, 0, ferr
+	}
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanB2BICapabilities(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanB2BIPartnerships(ctx, client, acct, region, st, scanID) },
@@ -52,12 +56,28 @@ func scanB2BI(ctx context.Context, acct *account, region string, st *store.Store
 	return total, inserted, nil
 }
 
+// gateB2BI probes the cheapest list op once. B2B Data Interchange is
+// deployed in a subset of regions only; unsupported regions return
+// empty-message AccessDeniedException. Short-circuit via
+// markServiceDisabled so the dispatcher renders (service disabled) once.
+func gateB2BI(ctx context.Context, client b2biAPI) error {
+	mr := int32(1)
+	_, err := client.ListProfiles(ctx, &b2bi.ListProfilesInput{MaxResults: &mr})
+	if err != nil && isClosedToNewCustomers(err) {
+		return markServiceDisabled(err)
+	}
+	return nil
+}
+
 func scanB2BICapabilities(ctx context.Context, client b2biAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := b2bi.NewListCapabilitiesPaginator(client, &b2bi.ListCapabilitiesInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isClosedToNewCustomers(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "b2bi:ListCapabilities", acct.ID, region, err)
 			}
@@ -99,6 +119,9 @@ func scanB2BIPartnerships(ctx context.Context, client b2biAPI, acct *account, re
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isClosedToNewCustomers(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "b2bi:ListPartnerships", acct.ID, region, err)
 			}
@@ -127,6 +150,9 @@ func scanB2BIProfiles(ctx context.Context, client b2biAPI, acct *account, region
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isClosedToNewCustomers(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "b2bi:ListProfiles", acct.ID, region, err)
 			}
@@ -155,6 +181,9 @@ func scanB2BITransformers(ctx context.Context, client b2biAPI, acct *account, re
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isClosedToNewCustomers(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "b2bi:ListTransformers", acct.ID, region, err)
 			}
