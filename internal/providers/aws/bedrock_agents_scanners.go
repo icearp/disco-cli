@@ -422,8 +422,15 @@ func scanBedrockPrompts(ctx context.Context, client bedrockAgentAPI, acct *accou
 	var ids []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
+		// Same persistent-5xx shape as ListFlows in regions where Bedrock
+		// Agents prompts isn't deployed. Clamp + soft-skip.
+		out, perr := pager.NextPage(ctx, func(o *bedrockagent.Options) {
+			o.RetryMaxAttempts = 2
+		})
 		if perr != nil {
+			if isAPIErrorCode(perr, "InternalServerErrorException", "InternalServerException") {
+				return nil, 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrockagent:ListPrompts", acct.ID, region, perr)
 				return nil, 0, 0, nil
