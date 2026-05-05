@@ -412,7 +412,7 @@ func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, regio
 }
 
 func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeCarrierGateways", acct, region, st,
+	total, inserted, err = ec2PageScan(ctx, "ec2:DescribeCarrierGateways", acct, region, st,
 		ec2.NewDescribeCarrierGatewaysPaginator(client, &ec2.DescribeCarrierGatewaysInput{}),
 		func(page *ec2.DescribeCarrierGatewaysOutput) []*store.Resource {
 			var out []*store.Resource
@@ -434,6 +434,12 @@ func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, regi
 			return out
 		},
 	)
+	// Carrier gateways are Wavelength-zone-only; AWS rejects in non-Wavelength
+	// regions with UnsupportedOperation. Silent-skip.
+	if err != nil && isAPIErrorCode(err, "UnsupportedOperation") {
+		return 0, 0, nil
+	}
+	return total, inserted, err
 }
 
 // scanVPCBlockPublicAccessOptions retrieves the account-level VPC block public access

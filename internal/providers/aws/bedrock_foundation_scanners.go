@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
@@ -240,6 +241,11 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// Op not deployed in this region: ValidationException w/
+			// "operation is not recognized".
+			if isAPIErrorCode(perr, "ValidationException") && strings.Contains(perr.Error(), "operation is not recognized") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "bedrock:ListPromptRouters", acct.ID, region, perr)
 				return 0, 0, nil

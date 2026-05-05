@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -51,6 +52,10 @@ func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI
 	for {
 		out, err := client.ListDocumentClassifiers(ctx, &comprehend.ListDocumentClassifiersInput{NextToken: nextToken})
 		if err != nil {
+			// Per-region feature gap shape Comprehend uses.
+			if isAPIErrorCode(err, "InvalidRequestException") && strings.Contains(err.Error(), "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "comprehend:ListDocumentClassifiers", acct.ID, region, err)
 			}

@@ -561,6 +561,12 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 		total += tt
 		inserted += nn
 		if e != nil {
+			// RDS Custom variants are not deployed in every region;
+			// AWS surfaces this as InvalidParameterValue. Skip the
+			// engine silently and continue with the rest.
+			if isAPIErrorCode(e, "InvalidParameterValue") && strings.Contains(e.Error(), "Unrecognized engine name") {
+				continue
+			}
 			return total, inserted, e
 		}
 	}
