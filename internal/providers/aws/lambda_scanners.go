@@ -2,13 +2,18 @@ package aws
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 // lambdaFunctionAttrs wraps the SDK FunctionConfiguration with an enriched
@@ -66,6 +71,7 @@ type lambdaAPI interface {
 	ListLayers(context.Context, *lambda.ListLayersInput, ...func(*lambda.Options)) (*lambda.ListLayersOutput, error)
 	ListLayerVersions(context.Context, *lambda.ListLayerVersionsInput, ...func(*lambda.Options)) (*lambda.ListLayerVersionsOutput, error)
 	GetFunction(context.Context, *lambda.GetFunctionInput, ...func(*lambda.Options)) (*lambda.GetFunctionOutput, error)
+	GetLayerVersionByArn(context.Context, *lambda.GetLayerVersionByArnInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionByArnOutput, error)
 	GetPolicy(context.Context, *lambda.GetPolicyInput, ...func(*lambda.Options)) (*lambda.GetPolicyOutput, error)
 	GetLayerVersionPolicy(context.Context, *lambda.GetLayerVersionPolicyInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionPolicyOutput, error)
 }
@@ -115,6 +121,7 @@ func scanLambda(ctx context.Context, acct *account, region string, st *store.Sto
 		scanLambdaEventSourceMappings,
 		scanLambdaLayerVersions,
 		scanLambdaLayerVersionPermissions,
+		scanLambdaForeignLayers,
 	} {
 		tt, nn, err := scan(ctx, client, acct, region, st, scanID)
 		if err != nil {
@@ -543,4 +550,104 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 		}
 	}
 	return
+}
+
+// scanLambdaForeignLayers enriches the layer-version coverage with rows for
+// AWS-managed (or otherwise cross-account) layers that customer functions
+// reference via Layers[].Arn. ListLayers only returns caller-account
+// layers, so without this phase those references would FK-fail in
+// resolveLambdaLayerRelationships. Each foreign layer is upserted with
+// ManagedByProvider=true so it stays hidden from default `disco list` /
+// `disco graph`.
+func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	// Read the function rows the function-scanner just upserted (this
+	// region only — region match guards against cross-region duplicate
+	// fan-out when scanning multiple regions).
+	rfilter := store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
+		Regions: []string{region}, Limit: util.AllResources,
+	}
+	fns, err := st.ListResources(rfilter)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list lambda functions for foreign-layer scan: %w", err)
+	}
+	// Dedupe foreign-acct layer ARNs across all functions in this region.
+	pending := make(map[string]struct{})
+	for _, r := range fns {
+		var attrs struct {
+			Layers []struct {
+				Arn *string `json:"Arn"`
+			} `json:"Layers"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		for _, layer := range attrs.Layers {
+			arn := sv(layer.Arn)
+			if arn == "" || !lambdaLayerIsForeign(arn, acct.ID) {
+				continue
+			}
+			pending[arn] = struct{}{}
+		}
+	}
+	if len(pending) == 0 {
+		return 0, 0, nil
+	}
+	// Fan-out GetLayerVersionByArn at fanoutMed. Per-call AccessDenied /
+	// ResourceNotFoundException tolerated — those ARNs simply don't get
+	// upserted and the resolver's FK-safe check skips the edge.
+	sem := semaphore.NewWeighted(fanoutMed)
+	var (
+		mu    sync.Mutex
+		batch []*store.Resource
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	for arn := range pending {
+		if err := sem.Acquire(gctx, 1); err != nil {
+			return 0, 0, err
+		}
+		layerARN := arn
+		g.Go(func() error {
+			defer sem.Release(1)
+			out, gerr := client.GetLayerVersionByArn(gctx, &lambda.GetLayerVersionByArnInput{Arn: &layerARN})
+			if gerr != nil {
+				if isAccessDenied(gerr) || isAPIErrorCode(gerr, "ResourceNotFoundException") {
+					return nil
+				}
+				return fmt.Errorf("lambda:GetLayerVersionByArn %s: %w", layerARN, gerr)
+			}
+			parts := strings.Split(layerARN, ":")
+			if len(parts) < 8 {
+				return nil
+			}
+			layerRegion := parts[3]
+			name := parts[6] + ":" + parts[7]
+			mu.Lock()
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLambdaLayerVersion, NativeID: layerARN,
+				Name: &name, Region: &layerRegion,
+				AttributesJSON:    mustJSON(out),
+				ManagedByProvider: true,
+				DiscoveredBy:      scanID,
+			})
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return 0, 0, err
+	}
+	return upsertBatch(st, batch, "lambda foreign layer-versions")
+}
+
+// lambdaLayerIsForeign reports whether a layer ARN's owner-account differs
+// from the caller account. Layer ARN shape:
+// arn:aws:lambda:{region}:{ownerAcct}:layer:{name}:{version}.
+func lambdaLayerIsForeign(arn, callerAcct string) bool {
+	parts := strings.Split(arn, ":")
+	if len(parts) < 8 {
+		return false
+	}
+	return parts[4] != callerAcct
 }

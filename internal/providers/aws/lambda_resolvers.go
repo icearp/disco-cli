@@ -527,12 +527,20 @@ func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store)
 
 // resolveLambdaLayerRelationships links each function to the layer versions it
 // uses. Layer ARNs are extracted from the Layers array in the function's
-// AttributesJSON.
+// AttributesJSON. FK-safe via id-set lookup — functions referencing
+// AWS-managed / cross-account layers that have not been scanned (scanner
+// only enumerates caller-account layers via ListLayers, plus foreign-acct
+// layers reached through scanLambdaForeignLayers) silently skip the edge
+// rather than blowing the FK on UpsertRelationship.
 func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
 		Limit: util.AllResources,
 	})
+	if err != nil {
+		return err
+	}
+	layerSet, err := scannedIDSet(acct, st, TypeLambdaLayerVersion)
 	if err != nil {
 		return err
 	}
@@ -551,6 +559,9 @@ func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 				continue
 			}
 			layerID := store.ResourceID("aws", acct.ID, TypeLambdaLayerVersion, layerARN)
+			if !layerSet[layerID] {
+				continue
+			}
 			if err := st.UpsertRelationship(r.ID, layerID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lambda function→layer-version: %w", err)
 			}

@@ -320,6 +320,33 @@ func TestResolveLambdaLayerRelationships(t *testing.T) {
 	assertRelationship(t, rels, fnID, layerID, store.RelUses)
 }
 
+// TestResolveLambdaLayerRelationships_FKSafe verifies that a function
+// referencing an unscanned (e.g. AWS-managed, foreign-account) layer ARN
+// emits no edge and returns no error. Regression guard for the FK
+// constraint failure that occurs when a function uses a layer not
+// returned by ListLayers in the caller account.
+func TestResolveLambdaLayerRelationships_FKSafe(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	// Layer in a different (AWS-managed) account, never scanned.
+	foreignLayer := "arn:aws:lambda:us-east-1:017000801446:layer:AWSAppConfigExtension:97"
+	attrsJSON := fmt.Sprintf(`{"Layers":[{"Arn":%q}]}`, foreignLayer)
+
+	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, baseFnARN+"-foreignlayer", testRegion, attrsJSON)
+
+	if err := resolveLambdaLayerRelationships(acct, st); err != nil {
+		t.Fatalf("resolveLambdaLayerRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(fnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected 0 relationships (foreign layer unscanned), got %d", len(rels))
+	}
+}
+
 // TestResolveLambdaLayerRelationships_NoLayers verifies that a function without
 // layers produces no relationships and no error.
 func TestResolveLambdaLayerRelationships_NoLayers(t *testing.T) {
