@@ -81,6 +81,9 @@ func startOrResumeScan(db *store.Store, resumeFlag string, providers []string) (
 // records a scan row, runs all scanners in parallel, then marks the scan
 // complete or failed.
 func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
+	if dbReadOnly {
+		return fmt.Errorf("--db-readonly: scan cannot run in read-only mode")
+	}
 	if len(scanners) == 0 {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No providers registered — nothing to scan.")
 		return nil

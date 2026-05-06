@@ -408,6 +408,57 @@ func TestListCmd_LimitWarnsOnTruncation(t *testing.T) {
 	}
 }
 
+// TestScan_RejectedUnderReadOnly guards F20: scan refuses to run when the
+// global --db-readonly flag is set, before opening anything.
+func TestScan_RejectedUnderReadOnly(t *testing.T) {
+	dbReadOnly = true
+	t.Cleanup(func() { dbReadOnly = false })
+
+	err := runScan(scanCmd, nil)
+	if err == nil {
+		t.Fatalf("want error from runScan under --db-readonly")
+	}
+	if !strings.Contains(err.Error(), "--db-readonly") {
+		t.Errorf("want db-readonly message, got: %v", err)
+	}
+}
+
+// TestListCmd_DBReadOnly guards F20: --db-readonly opens RO and reads OK.
+func TestListCmd_DBReadOnly(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+		NativeID: "vol-ro", AttributesJSON: "{}", DiscoveredBy: scanID,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	_ = st.Close()
+
+	resetListFlags()
+	dbReadOnly = true
+	t.Cleanup(func() { dbReadOnly = false })
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list under --db-readonly: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Errorf("want 1 row, got %d", len(rows))
+	}
+}
+
 // TestRoot_BannerSuppressedByDefault guards F18: the "Using config file:"
 // banner must not contaminate stderr on default invocations.
 func TestRoot_BannerSuppressedByDefault(t *testing.T) {

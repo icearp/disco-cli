@@ -70,7 +70,7 @@ Examples:
 		if len(args) == 0 {
 			return cmd.Help()
 		}
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}
@@ -118,7 +118,7 @@ within the configured constraints.`,
 				maybeStructuredError(graphOutputFmt, rerr)
 			}
 		}()
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}
@@ -181,7 +181,7 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}
@@ -269,7 +269,7 @@ work as for the seeded subcommands.`,
 	Args: cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}

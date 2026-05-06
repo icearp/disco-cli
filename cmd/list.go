@@ -69,7 +69,7 @@ Examples:
   disco list --tag-key env --tag-value production -o json`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(listOutputFmt, rerr) }()
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}

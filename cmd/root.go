@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	cfgFile string
-	verbose bool
+	cfgFile    string
+	verbose    bool
+	dbReadOnly bool
 )
 
 // Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
@@ -64,6 +65,8 @@ func init() {
 	// (InitDefaultVersionFlag skips -v when the shorthand is already taken).
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
 		"print diagnostic banners (config file path, etc.) on stderr")
+	rootCmd.PersistentFlags().BoolVar(&dbReadOnly, "db-readonly", false,
+		"open the local DB read-only; rejects scan and any write path")
 	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,70 @@ func openTestStore(t *testing.T) *Store {
 
 // sp returns a pointer to the given string.
 func sp(s string) *string { return &s }
+
+// TestOpenReadOnly_Reads guards F20: read-only mode opens a populated DB
+// and surfaces existing rows via the normal query path.
+func TestOpenReadOnly_Reads(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "ro.db")
+	st, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+		t.Fatalf("insert scan: %v", err)
+	}
+	if _, err := st.UpsertResource(&Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
+		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	_ = st.Close()
+
+	ro, err := OpenReadOnly(dbPath)
+	if err != nil {
+		t.Fatalf("OpenReadOnly: %v", err)
+	}
+	t.Cleanup(func() { _ = ro.Close() })
+	rows, err := ro.ListResources(ResourceFilter{IncludeManaged: true, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("want 1 row from RO store, got %d", len(rows))
+	}
+}
+
+// TestOpenReadOnly_RejectsWrite proves the structural guarantee — any write
+// through a read-only store hits SQLite's "readonly database" error.
+func TestOpenReadOnly_RejectsWrite(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "ro.db")
+	st, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := st.db.Exec(`INSERT INTO scans (id, started_at, status, providers, scope) VALUES (?, datetime('now'), 'running', '["test"]', '{}')`, testScanID); err != nil {
+		t.Fatalf("insert scan: %v", err)
+	}
+	_ = st.Close()
+
+	ro, err := OpenReadOnly(dbPath)
+	if err != nil {
+		t.Fatalf("OpenReadOnly: %v", err)
+	}
+	t.Cleanup(func() { _ = ro.Close() })
+
+	_, err = ro.UpsertResource(&Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
+		NativeID: "b-1", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	})
+	if err == nil {
+		t.Fatalf("write succeeded against RO store; want failure")
+	}
+	if !strings.Contains(err.Error(), "readonly") {
+		t.Errorf("want readonly error, got: %v", err)
+	}
+}
 
 // --- Scan lifecycle tests ---
 

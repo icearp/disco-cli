@@ -159,6 +159,28 @@ func Open(path string) (*Store, error) {
 	return s, nil
 }
 
+// OpenReadOnly opens the SQLite database at path with SQLITE_OPEN_READONLY.
+// Skips migrate (schema is whatever's on disk) and skips chmod (caller owns
+// the file). Any write path will fail at SQLite layer with "attempt to
+// write a readonly database" — structural enforcement of the auditor /
+// pipeline-handoff contract.
+func OpenReadOnly(path string) (*Store, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("open db: %w", err)
+	}
+	uri := "file:" + path + "?mode=ro"
+	db, err := sqlx.Open("sqlite", uri)
+	if err != nil {
+		return nil, fmt.Errorf("open db (readonly): %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	if err := applyPragmas(db.DB); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return &Store{db: db}, nil
+}
+
 // Close closes the underlying database connection.
 func (s *Store) Close() error {
 	return s.db.Close()

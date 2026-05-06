@@ -32,7 +32,7 @@ Examples:
 		if err := license.Require(); err != nil {
 			return err
 		}
-		db, err := store.Open(defaultDBPath())
+		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}

@@ -27,6 +27,16 @@ func maybeStructuredError(format string, err error) {
 	}
 }
 
+// openDB opens the local DB, honoring the global --db-readonly flag.
+// Read commands (list / graph / check / coverage / diff) call this; scan
+// opens directly via store.Open after rejecting --db-readonly up-front.
+func openDB() (*store.Store, error) {
+	if dbReadOnly {
+		return store.OpenReadOnly(defaultDBPath())
+	}
+	return store.Open(defaultDBPath())
+}
+
 // loadAllResourcesPaged paginates ListResources and returns every row
 // matching base. Callers set IncludeManaged + filter fields on base; this
 // helper overrides Limit + Offset to walk the full table. Mirrors the
