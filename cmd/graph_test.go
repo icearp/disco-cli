@@ -284,6 +284,38 @@ func TestGraphBlast_NoFallbackWhenOutboundExists(t *testing.T) {
 	}
 }
 
+// TestGraphBlast_JSONErrorEnvelope guards F19: when -o json fails to
+// resolve a seed, stdout must carry a parseable {"error": "..."} envelope
+// rather than empty bytes that break downstream `jq` pipelines.
+func TestGraphBlast_JSONErrorEnvelope(t *testing.T) {
+	seedTestDB(t)
+	resetGraphFlags()
+
+	var execErr error
+	stdoutCap, _ := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"graph", "blast", "i-bogusseed", "-o", "json"})
+		execErr = cmd.Execute()
+		return nil
+	})
+	if execErr == nil {
+		t.Fatalf("want non-nil error from Execute, got nil")
+	}
+	if !strings.Contains(execErr.Error(), "i-bogusseed") {
+		t.Errorf("want plaintext message in returned err, got %q", execErr)
+	}
+	if stdoutCap == "" {
+		t.Fatalf("want JSON envelope on stdout, got empty")
+	}
+	var env map[string]string
+	if err := json.Unmarshal([]byte(stdoutCap), &env); err != nil {
+		t.Fatalf("stdout not parseable JSON: %v\n%s", err, stdoutCap)
+	}
+	if env["error"] == "" {
+		t.Errorf("want non-empty error key, got %v", env)
+	}
+}
+
 // TestGraphCmd_Mermaid verifies the mermaid renderer emits a flowchart with
 // node lines and an edge between the two seeded nodes.
 func TestGraphCmd_Mermaid(t *testing.T) {

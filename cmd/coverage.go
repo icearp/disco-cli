@@ -64,12 +64,13 @@ func init() {
 	rootCmd.AddCommand(coverageCmd)
 }
 
-func runCoverage(cmd *cobra.Command, _ []string) error {
+func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	provName, _ := cmd.Flags().GetString("provider")
 	region, _ := cmd.Flags().GetString("region")
 	profile, _ := cmd.Flags().GetString("profile")
 	subscription, _ := cmd.Flags().GetString("subscription")
 	outputFmt, _ := cmd.Flags().GetString("output")
+	defer func() { maybeStructuredError(outputFmt, rerr) }()
 	filter, _ := cmd.Flags().GetString("filter")
 	services, _ := cmd.Flags().GetStringSlice("services")
 	timeout, _ := cmd.Flags().GetDuration("timeout")

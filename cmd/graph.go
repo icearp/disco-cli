@@ -65,7 +65,8 @@ Examples:
   disco graph my-bucket-name --type aws:s3:bucket
   disco graph <32-hex-id> --kinds contains,attached-to -o dot | dot -Tpng > g.png`,
 	Args: cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
+		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
 		if len(args) == 0 {
 			return cmd.Help()
 		}
@@ -108,7 +109,15 @@ BFS over relationships. Honors --kinds / --direction / --exclude-types /
 Returns exit code 1 (with no output) if the two resources are not connected
 within the configured constraints.`,
 	Args: cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
+		defer func() {
+			// Skip structured envelope on ErrNoPath: empty stdout + exit 1
+			// is the documented contract for "no path", and pipelines key
+			// off exit code rather than parsing a result document.
+			if !errors.Is(rerr, store.ErrNoPath) {
+				maybeStructuredError(graphOutputFmt, rerr)
+			}
+		}()
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
@@ -170,7 +179,8 @@ explicitly to disable the fallback.
 
 Caps via --max-nodes / --max-edges report truncation to stderr.`,
 	Args: cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
+		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
@@ -257,7 +267,8 @@ drop out by default. Pass --include-managed to keep them all.
 filter flags (--exclude-types, --exclude-regions, --max-nodes, --max-edges)
 work as for the seeded subcommands.`,
 	Args: cobra.NoArgs,
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
+		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
 		db, err := store.Open(defaultDBPath())
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)

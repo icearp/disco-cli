@@ -46,7 +46,8 @@ Examples:
   disco check --rules ./policies --severity high -o jsonl
   disco check --rules ./policies -o sarif > findings.sarif
   disco check --rules ./policies --exit-nonzero`,
-	RunE: func(cmd *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) (rerr error) {
+		defer func() { maybeStructuredError(checkOutputFmt, rerr) }()
 		if len(checkRulePaths) == 0 {
 			return fmt.Errorf("--rules is required (path to .rego file or directory)")
 		}

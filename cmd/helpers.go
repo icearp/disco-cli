@@ -1,12 +1,31 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 
 	"codeberg.org/icearp/disco/internal/store"
 )
+
+// maybeStructuredError emits a JSON error envelope to stdout when the caller's
+// selected output format is structured (json/jsonl). Lets pipelines such as
+// `disco ... -o json | jq` see a parseable signal on failure rather than
+// empty stdout. Stderr message + exit code unchanged — call this from a
+// deferred wrapper in RunE; cmd/root.go still prints err to stderr.
+func maybeStructuredError(format string, err error) {
+	if err == nil {
+		return
+	}
+	switch format {
+	case "json", "jsonl":
+		_ = json.NewEncoder(os.Stdout).Encode(struct {
+			Err string `json:"error"`
+		}{err.Error()})
+	}
+}
 
 // loadAllResourcesPaged paginates ListResources and returns every row
 // matching base. Callers set IncludeManaged + filter fields on base; this
