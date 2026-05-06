@@ -94,6 +94,7 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 - Paid commands: first line of `RunE` must be `if err := license.Require(); err != nil { return err }`. Canonical shape: `cmd/diff_paid.go`.
 - Bug fixes / new free features: edit untagged files normally — flow downstream to OSS via next `make oss-sync`.
 - Paid-only docs: name `*_paid.md` — excluded by `scripts/oss-sync.sh` name pattern. Canonical: `ROADMAP_paid.md`. Do not cross-reference from OSS-tracked files.
+- Rubric for new features: ship in OSS unless ALL of (a) proprietary algorithm or IP worth gating, (b) external service dependency, (c) clear competitive differentiator, (d) richer paid-tier version planned. Trivially-reproducible-via-existing-flags features (`list -o json | jq` equivalents like F13 tag-coverage) always go OSS — gating buys nothing.
 
 ### Verifying paid-only deps don't leak
 
