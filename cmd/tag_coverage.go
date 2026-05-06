@@ -18,6 +18,7 @@ var (
 	tagCovType           string
 	tagCovExcludeTypes   []string
 	tagCovRegion         string
+	tagCovScanID         string
 	tagCovOutputFmt      string
 	tagCovIncludeManaged bool
 )
@@ -58,11 +59,16 @@ Examples:
 			regions = []string{tagCovRegion}
 		}
 
+		scanID, err := resolveScanID(db, tagCovScanID)
+		if err != nil {
+			return err
+		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
 			Provider:       tagCovProvider,
 			Types:          types,
 			ExcludeTypes:   tagCovExcludeTypes,
 			Regions:        regions,
+			DiscoveredBy:   scanID,
 			IncludeManaged: tagCovIncludeManaged,
 		})
 		if err != nil {
@@ -160,6 +166,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
 	tagCoverageCmd.Flags().StringVarP(&tagCovType, "type", "t", "", "Filter by resource type")
 	tagCoverageCmd.Flags().StringSliceVar(&tagCovExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from the denominator")
+	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

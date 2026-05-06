@@ -17,6 +17,7 @@ var (
 	summaryProvider       string
 	summaryRegion         string
 	summaryExcludeTypes   []string
+	summaryScanID         string
 	summaryOutputFmt      string
 	summaryTopTypes       int
 	summaryIncludeManaged bool
@@ -60,6 +61,10 @@ Examples:
 		}
 		defer func() { _ = db.Close() }()
 
+		scanID, err := resolveScanID(db, summaryScanID)
+		if err != nil {
+			return err
+		}
 		var regions []string
 		if summaryRegion != "" {
 			regions = []string{summaryRegion}
@@ -68,6 +73,7 @@ Examples:
 			Provider:       summaryProvider,
 			ExcludeTypes:   summaryExcludeTypes,
 			Regions:        regions,
+			DiscoveredBy:   scanID,
 			IncludeManaged: summaryIncludeManaged,
 		})
 		if err != nil {
@@ -253,6 +259,7 @@ func init() {
 	summaryCmd.Flags().StringVarP(&summaryProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
 	summaryCmd.Flags().StringVarP(&summaryRegion, "region", "r", "", "Filter by region")
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
+	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

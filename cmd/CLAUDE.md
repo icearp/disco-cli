@@ -69,6 +69,16 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `store.Resource.MarshalJSON` is the single source of truth — emits snake_case keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access.
 
+## `PersistentFlags` on parent cobra cmd inherits to subcommands
+
+`scansCmd.PersistentFlags().StringVarP(&scansOutputFmt, "output", "o", ...)` makes `-o` available on both `disco scans` and `disco scans show` with one declaration. Use for shared flags on multi-subcommand verbs (`scans`, future `snapshot`, etc.); plain `Flags()` would require duplicate plumbing.
+
+## `--scan-id` + `latest` shorthand via `resolveScanID`
+
+`list`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to `ListScans()[0].ID` — the most-recent scan. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy` so the filter applies at SQL layer (denominators drop, not display masking). `scan --resume <id|latest>` uses the same shorthand convention.
+
+`ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `datetime('now')` has 1s resolution — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
+
 ## seedTestDB ships with 2 baseline rows
 
 `seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.

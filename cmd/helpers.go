@@ -58,6 +58,29 @@ func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.
 	}
 }
 
+// resolveScanID expands the `latest` shorthand to the most-recent scan's
+// ID; literal IDs pass through unchanged after a presence check. Used by
+// list / summary / tag-coverage / scans show — auditor-facing surface.
+func resolveScanID(db *store.Store, raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	if raw == "latest" {
+		scans, err := db.ListScans()
+		if err != nil {
+			return "", fmt.Errorf("list scans: %w", err)
+		}
+		if len(scans) == 0 {
+			return "", fmt.Errorf("no scans recorded; --scan-id latest has nothing to resolve")
+		}
+		return scans[0].ID, nil
+	}
+	if _, err := db.GetScan(raw); err != nil {
+		return "", fmt.Errorf("scan %q not found", raw)
+	}
+	return raw, nil
+}
+
 // ptrOrDash returns the pointed-to string, or "-" if the pointer is nil.
 // Shared by list/diff/graph/check table renderers so missing optional
 // fields render uniformly.

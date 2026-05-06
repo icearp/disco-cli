@@ -88,6 +88,10 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 `CreateScan` uses `datetime('now')` which returns `YYYY-MM-DD HH:MM:SS` (space-separated, UTC, no `T`/`Z`). Don't assume RFC3339-parseable; consumers needing `time.Time` must `time.Parse("2006-01-02 15:04:05", s)`.
 
+## `scans.resource_count` = totalSeen, not totalNew
+
+`CompleteScan` / `PartialScan` persist the count of rows the scan upserted (every row visited, including pre-existing). The insert-only `totalNew` value (return of `UpsertResources`) is printed at scan-end stdout but not persisted. Drift between scans is `disco diff`'s job, not a column on `scans`. Don't re-derive "what changed" from `resource_count` deltas.
+
 ## Denylist filters via `sq.NotEq`
 
 `squirrel.NotEq{"col": []string{...}}` emits `col NOT IN (?, ?, ...)`. Mirror of `sq.Eq` allowlist; use for any new exclude-X filter on `ResourceFilter` rather than hand-rolled OR-NOT chains. Precedent: `ExcludeTypes` (resources.go).

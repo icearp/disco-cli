@@ -115,9 +115,24 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	return &sc, nil
 }
 
-// ListScans returns all scans ordered by start time descending.
+// ListScans returns all scans ordered by start time descending. Providers
+// is decoded per row so callers can render the slice without a follow-up
+// GetScan fan-out.
 func (s *Store) ListScans() ([]Scan, error) {
 	var scans []Scan
-	err := s.db.Select(&scans, "SELECT * FROM scans ORDER BY started_at DESC")
-	return scans, err
+	// Tie-break by rowid so two scans created within the same SQLite-second
+	// (datetime('now') has 1s resolution) order deterministically: newer
+	// rowid wins. Required by `disco scans show latest` consumers.
+	if err := s.db.Select(&scans, "SELECT * FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
+		return nil, err
+	}
+	for i := range scans {
+		if scans[i].ProvidersJSON == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(scans[i].ProvidersJSON), &scans[i].Providers); err != nil {
+			return nil, fmt.Errorf("unmarshal providers for scan %s: %w", scans[i].ID, err)
+		}
+	}
+	return scans, nil
 }

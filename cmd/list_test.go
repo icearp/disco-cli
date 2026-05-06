@@ -319,6 +319,7 @@ func resetListFlags() {
 	listStatus = ""
 	listTagKey = ""
 	listTagValue = ""
+	listScanID = ""
 	listOutputFmt = ""
 	listLimit = 0
 	listIncludeManaged = false
@@ -571,10 +572,75 @@ func TestListCmd_ExcludeTypes(t *testing.T) {
 	}
 }
 
+// TestListCmd_ScanID seeds two distinct scan runs with rows under each, then
+// asserts --scan-id returns only that run's rows. Also exercises the
+// 'latest' shorthand and the unknown-id error path.
+func TestListCmd_ScanID(t *testing.T) {
+	st := seedTestDB(t) // baseline scan + 2 rows
+	scanB, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	if _, err := st.UpsertResources([]*store.Resource{
+		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-B",
+			AttributesJSON: "{}", DiscoveredBy: scanB},
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	// scanB is the most-recent scan; --scan-id latest should resolve to it
+	// and return only the one row inserted under it.
+	resetListFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--scan-id", "latest", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list latest: %v", err)
+	}
+	var rows []store.Resource
+	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if len(rows) != 1 || rows[0].NativeID != "vpc-B" {
+		t.Errorf("--scan-id latest: got %d rows %+v, want 1 vpc-B", len(rows), rows)
+	}
+
+	// Explicit literal scan ID round-trip.
+	resetListFlags()
+	out, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--scan-id", scanB, "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list literal: %v", err)
+	}
+	rows = nil
+	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
+		t.Fatalf("not JSON: %v", jerr)
+	}
+	if len(rows) != 1 {
+		t.Errorf("literal id: got %d rows, want 1", len(rows))
+	}
+
+	// Unknown id rejects.
+	resetListFlags()
+	_, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--scan-id", "deadbeef"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Errorf("unknown id: want 'not found', got %v", err)
+	}
+}
+
 // TestListCmd_UnknownFormat verifies the unknown --output format error path.
 func TestListCmd_UnknownFormat(t *testing.T) {
 	seedTestDB(t)
-	listOutputFmt = ""
+	resetListFlags()
 
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd

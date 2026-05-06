@@ -15,6 +15,8 @@ import (
 // tag-coverage tests; required because rootCmd is shared.
 func resetTagCoverageFlags() {
 	tagCovProvider, tagCovType, tagCovRegion = "", "", ""
+	tagCovExcludeTypes = nil
+	tagCovScanID = ""
 	tagCovOutputFmt = ""
 	tagCovIncludeManaged = false
 }

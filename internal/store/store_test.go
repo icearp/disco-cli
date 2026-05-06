@@ -129,6 +129,33 @@ func TestPartialScan(t *testing.T) {
 	}
 }
 
+// TestListScans_Providers asserts ListScans unmarshals ProvidersJSON into
+// the Providers slice for every returned row — auditor-facing rendering
+// reads the slice directly without a follow-up GetScan call.
+func TestListScans_Providers(t *testing.T) {
+	st := openTestStore(t)
+	if _, err := st.CreateScan([]string{"aws", "gcp"}, map[string]any{}); err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	scans, err := st.ListScans()
+	if err != nil {
+		t.Fatalf("ListScans: %v", err)
+	}
+	if len(scans) == 0 {
+		t.Fatal("want at least 1 scan, got 0")
+	}
+	found := false
+	for _, sc := range scans {
+		if len(sc.Providers) == 2 && sc.Providers[0] == "aws" && sc.Providers[1] == "gcp" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("no scan with providers [aws gcp] found: %+v", scans)
+	}
+}
+
 // --- ResourceID tests ---
 
 // TestResourceID_Algorithm verifies the exact hashing formula used by ResourceID.

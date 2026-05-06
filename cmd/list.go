@@ -53,6 +53,7 @@ var (
 	listStatus         string
 	listTagKey         string
 	listTagValue       string
+	listScanID         string
 	listOutputFmt      string
 	listLimit          uint64
 	listIncludeManaged bool
@@ -76,6 +77,11 @@ Examples:
 		}
 		defer func() { _ = db.Close() }()
 
+		scanID, err := resolveScanID(db, listScanID)
+		if err != nil {
+			return err
+		}
+
 		var types []string
 		if listType != "" {
 			types = []string{listType}
@@ -93,6 +99,7 @@ Examples:
 			Status:         listStatus,
 			TagKey:         listTagKey,
 			TagValue:       listTagValue,
+			DiscoveredBy:   scanID,
 			Limit:          listLimit,
 			IncludeManaged: listIncludeManaged,
 		}
@@ -163,6 +170,7 @@ func init() {
 	listCmd.Flags().StringVarP(&listProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
+	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")
