@@ -41,6 +41,15 @@ AWS-managed IAM policies and Azure built-in role definitions) is evaluated.
 The resource count is printed to stderr; -o json|jsonl|sarif stdout stays
 clean for piping.
 
+Input contract: each policy is evaluated once per resource. The input
+document carries snake_case keys:
+  id, provider, account_id, account_name, type, native_id, name,
+  region, zone, status, tags (object), attributes (parsed object),
+  created_at, discovered_at, discovered_by, verified_at, verified_by,
+  managed_by_provider.
+Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.verified_at)
+for freshness-bound controls.
+
 Examples:
   disco check --rules ./policies
   disco check --rules ./policies --severity high -o jsonl

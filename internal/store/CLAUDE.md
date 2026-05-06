@@ -75,3 +75,5 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-lo
 ## Wire shape ≠ storage shape
 
 `Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under snake_case keys (`native_id`, `account_id`, ...). Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. New JSON encoders should emit `[]Resource` directly — no per-call shape massaging.
+
+Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `listColumns`/`resourceRow` in `cmd/list.go` for CSV. Skipping (2) silently hides the field from every Rego rule.

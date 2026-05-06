@@ -99,9 +99,10 @@ func (e *Engine) Evaluate(ctx context.Context, resources []store.Resource) ([]Fi
 	return out, nil
 }
 
-// resourceToInput builds the Rego input document. AttributesJSON decodes
-// into a nested object so policies can write `input.attributes.Encrypted`
-// rather than re-parsing the string.
+// resourceToInput builds the Rego input document. AttributesJSON / TagsJSON
+// decode into nested objects so policies can write `input.attributes.Encrypted`
+// or `input.tags.env`. Custody timestamps + scan-run IDs surface so policies
+// can express freshness-bound controls (`time.parse_rfc3339_ns(input.verified_at)`).
 func resourceToInput(r *store.Resource) (map[string]any, error) {
 	var attrs any
 	if r.AttributesJSON != "" {
@@ -109,16 +110,34 @@ func resourceToInput(r *store.Resource) (map[string]any, error) {
 			attrs = r.AttributesJSON
 		}
 	}
+	var tags any = map[string]any{}
+	if r.TagsJSON != nil && *r.TagsJSON != "" {
+		var parsed any
+		if err := json.Unmarshal([]byte(*r.TagsJSON), &parsed); err == nil {
+			tags = parsed
+		} else {
+			tags = *r.TagsJSON
+		}
+	}
 	return map[string]any{
-		"id":         r.ID,
-		"provider":   r.Provider,
-		"account_id": r.AccountID,
-		"type":       r.Type,
-		"native_id":  r.NativeID,
-		"name":       derefOrEmpty(r.Name),
-		"region":     derefOrEmpty(r.Region),
-		"status":     derefOrEmpty(r.Status),
-		"attributes": attrs,
+		"id":                  r.ID,
+		"provider":            r.Provider,
+		"account_id":          r.AccountID,
+		"account_name":        derefOrEmpty(r.AccountName),
+		"type":                r.Type,
+		"native_id":           r.NativeID,
+		"name":                derefOrEmpty(r.Name),
+		"region":              derefOrEmpty(r.Region),
+		"zone":                derefOrEmpty(r.Zone),
+		"status":              derefOrEmpty(r.Status),
+		"tags":                tags,
+		"attributes":          attrs,
+		"created_at":          derefOrEmpty(r.CreatedAt),
+		"discovered_at":       r.DiscoveredAt,
+		"discovered_by":       r.DiscoveredBy,
+		"verified_at":         derefOrEmpty(r.VerifiedAt),
+		"verified_by":         derefOrEmpty(r.VerifiedBy),
+		"managed_by_provider": r.ManagedByProvider,
 	}, nil
 }
 
