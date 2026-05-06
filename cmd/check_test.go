@@ -156,6 +156,19 @@ func TestCheckCmd_SARIF(t *testing.T) {
 	if r.Locations[0].LogicalLocations[0].FullyQualifiedName == "" {
 		t.Errorf("logicalLocation.fullyQualifiedName empty")
 	}
+	// F8: tool.driver.version must agree with cmd.Version (single source).
+	if run.Tool.Driver.Version != Version {
+		t.Errorf("driver.version: got %q, want %q (must match cmd.Version)",
+			run.Tool.Driver.Version, Version)
+	}
+}
+
+// TestDiscoVersion_DefaultDev pins the no-ldflag fallback. Tests run without
+// the Makefile -X stamp, so the default "dev" must surface.
+func TestDiscoVersion_DefaultDev(t *testing.T) {
+	if discoVersion() != "dev" {
+		t.Errorf("discoVersion() = %q, want dev (no ldflag in test build)", discoVersion())
+	}
 }
 
 // TestCheckCmd_SARIF_Empty asserts an empty-findings run still produces a

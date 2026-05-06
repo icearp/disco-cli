@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"io"
-	"runtime/debug"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/policy"
@@ -170,13 +169,9 @@ func findingToSARIFResult(f policy.Finding, ruleIndex map[string]int) sarifResul
 	return res
 }
 
-// discoVersion reads the module version baked in by `go build`. Falls back
-// to "dev" for `go run` / unbuilt test binaries where BuildInfo is absent
-// or carries the placeholder "(devel)".
+// discoVersion returns the build-time version stamped into cmd.Version via
+// `-X cmd.Version=<git-describe>` ldflag (Makefile owns the stamp). Falls
+// through to "dev" for plain `go build .` invocations and tests.
 func discoVersion() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok || info.Main.Version == "" || info.Main.Version == "(devel)" {
-		return "dev"
-	}
-	return info.Main.Version
+	return Version
 }

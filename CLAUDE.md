@@ -37,6 +37,8 @@ golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 gofmt -w .
 ```
 
+Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag. Plain `go build .` falls back to `dev`. SARIF `tool.driver.version` and `disco --version` both read `cmd.Version` — keep them aligned.
+
 ## Architecture
 
 `disco` = cloud resource discovery CLI (cobra + viper). Scan AWS accounts, Azure subs/resource groups, GCP orgs/folders. Resolve + store resource relationships in local SQLite.
