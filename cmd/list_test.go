@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -49,21 +50,44 @@ func seedTestDB(t *testing.T) *store.Store {
 }
 
 // captureStdout replaces os.Stdout for the duration of fn and returns what
-// was written. Needed because the list/diff commands write directly to
-// os.Stdout rather than cmd.OutOrStdout — a limitation the tests expose.
+// was written. Drains the pipe concurrently — without that, output larger
+// than the kernel pipe buffer (~64KB) deadlocks the writer.
 func captureStdout(t *testing.T, fn func() error) (string, error) {
 	t.Helper()
-	orig := os.Stdout
+	return capturePipe(t, &os.Stdout, fn)
+}
+
+// captureStderr mirrors captureStdout for os.Stderr — used to assert on
+// telemetry/warning lines (e.g. list's truncation warning) that must not
+// pollute -o json|jsonl|sarif stdout pipelines.
+func captureStderr(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	return capturePipe(t, &os.Stderr, fn)
+}
+
+// capturePipe swaps *target with a pipe, drains it in a goroutine for the
+// duration of fn, then restores. The concurrent drain avoids a deadlock
+// when fn writes more than the pipe buffer's worth of data.
+func capturePipe(t *testing.T, target **os.File, fn func() error) (string, error) {
+	t.Helper()
+	orig := *target
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("pipe: %v", err)
 	}
-	os.Stdout = w
+	*target = w
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
 	runErr := fn()
 	_ = w.Close()
-	os.Stdout = orig
-	b, _ := io.ReadAll(r)
-	return string(b), runErr
+	<-done
+	*target = orig
+	_ = r.Close()
+	return buf.String(), runErr
 }
 
 // TestListCmd_JSON verifies that --output json emits a valid JSON array of
@@ -142,6 +166,105 @@ func TestListCmd_JSONL(t *testing.T) {
 		if err := json.Unmarshal([]byte(line), &r); err != nil {
 			t.Errorf("line %d not valid JSON: %v", i, err)
 		}
+	}
+}
+
+// resetListFlags returns package-level list flag vars to defaults — cobra
+// leaks them across tests because rootCmd is shared.
+func resetListFlags() {
+	listProvider = ""
+	listType = ""
+	listRegion = ""
+	listStatus = ""
+	listTagKey = ""
+	listTagValue = ""
+	listOutputFmt = ""
+	listLimit = 0
+	listIncludeManaged = false
+}
+
+// TestListCmd_DefaultReturnsAll guards against silent 500-row truncation.
+// Seeds 600+ rows (well above the historical default cap) and asserts the
+// no-flag invocation returns every row.
+func TestListCmd_DefaultReturnsAll(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := make([]*store.Resource, 0, 600)
+	for i := 0; i < 600; i++ {
+		nid := fmt.Sprintf("vol-%04d", i)
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
+		})
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetListFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--output", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var decoded []store.Resource
+	if jerr := json.Unmarshal([]byte(out), &decoded); jerr != nil {
+		t.Fatalf("not JSON: %v", jerr)
+	}
+	if len(decoded) != 602 { // 600 volumes + 2 from seedTestDB
+		t.Errorf("want 602 rows (full population), got %d", len(decoded))
+	}
+}
+
+// TestListCmd_LimitWarnsOnTruncation asserts a positive --limit that hits
+// the cap emits a stderr warning and clean stdout.
+func TestListCmd_LimitWarnsOnTruncation(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := make([]*store.Resource, 0, 600)
+	for i := 0; i < 600; i++ {
+		nid := fmt.Sprintf("vol-%04d", i)
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
+		})
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetListFlags()
+	var stdoutCap string
+	stderrCap, err := captureStderr(t, func() error {
+		var inner error
+		stdoutCap, inner = captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"list", "--output", "json", "--limit", "100"})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !strings.Contains(stderrCap, "warning: --limit 100") {
+		t.Errorf("want truncation warning on stderr, got %q", stderrCap)
+	}
+	var decoded []store.Resource
+	if jerr := json.Unmarshal([]byte(stdoutCap), &decoded); jerr != nil {
+		t.Fatalf("stdout not JSON (warning leaked?): %v\n%s", jerr, stdoutCap)
+	}
+	if len(decoded) != 100 {
+		t.Errorf("want 100 rows, got %d", len(decoded))
 	}
 }
 

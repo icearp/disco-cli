@@ -4,7 +4,30 @@ import (
 	"fmt"
 	"io"
 	"sort"
+
+	"codeberg.org/icearp/disco/internal/store"
 )
+
+// loadAllResourcesPaged paginates ListResources and returns every row
+// matching base. Callers set IncludeManaged + filter fields on base; this
+// helper overrides Limit + Offset to walk the full table. Mirrors the
+// store.GraphAll idiom (internal/store/graph.go:451).
+func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.Resource, error) {
+	const pageSize = uint64(5000)
+	var all []store.Resource
+	for offset := uint64(0); ; offset += pageSize {
+		base.Limit = pageSize
+		base.Offset = offset
+		page, err := db.ListResources(base)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if uint64(len(page)) < pageSize {
+			return all, nil
+		}
+	}
+}
 
 // ptrOrDash returns the pointed-to string, or "-" if the pointer is nil.
 // Shared by list/diff/graph/check table renderers so missing optional

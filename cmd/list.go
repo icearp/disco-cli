@@ -76,7 +76,17 @@ Examples:
 			IncludeManaged: listIncludeManaged,
 		}
 
-		resources, err := db.ListResources(f)
+		var resources []store.Resource
+		if listLimit == 0 {
+			resources, err = loadAllResourcesPaged(db, f)
+		} else {
+			resources, err = db.ListResources(f)
+			if err == nil && uint64(len(resources)) == listLimit {
+				fmt.Fprintf(os.Stderr,
+					"warning: --limit %d may be hiding rows; raise --limit or pass --limit 0 for all\n",
+					listLimit)
+			}
+		}
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
 		}
@@ -131,7 +141,7 @@ func init() {
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")
 	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (requires --tag-key)")
 	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
-	listCmd.Flags().Uint64Var(&listLimit, "limit", 500, "Maximum number of results")
+	listCmd.Flags().Uint64Var(&listLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
 	listCmd.Flags().BoolVar(&listIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
 	rootCmd.AddCommand(listCmd)
 }

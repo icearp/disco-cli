@@ -64,7 +64,7 @@ Examples:
 			return err
 		}
 
-		resources, err := loadAllResources(db)
+		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{IncludeManaged: true})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
 		}
@@ -114,29 +114,6 @@ Examples:
 		}
 		return nil
 	},
-}
-
-// loadAllResources paginates the store and returns every resource including
-// provider-managed rows. ResourceFilter{} silently caps at 500 + hides
-// managed (internal/store/resources.go) — that would make policy evaluation
-// incomplete. Mirrors the pagination idiom in store.GraphAll.
-func loadAllResources(db *store.Store) ([]store.Resource, error) {
-	const pageSize = uint64(5000)
-	var all []store.Resource
-	for offset := uint64(0); ; offset += pageSize {
-		page, err := db.ListResources(store.ResourceFilter{
-			IncludeManaged: true,
-			Limit:          pageSize,
-			Offset:         offset,
-		})
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, page...)
-		if uint64(len(page)) < pageSize {
-			return all, nil
-		}
-	}
 }
 
 // severityRank orders the four conventional levels for `--severity` cutoff.
