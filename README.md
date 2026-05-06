@@ -23,18 +23,19 @@ Those services are convenient, but they don't cover everything. `disco` calls ea
 
 ## Install
 
-You need Go and that's it. There's no C toolchain involved because the SQLite driver is pure Go (`modernc.org/sqlite`), which is also why `CGO_ENABLED=0` is required:
+You need Go and that's it. There's no C toolchain involved because the SQLite driver is pure Go (`modernc.org/sqlite`), which is also why `CGO_ENABLED=0` is required (the Makefile sets it for you):
+
+```bash
+make build           # → ./disco, version-stamped from `git describe`
+make all             # fmt + vet + test + build
+make test            # CGO_ENABLED=0 go test ./...
+make dist            # cross-compile linux/darwin/windows amd64+arm64 into dist/
+```
+
+Plain `go build` works too if you skip the Makefile, but the version stamp falls back to `dev` (the `-X cmd.Version` ldflag is injected by `make`):
 
 ```bash
 CGO_ENABLED=0 go build -o disco .
-```
-
-Cross-compile from anywhere to anywhere:
-
-```bash
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -o dist/disco-linux-amd64       .
-CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -o dist/disco-darwin-arm64      .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/disco-windows-amd64.exe .
 ```
 
 ## Quickstart
