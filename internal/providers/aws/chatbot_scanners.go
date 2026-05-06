@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:chatbot",
-		fn:   scanChatbot,
+		name:   "aws:chatbot",
+		global: true,
+		fn:     scanChatbot,
 		emits: []coverage.TypeDecl{
 			{Service: "chatbot", DiscoType: TypeChatbotCustomAction},
 			{Service: "chatbot", DiscoType: TypeChatbotSlackChannelConfiguration},
@@ -30,10 +31,8 @@ type chatbotAPI interface {
 // scanChatbot discovers Chatbot custom actions and channel configurations
 // (Slack + Microsoft Teams). Service is global; gate to us-east-2 to avoid
 // duplicate scans across regions.
-func scanChatbot(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-2" {
-		return 0, 0, nil
-	}
+func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-2"
 	client := chatbot.NewFromConfig(acct.cfg, func(o *chatbot.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

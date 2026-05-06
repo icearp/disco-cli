@@ -55,6 +55,7 @@ type Scanner struct {
 	serviceFilter  []string // nil = scan all registered services
 	regionOverride []string // non-nil overrides all per-account and default regions
 	profile        string   // "" = default AWS credential chain
+	skipGlobals    bool     // when true, services registered as global are not invoked
 }
 
 // Name implements providers.Scanner.
@@ -67,6 +68,11 @@ func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = servic
 // SetRegionOverride forces all accounts to scan only the given regions,
 // ignoring both per-account and default_regions config values.
 func (s *Scanner) SetRegionOverride(regions []string) { s.regionOverride = regions }
+
+// SetSkipGlobals suppresses every service registered with global=true.
+// Use case: data-residency / per-region audits where global-scope reads
+// (IAM, Route53, CloudFront, etc.) are explicitly out of scope.
+func (s *Scanner) SetSkipGlobals(skip bool) { s.skipGlobals = skip }
 
 // SetProfile selects a named credential profile from ~/.aws/config.
 // An empty string uses the default credential chain.
@@ -94,7 +100,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return nil
 	}
 	for i := range accounts {
-		scanAccount(ctx, &accounts[i], s.serviceFilter, st, scanID)
+		scanAccount(ctx, &accounts[i], s.serviceFilter, s.skipGlobals, st, scanID)
 	}
 	return nil
 }
@@ -102,7 +108,9 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // scanAccount runs phase 1 (resources) then phase 2 (relationships) for one
 // account. Errors are reported via st.ReportError and never propagate — a
 // service failure does not abort sibling services or the relationship phase.
-func scanAccount(ctx context.Context, acct *account, services []string, st *store.Store, scanID string) {
+// When skipGlobals is true, services registered as global=true are not
+// invoked; per-region services run normally.
+func scanAccount(ctx context.Context, acct *account, services []string, skipGlobals bool, st *store.Store, scanID string) {
 	// Phase 1: global + regional services run CONCURRENTLY. Globals had
 	// historically gated regionals via a wg.Wait() barrier, but phase-1
 	// scanners only upsert (no DB reads); resolvers in phase 2 are the only
@@ -118,6 +126,9 @@ func scanAccount(ctx context.Context, acct *account, services []string, st *stor
 
 	for _, svc := range filteredServices(services) {
 		if !svc.global {
+			continue
+		}
+		if skipGlobals {
 			continue
 		}
 		wg.Go(func() {

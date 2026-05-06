@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:cur",
-		fn:   scanCUR,
+		name:   "aws:cur",
+		global: true,
+		fn:     scanCUR,
 		emits: []coverage.TypeDecl{
 			{Service: "cur", DiscoType: TypeCURReportDefinition},
 		},
@@ -25,10 +26,8 @@ type curAPI interface {
 
 // scanCUR discovers Cost and Usage Report definitions. CUR is global; gate
 // to us-east-1. Synth ARN: arn:aws:cur::{a}:definition/{name}.
-func scanCUR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := costandusagereportservice.NewFromConfig(acct.cfg, func(o *costandusagereportservice.Options) { o.Region = region })
 
 	var batch []*store.Resource

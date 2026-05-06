@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:invoicing",
-		fn:   scanInvoicing,
+		name:   "aws:invoicing",
+		global: true,
+		fn:     scanInvoicing,
 		emits: []coverage.TypeDecl{
 			{Service: "invoicing", DiscoType: TypeInvoicingInvoiceUnit},
 		},
@@ -25,10 +26,8 @@ type invoicingAPI interface {
 
 // scanInvoicing discovers Invoicing invoice units. Service is global; gate
 // to us-east-1 to avoid duplicate scans across regions.
-func scanInvoicing(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := invoicing.NewFromConfig(acct.cfg, func(o *invoicing.Options) { o.Region = region })
 
 	var batch []*store.Resource

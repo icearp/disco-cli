@@ -20,8 +20,9 @@ func isLicenseManagerNotSetUp(err error) bool {
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:license-manager",
-		fn:   scanLicenseManager,
+		name:   "aws:license-manager",
+		global: true,
+		fn:     scanLicenseManager,
 		emits: []coverage.TypeDecl{
 			{Service: "license-manager", DiscoType: TypeLicenseManagerLicense},
 			{Service: "license-manager", DiscoType: TypeLicenseManagerGrant},
@@ -37,10 +38,8 @@ type licenseManagerAPI interface {
 // scanLicenseManager discovers License Manager licenses (issued by this
 // account) and distributed grants. License Manager is global; gate to
 // us-east-1 to avoid duplicate scans across regions.
-func scanLicenseManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := licensemanager.NewFromConfig(acct.cfg, func(o *licensemanager.Options) { o.Region = region })
 
 	t, i, ferr := scanLMLicenses(ctx, client, acct, region, st, scanID)

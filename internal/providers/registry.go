@@ -46,6 +46,16 @@ type ProfileOverrider interface {
 	SetProfile(profile string)
 }
 
+// GlobalsSkipper is an optional interface for providers that support
+// suppressing global / cross-region service scans via --skip-globals.
+// Globals are services whose endpoints live in a single region but whose
+// resource scope is account-wide (IAM, Route53, CloudFront, Globalaccelerator,
+// etc.). When set, the provider must not invoke any service registered as
+// global; per-region services are unaffected.
+type GlobalsSkipper interface {
+	SetSkipGlobals(skip bool)
+}
+
 // registry maps provider name → Scanner. Populated by provider init() calls.
 var registry = map[string]Scanner{}
 

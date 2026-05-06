@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:uxc",
-		fn:   scanUXC,
+		name:   "aws:uxc",
+		global: true,
+		fn:     scanUXC,
 		emits: []coverage.TypeDecl{
 			{Service: "uxc", DiscoType: TypeUXCAccountCustomization},
 		},
@@ -26,10 +27,8 @@ type uxcAPI interface {
 // scanUXC captures the per-account console-customization config (singleton).
 // UXC is global; gate to us-east-1 to avoid duplicate scans across regions.
 // Synth ARN: arn:aws:uxc::{a}:account-customization.
-func scanUXC(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := uxc.NewFromConfig(acct.cfg, func(o *uxc.Options) { o.Region = region })
 
 	out, err := client.GetAccountCustomizations(ctx, &uxc.GetAccountCustomizationsInput{})

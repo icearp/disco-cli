@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:notifications-contacts",
-		fn:   scanNotificationsContacts,
+		name:   "aws:notifications-contacts",
+		global: true,
+		fn:     scanNotificationsContacts,
 		emits: []coverage.TypeDecl{
 			{Service: "notifications-contacts", DiscoType: TypeNotificationsContactsEmailContact},
 		},
@@ -26,10 +27,8 @@ type notificationsContactsAPI interface {
 // scanNotificationsContacts discovers AWS User Notifications Contacts email
 // contacts. Service is global; gate to us-east-1 to avoid duplicate scans
 // across regions.
-func scanNotificationsContacts(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := notificationscontacts.NewFromConfig(acct.cfg, func(o *notificationscontacts.Options) { o.Region = region })
 
 	var batch []*store.Resource

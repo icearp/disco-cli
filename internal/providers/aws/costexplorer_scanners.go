@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:ce",
-		fn:   scanCostExplorer,
+		name:   "aws:ce",
+		global: true,
+		fn:     scanCostExplorer,
 		emits: []coverage.TypeDecl{
 			{Service: "ce", DiscoType: TypeCEAnomalyMonitor},
 			{Service: "ce", DiscoType: TypeCEAnomalySubscription},
@@ -29,10 +30,8 @@ type costExplorerAPI interface {
 
 // scanCostExplorer discovers anomaly monitors, anomaly subscriptions, and
 // cost category definitions. CE is a global service accessed via us-east-1.
-func scanCostExplorer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

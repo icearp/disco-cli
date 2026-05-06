@@ -27,8 +27,9 @@ func isFMSAdminOnlyDenial(err error) bool {
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:fms",
-		fn:   scanFMS,
+		name:   "aws:fms",
+		global: true,
+		fn:     scanFMS,
 		emits: []coverage.TypeDecl{
 			{Service: "fms", DiscoType: TypeFMSNotificationChannel},
 			{Service: "fms", DiscoType: TypeFMSPolicy},
@@ -46,10 +47,8 @@ type fmsAPI interface {
 // scanFMS discovers Firewall Manager policies, resource sets, and the
 // per-org notification channel. Service is global; callable only from
 // us-east-1.
-func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanFMS(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

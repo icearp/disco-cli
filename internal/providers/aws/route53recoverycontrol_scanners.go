@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:route53-recovery-control",
-		fn:   scanR53RecoveryControl,
+		name:   "aws:route53-recovery-control",
+		global: true,
+		fn:     scanR53RecoveryControl,
 		emits: []coverage.TypeDecl{
 			{Service: "route53-recovery-control", DiscoType: TypeR53RCCluster},
 			{Service: "route53-recovery-control", DiscoType: TypeR53RCControlPanel},
@@ -34,10 +35,8 @@ type r53rcAPI interface {
 // safety rules fan out per control panel. Service is global with a single
 // us-west-2 endpoint — gate so multi-region scans skip the DNS-lookup
 // failures that otherwise warn from every other region.
-func scanR53RecoveryControl(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-west-2" {
-		return 0, 0, nil
-	}
+func scanR53RecoveryControl(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-west-2"
 	client := route53recoverycontrolconfig.NewFromConfig(acct.cfg, func(o *route53recoverycontrolconfig.Options) { o.Region = region })
 
 	t, i, ferr := scanR53RCClusters(ctx, client, acct, region, st, scanID)

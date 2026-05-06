@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:global-accelerator",
-		fn:   scanGlobalAccelerator,
+		name:   "aws:global-accelerator",
+		global: true,
+		fn:     scanGlobalAccelerator,
 		emits: []coverage.TypeDecl{
 			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorAccelerator},
 			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorCrossAccountAttachment},
@@ -30,11 +31,12 @@ type globalAcceleratorAPI interface {
 }
 
 // scanGlobalAccelerator discovers Global Accelerator resources. Service is
-// global with endpoints only in us-west-2; gate other regions out.
-func scanGlobalAccelerator(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-west-2" {
-		return 0, 0, nil
-	}
+// global; the API is hosted only in us-west-2 — registered with global=true
+// and dispatched once per account. The dispatcher passes region="", so we
+// substitute the canonical home so resource Region columns and per-op error
+// scopes stay accurate.
+func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-west-2"
 	client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
 
 	accARNs, t, i, ferr := scanGAAccelerators(ctx, client, acct, region, st, scanID)

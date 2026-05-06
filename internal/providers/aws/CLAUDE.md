@@ -138,9 +138,28 @@ Some AWS APIs return distinct exception code when account has not subscribed to 
 
 **Shared not-enabled predicate across services.** When two services gate on the same account-level enablement (e.g. Cost Explorer access blocks both `aws:ce` and `aws:bcmpricingcalculator`), declare one predicate (`isCostExplorerNotEnabled` in `bcmpricingcalculator_scanners.go`) and have both scanners' dispatcher call it before falling through to `skipIfAccessDenied`. Avoids drift between two near-identical message matchers.
 
-## Multi-region DNS NXDOMAIN = global service
+## Single-region globals → `global: true`, hardcode home in client
 
-A transient warning of shape `dial tcp: lookup <svc>.<region>.amazonaws.com on …: no such host` firing from every non-`us-east-1` region (and only those) is the symptom of a global service registered as per-region. The endpoint does not exist outside `us-east-1`; `isTransientNetworkError` warn-skips it N-1 times per multi-region scan. Fix: early-return at the top of `scanX` — `if region != "us-east-1" { return 0, 0, nil }` — same shape as Route53 / Budgets / CloudFront. Precedent: `route53recoveryreadiness_scanners.go`.
+AWS exposes some services with account-wide scope but a single regional endpoint (IAM, Route53, CloudFront, Globalaccelerator us-west-2, Budgets us-east-1, Route53 Recovery us-west-2, Route53 Global Resolver us-east-2, etc.). Register these with `global: true` on the `serviceEntry`; the dispatcher (`aws.go::scanAccount`) calls them once per account with `region=""`, regardless of `--regions`. Inside the scanner, hardcode the home in the SDK client option-fn:
+
+```go
+region := "us-west-2"
+client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
+```
+
+Use **short var decl `region := "X"`**, not `const region = "X"`. Untyped string constants are not addressable, so `&region` for `Region: *string` in resource batch fields fails to compile (`cannot take address of region (untyped string constant ...)`). The short-decl form is gofmt-stable and lint-clean.
+
+Substituting the home in a local variable (rather than relying on the dispatcher arg) keeps `Resource.Region`, error scopes, and `skipIfAccessDenied` reports accurate. Precedents: `route53_scanners.go`, `globalaccelerator_scanners.go`, every `*_scanners.go` flipped in the R0 single-region globals sweep.
+
+**Anti-pattern (deprecated):** registering a single-region global as **regional** with an inline `if region != "<home>" { return 0, 0, nil }` early-return. The pattern was historically used to dodge per-region NXDOMAIN warnings, but `isDNSNotFound` at the dispatcher (`aws.go`) already silent-skips those. The inline-gate pattern silently produces zero rows when `--regions` excludes the home (`disco scan aws --regions us-east-1` would skip globalaccelerator entirely). Convert to `global: true` instead.
+
+Inline `if region != "X"` gates remain correct only for **sub-op** cases — a regional service with one specific op pinned to a single region (Lightsail Distributions/Domains in us-east-1, ECR registry-scanning in us-east-1, Direct Connect Gateway in us-east-1). See "Per-op region gates" below.
+
+CLI: `--skip-globals` (defined in `cmd/scan.go`, plumbed via `providers.GlobalsSkipper`) suppresses every global service regardless of registration shape — for data-residency / per-region audits.
+
+## `--services` flag values come from `name:` field, not file stub
+
+The string passed to `disco scan aws --services X` must match the `name:` field of the corresponding `registerService(serviceEntry{...})` call, not the file basename. Drift examples: `costexplorer_scanners.go` → `aws:ce`; `supportapp_scanners.go` → `aws:support-app`; `licensemanager_scanners.go` → `aws:license-manager`; `networkmanager_scanners.go` → `aws:networkmanager` (no dash); `notificationscontacts_scanners.go` → `aws:notifications-contacts`. Authoritative listing: `grep -hE 'name: *"aws:' internal/providers/aws/*_scanners.go | sort -u`.
 
 ## Multi-phase parent + children closure-wiring helper
 
@@ -165,6 +184,10 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 ## Adding new AWS SDK service module
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
+
+## CFN type ≠ SDK op
+
+CloudFormation registry exposes resource types ahead of (or independent of) the SDK — e.g. `AWS::EC2::TransitGatewayMeteringPolicy` / `…MeteringPolicyEntry` exist in CFN with no `aws-sdk-go-v2/service/ec2` ops backing them. Per the per-service-API mandate in `internal/providers/CLAUDE.md`, disco scans only via SDK clients — CFN-only types are not scannable. Before scoping a scanner from a roadmap entry or coverage gap, `grep -r <FeatureName> $(go env GOMODCACHE)/github.com/aws/aws-sdk-go-v2/service/<svc>/` to confirm SDK support exists; if empty, defer rather than half-implementing via CFN.
 
 ## ECR image identifier → repository ARN
 

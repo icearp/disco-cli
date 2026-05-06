@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:support-app",
-		fn:   scanSupportApp,
+		name:   "aws:support-app",
+		global: true,
+		fn:     scanSupportApp,
 		emits: []coverage.TypeDecl{
 			{Service: "support-app", DiscoType: TypeSupportAppAccountAlias},
 			{Service: "support-app", DiscoType: TypeSupportAppSlackChannelConfiguration},
@@ -30,10 +31,8 @@ type supportAppAPI interface {
 // scanSupportApp discovers SupportApp account alias plus per-Slack-team
 // channel/workspace configurations. Service is global with endpoints only
 // in us-east-1; gate other regions.
-func scanSupportApp(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanSupportApp(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := supportapp.NewFromConfig(acct.cfg, func(o *supportapp.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

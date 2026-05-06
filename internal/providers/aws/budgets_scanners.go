@@ -18,8 +18,9 @@ func isBudgetsLinkedAccount(err error) bool {
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:budgets",
-		fn:   scanBudgets,
+		name:   "aws:budgets",
+		global: true,
+		fn:     scanBudgets,
 		emits: []coverage.TypeDecl{
 			{Service: "budgets", DiscoType: TypeBudgetsBudget},
 			{Service: "budgets", DiscoType: TypeBudgetsBudgetsAction},
@@ -34,10 +35,8 @@ type budgetsAPI interface {
 
 // scanBudgets discovers Budgets budgets and budget actions. Budgets is a
 // global service; gate to us-east-1 to avoid duplicate scans across regions.
-func scanBudgets(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := budgets.NewFromConfig(acct.cfg, func(o *budgets.Options) { o.Region = region })
 
 	t, i, ferr := scanBudgetsBudgets(ctx, client, acct, region, st, scanID)

@@ -12,8 +12,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:networkmanager",
-		fn:   scanNetworkManager,
+		name:   "aws:networkmanager",
+		global: true,
+		fn:     scanNetworkManager,
 		emits: []coverage.TypeDecl{
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerGlobalNetwork},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerCoreNetwork},
@@ -54,10 +55,8 @@ type networkManagerAPI interface {
 // scanNetworkManager runs only in us-west-2 — NetworkManager is a global
 // service with a single home region. Calling from other regions returns
 // the same data redundantly.
-func scanNetworkManager(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-west-2" {
-		return 0, 0, nil
-	}
+func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-west-2"
 	client := networkmanager.NewFromConfig(acct.cfg, func(o *networkmanager.Options) { o.Region = region })
 
 	globalIDs, t, i, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)

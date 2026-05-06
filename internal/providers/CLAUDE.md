@@ -16,6 +16,8 @@ Provider scanners call `store.UpsertResources()`, `store.UpsertRelationship()`, 
 
 ## Provider-managed resources
 
+**Definition.** A resource is provider-managed when both hold: (1) it materialises automatically — created by the cloud at account / tenant / project creation, on service enablement, or as a default-region rollout, with no explicit user API call; AND (2) the user cannot delete it directly (Delete API rejects, or AWS/Azure/GCP recreates on next reconcile). One condition without the other is not enough — user-created defaults (e.g. a default VPC the user kept) fail (1); deletable system rows (rare) fail (2). When in doubt, attempt delete in a scratch account; if the API rejects with a "managed by AWS / built-in / system" error, flag it.
+
 Resources owned by the cloud (Azure built-in policy/role definitions, AWS-managed IAM policies, AWS-owned prefix lists, IAM service-linked roles, AuditMgr Standard frameworks/controls) set `store.Resource.ManagedByProvider=true`. Hidden from `disco list` / `disco graph` by default; `--include-managed` opts in. In `graph`, managed nodes are terminal — appear when reached via direct edge but BFS does not expand through them. Detection lives at scan time, reads typed SDK field (e.g. `OwnerId == "AWS"`, `PolicyType == BuiltIn`, `RoleType == "BuiltInRole"`, role path `/aws-service-role/`). Where the SDK exposes a scope/type filter (IAM `PolicyScope`, AuditMgr `FrameworkType`/`ControlType`), loop both values in a single scanner and flag the managed pass — precedent: `scanIAMPolicies`, `scanAuditManagerFrameworks`, `scanAuditManagerControls`.
 
 ## Don't mix `g.Wait()` with same-statement counter reads
@@ -70,6 +72,10 @@ Every `registerService` / `registerOrgService` / `registerTenantService` call mu
 Child resource (e.g. EventBridge rule targets) no independent lifecycle, meaningful only via parent — fetch child at scan time, embed under key in parent's `AttributesJSON` (e.g. `{"Rule": ..., "Targets": [...]}`). Resolvers read embedded data, no extra API calls.
 
 **Warning — wrapping breaks existing resolvers.** Switch scanner from raw SDK struct to wrapped (e.g. add `Targets` alongside `TargetGroup`) silent drops every edge from resolvers still reading old top-level shape — JSON unmarshal into old struct succeeds with zero values, no error. Grep resolvers for type before wrapping, update attribute structs to nest under new key.
+
+## Embedded child → row: when to promote
+
+Embedded child data gets promoted to its own resource row only when ALL hold: (1) the child is an **edge endpoint** (resolver targets the child as `to_id`, not just walks it to emit edges from parent); (2) per-child state matters operationally (diff/check value — blackhole flips, propagation toggles); (3) cardinality bounded (≲ 100 / parent typical). Otherwise keep embedded — adding rows for CIDR-keyed entries (route-table routes, NACL entries, VPN static routes) trades scan-time + DB size for nothing the resolver couldn't already extract from the parent walk. Promotion uses **composite NativeID** `{parentARN}/<kind>/{childId}` and a new child resource type `aws:<svc>:<parent>-<child>` — never invent a 4-part disco-id format. ResourceID stays 3-part (provider/account/type/native); hierarchy lives in NativeID. Precedent: `aws:ec2:transit-gateway-route` (`{rtbARN}/{cidr}`), `aws:ec2:tgw-rtb-prop` (`{rtbARN}/{attId}`) in `aws/ec2_tgw_scanners.go`.
 
 ## Non-resource config fetches → sidecar on `account`
 

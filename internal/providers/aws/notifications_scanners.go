@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:notifications",
-		fn:   scanNotifications,
+		name:   "aws:notifications",
+		global: true,
+		fn:     scanNotifications,
 		emits: []coverage.TypeDecl{
 			{Service: "notifications", DiscoType: TypeNotificationsChannelAssociation},
 			{Service: "notifications", DiscoType: TypeNotificationsEventRule},
@@ -35,10 +36,8 @@ type notifsAPI interface {
 }
 
 // Notifications is a global service callable from us-east-1; gate other regions out.
-func scanNotifications(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-east-1" {
-		return 0, 0, nil
-	}
+func scanNotifications(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-east-1"
 	client := notifications.NewFromConfig(acct.cfg, func(o *notifications.Options) { o.Region = region })
 
 	configARNs, t, i, ferr := scanNotifConfigs(ctx, client, acct, region, st, scanID)

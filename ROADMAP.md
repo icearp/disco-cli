@@ -665,6 +665,9 @@ Selected shipments (one commit per service-family):
 
 Theme: finish AWS resolver debts before sprawl to more providers.
 
+- *(removed — R0 single-region globals conversion landed: budgets, cur, costexplorer, fms, invoicing, notifications, notifications-contacts, support-app, uxc, license-manager, chatbot, route53globalresolver, route53-recovery-readiness, route53-recovery-control, networkmanager, global-accelerator all flipped to `global: true` with hardcoded home in `NewFromConfig` option-fn. `--skip-globals` flag added to `disco scan` for opt-out. Pattern documented in `internal/providers/aws/CLAUDE.md` "Single-region globals → `global: true`, hardcode home in client".)*
+
+
 ### R1. Same-service AWS resolver gaps
 Edges whose attrs already in store but no resolver emits them.
 - *(removed — Route53 → S3-website resolver landed via record-name pivot when alias DNS matches `s3-website-{r}` / `s3-website.{r}` endpoints; see COMPLETED R1 Route53 RecordSet → S3 website bucket)*

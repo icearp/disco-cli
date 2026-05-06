@@ -11,8 +11,9 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "aws:route53-recovery-readiness",
-		fn:   scanR53RecoveryReadiness,
+		name:   "aws:route53-recovery-readiness",
+		global: true,
+		fn:     scanR53RecoveryReadiness,
 		emits: []coverage.TypeDecl{
 			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRCell},
 			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRReadinessCheck},
@@ -34,10 +35,8 @@ type r53rrAPI interface {
 // calls. ARNs are native on every type. Service is global with a single
 // us-west-2 endpoint — gate so multi-region scans skip the DNS-lookup
 // failures that otherwise warn from every other region.
-func scanR53RecoveryReadiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if region != "us-west-2" {
-		return 0, 0, nil
-	}
+func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := "us-west-2"
 	client := route53recoveryreadiness.NewFromConfig(acct.cfg, func(o *route53recoveryreadiness.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

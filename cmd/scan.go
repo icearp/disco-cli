@@ -311,6 +311,10 @@ func init() {
 			subcmd.Flags().String("profile", "",
 				"named credential profile (e.g. a profile defined in ~/.aws/config)")
 		}
+		if _, ok := s.(providers.GlobalsSkipper); ok {
+			subcmd.Flags().Bool("skip-globals", false,
+				"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
+		}
 		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
 			if sf, ok := s.(providers.ServiceFilterer); ok {
 				if svcs, _ := cmd.Flags().GetStringSlice("services"); len(svcs) > 0 {
@@ -329,6 +333,11 @@ func init() {
 			if po, ok := s.(providers.ProfileOverrider); ok {
 				if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 					po.SetProfile(profile)
+				}
+			}
+			if gs, ok := s.(providers.GlobalsSkipper); ok {
+				if skip, _ := cmd.Flags().GetBool("skip-globals"); skip {
+					gs.SetSkipGlobals(true)
 				}
 			}
 			return runScan(cmd, []providers.Scanner{s})
