@@ -54,6 +54,7 @@ var (
 	listTagKey         string
 	listTagValue       string
 	listScanID         string
+	listSince          = singleSetString{flag: "since"}
 	listOutputFmt      string
 	listLimit          uint64
 	listIncludeManaged bool
@@ -62,6 +63,7 @@ var (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List discovered resources",
+	Args:  cobra.NoArgs,
 	Long: `List resources from the local database with optional filters.
 
 Examples:
@@ -78,6 +80,10 @@ Examples:
 		defer func() { _ = db.Close() }()
 
 		scanID, err := resolveScanID(db, listScanID)
+		if err != nil {
+			return err
+		}
+		since, err := parseSince(listSince.val)
 		if err != nil {
 			return err
 		}
@@ -100,6 +106,7 @@ Examples:
 			TagKey:         listTagKey,
 			TagValue:       listTagValue,
 			DiscoveredBy:   scanID,
+			Since:          since,
 			Limit:          listLimit,
 			IncludeManaged: listIncludeManaged,
 		}
@@ -171,6 +178,7 @@ func init() {
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
+	listCmd.Flags().Var(&listSince, "since", "Show rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")

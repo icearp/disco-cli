@@ -16,6 +16,7 @@ func resetSummaryFlags() {
 	summaryProvider, summaryRegion = "", ""
 	summaryExcludeTypes = nil
 	summaryScanID = ""
+	summarySince.reset()
 	summaryOutputFmt = ""
 	summaryTopTypes = 10
 	summaryIncludeManaged = false

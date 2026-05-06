@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 
 	"codeberg.org/icearp/disco/internal/store"
 )
@@ -79,6 +80,50 @@ func resolveScanID(db *store.Store, raw string) (string, error) {
 		return "", fmt.Errorf("scan %q not found", raw)
 	}
 	return raw, nil
+}
+
+// singleSetString is a pflag.Value that rejects being set more than once.
+// Cobra's default StringVar last-wins-silently on `--flag A --flag B`; this
+// type errors instead so timestamp-shaped flags (--since today) can't be
+// silently overridden in scripted invocations. Reset to "" before each test
+// run via the existing reset helpers.
+type singleSetString struct {
+	val string
+	set bool
+	// flag is the flag name used in the error message ("since", not "--since").
+	flag string
+}
+
+func (s *singleSetString) String() string { return s.val }
+func (s *singleSetString) Type() string   { return "string" }
+func (s *singleSetString) Set(v string) error {
+	if s.set {
+		return fmt.Errorf("--%s: cannot be set more than once", s.flag)
+	}
+	s.val = v
+	s.set = true
+	return nil
+}
+
+// reset clears Set state so test reset helpers can reuse the same flag var
+// across runs without re-registering the cobra flag.
+func (s *singleSetString) reset() { s.val, s.set = "", false }
+
+// parseSince normalises a user-supplied --since value into the RFC3339 UTC
+// shape ListResources stores discovered_at in. Accepts full RFC3339 or bare
+// YYYY-MM-DD (auto-extended to T00:00:00Z UTC). Empty input passes through
+// as a no-op so callers can blindly forward the flag.
+func parseSince(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+	if t, err := time.Parse("2006-01-02", raw); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+	return "", fmt.Errorf("--since: %q must be RFC3339 (2026-04-01T00:00:00Z) or bare date (2026-04-01)", raw)
 }
 
 // ptrOrDash returns the pointed-to string, or "-" if the pointer is nil.

@@ -171,10 +171,14 @@ type ResourceFilter struct {
 	Regions      []string
 	Status       string
 	DiscoveredBy string
-	TagKey       string
-	TagValue     string
-	Limit        uint64
-	Offset       uint64
+	// Since filters rows whose discovered_at >= this RFC3339 timestamp.
+	// Stored timestamps sort lexicographically the same as chronologically,
+	// so plain string comparison suffices.
+	Since    string
+	TagKey   string
+	TagValue string
+	Limit    uint64
+	Offset   uint64
 	// IncludeManaged when false hides provider-managed resources (built-in
 	// roles, AWS-owned prefix lists, etc.). Defaults false at the SQL layer.
 	IncludeManaged bool
@@ -204,6 +208,9 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	if f.DiscoveredBy != "" {
 		q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
+	}
+	if f.Since != "" {
+		q = q.Where(sq.GtOrEq{"discovered_at": f.Since})
 	}
 	if f.TagKey != "" && f.TagValue != "" {
 		q = q.Where("json_extract(tags, ?) = ?", "$."+f.TagKey, f.TagValue)

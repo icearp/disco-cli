@@ -18,6 +18,7 @@ var scansOutputFmt string
 var scansCmd = &cobra.Command{
 	Use:   "scans",
 	Short: "List recorded scan runs",
+	Args:  cobra.NoArgs,
 	Long: `Lists every scan recorded in the local DB, newest first. Pairs with
 'disco list --scan-id <id>' to inspect rows produced by a specific run.
 

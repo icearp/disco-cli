@@ -129,6 +129,37 @@ func TestPartialScan(t *testing.T) {
 	}
 }
 
+// TestListResources_Since asserts the Since clause filters by discovered_at,
+// using lexicographic comparison on the RFC3339 string. Seed two rows with
+// explicit DiscoveredAt timestamps either side of the cutoff.
+func TestListResources_Since(t *testing.T) {
+	st := openTestStore(t)
+	old := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance",
+		NativeID: "i-old", AttributesJSON: "{}",
+		DiscoveredAt: "2026-01-01T00:00:00Z", DiscoveredBy: testScanID,
+	}
+	fresh := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance",
+		NativeID: "i-new", AttributesJSON: "{}",
+		DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: testScanID,
+	}
+	if _, err := st.UpsertResources([]*Resource{old, fresh}); err != nil {
+		t.Fatalf("UpsertResources: %v", err)
+	}
+
+	results, err := st.ListResources(ResourceFilter{
+		Since: "2026-04-01T00:00:00Z",
+		Limit: 100,
+	})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(results) != 1 || results[0].NativeID != "i-new" {
+		t.Errorf("--since filter: got %+v, want only i-new", results)
+	}
+}
+
 // TestListScans_Providers asserts ListScans unmarshals ProvidersJSON into
 // the Providers slice for every returned row — auditor-facing rendering
 // reads the slice directly without a follow-up GetScan call.

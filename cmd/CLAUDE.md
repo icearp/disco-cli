@@ -83,6 +83,16 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
 
+## Set `Args: cobra.NoArgs` on flag-only subcommands
+
+Cobra's default Args validator silently accepts arbitrary positional tokens. `disco list --since 2025-05-01 12:01:01` parses `--since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`list`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.
+
+## `--since` accepts RFC3339 or bare date, pinned to `discovered_at`
+
+`list`, `summary`, `tag-coverage` accept `--since <RFC3339|YYYY-MM-DD>` via `parseSince` (`cmd/helpers.go`). Bare date auto-extends to `T00:00:00Z`; non-UTC zones normalise to UTC. Plumbed onto `ResourceFilter.Since` → SQL `discovered_at >= ?`. RFC3339 sorts lexicographically the same as chronologically so plain string compare works. Pinned to `discovered_at` (immutable first-seen), NOT `verified_at` — re-scans don't re-stamp it. Means `--scan-id latest --since X` legitimately returns 0 when the latest scan only re-verified pre-existing rows.
+
+Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on second `Set()` so `--since A --since B` rejects rather than last-wins-silently. Test reset helpers must call `<flag>.reset()` on the value, not `<flag> = ""` (compile error: untyped string into struct).
+
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
 `list`, `summary`, and `tag-coverage` all expose `--exclude-types` (StringSlice → comma-separated). All three forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.

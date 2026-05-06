@@ -18,6 +18,7 @@ var (
 	summaryRegion         string
 	summaryExcludeTypes   []string
 	summaryScanID         string
+	summarySince          = singleSetString{flag: "since"}
 	summaryOutputFmt      string
 	summaryTopTypes       int
 	summaryIncludeManaged bool
@@ -26,6 +27,7 @@ var (
 var summaryCmd = &cobra.Command{
 	Use:   "summary",
 	Short: "Portfolio rollup of discovered resources",
+	Args:  cobra.NoArgs,
 	Long: `Single-page rollup answering "what do we own?" — counts by provider,
 region, and top-N resource types, plus an as-of timestamp from the most
 recent scan.
@@ -65,6 +67,10 @@ Examples:
 		if err != nil {
 			return err
 		}
+		since, err := parseSince(summarySince.val)
+		if err != nil {
+			return err
+		}
 		var regions []string
 		if summaryRegion != "" {
 			regions = []string{summaryRegion}
@@ -74,6 +80,7 @@ Examples:
 			ExcludeTypes:   summaryExcludeTypes,
 			Regions:        regions,
 			DiscoveredBy:   scanID,
+			Since:          since,
 			IncludeManaged: summaryIncludeManaged,
 		})
 		if err != nil {
@@ -260,6 +267,7 @@ func init() {
 	summaryCmd.Flags().StringVarP(&summaryRegion, "region", "r", "", "Filter by region")
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
+	summaryCmd.Flags().Var(&summarySince, "since", "Restrict to rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

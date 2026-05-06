@@ -320,6 +320,7 @@ func resetListFlags() {
 	listTagKey = ""
 	listTagValue = ""
 	listScanID = ""
+	listSince.reset()
 	listOutputFmt = ""
 	listLimit = 0
 	listIncludeManaged = false
@@ -634,6 +635,66 @@ func TestListCmd_ScanID(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Errorf("unknown id: want 'not found', got %v", err)
+	}
+}
+
+// TestListCmd_Since seeds rows with explicit DiscoveredAt either side of a
+// cutoff and asserts --since filters the older one out. Also exercises the
+// bare-date input form and the invalid-input error path.
+func TestListCmd_Since(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := []*store.Resource{
+		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-old",
+			AttributesJSON: "{}", DiscoveredAt: "2026-01-01T00:00:00Z", DiscoveredBy: scanID},
+		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-new",
+			AttributesJSON: "{}", DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: scanID},
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	// Bare-date input form.
+	resetListFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--since", "2026-04-01", "--type", "aws:ec2:vpc", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list since: %v", err)
+	}
+	var got []store.Resource
+	if jerr := json.Unmarshal([]byte(out), &got); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if len(got) != 1 || got[0].NativeID != "vpc-new" {
+		t.Errorf("--since 2026-04-01: got %+v, want only vpc-new", got)
+	}
+
+	// Invalid input rejects.
+	resetListFlags()
+	_, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--since", "7d"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "RFC3339") {
+		t.Errorf("invalid --since: want RFC3339 error, got %v", err)
+	}
+
+	// Repeated --since rejects (singleSetString).
+	resetListFlags()
+	_, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--since", "2026-04-01", "--since", "2026-05-01"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "more than once") {
+		t.Errorf("repeated --since: want 'more than once' error, got %v", err)
 	}
 }
 
