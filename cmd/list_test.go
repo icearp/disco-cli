@@ -323,6 +323,29 @@ func TestListCmd_LimitWarnsOnTruncation(t *testing.T) {
 	}
 }
 
+// TestRoot_BannerSuppressedByDefault guards F18: the "Using config file:"
+// banner must not contaminate stderr on default invocations.
+func TestRoot_BannerSuppressedByDefault(t *testing.T) {
+	seedTestDB(t)
+	resetListFlags()
+	verbose = false
+
+	stderrCap, err := captureStderr(t, func() error {
+		_, inner := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"list", "-o", "json"})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if strings.Contains(stderrCap, "Using config file") {
+		t.Errorf("banner leaked on default invocation: %q", stderrCap)
+	}
+}
+
 // TestListCmd_UnknownFormat verifies the unknown --output format error path.
 func TestListCmd_UnknownFormat(t *testing.T) {
 	seedTestDB(t)

@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	cfgFile string
+	verbose bool
+)
 
 // Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
 // Defaults to "dev" for local builds.
@@ -57,6 +60,10 @@ func init() {
 		fmt.Sprintf("config file (default: %s)", filepath.Join(configDir(), "config.yaml")))
 	rootCmd.PersistentFlags().String("db", "",
 		fmt.Sprintf("database path (default: %s)", filepath.Join(dataDir(), "disco.db")))
+	// Register -v as --verbose BEFORE cobra lazily binds it to --version
+	// (InitDefaultVersionFlag skips -v when the shorthand is already taken).
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
+		"print diagnostic banners (config file path, etc.) on stderr")
 	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 
@@ -72,7 +79,7 @@ func initConfig() {
 	viper.SetEnvPrefix("DISCO")
 	viper.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
+	if err := viper.ReadInConfig(); err == nil && verbose {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
 }
