@@ -6,11 +6,20 @@
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
 - A resolve phase runs as part of `scan`, connecting resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam`).
-- `list`, `diff`, `graph`, `check`, and `coverage` query the local DB without going back to the cloud.
+- `list`, `diff`, `graph`, `check`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
-Those services are convenient, but they don't cover everything. `disco` calls each cloud's per-service SDK directly, so things that the unified APIs skip — KMS grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center assignments, and a fairly long list of others — actually show up in the graph.
+Those services are convenient, but they don't cover everything. `disco` calls each cloud's per-service SDK directly, so things that the unified APIs skip — KMS grants, EFS mount targets, CloudFormation-managed resources, IAM Identity Center assignments, Entra ID identities, GCP VPC Service Controls perimeters, and a fairly long list of others — actually show up in the graph.
+
+## Why disco
+
+- **Fast offline reads.** Sub-second `list` + `graph` queries against a ~3k-resource DB; ~100ms policy eval. The cloud is hit once at scan time, never at query time.
+- **Deterministic output.** `list -o json`, `graph complete -o json`, `check -o json` are byte-stable across runs (matching SHA-256). Diffs are real diffs, not timestamp churn.
+- **SARIF + OPA out of the box.** `disco check --output sarif` produces GitHub code-scanning-ingestible findings; bring your own Rego, or use the bundled `aws-waf` pack.
+- **Coverage drift signal.** `disco coverage --check-strict` with `covered` / `uncovered` / `synthetic` / `upstream-missing` taxonomy catches when a cloud ships a new resource type before disco does.
+- **Forensic-friendly.** Pure-Go SQLite (CGO-free), DB at `0600`, single-file `disco snapshot` archives with manifest + inner-DB SHA-256. Trivially portable for evidence handoff.
+- **Composable formats.** JSON, JSONL, CSV, SARIF, DOT, Mermaid. Pipes into whatever the next tool expects.
 
 ## Install
 
@@ -40,6 +49,13 @@ disco scan gcp    --services gcp:compute,gcp:storage
 disco list  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
 disco coverage --provider aws
+
+# Policy check (bundled aws-waf sample pack; --rules accepts a custom Rego dir)
+disco check --packs aws-waf --output sarif > findings.sarif
+
+# Evidence archive (single-file; format from extension: .zip|.tar.gz|.tar.xz)
+disco snapshot evidence-2026-05-06.tar.xz
+disco verify   evidence-2026-05-06.tar.xz
 ```
 
 Azure scopes per accessible subscription (override via config); GCP fans out across accessible projects (override via config). Neither takes a scope flag on `scan` — credentials drive which subs/projects are reachable.
@@ -65,11 +81,11 @@ There are `CLAUDE.md` files scattered through the tree that document the convent
 
 All three clouds are covered broadly. Run `disco coverage --provider <aws|azure|gcp>` for the live, scanner-declared list (matches the running binary; updates with the code).
 
-- **AWS** — the broadest surface: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Detective, Inspector v2, Macie, Backup, CloudTrail, Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, Glue, Athena, plus more.
-- **Azure** — compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID. ~30 services.
-- **GCP** — Compute, Storage, IAM (incl. service accounts + key bindings), Cloud DNS, KMS, Pub/Sub, BigQuery, Bigtable, Firestore, Spanner, Cloud Functions Gen2, Cloud Run (services + jobs), Composer, Artifact Registry, Cert Manager, Cloud Build, Cloud Armor, Load Balancing, Logging sinks, Monitoring alert policies, Secret Manager, Binary Authorization, VPC Service Controls, project/folder/org hierarchy.
+- **AWS** — the broadest surface: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Detective, Inspector v2, Macie, Backup, CloudTrail, Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, Glue, Athena, App Runner, AppSync, MQ, AppFlow, Application Auto Scaling, AccessAnalyzer, Managed Prometheus, plus more.
+- **Azure** — compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID, and more — run `disco coverage --provider azure` for the live list.
+- **GCP** — Compute, Storage, IAM (incl. service accounts + key bindings), Cloud DNS, KMS, Pub/Sub, BigQuery, Bigtable, Firestore, Spanner, Cloud Functions Gen2, Cloud Run (services + jobs), Batch, Composer, Artifact Registry, Cert Manager, Cloud Build, Cloud Armor, Load Balancing, Logging sinks, Monitoring alert policies, Secret Manager, Binary Authorization, VPC Service Controls, project/folder/org hierarchy.
 
-`disco coverage --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `ROADMAP.md` carries longer-form context on planned work.
+`disco coverage --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `FEATURES.md` lists shipped capabilities; `ROADMAP.md` tracks planned work.
 
 ## Development
 
