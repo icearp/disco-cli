@@ -6,6 +6,19 @@ Tier headings mirror the OSS roadmap (NEXT — quarter; LATER — 6–12mo / v1.
 
 ---
 
+## Focus-group follow-ups
+
+Paid deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/SUMMARY.md`). All F1–F21 findings shipped; items below are net-new paid follow-up plans atop the shipped foundation. OSS-eligible deferrals live in `ROADMAP.md`.
+
+- **`disco snapshot --sign` + `disco verify --signature`** — cosign / Sigstore non-repudiation atop the OSS unsigned-archive shape. Signs the single-file archive blob (aligns with cosign attest convention); verify validates against a configured trust root before running the existing inner-DB hash check. Where the real evidence-package differentiator lives.
+- **`disco findings diff <runA> <runB>`** — added / resolved / persistent finding sets between two `check_runs` rows. Builds atop the F21-slice-2 schema; pairs with the existing `disco diff <scanA> <scanB>` resource-drift verb.
+- **Findings retention policy** — `disco findings rm <run-id>` (single-run) and time-window pruning (`disco findings rm --older-than 90d`). FK CASCADE already in place; needs CLI surface + dry-run flag.
+- **Drift heatmaps / dashboards** — render-side aggregation atop persisted `findings`. Severity-by-pack, finding-by-resource-type, time-window heatmap. Fits into a future `disco serve` (paid L3) or stand-alone `disco findings report`.
+- **Ticket sync** — `disco findings sync --jira` / `--linear` / `--github`. New high-severity finding → ticket. Configured per-pack via Rego rule metadata (`tags.ticket.priority` etc.).
+- **`disco snapshot s3://...`** — remote-upload sink for snapshot archives. Same precedent as L5 (SIEM/SOAR sinks). Local-fs path stays OSS; remote sinks paid.
+
+---
+
 ## NEXT — this quarter
 
 ### G10. `disco scan --resume` — incremental / resumable scans (paid feature)

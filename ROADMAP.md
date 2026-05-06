@@ -15,6 +15,19 @@ Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1
 
 ---
 
+## Focus-group follow-ups
+
+OSS-eligible deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/SUMMARY.md`). All F1–F21 findings shipped; the items below are net-new follow-up plans, not unaddressed findings. Paid-only follow-ups (cosign signing, drift analytics, etc.) live in `ROADMAP_paid.md`.
+
+- **`disco export <output-file>`** — multi-format evidence bundle (snapshot archive + JSON inventory + latest-run SARIF) for one-shot auditor handoff. Composes atop `disco snapshot` + `disco list -o json` + `disco check -o sarif`. Same `.zip|.tar.gz|.tar.xz` extension-driven format detection.
+- **`disco snapshot --extract` / `disco verify --extract <dst>`** — receive-side extract while verifying, for inspection without separate `tar -xf`.
+- **Snapshot compression-level flags** — `--compression {fast|balanced|max}` on `disco snapshot`. xz at default level dominates wall-time on big DBs; users may want a faster output at the cost of ~2× size.
+- **`azure-waf` sample pack** — 5-rule Azure Well-Architected Framework subset under `internal/policy/azure-waf/`. Same `--packs` plumbing; one rule or two per pillar. Mirror of `aws-waf`.
+- **`gcp-waf` sample pack** — 5-rule GCP Well-Architected Framework subset under `internal/policy/gcp-waf/`. Same shape.
+- **`--since-verified`** — `list` / `summary` / `tag-coverage` filter on `verified_at` (last-confirmed-live) instead of `discovered_at` (first-seen). Pairs with `--since`; documents the "what's still live" question that `--since` alone can't answer.
+
+---
+
 ## COMPLETED
 
 ### AWS resolver-coverage drive — source-orphans 453 → 0 across emitted 778 → 849 (multi-session)

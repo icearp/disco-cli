@@ -44,7 +44,7 @@ The engine ships in OSS. Two ways to feed it rules:
   --rules <file|dir>   Bring your own policies (Conftest AWS, regula,
                        in-house bundles). Repeatable.
   --packs <name,...>   Load bundled OSS packs. Available:
-                         aws-waf — 5-rule AWS Well-Architected starter
+                         aws-waf — 5-rule AWS Well-Architected sample pack
                                    (one or two rules per pillar)
 
 Both flags compose; both run in one pass against the full population.
