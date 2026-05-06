@@ -112,6 +112,7 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	opts := coverage.FetchOptions{Region: region, Profile: profile, Subscription: subscription}
 
 	var matrices []coverage.Matrix
+	var fetchFailures []string
 	for _, p := range providers {
 		fmt.Fprintf(os.Stderr, "Fetching %s upstream registry...\n", p.Name())
 		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
@@ -119,6 +120,7 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 		cancel()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v (continuing with empty upstream)\n", p.Name(), err)
+			fetchFailures = append(fetchFailures, p.Name())
 		}
 		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream)
 		m.Rows = filterRows(m.Rows, filter, services)
@@ -142,6 +144,13 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	}
 
 	if checkStrict {
+		// Fetch-failure short-circuit: cannot assess drift when registry
+		// unreachable. Distinct from real drift so CI consumers can branch
+		// on the message rather than treating throttling as a fleet-wide
+		// drift event (F9).
+		if len(fetchFailures) > 0 {
+			return fmt.Errorf("cannot assess --check-strict: upstream registry unreachable for %s; retry or scope --provider", strings.Join(fetchFailures, ", "))
+		}
 		for _, m := range matrices {
 			for _, r := range m.Rows {
 				if r.Bucket == coverage.BucketUpstreamMissing {
