@@ -42,6 +42,38 @@ func TestResolveVPNConnectionRelationships_EmptyAttrs(t *testing.T) {
 	}
 }
 
+func TestResolveVPNGatewayRoutePropagations(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNGateway,
+		ec2ARN(testRegion, acct.ID, "vpn-gateway", "vgw-001"), testRegion, "{}")
+	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable,
+		ec2ARN(testRegion, acct.ID, "route-table", "rtb-001"), testRegion,
+		`{"PropagatingVgws":[{"GatewayId":"vgw-001"},{"GatewayId":"vgw-missing"}]}`)
+
+	if err := resolveVPNGatewayRoutePropagations(acct, st); err != nil {
+		t.Fatalf("resolveVPNGatewayRoutePropagations: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(vgwID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("expected 1 relationship, got %d", len(rels))
+	}
+	assertRelationship(t, rels, vgwID, rtID, store.RelRoutesTo)
+}
+
+func TestResolveVPNGatewayRoutePropagations_EmptyAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable,
+		ec2ARN(testRegion, acct.ID, "route-table", "rtb-bare"), testRegion, "{}")
+	if err := resolveVPNGatewayRoutePropagations(acct, st); err != nil {
+		t.Fatalf("resolveVPNGatewayRoutePropagations: %v", err)
+	}
+}
+
 func TestResolveTGWAttachmentRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
