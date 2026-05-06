@@ -36,6 +36,11 @@ The engine ships in OSS — bring your own policies (Conftest AWS, regula,
 in-house bundles). Curated compliance packs (NIST, CIS, PCI-DSS,
 Well-Architected) are a paid add-on.
 
+Every resource in the local DB (including provider-managed rows such as
+AWS-managed IAM policies and Azure built-in role definitions) is evaluated.
+The resource count is printed to stderr; -o json|jsonl|sarif stdout stays
+clean for piping.
+
 Examples:
   disco check --rules ./policies
   disco check --rules ./policies --severity high -o jsonl
@@ -59,10 +64,12 @@ Examples:
 			return err
 		}
 
-		resources, err := db.ListResources(store.ResourceFilter{})
+		resources, err := loadAllResources(db)
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
 		}
+
+		fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
 
 		findings, err := eng.Evaluate(ctx, resources)
 		if err != nil {
@@ -107,6 +114,29 @@ Examples:
 		}
 		return nil
 	},
+}
+
+// loadAllResources paginates the store and returns every resource including
+// provider-managed rows. ResourceFilter{} silently caps at 500 + hides
+// managed (internal/store/resources.go) — that would make policy evaluation
+// incomplete. Mirrors the pagination idiom in store.GraphAll.
+func loadAllResources(db *store.Store) ([]store.Resource, error) {
+	const pageSize = uint64(5000)
+	var all []store.Resource
+	for offset := uint64(0); ; offset += pageSize {
+		page, err := db.ListResources(store.ResourceFilter{
+			IncludeManaged: true,
+			Limit:          pageSize,
+			Offset:         offset,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if uint64(len(page)) < pageSize {
+			return all, nil
+		}
+	}
 }
 
 // severityRank orders the four conventional levels for `--severity` cutoff.

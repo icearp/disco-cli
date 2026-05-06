@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -180,6 +181,88 @@ func TestCheckCmd_SARIF_Empty(t *testing.T) {
 	}
 	if len(doc.Runs) != 1 || len(doc.Runs[0].Results) != 0 {
 		t.Errorf("want 1 run with 0 results, got %+v", doc.Runs)
+	}
+}
+
+// TestCheckCmd_EvaluatesPastDefaultLimit guards against the silent
+// 500-row truncation that ResourceFilter{} applies. Seeds 600 volumes,
+// the last of which (sorted provider/type/name) is unencrypted; the
+// policy must still fire on it.
+func TestCheckCmd_EvaluatesPastDefaultLimit(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := make([]*store.Resource, 0, 600)
+	for i := 0; i < 599; i++ {
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+			NativeID:       fmt.Sprintf("vol-good-%04d", i),
+			AttributesJSON: `{"Encrypted": true}`, DiscoveredBy: scanID,
+		})
+	}
+	rows = append(rows, &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+		NativeID: "vol-zzz-bad", AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID,
+	})
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetCheckFlags()
+	dir := writePolicy(t)
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	var fs []policy.Finding
+	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if len(fs) != 1 || fs[0].ID != "ebs-unencrypted" {
+		t.Errorf("want 1 ebs-unencrypted finding past default 500-row cap, got %+v", fs)
+	}
+}
+
+// TestCheckCmd_EvaluatesManagedResources guards against IncludeManaged=false
+// hiding provider-managed rows from policy evaluation.
+func TestCheckCmd_EvaluatesManagedResources(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := []*store.Resource{
+		{Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-customer",
+			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID},
+		{Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-managed",
+			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID, ManagedByProvider: true},
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetCheckFlags()
+	dir := writePolicy(t)
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	var fs []policy.Finding
+	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	if len(fs) != 2 {
+		t.Errorf("want 2 findings (customer + managed), got %d: %+v", len(fs), fs)
 	}
 }
 

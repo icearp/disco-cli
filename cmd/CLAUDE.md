@@ -50,6 +50,7 @@ Output styling: per-format theme modules (`cmd/graph_theme.go` for DOT) own all 
 Reused by `graph_test.go`, `check_test.go`, `diff_paid_test.go`:
 - `seedTestDB(t)` — temp SQLite + scan record + 2 resources; sets `viper.Set("db", path)` so cobra cmds pick it up via `defaultDBPath()`.
 - `captureStdout(t, fn)` — pipes `os.Stdout` for cmds that write directly to it (not via `cmd.OutOrStdout`).
+- `captureStdout` does NOT redirect `os.Stderr`. Stderr writes (population stamps, warnings, "Using config file:" banner) bypass test assertions — safe place for telemetry that must not contaminate `-o json|jsonl|sarif` pipelines. If you need to assert on stderr, add a sibling `captureStderr` helper.
 
 Cobra package-level flag vars (`graph*`, `list*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`.
 

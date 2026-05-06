@@ -67,3 +67,5 @@ ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`,
 ## ListResources filter shape
 
 `store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`. Two zero-value defaults bite: `IncludeManaged=false` silently filters provider-managed rows, and `Limit=0` falls back to 500. Passing `ResourceFilter{}` is NOT "give me everything" — set `IncludeManaged: true` and either a large `Limit` or paginate via `Offset` for whole-table reads.
+
+Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (e.g. `cmd/check.loadAllResources`).

@@ -41,3 +41,5 @@ go.work.sum
 
 # AWS provider scaffolding skip log (untracked, per-dev notes)
 docs/aws-missing-services.md
+
+focus-group/
