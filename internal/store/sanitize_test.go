@@ -83,17 +83,47 @@ func TestScrubAttributes_EmptyAndMalformed(t *testing.T) {
 
 func TestScrubAttributes_ExtendedDenylist(t *testing.T) {
 	input := `{
-		"AccessKeyId": "AKIA...",
 		"ConnectionString": "Endpoint=sb://x;SharedAccessKey=abc",
 		"SasToken": "?sv=2021",
 		"KeyMaterial": "-----BEGIN PRIVATE KEY-----",
 		"UserData": "#!/bin/bash\nexport DB_PASS=hunter2"
 	}`
 	out := scrubAttributes(input)
-	for _, k := range []string{"AccessKeyId", "ConnectionString", "SasToken", "KeyMaterial", "UserData"} {
+	for _, k := range []string{"ConnectionString", "SasToken", "KeyMaterial", "UserData"} {
 		if !strings.Contains(out, `"`+k+`":"[REDACTED]"`) {
 			t.Errorf("%s not redacted: %s", k, out)
 		}
+	}
+}
+
+// TestScrub_AccessKeyIdNotRedacted: AKIA is a public-ish identifier; F11
+// dropped it from the denylist so attrs.AccessKeyId matches Name/NativeID.
+func TestScrub_AccessKeyIdNotRedacted(t *testing.T) {
+	input := `{"AccessKeyId":"AKIAR5IGJNECXFPDCUM2","Status":"Active"}`
+	out := scrubAttributes(input)
+	if !strings.Contains(out, `"AccessKeyId":"AKIAR5IGJNECXFPDCUM2"`) {
+		t.Errorf("AccessKeyId redacted unexpectedly: %s", out)
+	}
+}
+
+// TestScrub_SecretAccessKeyStillRedacted: the actual credential surfaces
+// rarely (CreateAccessKey response only — disco never calls it) but if it
+// ever appears, it must redact via the unchanged "secret" substring.
+func TestScrub_SecretAccessKeyStillRedacted(t *testing.T) {
+	input := `{"SecretAccessKey":"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}`
+	out := scrubAttributes(input)
+	if !strings.Contains(out, `"SecretAccessKey":"[REDACTED]"`) {
+		t.Errorf("SecretAccessKey not redacted: %s", out)
+	}
+}
+
+// TestScrub_ApiKeyStillRedacted: the apikey substring stays — third-party
+// SaaS tokens (Datadog, Stripe, ...) often surface under ApiKey-named fields.
+func TestScrub_ApiKeyStillRedacted(t *testing.T) {
+	input := `{"ApiKey":"sk_live_abcdefghijklmnop"}`
+	out := scrubAttributes(input)
+	if !strings.Contains(out, `"ApiKey":"[REDACTED]"`) {
+		t.Errorf("ApiKey not redacted: %s", out)
 	}
 }
 

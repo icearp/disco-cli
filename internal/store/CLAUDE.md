@@ -33,6 +33,10 @@ IAM principals (users/roles/groups, service accounts) are edge **destinations**:
 
 `UpsertResources` calls `scrubAttributes` (`sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
+AWS access key IDs (AKIA…) are public-ish identifiers, not credentials — IAM console, CloudTrail, `ListAccessKeys` all surface them unredacted. The denylist intentionally **omits** `accesskey` so attrs.AccessKeyId matches Name/NativeID. The credential is `SecretAccessKey`, returned only on `CreateAccessKey` (write op disco never calls); the `secret` substring catches it if it ever appears.
+
+Scrub state is pinned at scan time. Editing `sensitiveKeySubstrings` / `containerRedactKeys` only affects rows upserted after the change — pre-existing rows keep their old `[REDACTED]` (or unredacted) values until re-scanned.
+
 **Three redaction modes** (`sanitize.go`):
 1. `sensitiveKeySubstrings` (scalar-only, substring match): key matches denylist → scalar value redacted; object/array values recurse so structural containers whose name matches denylist (e.g. ECS `ContainerDefinitions[].Secrets[]`) stay intact. Leaf leaks (`SecretString`, `Password`, ...) caught. If resolver unmarshal silent yields zero edges under key whose name matches denylist, check here first.
 2. `containerRedactKeys` (wholesale, exact lower-case match): key matches → every scalar descendant redacted regardless of leaf name. Use for user-key/value maps where leaf names unpredictable (Lambda `Environment.Variables`, CodeBuild env). Add exact lower-case name only; short strings over-match.

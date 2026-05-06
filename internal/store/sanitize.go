@@ -25,7 +25,13 @@ var sensitiveKeySubstrings = []string{
 	"apikey",
 	"bearer",
 	"authorization",
-	"accesskey",        // AWS AccessKeyId and variants
+	// "accesskey" deliberately omitted: AWS AccessKeyId is a public-ish
+	// identifier (IAM console, CloudTrail events, ListAccessKeys metadata
+	// all surface it unredacted). The credential is SecretAccessKey,
+	// returned only on CreateAccessKey (a write op disco never invokes);
+	// the "secret" substring above catches it. Redacting AccessKeyId here
+	// produced inconsistent output — Name/NativeID/tag-keys leaked the
+	// same value the scrubber pretended to hide.
 	"connectionstring", // Azure connection strings embed keys
 	"sastoken",         // Azure Shared Access Signature tokens
 	"keymaterial",      // EC2 key pair material, KMS imports
