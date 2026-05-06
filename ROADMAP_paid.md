@@ -4,6 +4,8 @@ Closed-source roadmap. Excluded from OSS sync via `scripts/oss-sync.sh` (`*_paid
 
 Tier headings mirror the OSS roadmap (NEXT — quarter; LATER — 6–12mo / v1.0) so cross-comparison stays readable.
 
+Shipped paid surface lives in `FEATURES_paid.md`.
+
 ---
 
 ## Focus-group follow-ups
@@ -23,9 +25,6 @@ Paid deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/
 
 ### G10. `disco scan --resume` — incremental / resumable scans (paid feature)
 N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `002_scan_checkpoints.sql`) already persists per-(scan, provider, service, scope) continuation tokens. The paid incremental scanner consumes those checkpoints on `disco scan --resume <scanID|latest>` to skip already-listed pages — natural follow-up to PartialScan, driven by big-account scan timeouts. Engine in `internal/scanresume/` (paid); CLI dispatch via `startOrResumeScan` in `cmd/scan.go` (already in OSS, currently a no-op for the consumer side).
-
-### G6. `disco diff` (paid feature)
-Gate `disco diff <scanA> <scanB>` behind license check. Drift detection across two scan timestamps is the primary paid value-add for compliance teams running scheduled scans — pairs with G10 (incremental scans) and L6 (continuous mode). Base `--type`, `--provider`, `--kind added|removed|changed`, `--region`, `--account` filters ship as part of the paid surface. License check shared with other paid commands; OSS build returns "diff requires a license" with link.
 
 ---
 
