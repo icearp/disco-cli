@@ -27,6 +27,8 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 - `peer` — bidirectional peering (VPC peering)
 - `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` — R5 cross-tenant edges. Targets are synthetic stub resources (`aws:iam:foreign-account`, `azure:microsoft.resources:foreign-subscription`, `gcp:iam:foreign-project`) when foreign tenant out of scan scope.
 
+IAM principals (users/roles/groups, service accounts) are edge **destinations**: group→user is `contains`, user→access-key is `contains`, policy→user is `attached-to`, role→trust-policy is `assumes`. Outbound-only BFS from a principal returns seed-only — use DirBoth (or `cmd/graph` blast's auto-fallback) and include `contains` in `Kinds`.
+
 ## Secret scrubbing
 
 `UpsertResources` calls `scrubAttributes` (`sanitize.go`) on every `attributes` JSON blob before insert. Denylist of key substrings (`password`, `passphrase`, `secret`, `token`, `signature`, `presignedurl`, `credential`, `privatekey`, `apikey`, `bearer`, `authorization`) → `"[REDACTED]"`. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
@@ -69,3 +71,7 @@ ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`,
 `store.ListResources(store.ResourceFilter{...})` — filter struct is `ResourceFilter`, not `ListFilter`. Multi-type filter is `Types []string`, not `Type string`. Two zero-value defaults bite: `IncludeManaged=false` silently filters provider-managed rows, and `Limit=0` falls back to 500. Passing `ResourceFilter{}` is NOT "give me everything" — set `IncludeManaged: true` and either a large `Limit` or paginate via `Offset` for whole-table reads.
 
 Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-loops `ListResources` with `IncludeManaged: true` + `Limit: 5000` until an empty page returns. Reuse that shape from CLI commands that must evaluate the full population (e.g. `cmd/check.loadAllResources`).
+
+## Wire shape ≠ storage shape
+
+`Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under snake_case keys (`native_id`, `account_id`, ...). Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. New JSON encoders should emit `[]Resource` directly — no per-call shape massaging.

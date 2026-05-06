@@ -15,29 +15,74 @@ import (
 var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Resource represents a discovered cloud resource.
+//
+// Wire shape ≠ storage shape: AttributesJSON / TagsJSON live as JSON strings
+// in the DB but MarshalJSON / UnmarshalJSON surface them as nested
+// `attributes` / `tags` objects on the wire. JSON keys are snake_case to
+// match policy.Finding and coverage.Row.
 type Resource struct {
-	ID             string  `db:"id"`
-	Provider       string  `db:"provider"`
-	AccountID      string  `db:"account_id"`
-	AccountName    *string `db:"account_name"`
-	Type           string  `db:"type"`
-	NativeID       string  `db:"native_id"`
-	Name           *string `db:"name"`
-	Region         *string `db:"region"`
-	Zone           *string `db:"zone"`
-	Status         *string `db:"status"`
-	TagsJSON       *string `db:"tags"`
-	AttributesJSON string  `db:"attributes"` // JSON blob
-	CreatedAt      *string `db:"created_at"`
-	DiscoveredAt   string  `db:"discovered_at"`
-	DiscoveredBy   string  `db:"discovered_by"`
-	VerifiedAt     *string `db:"verified_at"` // updated each time the resource is seen in a scan
-	VerifiedBy     *string `db:"verified_by"` // scan ID that last verified this resource
-	// ManagedByProvider marks resources owned by the cloud provider rather
-	// than the user (Azure built-in policy/role definitions, AWS-owned
-	// managed prefix lists, IAM service-linked roles). Hidden by default in
-	// list/graph output; opt-in via --include-managed.
-	ManagedByProvider bool `db:"managed_by_provider"`
+	ID                string  `db:"id"                  json:"id"`
+	Provider          string  `db:"provider"            json:"provider"`
+	AccountID         string  `db:"account_id"          json:"account_id"`
+	AccountName       *string `db:"account_name"        json:"account_name,omitempty"`
+	Type              string  `db:"type"                json:"type"`
+	NativeID          string  `db:"native_id"           json:"native_id"`
+	Name              *string `db:"name"                json:"name,omitempty"`
+	Region            *string `db:"region"              json:"region,omitempty"`
+	Zone              *string `db:"zone"                json:"zone,omitempty"`
+	Status            *string `db:"status"              json:"status,omitempty"`
+	TagsJSON          *string `db:"tags"                json:"-"` // surfaced as `tags` via MarshalJSON
+	AttributesJSON    string  `db:"attributes"          json:"-"` // surfaced as `attributes` via MarshalJSON
+	CreatedAt         *string `db:"created_at"          json:"created_at,omitempty"`
+	DiscoveredAt      string  `db:"discovered_at"       json:"discovered_at"`
+	DiscoveredBy      string  `db:"discovered_by"       json:"discovered_by"`
+	VerifiedAt        *string `db:"verified_at"         json:"verified_at,omitempty"`
+	VerifiedBy        *string `db:"verified_by"         json:"verified_by,omitempty"`
+	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider,omitempty"`
+}
+
+// resourceWire is the on-wire shape: SDK-shape attributes/tags surfaced as
+// nested values, scalar fields inherited from Resource via embedding.
+type resourceWire struct {
+	resourceAlias
+	Attributes json.RawMessage `json:"attributes,omitempty"`
+	Tags       json.RawMessage `json:"tags,omitempty"`
+}
+
+// resourceAlias avoids infinite recursion in MarshalJSON / UnmarshalJSON.
+type resourceAlias Resource
+
+// MarshalJSON emits Resource with snake_case keys and nested
+// `attributes` / `tags` rather than stringified JSON blobs. Malformed legacy
+// blobs (failed json.Valid) are dropped via omitempty rather than crashing.
+func (r Resource) MarshalJSON() ([]byte, error) {
+	w := resourceWire{resourceAlias: resourceAlias(r)}
+	if r.AttributesJSON != "" && json.Valid([]byte(r.AttributesJSON)) {
+		w.Attributes = json.RawMessage(r.AttributesJSON)
+	}
+	if r.TagsJSON != nil && *r.TagsJSON != "" && json.Valid([]byte(*r.TagsJSON)) {
+		w.Tags = json.RawMessage(*r.TagsJSON)
+	}
+	return json.Marshal(w)
+}
+
+// UnmarshalJSON reverses MarshalJSON: nested `attributes` / `tags` objects
+// fold back into AttributesJSON / TagsJSON strings so []Resource round-trips
+// byte-stably through encode → decode.
+func (r *Resource) UnmarshalJSON(data []byte) error {
+	w := resourceWire{resourceAlias: resourceAlias(*r)}
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	*r = Resource(w.resourceAlias)
+	if len(w.Attributes) > 0 {
+		r.AttributesJSON = string(w.Attributes)
+	}
+	if len(w.Tags) > 0 {
+		s := string(w.Tags)
+		r.TagsJSON = &s
+	}
+	return nil
 }
 
 // idHashBytes is the number of SHA-256 prefix bytes used in a resource ID.

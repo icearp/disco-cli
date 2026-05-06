@@ -113,12 +113,67 @@ func TestListCmd_JSON(t *testing.T) {
 	}
 }
 
+// TestListCmd_JSON_SnakeCase guards the F3 unification: keys must be
+// snake_case and attributes/tags must be nested objects on the wire, not
+// stringified JSON blobs as in the legacy PascalCase shape.
+func TestListCmd_JSON_SnakeCase(t *testing.T) {
+	st := seedTestDB(t)
+	resetListFlags()
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	tags := `{"env":"prod"}`
+	name := "vol"
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+		NativeID: "vol-x", Name: &name,
+		AttributesJSON: `{"Encrypted":false}`, TagsJSON: &tags,
+		DiscoveredBy: scanID,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list json: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("decode: %v\n%s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rows))
+	}
+	r := rows[0]
+	if _, ok := r["NativeID"]; ok {
+		t.Errorf("PascalCase NativeID leaked: %v", r)
+	}
+	if r["native_id"] != "vol-x" {
+		t.Errorf("native_id: got %v", r["native_id"])
+	}
+	attrs, ok := r["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes not nested object: %T %v", r["attributes"], r["attributes"])
+	}
+	if attrs["Encrypted"] != false {
+		t.Errorf("attrs.Encrypted: got %v", attrs["Encrypted"])
+	}
+	tagsOut, ok := r["tags"].(map[string]any)
+	if !ok || tagsOut["env"] != "prod" {
+		t.Errorf("tags not nested: %v", r["tags"])
+	}
+}
+
 // TestListCmd_CSV verifies that --output csv emits the header row plus one
 // row per resource with the canonical column order.
 func TestListCmd_CSV(t *testing.T) {
 	seedTestDB(t)
-	// Reset the filter vars that earlier tests may have mutated.
-	listOutputFmt, listProvider = "", ""
+	resetListFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
@@ -146,7 +201,7 @@ func TestListCmd_CSV(t *testing.T) {
 // newline-terminated line.
 func TestListCmd_JSONL(t *testing.T) {
 	seedTestDB(t)
-	listOutputFmt = ""
+	resetListFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
