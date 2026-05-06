@@ -5,18 +5,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
 
-// listColumns is the canonical column order for tabular output formats
-// (table, csv). JSON/JSONL emit the full Resource struct instead.
-var listColumns = []string{"provider", "account_id", "type", "name", "region", "status", "native_id"}
+// listColumns is the canonical column order for CSV output. Pre-F7 columns
+// keep their positions; chain-of-custody + full-fidelity columns appended
+// so positional-index spreadsheet imports keep working. The table renderer
+// uses its own narrower header.
+var listColumns = []string{
+	"provider", "account_id", "type", "name", "region", "status", "native_id",
+	"id", "account_name", "zone", "managed_by_provider",
+	"tags", "attributes",
+	"created_at", "discovered_at", "discovered_by", "verified_at", "verified_by",
+}
 
 // resourceRow returns the resource's column values in listColumns order.
-// Used by CSV output; nil string fields render as empty cells.
+// Used by CSV output; nil string fields render as empty cells. tags and
+// attributes carry the raw JSON blobs — encoding/csv quotes them as needed.
 func resourceRow(r *store.Resource) []string {
 	s := func(p *string) string {
 		if p == nil {
@@ -24,7 +33,16 @@ func resourceRow(r *store.Resource) []string {
 		}
 		return *p
 	}
-	return []string{r.Provider, r.AccountID, r.Type, s(r.Name), s(r.Region), s(r.Status), r.NativeID}
+	tags := ""
+	if r.TagsJSON != nil {
+		tags = *r.TagsJSON
+	}
+	return []string{
+		r.Provider, r.AccountID, r.Type, s(r.Name), s(r.Region), s(r.Status), r.NativeID,
+		r.ID, s(r.AccountName), s(r.Zone), strconv.FormatBool(r.ManagedByProvider),
+		tags, r.AttributesJSON,
+		s(r.CreatedAt), r.DiscoveredAt, r.DiscoveredBy, s(r.VerifiedAt), s(r.VerifiedBy),
+	}
 }
 
 var (

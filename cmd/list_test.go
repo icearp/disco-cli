@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -192,8 +193,92 @@ func TestListCmd_CSV(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("expected 3 rows (header + 2 resources), got %d", len(rows))
 	}
-	if rows[0][0] != "provider" {
-		t.Errorf("header row[0]: got %q, want provider", rows[0][0])
+	header := rows[0]
+	if header[0] != "provider" {
+		t.Errorf("header row[0]: got %q, want provider", header[0])
+	}
+	if len(header) != 18 {
+		t.Errorf("header width: got %d, want 18", len(header))
+	}
+	headerIdx := map[string]int{}
+	for i, h := range header {
+		headerIdx[h] = i
+	}
+	for _, must := range []string{"id", "account_name", "zone", "managed_by_provider", "tags", "attributes", "discovered_at", "discovered_by", "verified_at", "verified_by"} {
+		if _, ok := headerIdx[must]; !ok {
+			t.Errorf("custody column missing: %s", must)
+		}
+	}
+	dataRow := rows[1]
+	idCell := dataRow[headerIdx["id"]]
+	if matched, _ := regexp.MatchString(`^[0-9a-f]{32}$`, idCell); !matched {
+		t.Errorf("id cell not 32-hex: %q", idCell)
+	}
+	if dataRow[headerIdx["discovered_by"]] == "" {
+		t.Errorf("discovered_by empty")
+	}
+	if dataRow[headerIdx["verified_at"]] == "" {
+		t.Errorf("verified_at empty")
+	}
+	mbp := dataRow[headerIdx["managed_by_provider"]]
+	if mbp != "true" && mbp != "false" {
+		t.Errorf("managed_by_provider: got %q, want true|false", mbp)
+	}
+}
+
+// TestListCmd_CSV_TagsAttrsRoundTrip seeds a row with tags + attrs and asserts
+// the CSV blob cells parse back via json.Unmarshal — F7 fidelity guard.
+func TestListCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	tags := `{"env":"prod","team":"core"}`
+	attrs := `{"Encrypted":false,"Size":8}`
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+		NativeID: "vol-rt", AttributesJSON: attrs, TagsJSON: &tags,
+		DiscoveredBy: scanID,
+	}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	resetListFlags()
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--output", "csv", "--type", "aws:ec2:volume"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list csv: %v", err)
+	}
+	r := csv.NewReader(bytes.NewReader([]byte(out)))
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(rows) < 2 {
+		t.Fatalf("want header + 1 row, got %d", len(rows))
+	}
+	header := rows[0]
+	idx := map[string]int{}
+	for i, h := range header {
+		idx[h] = i
+	}
+	var gotTags map[string]string
+	if err := json.Unmarshal([]byte(rows[1][idx["tags"]]), &gotTags); err != nil {
+		t.Fatalf("tags cell not JSON: %v\n%s", err, rows[1][idx["tags"]])
+	}
+	if gotTags["env"] != "prod" || gotTags["team"] != "core" {
+		t.Errorf("tags drift: %v", gotTags)
+	}
+	var gotAttrs map[string]any
+	if err := json.Unmarshal([]byte(rows[1][idx["attributes"]]), &gotAttrs); err != nil {
+		t.Fatalf("attributes cell not JSON: %v", err)
+	}
+	if gotAttrs["Encrypted"] != false {
+		t.Errorf("attrs.Encrypted drift: %v", gotAttrs)
 	}
 }
 
