@@ -83,6 +83,14 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
 
+## Rego authors must check scanner wrapping for attrs path
+
+Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "Status": ...}`; ELBv2 LB: `{"lb": ..., "type": ...}`; EventBridge rule: `{"rule": ..., "Targets": [...]}`; Lambda function: SDK type embedded with `Code` sibling). Rego rules reading these resources must match the wrapped path: `input.attributes.Trail.IsMultiRegionTrail`, not `input.attributes.IsMultiRegionTrail`. The wrapping is documented in `internal/providers/aws/CLAUDE.md` — grep for the resource type before authoring a rule. Wrong path silently matches nothing.
+
+## `--packs <name,...>` loads bundled OSS Rego packs
+
+`disco check --packs aws-waf` loads `internal/policy/aws-waf/*.rego` via `//go:embed`. Pack names follow `<provider>-<framework>` convention. `policy.LoadPacks([]string)` walks the embed.FS, returns `map[name]source`; `policy.NewEngine(ctx, paths, modules)` accepts both `--rules <dir>` paths AND module map in one call so `--rules ./mine --packs aws-waf` composes. Adding a new pack = one `//go:embed` line + one entry to `AvailablePacks()`. Bare `disco check` errors with "--rules or --packs is required (e.g. --packs aws-waf)" — never default to one or the other silently.
+
 ## Set `Args: cobra.NoArgs` on flag-only subcommands
 
 Cobra's default Args validator silently accepts arbitrary positional tokens. `disco list --since 2025-05-01 12:01:01` parses `--since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`list`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.

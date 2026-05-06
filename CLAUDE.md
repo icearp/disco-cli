@@ -95,6 +95,7 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 - Bug fixes / new free features: edit untagged files normally — flow downstream to OSS via next `make oss-sync`.
 - Paid-only docs: name `*_paid.md` — excluded by `scripts/oss-sync.sh` name pattern. Canonical: `ROADMAP_paid.md`. Do not cross-reference from OSS-tracked files.
 - Rubric for new features: ship in OSS unless ALL of (a) proprietary algorithm or IP worth gating, (b) external service dependency, (c) clear competitive differentiator, (d) richer paid-tier version planned. Trivially-reproducible-via-existing-flags features (`list -o json | jq` equivalents like F13 tag-coverage) always go OSS — gating buys nothing.
+- Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. OSS ships `aws-waf` (5-rule AWS Well-Architected teaser, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — stay paid. Future `azure-waf` / `gcp-waf` follow the same OSS-teaser shape.
 
 ### Verifying paid-only deps don't leak
 

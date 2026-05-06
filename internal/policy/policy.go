@@ -44,24 +44,15 @@ type Engine struct {
 }
 
 // NewEngine compiles the Rego modules under paths (files or directories,
-// recursive) into a prepared query. Empty paths yields an engine that
-// evaluates against an empty policy set — useful for smoke tests.
-func NewEngine(ctx context.Context, paths []string) (*Engine, error) {
+// recursive) AND any in-memory modules into a single prepared query. Either
+// argument may be empty — passing both empty yields an engine evaluating
+// against an empty policy set (useful for smoke tests). Used by `disco
+// check` to compose `--rules <dir>` with `--packs aws-waf` in one pass.
+func NewEngine(ctx context.Context, paths []string, modules map[string]string) (*Engine, error) {
 	opts := []func(*rego.Rego){rego.Query(denyQuery)}
 	if len(paths) > 0 {
 		opts = append(opts, rego.Load(paths, nil))
 	}
-	pq, err := rego.New(opts...).PrepareForEval(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("compile rego: %w", err)
-	}
-	return &Engine{pq: pq}, nil
-}
-
-// NewEngineFromModules builds an engine from in-memory Rego source. Used by
-// tests; production callers should prefer NewEngine + on-disk policies.
-func NewEngineFromModules(ctx context.Context, modules map[string]string) (*Engine, error) {
-	opts := []func(*rego.Rego){rego.Query(denyQuery)}
 	for name, src := range modules {
 		opts = append(opts, rego.Module(name, src))
 	}
@@ -70,6 +61,12 @@ func NewEngineFromModules(ctx context.Context, modules map[string]string) (*Engi
 		return nil, fmt.Errorf("compile rego: %w", err)
 	}
 	return &Engine{pq: pq}, nil
+}
+
+// NewEngineFromModules builds an engine from in-memory Rego source.
+// Thin wrapper retained for tests; new code should call NewEngine directly.
+func NewEngineFromModules(ctx context.Context, modules map[string]string) (*Engine, error) {
+	return NewEngine(ctx, nil, modules)
 }
 
 // Evaluate runs the prepared query against each resource and aggregates

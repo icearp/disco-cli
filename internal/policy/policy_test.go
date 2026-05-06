@@ -119,7 +119,7 @@ func TestResourceToInput_NilTagsEmptyMap(t *testing.T) {
 // TestEngine_EmptyPolicies confirms an engine built with no modules
 // evaluates cleanly and emits zero findings.
 func TestEngine_EmptyPolicies(t *testing.T) {
-	eng, err := NewEngine(context.Background(), nil)
+	eng, err := NewEngine(context.Background(), nil, nil)
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}

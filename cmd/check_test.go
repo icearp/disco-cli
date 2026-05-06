@@ -35,6 +35,7 @@ func seedCheckDB(t *testing.T) *store.Store {
 // them across tests because rootCmd is shared.
 func resetCheckFlags() {
 	checkRulePaths = nil
+	checkPacks = nil
 	checkSeverity = ""
 	checkOutputFmt = "table"
 	checkExitNonZero = false
@@ -280,7 +281,7 @@ func TestCheckCmd_EvaluatesManagedResources(t *testing.T) {
 }
 
 // TestCheckCmd_RulesRequired confirms the command rejects an invocation
-// without --rules — there are no embedded policies anymore.
+// with neither --rules nor --packs.
 func TestCheckCmd_RulesRequired(t *testing.T) {
 	seedTestDB(t)
 	resetCheckFlags()
@@ -290,7 +291,86 @@ func TestCheckCmd_RulesRequired(t *testing.T) {
 		cmd.SetArgs([]string{"check"})
 		return cmd.Execute()
 	})
-	if err == nil || !strings.Contains(err.Error(), "--rules is required") {
-		t.Errorf("want --rules required error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "--rules or --packs") {
+		t.Errorf("want --rules-or-packs error, got %v", err)
+	}
+}
+
+// TestCheckCmd_PacksAWSWAF runs the bundled aws-waf pack against a seeded
+// DB carrying one unencrypted EBS volume and asserts the
+// waf-sec-ebs-encryption-at-rest finding fires end-to-end.
+func TestCheckCmd_PacksAWSWAF(t *testing.T) {
+	seedCheckDB(t) // plants vol-bad with Encrypted: false
+	resetCheckFlags()
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	var fs []policy.Finding
+	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	found := false
+	for _, f := range fs {
+		if f.ID == "waf-sec-ebs-encryption-at-rest" {
+			found = true
+			if f.Category != "aws-waf" {
+				t.Errorf("category: got %q, want aws-waf", f.Category)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("waf-sec-ebs-encryption-at-rest not in findings: %+v", fs)
+	}
+}
+
+// TestCheckCmd_PacksUnknown confirms an unknown pack name surfaces a
+// user-readable error mentioning the available packs.
+func TestCheckCmd_PacksUnknown(t *testing.T) {
+	seedTestDB(t)
+	resetCheckFlags()
+
+	_, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--packs", "bogus"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "available: aws-waf") {
+		t.Errorf("want unknown-pack error mentioning aws-waf, got %v", err)
+	}
+}
+
+// TestCheckCmd_PacksPlusRules asserts --packs and --rules compose: both
+// sources evaluate against the same population in one query.
+func TestCheckCmd_PacksPlusRules(t *testing.T) {
+	seedCheckDB(t)
+	resetCheckFlags()
+	dir := writePolicy(t)
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--rules", dir, "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	var fs []policy.Finding
+	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	// Inline test policy fires ebs-unencrypted; WAF pack fires
+	// waf-sec-ebs-encryption-at-rest. Same row, two findings.
+	ids := map[string]bool{}
+	for _, f := range fs {
+		ids[f.ID] = true
+	}
+	if !ids["ebs-unencrypted"] || !ids["waf-sec-ebs-encryption-at-rest"] {
+		t.Errorf("compose: want both ids, got %+v", ids)
 	}
 }

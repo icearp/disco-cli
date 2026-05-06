@@ -14,6 +14,7 @@ import (
 
 var (
 	checkRulePaths   []string
+	checkPacks       []string
 	checkSeverity    string
 	checkOutputFmt   string
 	checkExitNonZero bool
@@ -32,9 +33,18 @@ data.disco.deny set with finding objects shaped:
   {"id": "...", "severity": "low|medium|high|critical", "message": "...",
    "tags": {...}, "remediation": "...", "ref_url": "..."}
 
-The engine ships in OSS — bring your own policies (Conftest AWS, regula,
-in-house bundles). Curated compliance packs (NIST, CIS, PCI-DSS,
-Well-Architected) are a paid add-on.
+The engine ships in OSS. Two ways to feed it rules:
+
+  --rules <file|dir>   Bring your own policies (Conftest AWS, regula,
+                       in-house bundles). Repeatable.
+  --packs <name,...>   Load bundled OSS packs. Available:
+                         aws-waf — 5-rule AWS Well-Architected starter
+                                   (one or two rules per pillar)
+
+Both flags compose; both run in one pass against the full population.
+
+Curated full packs (Well-Architected complete, CIS-AWS-Foundations,
+NIST 800-53, PCI-DSS, ISO 27001) are a paid add-on.
 
 Every resource in the local DB (including provider-managed rows such as
 AWS-managed IAM policies and Azure built-in role definitions) is evaluated.
@@ -51,14 +61,14 @@ Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.verified_at)
 for freshness-bound controls.
 
 Examples:
-  disco check --rules ./policies
-  disco check --rules ./policies --severity high -o jsonl
-  disco check --rules ./policies -o sarif > findings.sarif
+  disco check --packs aws-waf
+  disco check --packs aws-waf --severity high
+  disco check --rules ./policies --packs aws-waf -o sarif > findings.sarif
   disco check --rules ./policies --exit-nonzero`,
 	RunE: func(cmd *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(checkOutputFmt, rerr) }()
-		if len(checkRulePaths) == 0 {
-			return fmt.Errorf("--rules is required (path to .rego file or directory)")
+		if len(checkRulePaths) == 0 && len(checkPacks) == 0 {
+			return fmt.Errorf("--rules or --packs is required (e.g. --packs aws-waf)")
 		}
 
 		ctx := cmd.Context()
@@ -69,7 +79,15 @@ Examples:
 		}
 		defer func() { _ = db.Close() }()
 
-		eng, err := policy.NewEngine(ctx, checkRulePaths)
+		var modules map[string]string
+		if len(checkPacks) > 0 {
+			modules, err = policy.LoadPacks(checkPacks)
+			if err != nil {
+				return err
+			}
+		}
+
+		eng, err := policy.NewEngine(ctx, checkRulePaths, modules)
 		if err != nil {
 			return err
 		}
@@ -193,6 +211,7 @@ func dashIfEmpty(s string) string {
 
 func init() {
 	checkCmd.Flags().StringSliceVar(&checkRulePaths, "rules", nil, "Rego policy file or directory (repeatable; directories walked for *.rego)")
+	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled OSS packs (available: aws-waf)")
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, sarif")
 	checkCmd.Flags().BoolVar(&checkExitNonZero, "exit-nonzero", false, "Exit 1 if any finding reported")
