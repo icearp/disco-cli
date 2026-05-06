@@ -155,6 +155,135 @@ func TestGraphCmd_Blast(t *testing.T) {
 	}
 }
 
+// TestGraphBlast_PrincipalAutoFallback guards F4: a seed with only inbound
+// edges (IAM principal shape) walked under default DirOut returns seed-only;
+// blast should re-run DirBoth and stamp a stderr note.
+func TestGraphBlast_PrincipalAutoFallback(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	uName, gName, pName := "alice", "admins", "AdminPolicy"
+	user := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:iam:user",
+		NativeID: "arn:aws:iam::111:user/alice", Name: &uName,
+		AttributesJSON: "{}", DiscoveredBy: scanID,
+	}
+	group := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:iam:group",
+		NativeID: "arn:aws:iam::111:group/admins", Name: &gName,
+		AttributesJSON: "{}", DiscoveredBy: scanID,
+	}
+	policy := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:iam:policy",
+		NativeID: "arn:aws:iam::111:policy/AdminPolicy", Name: &pName,
+		AttributesJSON: "{}", DiscoveredBy: scanID,
+	}
+	if _, err := st.UpsertResources([]*store.Resource{user, group, policy}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := st.UpsertRelationship(group.ID, user.ID, store.RelContains, "directed", nil); err != nil {
+		t.Fatalf("rel contains: %v", err)
+	}
+	if err := st.UpsertRelationship(policy.ID, user.ID, store.RelAttachedTo, "directed", nil); err != nil {
+		t.Fatalf("rel attached-to: %v", err)
+	}
+
+	resetGraphFlags()
+	var stdoutCap string
+	stderrCap, err := captureStderr(t, func() error {
+		var inner error
+		stdoutCap, inner = captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"graph", "blast", user.ID})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("blast: %v", err)
+	}
+	if !strings.Contains(stderrCap, "expanded to --direction both") {
+		t.Errorf("want fallback note on stderr, got %q", stderrCap)
+	}
+	if !strings.Contains(stdoutCap, "Ring 1") {
+		t.Errorf("want Ring 1 (peer reachable via fallback), got:\n%s", stdoutCap)
+	}
+}
+
+// TestGraphBlast_RespectsExplicitDirOut: when user pins --direction out,
+// fallback must NOT fire even when result is seed-only.
+func TestGraphBlast_RespectsExplicitDirOut(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	uName, gName := "alice", "admins"
+	user := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:iam:user",
+		NativeID: "arn:aws:iam::111:user/alice", Name: &uName,
+		AttributesJSON: "{}", DiscoveredBy: scanID,
+	}
+	group := &store.Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:iam:group",
+		NativeID: "arn:aws:iam::111:group/admins", Name: &gName,
+		AttributesJSON: "{}", DiscoveredBy: scanID,
+	}
+	if _, err := st.UpsertResources([]*store.Resource{user, group}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	if err := st.UpsertRelationship(group.ID, user.ID, store.RelAttachedTo, "directed", nil); err != nil {
+		t.Fatalf("rel: %v", err)
+	}
+
+	resetGraphFlags()
+	stderrCap, err := captureStderr(t, func() error {
+		_, inner := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"graph", "blast", user.ID, "--direction", "out"})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("blast: %v", err)
+	}
+	if strings.Contains(stderrCap, "expanded to --direction both") {
+		t.Errorf("fallback fired despite explicit --direction out: %q", stderrCap)
+	}
+}
+
+// TestGraphBlast_NoFallbackWhenOutboundExists: a non-principal seed with
+// outbound edges already returns >1 nodes under DirOut; fallback must not fire.
+func TestGraphBlast_NoFallbackWhenOutboundExists(t *testing.T) {
+	st := seedTestDB(t)
+	rs, err := st.ListResources(store.ResourceFilter{})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if err := st.UpsertRelationship(rs[0].ID, rs[1].ID, store.RelUses, "directed", nil); err != nil {
+		t.Fatalf("rel: %v", err)
+	}
+
+	resetGraphFlags()
+	stderrCap, err := captureStderr(t, func() error {
+		_, inner := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"graph", "blast", rs[0].ID})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("blast: %v", err)
+	}
+	if strings.Contains(stderrCap, "expanded to --direction both") {
+		t.Errorf("fallback fired with outbound edges present: %q", stderrCap)
+	}
+}
+
 // TestGraphCmd_Mermaid verifies the mermaid renderer emits a flowchart with
 // node lines and an edge between the two seeded nodes.
 func TestGraphCmd_Mermaid(t *testing.T) {

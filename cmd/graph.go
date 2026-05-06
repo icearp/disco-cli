@@ -162,6 +162,12 @@ var graphBlastCmd = &cobra.Command{
 results by distance ring. Default kind-set excludes 'contains' so hierarchy
 fan-out does not dominate the radius. Default --depth for blast is 3.
 
+IAM principals (users, roles, groups, service accounts) are destinations of
+auth edges, not sources — a principal seed with --direction out (default)
+returns the seed alone. blast detects this case and re-walks with
+--direction both, noting the switch on stderr. Pin --direction out
+explicitly to disable the fallback.
+
 Caps via --max-nodes / --max-edges report truncation to stderr.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -192,7 +198,9 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			depth = 3
 		}
 
-		g, err := db.GraphWalk(seed.ID, store.GraphWalkOpts{
+		dirSet := cmd.Parent().PersistentFlags().Changed("direction")
+		kindsSet := cmd.Parent().PersistentFlags().Changed("kinds")
+		opts := store.GraphWalkOpts{
 			MaxDepth:       depth,
 			Kinds:          kinds,
 			Direction:      store.DirOut,
@@ -201,9 +209,28 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			ExcludeRegions: graphExcludeRegions,
 			MaxNodes:       graphMaxNodes,
 			MaxEdges:       graphMaxEdges,
-		})
+		}
+		g, err := db.GraphWalk(seed.ID, opts)
 		if err != nil {
 			return err
+		}
+
+		// IAM principals (and other inbound-only seeds) emit no outbound
+		// edges; DirOut walks alone leave them seed-only. Re-walk DirBoth
+		// when the user did not pin --direction. If --kinds was also left
+		// default, also include 'contains' on the retry — IAM principal
+		// edges to access-keys / group membership are 'contains' by schema.
+		if !dirSet && len(g.Nodes) == 1 && len(g.Edges) == 0 {
+			opts.Direction = store.DirBoth
+			if !kindsSet {
+				opts.Kinds = append(append([]string{}, kinds...), store.RelContains)
+			}
+			if g2, err2 := db.GraphWalk(seed.ID, opts); err2 == nil && (len(g2.Nodes) > 1 || len(g2.Edges) > 0) {
+				fmt.Fprintln(os.Stderr,
+					"note: seed has no outbound edges; expanded to --direction both "+
+						"(IAM principals receive edges, not emit; pass --direction out to disable)")
+				g = g2
+			}
 		}
 		return renderGraph(g, true)
 	},
