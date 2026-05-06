@@ -28,6 +28,7 @@ NAME_EXCLUDES=(
   '*_paid.go'
   '*_paid_test.go'
   '*_paid.md'
+  '*_paid.sql'
   'scripts/oss-sync.sh'
   'scripts/oss-cherry-pick.sh'
   'README.upstream.md'

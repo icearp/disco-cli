@@ -1,0 +1,332 @@
+//go:build paid
+
+package cmd
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"text/tabwriter"
+
+	"codeberg.org/icearp/disco/internal/license"
+	"codeberg.org/icearp/disco/internal/policy"
+	"codeberg.org/icearp/disco/internal/store"
+	"github.com/spf13/cobra"
+)
+
+var (
+	findingsOutputFmt  string
+	findingsCheckRunID string
+	findingsSince      = singleSetString{flag: "since"}
+	findingsSeverity   string
+	findingsCategory   string
+	findingsType       string
+	findingsProvider   string
+	findingsFindingID  string
+)
+
+var findingsCmd = &cobra.Command{
+	Use:   "findings",
+	Short: "Query persisted check findings",
+	Long: `Query findings recorded by 'disco check --persist'. Pairs with
+'disco findings runs' (history of check invocations) and the SARIF
+renderer reused from 'disco check'.
+
+Subcommands:
+  disco findings list   findings, default to latest run
+  disco findings runs   recorded check_run history`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		if err := license.Require(); err != nil {
+			return err
+		}
+		// Default behaviour: alias to `findings list`.
+		return findingsListCmd.RunE(cmd, nil)
+	},
+}
+
+var findingsListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List persisted findings (defaults to the latest check run)",
+	Args:  cobra.NoArgs,
+	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
+		if err := license.Require(); err != nil {
+			return err
+		}
+		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
+
+		db, err := openDB()
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		runID := findingsCheckRunID
+		if runID == "" {
+			runID = "latest"
+		}
+		resolved, err := resolveCheckRunID(db, runID)
+		if err != nil {
+			return err
+		}
+		since, err := parseSince(findingsSince.val)
+		if err != nil {
+			return err
+		}
+
+		rows, err := db.ListFindings(store.FindingFilter{
+			CheckRunID: resolved,
+			FindingID:  findingsFindingID,
+			Severity:   findingsSeverity,
+			Category:   findingsCategory,
+			Provider:   findingsProvider,
+			Type:       findingsType,
+			Since:      since,
+		})
+		if err != nil {
+			return fmt.Errorf("list findings: %w", err)
+		}
+
+		out := make([]policy.Finding, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, storedFindingToFinding(r))
+		}
+		return renderFindings(out, findingsOutputFmt)
+	},
+}
+
+var findingsRunsCmd = &cobra.Command{
+	Use:   "runs",
+	Short: "List recorded check runs",
+	Args:  cobra.NoArgs,
+	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
+		if err := license.Require(); err != nil {
+			return err
+		}
+		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
+
+		db, err := openDB()
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		runs, err := db.ListCheckRuns()
+		if err != nil {
+			return fmt.Errorf("list check_runs: %w", err)
+		}
+		// --since reuses singleSetString + parseSince; filter in-Go since
+		// ListCheckRuns has no SQL filter shape for it.
+		if findingsSince.val != "" {
+			cutoff, perr := parseSince(findingsSince.val)
+			if perr != nil {
+				return perr
+			}
+			filtered := runs[:0]
+			for _, r := range runs {
+				if r.StartedAt >= cutoff {
+					filtered = append(filtered, r)
+				}
+			}
+			runs = filtered
+		}
+		return renderCheckRuns(runs, findingsOutputFmt)
+	},
+}
+
+func renderFindings(fs []policy.Finding, format string) error {
+	switch format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(fs)
+	case "jsonl":
+		enc := json.NewEncoder(os.Stdout)
+		for _, f := range fs {
+			if err := enc.Encode(f); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "sarif":
+		return renderCheckSARIF(fs, os.Stdout)
+	case "csv":
+		w := csv.NewWriter(os.Stdout)
+		defer w.Flush()
+		if err := w.Write([]string{"finding_id", "severity", "resource_id", "type", "name", "region", "category", "message"}); err != nil {
+			return err
+		}
+		for _, f := range fs {
+			if err := w.Write([]string{f.ID, f.Severity, f.ResourceID, f.Type, f.Name, f.Region, f.Category, f.Message}); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "table", "":
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(w, "FINDING\tSEVERITY\tTYPE\tNAME\tMESSAGE")
+		for _, f := range fs {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", f.ID, f.Severity, f.Type, f.Name, f.Message)
+		}
+		return w.Flush()
+	default:
+		return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, csv, sarif)", format)
+	}
+}
+
+func renderCheckRuns(runs []store.CheckRun, format string) error {
+	switch format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(runs)
+	case "csv":
+		w := csv.NewWriter(os.Stdout)
+		defer w.Flush()
+		if err := w.Write([]string{"id", "started_at", "finished_at", "packs", "rules_paths", "severity_filter", "resource_count", "finding_count"}); err != nil {
+			return err
+		}
+		for _, r := range runs {
+			if err := w.Write([]string{
+				r.ID, r.StartedAt, ptrOrEmpty(r.FinishedAt),
+				strings.Join(r.Packs, ","), strings.Join(r.RulesPaths, ","),
+				ptrOrEmpty(r.SeverityFilter), intPtrOrEmpty(r.ResourceCount), intPtrOrEmpty(r.FindingCount),
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	case "table", "":
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tPACKS\tRULES\tRESOURCES\tFINDINGS")
+		for _, r := range runs {
+			rules := strings.Join(r.RulesPaths, ",")
+			if rules == "" {
+				rules = "-"
+			}
+			packs := strings.Join(r.Packs, ",")
+			if packs == "" {
+				packs = "-"
+			}
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				short(r.ID), r.StartedAt, ptrOrDash(r.FinishedAt),
+				packs, rules,
+				intPtrOrDashI(r.ResourceCount), intPtrOrDashI(r.FindingCount))
+		}
+		return w.Flush()
+	default:
+		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+	}
+}
+
+// storedFindingToFinding maps a store row back to the wire shape so the
+// existing OSS renderers (`renderCheckSARIF`, JSON encoders) consume it
+// unchanged. Pointer-to-empty-string fields collapse to empty strings.
+func storedFindingToFinding(s store.StoredFinding) policy.Finding {
+	out := policy.Finding{
+		ID:         s.FindingID,
+		Severity:   s.Severity,
+		Message:    s.Message,
+		ResourceID: s.ResourceID,
+	}
+	if s.Provider != nil {
+		out.Provider = *s.Provider
+	}
+	if s.Type != nil {
+		out.Type = *s.Type
+	}
+	if s.Name != nil {
+		out.Name = *s.Name
+	}
+	if s.Region != nil {
+		out.Region = *s.Region
+	}
+	if s.Category != nil {
+		out.Category = *s.Category
+	}
+	if s.Remediation != nil {
+		out.Remediation = *s.Remediation
+	}
+	if s.RefURL != nil {
+		out.RefURL = *s.RefURL
+	}
+	if s.TagsJSON != nil && *s.TagsJSON != "" {
+		_ = json.Unmarshal([]byte(*s.TagsJSON), &out.Tags)
+	}
+	return out
+}
+
+// findingToStored mirrors storedFindingToFinding for the write path
+// (cmd/check_paid.go's persist hook). Empty-string fields become NULL.
+func findingToStored(f policy.Finding) store.StoredFinding {
+	row := store.StoredFinding{
+		FindingID:  f.ID,
+		ResourceID: f.ResourceID,
+		Severity:   f.Severity,
+		Message:    f.Message,
+	}
+	if f.Provider != "" {
+		v := f.Provider
+		row.Provider = &v
+	}
+	if f.Type != "" {
+		v := f.Type
+		row.Type = &v
+	}
+	if f.Name != "" {
+		v := f.Name
+		row.Name = &v
+	}
+	if f.Region != "" {
+		v := f.Region
+		row.Region = &v
+	}
+	if f.Category != "" {
+		v := f.Category
+		row.Category = &v
+	}
+	if f.Remediation != "" {
+		v := f.Remediation
+		row.Remediation = &v
+	}
+	if f.RefURL != "" {
+		v := f.RefURL
+		row.RefURL = &v
+	}
+	if len(f.Tags) > 0 {
+		b, _ := json.Marshal(f.Tags)
+		s := string(b)
+		row.TagsJSON = &s
+	}
+	return row
+}
+
+// intPtrOrDashI is the *int variant of the *int rendering helper used by
+// disco scans. Local copy avoids an OSS-side rename of intPtrOrDash.
+func intPtrOrDashI(p *int) string {
+	if p == nil {
+		return "-"
+	}
+	return strconv.Itoa(*p)
+}
+
+func init() {
+	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv, sarif (sarif on list only)")
+
+	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
+	findingsListCmd.Flags().Var(&findingsSince, "since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low, medium, high, critical)")
+	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
+	findingsListCmd.Flags().StringVar(&findingsType, "type", "", "Filter by resource type")
+	findingsListCmd.Flags().StringVar(&findingsProvider, "provider", "", "Filter by provider (aws, azure, gcp)")
+	findingsListCmd.Flags().StringVar(&findingsFindingID, "finding-id", "", "Filter by Rego rule id (e.g. waf-sec-ebs-encryption-at-rest)")
+
+	findingsRunsCmd.Flags().Var(&findingsSince, "since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+
+	findingsCmd.AddCommand(findingsListCmd)
+	findingsCmd.AddCommand(findingsRunsCmd)
+	rootCmd.AddCommand(findingsCmd)
+}

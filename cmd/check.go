@@ -21,6 +21,12 @@ var (
 	checkTagFilters  []string
 )
 
+// persistCheckHook is set by the paid build via cmd/check_paid.go init().
+// nil in OSS — `disco check` stays ephemeral. Called from the RunE after
+// findings are computed and post-filter-applied; receives the post-filter
+// slice so `findings list` shape matches the same-invocation stdout.
+var persistCheckHook func(db *store.Store, paths, packs []string, severity string, resourceCount int, findings []policy.Finding) error
+
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Evaluate Rego policies against discovered resources",
@@ -109,6 +115,12 @@ Examples:
 		}
 		if len(checkTagFilters) > 0 {
 			findings = filterByTags(findings, checkTagFilters)
+		}
+
+		if persistCheckHook != nil {
+			if err := persistCheckHook(db, checkRulePaths, checkPacks, checkSeverity, len(resources), findings); err != nil {
+				return err
+			}
 		}
 
 		switch checkOutputFmt {

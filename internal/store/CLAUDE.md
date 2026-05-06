@@ -62,6 +62,8 @@ Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex). No `uuid` dep.
 
 SQL files in `migrations/` embedded at compile time via `//go:embed`. Names must be `NNN_description.sql` (e.g. `002_add_foo.sql`). Runner splits on semicolons, executes each statement individually — SQLite `database/sql` driver silent ignores everything after first statement in multi-statement `Exec`.
 
+Paid-only migrations use the `_paid.sql` suffix (e.g. `004_findings_paid.sql`). `scripts/oss-sync.sh` and `scripts/oss-cherry-pick.sh` strip them by name pattern — the OSS-mirror repo never sees the file, so `//go:embed migrations/*.sql` matches only OSS-resident migrations there. Upstream OSS dev-builds (no `-tags paid`) DO embed and apply paid SQL files because the files are physically present in the dev tree; that's intentional dev-only behaviour. Production OSS guarantee is the published mirror, not the upstream tree.
+
 ## UpsertResources ON CONFLICT scope
 
 ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`, `managed_by_provider`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch. Adding a new mutable column = three edits: INSERT col list, VALUES placeholder, ON CONFLICT SET.
@@ -83,6 +85,10 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-lo
 Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `listColumns`/`resourceRow` in `cmd/list.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
 
 modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `OpenReadOnly` uses `mode=ro`; same shape extends to `cache=shared`, `_pragma=...`, etc. when needed.
+
+## No `internal/policy` import in store package
+
+`internal/store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).
 
 ## `Scan.StartedAt` format = SQLite datetime, not RFC3339
 
