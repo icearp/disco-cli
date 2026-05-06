@@ -83,6 +83,14 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
 
+## Atomic file writes: temp + rename
+
+When a producer writes a single output file consumed downstream by a verifier (e.g. `disco snapshot` → `disco verify`), write to `<path>.tmp` first and `os.Rename` to the final name only on full success. A producer crash mid-write leaves no file at `<path>` — receivers never see partial output. Cleanup the tmp on failure via `defer os.Remove`. Precedent: `internal/snapshot.WriteArchive`.
+
+## `disco snapshot <output-file>` writes a single archive
+
+Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.db_sha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir. Signed-manifest layer (cosign/Sigstore) is a deferred paid follow-up.
+
 ## Hook-var indirection for paid features on OSS commands
 
 When a paid feature must augment an OSS command's RunE (e.g. `--persist` writing to a paid-only DB table on `disco check`), declare a nillable hook variable in the OSS file: `var persistCheckHook func(...) error`. OSS RunE checks `if hook != nil { hook(...) }`. The paid file `<cmd>_paid.go` `init()` registers any new flags AND assigns the hook implementation including `license.Require()`, condition checks, and DB writes. OSS users see no flag, no hook, no `internal/license` dep. Verify with `go list -deps . | grep license` (must be empty for OSS, non-empty for paid). Precedent: `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid).

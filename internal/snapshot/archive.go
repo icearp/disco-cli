@@ -1,0 +1,275 @@
+package snapshot
+
+import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/ulikunitz/xz"
+)
+
+// Inner archive entry names. Single-level layout (no parent dir) so the
+// receiver doesn't need to know a fixed prefix.
+const (
+	entryDB       = "disco.db"
+	entryManifest = "manifest.json"
+)
+
+// WriteArchive packages dbPath + manifest into a single archive at out.
+// Writes via "<out>.tmp" + os.Rename so a failed write leaves no partial
+// archive at the final path. dbPath is streamed (not loaded into memory).
+func WriteArchive(out string, format Format, dbPath string, m Manifest) error {
+	tmp := out + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("create archive temp: %w", err)
+	}
+	cleanup := func() { _ = f.Close(); _ = os.Remove(tmp) }
+
+	dbBytes, err := os.Open(dbPath)
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("open db for archive: %w", err)
+	}
+	defer func() { _ = dbBytes.Close() }()
+	dbStat, err := dbBytes.Stat()
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("stat db: %w", err)
+	}
+
+	manifestBytes, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("marshal manifest: %w", err)
+	}
+	manifestBytes = append(manifestBytes, '\n')
+
+	switch format {
+	case FormatZip:
+		err = writeZip(f, dbBytes, dbStat.Size(), manifestBytes)
+	case FormatTarGz:
+		err = writeTarStream(f, dbBytes, dbStat.Size(), manifestBytes, true)
+	case FormatTarXz:
+		err = writeTarStream(f, dbBytes, dbStat.Size(), manifestBytes, false)
+	default:
+		err = fmt.Errorf("unsupported format %v", format)
+	}
+	if err != nil {
+		cleanup()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close archive temp: %w", err)
+	}
+	if err := os.Rename(tmp, out); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename archive: %w", err)
+	}
+	return os.Chmod(out, 0o600)
+}
+
+func writeZip(w io.Writer, db io.Reader, dbSize int64, manifestBytes []byte) error {
+	zw := zip.NewWriter(w)
+	dbHdr := &zip.FileHeader{Name: entryDB, Method: zip.Deflate}
+	dbHdr.SetMode(0o600)
+	dbW, err := zw.CreateHeader(dbHdr)
+	if err != nil {
+		return fmt.Errorf("zip db header: %w", err)
+	}
+	if _, err := io.Copy(dbW, db); err != nil {
+		return fmt.Errorf("zip db copy: %w", err)
+	}
+	mHdr := &zip.FileHeader{Name: entryManifest, Method: zip.Deflate}
+	mHdr.SetMode(0o600)
+	mW, err := zw.CreateHeader(mHdr)
+	if err != nil {
+		return fmt.Errorf("zip manifest header: %w", err)
+	}
+	if _, err := mW.Write(manifestBytes); err != nil {
+		return fmt.Errorf("zip manifest write: %w", err)
+	}
+	_ = dbSize
+	return zw.Close()
+}
+
+// writeTarStream writes a tar archive wrapped in either gzip or xz. db is
+// streamed; manifest is a small in-memory buffer.
+func writeTarStream(w io.Writer, db io.Reader, dbSize int64, manifestBytes []byte, useGzip bool) error {
+	var compressor io.WriteCloser
+	if useGzip {
+		compressor = gzip.NewWriter(w)
+	} else {
+		xw, err := xz.NewWriter(w)
+		if err != nil {
+			return fmt.Errorf("xz writer: %w", err)
+		}
+		compressor = xw
+	}
+	tw := tar.NewWriter(compressor)
+
+	if err := tw.WriteHeader(&tar.Header{
+		Name: entryDB, Mode: 0o600, Size: dbSize, Typeflag: tar.TypeReg,
+	}); err != nil {
+		_ = compressor.Close()
+		return fmt.Errorf("tar db header: %w", err)
+	}
+	if _, err := io.Copy(tw, db); err != nil {
+		_ = compressor.Close()
+		return fmt.Errorf("tar db copy: %w", err)
+	}
+	if err := tw.WriteHeader(&tar.Header{
+		Name: entryManifest, Mode: 0o600, Size: int64(len(manifestBytes)), Typeflag: tar.TypeReg,
+	}); err != nil {
+		_ = compressor.Close()
+		return fmt.Errorf("tar manifest header: %w", err)
+	}
+	if _, err := tw.Write(manifestBytes); err != nil {
+		_ = compressor.Close()
+		return fmt.Errorf("tar manifest write: %w", err)
+	}
+	if err := tw.Close(); err != nil {
+		_ = compressor.Close()
+		return fmt.Errorf("tar close: %w", err)
+	}
+	return compressor.Close()
+}
+
+// ArchiveContents returns the manifest plus a hex SHA-256 of the inner
+// disco.db, computed by streaming the archive once. No temp files; no full
+// DB load. Manifest is decoded from the manifest.json entry. Order of
+// entries inside the archive is irrelevant — the function reads to
+// completion before returning.
+func ArchiveContents(path string) (Manifest, string, error) {
+	format, err := DetectFormat(path)
+	if err != nil {
+		return Manifest{}, "", err
+	}
+	switch format {
+	case FormatZip:
+		return readZip(path)
+	case FormatTarGz, FormatTarXz:
+		return readTar(path, format == FormatTarGz)
+	}
+	return Manifest{}, "", fmt.Errorf("unsupported format")
+}
+
+func readZip(path string) (Manifest, string, error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return Manifest{}, "", fmt.Errorf("open zip: %w", err)
+	}
+	defer func() { _ = zr.Close() }()
+	var (
+		m      Manifest
+		sawM   bool
+		dbHash string
+		sawDB  bool
+	)
+	for _, f := range zr.File {
+		switch f.Name {
+		case entryManifest:
+			rc, err := f.Open()
+			if err != nil {
+				return Manifest{}, "", fmt.Errorf("open manifest: %w", err)
+			}
+			b, err := io.ReadAll(rc)
+			_ = rc.Close()
+			if err != nil {
+				return Manifest{}, "", fmt.Errorf("read manifest: %w", err)
+			}
+			if err := json.Unmarshal(b, &m); err != nil {
+				return Manifest{}, "", fmt.Errorf("decode manifest: %w", err)
+			}
+			sawM = true
+		case entryDB:
+			rc, err := f.Open()
+			if err != nil {
+				return Manifest{}, "", fmt.Errorf("open db: %w", err)
+			}
+			h, err := hashReader(rc)
+			_ = rc.Close()
+			if err != nil {
+				return Manifest{}, "", err
+			}
+			dbHash = h
+			sawDB = true
+		}
+	}
+	if !sawM {
+		return Manifest{}, "", fmt.Errorf("archive missing %s", entryManifest)
+	}
+	if !sawDB {
+		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
+	}
+	return m, dbHash, nil
+}
+
+func readTar(path string, useGzip bool) (Manifest, string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return Manifest{}, "", fmt.Errorf("open tar: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	var decompressed io.Reader
+	if useGzip {
+		gr, err := gzip.NewReader(f)
+		if err != nil {
+			return Manifest{}, "", fmt.Errorf("gzip open: %w", err)
+		}
+		defer func() { _ = gr.Close() }()
+		decompressed = gr
+	} else {
+		xr, err := xz.NewReader(f)
+		if err != nil {
+			return Manifest{}, "", fmt.Errorf("xz open: %w", err)
+		}
+		decompressed = xr
+	}
+	tr := tar.NewReader(decompressed)
+	var (
+		m      Manifest
+		sawM   bool
+		dbHash string
+		sawDB  bool
+	)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return Manifest{}, "", fmt.Errorf("tar next: %w", err)
+		}
+		switch hdr.Name {
+		case entryManifest:
+			b, err := io.ReadAll(tr)
+			if err != nil {
+				return Manifest{}, "", fmt.Errorf("read manifest: %w", err)
+			}
+			if err := json.Unmarshal(b, &m); err != nil {
+				return Manifest{}, "", fmt.Errorf("decode manifest: %w", err)
+			}
+			sawM = true
+		case entryDB:
+			h, err := hashReader(tr)
+			if err != nil {
+				return Manifest{}, "", err
+			}
+			dbHash = h
+			sawDB = true
+		}
+	}
+	if !sawM {
+		return Manifest{}, "", fmt.Errorf("archive missing %s", entryManifest)
+	}
+	if !sawDB {
+		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
+	}
+	return m, dbHash, nil
+}
