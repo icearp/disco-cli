@@ -48,6 +48,7 @@ func resourceRow(r *store.Resource) []string {
 var (
 	listProvider       string
 	listType           string
+	listExcludeTypes   []string
 	listRegion         string
 	listStatus         string
 	listTagKey         string
@@ -87,6 +88,7 @@ Examples:
 		f := store.ResourceFilter{
 			Provider:       listProvider,
 			Types:          types,
+			ExcludeTypes:   listExcludeTypes,
 			Regions:        regions,
 			Status:         listStatus,
 			TagKey:         listTagKey,
@@ -160,6 +162,7 @@ Examples:
 func init() {
 	listCmd.Flags().StringVarP(&listProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
+	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")

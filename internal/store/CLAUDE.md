@@ -83,3 +83,11 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-lo
 Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `listColumns`/`resourceRow` in `cmd/list.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
 
 modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `OpenReadOnly` uses `mode=ro`; same shape extends to `cache=shared`, `_pragma=...`, etc. when needed.
+
+## `Scan.StartedAt` format = SQLite datetime, not RFC3339
+
+`CreateScan` uses `datetime('now')` which returns `YYYY-MM-DD HH:MM:SS` (space-separated, UTC, no `T`/`Z`). Don't assume RFC3339-parseable; consumers needing `time.Time` must `time.Parse("2006-01-02 15:04:05", s)`.
+
+## Denylist filters via `sq.NotEq`
+
+`squirrel.NotEq{"col": []string{...}}` emits `col NOT IN (?, ?, ...)`. Mirror of `sq.Eq` allowlist; use for any new exclude-X filter on `ResourceFilter` rather than hand-rolled OR-NOT chains. Precedent: `ExcludeTypes` (resources.go).

@@ -167,6 +167,7 @@ type ResourceFilter struct {
 	Provider     string
 	AccountID    string
 	Types        []string
+	ExcludeTypes []string
 	Regions      []string
 	Status       string
 	DiscoveredBy string
@@ -191,6 +192,9 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	if len(f.Types) > 0 {
 		q = q.Where(sq.Eq{"type": f.Types})
+	}
+	if len(f.ExcludeTypes) > 0 {
+		q = q.Where(sq.NotEq{"type": f.ExcludeTypes})
 	}
 	if len(f.Regions) > 0 {
 		q = q.Where(sq.Eq{"region": f.Regions})

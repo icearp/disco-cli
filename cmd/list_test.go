@@ -314,6 +314,7 @@ func TestListCmd_JSONL(t *testing.T) {
 func resetListFlags() {
 	listProvider = ""
 	listType = ""
+	listExcludeTypes = nil
 	listRegion = ""
 	listStatus = ""
 	listTagKey = ""
@@ -525,6 +526,48 @@ func TestListCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
 	}
 	if len(decoded) != 50 {
 		t.Errorf("want 50 rows, got %d", len(decoded))
+	}
+}
+
+// TestListCmd_ExcludeTypes round-trips --exclude-types through the SQL
+// filter; rows of named types must be absent from JSON output.
+func TestListCmd_ExcludeTypes(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	noisy := []*store.Resource{
+		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-1",
+			AttributesJSON: "{}", DiscoveredBy: scanID},
+		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-2",
+			AttributesJSON: "{}", DiscoveredBy: scanID},
+	}
+	if _, err := st.UpsertResources(noisy); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetListFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--exclude-types", "aws:logs:log-stream", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var decoded []store.Resource
+	if jerr := json.Unmarshal([]byte(out), &decoded); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
+	for _, r := range decoded {
+		if r.Type == "aws:logs:log-stream" {
+			t.Errorf("excluded type leaked: %+v", r)
+		}
+	}
+	// seedTestDB plants 2 customer rows (instance + bucket); both should remain.
+	if len(decoded) != 2 {
+		t.Errorf("want 2 rows after exclude, got %d", len(decoded))
 	}
 }
 

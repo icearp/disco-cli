@@ -357,6 +357,31 @@ func TestListResources_ByType(t *testing.T) {
 	}
 }
 
+// TestListResources_ExcludeTypes verifies the ExcludeTypes denylist clause
+// drops named types from the result set without affecting Types include.
+func TestListResources_ExcludeTypes(t *testing.T) {
+	st := openTestStore(t)
+	insertResource(t, st, "aws", "acct", "aws:ec2:instance", "i-1")
+	insertResource(t, st, "aws", "acct", "aws:ec2:vpc", "vpc-1")
+	insertResource(t, st, "aws", "acct", "aws:logs:log-stream", "ls-1")
+
+	results, err := st.ListResources(ResourceFilter{
+		ExcludeTypes: []string{"aws:logs:log-stream"},
+		Limit:        100,
+	})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("want 2 rows after exclude, got %d", len(results))
+	}
+	for _, r := range results {
+		if r.Type == "aws:logs:log-stream" {
+			t.Errorf("excluded type leaked into results: %+v", r)
+		}
+	}
+}
+
 // TestListResources_ByRegion verifies region filter.
 func TestListResources_ByRegion(t *testing.T) {
 	st := openTestStore(t)
