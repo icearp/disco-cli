@@ -80,8 +80,13 @@ Examples:
 		if listLimit == 0 {
 			resources, err = loadAllResourcesPaged(db, f)
 		} else {
+			// Fetch one extra row as a truncation probe. If the store
+			// returns N+1, more matched than --limit allows; warn and trim.
+			// Equal-N populations no longer trip a false positive.
+			f.Limit = listLimit + 1
 			resources, err = db.ListResources(f)
-			if err == nil && uint64(len(resources)) == listLimit {
+			if err == nil && uint64(len(resources)) > listLimit {
+				resources = resources[:listLimit]
 				fmt.Fprintf(os.Stderr,
 					"warning: --limit %d may be hiding rows; raise --limit or pass --limit 0 for all\n",
 					listLimit)

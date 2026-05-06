@@ -346,6 +346,52 @@ func TestRoot_BannerSuppressedByDefault(t *testing.T) {
 	}
 }
 
+// TestListCmd_LimitNoWarnAtExactBoundary guards against the F2 boundary
+// false positive: when population fits exactly within --limit, no warning.
+func TestListCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
+	st := seedTestDB(t)
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	rows := make([]*store.Resource, 0, 50)
+	for i := 0; i < 50; i++ {
+		nid := fmt.Sprintf("vol-bnd-%04d", i)
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume",
+			NativeID: nid, AttributesJSON: "{}", DiscoveredBy: scanID,
+		})
+	}
+	if _, err := st.UpsertResources(rows); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	resetListFlags()
+	var stdoutCap string
+	stderrCap, err := captureStderr(t, func() error {
+		var inner error
+		stdoutCap, inner = captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume", "--limit", "50"})
+			return cmd.Execute()
+		})
+		return inner
+	})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if strings.Contains(stderrCap, "warning: --limit") {
+		t.Errorf("spurious truncation warning at exact boundary: %q", stderrCap)
+	}
+	var decoded []store.Resource
+	if jerr := json.Unmarshal([]byte(stdoutCap), &decoded); jerr != nil {
+		t.Fatalf("not JSON: %v", jerr)
+	}
+	if len(decoded) != 50 {
+		t.Errorf("want 50 rows, got %d", len(decoded))
+	}
+}
+
 // TestListCmd_UnknownFormat verifies the unknown --output format error path.
 func TestListCmd_UnknownFormat(t *testing.T) {
 	seedTestDB(t)
