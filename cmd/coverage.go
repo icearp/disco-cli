@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -79,7 +80,7 @@ func init() {
 	coverageCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
 	coverageCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
-	coverageCmd.Flags().Bool("check-strict", false, "Exit non-zero if any upstream-missing rows are found")
+	coverageCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")
 	coverageCmd.Flags().Bool("resolvers", false, "Resolver coverage mode (--provider aws): list every registered resolver and its declared EdgeDecl count; unannotated resolvers (count=0) surface as sweep targets")
 	coverageCmd.Flags().Bool("only-unannotated", false, "With --resolvers, omit resolvers that already declare ≥1 EdgeDecl")
 	coverageCmd.Flags().Bool("missing-resolvers", false, "Missing-resolver mode (--provider aws): list every emitted disco type that never appears as EdgeDecl.Source — the candidate gap inventory")
@@ -149,6 +150,16 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 		matrices = append(matrices, m)
 	}
 
+	// Fetch-failure short-circuit under --check-strict. With an empty upstream
+	// registry, every disco emit collapses into "upstream-missing", which would
+	// render thousands of phantom drift rows. Refuse to emit the matrix at all
+	// when we cannot assess; the operator should retry or scope --provider.
+	// Distinct exit code (errCoverageRegistryUnreachable → exit 2) so CI
+	// pipelines branch on transient throttle vs. genuine drift (exit 1).
+	if checkStrict && len(fetchFailures) > 0 {
+		return fmt.Errorf("%w: %s; retry or scope --provider", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+	}
+
 	w := cmd.OutOrStdout()
 	switch outputFmt {
 	case "json":
@@ -166,13 +177,6 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	}
 
 	if checkStrict {
-		// Fetch-failure short-circuit: cannot assess drift when registry
-		// unreachable. Distinct from real drift so CI consumers can branch
-		// on the message rather than treating throttling as a fleet-wide
-		// drift event (F9).
-		if len(fetchFailures) > 0 {
-			return fmt.Errorf("cannot assess --check-strict: upstream registry unreachable for %s; retry or scope --provider", strings.Join(fetchFailures, ", "))
-		}
 		for _, m := range matrices {
 			for _, r := range m.Rows {
 				if r.Bucket == coverage.BucketUpstreamMissing {
@@ -183,6 +187,12 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	}
 	return nil
 }
+
+// errCoverageRegistryUnreachable signals --check-strict cannot assess drift
+// because at least one provider's upstream registry fetch failed. Mapped to
+// exit 2 in Execute() (vs exit 1 for genuine drift) so CI consumers can
+// distinguish transient registry failures from real drift signal.
+var errCoverageRegistryUnreachable = errors.New("cannot assess --check-strict: upstream registry unreachable for")
 
 // runResolverCoverage prints per-resolver EdgeDecl counts. Surfaces resolvers
 // with zero declared edges so sweepers can find unannotated registrations.

@@ -87,6 +87,13 @@ func Execute() {
 		if errors.Is(err, errTagCoverageBelow) || errors.Is(err, errFindingsReported) {
 			os.Exit(1)
 		}
+		// `coverage --check-strict` distinguishes transient registry-fetch
+		// failure (exit 2) from genuine drift (exit 1) so CI pipelines can
+		// retry-with-backoff vs. file-a-ticket.
+		if errors.Is(err, errCoverageRegistryUnreachable) {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
 		// When the command already wrote a structured-JSON error envelope to
 		// stdout (json/jsonl outputs), don't duplicate the message on stderr
 		// — pipelines see one signal, not two.
