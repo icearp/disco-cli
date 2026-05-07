@@ -55,6 +55,12 @@ type instanceAttrs struct {
 	} `json:"NetworkInterfaces"`
 }
 
+// instanceTargetSets bundles the FK-safe id sets the instance resolver uses.
+type instanceTargetSets struct {
+	keyPairByNameRegion map[string]string
+	imageByID           map[string]string
+}
+
 func resolveInstanceRelationships(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Instance},
@@ -63,35 +69,9 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	// Build a (region, key-name) → key-pair resource ID index once. Instances
-	// carry KeyName only; the KeyPair scanner stores NativeID by KeyPairId, so
-	// we cannot rebuild the target ARN from name alone.
-	keyPairs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair},
-		Limit: util.AllResources,
-	})
+	sets, err := loadInstanceTargetSets(acct, st)
 	if err != nil {
 		return err
-	}
-	keyPairByNameRegion := make(map[string]string, len(keyPairs))
-	for _, kp := range keyPairs {
-		if kp.Name == nil {
-			continue
-		}
-		keyPairByNameRegion[sv(kp.Region)+"\x00"+*kp.Name] = kp.ID
-	}
-	// Build an AMI id set from scanned images. Public/Marketplace/shared AMIs
-	// aren't scanned, so instance→AMI edges are FK-safe only for AMIs we own.
-	images, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
-		Limit: util.AllResources,
-	})
-	if err != nil {
-		return err
-	}
-	imageByID := make(map[string]string, len(images))
-	for _, img := range images {
-		imageByID[img.ID] = img.ID
 	}
 	for _, r := range instances {
 		var attrs instanceAttrs
@@ -99,72 +79,160 @@ func resolveInstanceRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		// Instance → VPC
-		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
-			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
-				return fmt.Errorf("upsert instance→vpc relationship: %w", err)
-			}
+		if err := emitInstanceVPCSubnetEdges(st, acct, r, region, attrs); err != nil {
+			return err
 		}
-		// Instance → Subnet
-		if attrs.SubnetID != nil {
-			subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
-			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
-				return fmt.Errorf("upsert instance→subnet relationship: %w", err)
-			}
+		if err := emitInstanceSGEdges(st, acct, r, region, attrs); err != nil {
+			return err
 		}
-		// Instance → Security Groups
-		for _, sg := range attrs.SecurityGroups {
-			if sg.GroupID != nil {
-				sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", *sg.GroupID))
-				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert instance→security-group relationship: %w", err)
-				}
-			}
+		if err := emitInstanceVolumeEdges(st, acct, r, region, attrs); err != nil {
+			return err
 		}
-		// Instance → EBS Volumes (from block device mappings)
-		for _, bdm := range attrs.BlockDeviceMappings {
-			if bdm.Ebs != nil && bdm.Ebs.VolumeID != nil {
-				volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeID))
-				if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert instance→volume relationship: %w", err)
-				}
-			}
+		if err := emitInstanceProfileEdge(st, acct, r, attrs); err != nil {
+			return err
 		}
-		// Instance → IAM instance profile
-		if attrs.IamInstanceProfile != nil && sv(attrs.IamInstanceProfile.Arn) != "" {
-			ipID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, *attrs.IamInstanceProfile.Arn)
-			if err := st.UpsertRelationship(r.ID, ipID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert instance→instance-profile relationship: %w", err)
-			}
+		if err := emitInstanceKeyPairEdge(st, r, region, attrs, sets); err != nil {
+			return err
 		}
-		// Instance → KeyPair (name → id via index)
-		if name := sv(attrs.KeyName); name != "" {
-			if kpID, ok := keyPairByNameRegion[region+"\x00"+name]; ok {
-				if err := st.UpsertRelationship(r.ID, kpID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert instance→key-pair relationship: %w", err)
-				}
-			}
+		if err := emitInstanceImageEdge(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
-		// Instance → AMI (self-owned only; public/Marketplace AMIs skipped).
-		if id := sv(attrs.ImageID); id != "" {
-			amiID := store.ResourceID("aws", acct.ID, TypeEC2Image, ec2ARN(region, acct.ID, "image", id))
-			if _, ok := imageByID[amiID]; ok {
-				if err := st.UpsertRelationship(r.ID, amiID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert instance→image relationship: %w", err)
-				}
-			}
+		if err := emitInstanceENIEdges(st, acct, r, region, attrs); err != nil {
+			return err
 		}
-		// Instance → Network Interfaces
-		for _, eni := range attrs.NetworkInterfaces {
-			if sv(eni.NetworkInterfaceID) == "" {
-				continue
-			}
-			eniID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface,
-				ec2ARN(region, acct.ID, "network-interface", *eni.NetworkInterfaceID))
-			if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
-				return fmt.Errorf("upsert instance→eni relationship: %w", err)
-			}
+	}
+	return nil
+}
+
+func loadInstanceTargetSets(acct *account, st *store.Store) (instanceTargetSets, error) {
+	var sets instanceTargetSets
+	// (region, key-name) → key-pair resource ID. Instances carry KeyName
+	// only; KeyPair NativeID uses KeyPairId so the ARN can't be rebuilt
+	// from the name alone.
+	keyPairs, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return sets, err
+	}
+	sets.keyPairByNameRegion = make(map[string]string, len(keyPairs))
+	for _, kp := range keyPairs {
+		if kp.Name == nil {
+			continue
+		}
+		sets.keyPairByNameRegion[sv(kp.Region)+"\x00"+*kp.Name] = kp.ID
+	}
+	// AMI id set from scanned images. Public/Marketplace/shared AMIs aren't
+	// scanned, so instance→AMI edges are FK-safe only for AMIs we own.
+	images, err := st.ListResources(store.ResourceFilter{
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return sets, err
+	}
+	sets.imageByID = make(map[string]string, len(images))
+	for _, img := range images {
+		sets.imageByID[img.ID] = img.ID
+	}
+	return sets, nil
+}
+
+func emitInstanceVPCSubnetEdges(st *store.Store, acct *account, r store.Resource, region string, attrs instanceAttrs) error {
+	if attrs.VpcID != nil {
+		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert instance→vpc relationship: %w", err)
+		}
+	}
+	if attrs.SubnetID != nil {
+		subnetID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
+		if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert instance→subnet relationship: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitInstanceSGEdges(st *store.Store, acct *account, r store.Resource, region string, attrs instanceAttrs) error {
+	for _, sg := range attrs.SecurityGroups {
+		if sg.GroupID == nil {
+			continue
+		}
+		sgID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", *sg.GroupID))
+		if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert instance→security-group relationship: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitInstanceVolumeEdges(st *store.Store, acct *account, r store.Resource, region string, attrs instanceAttrs) error {
+	for _, bdm := range attrs.BlockDeviceMappings {
+		if bdm.Ebs == nil || bdm.Ebs.VolumeID == nil {
+			continue
+		}
+		volID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeID))
+		if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert instance→volume relationship: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitInstanceProfileEdge(st *store.Store, acct *account, r store.Resource, attrs instanceAttrs) error {
+	if attrs.IamInstanceProfile == nil || sv(attrs.IamInstanceProfile.Arn) == "" {
+		return nil
+	}
+	ipID := store.ResourceID("aws", acct.ID, TypeIAMInstanceProfile, *attrs.IamInstanceProfile.Arn)
+	if err := st.UpsertRelationship(r.ID, ipID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert instance→instance-profile relationship: %w", err)
+	}
+	return nil
+}
+
+func emitInstanceKeyPairEdge(st *store.Store, r store.Resource, region string, attrs instanceAttrs, sets instanceTargetSets) error {
+	name := sv(attrs.KeyName)
+	if name == "" {
+		return nil
+	}
+	kpID, ok := sets.keyPairByNameRegion[region+"\x00"+name]
+	if !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, kpID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert instance→key-pair relationship: %w", err)
+	}
+	return nil
+}
+
+// emitInstanceImageEdge emits instance→AMI only for self-owned AMIs;
+// public/Marketplace AMIs aren't scanned and skip silently.
+func emitInstanceImageEdge(st *store.Store, acct *account, r store.Resource, region string, attrs instanceAttrs, sets instanceTargetSets) error {
+	id := sv(attrs.ImageID)
+	if id == "" {
+		return nil
+	}
+	amiID := store.ResourceID("aws", acct.ID, TypeEC2Image, ec2ARN(region, acct.ID, "image", id))
+	if _, ok := sets.imageByID[amiID]; !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, amiID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert instance→image relationship: %w", err)
+	}
+	return nil
+}
+
+func emitInstanceENIEdges(st *store.Store, acct *account, r store.Resource, region string, attrs instanceAttrs) error {
+	for _, eni := range attrs.NetworkInterfaces {
+		if sv(eni.NetworkInterfaceID) == "" {
+			continue
+		}
+		eniID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface,
+			ec2ARN(region, acct.ID, "network-interface", *eni.NetworkInterfaceID))
+		if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert instance→eni relationship: %w", err)
 		}
 	}
 	return nil
