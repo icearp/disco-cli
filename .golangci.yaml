@@ -11,7 +11,7 @@ linters:
     - whitespace
   settings:
     gocyclo:
-      min-complexity: 30
+      min-complexity: 15
     govet:
       disable:
         - loopclosure
@@ -60,6 +60,11 @@ linters:
         linters: [tagliatelle]
       - path: internal/(coverage|policy|snapshot|store)/.*\.go
         linters: [tagliatelle]
+      # Test funcs walk fixture branches linearly; gocyclo counts every fixture
+      # path as branch complexity. Production logic, not test shape, is what
+      # the bar is set against.
+      - path: _test\.go$
+        linters: [gocyclo]
     paths:
       - third_party$
       - builtin$
