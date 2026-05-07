@@ -58,6 +58,38 @@ func vnetIDFromSubnetID(subnetID string) string {
 // Backend pool members (FQDN/IP addresses, NIC refs) deferred — AGW backends
 // are usually FQDNs which don't map cleanly to ARM IDs. Identity → MSI edges
 // covered by the generic consumer resolver.
+// agwAttrs mirrors the AGW fields the resolver walks.
+type agwAttrs struct {
+	Properties *struct {
+		GatewayIPConfigurations []struct {
+			Properties *struct {
+				Subnet *struct {
+					ID *string `json:"id"`
+				} `json:"subnet"`
+			} `json:"properties"`
+		} `json:"gatewayIPConfigurations"`
+		FrontendIPConfigurations []struct {
+			Properties *struct {
+				PublicIPAddress *struct {
+					ID *string `json:"id"`
+				} `json:"publicIPAddress"`
+			} `json:"properties"`
+		} `json:"frontendIPConfigurations"`
+		SSLCertificates []struct {
+			Properties *struct {
+				KeyVaultSecretID *string `json:"keyVaultSecretId"`
+			} `json:"properties"`
+		} `json:"sslCertificates"`
+	} `json:"properties"`
+}
+
+// agwTargetSets bundles AGW resolver indexes (PIP NativeID → id, vault
+// name → id).
+type agwTargetSets struct {
+	pipIndex    map[string]string
+	vaultByName map[string]string
+}
+
 func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) error {
 	gws, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
@@ -67,119 +99,118 @@ func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) 
 	if err != nil || len(gws) == 0 {
 		return err
 	}
+	sets, err := loadAGWTargetSets(sub, st)
+	if err != nil {
+		return err
+	}
+	for _, g := range gws {
+		var attrs agwAttrs
+		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil || attrs.Properties == nil {
+			continue
+		}
+		if err := emitAGWVNetEdges(st, sub, g, attrs); err != nil {
+			return err
+		}
+		if err := emitAGWPIPEdges(st, g, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitAGWVaultEdges(st, g, attrs, sets); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
+func loadAGWTargetSets(sub *subscription, st *store.Store) (agwTargetSets, error) {
+	var sets agwTargetSets
 	pips, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
 		Types: []string{TypeNetworkPublicIPAddress},
 		Limit: util.AllResources,
 	})
 	if err != nil {
-		return err
+		return sets, err
 	}
-	pipIndex := make(map[string]string, len(pips))
+	sets.pipIndex = make(map[string]string, len(pips))
 	for _, p := range pips {
-		pipIndex[strings.ToLower(p.NativeID)] = p.ID
+		sets.pipIndex[strings.ToLower(p.NativeID)] = p.ID
 	}
-
 	vaults, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
 		Types: []string{TypeKeyVaultVault},
 		Limit: util.AllResources,
 	})
 	if err != nil {
-		return err
+		return sets, err
 	}
-	vaultByName := make(map[string]string, len(vaults))
+	sets.vaultByName = make(map[string]string, len(vaults))
 	for _, v := range vaults {
-		vaultByName[strings.ToLower(nameFromID(v.NativeID))] = v.ID
+		sets.vaultByName[strings.ToLower(nameFromID(v.NativeID))] = v.ID
 	}
+	return sets, nil
+}
 
-	for _, g := range gws {
-		var attrs struct {
-			Properties *struct {
-				GatewayIPConfigurations []struct {
-					Properties *struct {
-						Subnet *struct {
-							ID *string `json:"id"`
-						} `json:"subnet"`
-					} `json:"properties"`
-				} `json:"gatewayIPConfigurations"`
-				FrontendIPConfigurations []struct {
-					Properties *struct {
-						PublicIPAddress *struct {
-							ID *string `json:"id"`
-						} `json:"publicIPAddress"`
-					} `json:"properties"`
-				} `json:"frontendIPConfigurations"`
-				SSLCertificates []struct {
-					Properties *struct {
-						KeyVaultSecretID *string `json:"keyVaultSecretId"`
-					} `json:"properties"`
-				} `json:"sslCertificates"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil || attrs.Properties == nil {
+func emitAGWVNetEdges(st *store.Store, sub *subscription, g store.Resource, attrs agwAttrs) error {
+	seen := map[string]bool{}
+	for _, ipc := range attrs.Properties.GatewayIPConfigurations {
+		if ipc.Properties == nil || ipc.Properties.Subnet == nil || ipc.Properties.Subnet.ID == nil {
 			continue
 		}
-
-		// AGW → VNet (via subnet path).
-		seenVNet := map[string]bool{}
-		for _, ipc := range attrs.Properties.GatewayIPConfigurations {
-			if ipc.Properties == nil || ipc.Properties.Subnet == nil || ipc.Properties.Subnet.ID == nil {
-				continue
-			}
-			vnetID := vnetIDFromSubnetID(*ipc.Properties.Subnet.ID)
-			if vnetID == "" || seenVNet[vnetID] {
-				continue
-			}
-			seenVNet[vnetID] = true
-			vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
-			if _, err := st.GetResource(vnetResourceID); err != nil {
-				continue
-			}
-			if err := st.UpsertRelationship(g.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
-				return fmt.Errorf("upsert agw→vnet: %w", err)
-			}
+		vnetID := vnetIDFromSubnetID(*ipc.Properties.Subnet.ID)
+		if vnetID == "" || seen[vnetID] {
+			continue
 		}
-
-		// AGW → Public IP.
-		seenPIP := map[string]bool{}
-		for _, fipc := range attrs.Properties.FrontendIPConfigurations {
-			if fipc.Properties == nil || fipc.Properties.PublicIPAddress == nil || fipc.Properties.PublicIPAddress.ID == nil {
-				continue
-			}
-			key := strings.ToLower(*fipc.Properties.PublicIPAddress.ID)
-			if seenPIP[key] {
-				continue
-			}
-			seenPIP[key] = true
-			toID, ok := pipIndex[key]
-			if !ok {
-				continue
-			}
-			if err := st.UpsertRelationship(g.ID, toID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert agw→pip: %w", err)
-			}
+		seen[vnetID] = true
+		vnetResourceID := store.ResourceID("azure", sub.ID, TypeNetworkVirtualNetwork, vnetID)
+		if _, err := st.GetResource(vnetResourceID); err != nil {
+			continue
 		}
+		if err := st.UpsertRelationship(g.ID, vnetResourceID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert agw→vnet: %w", err)
+		}
+	}
+	return nil
+}
 
-		// AGW → Key Vault (via sslCertificates[].keyVaultSecretId reference URI).
-		seenVault := map[string]bool{}
-		for _, sslc := range attrs.Properties.SSLCertificates {
-			if sslc.Properties == nil || sslc.Properties.KeyVaultSecretID == nil {
-				continue
-			}
-			vaultName := vaultNameFromKeyURI(*sslc.Properties.KeyVaultSecretID)
-			if vaultName == "" || seenVault[vaultName] {
-				continue
-			}
-			seenVault[vaultName] = true
-			toID, ok := vaultByName[strings.ToLower(vaultName)]
-			if !ok {
-				continue
-			}
-			if err := st.UpsertRelationship(g.ID, toID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert agw→vault: %w", err)
-			}
+func emitAGWPIPEdges(st *store.Store, g store.Resource, attrs agwAttrs, sets agwTargetSets) error {
+	seen := map[string]bool{}
+	for _, fipc := range attrs.Properties.FrontendIPConfigurations {
+		if fipc.Properties == nil || fipc.Properties.PublicIPAddress == nil || fipc.Properties.PublicIPAddress.ID == nil {
+			continue
+		}
+		key := strings.ToLower(*fipc.Properties.PublicIPAddress.ID)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		toID, ok := sets.pipIndex[key]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(g.ID, toID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert agw→pip: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitAGWVaultEdges(st *store.Store, g store.Resource, attrs agwAttrs, sets agwTargetSets) error {
+	seen := map[string]bool{}
+	for _, sslc := range attrs.Properties.SSLCertificates {
+		if sslc.Properties == nil || sslc.Properties.KeyVaultSecretID == nil {
+			continue
+		}
+		vaultName := vaultNameFromKeyURI(*sslc.Properties.KeyVaultSecretID)
+		if vaultName == "" || seen[vaultName] {
+			continue
+		}
+		seen[vaultName] = true
+		toID, ok := sets.vaultByName[strings.ToLower(vaultName)]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(g.ID, toID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert agw→vault: %w", err)
 		}
 	}
 	return nil
