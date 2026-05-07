@@ -194,12 +194,16 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	}
 
 	// Print a status line each time a provider completes scanning one service.
+	// scope = the per-call dimension that would otherwise produce duplicate
+	// lines in multi-region / multi-account scans (AWS region or "global",
+	// Azure subscription ID, GCP project ID). Without it, --regions us-east-1,
+	// eu-west-1 prints aws:ec2 twice with no way to tell them apart.
 	// Accumulate totals here — these are the source of truth for the summary counts.
 	// errCount > 0 means the service hit one or more errors (which were already
 	// reported via OnError); annotate the line with "(with errors)" so the user
 	// can scan output for trouble without grepping.
 	var totalSeen, totalNew int64
-	db.OnServiceComplete = func(service string, total, inserted, errCount int, disabled bool) {
+	db.OnServiceComplete = func(service, scope string, total, inserted, errCount int, disabled bool) {
 		atomic.AddInt64(&totalSeen, int64(total))
 		atomic.AddInt64(&totalNew, int64(inserted))
 		if quiet {
@@ -212,8 +216,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		case errCount > 0:
 			suffix = "  (with errors)"
 		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  (%d total, %d new)%s\n",
-			time.Since(start).Round(time.Second), nameWidth, service, total, inserted, suffix)
+		scopeCol := ""
+		if scope != "" {
+			scopeCol = " " + scope
+		}
+		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s%s  (%d total, %d new)%s\n",
+			time.Since(start).Round(time.Second), nameWidth, service, scopeCol, total, inserted, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {

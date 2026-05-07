@@ -62,10 +62,10 @@ func runTenantServices(ctx context.Context, subs []subscription, cred *azidentit
 				Provider: "azure", Service: svc.name, Scope: "tenant",
 				Message: formatAzureError(err),
 			})
-			st.ReportService(svc.name, total, inserted, 1, false)
+			st.ReportService(svc.name, "tenant", total, inserted, 1, false)
 			continue
 		}
-		st.ReportService(svc.name, total, inserted, 0, false)
+		st.ReportService(svc.name, "tenant", total, inserted, 0, false)
 	}
 }
 

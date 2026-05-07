@@ -141,27 +141,27 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			total, inserted, err := svc.fn(svcCtx, acct, "", st, scanID)
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
-					st.ReportService(svc.name, 0, 0, 0, true)
+					st.ReportService(svc.name, "global", 0, 0, 0, true)
 					return
 				}
 				// NXDOMAIN = service not deployed in this scope. Silent-skip
 				// (no warning) — distinct from a transient DNS outage.
 				if isDNSNotFound(err) {
-					st.ReportService(svc.name, 0, 0, 0, true)
+					st.ReportService(svc.name, "global", 0, 0, 0, true)
 					return
 				}
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
-					st.ReportService(svc.name, 0, 0, 0, false)
+					st.ReportService(svc.name, "global", 0, 0, 0, false)
 					return
 				}
 				st.ReportError(store.ScanError{
 					Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
 				})
-				st.ReportService(svc.name, total, inserted, 1, false)
+				st.ReportService(svc.name, "global", total, inserted, 1, false)
 				return
 			}
-			st.ReportService(svc.name, total, inserted, 0, false)
+			st.ReportService(svc.name, "global", total, inserted, 0, false)
 		})
 	}
 
@@ -221,27 +221,27 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			total, inserted, err := svc.fn(svcCtx, acct, region, st, scanID)
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
-					st.ReportService(svc.name, 0, 0, 0, true)
+					st.ReportService(svc.name, region, 0, 0, 0, true)
 					return
 				}
 				// NXDOMAIN = service not deployed in this region. Silent-skip
 				// (no warning) — distinct from a transient DNS outage.
 				if isDNSNotFound(err) {
-					st.ReportService(svc.name, 0, 0, 0, true)
+					st.ReportService(svc.name, region, 0, 0, 0, true)
 					return
 				}
 				if isTransientNetworkError(err) {
 					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
-					st.ReportService(svc.name, 0, 0, 0, false)
+					st.ReportService(svc.name, region, 0, 0, 0, false)
 					return
 				}
 				st.ReportError(store.ScanError{
 					Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
 				})
-				st.ReportService(svc.name, total, inserted, 1, false)
+				st.ReportService(svc.name, region, total, inserted, 1, false)
 				return
 			}
-			st.ReportService(svc.name, total, inserted, 0, false)
+			st.ReportService(svc.name, region, total, inserted, 0, false)
 		})
 	}
 	wg.Wait()

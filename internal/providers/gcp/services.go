@@ -129,17 +129,17 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 			// mirror scanProject and surface "(service disabled)" instead
 			// of an error.
 			if errors.Is(err, errServiceDisabled) {
-				st.ReportService(svc.name, 0, 0, 0, true)
+				st.ReportService(svc.name, "org", 0, 0, 0, true)
 				continue
 			}
 			st.ReportError(store.ScanError{
 				Provider: "gcp", Service: svc.name, Scope: "org",
 				Message: err.Error(),
 			})
-			st.ReportService(svc.name, total, inserted, 1, false)
+			st.ReportService(svc.name, "org", total, inserted, 1, false)
 			continue
 		}
-		st.ReportService(svc.name, total, inserted, 0, false)
+		st.ReportService(svc.name, "org", total, inserted, 0, false)
 	}
 }
 

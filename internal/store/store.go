@@ -49,24 +49,27 @@ type ScanError struct {
 // scan") for the wider contract.
 type Store struct {
 	db                *sqlx.DB
-	OnServiceComplete func(service string, total, inserted, errCount int, disabled bool) // after each service scan; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
-	OnResolveStart    func(provider string)                                              // just before phase-2 resolvers run
-	OnResolveComplete func(provider string, edges int)                                   // after all resolvers finish
-	OnWarn            func(ScanWarning)                                                  // skip-worthy error handled (transient, access-denied)
-	OnError           func(ScanError)                                                    // service or resolver failure; never aborts the scan
-	activeCounter     *atomic.Int64                                                      // non-nil only in scoped copies returned by WithRelCounter
+	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
+	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)                                          // after all resolvers finish
+	OnWarn            func(ScanWarning)                                                         // skip-worthy error handled (transient, access-denied)
+	OnError           func(ScanError)                                                           // service or resolver failure; never aborts the scan
+	activeCounter     *atomic.Int64                                                             // non-nil only in scoped copies returned by WithRelCounter
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
-// service scan function returns. total = resources seen this scan, inserted =
-// resources newly added (not previously in the DB), errCount = number of errors
-// encountered while scanning this service (>0 surfaces as a "(with errors)"
-// suffix on the progress line). disabled = service is not enabled in this
-// account/region (surfaces as a "(service disabled)" suffix; mutually
-// exclusive with errCount>0 since a disabled service emits no errors).
-func (s *Store) ReportService(service string, total, inserted, errCount int, disabled bool) {
+// service scan function returns. scope identifies the per-call dimension that
+// would otherwise duplicate the line in multi-region / multi-account scans
+// (AWS region or "global", Azure subscription ID, GCP project ID). total =
+// resources seen this scan, inserted = resources newly added (not previously
+// in the DB), errCount = number of errors encountered while scanning this
+// service (>0 surfaces as a "(with errors)" suffix on the progress line).
+// disabled = service is not enabled in this account/region (surfaces as a
+// "(service disabled)" suffix; mutually exclusive with errCount>0 since a
+// disabled service emits no errors).
+func (s *Store) ReportService(service, scope string, total, inserted, errCount int, disabled bool) {
 	if s.OnServiceComplete != nil {
-		s.OnServiceComplete(service, total, inserted, errCount, disabled)
+		s.OnServiceComplete(service, scope, total, inserted, errCount, disabled)
 	}
 }
 

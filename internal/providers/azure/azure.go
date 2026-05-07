@@ -136,7 +136,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 			if err != nil {
 				return err
 			}
-			st.ReportService(svc.name, total, inserted, 0, false)
+			st.ReportService(svc.name, sub.ID, total, inserted, 0, false)
 			return nil
 		})
 	}
@@ -154,10 +154,10 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 				Provider: "azure", Service: ar.name, Scope: sub.ID,
 				Message: formatAzureError(aerr),
 			})
-			st.ReportService(ar.name, 0, edges, 1, false)
+			st.ReportService(ar.name, sub.ID, 0, edges, 1, false)
 			continue
 		}
-		st.ReportService(ar.name, 0, edges, 0, false)
+		st.ReportService(ar.name, sub.ID, 0, edges, 0, false)
 	}
 
 	st.ReportResolveStart("azure")
