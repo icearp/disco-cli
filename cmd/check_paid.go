@@ -16,6 +16,8 @@ func init() {
 	checkCmd.Flags().BoolVar(&checkPersist, "persist", false,
 		"Write the check run and its findings to the local DB; surfaces under `disco findings`")
 
+	checkNeedsWriteHook = func() bool { return checkPersist }
+
 	persistCheckHook = func(db *store.Store, paths, packs []string, severity string, resourceCount int, findings []policy.Finding) error {
 		if !checkPersist {
 			return nil

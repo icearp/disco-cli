@@ -27,6 +27,13 @@ var (
 // slice so `findings list` shape matches the same-invocation stdout.
 var persistCheckHook func(db *store.Store, paths, packs []string, severity string, resourceCount int, findings []policy.Finding) error
 
+// checkNeedsWriteHook is set by the paid build to signal that this invocation
+// needs a writable DB (e.g. `--persist`). nil in OSS. When nil or returning
+// false, `check` opens the DB read-only — see WS1 in
+// focus-group/SUMMARY.md for why writable opens flip the SQLite WAL header
+// and break snapshot/verify roundtrips.
+var checkNeedsWriteHook func() bool
+
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Evaluate Rego policies against discovered resources",
@@ -79,7 +86,20 @@ Examples:
 
 		ctx := cmd.Context()
 
-		db, err := openDB()
+		// `check` opens the DB read-only by default. A writable open flips the
+		// SQLite WAL header, mutating the file and breaking any subsequent
+		// `disco verify` against a snapshot of it. The paid `--persist` path
+		// signals via checkNeedsWriteHook that it needs to upgrade.
+		needsWrite := checkNeedsWriteHook != nil && checkNeedsWriteHook()
+		var (
+			db  *store.Store
+			err error
+		)
+		if needsWrite {
+			db, err = openDB()
+		} else {
+			db, err = store.OpenReadOnly(defaultDBPath())
+		}
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
 		}

@@ -86,6 +86,10 @@ Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON
 
 modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `OpenReadOnly` uses `mode=ro`; same shape extends to `cache=shared`, `_pragma=...`, etc. when needed.
 
+## `applyPragmas(db, readOnly bool)` skips writer-only pragmas on RO opens
+
+`journal_mode=WAL` and `synchronous=NORMAL` write the SQLite DB header. A read-only open (`OpenReadOnly`, `mode=ro`) errors with `attempt to write a readonly database (8)` when those pragmas fire — bricks `disco --db-readonly check` against a customer-supplied snapshot. RO callers pass `readOnly=true`; writer-only pragmas are skipped. FK + cache + mmap pragmas are safe on RO and stay applied.
+
 ## No `internal/policy` import in store package
 
 `internal/store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).

@@ -135,7 +135,7 @@ func Open(path string) (*Store, error) {
 	// concurrent readers alongside the single writer.
 	db.SetMaxOpenConns(1)
 
-	if err := applyPragmas(db.DB); err != nil {
+	if err := applyPragmas(db.DB, false); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func OpenReadOnly(path string) (*Store, error) {
 		return nil, fmt.Errorf("open db (readonly): %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	if err := applyPragmas(db.DB); err != nil {
+	if err := applyPragmas(db.DB, true); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -191,13 +191,12 @@ func (s *Store) DB() *sqlx.DB {
 	return s.db
 }
 
-func applyPragmas(db *sql.DB) error {
+// applyPragmas sets per-connection SQLite tuning. readOnly skips writer-only
+// pragmas (journal_mode=WAL, synchronous) — opening a RO DB and trying to
+// switch journal modes fails with "attempt to write a readonly database",
+// which would brick `disco --db-readonly check` against an evidence snapshot.
+func applyPragmas(db *sql.DB, readOnly bool) error {
 	pragmas := []string{
-		// WAL allows one writer and many concurrent readers without blocking.
-		"PRAGMA journal_mode = WAL",
-		// NORMAL is safe with WAL (no data loss on crash) and much faster than FULL,
-		// which would fsync on every transaction.
-		"PRAGMA synchronous = NORMAL",
 		// Enforce foreign key constraints (disabled by default in SQLite).
 		"PRAGMA foreign_keys = ON",
 		// Negative value = kibibytes. -64000 ≈ 64 MB in-process page cache.
@@ -206,6 +205,15 @@ func applyPragmas(db *sql.DB) error {
 		"PRAGMA temp_store = MEMORY",
 		// Map up to 256 MB of the database file into virtual memory for faster reads.
 		"PRAGMA mmap_size = 268435456",
+	}
+	if !readOnly {
+		// WAL allows one writer and many concurrent readers without blocking.
+		// NORMAL is safe with WAL (no data loss on crash) and much faster than FULL.
+		// Both pragmas write to the DB header, so they're skipped on read-only opens.
+		pragmas = append([]string{
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA synchronous = NORMAL",
+		}, pragmas...)
 	}
 	for _, p := range pragmas {
 		if _, err := db.Exec(p); err != nil {
