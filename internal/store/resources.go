@@ -183,6 +183,15 @@ type ResourceFilter struct {
 	Regions      []string
 	Status       string
 	DiscoveredBy string
+	// ScanRole picks which scan-FK column DiscoveredBy filters on:
+	//   "discovered" — `discovered_by = ?` (the scan that first inserted)
+	//   "verified"   — `verified_by = ?`   (the scan that last re-verified)
+	//   "" or "any"  — either column matches
+	// Default ("any") matches the persona expectation that
+	// `--scan-id <id>` returns rows the named scan touched, period — fix
+	// for the F3 silent-zero-row drift workflow. Ignored when DiscoveredBy
+	// is empty.
+	ScanRole string
 	// Since filters rows whose discovered_at >= this RFC3339 timestamp.
 	// Stored timestamps sort lexicographically the same as chronologically,
 	// so plain string comparison suffices.
@@ -191,6 +200,9 @@ type ResourceFilter struct {
 	TagValue string
 	Limit    uint64
 	Offset   uint64
+	// ID, when set, restricts the result to a single row by primary key.
+	// Mirrors a `WHERE id = ?` short-circuit.
+	ID string
 	// IncludeManaged when false hides provider-managed resources (built-in
 	// roles, AWS-owned prefix lists, etc.). Defaults false at the SQL layer.
 	IncludeManaged bool
@@ -219,7 +231,20 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 		q = q.Where(sq.Eq{"status": f.Status})
 	}
 	if f.DiscoveredBy != "" {
-		q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
+		switch f.ScanRole {
+		case "discovered":
+			q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
+		case "verified":
+			q = q.Where(sq.Eq{"verified_by": f.DiscoveredBy})
+		default: // "" / "any"
+			q = q.Where(sq.Or{
+				sq.Eq{"discovered_by": f.DiscoveredBy},
+				sq.Eq{"verified_by": f.DiscoveredBy},
+			})
+		}
+	}
+	if f.ID != "" {
+		q = q.Where(sq.Eq{"id": f.ID})
 	}
 	if f.Since != "" {
 		q = q.Where(sq.GtOrEq{"discovered_at": f.Since})

@@ -85,9 +85,17 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## `--scan-id` + `latest` shorthand via `resolveScanID`
 
-`list`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to `ListScans()[0].ID` — the most-recent scan. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy` so the filter applies at SQL layer (denominators drop, not display masking). `scan --resume <id|latest>` uses the same shorthand convention.
+`list`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow (F3 fix). Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
 
 `ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `datetime('now')` has 1s resolution — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
+
+## `--scan-role discovered|verified|any` reconciles `scans.ResourceCount` ↔ `list --scan-id`
+
+`scans.resource_count` counts every row a scan touched (insert OR re-verify). `list --scan-id <id>` previously filtered on `discovered_by` only, so a scan that re-verified pre-existing rows reported `RESOURCES: 2045` in `scans` but yielded 0 from `list --scan-id`. F3 fix:
+
+- `ResourceFilter.ScanRole` selects which scan-FK column matches: `discovered` → `discovered_by = ?`, `verified` → `verified_by = ?`, `any` (default, empty) → either column matches.
+- `list --scan-role <role>` exposes the choice. Default `any` matches the persona expectation that the named scan returns rows it touched.
+- `list --id <resource-id>` is a primary-key short-circuit on `ResourceFilter.ID` (`WHERE id = ?`); pairs with the F12 partial-ID lookup planned for WS7.
 
 ## seedTestDB ships with 2 baseline rows
 

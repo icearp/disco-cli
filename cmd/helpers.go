@@ -66,9 +66,12 @@ func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.
 	}
 }
 
-// resolveScanID expands the `latest` shorthand to the most-recent scan's
-// ID; literal IDs pass through unchanged after a presence check. Used by
-// list / summary / tag-coverage / scans show — auditor-facing surface.
+// resolveScanID expands the `latest` shorthand. Returns the most-recent
+// scan whose `resource_count > 0` so a re-verify run that touched no new
+// rows doesn't silently zero-row the documented drift workflow (F3 fix).
+// Falls back to the most-recent scan if none qualify, with a one-line
+// stderr note describing the fall-back so auditors don't miss the signal.
+// Literal IDs pass through unchanged after a presence check.
 func resolveScanID(db *store.Store, raw string) (string, error) {
 	if raw == "" {
 		return "", nil
@@ -81,6 +84,12 @@ func resolveScanID(db *store.Store, raw string) (string, error) {
 		if len(scans) == 0 {
 			return "", fmt.Errorf("no scans recorded; --scan-id latest has nothing to resolve")
 		}
+		for _, s := range scans {
+			if s.ResourceCount != nil && *s.ResourceCount > 0 {
+				return s.ID, nil
+			}
+		}
+		fmt.Fprintf(os.Stderr, "note: no scan recorded any rows; --scan-id latest fell back to most-recent scan %s (resource_count=0)\n", short(scans[0].ID))
 		return scans[0].ID, nil
 	}
 	if _, err := db.GetScan(raw); err != nil {
