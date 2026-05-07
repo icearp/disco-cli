@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -107,18 +108,34 @@ Signing example:
 		if err != nil {
 			return fmt.Errorf("list scans: %w", err)
 		}
-		ids := make([]string, 0, len(scans))
+		// Sort by ID so the manifest bytes are deterministic across runs at
+		// the same DB state. CanonicalManifestBytes already serialises in
+		// declaration order; this pins slice order for byte-stable signing.
+		sort.Slice(scans, func(i, j int) bool { return scans[i].ID < scans[j].ID })
+		refs := make([]snapshot.ScanRef, 0, len(scans))
 		for _, s := range scans {
-			ids = append(ids, s.ID)
+			ref := snapshot.ScanRef{
+				ID:        s.ID,
+				StartedAt: store.ToRFC3339(s.StartedAt),
+			}
+			if s.FinishedAt != nil {
+				ref.FinishedAt = store.ToRFC3339(*s.FinishedAt)
+			}
+			if s.ScopeJSON != "" {
+				var scope map[string]any
+				if jerr := json.Unmarshal([]byte(s.ScopeJSON), &scope); jerr == nil {
+					ref.Scope = scope
+				}
+			}
+			refs = append(refs, ref)
 		}
-		sort.Strings(ids)
 
 		m := snapshot.Manifest{
 			Format:      snapshot.FormatV1,
 			ToolVersion: Version,
 			GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 			DBSHA256:    hash,
-			ScanIDs:     ids,
+			Scans:       refs,
 		}
 		if err := snapshot.WriteArchive(out, format, tmpDB, m); err != nil {
 			return err
@@ -135,7 +152,7 @@ Signing example:
 		}
 
 		abs, _ := filepath.Abs(out)
-		fmt.Fprintf(os.Stderr, "Wrote snapshot to %s (sha256=%s, scans=%d, format=%s)\n", abs, hash, len(ids), format)
+		fmt.Fprintf(os.Stderr, "Wrote snapshot to %s (sha256=%s, scans=%d, format=%s)\n", abs, hash, len(refs), format)
 		return nil
 	},
 }

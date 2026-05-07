@@ -90,7 +90,7 @@ Examples:
 			prefix = "OK (signed — manifest authenticated via ed25519)"
 		}
 		_, _ = fmt.Fprintf(os.Stderr, "%s: %s (tool_version=%s, sha256=%s, scans=%d, generated_at=%s)\n",
-			prefix, path, m.ToolVersion, computed, len(m.ScanIDs), m.GeneratedAt)
+			prefix, path, m.ToolVersion, computed, len(m.Scans), m.GeneratedAt)
 		if m.ToolVersion == "dev" {
 			_, _ = fmt.Fprintln(os.Stderr, "WARN: tool_version=dev — snapshot was built without a release version stamp")
 		} else if strings.HasSuffix(m.ToolVersion, "+dirty") {

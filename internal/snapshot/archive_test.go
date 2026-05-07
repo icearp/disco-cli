@@ -63,7 +63,7 @@ func TestArchive_RoundTrip(t *testing.T) {
 				ToolVersion: "vTest",
 				GeneratedAt: "2026-05-06T00:00:00Z",
 				DBSHA256:    srcHash,
-				ScanIDs:     []string{"s1"},
+				Scans:       []ScanRef{{ID: "s1"}},
 			}
 
 			out := filepath.Join(dir, "snap."+ext)

@@ -23,11 +23,23 @@ const FormatV1 = "disco-snapshot/v1"
 // receiver-side checksums of manifest.json are reproducible across
 // machines as long as the producer used WriteManifest (sorted-key indent).
 type Manifest struct {
-	Format      string   `json:"format"`
-	ToolVersion string   `json:"tool_version"`
-	GeneratedAt string   `json:"generated_at"`
-	DBSHA256    string   `json:"db_sha256"`
-	ScanIDs     []string `json:"scan_ids"`
+	Format      string    `json:"format"`
+	ToolVersion string    `json:"tool_version"`
+	GeneratedAt string    `json:"generated_at"`
+	DBSHA256    string    `json:"db_sha256"`
+	Scans       []ScanRef `json:"scans"`
+}
+
+// ScanRef enumerates one scan included in the snapshot. Scope mirrors the
+// scans.scope JSON column from the source DB (regions, profile, services,
+// skip_globals when the operator's invocation produced them) so an audit
+// trail travels with the evidence — auditors can answer "what was actually
+// scanned?" from the signed envelope alone, no live DB round-trip needed.
+type ScanRef struct {
+	ID         string         `json:"id"`
+	StartedAt  string         `json:"started_at,omitempty"`
+	FinishedAt string         `json:"finished_at,omitempty"`
+	Scope      map[string]any `json:"scope,omitempty"`
 }
 
 // WriteManifest writes m to path with two-space indent and a trailing

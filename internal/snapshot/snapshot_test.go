@@ -17,7 +17,9 @@ func TestManifest_RoundTrip(t *testing.T) {
 		ToolVersion: "v1.2.3",
 		GeneratedAt: "2026-05-06T12:00:00Z",
 		DBSHA256:    "deadbeef",
-		ScanIDs:     []string{"a", "b", "c"},
+		Scans: []ScanRef{
+			{ID: "a"}, {ID: "b"}, {ID: "c"},
+		},
 	}
 	if err := WriteManifest(path, want); err != nil {
 		t.Fatalf("WriteManifest: %v", err)
@@ -28,7 +30,7 @@ func TestManifest_RoundTrip(t *testing.T) {
 	}
 	if got.Format != want.Format || got.ToolVersion != want.ToolVersion ||
 		got.GeneratedAt != want.GeneratedAt || got.DBSHA256 != want.DBSHA256 ||
-		len(got.ScanIDs) != 3 {
+		len(got.Scans) != 3 {
 		t.Errorf("round-trip mismatch: got %+v want %+v", got, want)
 	}
 }
@@ -69,7 +71,7 @@ func TestWriteManifest_Deterministic(t *testing.T) {
 		ToolVersion: "v1",
 		GeneratedAt: "t",
 		DBSHA256:    "h",
-		ScanIDs:     []string{"a", "b"},
+		Scans:       []ScanRef{{ID: "a"}, {ID: "b"}},
 	}
 	p1 := filepath.Join(dir, "m1.json")
 	p2 := filepath.Join(dir, "m2.json")
