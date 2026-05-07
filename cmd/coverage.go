@@ -33,6 +33,27 @@ Output formats:
   - table    (tabwriter-aligned plain text)
   - json     (structured matrix slice for tooling)
 
+JSON envelope shape (one entry per provider, rows sorted by service then
+disco_type):
+  [
+    {
+      "provider": "aws",
+      "rows": [
+        {
+          "provider":     "aws",
+          "service":      "ec2",
+          "disco_type":   "aws:ec2:instance",     // omitted for uncovered
+          "upstream_key": "AWS::EC2::Instance",   // omitted for synthetic
+          "bucket":       "covered|uncovered|synthetic|upstream-missing"
+        }, ...
+      ]
+    }, ...
+  ]
+
+--resolvers and --missing-resolvers are AWS-only and emit a flat array
+of {resolver, edges} / {disco_type, service} rows respectively.
+Passing them with --provider azure|gcp surfaces a clear error.
+
 Bucket model:
   - covered          disco scanner + upstream registry entry both present.
   - uncovered        upstream registry entry has no disco scanner.

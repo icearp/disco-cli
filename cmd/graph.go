@@ -66,7 +66,10 @@ Subcommands:
 Examples:
   disco graph i-0abc123 --provider aws --depth 3
   disco graph my-bucket-name --type aws:s3:bucket
-  disco graph <32-hex-id> --kinds contains,attached-to -o dot | dot -Tpng > g.png`,
+  disco graph <32-hex-id> --kinds contains,attached-to -o dot | dot -Tpng > g.png
+  disco graph blast sg-0abc --depth 2          # what touches that SG?
+  disco graph path web-1 db-1 -o dot           # shortest path between two resources
+  disco graph complete --orphans-only          # disconnected resources only`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()

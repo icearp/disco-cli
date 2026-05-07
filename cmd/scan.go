@@ -19,11 +19,36 @@ var scanCmd = &cobra.Command{
 	Short: "Scan cloud accounts and discover resources",
 	Long: `Scan one or more cloud providers and store discovered resources in the local database.
 
+Three invocation forms — pick by what you need to tune:
+
+  disco scan <provider>         scope to one provider with that provider's
+                                full flag surface (--regions, --profile,
+                                --services, --skip-globals where supported).
+                                Use this for AWS region selection, AWS
+                                profile switching, or any single-provider
+                                tuned scan.
+
+  disco scan --providers a,b    scope to a subset of providers without
+                                provider-specific flags. Useful in CI or
+                                when config.yaml carries the per-provider
+                                tuning and the runner only needs to pick
+                                which providers to fan out across.
+
+  disco scan                    fan out to every provider configured (or
+                                auto-detected via ambient creds) — the
+                                "scan everything I can reach" form.
+
+--if-older-than gates any of the above on recency: skip (exit 0) when
+the latest complete scan for every targeted provider is younger than
+the supplied duration. Suitable for cron drivers that should run hourly
+but only re-scan if 6 h have elapsed.
+
 Examples:
   disco scan aws
   disco scan gcp
   disco scan                          # scans all configured providers
-  disco scan --providers aws,gcp`,
+  disco scan --providers aws,gcp
+  disco scan aws --if-older-than 6h   # skip if last aws scan finished < 6h ago`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Positional args are not supported; catch "disco scan aws,gcp" mistakes.
 		if len(args) > 0 {

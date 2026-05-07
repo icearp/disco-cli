@@ -77,6 +77,13 @@ document carries snake_case keys:
 Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.verified_at)
 for freshness-bound controls.
 
+SARIF taxonomy keys: tags carrying any of waf_pillar, waf_qid, soc2,
+iso27001, pci_dss, nist_800_53 lift into runs[0].taxonomies[] as the
+matching framework. Bundled aws-waf rules emit waf_pillar+waf_qid only;
+BYO rules adding soc2 / iso27001 / pci_dss / nist_800_53 get the
+matching taxonomy automatically. Taxon IDs are the unique tag values,
+sorted for byte-stable output.
+
 Examples:
   disco check --packs aws-waf
   disco check --packs aws-waf --severity high

@@ -19,13 +19,21 @@ var scansCmd = &cobra.Command{
 	Use:   "scans",
 	Short: "List recorded scan runs",
 	Args:  cobra.NoArgs,
-	Long: `Lists every scan recorded in the local DB, newest first. Pairs with
-'disco list --scan-id <id>' to inspect rows produced by a specific run.
+	Long: `Lists every scan recorded in the local DB, newest first. 'disco scans'
+itself takes no positional args — it always returns the full list. Use
+'disco scans show <id|latest>' for a single-scan deep dive (envelope
+shape documented under that subcommand's --help).
+
+Pairs with 'disco list --scan-id <id>' to inspect rows produced by a
+specific run; --scan-id accepts the same 8-31 char hex prefix or
+'latest' shorthand that 'scans show' does.
 
 Subcommands:
   disco scans show <id|latest>   full detail for one scan
 
-The 'latest' shorthand resolves to the most-recent scan, regardless of status.
+The 'latest' shorthand resolves to the most-recent scan whose
+resource_count > 0 (skips no-op re-verify runs); falls back to the
+most-recent scan with a stderr note when none qualify.
 
 The RESOURCES column is rows the scan touched (insert + re-verify), not
 first-seen attribution. To split them, use:
