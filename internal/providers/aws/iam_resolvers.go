@@ -757,71 +757,192 @@ func lookupTargetID(ref, rtype, acctID string, set map[string]struct{}) (string,
 	return "", false
 }
 
+// policyResourceClassifier matches a Resource ARN's service+kind and returns
+// the stored resource ID via the per-type id set bundle. Returns ok=false
+// to signal "not this classifier" — caller falls through to the next entry.
+type policyResourceClassifier struct {
+	match    func(ref string) bool
+	classify func(ref, region, acctID string, sets *policyResourceSets) (string, bool)
+}
+
+// policyResourceClassifiers is the ordered dispatch table consulted by
+// classifyPolicyResource. Order matters where prefixes overlap (e.g.
+// `:event-bus/` vs `:rule/` under `arn:aws:events:`).
+var policyResourceClassifiers = []policyResourceClassifier{
+	{
+		match:    func(ref string) bool { return strings.Contains(ref, ":kms:") },
+		classify: classifyKMSPolicyResource,
+	},
+	{
+		match: func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:s3:::") },
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyS3Resource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:secretsmanager:") && strings.Contains(ref, ":secret:")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifySecretResource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:dynamodb:") && strings.Contains(ref, ":table/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyDynamoDBResource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:lambda:") && strings.Contains(ref, ":function:")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyLambdaResource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:logs:") && strings.Contains(ref, ":log-group:")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyLogGroupResource(ref, acctID, sets)
+		},
+	},
+	{
+		match:    func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:sns:") },
+		classify: classifySNSPolicyResource,
+	},
+	{
+		match:    func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:sqs:") },
+		classify: classifySQSPolicyResource,
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:ssm:") && strings.Contains(ref, ":parameter")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return lookupTargetID(ref, TypeSSMParameter, acctID, sets.parameters)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:kinesis:") && strings.Contains(ref, ":stream/")
+		},
+		classify: classifyKinesisPolicyResource,
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:ecr:") && strings.Contains(ref, ":repository/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return lookupTargetID(ref, TypeECRRepository, acctID, sets.repositories)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:iam:") && strings.Contains(ref, ":role/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyIAMRoleResource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:rds:") },
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return classifyRDSResource(ref, acctID, sets)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:states:") && strings.Contains(ref, ":stateMachine:")
+		},
+		classify: classifyStatesPolicyResource,
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":event-bus/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return lookupTargetID(ref, TypeEventsEventBus, acctID, sets.eventBuses)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":rule/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return lookupTargetID(ref, TypeEventsRule, acctID, sets.eventRules)
+		},
+	},
+	{
+		match: func(ref string) bool {
+			return strings.HasPrefix(ref, "arn:aws:elasticfilesystem:") && strings.Contains(ref, ":file-system/")
+		},
+		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+			return lookupTargetID(ref, TypeEFSFileSystem, acctID, sets.efsFS)
+		},
+	},
+}
+
 // classifyPolicyResource maps a Resource ARN to a stored resource ID via the
 // per-type id sets. Returns ok=false for unrecognized services, wildcard ARNs,
 // and cross-account / unscanned targets — the caller emits no edge.
 func classifyPolicyResource(ref, region, acctID string, sets *policyResourceSets) (string, bool) {
-	switch {
-	case strings.Contains(ref, ":kms:"):
-		// KMS grants don't use object-suffix patterns; any wildcard here means
-		// the policy targets a class of keys rather than one identifier.
-		if strings.ContainsAny(ref, "*?") {
-			return "", false
+	for _, c := range policyResourceClassifiers {
+		if c.match(ref) {
+			return c.classify(ref, region, acctID, sets)
 		}
-		return sets.kms.resolveKMSKeyID(ref, region, acctID)
-	case strings.HasPrefix(ref, "arn:aws:s3:::"):
-		return classifyS3Resource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:secretsmanager:") && strings.Contains(ref, ":secret:"):
-		return classifySecretResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:dynamodb:") && strings.Contains(ref, ":table/"):
-		return classifyDynamoDBResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:lambda:") && strings.Contains(ref, ":function:"):
-		return classifyLambdaResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:logs:") && strings.Contains(ref, ":log-group:"):
-		return classifyLogGroupResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:sns:"):
-		// Topic ARN is whole ref. Subscription ARNs add a 6th colon segment past
-		// the topic name; reject those (no scanned type for subscriptions today).
-		if strings.Count(ref, ":") != 5 {
-			return "", false
-		}
-		return lookupTargetID(ref, TypeSNSTopic, acctID, sets.topics)
-	case strings.HasPrefix(ref, "arn:aws:sqs:"):
-		if strings.Count(ref, ":") != 5 {
-			return "", false
-		}
-		return lookupTargetID(ref, TypeSQSQueue, acctID, sets.queues)
-	case strings.HasPrefix(ref, "arn:aws:ssm:") && strings.Contains(ref, ":parameter"):
-		return lookupTargetID(ref, TypeSSMParameter, acctID, sets.parameters)
-	case strings.HasPrefix(ref, "arn:aws:kinesis:") && strings.Contains(ref, ":stream/"):
-		_, after, _ := strings.Cut(ref, ":stream/")
-		if strings.Contains(after, "/") {
-			return "", false
-		}
-		return lookupTargetID(ref, TypeKinesisStream, acctID, sets.streams)
-	case strings.HasPrefix(ref, "arn:aws:ecr:") && strings.Contains(ref, ":repository/"):
-		return lookupTargetID(ref, TypeECRRepository, acctID, sets.repositories)
-	case strings.HasPrefix(ref, "arn:aws:iam:") && strings.Contains(ref, ":role/"):
-		return classifyIAMRoleResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:rds:"):
-		return classifyRDSResource(ref, acctID, sets)
-	case strings.HasPrefix(ref, "arn:aws:states:") && strings.Contains(ref, ":stateMachine:"):
-		// Step Functions service-integration ARNs (arn:aws:states:::lambda:invoke
-		// etc.) carry empty region+account; reject before id lookup so they
-		// don't accidentally hash to a phantom state machine. See aws/CLAUDE.md
-		// "AWS service-integration ARNs use :::".
-		if strings.Contains(ref, ":::") {
-			return "", false
-		}
-		return lookupTargetID(ref, TypeSFNStateMachine, acctID, sets.stateMachines)
-	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":event-bus/"):
-		return lookupTargetID(ref, TypeEventsEventBus, acctID, sets.eventBuses)
-	case strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":rule/"):
-		return lookupTargetID(ref, TypeEventsRule, acctID, sets.eventRules)
-	case strings.HasPrefix(ref, "arn:aws:elasticfilesystem:") && strings.Contains(ref, ":file-system/"):
-		return lookupTargetID(ref, TypeEFSFileSystem, acctID, sets.efsFS)
 	}
 	return "", false
+}
+
+// classifyKMSPolicyResource handles `arn:aws:kms:` refs. KMS grants don't
+// use object-suffix patterns; any wildcard here means the policy targets
+// a class of keys rather than one identifier.
+func classifyKMSPolicyResource(ref, region, acctID string, sets *policyResourceSets) (string, bool) {
+	if strings.ContainsAny(ref, "*?") {
+		return "", false
+	}
+	return sets.kms.resolveKMSKeyID(ref, region, acctID)
+}
+
+// classifySNSPolicyResource handles topic ARNs only. Subscription ARNs add a
+// 6th colon segment past the topic name; reject those (no scanned type for
+// subscriptions today).
+func classifySNSPolicyResource(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+	if strings.Count(ref, ":") != 5 {
+		return "", false
+	}
+	return lookupTargetID(ref, TypeSNSTopic, acctID, sets.topics)
+}
+
+func classifySQSPolicyResource(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+	if strings.Count(ref, ":") != 5 {
+		return "", false
+	}
+	return lookupTargetID(ref, TypeSQSQueue, acctID, sets.queues)
+}
+
+func classifyKinesisPolicyResource(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+	_, after, _ := strings.Cut(ref, ":stream/")
+	if strings.Contains(after, "/") {
+		return "", false
+	}
+	return lookupTargetID(ref, TypeKinesisStream, acctID, sets.streams)
+}
+
+// classifyStatesPolicyResource rejects Step Functions service-integration
+// ARNs (`arn:aws:states:::lambda:invoke` etc.) which carry empty region+
+// account so they don't hash to phantom state machines (aws/CLAUDE.md
+// "AWS service-integration ARNs use :::").
+func classifyStatesPolicyResource(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
+	if strings.Contains(ref, ":::") {
+		return "", false
+	}
+	return lookupTargetID(ref, TypeSFNStateMachine, acctID, sets.stateMachines)
 }
 
 // classifyS3Resource trims object-key suffix to the bucket ARN before lookup.
