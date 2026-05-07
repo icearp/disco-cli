@@ -118,6 +118,12 @@ type typeBucket struct {
 	Count int    `json:"count"`
 }
 
+type accountBucket struct {
+	AccountID   string `json:"account_id"`
+	AccountName string `json:"account_name,omitempty"`
+	Count       int    `json:"count"`
+}
+
 // summaryReport is the JSON envelope. TypeBucketsTotal preserves the
 // pre-truncation distinct-type count so the table renderer can show
 // "top N of M" without recomputing.
@@ -125,6 +131,7 @@ type summaryReport struct {
 	AsOf             string           `json:"as_of"`
 	Total            int              `json:"total"`
 	ByProvider       []providerBucket `json:"by_provider"`
+	ByAccount        []accountBucket  `json:"by_account"`
 	ByRegion         []regionBucket   `json:"by_region"`
 	ByType           []typeBucket     `json:"by_type"`
 	TypeBucketsTotal int              `json:"type_buckets_total"`
@@ -134,6 +141,8 @@ func buildSummary(rows []store.Resource, asOf string, topTypes int) summaryRepor
 	provCounts := map[string]int{}
 	regionCounts := map[string]int{}
 	typeCounts := map[string]int{}
+	acctCounts := map[string]int{}
+	acctNames := map[string]string{}
 	for i := range rows {
 		r := &rows[i]
 		provCounts[r.Provider]++
@@ -143,6 +152,10 @@ func buildSummary(rows []store.Resource, asOf string, topTypes int) summaryRepor
 		}
 		regionCounts[region]++
 		typeCounts[r.Type]++
+		acctCounts[r.AccountID]++
+		if r.AccountName != nil && *r.AccountName != "" {
+			acctNames[r.AccountID] = *r.AccountName
+		}
 	}
 
 	provs := make([]providerBucket, 0, len(provCounts))
@@ -182,10 +195,22 @@ func buildSummary(rows []store.Resource, asOf string, topTypes int) summaryRepor
 		types = types[:topTypes]
 	}
 
+	accts := make([]accountBucket, 0, len(acctCounts))
+	for id, c := range acctCounts {
+		accts = append(accts, accountBucket{AccountID: id, AccountName: acctNames[id], Count: c})
+	}
+	sort.Slice(accts, func(i, j int) bool {
+		if accts[i].Count != accts[j].Count {
+			return accts[i].Count > accts[j].Count
+		}
+		return accts[i].AccountID < accts[j].AccountID
+	})
+
 	return summaryReport{
 		AsOf:             asOf,
 		Total:            len(rows),
 		ByProvider:       provs,
+		ByAccount:        accts,
 		ByRegion:         regs,
 		ByType:           types,
 		TypeBucketsTotal: totalTypes,
@@ -206,6 +231,15 @@ func renderSummary(rep summaryReport, format string) error {
 		}
 		for _, b := range rep.ByProvider {
 			if err := w.Write([]string{"provider", b.Provider, strconv.Itoa(b.Count)}); err != nil {
+				return err
+			}
+		}
+		for _, b := range rep.ByAccount {
+			label := b.AccountID
+			if b.AccountName != "" {
+				label = b.AccountID + " (" + b.AccountName + ")"
+			}
+			if err := w.Write([]string{"account", label, strconv.Itoa(b.Count)}); err != nil {
 				return err
 			}
 		}
@@ -243,6 +277,18 @@ func renderSummary(rep summaryReport, format string) error {
 			provRows = append(provRows, [2]string{b.Provider, strconv.Itoa(b.Count)})
 		}
 		printSection("BY PROVIDER", provRows)
+
+		acctRows := make([][2]string, 0, len(rep.ByAccount))
+		for _, b := range rep.ByAccount {
+			label := b.AccountID
+			if b.AccountName != "" {
+				label = b.AccountID + " (" + b.AccountName + ")"
+			}
+			acctRows = append(acctRows, [2]string{label, strconv.Itoa(b.Count)})
+		}
+		if len(acctRows) > 0 {
+			printSection("BY ACCOUNT", acctRows)
+		}
 
 		regRows := make([][2]string, 0, len(rep.ByRegion))
 		for _, b := range rep.ByRegion {

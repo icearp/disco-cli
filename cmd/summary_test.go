@@ -184,7 +184,9 @@ func TestSummary_CSV(t *testing.T) {
 		t.Fatalf("want header 'dimension,...', got %v", rows[0])
 	}
 	for _, row := range rows[1:] {
-		if row[0] != "provider" && row[0] != "region" && row[0] != "type" {
+		switch row[0] {
+		case "provider", "account", "region", "type":
+		default:
 			t.Errorf("unexpected dimension: %v", row)
 		}
 	}

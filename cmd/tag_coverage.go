@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -14,15 +16,22 @@ import (
 )
 
 var (
-	tagCovProvider       string
-	tagCovType           string
-	tagCovExcludeTypes   []string
-	tagCovRegion         string
-	tagCovScanID         string
-	tagCovSince          = singleSetString{flag: "since"}
-	tagCovOutputFmt      string
-	tagCovIncludeManaged bool
+	tagCovProvider        string
+	tagCovType            string
+	tagCovExcludeTypes    []string
+	tagCovRegion          string
+	tagCovScanID          string
+	tagCovSince           = singleSetString{flag: "since"}
+	tagCovOutputFmt       string
+	tagCovIncludeManaged  bool
+	tagCovCaseInsensitive bool
 )
+
+// awsAccessKeyTagRE matches an AWS access-key ID (`AKIA[20-char base32]`)
+// when it appears as a tag KEY. Tag keys shaped like access-key IDs are
+// always credential leaks pasted into the wrong field — surface separately
+// so a CIO scorecard doesn't render them as legitimate coverage rows.
+var awsAccessKeyTagRE = regexp.MustCompile(`^AKIA[0-9A-Z]{16}$`)
 
 var tagCoverageCmd = &cobra.Command{
 	Use:   "tag-coverage [key...]",
@@ -81,40 +90,67 @@ Examples:
 			return fmt.Errorf("list resources: %w", err)
 		}
 
-		report := buildTagReport(rows, args)
+		report := buildTagReport(rows, args, tagCovCaseInsensitive)
 		return renderTagReport(report, tagCovOutputFmt)
 	},
 }
 
 // tagCoverage is one row of the report. Coverage is a float in [0,1] for
-// spreadsheet math; the table renderer formats it as percent.
+// spreadsheet math; the table renderer formats it as percent. Suspicious
+// is non-empty when the tag key matches a known credential / leak shape.
 type tagCoverage struct {
-	Tag      string  `json:"tag"`
-	Tagged   int     `json:"tagged"`
-	Total    int     `json:"total"`
-	Coverage float64 `json:"coverage"`
+	Tag        string  `json:"tag"`
+	Tagged     int     `json:"tagged"`
+	Total      int     `json:"total"`
+	Coverage   float64 `json:"coverage"`
+	Suspicious string  `json:"suspicious,omitempty"`
 }
 
 // buildTagReport walks every resource's tags map and tallies coverage per
 // key. With explicit keys, zero-count keys still appear so dashboards see
 // the absent-tag signal. Sort order: tagged desc, tag asc.
-func buildTagReport(rows []store.Resource, keys []string) []tagCoverage {
+//
+// caseInsensitive folds every tag key to lower-case before tallying, and
+// matches user-supplied keys against the folded map — fix for F13 where
+// `environment` (0%) and `Environment` (5.5%) silently produced two
+// different scorecards. Suspicious-shape keys (regex-matched access-key
+// IDs) get a `[suspicious]` annotation rather than rendering as a normal
+// coverage row.
+func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) []tagCoverage {
 	total := len(rows)
 	counts := map[string]int{}
+	// origKey preserves the first observed casing so suspicious-shape
+	// regex (uppercase AKIA…) still matches even under --case-insensitive.
+	origKey := map[string]string{}
 	for i := range rows {
 		tags, _ := rows[i].Tags()
 		for k := range tags {
-			counts[k]++
+			key := k
+			if caseInsensitive {
+				key = strings.ToLower(k)
+			}
+			counts[key]++
+			if _, ok := origKey[key]; !ok {
+				origKey[key] = k
+			}
 		}
 	}
 	var out []tagCoverage
 	if len(keys) == 0 {
 		for k, c := range counts {
-			out = append(out, tagCoverage{Tag: k, Tagged: c, Total: total, Coverage: ratio(c, total)})
+			display := k
+			if o, ok := origKey[k]; ok && !caseInsensitive {
+				display = o
+			}
+			out = append(out, makeTagRow(display, origKey[k], c, total))
 		}
 	} else {
 		for _, k := range keys {
-			out = append(out, tagCoverage{Tag: k, Tagged: counts[k], Total: total, Coverage: ratio(counts[k], total)})
+			lookup := k
+			if caseInsensitive {
+				lookup = strings.ToLower(k)
+			}
+			out = append(out, makeTagRow(k, origKey[lookup], counts[lookup], total))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -124,6 +160,18 @@ func buildTagReport(rows []store.Resource, keys []string) []tagCoverage {
 		return out[i].Tag < out[j].Tag
 	})
 	return out
+}
+
+func makeTagRow(display, original string, c, total int) tagCoverage {
+	row := tagCoverage{Tag: display, Tagged: c, Total: total, Coverage: ratio(c, total)}
+	probe := original
+	if probe == "" {
+		probe = display
+	}
+	if awsAccessKeyTagRE.MatchString(probe) {
+		row.Suspicious = "aws-access-key-id"
+	}
+	return row
 }
 
 func ratio(n, d int) float64 {
@@ -158,9 +206,13 @@ func renderTagReport(rep []tagCoverage, format string) error {
 		return nil
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "TAG\tTAGGED\tTOTAL\tCOVERAGE")
+		_, _ = fmt.Fprintln(w, "TAG\tTAGGED\tTOTAL\tCOVERAGE\tFLAG")
 		for _, r := range rep {
-			_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\n", r.Tag, r.Tagged, r.Total, r.Coverage*100)
+			flag := ""
+			if r.Suspicious != "" {
+				flag = "[suspicious:" + r.Suspicious + "]"
+			}
+			_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\t%s\n", r.Tag, r.Tagged, r.Total, r.Coverage*100, flag)
 		}
 		return w.Flush()
 	default:
@@ -177,5 +229,6 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
+	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
 	rootCmd.AddCommand(tagCoverageCmd)
 }

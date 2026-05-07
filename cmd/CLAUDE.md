@@ -172,6 +172,14 @@ Cobra's default Args validator silently accepts arbitrary positional tokens. `di
 
 Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on second `Set()` so `--since A --since B` rejects rather than last-wins-silently. Test reset helpers must call `<flag>.reset()` on the value, not `<flag> = ""` (compile error: untyped string into struct).
 
+## `tag-coverage` flags suspicious-shape keys + folds case
+
+`tag-coverage` grew (1) `--case-insensitive` to fold tag keys to lower-case during aggregation (so `environment` and `Environment` collapse into one row instead of producing two separate scorecards — F13 fix), and (2) an `awsAccessKeyTagRE` regex shape-check (`^AKIA[0-9A-Z]{16}$`) that flags any tag KEY that looks like an AWS access-key ID with `[suspicious:aws-access-key-id]`. Implementation tracks the original casing in an `origKey` map so the regex still hits even after folding. New shape-checks belong in the same regex block; keep the JSON `suspicious` field a stable taxonomy string (`aws-access-key-id`, future: `pem-block`, `bearer-token`) so dashboards can branch on it.
+
+## `summary --by-account` rollup
+
+`summary` adds a `BY ACCOUNT` section (table) and a `by_account: [{account_id, account_name, count}]` JSON field — F21 fix for the CIO portfolio rollup. The CSV `dimension` column carries `account` rows alongside `provider` / `region` / `type`. Account name renders parenthetically when set (`131546573061 (prod)`); empty otherwise. Counts roll up via `acctCounts` in `buildSummary`.
+
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
 `list`, `summary`, and `tag-coverage` all expose `--exclude-types` (StringSlice → comma-separated). All three forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
