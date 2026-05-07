@@ -142,6 +142,48 @@ func resolveCognitoUserPoolGroupRole(acct *account, st *store.Store) error {
 	return nil
 }
 
+// cogLambdaSubArn is the nested {LambdaArn} shape used by sender +
+// pre-token-generation configs under LambdaConfig.
+type cogLambdaSubArn struct {
+	LambdaArn *string `json:"LambdaArn"`
+}
+
+// cogUserPoolAttrs mirrors the user-pool Describe fields the resolver walks.
+type cogUserPoolAttrs struct {
+	LambdaConfig *struct {
+		CreateAuthChallenge         *string          `json:"CreateAuthChallenge"`
+		CustomMessage               *string          `json:"CustomMessage"`
+		DefineAuthChallenge         *string          `json:"DefineAuthChallenge"`
+		PostAuthentication          *string          `json:"PostAuthentication"`
+		PostConfirmation            *string          `json:"PostConfirmation"`
+		PreAuthentication           *string          `json:"PreAuthentication"`
+		PreSignUp                   *string          `json:"PreSignUp"`
+		PreTokenGeneration          *string          `json:"PreTokenGeneration"`
+		UserMigration               *string          `json:"UserMigration"`
+		VerifyAuthChallengeResponse *string          `json:"VerifyAuthChallengeResponse"`
+		CustomEmailSender           *cogLambdaSubArn `json:"CustomEmailSender"`
+		CustomSMSSender             *cogLambdaSubArn `json:"CustomSMSSender"`
+		InboundFederation           *cogLambdaSubArn `json:"InboundFederation"`
+		PreTokenGenerationConfig    *cogLambdaSubArn `json:"PreTokenGenerationConfig"`
+		KMSKeyID                    *string          `json:"KMSKeyID"`
+	} `json:"LambdaConfig"`
+	EmailConfiguration *struct {
+		SourceArn *string `json:"SourceArn"`
+	} `json:"EmailConfiguration"`
+	SmsConfiguration *struct {
+		SnsCallerArn *string `json:"SnsCallerArn"`
+	} `json:"SmsConfiguration"`
+	CustomDomainConfig *struct {
+		CertificateArn *string `json:"CertificateArn"`
+	} `json:"CustomDomainConfig"`
+}
+
+// cogUserPoolTargetSets bundles FK-safe id sets for the resolver helpers.
+type cogUserPoolTargetSets struct {
+	lamSet, roleSet, sesSet, acmSet map[string]bool
+	kmsIdx                          *kmsResolveIndex
+}
+
 // resolveCognitoUserPoolRefs walks a user-pool's Describe body for outbound
 // refs: Lambda triggers (LambdaConfig.* — bare ARN strings + nested *.LambdaArn
 // for sender + pre-token configs), KMS key (LambdaConfig.KMSKeyID),
@@ -159,131 +201,154 @@ func resolveCognitoUserPoolRefs(acct *account, st *store.Store) error {
 	if len(pools) == 0 {
 		return nil
 	}
-	lamSet, err := scannedIDSet(acct, st, TypeLambdaFunction)
+	sets, err := loadCogUserPoolTargetSets(acct, st)
 	if err != nil {
 		return err
-	}
-	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
-	if err != nil {
-		return err
-	}
-	sesSet, err := scannedIDSet(acct, st, TypeSESEmailIdentity)
-	if err != nil {
-		return err
-	}
-	acmSet, err := scannedIDSet(acct, st, TypeACMCertificate)
-	if err != nil {
-		return err
-	}
-	kidx, err := loadKMSResolveIndex(acct, st)
-	if err != nil {
-		return err
-	}
-	type lambdaSubArn struct {
-		LambdaArn *string `json:"LambdaArn"`
 	}
 	for _, p := range pools {
-		var attrs struct {
-			LambdaConfig *struct {
-				CreateAuthChallenge         *string       `json:"CreateAuthChallenge"`
-				CustomMessage               *string       `json:"CustomMessage"`
-				DefineAuthChallenge         *string       `json:"DefineAuthChallenge"`
-				PostAuthentication          *string       `json:"PostAuthentication"`
-				PostConfirmation            *string       `json:"PostConfirmation"`
-				PreAuthentication           *string       `json:"PreAuthentication"`
-				PreSignUp                   *string       `json:"PreSignUp"`
-				PreTokenGeneration          *string       `json:"PreTokenGeneration"`
-				UserMigration               *string       `json:"UserMigration"`
-				VerifyAuthChallengeResponse *string       `json:"VerifyAuthChallengeResponse"`
-				CustomEmailSender           *lambdaSubArn `json:"CustomEmailSender"`
-				CustomSMSSender             *lambdaSubArn `json:"CustomSMSSender"`
-				InboundFederation           *lambdaSubArn `json:"InboundFederation"`
-				PreTokenGenerationConfig    *lambdaSubArn `json:"PreTokenGenerationConfig"`
-				KMSKeyID                    *string       `json:"KMSKeyID"`
-			} `json:"LambdaConfig"`
-			EmailConfiguration *struct {
-				SourceArn *string `json:"SourceArn"`
-			} `json:"EmailConfiguration"`
-			SmsConfiguration *struct {
-				SnsCallerArn *string `json:"SnsCallerArn"`
-			} `json:"SmsConfiguration"`
-			CustomDomainConfig *struct {
-				CertificateArn *string `json:"CertificateArn"`
-			} `json:"CustomDomainConfig"`
-		}
+		var attrs cogUserPoolAttrs
 		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(p.Region)
-		seenLambda := map[string]bool{}
-		emitLambda := func(arn string) error {
-			if arn == "" || seenLambda[arn] {
-				return nil
-			}
-			seenLambda[arn] = true
-			tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
-			if !lamSet[tgt] {
-				return nil
-			}
-			return st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil)
+		if err := emitCogLambdaConfigEdges(st, acct, p, region, attrs, sets); err != nil {
+			return err
 		}
-		if lc := attrs.LambdaConfig; lc != nil {
-			for _, s := range []*string{
-				lc.CreateAuthChallenge, lc.CustomMessage, lc.DefineAuthChallenge,
-				lc.PostAuthentication, lc.PostConfirmation, lc.PreAuthentication,
-				lc.PreSignUp, lc.PreTokenGeneration, lc.UserMigration,
-				lc.VerifyAuthChallengeResponse,
-			} {
-				if err := emitLambda(sv(s)); err != nil {
-					return fmt.Errorf("upsert cognito user-pool→lambda: %w", err)
-				}
-			}
-			for _, sub := range []*lambdaSubArn{lc.CustomEmailSender, lc.CustomSMSSender, lc.InboundFederation, lc.PreTokenGenerationConfig} {
-				if sub == nil {
-					continue
-				}
-				if err := emitLambda(sv(sub.LambdaArn)); err != nil {
-					return fmt.Errorf("upsert cognito user-pool→lambda: %w", err)
-				}
-			}
-			if k := sv(lc.KMSKeyID); k != "" {
-				if keyID, ok := kidx.resolveKMSKeyID(k, region, acct.ID); ok {
-					if err := st.UpsertRelationship(p.ID, keyID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cognito user-pool→kms: %w", err)
-					}
-				}
+		if err := emitCogEmailEdge(st, acct, p, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCogSmsEdge(st, acct, p, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCogCustomDomainEdge(st, acct, p, attrs, sets); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func loadCogUserPoolTargetSets(acct *account, st *store.Store) (cogUserPoolTargetSets, error) {
+	var sets cogUserPoolTargetSets
+	var err error
+	if sets.lamSet, err = scannedIDSet(acct, st, TypeLambdaFunction); err != nil {
+		return sets, err
+	}
+	if sets.roleSet, err = scannedIDSet(acct, st, TypeIAMRole); err != nil {
+		return sets, err
+	}
+	if sets.sesSet, err = scannedIDSet(acct, st, TypeSESEmailIdentity); err != nil {
+		return sets, err
+	}
+	if sets.acmSet, err = scannedIDSet(acct, st, TypeACMCertificate); err != nil {
+		return sets, err
+	}
+	if sets.kmsIdx, err = loadKMSResolveIndex(acct, st); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+// emitCogLambdaConfigEdges walks LambdaConfig.* (bare ARNs + nested sender
+// LambdaArn) and emits user-pool → lambda edges, dedup'd by ARN. Also
+// emits the KMS edge when LambdaConfig.KMSKeyID is set.
+func emitCogLambdaConfigEdges(st *store.Store, acct *account, p store.Resource, region string, attrs cogUserPoolAttrs, sets cogUserPoolTargetSets) error {
+	lc := attrs.LambdaConfig
+	if lc == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	emit := func(arn string) error {
+		if arn == "" || seen[arn] {
+			return nil
+		}
+		seen[arn] = true
+		tgt := store.ResourceID("aws", acct.ID, TypeLambdaFunction, arn)
+		if !sets.lamSet[tgt] {
+			return nil
+		}
+		if err := st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cognito user-pool→lambda: %w", err)
+		}
+		return nil
+	}
+	for _, s := range []*string{
+		lc.CreateAuthChallenge, lc.CustomMessage, lc.DefineAuthChallenge,
+		lc.PostAuthentication, lc.PostConfirmation, lc.PreAuthentication,
+		lc.PreSignUp, lc.PreTokenGeneration, lc.UserMigration,
+		lc.VerifyAuthChallengeResponse,
+	} {
+		if err := emit(sv(s)); err != nil {
+			return err
+		}
+	}
+	for _, sub := range []*cogLambdaSubArn{lc.CustomEmailSender, lc.CustomSMSSender, lc.InboundFederation, lc.PreTokenGenerationConfig} {
+		if sub == nil {
+			continue
+		}
+		if err := emit(sv(sub.LambdaArn)); err != nil {
+			return err
+		}
+	}
+	if k := sv(lc.KMSKeyID); k != "" {
+		if keyID, ok := sets.kmsIdx.resolveKMSKeyID(k, region, acct.ID); ok {
+			if err := st.UpsertRelationship(p.ID, keyID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cognito user-pool→kms: %w", err)
 			}
 		}
-		if attrs.EmailConfiguration != nil {
-			if arn := sv(attrs.EmailConfiguration.SourceArn); arn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeSESEmailIdentity, arn)
-				if sesSet[tgt] {
-					if err := st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cognito user-pool→ses: %w", err)
-					}
-				}
-			}
-		}
-		if attrs.SmsConfiguration != nil {
-			if arn := sv(attrs.SmsConfiguration.SnsCallerArn); arn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
-				if roleSet[tgt] {
-					if err := st.UpsertRelationship(p.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cognito user-pool→sns-role: %w", err)
-					}
-				}
-			}
-		}
-		if attrs.CustomDomainConfig != nil {
-			if arn := sv(attrs.CustomDomainConfig.CertificateArn); arn != "" {
-				tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
-				if acmSet[tgt] {
-					if err := st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cognito user-pool→acm: %w", err)
-					}
-				}
-			}
-		}
+	}
+	return nil
+}
+
+func emitCogEmailEdge(st *store.Store, acct *account, p store.Resource, attrs cogUserPoolAttrs, sets cogUserPoolTargetSets) error {
+	if attrs.EmailConfiguration == nil {
+		return nil
+	}
+	arn := sv(attrs.EmailConfiguration.SourceArn)
+	if arn == "" {
+		return nil
+	}
+	tgt := store.ResourceID("aws", acct.ID, TypeSESEmailIdentity, arn)
+	if !sets.sesSet[tgt] {
+		return nil
+	}
+	if err := st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert cognito user-pool→ses: %w", err)
+	}
+	return nil
+}
+
+func emitCogSmsEdge(st *store.Store, acct *account, p store.Resource, attrs cogUserPoolAttrs, sets cogUserPoolTargetSets) error {
+	if attrs.SmsConfiguration == nil {
+		return nil
+	}
+	arn := sv(attrs.SmsConfiguration.SnsCallerArn)
+	if arn == "" {
+		return nil
+	}
+	tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	if !sets.roleSet[tgt] {
+		return nil
+	}
+	if err := st.UpsertRelationship(p.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+		return fmt.Errorf("upsert cognito user-pool→sns-role: %w", err)
+	}
+	return nil
+}
+
+func emitCogCustomDomainEdge(st *store.Store, acct *account, p store.Resource, attrs cogUserPoolAttrs, sets cogUserPoolTargetSets) error {
+	if attrs.CustomDomainConfig == nil {
+		return nil
+	}
+	arn := sv(attrs.CustomDomainConfig.CertificateArn)
+	if arn == "" {
+		return nil
+	}
+	tgt := store.ResourceID("aws", acct.ID, TypeACMCertificate, arn)
+	if !sets.acmSet[tgt] {
+		return nil
+	}
+	if err := st.UpsertRelationship(p.ID, tgt, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert cognito user-pool→acm: %w", err)
 	}
 	return nil
 }
