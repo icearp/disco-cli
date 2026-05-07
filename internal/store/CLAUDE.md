@@ -82,6 +82,8 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-lo
 
 `Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under snake_case keys (`native_id`, `account_id`, ...). Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. New JSON encoders should emit `[]Resource` directly — no per-call shape massaging.
 
+**Schema contract — every documented key always present.** `Resource.MarshalJSON` (and the matching `resources_json_test.go::TestResource_MarshalJSON_AlwaysPresent`) emits every key listed under `disco check --help`: optional pointer fields render as `null` (not omitted), `tags` and `attributes` always render as objects (`{}` for empty / missing / malformed legacy blobs). Stripping `,omitempty` was the F6 fix from focus-group/SUMMARY.md — Rego authors and downstream consumers can traverse `input.attributes.X` / `input.tags.Y` without per-row presence guards. Don't reintroduce `,omitempty` on the contract fields.
+
 Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `listColumns`/`resourceRow` in `cmd/list.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
 
 modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `OpenReadOnly` uses `mode=ro`; same shape extends to `cache=shared`, `_pragma=...`, etc. when needed.
@@ -94,9 +96,11 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 `internal/store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).
 
-## `Scan.StartedAt` format = SQLite datetime, not RFC3339
+## `Scan.StartedAt` format = SQLite datetime, not RFC3339 (in storage)
 
-`CreateScan` uses `datetime('now')` which returns `YYYY-MM-DD HH:MM:SS` (space-separated, UTC, no `T`/`Z`). Don't assume RFC3339-parseable; consumers needing `time.Time` must `time.Parse("2006-01-02 15:04:05", s)`.
+`CreateScan` uses `datetime('now')` which returns `YYYY-MM-DD HH:MM:SS` (space-separated, UTC, no `T`/`Z`). The DB column carries that shape verbatim. Consumers that read `Scan.StartedAt` directly (e.g. for `time.Time` math) must `time.Parse("2006-01-02 15:04:05", s)` — or use the exported helper `store.ToRFC3339(s)`.
+
+**Wire shape is RFC3339.** `Scan.MarshalJSON` (added F5 fix) projects `started_at` / `finished_at` to RFC3339 before emitting, so `disco scans -o json` and `disco summary -o json | jq '.as_of'` carry parseable timestamps that match resource-row `discovered_at` / `verified_at`. The wire envelope also uses snake_case keys and drops the SQLite `*JSON` columns (`ProvidersJSON`, `ScopeJSON`, `MetaJSON`) in favour of parsed `providers` / `scope` / `meta` objects. Don't reach into `scans -o json` consumers expecting the legacy PascalCase shape.
 
 ## `scans.resource_count` = totalSeen, not totalNew
 

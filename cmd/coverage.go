@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -80,10 +81,10 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	missingMode, _ := cmd.Flags().GetBool("missing-resolvers")
 
 	if resolversMode {
-		return runResolverCoverage(cmd.OutOrStdout(), provName, onlyUnannotated)
+		return runResolverCoverage(cmd.OutOrStdout(), provName, onlyUnannotated, outputFmt)
 	}
 	if missingMode {
-		return runMissingResolvers(cmd.OutOrStdout(), provName)
+		return runMissingResolvers(cmd.OutOrStdout(), provName, outputFmt)
 	}
 
 	switch filter {
@@ -166,24 +167,40 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 // with zero declared edges so sweepers can find unannotated registrations.
 // AWS-only today; cross-provider extension would lift `ListResolvers` into
 // the coverage.Provider interface and switch on provider here.
-func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool) error {
+func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool, outputFmt string) error {
 	if provName != "" && provName != "aws" {
 		return fmt.Errorf("--resolvers currently supports --provider aws (got %q)", provName)
 	}
 	infos := awsprov.ListResolvers()
+	type row struct {
+		Resolver string `json:"resolver"`
+		Edges    int    `json:"edges"`
+	}
+	rows := make([]row, 0, len(infos))
 	annotated, unannotated := 0, 0
-	fmt.Fprintln(w, "RESOLVER\tEDGES")
 	for _, r := range infos {
 		if r.EdgeCount == 0 {
 			unannotated++
-			fmt.Fprintf(w, "%s\t0\n", r.Name)
+			rows = append(rows, row{Resolver: r.Name, Edges: 0})
 			continue
 		}
 		annotated++
 		if onlyUnannotated {
 			continue
 		}
-		fmt.Fprintf(w, "%s\t%d\n", r.Name, r.EdgeCount)
+		rows = append(rows, row{Resolver: r.Name, Edges: r.EdgeCount})
+	}
+	if outputFmt == "json" {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			return err
+		}
+	} else {
+		_, _ = fmt.Fprintln(w, "RESOLVER\tEDGES")
+		for _, r := range rows {
+			_, _ = fmt.Fprintf(w, "%s\t%d\n", r.Resolver, r.Edges)
+		}
 	}
 	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", len(infos), annotated, unannotated)
 	return nil
@@ -193,7 +210,7 @@ func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool) 
 // as the Source of a declared EdgeDecl. These are the candidate resolver
 // gaps — types whose scanned rows produce zero outbound edges. Output is
 // sorted by service prefix then disco type so reruns diff cleanly.
-func runMissingResolvers(w stdoutWriter, provName string) error {
+func runMissingResolvers(w stdoutWriter, provName, outputFmt string) error {
 	if provName != "" && provName != "aws" {
 		return fmt.Errorf("--missing-resolvers currently supports --provider aws (got %q)", provName)
 	}
@@ -222,7 +239,11 @@ func runMissingResolvers(w stdoutWriter, provName string) error {
 	}
 	sort.Strings(orphans)
 
-	fmt.Fprintln(w, "disco_type\tservice")
+	type row struct {
+		DiscoType string `json:"disco_type"`
+		Service   string `json:"service"`
+	}
+	rows := make([]row, 0, len(orphans))
 	for _, t := range orphans {
 		svc := ""
 		if i := strings.Index(t, ":"); i >= 0 {
@@ -231,7 +252,17 @@ func runMissingResolvers(w stdoutWriter, provName string) error {
 				svc = rest[:j]
 			}
 		}
-		fmt.Fprintf(w, "%s\t%s\n", t, svc)
+		rows = append(rows, row{DiscoType: t, Service: svc})
+	}
+	if outputFmt == "json" {
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(rows)
+	}
+
+	_, _ = fmt.Fprintln(w, "disco_type\tservice")
+	for _, r := range rows {
+		_, _ = fmt.Fprintf(w, "%s\t%s\n", r.DiscoType, r.Service)
 	}
 	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(orphans), len(emitted))
 	return nil

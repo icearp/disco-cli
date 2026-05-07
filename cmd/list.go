@@ -111,7 +111,10 @@ Examples:
 			IncludeManaged: listIncludeManaged,
 		}
 
-		var resources []store.Resource
+		// Initialise to a non-nil empty slice so `-o json` on a zero-row
+		// query emits `[]` instead of `null`. `null` was the #1 paper-cut
+		// for downstream `jq` / Python pipelines (focus-group SUMMARY F6).
+		resources := []store.Resource{}
 		if listLimit == 0 {
 			resources, err = loadAllResourcesPaged(db, f)
 		} else {
@@ -129,6 +132,12 @@ Examples:
 		}
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
+		}
+		// Either branch above may reassign resources to a nil slice on a
+		// zero-row query; re-establish the non-nil contract so json.Encode
+		// emits `[]` not `null`.
+		if resources == nil {
+			resources = []store.Resource{}
 		}
 
 		switch listOutputFmt {

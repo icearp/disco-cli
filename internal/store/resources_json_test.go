@@ -48,18 +48,22 @@ func TestResource_MarshalJSON_SnakeAndNested(t *testing.T) {
 	}
 }
 
-func TestResource_MarshalJSON_OmitEmpty(t *testing.T) {
+// TestResource_MarshalJSON_AlwaysPresent enforces F6 from the focus-group
+// review: the documented Resource keys (`name`, `tags`, `attributes`, ...)
+// must always emit, with `null`/`{}` zero values rather than being dropped.
+// Consumers can then traverse `r.attributes.X` / `r.tags.Y` without per-row
+// presence guards.
+func TestResource_MarshalJSON_AlwaysPresent(t *testing.T) {
 	r := Resource{ID: "abc", Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b1"}
 	b, err := json.Marshal(r)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	s := string(b)
-	if strings.Contains(s, `"attributes"`) {
-		t.Errorf("empty attrs should omit: %s", s)
-	}
-	if strings.Contains(s, `"tags"`) {
-		t.Errorf("nil tags should omit: %s", s)
+	for _, key := range []string{`"attributes":{}`, `"tags":{}`, `"name":null`, `"status":null`, `"managed_by_provider":false`} {
+		if !strings.Contains(s, key) {
+			t.Errorf("expected %q in output, got %s", key, s)
+		}
 	}
 }
 
@@ -72,8 +76,11 @@ func TestResource_MarshalJSON_MalformedAttrs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal must not error on malformed attrs: %v", err)
 	}
-	if strings.Contains(string(b), `"attributes"`) {
-		t.Errorf("invalid attrs should be omitted, got: %s", b)
+	// Malformed legacy blob renders as the empty-object zero rather than
+	// disappearing — consumers see "no parsed attrs" without breaking the
+	// schema contract.
+	if !strings.Contains(string(b), `"attributes":{}`) {
+		t.Errorf("invalid attrs should render as {}, got: %s", b)
 	}
 }
 

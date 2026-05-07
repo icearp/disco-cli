@@ -11,11 +11,17 @@ import (
 	"codeberg.org/icearp/disco/internal/store"
 )
 
+// structuredErrorEmitted is set to true after maybeStructuredError writes
+// the JSON envelope to stdout. cmd/root.go::Execute reads it and skips the
+// duplicate stderr print so a `disco ... -o json` failure produces ONE
+// message (the JSON envelope on stdout), not two (envelope + plaintext).
+var structuredErrorEmitted bool
+
 // maybeStructuredError emits a JSON error envelope to stdout when the caller's
 // selected output format is structured (json/jsonl). Lets pipelines such as
 // `disco ... -o json | jq` see a parseable signal on failure rather than
-// empty stdout. Stderr message + exit code unchanged — call this from a
-// deferred wrapper in RunE; cmd/root.go still prints err to stderr.
+// empty stdout. Sets structuredErrorEmitted so root.go can suppress the
+// duplicate plaintext stderr print.
 func maybeStructuredError(format string, err error) {
 	if err == nil {
 		return
@@ -25,6 +31,7 @@ func maybeStructuredError(format string, err error) {
 		_ = json.NewEncoder(os.Stdout).Encode(struct {
 			Err string `json:"error"`
 		}{err.Error()})
+		structuredErrorEmitted = true
 	}
 }
 

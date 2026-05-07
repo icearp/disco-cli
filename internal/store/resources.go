@@ -20,43 +20,55 @@ var hexResourceIDRE = regexp.MustCompile(`^[0-9a-f]{32}$`)
 // in the DB but MarshalJSON / UnmarshalJSON surface them as nested
 // `attributes` / `tags` objects on the wire. JSON keys are snake_case to
 // match policy.Finding and coverage.Row.
+//
+// Contract: every key documented under `disco check --help` is always
+// present on the wire (never dropped by `,omitempty`). Optional pointer
+// fields render as `null` when unset; `tags` always emits as an object
+// (possibly empty); `managed_by_provider` always emits its bool. Drift
+// here is the F6 paper-cut from focus-group/SUMMARY.md — fix at this
+// struct, not in each command's renderer.
 type Resource struct {
 	ID                string  `db:"id"                  json:"id"`
 	Provider          string  `db:"provider"            json:"provider"`
 	AccountID         string  `db:"account_id"          json:"account_id"`
-	AccountName       *string `db:"account_name"        json:"account_name,omitempty"`
+	AccountName       *string `db:"account_name"        json:"account_name"`
 	Type              string  `db:"type"                json:"type"`
 	NativeID          string  `db:"native_id"           json:"native_id"`
-	Name              *string `db:"name"                json:"name,omitempty"`
-	Region            *string `db:"region"              json:"region,omitempty"`
-	Zone              *string `db:"zone"                json:"zone,omitempty"`
-	Status            *string `db:"status"              json:"status,omitempty"`
+	Name              *string `db:"name"                json:"name"`
+	Region            *string `db:"region"              json:"region"`
+	Zone              *string `db:"zone"                json:"zone"`
+	Status            *string `db:"status"              json:"status"`
 	TagsJSON          *string `db:"tags"                json:"-"` // surfaced as `tags` via MarshalJSON
 	AttributesJSON    string  `db:"attributes"          json:"-"` // surfaced as `attributes` via MarshalJSON
-	CreatedAt         *string `db:"created_at"          json:"created_at,omitempty"`
+	CreatedAt         *string `db:"created_at"          json:"created_at"`
 	DiscoveredAt      string  `db:"discovered_at"       json:"discovered_at"`
 	DiscoveredBy      string  `db:"discovered_by"       json:"discovered_by"`
-	VerifiedAt        *string `db:"verified_at"         json:"verified_at,omitempty"`
-	VerifiedBy        *string `db:"verified_by"         json:"verified_by,omitempty"`
-	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider,omitempty"`
+	VerifiedAt        *string `db:"verified_at"         json:"verified_at"`
+	VerifiedBy        *string `db:"verified_by"         json:"verified_by"`
+	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider"`
 }
 
 // resourceWire is the on-wire shape: SDK-shape attributes/tags surfaced as
 // nested values, scalar fields inherited from Resource via embedding.
 type resourceWire struct {
 	resourceAlias
-	Attributes json.RawMessage `json:"attributes,omitempty"`
-	Tags       json.RawMessage `json:"tags,omitempty"`
+	Attributes json.RawMessage `json:"attributes"`
+	Tags       json.RawMessage `json:"tags"`
 }
 
 // resourceAlias avoids infinite recursion in MarshalJSON / UnmarshalJSON.
 type resourceAlias Resource
 
 // MarshalJSON emits Resource with snake_case keys and nested
-// `attributes` / `tags` rather than stringified JSON blobs. Malformed legacy
-// blobs (failed json.Valid) are dropped via omitempty rather than crashing.
+// `attributes` / `tags` rather than stringified JSON blobs. Empty / missing /
+// malformed blobs render as `{}` so consumers can always traverse
+// `input.attributes.X` without a presence check.
 func (r Resource) MarshalJSON() ([]byte, error) {
-	w := resourceWire{resourceAlias: resourceAlias(r)}
+	w := resourceWire{
+		resourceAlias: resourceAlias(r),
+		Attributes:    json.RawMessage(`{}`),
+		Tags:          json.RawMessage(`{}`),
+	}
 	if r.AttributesJSON != "" && json.Valid([]byte(r.AttributesJSON)) {
 		w.Attributes = json.RawMessage(r.AttributesJSON)
 	}

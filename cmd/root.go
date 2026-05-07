@@ -81,7 +81,12 @@ func Execute() {
 		if errors.Is(err, store.ErrNoPath) {
 			os.Exit(1)
 		}
-		fmt.Fprintln(os.Stderr, err)
+		// When the command already wrote a structured-JSON error envelope to
+		// stdout (json/jsonl outputs), don't duplicate the message on stderr
+		// — pipelines see one signal, not two.
+		if !structuredErrorEmitted {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		// Unknown command / subcommand: print the matched parent's usage so
 		// the user sees the available subcommands inline with the error.
 		if cmd != nil && strings.HasPrefix(err.Error(), "unknown command") {

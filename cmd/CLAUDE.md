@@ -67,7 +67,17 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## JSON dialect: snake_case + nested attrs/tags
 
-`store.Resource.MarshalJSON` is the single source of truth — emits snake_case keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access.
+`store.Resource.MarshalJSON` is the single source of truth — emits snake_case keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
+
+`disco list -o json` initialises the result slice as `[]store.Resource{}` not `nil` so a zero-row query emits `[]` instead of `null` — fix for F6. Mirror the pattern in any new top-level array command.
+
+`disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON` (F5 fix): snake_case keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.as_of` is normalised at population time via `store.ToRFC3339`.
+
+`coverage --resolvers -o json` / `coverage --missing-resolvers -o json` honour the `-o json` flag (F8 fix); previously they always emitted TSV.
+
+## One error message, not two: `structuredErrorEmitted`
+
+`maybeStructuredError` (`cmd/helpers.go`) writes a JSON `{"error":"..."}` envelope to stdout when the caller's `-o` is `json`/`jsonl`, AND sets the package-level `structuredErrorEmitted` flag. `cmd/root.go::Execute` reads the flag and skips the duplicate plaintext stderr print so a `disco ... -o json` failure produces ONE message, not two — fix for F25 / F30.
 
 ## `PersistentFlags` on parent cobra cmd inherits to subcommands
 

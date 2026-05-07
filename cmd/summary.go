@@ -89,7 +89,10 @@ Examples:
 
 		asOf := ""
 		if scans, sErr := db.ListScans(); sErr == nil && len(scans) > 0 {
-			asOf = scans[0].StartedAt
+			// scans[0].StartedAt is SQLite-flavoured (`YYYY-MM-DD HH:MM:SS`);
+			// renderJSON / consumers expect RFC3339 to match the resource-row
+			// timestamps and the disco check input contract.
+			asOf = store.ToRFC3339(scans[0].StartedAt)
 		}
 
 		report := buildSummary(rows, asOf, summaryTopTypes)
