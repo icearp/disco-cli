@@ -122,7 +122,7 @@ func scanR53GRResolvers(ctx context.Context, client r53grAPI, acct *account, reg
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRGlobalResolver, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -154,7 +154,7 @@ func scanR53GRAccessSources(ctx context.Context, client r53grAPI, acct *account,
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRAccessSource, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -185,7 +185,7 @@ func scanR53GRFirewallDomainLists(ctx context.Context, client r53grAPI, acct *ac
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRFirewallDomainList, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -220,7 +220,7 @@ func scanR53GRDNSViews(ctx context.Context, client r53grAPI, acct *account, regi
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRDNSView, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -254,7 +254,7 @@ func scanR53GRFirewallRules(ctx context.Context, client r53grAPI, acct *account,
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRFirewallRule, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -286,7 +286,7 @@ func scanR53GRAccessTokens(ctx context.Context, client r53grAPI, acct *account, 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRAccessToken, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -319,7 +319,7 @@ func scanR53GRHostedZoneAssociations(ctx context.Context, client r53grAPI, acct 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53GRHostedZoneAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
 			})
 		}
 	}

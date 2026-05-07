@@ -62,6 +62,7 @@ func scanVPCSCForOrg(ctx context.Context, svc *accesscontextmanager.Service, sc 
 			title := ap.Title
 			r := &store.Resource{
 				Provider:       "gcp",
+				Region:         regionGlobal,
 				AccountID:      sc.Name,
 				Type:           TypeAccessPolicy,
 				NativeID:       ap.Name, // "accessPolicies/{policyId}"
@@ -124,6 +125,7 @@ func scanServicePerimetersForPolicy(ctx context.Context, svc *accesscontextmanag
 				title := sp.Title
 				r := &store.Resource{
 					Provider:       "gcp",
+					Region:         regionGlobal,
 					AccountID:      sc.Name,
 					Type:           TypeServicePerimeter,
 					NativeID:       sp.Name, // "accessPolicies/{p}/servicePerimeters/{id}"

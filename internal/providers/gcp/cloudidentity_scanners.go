@@ -90,6 +90,7 @@ func scanWorkspaceUsers(ctx context.Context, svc *directory.Service, st *store.S
 			nativeID := "users/" + u.Id
 			r := &store.Resource{
 				Provider:       "gcp",
+				Region:         regionGlobal,
 				AccountID:      u.CustomerId,
 				Type:           TypeWorkspaceUser,
 				NativeID:       nativeID,
@@ -141,6 +142,7 @@ func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, cu
 			}
 			r := &store.Resource{
 				Provider:       "gcp",
+				Region:         regionGlobal,
 				AccountID:      customerID,
 				Type:           TypeCloudIdentityGroup,
 				NativeID:       g.Name,

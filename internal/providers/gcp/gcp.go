@@ -96,14 +96,6 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		}
 	}
 	st.ReportResolveComplete("gcp", int(counter.Load()))
-	// Promote nil-region rows from this scan to the "global" sentinel — covers
-	// org/folder-scope services and resolver-side synthetic stubs (foreign-
-	// project, IAM-policy synth resources). Mirrors AWS / Azure.
-	if err := st.PromoteNilRegionToGlobal("gcp", scanID); err != nil {
-		st.ReportError(store.ScanError{
-			Provider: "gcp", Service: "promote-global-region", Scope: "", Message: err.Error(),
-		})
-	}
 	return nil
 }
 
@@ -376,6 +368,12 @@ type project struct {
 }
 
 func mustJSON(v any) string { return util.MustJSON(v) }
+
+// regionGlobal is the canonical Region pointer for non-regional GCP
+// resources (org/folder-scope services, IAM policy synth resources,
+// foreign-project stubs). Mirrors AWS / Azure regionGlobal; see
+// internal/store/CLAUDE.md "region = \"global\" sentinel".
+var regionGlobal = func() *string { s := "global"; return &s }()
 
 // strp returns a pointer to s, or nil if s is empty.
 func strp(s string) *string {

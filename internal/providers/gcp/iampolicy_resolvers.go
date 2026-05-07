@@ -105,6 +105,7 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 			name := proj
 			stubs = append(stubs, &store.Resource{
 				Provider:       "gcp",
+				Region:         regionGlobal,
 				AccountID:      proj,
 				Type:           TypeIAMForeignProject,
 				NativeID:       nativeID,

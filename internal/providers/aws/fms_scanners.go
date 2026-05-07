@@ -90,7 +90,7 @@ func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region s
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeFMSPolicy, NativeID: arn,
-				Name: p.PolicyName, Region: &region, Status: &status,
+				Name: p.PolicyName, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
@@ -125,7 +125,7 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeFMSResourceSet, NativeID: arn,
-				Name: r.Name, Region: &region, Status: &status,
+				Name: r.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
@@ -156,7 +156,7 @@ func scanFMSNotificationChannel(ctx context.Context, client fmsAPI, acct *accoun
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeFMSNotificationChannel, NativeID: arn,
-		Name: &label, Region: &region,
+		Name: &label, Region: regionGlobal,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "fms notification-channel")

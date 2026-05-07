@@ -110,18 +110,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
-	// Promote nil-region rows from this scan to the "global" sentinel — covers
-	// tenant-scope (Entra ID) and any sub-scoped resources that didn't set
-	// location. Mirrors the AWS / GCP global-region promotion.
-	if err := st.PromoteNilRegionToGlobal("azure", scanID); err != nil {
-		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "promote-global-region", Scope: "", Message: err.Error(),
-		})
-	}
-	return nil
+	return g.Wait()
 }
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
@@ -256,6 +245,12 @@ func loadFunctionAppSettings(subID string) map[string]map[string]string {
 }
 
 func mustJSON(v any) string { return util.MustJSON(v) }
+
+// regionGlobal is the canonical Region pointer for non-regional Azure
+// resources (tenant-scope Entra ID users / groups / SPs / app regs / roles)
+// and any other rows whose location is "everywhere". Mirrors AWS
+// regionGlobal; see internal/store/CLAUDE.md "region = \"global\" sentinel".
+var regionGlobal = func() *string { s := "global"; return &s }()
 
 // isAccessDenied reports whether err is an Azure 403/401 response error.
 func isAccessDenied(err error) bool {

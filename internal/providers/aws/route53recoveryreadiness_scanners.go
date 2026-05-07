@@ -74,7 +74,7 @@ func scanR53RRCells(ctx context.Context, client r53rrAPI, acct *account, region 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RRCell, NativeID: arn,
-				Name: c.CellName, Region: &region,
+				Name: c.CellName, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -101,7 +101,7 @@ func scanR53RRReadinessChecks(ctx context.Context, client r53rrAPI, acct *accoun
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RRReadinessCheck, NativeID: arn,
-				Name: c.ReadinessCheckName, Region: &region,
+				Name: c.ReadinessCheckName, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -128,7 +128,7 @@ func scanR53RRRecoveryGroups(ctx context.Context, client r53rrAPI, acct *account
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RRRecoveryGroup, NativeID: arn,
-				Name: g.RecoveryGroupName, Region: &region,
+				Name: g.RecoveryGroupName, Region: regionGlobal,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
 		}
@@ -155,7 +155,7 @@ func scanR53RRResourceSets(ctx context.Context, client r53rrAPI, acct *account, 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RRResourceSet, NativeID: arn,
-				Name: rs.ResourceSetName, Region: &region,
+				Name: rs.ResourceSetName, Region: regionGlobal,
 				AttributesJSON: mustJSON(rs), DiscoveredBy: scanID,
 			})
 		}

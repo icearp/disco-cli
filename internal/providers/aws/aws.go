@@ -102,17 +102,6 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	for i := range accounts {
 		scanAccount(ctx, &accounts[i], s.serviceFilter, s.skipGlobals, st, scanID)
 	}
-	// Promote nil-region rows from this scan to the "global" sentinel.
-	// Covers global-service scanners (IAM / Route53 / CloudFront / etc. that
-	// don't set Region on their resource literals) and resolver-side
-	// synthetic stubs (cross-account foreign-account, etc.). One SQL UPDATE
-	// per scan keeps every scanner / resolver site free of per-row Region
-	// boilerplate.
-	if err := st.PromoteNilRegionToGlobal("aws", scanID); err != nil {
-		st.ReportError(store.ScanError{
-			Provider: "aws", Service: "promote-global-region", Scope: "", Message: err.Error(),
-		})
-	}
 	return nil
 }
 
@@ -308,6 +297,14 @@ func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
 
 // sp returns a pointer to s.
 func sp(s string) *string { return &s }
+
+// regionGlobal is the canonical Region pointer for non-regional resources
+// (IAM, Route53, CloudFront, S3, Organizations, etc., plus resolver-side
+// cross-account synthetic stubs). Global scanners and stub-emitting
+// resolvers set Resource.Region = regionGlobal so callers can query
+// `--regions global` and the default `--regions <r>` filter folds these
+// rows in. See internal/store/CLAUDE.md "region = \"global\" sentinel".
+var regionGlobal = sp("global")
 
 // ec2ARN builds a standard EC2 ARN: arn:aws:ec2:{region}:{account}:{type}/{id}
 func ec2ARN(region, accountID, resourceType, id string) string {

@@ -80,7 +80,7 @@ func scanBudgetsBudgets(ctx context.Context, client budgetsAPI, acct *account, r
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBudgetsBudget, NativeID: arn,
-				Name: &name, Region: &region,
+				Name: &name, Region: regionGlobal,
 				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
 			})
 		}
@@ -121,7 +121,7 @@ func scanBudgetsActions(ctx context.Context, client budgetsAPI, acct *account, r
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBudgetsBudgetsAction, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
+				Name: &label, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}

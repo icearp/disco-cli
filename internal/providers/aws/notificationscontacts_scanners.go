@@ -46,7 +46,7 @@ func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsContactsEmailContact, NativeID: arn,
-				Name: e.Name, Region: &region, Status: &status,
+				Name: e.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
 		}

@@ -94,7 +94,7 @@ func scanGAAccelerators(ctx context.Context, client globalAcceleratorAPI, acct *
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGlobalAcceleratorAccelerator, NativeID: arn,
-				Name: a.Name, Region: &region, Status: &status,
+				Name: a.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -122,7 +122,7 @@ func scanGACrossAccountAttachments(ctx context.Context, client globalAccelerator
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGlobalAcceleratorCrossAccountAttachment, NativeID: arn,
-				Name: a.Name, Region: &region,
+				Name: a.Name, Region: regionGlobal,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -153,7 +153,7 @@ func scanGAListeners(ctx context.Context, client globalAcceleratorAPI, acct *acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGlobalAcceleratorListener, NativeID: arn,
-				Name: &label, Region: &region,
+				Name: &label, Region: regionGlobal,
 				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 			})
 		}
@@ -183,7 +183,7 @@ func scanGAEndpointGroups(ctx context.Context, client globalAcceleratorAPI, acct
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGlobalAcceleratorEndpointGroup, NativeID: arn,
-				Name: &label, Region: &region,
+				Name: &label, Region: regionGlobal,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
 		}

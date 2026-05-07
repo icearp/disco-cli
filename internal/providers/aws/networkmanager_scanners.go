@@ -127,7 +127,7 @@ func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *a
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkManagerGlobalNetwork, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -159,7 +159,7 @@ func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkManagerCoreNetwork, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -189,7 +189,7 @@ func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, r
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerSite, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -219,7 +219,7 @@ func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account,
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerDevice, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -249,7 +249,7 @@ func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, r
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerLink, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -283,7 +283,7 @@ func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct 
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerLinkAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -316,7 +316,7 @@ func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerCustomerGatewayAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -349,7 +349,7 @@ func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct 
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerTransitGatewayRegistration, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 				})
 			}
 		}
@@ -397,7 +397,7 @@ func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *acco
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: dtype, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -429,7 +429,7 @@ func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkManagerTransitGatewayPeering, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -458,7 +458,7 @@ func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkManagerConnectPeer, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -488,7 +488,7 @@ func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct 
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkManagerCoreNetworkPrefixListAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 				})
 			}
 		}

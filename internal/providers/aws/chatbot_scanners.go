@@ -69,7 +69,7 @@ func scanChatbotCustomActions(ctx context.Context, client chatbotAPI, acct *acco
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeChatbotCustomAction, NativeID: a,
-				Name: &a, Region: &region,
+				Name: &a, Region: regionGlobal,
 				AttributesJSON: mustJSON(map[string]string{"CustomActionArn": a}), DiscoveredBy: scanID,
 			})
 		}
@@ -100,7 +100,7 @@ func scanChatbotSlackChannels(ctx context.Context, client chatbotAPI, acct *acco
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeChatbotSlackChannelConfiguration, NativeID: arn,
-				Name: c.ConfigurationName, Region: &region,
+				Name: c.ConfigurationName, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -131,7 +131,7 @@ func scanChatbotTeamsChannels(ctx context.Context, client chatbotAPI, acct *acco
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeChatbotMicrosoftTeamsChannelConfiguration, NativeID: arn,
-				Name: c.ConfigurationName, Region: &region,
+				Name: c.ConfigurationName, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}

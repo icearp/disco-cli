@@ -66,7 +66,7 @@ func scanSAAccountAlias(ctx context.Context, client supportAppAPI, acct *account
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeSupportAppAccountAlias, NativeID: arn,
-		Name: &label, Region: &region,
+		Name: &label, Region: regionGlobal,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "supportapp account-alias")
@@ -97,7 +97,7 @@ func scanSASlackChannelConfigs(ctx context.Context, client supportAppAPI, acct *
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSupportAppSlackChannelConfiguration, NativeID: arn,
-				Name: &label, Region: &region,
+				Name: &label, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -129,7 +129,7 @@ func scanSASlackWorkspaceConfigs(ctx context.Context, client supportAppAPI, acct
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSupportAppSlackWorkspaceConfiguration, NativeID: arn,
-				Name: &label, Region: &region,
+				Name: &label, Region: regionGlobal,
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
 		}

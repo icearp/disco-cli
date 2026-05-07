@@ -71,7 +71,7 @@ func scanCEAnomalyMonitors(ctx context.Context, client costExplorerAPI, acct *ac
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCEAnomalyMonitor, NativeID: arn,
-				Name: m.MonitorName, Region: &region,
+				Name: m.MonitorName, Region: regionGlobal,
 				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			})
 		}
@@ -105,7 +105,7 @@ func scanCEAnomalySubscriptions(ctx context.Context, client costExplorerAPI, acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCEAnomalySubscription, NativeID: arn,
-				Name: s.SubscriptionName, Region: &region,
+				Name: s.SubscriptionName, Region: regionGlobal,
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
@@ -139,7 +139,7 @@ func scanCECostCategories(ctx context.Context, client costExplorerAPI, acct *acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCECostCategory, NativeID: arn,
-				Name: c.Name, Region: &region,
+				Name: c.Name, Region: regionGlobal,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}

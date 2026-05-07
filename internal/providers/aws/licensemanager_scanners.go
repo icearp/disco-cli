@@ -80,7 +80,7 @@ func scanLMLicenses(ctx context.Context, client licenseManagerAPI, acct *account
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLicenseManagerLicense, NativeID: arn,
-				Name: l.LicenseName, Region: &region, Status: &status,
+				Name: l.LicenseName, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 			})
 		}
@@ -115,7 +115,7 @@ func scanLMGrants(ctx context.Context, client licenseManagerAPI, acct *account, 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeLicenseManagerGrant, NativeID: arn,
-				Name: g.GrantName, Region: &region, Status: &status,
+				Name: g.GrantName, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
 		}

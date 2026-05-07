@@ -118,6 +118,7 @@ func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *accoun
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
+		Region:         regionGlobal,
 		Type:           TypeOrganization,
 		NativeID:       sv(org.Arn),
 		Name:           org.Id,
@@ -155,6 +156,7 @@ func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *accou
 				Provider:          "aws",
 				AccountID:         acct.ID,
 				AccountName:       &acct.Name,
+				Region:            regionGlobal,
 				Type:              TypeOrganizationsOU,
 				NativeID:          arn,
 				Name:              root.Name,
@@ -220,6 +222,7 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
+				Region:         regionGlobal,
 				Type:           TypeOrganizationsAccount,
 				NativeID:       arn,
 				Name:           a.Name,
@@ -276,6 +279,7 @@ func scanOrgSCPs(ctx context.Context, client *organizations.Client, acct *accoun
 			Provider:       "aws",
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
+			Region:         regionGlobal,
 			Type:           TypeOrganizationsSCP,
 			NativeID:       arn,
 			Name:           p.PolicySummary.Name,
@@ -313,12 +317,11 @@ func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAP
 	if arn == "" {
 		arn = fmt.Sprintf("arn:aws:organizations::%s:resourcepolicy", acct.ID)
 	}
-	region := ""
 	label := acct.ID
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeOrganizationsResourcePolicy, NativeID: arn,
-		Name: &label, Region: &region,
+		Name: &label, Region: regionGlobal,
 		AttributesJSON: mustJSON(out.ResourcePolicy), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "organizations resource-policy")
@@ -361,6 +364,7 @@ func walkOUs(
 			Provider:       "aws",
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
+			Region:         regionGlobal,
 			Type:           TypeOrganizationsOU,
 			NativeID:       arn,
 			Name:           ou.Name,

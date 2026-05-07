@@ -93,6 +93,7 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 				Type:           TypeForeignSubscription,
 				NativeID:       nativeID,
 				Name:           &name,
+				Region:         regionGlobal,
 				AttributesJSON: fmt.Sprintf(`{"subscriptionId":%q,"synthetic":true}`, other),
 				DiscoveredBy:   scanID,
 			})

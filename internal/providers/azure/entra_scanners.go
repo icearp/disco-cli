@@ -142,7 +142,8 @@ func scanEntraUsers(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 		}
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
-			Type: TypeEntraUser, NativeID: id,
+			Region: regionGlobal,
+			Type:   TypeEntraUser, NativeID: id,
 			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
 			DiscoveredBy: scanID,
 		})
@@ -214,7 +215,8 @@ func scanEntraGroups(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 		}
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
-			Type: TypeEntraGroup, NativeID: id,
+			Region: regionGlobal,
+			Type:   TypeEntraGroup, NativeID: id,
 			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
 			DiscoveredBy: scanID,
 		})
@@ -306,7 +308,8 @@ func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphSer
 		}
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
-			Type: TypeEntraServicePrincipal, NativeID: id,
+			Region: regionGlobal,
+			Type:   TypeEntraServicePrincipal, NativeID: id,
 			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
 			DiscoveredBy:      scanID,
 			ManagedByProvider: isMicrosoftFirstPartySP(ownerTenant),
@@ -375,7 +378,8 @@ func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceC
 		}
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
-			Type: TypeEntraApplication, NativeID: id,
+			Region: regionGlobal,
+			Type:   TypeEntraApplication, NativeID: id,
 			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
 			DiscoveredBy: scanID,
 		})

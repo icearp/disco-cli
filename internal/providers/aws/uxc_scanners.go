@@ -39,7 +39,7 @@ func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scan
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeUXCAccountCustomization, NativeID: arn,
-		Name: &label, Region: &region,
+		Name: &label, Region: regionGlobal,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 		ManagedByProvider: true,
 	}

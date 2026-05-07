@@ -50,6 +50,7 @@ func scanIAMPolicies(ctx context.Context, p *project, st *store.Store, scanID st
 		Provider:       "gcp",
 		AccountID:      p.ID,
 		AccountName:    &p.Name,
+		Region:         regionGlobal,
 		Type:           TypeIAMPolicy,
 		NativeID:       nativeID,
 		Name:           &name,

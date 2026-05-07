@@ -91,7 +91,7 @@ func scanR53RCClusters(ctx context.Context, client r53rcAPI, acct *account, regi
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RCCluster, NativeID: arn,
-				Name: c.Name, Region: &region, Status: &status,
+				Name: c.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -121,7 +121,7 @@ func scanR53RCControlPanels(ctx context.Context, client r53rcAPI, acct *account,
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RCControlPanel, NativeID: arn,
-				Name: c.Name, Region: &region, Status: &status,
+				Name: c.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -151,7 +151,7 @@ func scanR53RCRoutingControls(ctx context.Context, client r53rcAPI, acct *accoun
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RCRoutingControl, NativeID: arn,
-				Name: rc.Name, Region: &region, Status: &status,
+				Name: rc.Name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(rc), DiscoveredBy: scanID,
 			})
 		}
@@ -192,7 +192,7 @@ func scanR53RCSafetyRules(ctx context.Context, client r53rcAPI, acct *account, r
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeR53RCSafetyRule, NativeID: sv(arn),
-				Name: name, Region: &region, Status: &status,
+				Name: name, Region: regionGlobal, Status: &status,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}

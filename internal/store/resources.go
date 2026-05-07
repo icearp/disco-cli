@@ -109,24 +109,6 @@ func ResourceID(provider, accountID, resourceType, nativeID string) string {
 	return fmt.Sprintf("%x", h[:idHashBytes])
 }
 
-// PromoteNilRegionToGlobal sets region = 'global' on every row of the given
-// provider where verified_by = scanID and region IS NULL. Called by each
-// provider's Scan() after phase 2 so that global-scope resources (AWS IAM /
-// Route53 / CloudFront, Azure tenant-scope, GCP org-scope) and resolver-side
-// synthetic stubs (cross-account foreign-account stubs, foreign-subscription
-// stubs, foreign-project stubs) carry the canonical "global" sentinel
-// instead of NULL. The sentinel makes `disco list --regions <r>` filter
-// logic able to OR-include globals without per-provider NULL handling.
-func (s *Store) PromoteNilRegionToGlobal(provider, scanID string) error {
-	_, err := s.db.Exec(
-		`UPDATE resources SET region = 'global' WHERE provider = ? AND verified_by = ? AND region IS NULL`,
-		provider, scanID)
-	if err != nil {
-		return fmt.Errorf("promote nil region to global (%s): %w", provider, err)
-	}
-	return nil
-}
-
 // UpsertResource inserts or replaces a single resource. Delegates to UpsertResources.
 // Returns the number of newly inserted resources (0 or 1).
 func (s *Store) UpsertResource(r *Resource) (int, error) {

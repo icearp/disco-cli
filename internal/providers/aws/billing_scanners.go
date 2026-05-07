@@ -59,7 +59,7 @@ func scanBillingViews(ctx context.Context, client billingAPI, acct *account, st 
 				Type:        TypeBillingView,
 				NativeID:    arn,
 				Name:        &name,
-				Region:      &region,
+				Region:      regionGlobal,
 				// AWS-supplied default billing view carries BillingViewType="Primary";
 				// customer-created views carry "Custom".
 				ManagedByProvider: bv.BillingViewType == billingtypes.BillingViewTypePrimary,

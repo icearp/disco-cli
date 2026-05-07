@@ -1177,6 +1177,7 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 			Type:           TypeIAMForeignAccount,
 			NativeID:       nativeID,
 			Name:           &name,
+			Region:         regionGlobal,
 			AttributesJSON: fmt.Sprintf(`{"AccountId":%q,"Synthetic":true}`, other),
 			DiscoveredBy:   scanID,
 		})

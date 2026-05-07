@@ -44,7 +44,7 @@ func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeInvoicingInvoiceUnit, NativeID: arn,
-				Name: u.Name, Region: &region,
+				Name: u.Name, Region: regionGlobal,
 				AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
 			})
 		}

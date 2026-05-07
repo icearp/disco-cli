@@ -45,7 +45,7 @@ func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scan
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCURReportDefinition, NativeID: arn,
-				Name: &name, Region: &region,
+				Name: &name, Region: regionGlobal,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}

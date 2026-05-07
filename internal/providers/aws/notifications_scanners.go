@@ -114,7 +114,7 @@ func scanNotifConfigs(ctx context.Context, client notifsAPI, acct *account, regi
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsNotificationConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -142,7 +142,7 @@ func scanNotifHubs(ctx context.Context, client notifsAPI, acct *account, region 
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 			Type: TypeNotificationsNotificationHub, NativeID: arn,
-			Name: &label, Region: &region, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+			Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
 		})
 	}
 	return upsertBatch(st, batch, "notifications notification-hubs")
@@ -170,7 +170,7 @@ func scanNotifChannelAssociations(ctx context.Context, client notifsAPI, acct *a
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsChannelAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(map[string]string{"NotificationConfigurationArn": configARN, "ChannelArn": channelARN}), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(map[string]string{"NotificationConfigurationArn": configARN, "ChannelArn": channelARN}), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -202,7 +202,7 @@ func scanNotifEventRules(ctx context.Context, client notifsAPI, acct *account, r
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsEventRule, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -231,7 +231,7 @@ func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, reg
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsOrganizationalUnitAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(map[string]string{"NotificationConfigurationArn": configARN, "OrganizationalUnitId": ouID}), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(map[string]string{"NotificationConfigurationArn": configARN, "OrganizationalUnitId": ouID}), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -285,7 +285,7 @@ func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNotificationsManagedNotificationAdditionalChannelAssoc, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 				// Always AWS-default — emitted only by AWS-managed
 				// notification configurations.
 				ManagedByProvider: true,

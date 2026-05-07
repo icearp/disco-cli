@@ -66,6 +66,7 @@ func scanLoggingSinksForScope(ctx context.Context, svc *logging.Service, sc orgS
 			nativeID := sc.Name + "/sinks/" + s.Name
 			batch = append(batch, &store.Resource{
 				Provider:       "gcp",
+				Region:         regionGlobal,
 				AccountID:      sc.Name,
 				Type:           TypeLoggingSink,
 				NativeID:       nativeID,
