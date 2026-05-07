@@ -405,3 +405,9 @@ Global config sets `WithRetryMaxAttempts(10)` + adaptive backoff for low-TPS ser
 ## AccessDenied disambiguation — canned doc URL = per-region feature gap
 
 Real per-action IAM denials carry the SDK-formatted body `User: arn:... is not authorized to perform: <action> on <resource>`. AWS's "this feature is not in this region" canned response is a different shape: generic "You do not have the permissions required to perform this action" + a docs URL marker. Detect via `isAccessDenied(err) && strings.Contains(err.Error(), "<service-doc-url-fragment>")` and silent-skip. Real denials still warn via `skipIfAccessDenied`. Precedent: `scanWSWorkspacesPools` checks `workspaces-access-control.html`.
+
+## Terminated EC2 instances drop `IamInstanceProfile` (and other volatile attrs)
+
+`DescribeInstances` returns terminated instances for ~1 hour after termination, but AWS clears volatile attributes — `IamInstanceProfile`, post-cleanup network-interface specifics, attached-volume mounts — on the way out. The EC2 instance row in disco's DB faithfully reflects the post-termination state, so resolvers that read those fields (instance → instance-profile, instance → ENI, instance → EBS) correctly emit no edge for terminated instances. If `disco graph blast <iam-role>` returns fewer hops than expected for a role attached to a recently-terminated instance, check `attributes.State.Name == "terminated"` before chasing a resolver bug. Not a scanner bug — the scanner stores what AWS returns.
+
+Filtering terminated instances out of inventory entirely is a separate product question (TTL? user opt-in?); today disco keeps them so the user can see "this terminated yesterday" in `disco list`. Use a Rego rule (`input.attributes.State.Name == "terminated"`) to surface them as findings if your policy demands cleanup — see the infrastructure-engineer persona's `TERM-001` example in `focus-group/reports/infra-engineer.md`.
