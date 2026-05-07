@@ -169,6 +169,16 @@ Examples:
 			resources = []store.Resource{}
 		}
 
+		// When `--scan-as discovered` against a specific scan returns no rows,
+		// the most common cause is the customer-only filter dropping a
+		// managed resource the scan touched. Surface a stderr nudge so the
+		// operator sees the filter as the suspect rather than reading a
+		// disagreement with `scans show` as a bug.
+		if scanID != "" && listScanAs == "discovered" && !listIncludeManaged && len(resources) == 0 {
+			fmt.Fprintf(os.Stderr,
+				"note: --scan-as discovered + customer-only filter returned 0 rows; pass --include-managed to evaluate provider-managed resources the scan touched\n")
+		}
+
 		switch listOutputFmt {
 		case "json":
 			enc := json.NewEncoder(os.Stdout)
@@ -198,10 +208,10 @@ Examples:
 			return nil
 		case "table", "":
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
+			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tACCOUNT NAME\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
 			for _, r := range resources {
-				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					r.Provider, r.AccountID, r.Type,
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					r.Provider, r.AccountID, ptrOrDash(r.AccountName), r.Type,
 					ptrOrDash(r.Name), ptrOrDash(r.Region), ptrOrDash(r.Status))
 			}
 			return w.Flush()
