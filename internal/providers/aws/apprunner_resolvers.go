@@ -103,6 +103,15 @@ type apprunnerServiceAttrs struct {
 //
 // FK-safe via per-type id sets + KMS resolve index. Cross-account refs
 // and AWS-managed default keys (`alias/aws/*`) skip silently.
+// apprunnerServiceTargetSets bundles FK-safe id sets + KMS index for the
+// AppRunner service resolver helpers.
+type apprunnerServiceTargetSets struct {
+	connectorIDs map[string]struct{}
+	roleIDs      map[string]struct{}
+	repoIDs      map[string]struct{}
+	kmsIdx       *kmsResolveIndex
+}
+
 func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
 	services, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
@@ -116,24 +125,10 @@ func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
 	if len(services) == 0 {
 		return nil
 	}
-
-	connectorIDs, err := resourceIDSet(st, acct.ID, TypeAppRunnerVPCConnector)
+	sets, err := loadAppRunnerServiceTargetSets(acct, st)
 	if err != nil {
 		return err
 	}
-	roleIDs, err := resourceIDSet(st, acct.ID, TypeIAMRole)
-	if err != nil {
-		return err
-	}
-	repoIDs, err := resourceIDSet(st, acct.ID, TypeECRRepository)
-	if err != nil {
-		return err
-	}
-	kmsIdx, err := loadKMSResolveIndex(acct, st)
-	if err != nil {
-		return err
-	}
-
 	for _, s := range services {
 		var attrs apprunnerServiceAttrs
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
@@ -143,63 +138,113 @@ func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
 		if s.Region != nil {
 			region = *s.Region
 		}
-
-		if attrs.NetworkConfiguration != nil && attrs.NetworkConfiguration.EgressConfiguration != nil {
-			if vcArn := sv(attrs.NetworkConfiguration.EgressConfiguration.VpcConnectorArn); vcArn != "" {
-				cID := store.ResourceID("aws", acct.ID, TypeAppRunnerVPCConnector, vcArn)
-				if _, ok := connectorIDs[cID]; ok {
-					if err := st.UpsertRelationship(s.ID, cID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert apprunner service→vpc-connector: %w", err)
-					}
-				}
-			}
+		if err := emitAppRunnerVPCConnectorEdge(st, acct, s, attrs, sets); err != nil {
+			return err
 		}
-
-		for _, roleARN := range []string{
-			func() string {
-				if attrs.InstanceConfiguration != nil {
-					return sv(attrs.InstanceConfiguration.InstanceRoleArn)
-				}
-				return ""
-			}(),
-			func() string {
-				if attrs.SourceConfiguration != nil && attrs.SourceConfiguration.AuthenticationConfiguration != nil {
-					return sv(attrs.SourceConfiguration.AuthenticationConfiguration.AccessRoleArn)
-				}
-				return ""
-			}(),
-		} {
-			if roleARN == "" {
-				continue
-			}
-			rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
-			if _, ok := roleIDs[rID]; ok {
-				if err := st.UpsertRelationship(s.ID, rID, store.RelAssumes, "directed", nil); err != nil {
-					return fmt.Errorf("upsert apprunner service→iam role: %w", err)
-				}
-			}
+		if err := emitAppRunnerRoleEdges(st, acct, s, attrs, sets); err != nil {
+			return err
 		}
-
-		if attrs.SourceConfiguration != nil && attrs.SourceConfiguration.ImageRepository != nil {
-			if repoARN := apprunnerImageToRepoARN(sv(attrs.SourceConfiguration.ImageRepository.ImageIdentifier)); repoARN != "" {
-				rID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
-				if _, ok := repoIDs[rID]; ok {
-					if err := st.UpsertRelationship(s.ID, rID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert apprunner service→ecr repo: %w", err)
-					}
-				}
-			}
+		if err := emitAppRunnerECRRepoEdge(st, acct, s, attrs, sets); err != nil {
+			return err
 		}
-
-		if attrs.EncryptionConfiguration != nil {
-			if keyRef := sv(attrs.EncryptionConfiguration.KmsKey); keyRef != "" {
-				if keyID, ok := kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID); ok {
-					if err := st.UpsertRelationship(s.ID, keyID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert apprunner service→kms: %w", err)
-					}
-				}
-			}
+		if err := emitAppRunnerKMSEdge(st, acct, s, region, attrs, sets); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+func loadAppRunnerServiceTargetSets(acct *account, st *store.Store) (apprunnerServiceTargetSets, error) {
+	var sets apprunnerServiceTargetSets
+	var err error
+	if sets.connectorIDs, err = resourceIDSet(st, acct.ID, TypeAppRunnerVPCConnector); err != nil {
+		return sets, err
+	}
+	if sets.roleIDs, err = resourceIDSet(st, acct.ID, TypeIAMRole); err != nil {
+		return sets, err
+	}
+	if sets.repoIDs, err = resourceIDSet(st, acct.ID, TypeECRRepository); err != nil {
+		return sets, err
+	}
+	if sets.kmsIdx, err = loadKMSResolveIndex(acct, st); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+func emitAppRunnerVPCConnectorEdge(st *store.Store, acct *account, s store.Resource, attrs apprunnerServiceAttrs, sets apprunnerServiceTargetSets) error {
+	if attrs.NetworkConfiguration == nil || attrs.NetworkConfiguration.EgressConfiguration == nil {
+		return nil
+	}
+	vcArn := sv(attrs.NetworkConfiguration.EgressConfiguration.VpcConnectorArn)
+	if vcArn == "" {
+		return nil
+	}
+	cID := store.ResourceID("aws", acct.ID, TypeAppRunnerVPCConnector, vcArn)
+	if _, ok := sets.connectorIDs[cID]; !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(s.ID, cID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert apprunner service→vpc-connector: %w", err)
+	}
+	return nil
+}
+
+func emitAppRunnerRoleEdges(st *store.Store, acct *account, s store.Resource, attrs apprunnerServiceAttrs, sets apprunnerServiceTargetSets) error {
+	var roleARNs []string
+	if attrs.InstanceConfiguration != nil {
+		roleARNs = append(roleARNs, sv(attrs.InstanceConfiguration.InstanceRoleArn))
+	}
+	if attrs.SourceConfiguration != nil && attrs.SourceConfiguration.AuthenticationConfiguration != nil {
+		roleARNs = append(roleARNs, sv(attrs.SourceConfiguration.AuthenticationConfiguration.AccessRoleArn))
+	}
+	for _, roleARN := range roleARNs {
+		if roleARN == "" {
+			continue
+		}
+		rID := store.ResourceID("aws", acct.ID, TypeIAMRole, roleARN)
+		if _, ok := sets.roleIDs[rID]; !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(s.ID, rID, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert apprunner service→iam role: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitAppRunnerECRRepoEdge(st *store.Store, acct *account, s store.Resource, attrs apprunnerServiceAttrs, sets apprunnerServiceTargetSets) error {
+	if attrs.SourceConfiguration == nil || attrs.SourceConfiguration.ImageRepository == nil {
+		return nil
+	}
+	repoARN := apprunnerImageToRepoARN(sv(attrs.SourceConfiguration.ImageRepository.ImageIdentifier))
+	if repoARN == "" {
+		return nil
+	}
+	rID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
+	if _, ok := sets.repoIDs[rID]; !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(s.ID, rID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert apprunner service→ecr repo: %w", err)
+	}
+	return nil
+}
+
+func emitAppRunnerKMSEdge(st *store.Store, acct *account, s store.Resource, region string, attrs apprunnerServiceAttrs, sets apprunnerServiceTargetSets) error {
+	if attrs.EncryptionConfiguration == nil {
+		return nil
+	}
+	keyRef := sv(attrs.EncryptionConfiguration.KmsKey)
+	if keyRef == "" {
+		return nil
+	}
+	keyID, ok := sets.kmsIdx.resolveKMSKeyID(keyRef, region, acct.ID)
+	if !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(s.ID, keyID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert apprunner service→kms: %w", err)
 	}
 	return nil
 }
