@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,12 +35,6 @@ var (
 	tagCovMinCovSet       bool
 	tagCovExitZero        bool
 )
-
-// awsAccessKeyTagRE matches an AWS access-key ID (`AKIA[20-char base32]`)
-// when it appears as a tag KEY. Tag keys shaped like access-key IDs are
-// always credential leaks pasted into the wrong field — surface separately
-// so a CIO scorecard doesn't render them as legitimate coverage rows.
-var awsAccessKeyTagRE = regexp.MustCompile(`^AKIA[0-9A-Z]{16}$`)
 
 var tagCoverageCmd = &cobra.Command{
 	Use:   "tag-coverage [key...]",
@@ -137,14 +130,12 @@ func countBelow(rep []tagCoverage, t float64) int {
 }
 
 // tagCoverage is one row of the report. Coverage is a float in [0,1] for
-// spreadsheet math; the table renderer formats it as percent. Suspicious
-// is non-empty when the tag key matches a known credential / leak shape.
+// spreadsheet math; the table renderer formats it as percent.
 type tagCoverage struct {
-	Tag        string  `json:"tag"`
-	Tagged     int     `json:"tagged"`
-	Total      int     `json:"total"`
-	Coverage   float64 `json:"coverage"`
-	Suspicious string  `json:"suspicious,omitempty"`
+	Tag      string  `json:"tag"`
+	Tagged   int     `json:"tagged"`
+	Total    int     `json:"total"`
+	Coverage float64 `json:"coverage"`
 }
 
 // buildTagReport walks every resource's tags map and tallies coverage per
@@ -154,14 +145,12 @@ type tagCoverage struct {
 // caseInsensitive folds every tag key to lower-case before tallying, and
 // matches user-supplied keys against the folded map — fix for F13 where
 // `environment` (0%) and `Environment` (5.5%) silently produced two
-// different scorecards. Suspicious-shape keys (regex-matched access-key
-// IDs) get a `[suspicious]` annotation rather than rendering as a normal
-// coverage row.
+// different scorecards.
 func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) []tagCoverage {
 	total := len(rows)
 	counts := map[string]int{}
-	// origKey preserves the first observed casing so suspicious-shape
-	// regex (uppercase AKIA…) still matches even under --case-insensitive.
+	// origKey preserves the first observed casing for table display under
+	// --case-insensitive.
 	origKey := map[string]string{}
 	for i := range rows {
 		tags, _ := rows[i].Tags()
@@ -183,7 +172,7 @@ func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) 
 			if o, ok := origKey[k]; ok && !caseInsensitive {
 				display = o
 			}
-			out = append(out, makeTagRow(display, origKey[k], c, total))
+			out = append(out, tagCoverage{Tag: display, Tagged: c, Total: total, Coverage: ratio(c, total)})
 		}
 	} else {
 		for _, k := range keys {
@@ -191,7 +180,7 @@ func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) 
 			if caseInsensitive {
 				lookup = strings.ToLower(k)
 			}
-			out = append(out, makeTagRow(k, origKey[lookup], counts[lookup], total))
+			out = append(out, tagCoverage{Tag: k, Tagged: counts[lookup], Total: total, Coverage: ratio(counts[lookup], total)})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -201,18 +190,6 @@ func buildTagReport(rows []store.Resource, keys []string, caseInsensitive bool) 
 		return out[i].Tag < out[j].Tag
 	})
 	return out
-}
-
-func makeTagRow(display, original string, c, total int) tagCoverage {
-	row := tagCoverage{Tag: display, Tagged: c, Total: total, Coverage: ratio(c, total)}
-	probe := original
-	if probe == "" {
-		probe = display
-	}
-	if awsAccessKeyTagRE.MatchString(probe) {
-		row.Suspicious = "aws-access-key-id"
-	}
-	return row
 }
 
 func ratio(n, d int) float64 {
@@ -247,13 +224,9 @@ func renderTagReport(rep []tagCoverage, format string) error {
 		return nil
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "TAG\tTAGGED\tTOTAL\tCOVERAGE\tFLAG")
+		_, _ = fmt.Fprintln(w, "TAG\tTAGGED\tTOTAL\tCOVERAGE")
 		for _, r := range rep {
-			flag := ""
-			if r.Suspicious != "" {
-				flag = "[suspicious:" + r.Suspicious + "]"
-			}
-			_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\t%s\n", r.Tag, r.Tagged, r.Total, r.Coverage*100, flag)
+			_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t%.1f%%\n", r.Tag, r.Tagged, r.Total, r.Coverage*100)
 		}
 		return w.Flush()
 	default:

@@ -186,9 +186,9 @@ Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on se
 
 New column-anchored time filters follow the same `{*-since, *-before}` shape — `{since, until}` is no longer used (the inclusive `<= X` upper bound collapses to half-open `[since, before)` at any practical granularity).
 
-## `tag-coverage` flags suspicious-shape keys + folds case
+## `tag-coverage --case-insensitive` folds case before tallying
 
-`tag-coverage` grew (1) `--case-insensitive` to fold tag keys to lower-case during aggregation (so `environment` and `Environment` collapse into one row instead of producing two separate scorecards — F13 fix), and (2) an `awsAccessKeyTagRE` regex shape-check (`^AKIA[0-9A-Z]{16}$`) that flags any tag KEY that looks like an AWS access-key ID with `[suspicious:aws-access-key-id]`. Implementation tracks the original casing in an `origKey` map so the regex still hits even after folding. New shape-checks belong in the same regex block; keep the JSON `suspicious` field a stable taxonomy string (`aws-access-key-id`, future: `pem-block`, `bearer-token`) so dashboards can branch on it.
+`tag-coverage` exposes `--case-insensitive` to fold tag keys to lower-case during aggregation (so `environment` and `Environment` collapse into one row instead of producing two separate scorecards — F13 fix). Implementation tracks the first observed casing in an `origKey` map so table output preserves operator-friendly capitalisation. A future "secrets-in-tags" pass will own the suspicious-shape detection — out of scope for this command, which is a coverage-rate report, not a security scanner.
 
 ## `summary --by-account` rollup
 
