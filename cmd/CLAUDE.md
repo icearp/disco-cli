@@ -101,6 +101,10 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
 
+## `disco graph complete --orphans-only` filters to disconnected nodes
+
+`graph complete` honours a new `--orphans-only` flag (F17): post-pass keeps only nodes whose ID appears in neither `from_id` nor `to_id` of any returned edge. Surfaces dangling EBS volumes, key-pairs no instance uses, IAM principals with no group/policy, etc. — the forensic / hygiene targets the IR persona was after. Implementation lives in `cmd/graph.go::filterOrphans`; renderers stay unchanged because the filter only drops nodes, never reshapes `GraphResult`.
+
 ## Atomic file writes: temp + rename
 
 When a producer writes a single output file consumed downstream by a verifier (e.g. `disco snapshot` → `disco verify`), write to `<path>.tmp` first and `os.Rename` to the final name only on full success. A producer crash mid-write leaves no file at `<path>` — receivers never see partial output. Cleanup the tmp on failure via `defer os.Remove`. Precedent: `internal/snapshot.WriteArchive`.

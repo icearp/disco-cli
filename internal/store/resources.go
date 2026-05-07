@@ -306,39 +306,59 @@ func (r *Resource) Tags() (map[string]string, error) {
 	return tags, json.Unmarshal([]byte(*r.TagsJSON), &tags)
 }
 
-// ResolveResource finds a resource by either its 32-hex ID or its native ID.
-// When arg is not a hex ID, provider/rtype/account act as disambiguating filters.
-// Returns an error listing candidates when multiple resources share a native ID.
+// ResolveResource finds a resource by either its 32-hex ID, an 8+-char
+// hex prefix of an ID, an exact native_id/name, or a substring of
+// native_id/name. Disambiguation flags (provider/rtype/account) narrow
+// the result set; ambiguity surfaces as a multi-candidate error.
+//
+// Two-pass matcher: try exact native_id/name first, then fall back to
+// prefix-on-id and substring-on-native_id/name so paste-the-short-ID
+// workflows ("the ticket says 8895a0bd") work the same as full-IDs. F12
+// fix from focus-group/SUMMARY.md.
 func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource, error) {
 	if hexResourceIDRE.MatchString(arg) {
 		return s.GetResource(arg)
 	}
 
-	// Match on either native_id or name so users can pass whichever is
-	// more memorable. Disambiguation flags narrow the result set below.
-	q := sq.Select("*").From("resources").
-		Where(sq.Or{sq.Eq{"native_id": arg}, sq.Eq{"name": arg}})
-	if provider != "" {
-		q = q.Where(sq.Eq{"provider": provider})
-	}
-	if rtype != "" {
-		q = q.Where(sq.Eq{"type": rtype})
-	}
-	if account != "" {
-		q = q.Where(sq.Eq{"account_id": account})
-	}
-	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	// Pass 1: exact match on native_id or name. Most callers pass full
+	// values from `disco list` output and want a deterministic hit before
+	// falling back to fuzzy matching.
+	rows, err := s.resolveQuery(
+		sq.Or{sq.Eq{"native_id": arg}, sq.Eq{"name": arg}},
+		provider, rtype, account,
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	var rows []Resource
-	if err := s.db.Select(&rows, query, args...); err != nil {
-		return nil, fmt.Errorf("resolve resource: %w", err)
+	if len(rows) == 0 && isLikelyHexPrefix(arg) {
+		// Pass 2a: ID-prefix match for paste-the-short-ID flows. Anchored
+		// at the start of `id` so unrelated middle-of-hex collisions don't
+		// surface; minimum length 4 hex to keep noise out of substring.
+		rows, err = s.resolveQuery(
+			sq.Like{"id": arg + "%"},
+			provider, rtype, account,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
+	if len(rows) == 0 {
+		// Pass 2b: substring on native_id or name. Useful for ARN tails,
+		// partial bucket names, etc. Wildcard both sides — small DBs
+		// won't notice; large fleets should pass --provider / --type
+		// to narrow.
+		rows, err = s.resolveQuery(
+			sq.Or{sq.Like{"native_id": "%" + arg + "%"}, sq.Like{"name": "%" + arg + "%"}},
+			provider, rtype, account,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	switch len(rows) {
 	case 0:
-		return nil, fmt.Errorf("no resource matching %q (native_id or name)%s", arg, resolveFilterSuffix(provider, rtype, account))
+		return nil, fmt.Errorf("no resource matching %q (id-prefix, native_id, or name)%s", arg, resolveFilterSuffix(provider, rtype, account))
 	case 1:
 		return &rows[0], nil
 	default:
@@ -355,6 +375,47 @@ func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource
 			arg, len(rows), strings.Join(lines, "\n"),
 		)
 	}
+}
+
+// resolveQuery runs a single ResolveResource pass with the given match
+// predicate, applying provider/rtype/account narrowing and returning the
+// raw rows. Caller decides what to do with empty/single/multi results.
+func (s *Store) resolveQuery(match sq.Sqlizer, provider, rtype, account string) ([]Resource, error) {
+	q := sq.Select("*").From("resources").Where(match)
+	if provider != "" {
+		q = q.Where(sq.Eq{"provider": provider})
+	}
+	if rtype != "" {
+		q = q.Where(sq.Eq{"type": rtype})
+	}
+	if account != "" {
+		q = q.Where(sq.Eq{"account_id": account})
+	}
+	q = q.Limit(50)
+	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var rows []Resource
+	if err := s.db.Select(&rows, query, args...); err != nil {
+		return nil, fmt.Errorf("resolve resource: %w", err)
+	}
+	return rows, nil
+}
+
+// isLikelyHexPrefix returns true when arg is 4-31 lowercase-hex chars —
+// the shape of a `disco list` short-ID paste. Avoids triggering the
+// id-prefix fallback for arbitrary short strings.
+func isLikelyHexPrefix(arg string) bool {
+	if len(arg) < 4 || len(arg) >= 32 {
+		return false
+	}
+	for _, c := range arg {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 // resolveFilterSuffix formats active disambiguation filters for error messages.

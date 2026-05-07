@@ -106,6 +106,10 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 `CompleteScan` / `PartialScan` persist the count of rows the scan upserted (every row visited, including pre-existing). The insert-only `totalNew` value (return of `UpsertResources`) is printed at scan-end stdout but not persisted. Drift between scans is `disco diff`'s job, not a column on `scans`. Don't re-derive "what changed" from `resource_count` deltas.
 
+## `ResolveResource` two-pass: exact → id-prefix → substring
+
+Seed lookup (`graph blast`, `graph path`, `list --id`) tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. F12 fix for "the CLI's own short-ID prints don't round-trip as input." Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
+
 ## Denylist filters via `sq.NotEq`
 
 `squirrel.NotEq{"col": []string{...}}` emits `col NOT IN (?, ?, ...)`. Mirror of `sq.Eq` allowlist; use for any new exclude-X filter on `ResourceFilter` rather than hand-rolled OR-NOT chains. Precedent: `ExcludeTypes` (resources.go).

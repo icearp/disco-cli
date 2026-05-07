@@ -31,6 +31,7 @@ var (
 	graphLabelTemplate  string
 	graphDotTheme       string
 	graphRankdir        string
+	graphOrphansOnly    bool
 )
 
 // validRankdirs are the four DOT layout directions. LR (left-to-right) is
@@ -285,8 +286,36 @@ work as for the seeded subcommands.`,
 		if err != nil {
 			return err
 		}
+		if graphOrphansOnly {
+			g = filterOrphans(g)
+		}
 		return renderGraph(g, false)
 	},
+}
+
+// filterOrphans returns g with only the nodes that have zero in/out edges
+// — surfaces dangling resources (unattached EBS volumes, key-pairs no
+// instance uses, IAM users with no group/policy) for forensic / hygiene
+// hunts. Keeps the result shape identical so renderers compose unchanged.
+func filterOrphans(g *store.GraphResult) *store.GraphResult {
+	hasEdge := make(map[string]bool, len(g.Nodes))
+	for _, e := range g.Edges {
+		hasEdge[e.FromID] = true
+		hasEdge[e.ToID] = true
+	}
+	out := &store.GraphResult{
+		SeedID:          g.SeedID,
+		TruncatedNodes:  g.TruncatedNodes,
+		TruncatedEdges:  g.TruncatedEdges,
+		ExcludedTypes:   g.ExcludedTypes,
+		ExcludedRegions: g.ExcludedRegions,
+	}
+	for _, n := range g.Nodes {
+		if !hasEdge[n.Resource.ID] {
+			out.Nodes = append(out.Nodes, n)
+		}
+	}
+	return out
 }
 
 // renderGraph dispatches on graphOutputFmt. blast=true switches the table
@@ -613,6 +642,8 @@ func init() {
 	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
 	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", ")+" (mono = byte-stable legacy output)")
 	graphCmd.PersistentFlags().StringVar(&graphRankdir, "rankdir", "LR", "DOT layout direction: LR, RL, TB, BT (RL inverts horizontally — handy when edges flow child→parent)")
+	graphCompleteCmd.Flags().BoolVar(&graphOrphansOnly, "orphans-only", false,
+		"Keep only resources with zero in/out edges — surfaces dangling volumes, key-pairs, IAM principals, etc.")
 	graphCmd.AddCommand(graphPathCmd, graphBlastCmd, graphCompleteCmd)
 	rootCmd.AddCommand(graphCmd)
 }
