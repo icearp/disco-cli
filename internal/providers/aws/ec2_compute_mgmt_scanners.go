@@ -153,6 +153,7 @@ func scanVolumes(ctx context.Context, client ec2API, acct *account, region strin
 					Region:         &region,
 					Zone:           vol.AvailabilityZoneId,
 					Status:         &status,
+					CreatedAt:      tp(vol.CreateTime),
 					TagsJSON:       awsTagsJSON(vol.Tags),
 					AttributesJSON: mustJSON(vol),
 					DiscoveredBy:   scanID,
