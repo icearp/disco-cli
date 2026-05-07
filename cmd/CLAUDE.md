@@ -55,7 +55,7 @@ Reused by `graph_test.go`, `check_test.go`, `diff_paid_test.go`:
 - Cobra's `InitDefaultVersionFlag` (lazy, called at execute) only claims `-v` when no other flag holds the shorthand. Pre-register a global flag with `-v` in `init()` to repurpose it (precedent: `--verbose` in `cmd/root.go`); `--version` long-form keeps working with no shorthand.
 - JSON/JSONL output paths: wrap RunE as `func(...) (rerr error) { defer func() { maybeStructuredError(<formatVar>, rerr) }(); ... }` so failures emit a `{"error": "msg"}` envelope on stdout (helper in `cmd/helpers.go`). Skip the envelope for sentinel "absence" errors like `ErrNoPath` where empty stdout + exit 1 is documented contract — `graph path` does this with an `errors.Is` guard.
 - `list -o csv` columns are positional-stable: append-only when adding fields to `listColumns` / `resourceRow` in `cmd/list.go`. Pre-existing positions back spreadsheet imports keyed on index; reordering breaks downstream silently.
-- Read commands open the DB via `openDB()` (`cmd/helpers.go`), not `store.Open` direct — the dispatcher honors the global `--db-readonly` flag. Write commands (`scan`) reject `dbReadOnly` up-front and call `store.Open` direct.
+- Read commands open the DB via `openDB()` (`cmd/helpers.go`) which always opens read-only — defense-in-depth so a future read-side bug can't silently mutate evidence. Write commands (`scan`, `config init`, paid `check --persist`) call `openWriteDB()` and refuse `dbReadOnly` up-front. The global `--db-readonly` flag is preserved as the writer-refuse override; on read commands it's a no-op (already RO). First-run UX: when the DB file doesn't exist, `openDB()` errors with a "run a scan first" hint inline.
 
 Cobra package-level flag vars (`graph*`, `list*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `listOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
 
@@ -129,7 +129,7 @@ Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — ext
 
 ## `disco check` opens DB read-only by default
 
-`check` is logically a read; opening writable flips the SQLite WAL header and silently mutates `disco.db`, breaking any subsequent `disco verify` against a snapshot of the same DB. The OSS path always uses `store.OpenReadOnly`. Paid `--persist` (cmd/check_paid.go init) sets `checkNeedsWriteHook = func() bool { return checkPersist }`; when that hook returns true, `RunE` opens writable via `openDB()` instead. Mirrors the `persistCheckHook` indirection — OSS file declares the hook nillable; paid file assigns it without leaking a license dep into OSS builds.
+`check` is logically a read; opening writable flips the SQLite WAL header and silently mutates `disco.db`, breaking any subsequent `disco verify` against a snapshot of the same DB. The OSS path uses `openDB()` (which is always RO). Paid `--persist` (cmd/check_paid.go init) sets `checkNeedsWriteHook = func() bool { return checkPersist }`; when that hook returns true, `RunE` calls `openWriteDB()` after refusing `--db-readonly` up-front. Mirrors the `persistCheckHook` indirection — OSS file declares the hook nillable; paid file assigns it without leaking a license dep into OSS builds.
 
 ## Hook-var indirection for paid features on OSS commands
 

@@ -134,9 +134,12 @@ Examples:
 			err error
 		)
 		if needsWrite {
-			db, err = openDB()
+			if dbReadOnly {
+				return fmt.Errorf("--db-readonly: --persist cannot run in read-only mode")
+			}
+			db, err = openWriteDB()
 		} else {
-			db, err = store.OpenReadOnly(defaultDBPath())
+			db, err = openDB()
 		}
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)

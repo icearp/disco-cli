@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,13 +37,34 @@ func maybeStructuredError(format string, err error) {
 	}
 }
 
-// openDB opens the local DB, honoring the global --db-readonly flag.
-// Read commands (list / graph / check / coverage / diff) call this; scan
-// opens directly via store.Open after rejecting --db-readonly up-front.
+// openDB opens the local DB read-only. Every read command (list / graph /
+// summary / tag-coverage / scans / coverage / check) routes here so the
+// SQLite file descriptor never carries write capability for query paths.
+// Defense in depth: even if a future read command accidentally issues an
+// UPDATE, SQLite refuses at the driver layer.
+//
+// Write paths must call openWriteDB explicitly. The global --db-readonly
+// flag is honored as a no-op here (already RO) and continues to refuse
+// writers up-front (cmd/scan.go, cmd/config.go's `config init`).
+//
+// First-run UX: when the DB file doesn't exist (e.g. operator ran `disco
+// list` before any `disco scan`), the underlying store error names the
+// missing path; surface a one-line "run a scan first" hint inline.
 func openDB() (*store.Store, error) {
-	if dbReadOnly {
-		return store.OpenReadOnly(defaultDBPath())
+	path := defaultDBPath()
+	st, err := store.OpenReadOnly(path)
+	if err != nil && os.IsNotExist(errors.Unwrap(err)) {
+		return nil, fmt.Errorf("%w (no scans recorded yet — run `disco scan <provider>` first)", err)
 	}
+	return st, err
+}
+
+// openWriteDB opens the local DB writable. Reserved for commands whose
+// RunE genuinely needs to mutate (scan, config init, paid check --persist).
+// The global --db-readonly flag refuses writers up-front; that check lives
+// at the call site (so the error string can name the gate the operator
+// should remove).
+func openWriteDB() (*store.Store, error) {
 	return store.Open(defaultDBPath())
 }
 

@@ -376,7 +376,16 @@ func runScanDryRun(cmd *cobra.Command, names []string) error {
 	d, _ := cmd.Flags().GetDuration("if-older-than")
 	db, err := store.OpenReadOnly(defaultDBPath())
 	if err != nil {
-		return fmt.Errorf("open database: %w", err)
+		// First-run UX: report decisions even without a DB. Recency gate
+		// trivially passes (no prior scan ⇒ scan must run).
+		for _, name := range names {
+			detail := "no recency gate"
+			if d > 0 {
+				detail = fmt.Sprintf("threshold %s, no DB on disk yet", d)
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "would scan: %s (%s)\n", name, detail)
+		}
+		return nil
 	}
 	defer func() { _ = db.Close() }()
 	for _, name := range names {
