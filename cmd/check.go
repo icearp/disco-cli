@@ -70,10 +70,12 @@ clean for piping.
 
 Input contract: each policy is evaluated once per resource. The input
 document carries snake_case keys:
-  id, provider, account_id, account_name, type, native_id, name,
-  region, zone, status, tags (object), attributes (parsed object),
-  created_at, discovered_at, discovered_by, verified_at, verified_by,
-  managed_by_provider.
+  contract_version (currently "1"), id, provider, account_id,
+  account_name, type, native_id, name, region, zone, status,
+  tags (object), attributes (parsed object), created_at, discovered_at,
+  discovered_by, verified_at, verified_by, managed_by_provider.
+Pin BYO rules against contract_version (input.contract_version == "1")
+so future input-shape changes fail loud rather than silently misfiring.
 Timestamps are RFC3339; parse via time.parse_rfc3339_ns(input.verified_at)
 for freshness-bound controls.
 
@@ -82,7 +84,10 @@ iso27001, pci_dss, nist_800_53 lift into runs[0].taxonomies[] as the
 matching framework. Bundled aws-waf rules emit waf_pillar+waf_qid only;
 BYO rules adding soc2 / iso27001 / pci_dss / nist_800_53 get the
 matching taxonomy automatically. Taxon IDs are the unique tag values,
-sorted for byte-stable output.
+sorted for byte-stable output. The SARIF runs[0].invocations[0].properties
+block carries total_resources_evaluated + scan_ids (when present), and
+runs[0].tool.driver.properties carries disco_db_sha256 + rules_sha256 —
+the chain ties every finding back to the exact DB and rule bundle.
 
 Exit codes: any reported finding gates the exit code at 1 by default,
 so 'disco check' plugs into CI without an extra flag. Pass --exit-zero
@@ -202,7 +207,7 @@ Examples:
 				}
 			}
 		case "sarif":
-			ev := sarifEvidence{}
+			ev := sarifEvidence{TotalResourcesEvaluated: len(resources)}
 			if h, herr := snapshot.HashFile(defaultDBPath()); herr == nil {
 				ev.DBSHA256 = h
 			}

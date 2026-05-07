@@ -20,6 +20,13 @@ import (
 // must populate. Conftest convention so third-party packs drop in unchanged.
 const denyQuery = "data.disco.deny"
 
+// InputContractVersion identifies the shape of the input.* document handed
+// to Rego policies. Bumped on any breaking change to field names or types
+// so BYO rules can pin against a known contract via
+// `input.contract_version == "1"` rather than failing silently when keys
+// rename. The version is stamped into every resource input.
+const InputContractVersion = "1"
+
 // Finding is the slim, JSON-friendly shape produced by the engine. Field
 // names match the Rego object keys callers must emit.
 type Finding struct {
@@ -117,6 +124,7 @@ func resourceToInput(r *store.Resource) (map[string]any, error) {
 		}
 	}
 	return map[string]any{
+		"contract_version":    InputContractVersion,
 		"id":                  r.ID,
 		"provider":            r.Provider,
 		"account_id":          r.AccountID,

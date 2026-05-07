@@ -126,9 +126,10 @@ func severityToLevel(s string) string {
 // the resolved rule set (--rules tree + --packs modules, deterministically
 // hashed) so an attestation can prove which policy produced which finding.
 type sarifEvidence struct {
-	DBSHA256    string
-	RulesSHA256 string
-	ScanIDs     []string
+	DBSHA256                string
+	RulesSHA256             string
+	ScanIDs                 []string
+	TotalResourcesEvaluated int
 }
 
 // renderCheckSARIF writes findings as a SARIF v2.1.0 document. Empty input
@@ -148,9 +149,11 @@ func renderCheckSARIF(findings []policy.Finding, w io.Writer, evidence sarifEvid
 		driverProps["rules_sha256"] = evidence.RulesSHA256
 	}
 	invocations := []sarifInvocation{{ExecutionSuccessful: true}}
+	invProps := map[string]any{"total_resources_evaluated": evidence.TotalResourcesEvaluated}
 	if len(evidence.ScanIDs) > 0 {
-		invocations[0].Properties = map[string]any{"scan_ids": evidence.ScanIDs}
+		invProps["scan_ids"] = evidence.ScanIDs
 	}
+	invocations[0].Properties = invProps
 	driver := sarifDriver{
 		Name:           "disco",
 		InformationURI: "https://codeberg.org/icearp/disco",
