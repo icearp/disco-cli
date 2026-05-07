@@ -226,11 +226,12 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			return err
 		}
 
-		// IAM principals (and other inbound-only seeds) emit no outbound
-		// edges; DirOut walks alone leave them seed-only. Re-walk DirBoth
-		// when the user did not pin --direction. If --kinds was also left
-		// default, also include 'contains' on the retry — IAM principal
-		// edges to access-keys / group membership are 'contains' by schema.
+		// Inbound-only seeds (IAM principals, target groups, VPCs, subnets,
+		// any resource whose edges are emitted by other resolvers) leave a
+		// DirOut walk seed-only. Re-walk DirBoth when the user did not pin
+		// --direction. If --kinds was also left default, also include
+		// 'contains' on the retry — closure edges (IAM principal → access
+		// key, VPC → subnet) are 'contains' by schema.
 		if !dirSet && len(g.Nodes) == 1 && len(g.Edges) == 0 {
 			opts.Direction = store.DirBoth
 			if !kindsSet {
@@ -239,7 +240,8 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 			if g2, err2 := db.GraphWalk(seed.ID, opts); err2 == nil && (len(g2.Nodes) > 1 || len(g2.Edges) > 0) {
 				fmt.Fprintln(os.Stderr,
 					"note: seed has no outbound edges; expanded to --direction both "+
-						"(IAM principals receive edges, not emit; pass --direction out to disable)")
+						"(some resources only receive edges — IAM principals, target groups, VPCs; "+
+						"pass --direction out to disable)")
 				g = g2
 			}
 		}
