@@ -26,43 +26,66 @@ func dbrARN(region, acct, kind, name string) string {
 	return fmt.Sprintf("arn:aws:databrew:%s:%s:%s/%s", region, acct, kind, name)
 }
 
-func resolveDataBrewRefs(acct *account, st *store.Store) error {
-	dsSet, err := scannedIDSet(acct, st, TypeDataBrewDataset)
-	if err != nil {
-		return err
-	}
-	prjSet, err := scannedIDSet(acct, st, TypeDataBrewProject)
-	if err != nil {
-		return err
-	}
-	rcpSet, err := scannedIDSet(acct, st, TypeDataBrewRecipe)
-	if err != nil {
-		return err
-	}
-	jobSet, err := scannedIDSet(acct, st, TypeDataBrewJob)
-	if err != nil {
-		return err
-	}
-	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
-	if err != nil {
-		return err
-	}
+// dataBrewTargetSets bundles FK-safe id sets for DataBrew per-source helpers.
+type dataBrewTargetSets struct {
+	dsSet, prjSet, rcpSet, jobSet, roleSet map[string]bool
+}
 
-	emit := func(srcID, tgtType, tgtARN string, set map[string]bool, kind string) error {
-		if tgtARN == "" {
-			return nil
-		}
-		tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
-		if !set[tgtID] {
-			return nil
-		}
-		if err := st.UpsertRelationship(srcID, tgtID, kind, "directed", nil); err != nil {
-			return fmt.Errorf("upsert databrew→%s: %w", tgtType, err)
-		}
+func resolveDataBrewRefs(acct *account, st *store.Store) error {
+	sets, err := loadDataBrewTargetSets(acct, st)
+	if err != nil {
+		return err
+	}
+	if err := emitDataBrewJobEdges(acct, st, sets); err != nil {
+		return err
+	}
+	if err := emitDataBrewProjectEdges(acct, st, sets); err != nil {
+		return err
+	}
+	if err := emitDataBrewRecipeEdges(acct, st, sets); err != nil {
+		return err
+	}
+	return emitDataBrewScheduleEdges(acct, st, sets)
+}
+
+func loadDataBrewTargetSets(acct *account, st *store.Store) (dataBrewTargetSets, error) {
+	var sets dataBrewTargetSets
+	var err error
+	if sets.dsSet, err = scannedIDSet(acct, st, TypeDataBrewDataset); err != nil {
+		return sets, err
+	}
+	if sets.prjSet, err = scannedIDSet(acct, st, TypeDataBrewProject); err != nil {
+		return sets, err
+	}
+	if sets.rcpSet, err = scannedIDSet(acct, st, TypeDataBrewRecipe); err != nil {
+		return sets, err
+	}
+	if sets.jobSet, err = scannedIDSet(acct, st, TypeDataBrewJob); err != nil {
+		return sets, err
+	}
+	if sets.roleSet, err = scannedIDSet(acct, st, TypeIAMRole); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+// emitDataBrewEdge upserts srcID → tgtType (computed via dbrARN-style ARN)
+// when the target id is in the FK-safe set. tgtARN may be empty.
+func emitDataBrewEdge(st *store.Store, acct *account, srcID, tgtType, tgtARN string, set map[string]bool, kind string) error {
+	if tgtARN == "" {
 		return nil
 	}
+	tgtID := store.ResourceID("aws", acct.ID, tgtType, tgtARN)
+	if !set[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(srcID, tgtID, kind, "directed", nil); err != nil {
+		return fmt.Errorf("upsert databrew→%s: %w", tgtType, err)
+	}
+	return nil
+}
 
-	// Jobs.
+func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	jobs, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewJob}, Limit: util.AllResources,
 	})
@@ -80,21 +103,23 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.DatasetName); n != "" {
-			if err := emit(r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), dsSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
 				return err
 			}
 		}
 		if n := sv(attrs.ProjectName); n != "" {
-			if err := emit(r.ID, TypeDataBrewProject, dbrARN(region, acct.ID, "project", n), prjSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(region, acct.ID, "project", n), sets.prjSet, store.RelUses); err != nil {
 				return err
 			}
 		}
-		if err := emit(r.ID, TypeIAMRole, sv(attrs.RoleArn), roleSet, store.RelUses); err != nil {
+		if err := emitDataBrewEdge(st, acct, r.ID, TypeIAMRole, sv(attrs.RoleArn), sets.roleSet, store.RelUses); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
-	// Projects.
+func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	projects, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewProject}, Limit: util.AllResources,
 	})
@@ -112,21 +137,23 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.DatasetName); n != "" {
-			if err := emit(r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), dsSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
 				return err
 			}
 		}
 		if n := sv(attrs.RecipeName); n != "" {
-			if err := emit(r.ID, TypeDataBrewRecipe, dbrARN(region, acct.ID, "recipe", n), rcpSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewRecipe, dbrARN(region, acct.ID, "recipe", n), sets.rcpSet, store.RelUses); err != nil {
 				return err
 			}
 		}
-		if err := emit(r.ID, TypeIAMRole, sv(attrs.RoleArn), roleSet, store.RelUses); err != nil {
+		if err := emitDataBrewEdge(st, acct, r.ID, TypeIAMRole, sv(attrs.RoleArn), sets.roleSet, store.RelUses); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
-	// Recipes (back-edge to project).
+func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	recipes, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewRecipe}, Limit: util.AllResources,
 	})
@@ -141,13 +168,15 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if n := sv(attrs.ProjectName); n != "" {
-			if err := emit(r.ID, TypeDataBrewProject, dbrARN(sv(r.Region), acct.ID, "project", n), prjSet, store.RelAttachedTo); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(sv(r.Region), acct.ID, "project", n), sets.prjSet, store.RelAttachedTo); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
 
-	// Schedules → jobs.
+func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	schedules, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewSchedule}, Limit: util.AllResources,
 	})
@@ -166,7 +195,7 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 			if n == "" {
 				continue
 			}
-			if err := emit(r.ID, TypeDataBrewJob, dbrARN(region, acct.ID, "job", n), jobSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewJob, dbrARN(region, acct.ID, "job", n), sets.jobSet, store.RelUses); err != nil {
 				return err
 			}
 		}
