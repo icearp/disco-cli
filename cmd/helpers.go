@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -71,7 +72,12 @@ func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.
 // rows doesn't silently zero-row the documented drift workflow (F3 fix).
 // Falls back to the most-recent scan if none qualify, with a one-line
 // stderr note describing the fall-back so auditors don't miss the signal.
-// Literal IDs pass through unchanged after a presence check.
+//
+// Literal IDs pass through unchanged after a presence check. Hex prefixes
+// of length 8–31 resolve via unique-prefix match against ListScans so the
+// 8-char short form printed by `disco scans` is paste-friendly without
+// inviting collisions on the 4–7 char range. Multi-match returns an
+// ambiguous-prefix error listing the candidates.
 func resolveScanID(db *store.Store, raw string) (string, error) {
 	if raw == "" {
 		return "", nil
@@ -92,10 +98,62 @@ func resolveScanID(db *store.Store, raw string) (string, error) {
 		fmt.Fprintf(os.Stderr, "note: no scan recorded any rows; --scan-id latest fell back to most-recent scan %s (resource_count=0)\n", short(scans[0].ID))
 		return scans[0].ID, nil
 	}
+	if isScanIDPrefix(raw) {
+		return resolveScanIDPrefix(db, raw)
+	}
 	if _, err := db.GetScan(raw); err != nil {
 		return "", fmt.Errorf("scan %q not found", raw)
 	}
 	return raw, nil
+}
+
+// isScanIDPrefix reports whether raw is hex of length 8–31 (paste-friendly
+// prefix range). Length 32 is the canonical full ID and resolves via
+// db.GetScan; lengths < 8 reject up-front to avoid collision risk.
+func isScanIDPrefix(raw string) bool {
+	if len(raw) < 8 || len(raw) > 31 {
+		return false
+	}
+	for _, r := range raw {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
+		case r >= 'A' && r <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// resolveScanIDPrefix scans all recorded runs for IDs starting with prefix
+// (case-insensitive). Returns the unique match or an ambiguous-prefix error
+// listing the candidates so the caller can paste a longer prefix.
+func resolveScanIDPrefix(db *store.Store, prefix string) (string, error) {
+	scans, err := db.ListScans()
+	if err != nil {
+		return "", fmt.Errorf("list scans: %w", err)
+	}
+	needle := strings.ToLower(prefix)
+	var matches []string
+	for _, s := range scans {
+		if strings.HasPrefix(strings.ToLower(s.ID), needle) {
+			matches = append(matches, s.ID)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("scan %q not found", prefix)
+	case 1:
+		return matches[0], nil
+	default:
+		short := make([]string, len(matches))
+		for i, m := range matches {
+			short[i] = m[:min(16, len(m))]
+		}
+		return "", fmt.Errorf("scan-id prefix %q is ambiguous: %d matches (%s); use a longer prefix",
+			prefix, len(matches), strings.Join(short, ", "))
+	}
 }
 
 // singleSetString is a pflag.Value that rejects being set more than once.
