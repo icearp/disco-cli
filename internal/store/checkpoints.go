@@ -26,7 +26,8 @@ type Checkpoint struct {
 // distinguishes "completed" from "never started". Updates `updated_at` on
 // every call so stale checkpoints can be detected.
 func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken string) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(
+		`
 		INSERT INTO scan_checkpoints (scan_id, provider, service, scope, last_token, updated_at)
 		VALUES (?, ?, ?, ?, ?, datetime('now'))
 		ON CONFLICT (scan_id, provider, service, scope) DO UPDATE
@@ -44,7 +45,8 @@ func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken strin
 // scope) tuple, or ("", false, nil) when no row exists. Resume logic should
 // fall back to a fresh scan when ok=false.
 func (s *Store) GetCheckpoint(scanID, provider, service, scope string) (lastToken string, ok bool, err error) {
-	row := s.db.QueryRow(`
+	row := s.db.QueryRow(
+		`
 		SELECT last_token FROM scan_checkpoints
 		WHERE scan_id = ? AND provider = ? AND service = ? AND scope = ?`,
 		scanID, provider, service, scope,
@@ -67,7 +69,8 @@ func (s *Store) GetCheckpoint(scanID, provider, service, scope string) (lastToke
 // summarise pending work, and by paid incremental scanners that pre-fetch
 // all checkpoints in one round-trip.
 func (s *Store) ListCheckpoints(scanID string) ([]Checkpoint, error) {
-	rows, err := s.db.Query(`
+	rows, err := s.db.Query(
+		`
 		SELECT scan_id, provider, service, scope, last_token, updated_at
 		FROM scan_checkpoints
 		WHERE scan_id = ?

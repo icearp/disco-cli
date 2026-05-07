@@ -23,7 +23,8 @@ func init() {
 // sub-scanners via an internal errgroup.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2Networking(ctx, client, acct, region, st, scanID)
 		},

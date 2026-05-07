@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type workspacesInstancesAPI interface {
-	ListWorkspaceInstances(context.Context, *workspacesinstances.ListWorkspaceInstancesInput, ...func(*workspacesinstances.Options)) (*workspacesinstances.ListWorkspaceInstancesOutput, error)
-}
-
 // scanWorkspacesInstances discovers WorkspacesInstances workspace instances.
 // Volume and VolumeAssociation skip-logged: SDK has no list endpoints; the
 // underlying volumes are EC2 EBS volumes covered separately.

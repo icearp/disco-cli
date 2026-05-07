@@ -9,20 +9,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveTSDatabaseKMS,
+	registerResolver(
+		resolveTSDatabaseKMS,
 		EdgeDecl{TypeTimestreamDatabase, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveTSTableMagneticS3,
+	registerResolver(
+		resolveTSTableMagneticS3,
 		EdgeDecl{TypeTimestreamTable, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeTimestreamTable, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveTSScheduledQueryRefs,
+	registerResolver(
+		resolveTSScheduledQueryRefs,
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeSNSTopic, store.RelRoutesTo},
 		EdgeDecl{TypeTimestreamScheduledQuery, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveTSInfluxRefs,
+	registerResolver(
+		resolveTSInfluxRefs,
 		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeSecretsManagerSecret, store.RelUses},
@@ -64,8 +68,8 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 		}
 		for _, r := range rows {
 			var attrs struct {
-				VpcSubnetIds                  []string `json:"VpcSubnetIds"`
-				VpcSecurityGroupIds           []string `json:"VpcSecurityGroupIds"`
+				VpcSubnetIDs                  []string `json:"VpcSubnetIds"`
+				VpcSecurityGroupIDs           []string `json:"VpcSecurityGroupIds"`
 				InfluxAuthParametersSecretArn *string  `json:"InfluxAuthParametersSecretArn"`
 				LogDeliveryConfiguration      *struct {
 					S3Configuration *struct {
@@ -77,7 +81,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			region := sv(r.Region)
-			for _, sub := range attrs.VpcSubnetIds {
+			for _, sub := range attrs.VpcSubnetIDs {
 				sARN := ec2ARN(region, acct.ID, "subnet", sub)
 				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
 				if !subnetSet[tgt] {
@@ -87,7 +91,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert ts-influx→subnet: %w", err)
 				}
 			}
-			for _, sg := range attrs.VpcSecurityGroupIds {
+			for _, sg := range attrs.VpcSecurityGroupIDs {
 				gARN := ec2ARN(region, acct.ID, "security-group", sg)
 				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, gARN)
 				if !sgSet[tgt] {
@@ -121,7 +125,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 }
 
 // resolveTSDatabaseKMS wires each Timestream LiveAnalytics database to its
-// CMK (KmsKeyId — present on the ListDatabases summary so no Describe needed).
+// CMK (KmsKeyID — present on the ListDatabases summary so no Describe needed).
 func resolveTSDatabaseKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamDatabase}, Limit: util.AllResources,
@@ -138,12 +142,12 @@ func resolveTSDatabaseKMS(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			KmsKeyId *string `json:"KmsKeyId"`
+			KmsKeyID *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		k := sv(attrs.KmsKeyId)
+		k := sv(attrs.KmsKeyID)
 		if k == "" {
 			continue
 		}
@@ -183,7 +187,7 @@ func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 				MagneticStoreRejectedDataLocation *struct {
 					S3Configuration *struct {
 						BucketName *string `json:"BucketName"`
-						KmsKeyId   *string `json:"KmsKeyId"`
+						KmsKeyID   *string `json:"KmsKeyId"`
 					} `json:"S3Configuration"`
 				} `json:"MagneticStoreRejectedDataLocation"`
 			} `json:"MagneticStoreWriteProperties"`
@@ -205,7 +209,7 @@ func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if k := sv(s3c.KmsKeyId); k != "" {
+		if k := sv(s3c.KmsKeyID); k != "" {
 			if keyID, ok := idx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert timestream table→kms: %w", err)
@@ -248,7 +252,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			ScheduledQueryExecutionRoleArn *string `json:"ScheduledQueryExecutionRoleArn"`
-			KmsKeyId                       *string `json:"KmsKeyId"`
+			KmsKeyID                       *string `json:"KmsKeyId"`
 			NotificationConfiguration      *struct {
 				SnsConfiguration *struct {
 					TopicArn *string `json:"TopicArn"`
@@ -271,7 +275,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if k := sv(attrs.KmsKeyId); k != "" {
+		if k := sv(attrs.KmsKeyID); k != "" {
 			if keyID, ok := idx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert timestream sq→kms: %w", err)

@@ -26,30 +26,39 @@ type stubConnectRouting struct {
 func (s *stubConnectRouting) ListQueues(_ context.Context, _ *connect.ListQueuesInput, _ ...func(*connect.Options)) (*connect.ListQueuesOutput, error) {
 	return &connect.ListQueuesOutput{QueueSummaryList: s.queues}, nil
 }
+
 func (s *stubConnectRouting) DescribeQueue(_ context.Context, in *connect.DescribeQueueInput, _ ...func(*connect.Options)) (*connect.DescribeQueueOutput, error) {
 	return s.queueOut[*in.QueueId], nil
 }
+
 func (s *stubConnectRouting) ListRoutingProfiles(_ context.Context, _ *connect.ListRoutingProfilesInput, _ ...func(*connect.Options)) (*connect.ListRoutingProfilesOutput, error) {
 	return &connect.ListRoutingProfilesOutput{RoutingProfileSummaryList: s.profiles}, nil
 }
+
 func (s *stubConnectRouting) DescribeRoutingProfile(_ context.Context, in *connect.DescribeRoutingProfileInput, _ ...func(*connect.Options)) (*connect.DescribeRoutingProfileOutput, error) {
 	return s.profileOut[*in.RoutingProfileId], nil
 }
+
 func (s *stubConnectRouting) ListHoursOfOperations(_ context.Context, _ *connect.ListHoursOfOperationsInput, _ ...func(*connect.Options)) (*connect.ListHoursOfOperationsOutput, error) {
 	return &connect.ListHoursOfOperationsOutput{HoursOfOperationSummaryList: s.hours}, nil
 }
+
 func (s *stubConnectRouting) DescribeHoursOfOperation(_ context.Context, in *connect.DescribeHoursOfOperationInput, _ ...func(*connect.Options)) (*connect.DescribeHoursOfOperationOutput, error) {
 	return s.hoursOut[*in.HoursOfOperationId], nil
 }
+
 func (s *stubConnectRouting) ListAgentStatuses(_ context.Context, _ *connect.ListAgentStatusesInput, _ ...func(*connect.Options)) (*connect.ListAgentStatusesOutput, error) {
 	return &connect.ListAgentStatusesOutput{AgentStatusSummaryList: s.statuses}, nil
 }
+
 func (s *stubConnectRouting) DescribeAgentStatus(_ context.Context, in *connect.DescribeAgentStatusInput, _ ...func(*connect.Options)) (*connect.DescribeAgentStatusOutput, error) {
 	return s.statusOut[*in.AgentStatusId], nil
 }
+
 func (s *stubConnectRouting) ListQuickConnects(_ context.Context, _ *connect.ListQuickConnectsInput, _ ...func(*connect.Options)) (*connect.ListQuickConnectsOutput, error) {
 	return &connect.ListQuickConnectsOutput{QuickConnectSummaryList: s.quicks}, nil
 }
+
 func (s *stubConnectRouting) DescribeQuickConnect(_ context.Context, in *connect.DescribeQuickConnectInput, _ ...func(*connect.Options)) (*connect.DescribeQuickConnectOutput, error) {
 	return s.quickOut[*in.QuickConnectId], nil
 }

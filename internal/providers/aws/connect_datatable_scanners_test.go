@@ -19,9 +19,11 @@ type stubConnectDataTable struct {
 func (s *stubConnectDataTable) ListDataTables(_ context.Context, _ *connect.ListDataTablesInput, _ ...func(*connect.Options)) (*connect.ListDataTablesOutput, error) {
 	return &connect.ListDataTablesOutput{DataTableSummaryList: s.tables}, nil
 }
+
 func (s *stubConnectDataTable) ListDataTableAttributes(_ context.Context, in *connect.ListDataTableAttributesInput, _ ...func(*connect.Options)) (*connect.ListDataTableAttributesOutput, error) {
 	return &connect.ListDataTableAttributesOutput{Attributes: s.attrsByTable[*in.DataTableId]}, nil
 }
+
 func (s *stubConnectDataTable) ListDataTablePrimaryValues(_ context.Context, in *connect.ListDataTablePrimaryValuesInput, _ ...func(*connect.Options)) (*connect.ListDataTablePrimaryValuesOutput, error) {
 	return &connect.ListDataTablePrimaryValuesOutput{PrimaryValuesList: s.recsByTable[*in.DataTableId]}, nil
 }

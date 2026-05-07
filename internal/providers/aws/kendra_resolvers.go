@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKendraChildToIndex,
+	registerResolver(
+		resolveKendraChildToIndex,
 		EdgeDecl{TypeKendraDataSource, TypeKendraIndex, store.RelAttachedTo},
 		EdgeDecl{TypeKendraFaq, TypeKendraIndex, store.RelAttachedTo},
 	)
-	registerResolver(resolveKendraIndexRefs,
+	registerResolver(
+		resolveKendraIndexRefs,
 		EdgeDecl{TypeKendraIndex, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeKendraIndex, TypeKMSKey, store.RelUses},
 	)

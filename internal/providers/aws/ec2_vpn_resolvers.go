@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVPNConnectionRelationships,
+	registerResolver(
+		resolveVPNConnectionRelationships,
 		EdgeDecl{TypeEC2VPNConnection, TypeEC2VPNGateway, store.RelAttachedTo},
 		EdgeDecl{TypeEC2VPNConnection, TypeEC2CustomerGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPNGatewayRoutePropagations,
+	registerResolver(
+		resolveVPNGatewayRoutePropagations,
 		EdgeDecl{TypeEC2VPNGateway, TypeEC2RouteTable, store.RelRoutesTo},
 	)
 }

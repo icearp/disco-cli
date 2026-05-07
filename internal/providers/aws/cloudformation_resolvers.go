@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudFormationStackResources,
+	registerResolver(
+		resolveCloudFormationStackResources,
 		EdgeDecl{TypeCloudFormationStack, TypeS3Bucket, store.RelContains},
 		EdgeDecl{TypeCloudFormationStack, TypeIAMRole, store.RelContains},
 		EdgeDecl{TypeCloudFormationStack, TypeIAMUser, store.RelContains},
@@ -42,7 +43,8 @@ func init() {
 		EdgeDecl{TypeCloudFormationStack, TypeAPIGatewayV2API, store.RelContains},
 		EdgeDecl{TypeCloudFormationStack, TypeCloudFormationStack, store.RelContains},
 	)
-	registerResolver(resolveCloudFormationStackSetInstances,
+	registerResolver(
+		resolveCloudFormationStackSetInstances,
 		EdgeDecl{TypeCloudFormationStackSet, TypeCloudFormationStack, store.RelContains},
 	)
 }

@@ -8,7 +8,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveARCZonalShiftRelationships,
+	registerResolver(
+		resolveARCZonalShiftRelationships,
 		EdgeDecl{TypeARCZonalShiftConfiguration, TypeELBv2LoadBalancer, store.RelAttachedTo},
 		EdgeDecl{TypeARCZonalShiftConfiguration, TypeECSService, store.RelAttachedTo},
 	)

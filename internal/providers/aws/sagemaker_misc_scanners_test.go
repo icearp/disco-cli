@@ -21,12 +21,15 @@ type stubSageMakerMisc struct {
 func (s *stubSageMakerMisc) ListClusters(_ context.Context, _ *sagemaker.ListClustersInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListClustersOutput, error) {
 	return &sagemaker.ListClustersOutput{ClusterSummaries: s.clusters}, nil
 }
+
 func (s *stubSageMakerMisc) DescribeCluster(_ context.Context, in *sagemaker.DescribeClusterInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeClusterOutput, error) {
 	return s.clusterOut[*in.ClusterName], nil
 }
+
 func (s *stubSageMakerMisc) ListWorkteams(_ context.Context, _ *sagemaker.ListWorkteamsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListWorkteamsOutput, error) {
 	return &sagemaker.ListWorkteamsOutput{Workteams: s.workteams}, nil
 }
+
 func (s *stubSageMakerMisc) DescribeWorkteam(_ context.Context, in *sagemaker.DescribeWorkteamInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeWorkteamOutput, error) {
 	return s.workteamOut[*in.WorkteamName], nil
 }

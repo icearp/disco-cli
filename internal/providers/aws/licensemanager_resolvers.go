@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLicenseManagerGrantToLicense,
+	registerResolver(
+		resolveLicenseManagerGrantToLicense,
 		EdgeDecl{TypeLicenseManagerGrant, TypeLicenseManagerLicense, store.RelAttachedTo},
 	)
 }

@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveClientVPNEndpointRelationships,
+	registerResolver(
+		resolveClientVPNEndpointRelationships,
 		EdgeDecl{TypeEC2ClientVPNEndpoint, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveClientVPNTargetNetworkAssociationRelationships,
+	registerResolver(
+		resolveClientVPNTargetNetworkAssociationRelationships,
 		EdgeDecl{TypeEC2ClientVPNTargetNetworkAssociation, TypeEC2ClientVPNEndpoint, store.RelAttachedTo},
 		EdgeDecl{TypeEC2ClientVPNTargetNetworkAssociation, TypeEC2Subnet, store.RelAttachedTo},
 	)

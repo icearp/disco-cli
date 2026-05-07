@@ -10,34 +10,43 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTThingRefs,
+	registerResolver(
+		resolveIoTThingRefs,
 		EdgeDecl{TypeIoTThing, TypeIoTThingType, store.RelAttachedTo},
 		EdgeDecl{TypeIoTThing, TypeIoTBillingGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveIoTThingGroupParent,
+	registerResolver(
+		resolveIoTThingGroupParent,
 		EdgeDecl{TypeIoTThingGroup, TypeIoTThingGroup, store.RelContains},
 	)
-	registerResolver(resolveIoTAuthorizerLambda,
+	registerResolver(
+		resolveIoTAuthorizerLambda,
 		EdgeDecl{TypeIoTAuthorizer, TypeLambdaFunction, store.RelUses},
 	)
-	registerResolver(resolveIoTRoleAliasRole,
+	registerResolver(
+		resolveIoTRoleAliasRole,
 		EdgeDecl{TypeIoTRoleAlias, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveIoTProvisioningTemplateRole,
+	registerResolver(
+		resolveIoTProvisioningTemplateRole,
 		EdgeDecl{TypeIoTProvisioningTemplate, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveIoTDomainConfigAuthorizer,
+	registerResolver(
+		resolveIoTDomainConfigAuthorizer,
 		EdgeDecl{TypeIoTDomainConfiguration, TypeIoTAuthorizer, store.RelUses},
 	)
-	registerResolver(resolveIoTPolicyPrincipalAttachmentRefs,
+	registerResolver(
+		resolveIoTPolicyPrincipalAttachmentRefs,
 		EdgeDecl{TypeIoTPolicyPrincipalAttachment, TypeIoTPolicy, store.RelAttachedTo},
 		EdgeDecl{TypeIoTPolicyPrincipalAttachment, TypeIoTCertificate, store.RelAttachedTo},
 	)
-	registerResolver(resolveIoTThingPrincipalAttachmentRefs,
+	registerResolver(
+		resolveIoTThingPrincipalAttachmentRefs,
 		EdgeDecl{TypeIoTThingPrincipalAttachment, TypeIoTThing, store.RelAttachedTo},
 		EdgeDecl{TypeIoTThingPrincipalAttachment, TypeIoTCertificate, store.RelAttachedTo},
 	)
-	registerResolver(resolveIoTTopicRuleActionRefs,
+	registerResolver(
+		resolveIoTTopicRuleActionRefs,
 		EdgeDecl{TypeIoTTopicRule, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeIoTTopicRule, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeIoTTopicRule, TypeSNSTopic, store.RelUses},
@@ -48,15 +57,18 @@ func init() {
 		EdgeDecl{TypeIoTTopicRule, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeIoTTopicRule, TypeSFNStateMachine, store.RelUses},
 	)
-	registerResolver(resolveIoTMitigationActionRefs,
+	registerResolver(
+		resolveIoTMitigationActionRefs,
 		EdgeDecl{TypeIoTMitigationAction, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeIoTMitigationAction, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeIoTMitigationAction, TypeIoTThingGroup, store.RelUses},
 	)
-	registerResolver(resolveIoTJobTemplateRole,
+	registerResolver(
+		resolveIoTJobTemplateRole,
 		EdgeDecl{TypeIoTJobTemplate, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveIoTAccountAuditConfigurationRefs,
+	registerResolver(
+		resolveIoTAccountAuditConfigurationRefs,
 		EdgeDecl{TypeIoTAccountAuditConfiguration, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeIoTAccountAuditConfiguration, TypeSNSTopic, store.RelUses},
 	)
@@ -506,7 +518,7 @@ type iotTopicRuleAction struct {
 		RoleArn   *string `json:"RoleArn"`
 	} `json:"Sns"`
 	Sqs *struct {
-		QueueUrl *string `json:"QueueUrl"`
+		QueueURL *string `json:"QueueUrl"`
 		RoleArn  *string `json:"RoleArn"`
 	} `json:"Sqs"`
 	Kinesis *struct {
@@ -571,7 +583,7 @@ type iotTopicRuleAction struct {
 	Location *struct {
 		RoleArn *string `json:"RoleArn"`
 	} `json:"Location"`
-	Http *struct{} `json:"Http"`
+	HTTP *struct{} `json:"Http"`
 }
 
 // iotTopicRuleTargetSets bundles all FK-safe id sets in one struct so the
@@ -677,30 +689,40 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 		emits = append(emits, emit{true, TypeSNSTopic, sets.sns, sv(a.Sns.TargetArn), "sns"})
 	}
 	if a.Sqs != nil {
-		emits = append(emits, emit{true, TypeSQSQueue, sets.sqs, sqsQueueARNFromURL(sv(a.Sqs.QueueUrl)), "sqs"})
+		emits = append(emits, emit{true, TypeSQSQueue, sets.sqs, sqsQueueARNFromURL(sv(a.Sqs.QueueURL)), "sqs"})
 	}
 	if a.Kinesis != nil && sv(a.Kinesis.StreamName) != "" {
-		emits = append(emits, emit{true, TypeKinesisStream, sets.kinesis,
-			kinesisStreamARNFromName(region, acctID, sv(a.Kinesis.StreamName)), "kinesis"})
+		emits = append(emits, emit{
+			true, TypeKinesisStream, sets.kinesis,
+			kinesisStreamARNFromName(region, acctID, sv(a.Kinesis.StreamName)), "kinesis",
+		})
 	}
 	if a.Firehose != nil && sv(a.Firehose.DeliveryStreamName) != "" {
-		emits = append(emits, emit{true, TypeFirehoseDeliveryStream, sets.firehose,
-			firehoseDeliveryStreamARNFromName(region, acctID, sv(a.Firehose.DeliveryStreamName)), "firehose"})
+		emits = append(emits, emit{
+			true, TypeFirehoseDeliveryStream, sets.firehose,
+			firehoseDeliveryStreamARNFromName(region, acctID, sv(a.Firehose.DeliveryStreamName)), "firehose",
+		})
 	}
 	if a.DynamoDB != nil && sv(a.DynamoDB.TableName) != "" {
-		emits = append(emits, emit{true, TypeDynamoDBTable, sets.dynamodb,
-			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDB.TableName)), "dynamodb"})
+		emits = append(emits, emit{
+			true, TypeDynamoDBTable, sets.dynamodb,
+			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDB.TableName)), "dynamodb",
+		})
 	}
 	if a.DynamoDBv2 != nil && a.DynamoDBv2.PutItem != nil && sv(a.DynamoDBv2.PutItem.TableName) != "" {
-		emits = append(emits, emit{true, TypeDynamoDBTable, sets.dynamodb,
-			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDBv2.PutItem.TableName)), "dynamodb-v2"})
+		emits = append(emits, emit{
+			true, TypeDynamoDBTable, sets.dynamodb,
+			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDBv2.PutItem.TableName)), "dynamodb-v2",
+		})
 	}
 	if a.S3 != nil && sv(a.S3.BucketName) != "" {
 		emits = append(emits, emit{true, TypeS3Bucket, sets.s3, s3BucketARNFromName(sv(a.S3.BucketName)), "s3"})
 	}
 	if a.StepFunctions != nil && sv(a.StepFunctions.StateMachineName) != "" {
-		emits = append(emits, emit{true, TypeSFNStateMachine, sets.sfn,
-			stateMachineARNFromName(region, acctID, sv(a.StepFunctions.StateMachineName)), "step-functions"})
+		emits = append(emits, emit{
+			true, TypeSFNStateMachine, sets.sfn,
+			stateMachineARNFromName(region, acctID, sv(a.StepFunctions.StateMachineName)), "step-functions",
+		})
 	}
 	for _, e := range emits {
 		if !e.ok || e.arn == "" {
@@ -880,7 +902,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveIoTJobTemplateRole walks each JobTemplate's PresignedUrlConfig.RoleArn
+// resolveIoTJobTemplateRole walks each JobTemplate's PresignedURLConfig.RoleArn
 // — IAM role IoT assumes to mint pre-signed S3 URLs for the job document.
 func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 	tpls, err := st.ListResources(store.ResourceFilter{
@@ -896,17 +918,17 @@ func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 	}
 	for _, r := range tpls {
 		var attrs struct {
-			PresignedUrlConfig *struct {
+			PresignedURLConfig *struct {
 				RoleArn *string `json:"RoleArn"`
 			} `json:"PresignedUrlConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.PresignedUrlConfig == nil {
+		if attrs.PresignedURLConfig == nil {
 			continue
 		}
-		roleARN := sv(attrs.PresignedUrlConfig.RoleArn)
+		roleARN := sv(attrs.PresignedURLConfig.RoleArn)
 		if roleARN == "" {
 			continue
 		}
@@ -988,7 +1010,8 @@ func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) err
 }
 
 func init() {
-	registerResolver(resolveIoTCertificateCA,
+	registerResolver(
+		resolveIoTCertificateCA,
 		EdgeDecl{TypeIoTCertificate, TypeIoTCACertificate, store.RelAttachedTo},
 	)
 }

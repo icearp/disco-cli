@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDataZoneChildrenToDomain,
+	registerResolver(
+		resolveDataZoneChildrenToDomain,
 		EdgeDecl{TypeDataZoneDomainUnit, TypeDataZoneDomain, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneProject, TypeDataZoneDomain, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneProjectProfile, TypeDataZoneDomain, store.RelAttachedTo},
@@ -23,7 +24,8 @@ func init() {
 		EdgeDecl{TypeDataZoneDataSource, TypeDataZoneDomain, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneConnection, TypeDataZoneDomain, store.RelAttachedTo},
 	)
-	registerResolver(resolveDataZoneEnvActionsToEnvironment,
+	registerResolver(
+		resolveDataZoneEnvActionsToEnvironment,
 		EdgeDecl{TypeDataZoneEnvironmentActions, TypeDataZoneEnvironment, store.RelAttachedTo},
 		EdgeDecl{TypeDataZoneSubscriptionTarget, TypeDataZoneEnvironment, store.RelAttachedTo},
 	)
@@ -142,7 +144,8 @@ func resolveDataZoneEnvActionsToEnvironment(acct *account, st *store.Store) erro
 }
 
 func init() {
-	registerResolver(resolveDataZoneDomainRefs,
+	registerResolver(
+		resolveDataZoneDomainRefs,
 		EdgeDecl{TypeDataZoneDomain, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDataZoneDomain, TypeIAMRole, store.RelAssumes},
 	)

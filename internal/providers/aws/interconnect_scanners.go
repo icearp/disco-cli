@@ -22,10 +22,6 @@ func init() {
 	})
 }
 
-type interconnectAPI interface {
-	ListConnections(context.Context, *interconnect.ListConnectionsInput, ...func(*interconnect.Options)) (*interconnect.ListConnectionsOutput, error)
-}
-
 // isInterconnectClosedToAccount reports whether err is the empty-message
 // AccessDenied shape AWS returns for accounts not registered for the
 // (closed-to-new-customers) Interconnect service. Real per-op IAM denials

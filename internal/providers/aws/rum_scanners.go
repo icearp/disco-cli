@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type rumAPI interface {
-	ListAppMonitors(context.Context, *rum.ListAppMonitorsInput, ...func(*rum.Options)) (*rum.ListAppMonitorsOutput, error)
-}
-
 // scanRUM discovers CloudWatch RUM app monitors. Synth ARN:
 // arn:aws:rum:{r}:{a}:appmonitor/{name}.
 func scanRUM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

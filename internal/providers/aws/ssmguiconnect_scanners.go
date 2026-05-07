@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type ssmGuiConnectAPI interface {
-	GetConnectionRecordingPreferences(context.Context, *ssmguiconnect.GetConnectionRecordingPreferencesInput, ...func(*ssmguiconnect.Options)) (*ssmguiconnect.GetConnectionRecordingPreferencesOutput, error)
-}
-
 // scanSSMGuiConnect captures the per-(account,region) SSM GUI Connect
 // connection recording preferences (singleton). Synth ARN:
 // arn:aws:ssm-guiconnect:{r}:{a}:preferences.

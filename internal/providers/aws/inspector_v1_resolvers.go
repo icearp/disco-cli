@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveInspectorAssessmentTargetRefs,
+	registerResolver(
+		resolveInspectorAssessmentTargetRefs,
 		EdgeDecl{TypeInspectorAssessmentTarget, TypeInspectorResourceGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveInspectorAssessmentTemplateRefs,
+	registerResolver(
+		resolveInspectorAssessmentTemplateRefs,
 		EdgeDecl{TypeInspectorAssessmentTemplate, TypeInspectorAssessmentTarget, store.RelAttachedTo},
 	)
 }

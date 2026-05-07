@@ -31,8 +31,8 @@ func TestResolveAPIGatewayRestApiChildren(t *testing.T) {
 	mdlARN := apiARN + "/models/MyModel"
 	mdlID := upsertTestResource(t, st, "aws", acct.ID, TypeAPIGatewayModel, mdlARN, testRegion, "{}")
 
-	if err := resolveAPIGatewayRestApiChildren(acct, st); err != nil {
-		t.Fatalf("resolveAPIGatewayRestApiChildren: %v", err)
+	if err := resolveAPIGatewayRestAPIChildren(acct, st); err != nil {
+		t.Fatalf("resolveAPIGatewayRestAPIChildren: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(resID)
 	assertRelationship(t, rels, resID, apiID, store.RelAttachedTo)

@@ -22,7 +22,8 @@ func init() {
 
 // scanEC2ClientVPN discovers all Client VPN resources in parallel.
 func scanEC2ClientVPN(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanClientVPNEndpoints(ctx, client, acct, region, st, scanID)
 		},
@@ -39,7 +40,8 @@ func scanEC2ClientVPN(ctx context.Context, client ec2API, acct *account, region 
 }
 
 func scanClientVPNEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeClientVpnEndpoints", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeClientVpnEndpoints", acct, region, st,
 		ec2.NewDescribeClientVpnEndpointsPaginator(client, &ec2.DescribeClientVpnEndpointsInput{}),
 		func(page *ec2.DescribeClientVpnEndpointsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -80,7 +82,8 @@ func scanClientVPNAuthorizationRules(ctx context.Context, client ec2API, acct *a
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnAuthorizationRules", acct, region, st,
+			tt, nn, e := ec2PageScan(
+				ctx, "ec2:DescribeClientVpnAuthorizationRules", acct, region, st,
 				ec2.NewDescribeClientVpnAuthorizationRulesPaginator(client, &ec2.DescribeClientVpnAuthorizationRulesInput{
 					ClientVpnEndpointId: &epID,
 				}),
@@ -130,7 +133,8 @@ func scanClientVPNRoutes(ctx context.Context, client ec2API, acct *account, regi
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnRoutes", acct, region, st,
+			tt, nn, e := ec2PageScan(
+				ctx, "ec2:DescribeClientVpnRoutes", acct, region, st,
 				ec2.NewDescribeClientVpnRoutesPaginator(client, &ec2.DescribeClientVpnRoutesInput{
 					ClientVpnEndpointId: &epID,
 				}),
@@ -180,7 +184,8 @@ func scanClientVPNTargetNetworkAssociations(ctx context.Context, client ec2API, 
 	g, ctx := errgroup.WithContext(ctx)
 	for _, epID := range endpointIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeClientVpnTargetNetworks", acct, region, st,
+			tt, nn, e := ec2PageScan(
+				ctx, "ec2:DescribeClientVpnTargetNetworks", acct, region, st,
 				ec2.NewDescribeClientVpnTargetNetworksPaginator(client, &ec2.DescribeClientVpnTargetNetworksInput{
 					ClientVpnEndpointId: &epID,
 				}),

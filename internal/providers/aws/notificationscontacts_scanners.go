@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type notificationsContactsAPI interface {
-	ListEmailContacts(context.Context, *notificationscontacts.ListEmailContactsInput, ...func(*notificationscontacts.Options)) (*notificationscontacts.ListEmailContactsOutput, error)
-}
-
 // scanNotificationsContacts discovers AWS User Notifications Contacts email
 // contacts. Service is global; gate to us-east-1 to avoid duplicate scans
 // across regions.

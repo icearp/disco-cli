@@ -9,20 +9,23 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMMIngressPointRefs,
+	registerResolver(
+		resolveMMIngressPointRefs,
 		EdgeDecl{TypeSESMailManagerIngressPoint, TypeSESMailManagerRuleSet, store.RelAttachedTo},
 		EdgeDecl{TypeSESMailManagerIngressPoint, TypeSESMailManagerTrafficPolicy, store.RelAttachedTo},
 	)
-	registerResolver(resolveMMArchiveKMS,
+	registerResolver(
+		resolveMMArchiveKMS,
 		EdgeDecl{TypeSESMailManagerArchive, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveMMAddonInstanceToSubscription,
+	registerResolver(
+		resolveMMAddonInstanceToSubscription,
 		EdgeDecl{TypeSESMailManagerAddonInstance, TypeSESMailManagerAddonSubscription, store.RelAttachedTo},
 	)
 }
 
-// mmChildIDByID builds a map from MailManager resource ID (RuleSetId,
-// TrafficPolicyId, etc.) → store resource ID, scoped per-region. Each
+// mmChildIDByID builds a map from MailManager resource ID (RuleSetID,
+// TrafficPolicyID, etc.) → store resource ID, scoped per-region. Each
 // row's NativeID is `arn:aws:ses:{region}:{acct}:mailmanager-{kind}/{id}`
 // — strip past the last `/` for the lookup key.
 func mmChildIDByID(acct *account, st *store.Store, rtype string) (map[string]string, error) {
@@ -47,7 +50,7 @@ func mmChildIDByID(acct *account, st *store.Store, rtype string) (map[string]str
 }
 
 // resolveMMIngressPointRefs wires ingress-point → rule-set + traffic-policy
-// via RuleSetId + TrafficPolicyId attrs (added by GetIngressPoint enrichment).
+// via RuleSetID + TrafficPolicyID attrs (added by GetIngressPoint enrichment).
 func resolveMMIngressPointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerIngressPoint}, Limit: util.AllResources,
@@ -68,21 +71,21 @@ func resolveMMIngressPointRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			RuleSetId       *string `json:"RuleSetId"`
-			TrafficPolicyId *string `json:"TrafficPolicyId"`
+			RuleSetID       *string `json:"RuleSetId"`
+			TrafficPolicyID *string `json:"TrafficPolicyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if rs := sv(attrs.RuleSetId); rs != "" {
+		if rs := sv(attrs.RuleSetID); rs != "" {
 			if tgtID, ok := rsIdx[region+"|"+rs]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mm ip→ruleset: %w", err)
 				}
 			}
 		}
-		if tp := sv(attrs.TrafficPolicyId); tp != "" {
+		if tp := sv(attrs.TrafficPolicyID); tp != "" {
 			if tgtID, ok := tpIdx[region+"|"+tp]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mm ip→tp: %w", err)
@@ -127,7 +130,7 @@ func resolveMMArchiveKMS(acct *account, st *store.Store) error {
 }
 
 // resolveMMAddonInstanceToSubscription wires addon-instance → addon-subscription
-// via AddonSubscriptionId — already present in ListAddonInstances summary.
+// via AddonSubscriptionID — already present in ListAddonInstances summary.
 func resolveMMAddonInstanceToSubscription(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerAddonInstance}, Limit: util.AllResources,
@@ -147,23 +150,23 @@ func resolveMMAddonInstanceToSubscription(acct *account, st *store.Store) error 
 	subByID := map[string]string{}
 	for _, sr := range subRows {
 		var sa struct {
-			AddonSubscriptionId *string `json:"AddonSubscriptionId"`
+			AddonSubscriptionID *string `json:"AddonSubscriptionId"`
 		}
 		if err := json.Unmarshal([]byte(sr.AttributesJSON), &sa); err != nil {
 			continue
 		}
-		if id := sv(sa.AddonSubscriptionId); id != "" {
+		if id := sv(sa.AddonSubscriptionID); id != "" {
 			subByID[sv(sr.Region)+"|"+id] = sr.ID
 		}
 	}
 	for _, r := range rows {
 		var attrs struct {
-			AddonSubscriptionId *string `json:"AddonSubscriptionId"`
+			AddonSubscriptionID *string `json:"AddonSubscriptionId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.AddonSubscriptionId); id != "" {
+		if id := sv(attrs.AddonSubscriptionID); id != "" {
 			if tgtID, ok := subByID[sv(r.Region)+"|"+id]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert mm ai→sub: %w", err)

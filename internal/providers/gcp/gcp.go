@@ -183,7 +183,8 @@ type pager[P any] interface {
 // (e.g. "pubsub:topics.list"). `pageHandler` builds and persists the batch
 // from each page and reports its own counts; counts are summed across pages.
 func runPaginated[P any](ctx context.Context, st *store.Store, p *project, action string,
-	req pager[P], pageHandler func(*P) (int, int, error)) (total, inserted int, err error) {
+	req pager[P], pageHandler func(*P) (int, int, error),
+) (total, inserted int, err error) {
 	err = req.Pages(ctx, func(page *P) error {
 		t, n, e := pageHandler(page)
 		total += t

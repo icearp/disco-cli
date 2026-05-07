@@ -24,24 +24,31 @@ type stubConnectFlows struct {
 func (s *stubConnectFlows) ListContactFlows(_ context.Context, _ *connect.ListContactFlowsInput, _ ...func(*connect.Options)) (*connect.ListContactFlowsOutput, error) {
 	return &connect.ListContactFlowsOutput{ContactFlowSummaryList: s.flows}, nil
 }
+
 func (s *stubConnectFlows) DescribeContactFlow(_ context.Context, in *connect.DescribeContactFlowInput, _ ...func(*connect.Options)) (*connect.DescribeContactFlowOutput, error) {
 	return s.flowOut[*in.ContactFlowId], nil
 }
+
 func (s *stubConnectFlows) ListContactFlowVersions(_ context.Context, in *connect.ListContactFlowVersionsInput, _ ...func(*connect.Options)) (*connect.ListContactFlowVersionsOutput, error) {
 	return &connect.ListContactFlowVersionsOutput{ContactFlowVersionSummaryList: s.flowVersions[*in.ContactFlowId]}, nil
 }
+
 func (s *stubConnectFlows) ListContactFlowModules(_ context.Context, _ *connect.ListContactFlowModulesInput, _ ...func(*connect.Options)) (*connect.ListContactFlowModulesOutput, error) {
 	return &connect.ListContactFlowModulesOutput{ContactFlowModulesSummaryList: s.modules}, nil
 }
+
 func (s *stubConnectFlows) DescribeContactFlowModule(_ context.Context, in *connect.DescribeContactFlowModuleInput, _ ...func(*connect.Options)) (*connect.DescribeContactFlowModuleOutput, error) {
 	return s.moduleOut[*in.ContactFlowModuleId], nil
 }
+
 func (s *stubConnectFlows) ListContactFlowModuleVersions(_ context.Context, in *connect.ListContactFlowModuleVersionsInput, _ ...func(*connect.Options)) (*connect.ListContactFlowModuleVersionsOutput, error) {
 	return &connect.ListContactFlowModuleVersionsOutput{ContactFlowModuleVersionSummaryList: s.moduleVer[*in.ContactFlowModuleId]}, nil
 }
+
 func (s *stubConnectFlows) ListContactFlowModuleAliases(_ context.Context, in *connect.ListContactFlowModuleAliasesInput, _ ...func(*connect.Options)) (*connect.ListContactFlowModuleAliasesOutput, error) {
 	return &connect.ListContactFlowModuleAliasesOutput{ContactFlowModuleAliasSummaryList: s.moduleAliases[*in.ContactFlowModuleId]}, nil
 }
+
 func (s *stubConnectFlows) DescribeContactFlowModuleAlias(_ context.Context, in *connect.DescribeContactFlowModuleAliasInput, _ ...func(*connect.Options)) (*connect.DescribeContactFlowModuleAliasOutput, error) {
 	return s.aliasOut[*in.AliasId], nil
 }

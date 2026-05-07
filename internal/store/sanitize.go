@@ -212,10 +212,11 @@ func isAWSARN(s string) bool {
 	}
 	// Reject `arn:awsfoo:...` — partition must terminate at colon.
 	rest := s[len("arn:aws"):]
-	if !(strings.HasPrefix(rest, ":") || strings.HasPrefix(rest, "-cn:") || strings.HasPrefix(rest, "-us-gov:") || strings.HasPrefix(rest, "-iso:") || strings.HasPrefix(rest, "-iso-b:")) {
-		return false
-	}
-	return true
+	return strings.HasPrefix(rest, ":") ||
+		strings.HasPrefix(rest, "-cn:") ||
+		strings.HasPrefix(rest, "-us-gov:") ||
+		strings.HasPrefix(rest, "-iso:") ||
+		strings.HasPrefix(rest, "-iso-b:")
 }
 
 func isReferenceURI(s string) bool {

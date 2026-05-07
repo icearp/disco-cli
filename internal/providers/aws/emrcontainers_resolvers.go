@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEMRCEndpointRefs,
+	registerResolver(
+		resolveEMRCEndpointRefs,
 		EdgeDecl{TypeEMRContainersEndpoint, TypeEMRContainersVirtualCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEMRContainersEndpoint, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveEMRCVirtualClusterToSecConfig,
+	registerResolver(
+		resolveEMRCVirtualClusterToSecConfig,
 		EdgeDecl{TypeEMRContainersVirtualCluster, TypeEMRContainersSecurityConfig, store.RelUses},
 	)
 }
@@ -69,7 +71,7 @@ func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 }
 
 // resolveEMRCVirtualClusterToSecConfig wires each virtual-cluster to its
-// security-configuration via SecurityConfigurationId.
+// security-configuration via SecurityConfigurationID.
 func resolveEMRCVirtualClusterToSecConfig(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRContainersVirtualCluster}, Limit: util.AllResources,
@@ -95,12 +97,12 @@ func resolveEMRCVirtualClusterToSecConfig(acct *account, st *store.Store) error 
 	}
 	for _, r := range rows {
 		var attrs struct {
-			SecurityConfigurationId *string `json:"SecurityConfigurationId"`
+			SecurityConfigurationID *string `json:"SecurityConfigurationId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.SecurityConfigurationId); id != "" {
+		if id := sv(attrs.SecurityConfigurationID); id != "" {
 			if tgtID, ok := scByID[id]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert emr-c vc→sec-config: %w", err)

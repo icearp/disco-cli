@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveFISExperimentTemplateRefs,
+	registerResolver(
+		resolveFISExperimentTemplateRefs,
 		EdgeDecl{TypeFISExperimentTemplate, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveFISTargetAccountConfigRefs,
+	registerResolver(
+		resolveFISTargetAccountConfigRefs,
 		EdgeDecl{TypeFISTargetAccountConfiguration, TypeFISExperimentTemplate, store.RelAttachedTo},
 		EdgeDecl{TypeFISTargetAccountConfiguration, TypeIAMRole, store.RelUses},
 	)

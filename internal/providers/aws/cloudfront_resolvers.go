@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudFrontRelationships,
+	registerResolver(
+		resolveCloudFrontRelationships,
 		EdgeDecl{TypeCloudFrontDistribution, TypeACMCertificate, store.RelUses},
 		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontCachePolicy, store.RelUses},
 		EdgeDecl{TypeCloudFrontDistribution, TypeCloudFrontOriginRequestPolicy, store.RelUses},
@@ -30,7 +31,8 @@ func init() {
 		EdgeDecl{TypeCloudFrontMonitoringSubscription, TypeCloudFrontDistribution, store.RelAttachedTo},
 		EdgeDecl{TypeCloudFrontConnectionGroup, TypeCloudFrontAnycastIPList, store.RelUses},
 	)
-	registerResolver(resolveCloudFrontVpcOriginEndpoint,
+	registerResolver(
+		resolveCloudFrontVpcOriginEndpoint,
 		EdgeDecl{TypeCloudFrontVpcOrigin, TypeELBv2LoadBalancer, store.RelRoutesTo},
 		EdgeDecl{TypeCloudFrontVpcOrigin, TypeEC2Instance, store.RelRoutesTo},
 	)
@@ -554,7 +556,7 @@ func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Stor
 }
 
 // resolveCloudFrontConnectionGroupAnycast emits "uses" edges from each
-// connection group to the anycast IP list it references (AnycastIpListId).
+// connection group to the anycast IP list it references (AnycastIPListID).
 // Connection group carries the bare list ID; the anycast list rows store the
 // full ARN as NativeID — build a (bare-id → resourceID) lookup.
 func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) error {
@@ -584,12 +586,12 @@ func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) err
 	}
 	for _, g := range groups {
 		var attrs struct {
-			AnycastIpListId *string `json:"AnycastIpListId"`
+			AnycastIPListID *string `json:"AnycastIpListId"`
 		}
 		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		anycastID := sv(attrs.AnycastIpListId)
+		anycastID := sv(attrs.AnycastIPListID)
 		if anycastID == "" {
 			continue
 		}

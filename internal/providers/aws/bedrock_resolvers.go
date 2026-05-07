@@ -10,31 +10,40 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBedrockAgentRefs,
+	registerResolver(
+		resolveBedrockAgentRefs,
 		EdgeDecl{TypeBedrockAgent, TypeBedrockGuardrail, store.RelUses},
 	)
-	registerResolver(resolveBedrockAgentAlias,
+	registerResolver(
+		resolveBedrockAgentAlias,
 		EdgeDecl{TypeBedrockAgentAlias, TypeBedrockAgent, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockDataSourceKB,
+	registerResolver(
+		resolveBedrockDataSourceKB,
 		EdgeDecl{TypeBedrockDataSource, TypeBedrockKnowledgeBase, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockGuardrailVersion,
+	registerResolver(
+		resolveBedrockGuardrailVersion,
 		EdgeDecl{TypeBedrockGuardrailVersion, TypeBedrockGuardrail, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockFlowAlias,
+	registerResolver(
+		resolveBedrockFlowAlias,
 		EdgeDecl{TypeBedrockFlowAlias, TypeBedrockFlow, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockFlowVersion,
+	registerResolver(
+		resolveBedrockFlowVersion,
 		EdgeDecl{TypeBedrockFlowVersion, TypeBedrockFlow, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockPromptVersion,
+	registerResolver(
+		resolveBedrockPromptVersion,
 		EdgeDecl{TypeBedrockPromptVersion, TypeBedrockPrompt, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockARPolicyVersion,
+	registerResolver(
+		resolveBedrockARPolicyVersion,
 		EdgeDecl{TypeBedrockAutomatedReasoningPolicyVersion, TypeBedrockAutomatedReasoningPolicy, store.RelAttachedTo},
 	)
-	registerResolver(resolveBedrockKBStorageRefs,
+	registerResolver(
+		resolveBedrockKBStorageRefs,
 		EdgeDecl{TypeBedrockKnowledgeBase, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeBedrockKnowledgeBase, TypeKendraIndex, store.RelUses},
 		EdgeDecl{TypeBedrockKnowledgeBase, TypeOSSCollection, store.RelUses},
@@ -43,7 +52,8 @@ func init() {
 		EdgeDecl{TypeBedrockKnowledgeBase, TypeSecretsManagerSecret, store.RelUses},
 		EdgeDecl{TypeBedrockKnowledgeBase, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveBedrockDataSourceRefs,
+	registerResolver(
+		resolveBedrockDataSourceRefs,
 		EdgeDecl{TypeBedrockDataSource, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeBedrockDataSource, TypeKMSKey, store.RelUses},
 	)
@@ -345,7 +355,7 @@ func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 }
 
 // resolveBedrockDataSourceKB links each data-source to its knowledge-base
-// via the KnowledgeBaseId field on DataSourceSummary.
+// via the KnowledgeBaseID field on DataSourceSummary.
 func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
 	dss, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockDataSource},
@@ -360,12 +370,12 @@ func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
 	}
 	for _, r := range dss {
 		var attrs struct {
-			KnowledgeBaseId *string `json:"KnowledgeBaseId"`
+			KnowledgeBaseID *string `json:"KnowledgeBaseId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		kb := sv(attrs.KnowledgeBaseId)
+		kb := sv(attrs.KnowledgeBaseID)
 		if kb == "" {
 			continue
 		}
@@ -432,7 +442,7 @@ func resolveBedrockVersionParent(acct *account, st *store.Store, childType, pare
 
 // loadBedrockFlowIDIndex builds {flow-id → flow-row-ID} so flow-alias and
 // flow-version resolvers can look up the parent flow without re-deriving
-// its ARN. FlowSummary.Id is the SDK's logical id; the row's NativeID is
+// its ARN. FlowSummary.ID is the SDK's logical id; the row's NativeID is
 // the ARN.
 func loadBedrockFlowIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	flows, err := st.ListResources(store.ResourceFilter{
@@ -445,19 +455,19 @@ func loadBedrockFlowIDIndex(acct *account, st *store.Store) (map[string]string, 
 	idx := make(map[string]string, len(flows))
 	for _, f := range flows {
 		var attrs struct {
-			Id *string `json:"Id"`
+			ID *string `json:"Id"`
 		}
 		if json.Unmarshal([]byte(f.AttributesJSON), &attrs) != nil {
 			continue
 		}
-		if id := sv(attrs.Id); id != "" {
+		if id := sv(attrs.ID); id != "" {
 			idx[id] = f.ID
 		}
 	}
 	return idx, nil
 }
 
-// resolveBedrockFlowAlias links flow-alias → flow via FlowId on
+// resolveBedrockFlowAlias links flow-alias → flow via FlowID on
 // FlowAliasSummary.
 func resolveBedrockFlowAlias(acct *account, st *store.Store) error {
 	idx, err := loadBedrockFlowIDIndex(acct, st)
@@ -473,12 +483,12 @@ func resolveBedrockFlowAlias(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			FlowId *string `json:"FlowId"`
+			FlowID *string `json:"FlowId"`
 		}
 		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
 			continue
 		}
-		fid := sv(attrs.FlowId)
+		fid := sv(attrs.FlowID)
 		if fid == "" {
 			continue
 		}
@@ -494,8 +504,8 @@ func resolveBedrockFlowAlias(acct *account, st *store.Store) error {
 }
 
 // resolveBedrockFlowVersion links flow-version → flow. FlowVersionSummary
-// has only Id (the parent flow's id) — same lookup as flow-alias but on
-// the Id key rather than FlowId.
+// has only ID (the parent flow's id) — same lookup as flow-alias but on
+// the ID key rather than FlowID.
 func resolveBedrockFlowVersion(acct *account, st *store.Store) error {
 	idx, err := loadBedrockFlowIDIndex(acct, st)
 	if err != nil {
@@ -510,12 +520,12 @@ func resolveBedrockFlowVersion(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			Id *string `json:"Id"`
+			ID *string `json:"Id"`
 		}
 		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
 			continue
 		}
-		fid := sv(attrs.Id)
+		fid := sv(attrs.ID)
 		if fid == "" {
 			continue
 		}

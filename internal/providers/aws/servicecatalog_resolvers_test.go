@@ -315,7 +315,7 @@ func TestResolveServiceCatalogPortfolioPrincipals_PatternSkipsIAM(t *testing.T) 
 	portfolioID := upsertTestResource(t, st, "aws", acct.ID, TypeServiceCatalogPortfolio,
 		scPortfolioARN(testSCPortfolioID), testRegion, scPortfolioAttrs(testSCPortfolioID))
 
-	patternARN := fmt.Sprintf("arn:aws:iam:::role/foo*")
+	patternARN := "arn:aws:iam:::role/foo*"
 	assocARN := fmt.Sprintf("arn:aws:servicecatalog:%s:%s:portfolio-principal-association/%s/%s",
 		testRegion, testAccountID, testSCPortfolioID, patternARN)
 	assocAttrs := fmt.Sprintf(`{"PrincipalARN":%q,"PrincipalType":"IAM_PATTERN"}`, patternARN)

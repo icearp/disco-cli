@@ -14,8 +14,8 @@ func init() {
 		name: "aws:entityresolution",
 		fn:   scanEntityResolution,
 		emits: []coverage.TypeDecl{
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIdMappingWorkflow},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIdNamespace},
+			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDMappingWorkflow},
+			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDNamespace},
 			{Service: "entityresolution", DiscoType: TypeEntityResolutionMatchingWorkflow},
 			{Service: "entityresolution", DiscoType: TypeEntityResolutionSchemaMapping},
 			{Service: "entityresolution", DiscoType: TypeEntityResolutionPolicyStatement},
@@ -97,7 +97,7 @@ func scanERIdMappingWorkflows(ctx context.Context, client entityResolutionAPI, a
 			arns = append(arns, arn)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeEntityResolutionIdMappingWorkflow, NativeID: arn,
+				Type: TypeEntityResolutionIDMappingWorkflow, NativeID: arn,
 				Name: w.WorkflowName, Region: &region,
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
@@ -127,7 +127,7 @@ func scanERIdNamespaces(ctx context.Context, client entityResolutionAPI, acct *a
 			arns = append(arns, arn)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeEntityResolutionIdNamespace, NativeID: arn,
+				Type: TypeEntityResolutionIDNamespace, NativeID: arn,
 				Name: n.IdNamespaceName, Region: &region,
 				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
 			})

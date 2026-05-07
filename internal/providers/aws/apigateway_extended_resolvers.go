@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAPIGatewayRestApiChildren,
+	registerResolver(
+		resolveAPIGatewayRestAPIChildren,
 		EdgeDecl{TypeAPIGatewayDeployment, TypeAPIGatewayRestAPI, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayResource, TypeAPIGatewayRestAPI, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayModel, TypeAPIGatewayRestAPI, store.RelAttachedTo},
@@ -19,7 +20,8 @@ func init() {
 		EdgeDecl{TypeAPIGatewayDocumentationPart, TypeAPIGatewayRestAPI, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayDocumentationVersion, TypeAPIGatewayRestAPI, store.RelAttachedTo},
 	)
-	registerResolver(resolveAPIGatewayVpcLinkTargets,
+	registerResolver(
+		resolveAPIGatewayVpcLinkTargets,
 		EdgeDecl{TypeAPIGatewayVpcLink, TypeELBv2LoadBalancer, store.RelRoutesTo},
 	)
 }
@@ -41,11 +43,11 @@ func apigatewayRestAPIARNFromChild(arn string) string {
 	return arn[:i] + prefix + tail[:end]
 }
 
-// resolveAPIGatewayRestApiChildren wires deployment / resource / model /
+// resolveAPIGatewayRestAPIChildren wires deployment / resource / model /
 // request-validator / gateway-response / documentation-part /
 // documentation-version to the parent rest-api by parsing the
 // `restapis/{apiId}` segment in the child's NativeID.
-func resolveAPIGatewayRestApiChildren(acct *account, st *store.Store) error {
+func resolveAPIGatewayRestAPIChildren(acct *account, st *store.Store) error {
 	apiSet, err := scannedIDSet(acct, st, TypeAPIGatewayRestAPI)
 	if err != nil {
 		return err

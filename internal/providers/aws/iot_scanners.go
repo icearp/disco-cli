@@ -18,7 +18,8 @@ func init() {
 // scanners concurrently.
 func scanIoT(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := iot.NewFromConfig(acct.cfg, func(o *iot.Options) { o.Region = region })
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanIoTThings(ctx, client, acct, region, st, scanID)
 		},

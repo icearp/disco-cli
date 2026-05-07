@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSNSTopicRelationships,
+	registerResolver(
+		resolveSNSTopicRelationships,
 		EdgeDecl{TypeSNSTopic, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSNSTopic, TypeSQSQueue, store.RelRoutesTo},
 	)

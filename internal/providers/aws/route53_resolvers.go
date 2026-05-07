@@ -10,21 +10,22 @@ import (
 )
 
 func init() {
-	registerResolver(func(acct *account, st *store.Store) error {
-		if err := resolveRoute53Relationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveRoute53DNSSECRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveRoute53KSKRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveRoute53HealthCheckRelationships(acct, st); err != nil {
-			return err
-		}
-		return resolveRoute53AliasRelationships(acct, st)
-	},
+	registerResolver(
+		func(acct *account, st *store.Store) error {
+			if err := resolveRoute53Relationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveRoute53DNSSECRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveRoute53KSKRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveRoute53HealthCheckRelationships(acct, st); err != nil {
+				return err
+			}
+			return resolveRoute53AliasRelationships(acct, st)
+		},
 		EdgeDecl{TypeRoute53RecordSet, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53DNSSEC, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53KeySigningKey, TypeRoute53DNSSEC, store.RelAttachedTo},

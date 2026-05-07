@@ -75,7 +75,8 @@ func init() {
 // All CloudFront resources are global; the client is always created against us-east-1.
 func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = "us-east-1" })
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontDistributions(ctx, acct, client, st, scanID)
 		},
@@ -405,7 +406,8 @@ func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, clien
 // flag ManagedByProvider=true so they're hidden from default list/graph
 // output but available for explicit lookup + edge resolution.
 func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListCachePolicies", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListCachePolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListCachePoliciesOutput, *string, error) {
 			out, err := client.ListCachePolicies(ctx, &cloudfront.ListCachePoliciesInput{Marker: marker})
 			if err != nil {
@@ -461,7 +463,8 @@ func scanCloudFrontCachePolicies(ctx context.Context, acct *account, client clou
 // (custom + AWS-managed catalogue). Managed entries flag
 // ManagedByProvider=true via the per-summary Type field.
 func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListOriginRequestPolicies", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListOriginRequestPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListOriginRequestPoliciesOutput, *string, error) {
 			out, err := client.ListOriginRequestPolicies(ctx, &cloudfront.ListOriginRequestPoliciesInput{Marker: marker})
 			if err != nil {
@@ -517,7 +520,8 @@ func scanCloudFrontOriginRequestPolicies(ctx context.Context, acct *account, cli
 // (custom + AWS-managed catalogue). Managed entries flag
 // ManagedByProvider=true via the per-summary Type field.
 func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListResponseHeadersPolicies", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListResponseHeadersPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListResponseHeadersPoliciesOutput, *string, error) {
 			out, err := client.ListResponseHeadersPolicies(ctx, &cloudfront.ListResponseHeadersPoliciesInput{Marker: marker})
 			if err != nil {
@@ -571,7 +575,8 @@ func scanCloudFrontResponseHeadersPolicies(ctx context.Context, acct *account, c
 
 // scanCloudFrontContinuousDeploymentPolicies discovers continuous deployment policies.
 func scanCloudFrontContinuousDeploymentPolicies(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListContinuousDeploymentPolicies", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListContinuousDeploymentPolicies", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListContinuousDeploymentPoliciesOutput, *string, error) {
 			out, err := client.ListContinuousDeploymentPolicies(ctx, &cloudfront.ListContinuousDeploymentPoliciesInput{Marker: marker})
 			if err != nil {
@@ -700,7 +705,8 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 
 // scanCloudFrontFunctions discovers CloudFront Functions (lightweight edge compute).
 func scanCloudFrontFunctions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListFunctions", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListFunctions", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListFunctionsOutput, *string, error) {
 			out, err := client.ListFunctions(ctx, &cloudfront.ListFunctionsInput{Marker: marker})
 			if err != nil {
@@ -787,7 +793,8 @@ func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, clien
 
 // scanCloudFrontKeyGroups discovers key groups used to sign URLs/cookies.
 func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListKeyGroups", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListKeyGroups", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListKeyGroupsOutput, *string, error) {
 			out, err := client.ListKeyGroups(ctx, &cloudfront.ListKeyGroupsInput{Marker: marker})
 			if err != nil {
@@ -924,7 +931,8 @@ func scanCloudFrontPublicKeys(ctx context.Context, acct *account, client cloudfr
 
 // scanCloudFrontRealtimeLogConfigs discovers real-time log configurations.
 func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListRealtimeLogConfigs", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListRealtimeLogConfigs", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListRealtimeLogConfigsOutput, *string, error) {
 			out, err := client.ListRealtimeLogConfigs(ctx, &cloudfront.ListRealtimeLogConfigsInput{Marker: marker})
 			if err != nil {
@@ -1044,7 +1052,8 @@ func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client c
 
 // scanCloudFrontAnycastIPLists discovers Anycast static IP lists.
 func scanCloudFrontAnycastIPLists(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListAnycastIpLists", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListAnycastIpLists", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListAnycastIpListsOutput, *string, error) {
 			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
 			if err != nil {
@@ -1088,7 +1097,8 @@ func scanCloudFrontAnycastIPLists(ctx context.Context, acct *account, client clo
 
 // scanCloudFrontVpcOrigins discovers VPC origin configurations.
 func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(ctx, "cloudfront:ListVpcOrigins", st,
+	return cfMarkerScan(
+		ctx, "cloudfront:ListVpcOrigins", st,
 		func(ctx context.Context, marker *string) (*cloudfront.ListVpcOriginsOutput, *string, error) {
 			out, err := client.ListVpcOrigins(ctx, &cloudfront.ListVpcOriginsInput{Marker: marker})
 			if err != nil {

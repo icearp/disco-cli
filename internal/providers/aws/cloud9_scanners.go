@@ -20,11 +20,6 @@ func init() {
 	})
 }
 
-type cloud9API interface {
-	ListEnvironments(context.Context, *cloud9.ListEnvironmentsInput, ...func(*cloud9.Options)) (*cloud9.ListEnvironmentsOutput, error)
-	DescribeEnvironments(context.Context, *cloud9.DescribeEnvironmentsInput, ...func(*cloud9.Options)) (*cloud9.DescribeEnvironmentsOutput, error)
-}
-
 // scanCloud9 discovers Cloud9 EC2 environments. Cloud9 is closed to new
 // customers (2024-07-31) but existing tenants continue to use it. ListEnvironments
 // returns IDs only — DescribeEnvironments fan-out fills in ARN+Type. Only Type=ec2

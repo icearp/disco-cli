@@ -10,16 +10,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMSKChildrenToCluster,
+	registerResolver(
+		resolveMSKChildrenToCluster,
 		EdgeDecl{TypeMSKClusterPolicy, TypeMSKCluster, store.RelAttachedTo},
 		EdgeDecl{TypeMSKBatchScramSecret, TypeMSKCluster, store.RelAttachedTo},
 		EdgeDecl{TypeMSKBatchScramSecret, TypeSecretsManagerSecret, store.RelUses},
 	)
-	registerResolver(resolveMSKVpcConnectionRefs,
+	registerResolver(
+		resolveMSKVpcConnectionRefs,
 		EdgeDecl{TypeMSKVpcConnection, TypeMSKCluster, store.RelAttachedTo},
 		EdgeDecl{TypeMSKVpcConnection, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveMSKReplicatorRefs,
+	registerResolver(
+		resolveMSKReplicatorRefs,
 		EdgeDecl{TypeMSKReplicator, TypeMSKCluster, store.RelUses},
 	)
 }
@@ -94,7 +97,7 @@ func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 }
 
 // resolveMSKVpcConnectionRefs wires each VPC connection to its target cluster
-// (TargetClusterArn) and the VPC it lives in (VpcId).
+// (TargetClusterArn) and the VPC it lives in (VpcID).
 func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMSKVpcConnection}, Limit: util.AllResources,
@@ -116,7 +119,7 @@ func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			TargetClusterArn *string `json:"TargetClusterArn"`
-			VpcId            *string `json:"VpcId"`
+			VpcID            *string `json:"VpcId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -129,7 +132,7 @@ func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if vid := sv(attrs.VpcId); vid != "" {
+		if vid := sv(attrs.VpcID); vid != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", vid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if vpcSet[tgtID] {

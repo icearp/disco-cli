@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
-	"google.golang.org/api/dataflow/v1b3"
+	dataflow "google.golang.org/api/dataflow/v1b3"
 )
 
 func init() {

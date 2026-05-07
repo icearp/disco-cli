@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOSSCollectionRefs,
+	registerResolver(
+		resolveOSSCollectionRefs,
 		EdgeDecl{TypeOSSCollection, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeOSSCollection, TypeOSSCollectionGroup, store.RelAttachedTo},
 	)
@@ -78,7 +79,8 @@ func resolveOSSCollectionRefs(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveOSSVpcEndpointRefs,
+	registerResolver(
+		resolveOSSVpcEndpointRefs,
 		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeOSSVpcEndpoint, TypeEC2SecurityGroup, store.RelAttachedTo},

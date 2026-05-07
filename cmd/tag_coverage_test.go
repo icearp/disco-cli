@@ -33,16 +33,26 @@ func seedTagCoverageDB(t *testing.T) {
 		t.Fatalf("CreateScan: %v", err)
 	}
 	rows := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-1",
-			AttributesJSON: "{}", TagsJSON: sp(`{"env":"prod"}`), DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-2",
-			AttributesJSON: "{}", TagsJSON: sp(`{"env":"dev","owner":"alice"}`), DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-1",
-			AttributesJSON: "{}", TagsJSON: sp(`{"env":"prod"}`), DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-2",
-			AttributesJSON: "{}", TagsJSON: sp(`{"owner":"bob"}`), DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-3",
-			AttributesJSON: "{}", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-1",
+			AttributesJSON: "{}", TagsJSON: sp(`{"env":"prod"}`), DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-2",
+			AttributesJSON: "{}", TagsJSON: sp(`{"env":"dev","owner":"alice"}`), DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-1",
+			AttributesJSON: "{}", TagsJSON: sp(`{"env":"prod"}`), DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-2",
+			AttributesJSON: "{}", TagsJSON: sp(`{"owner":"bob"}`), DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-3",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
 	}
 	if _, err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)

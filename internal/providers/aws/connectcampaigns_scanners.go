@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type connectCampaignsAPI interface {
-	ListCampaigns(context.Context, *connectcampaigns.ListCampaignsInput, ...func(*connectcampaigns.Options)) (*connectcampaigns.ListCampaignsOutput, error)
-}
-
 // scanConnectCampaigns discovers Connect Campaigns v1 campaigns.
 func scanConnectCampaigns(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := connectcampaigns.NewFromConfig(acct.cfg, func(o *connectcampaigns.Options) { o.Region = region })

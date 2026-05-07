@@ -9,39 +9,48 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDMSEndpointRefs,
+	registerResolver(
+		resolveDMSEndpointRefs,
 		EdgeDecl{TypeDMSEndpoint, TypeDMSCertificate, store.RelUses},
 		EdgeDecl{TypeDMSEndpoint, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveDMSReplicationInstanceRefs,
+	registerResolver(
+		resolveDMSReplicationInstanceRefs,
 		EdgeDecl{TypeDMSReplicationInstance, TypeDMSReplicationSubnetGroup, store.RelAttachedTo},
 		EdgeDecl{TypeDMSReplicationInstance, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeDMSReplicationInstance, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveDMSReplicationSubnetGroupRefs,
+	registerResolver(
+		resolveDMSReplicationSubnetGroupRefs,
 		EdgeDecl{TypeDMSReplicationSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeDMSReplicationSubnetGroup, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveDMSReplicationTaskRefs,
+	registerResolver(
+		resolveDMSReplicationTaskRefs,
 		EdgeDecl{TypeDMSReplicationTask, TypeDMSReplicationInstance, store.RelAttachedTo},
 		EdgeDecl{TypeDMSReplicationTask, TypeDMSEndpoint, store.RelUses},
 	)
-	registerResolver(resolveDMSReplicationConfigRefs,
+	registerResolver(
+		resolveDMSReplicationConfigRefs,
 		EdgeDecl{TypeDMSReplicationConfig, TypeDMSEndpoint, store.RelUses},
 	)
-	registerResolver(resolveDMSDataMigrationRefs,
+	registerResolver(
+		resolveDMSDataMigrationRefs,
 		EdgeDecl{TypeDMSDataMigration, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeDMSDataMigration, TypeDMSMigrationProject, store.RelAttachedTo},
 	)
-	registerResolver(resolveDMSMigrationProjectRefs,
+	registerResolver(
+		resolveDMSMigrationProjectRefs,
 		EdgeDecl{TypeDMSMigrationProject, TypeDMSInstanceProfile, store.RelAttachedTo},
 		EdgeDecl{TypeDMSMigrationProject, TypeDMSDataProvider, store.RelUses},
 	)
-	registerResolver(resolveDMSInstanceProfileRefs,
+	registerResolver(
+		resolveDMSInstanceProfileRefs,
 		EdgeDecl{TypeDMSInstanceProfile, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDMSInstanceProfile, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveDMSEventSubscriptionTopic,
+	registerResolver(
+		resolveDMSEventSubscriptionTopic,
 		EdgeDecl{TypeDMSEventSubscription, TypeSNSTopic, store.RelRoutesTo},
 	)
 }
@@ -68,7 +77,7 @@ func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			CertificateArn *string `json:"CertificateArn"`
-			KmsKeyId       *string `json:"KmsKeyId"`
+			KmsKeyID       *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -82,7 +91,7 @@ func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), region, acct.ID); ok {
+		if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), region, acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert dms-endpoint→kms: %w", err)
 			}
@@ -124,19 +133,19 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			KmsKeyId               *string `json:"KmsKeyId"`
+			KmsKeyID               *string `json:"KmsKeyId"`
 			ReplicationSubnetGroup *struct {
 				ReplicationSubnetGroupIdentifier *string `json:"ReplicationSubnetGroupIdentifier"`
 			} `json:"ReplicationSubnetGroup"`
 			VpcSecurityGroups []struct {
-				VpcSecurityGroupId *string `json:"VpcSecurityGroupId"`
+				VpcSecurityGroupID *string `json:"VpcSecurityGroupId"`
 			} `json:"VpcSecurityGroups"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyId), region, acct.ID); ok {
+		if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KmsKeyID), region, acct.ID); ok {
 			if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert dms-ri→kms: %w", err)
 			}
@@ -152,7 +161,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sg := range attrs.VpcSecurityGroups {
-			id := sv(sg.VpcSecurityGroupId)
+			id := sv(sg.VpcSecurityGroupID)
 			if id == "" {
 				continue
 			}
@@ -189,7 +198,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId   *string `json:"VpcId"`
+			VpcID   *string `json:"VpcId"`
 			Subnets []struct {
 				SubnetIdentifier *string `json:"SubnetIdentifier"`
 			} `json:"Subnets"`
@@ -198,7 +207,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 			continue
 		}
 		region := sv(r.Region)
-		if id := sv(attrs.VpcId); id != "" {
+		if id := sv(attrs.VpcID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -440,7 +449,7 @@ func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			KmsKeyArn          *string  `json:"KmsKeyArn"`
-			VpcSecurityGroupId *string  `json:"VpcSecurityGroupId"`
+			VpcSecurityGroupID *string  `json:"VpcSecurityGroupId"`
 			VpcSecurityGroups  []string `json:"VpcSecurityGroups"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -453,7 +462,7 @@ func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 			}
 		}
 		sgIDs := append([]string{}, attrs.VpcSecurityGroups...)
-		if id := sv(attrs.VpcSecurityGroupId); id != "" {
+		if id := sv(attrs.VpcSecurityGroupID); id != "" {
 			sgIDs = append(sgIDs, id)
 		}
 		for _, id := range sgIDs {

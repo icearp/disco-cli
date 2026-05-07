@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDXConnectionToLag,
+	registerResolver(
+		resolveDXConnectionToLag,
 		EdgeDecl{TypeDirectConnectConnection, TypeDirectConnectLag, store.RelAttachedTo},
 	)
-	registerResolver(resolveDXVIRefs,
+	registerResolver(
+		resolveDXVIRefs,
 		EdgeDecl{TypeDirectConnectPrivateVirtualInterface, TypeDirectConnectConnection, store.RelAttachedTo},
 		EdgeDecl{TypeDirectConnectPublicVirtualInterface, TypeDirectConnectConnection, store.RelAttachedTo},
 		EdgeDecl{TypeDirectConnectTransitVirtualInterface, TypeDirectConnectConnection, store.RelAttachedTo},
@@ -24,7 +26,8 @@ func init() {
 		EdgeDecl{TypeDirectConnectTransitVirtualInterface, TypeDirectConnectDirectConnectGateway, store.RelUses},
 		EdgeDecl{TypeDirectConnectPrivateVirtualInterface, TypeEC2VPNGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveDXGatewayAssociationRefs,
+	registerResolver(
+		resolveDXGatewayAssociationRefs,
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeDirectConnectDirectConnectGateway, store.RelAttachedTo},
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeEC2VPNGateway, store.RelUses},
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeEC2TransitGateway, store.RelUses},
@@ -43,7 +46,7 @@ func dxGatewayARN(acct, id string) string {
 	return fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s", acct, id)
 }
 
-// resolveDXConnectionToLag wires Connection → LAG via the `LagId` attr.
+// resolveDXConnectionToLag wires Connection → LAG via the `LagID` attr.
 func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDirectConnectConnection}, Limit: util.AllResources,
@@ -60,12 +63,12 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			LagId *string `json:"LagId"`
+			LagID *string `json:"LagId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		lagID := sv(attrs.LagId)
+		lagID := sv(attrs.LagID)
 		if lagID == "" {
 			continue
 		}
@@ -81,10 +84,10 @@ func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 }
 
 // resolveDXVIRefs wires each virtual interface to its underlying Connection or
-// LAG (via `ConnectionId` — DX connections and LAGs share the same field but
+// LAG (via `ConnectionID` — DX connections and LAGs share the same field but
 // distinct ARN shapes; check both target sets), to the DX gateway it terminates
-// on (`DirectConnectGatewayId`, private + transit only), and — for private VIs
-// — to the VPN gateway via `VirtualGatewayId`.
+// on (`DirectConnectGatewayID`, private + transit only), and — for private VIs
+// — to the VPN gateway via `VirtualGatewayID`.
 func resolveDXVIRefs(acct *account, st *store.Store) error {
 	viTypes := []string{
 		TypeDirectConnectPrivateVirtualInterface,
@@ -116,16 +119,16 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 		}
 		for _, r := range rows {
 			var attrs struct {
-				ConnectionId           *string `json:"ConnectionId"`
-				DirectConnectGatewayId *string `json:"DirectConnectGatewayId"`
-				VirtualGatewayId       *string `json:"VirtualGatewayId"`
+				ConnectionID           *string `json:"ConnectionId"`
+				DirectConnectGatewayID *string `json:"DirectConnectGatewayId"`
+				VirtualGatewayID       *string `json:"VirtualGatewayId"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 				continue
 			}
 			region := sv(r.Region)
-			if cid := sv(attrs.ConnectionId); cid != "" {
-				// VI's ConnectionId may point to a Connection (`dxcon-...`) or LAG (`dxlag-...`).
+			if cid := sv(attrs.ConnectionID); cid != "" {
+				// VI's ConnectionID may point to a Connection (`dxcon-...`) or LAG (`dxlag-...`).
 				if strings.HasPrefix(cid, "dxlag") {
 					tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectLag, dxLagARN(region, acct.ID, cid))
 					if lagSet[tgtID] {
@@ -142,7 +145,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 					}
 				}
 			}
-			if gw := sv(attrs.DirectConnectGatewayId); gw != "" {
+			if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, gw))
 				if dxgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
@@ -150,7 +153,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 					}
 				}
 			}
-			if vgw := sv(attrs.VirtualGatewayId); vgw != "" {
+			if vgw := sv(attrs.VirtualGatewayID); vgw != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPNGateway, ec2ARN(region, acct.ID, "vpn-gateway", vgw))
 				if vgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -164,7 +167,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 }
 
 // resolveDXGatewayAssociationRefs wires gateway-association rows to the parent
-// DX gateway (via `DirectConnectGatewayId`) and to the associated VPN-gateway /
+// DX gateway (via `DirectConnectGatewayID`) and to the associated VPN-gateway /
 // TGW captured in `AssociatedGateway`.
 func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -190,9 +193,9 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			DirectConnectGatewayId *string `json:"DirectConnectGatewayId"`
+			DirectConnectGatewayID *string `json:"DirectConnectGatewayId"`
 			AssociatedGateway      *struct {
-				Id           *string `json:"Id"`
+				ID           *string `json:"Id"`
 				Type         string  `json:"Type"`
 				Region       *string `json:"Region"`
 				OwnerAccount *string `json:"OwnerAccount"`
@@ -201,7 +204,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if gw := sv(attrs.DirectConnectGatewayId); gw != "" {
+		if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, gw))
 			if dxgwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -211,7 +214,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.AssociatedGateway != nil {
 			ag := attrs.AssociatedGateway
-			gid := sv(ag.Id)
+			gid := sv(ag.ID)
 			if gid == "" {
 				continue
 			}

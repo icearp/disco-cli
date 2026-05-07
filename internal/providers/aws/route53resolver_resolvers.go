@@ -10,20 +10,25 @@ import (
 )
 
 func init() {
-	registerResolver(resolveR53RResolverConfigVPC,
+	registerResolver(
+		resolveR53RResolverConfigVPC,
 		EdgeDecl{TypeRoute53ResolverResolverConfig, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RResolverRuleAssoc,
+	registerResolver(
+		resolveR53RResolverRuleAssoc,
 		EdgeDecl{TypeRoute53ResolverResolverRuleAssociation, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53ResolverResolverRuleAssociation, TypeRoute53ResolverResolverRule, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RFirewallRuleGroupAssoc,
+	registerResolver(
+		resolveR53RFirewallRuleGroupAssoc,
 		EdgeDecl{TypeRoute53ResolverFirewallRuleGroupAssociation, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RResolverRuleEndpoint,
+	registerResolver(
+		resolveR53RResolverRuleEndpoint,
 		EdgeDecl{TypeRoute53ResolverResolverRule, TypeRoute53ResolverResolverEndpoint, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RQueryLogConfigDestination,
+	registerResolver(
+		resolveR53RQueryLogConfigDestination,
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeS3Bucket, store.RelRoutesTo},
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeLogsLogGroup, store.RelRoutesTo},
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeFirehoseDeliveryStream, store.RelRoutesTo},

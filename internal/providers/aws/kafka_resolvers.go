@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKafkaRelationships,
+	registerResolver(
+		resolveKafkaRelationships,
 		EdgeDecl{TypeMSKCluster, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeMSKCluster, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeMSKCluster, TypeKMSKey, store.RelUses},

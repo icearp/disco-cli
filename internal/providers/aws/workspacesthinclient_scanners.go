@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type workSpacesThinClientAPI interface {
-	ListEnvironments(context.Context, *workspacesthinclient.ListEnvironmentsInput, ...func(*workspacesthinclient.Options)) (*workspacesthinclient.ListEnvironmentsOutput, error)
-}
-
 // scanWorkSpacesThinClient discovers WorkSpaces Thin Client environments.
 func scanWorkSpacesThinClient(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := workspacesthinclient.NewFromConfig(acct.cfg, func(o *workspacesthinclient.Options) { o.Region = region })

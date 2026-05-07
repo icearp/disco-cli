@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMemoryDBClusterRefs,
+	registerResolver(
+		resolveMemoryDBClusterRefs,
 		EdgeDecl{TypeMemoryDBCluster, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeMemoryDBCluster, TypeMemoryDBACL, store.RelUses},
 		EdgeDecl{TypeMemoryDBCluster, TypeMemoryDBSubnetGroup, store.RelAttachedTo},
@@ -18,11 +19,13 @@ func init() {
 		EdgeDecl{TypeMemoryDBCluster, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeMemoryDBCluster, TypeSNSTopic, store.RelUses},
 	)
-	registerResolver(resolveMemoryDBSubnetGroupRefs,
+	registerResolver(
+		resolveMemoryDBSubnetGroupRefs,
 		EdgeDecl{TypeMemoryDBSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeMemoryDBSubnetGroup, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveMemoryDBACLUsers,
+	registerResolver(
+		resolveMemoryDBACLUsers,
 		EdgeDecl{TypeMemoryDBACL, TypeMemoryDBUser, store.RelContains},
 	)
 }
@@ -46,7 +49,7 @@ func memDBNameIndex(acct *account, st *store.Store, rtype string) (map[string]st
 	return idx, nil
 }
 
-// resolveMemoryDBClusterRefs walks each cluster's KmsKeyId, ACLName,
+// resolveMemoryDBClusterRefs walks each cluster's KmsKeyID, ACLName,
 // SubnetGroupName, ParameterGroupName, MultiRegionClusterName, SecurityGroups[],
 // and SnsTopicArn — every cross-resource ref the DescribeClusters response
 // already carries.
@@ -90,14 +93,14 @@ func resolveMemoryDBClusterRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			KmsKeyId               *string `json:"KmsKeyId"`
+			KmsKeyID               *string `json:"KmsKeyId"`
 			ACLName                *string `json:"ACLName"`
 			SubnetGroupName        *string `json:"SubnetGroupName"`
 			ParameterGroupName     *string `json:"ParameterGroupName"`
 			MultiRegionClusterName *string `json:"MultiRegionClusterName"`
 			SnsTopicArn            *string `json:"SnsTopicArn"`
 			SecurityGroups         []struct {
-				SecurityGroupId *string `json:"SecurityGroupId"`
+				SecurityGroupID *string `json:"SecurityGroupId"`
 			} `json:"SecurityGroups"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -113,7 +116,7 @@ func resolveMemoryDBClusterRefs(acct *account, st *store.Store) error {
 			}
 			return nil
 		}
-		if ref := sv(attrs.KmsKeyId); ref != "" {
+		if ref := sv(attrs.KmsKeyID); ref != "" {
 			if id, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID); ok {
 				if err := emit(id, store.RelUses); err != nil {
 					return err
@@ -149,7 +152,7 @@ func resolveMemoryDBClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sg := range attrs.SecurityGroups {
-			id := sv(sg.SecurityGroupId)
+			id := sv(sg.SecurityGroupID)
 			if id == "" {
 				continue
 			}
@@ -186,7 +189,7 @@ func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId   *string `json:"VpcId"`
+			VpcID   *string `json:"VpcId"`
 			Subnets []struct {
 				Identifier *string `json:"Identifier"`
 			} `json:"Subnets"`
@@ -195,7 +198,7 @@ func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if id := sv(attrs.VpcId); id != "" {
+		if id := sv(attrs.VpcID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

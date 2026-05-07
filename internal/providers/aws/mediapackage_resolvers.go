@@ -10,18 +10,22 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMPV1OriginEndpointToChannel,
+	registerResolver(
+		resolveMPV1OriginEndpointToChannel,
 		EdgeDecl{TypeMediaPackageOriginEndpoint, TypeMediaPackageChannel, store.RelAttachedTo},
 	)
-	registerResolver(resolveMPV1AssetRefs,
+	registerResolver(
+		resolveMPV1AssetRefs,
 		EdgeDecl{TypeMediaPackageAsset, TypeMediaPackagePackagingGroup, store.RelAttachedTo},
 		EdgeDecl{TypeMediaPackageAsset, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeMediaPackageAsset, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveMPV1PackagingConfigToGroup,
+	registerResolver(
+		resolveMPV1PackagingConfigToGroup,
 		EdgeDecl{TypeMediaPackagePackagingConfiguration, TypeMediaPackagePackagingGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveMPV2ChildrenToChannelGroup,
+	registerResolver(
+		resolveMPV2ChildrenToChannelGroup,
 		EdgeDecl{TypeMediaPackageV2Channel, TypeMediaPackageV2ChannelGroup, store.RelAttachedTo},
 		EdgeDecl{TypeMediaPackageV2OriginEndpoint, TypeMediaPackageV2Channel, store.RelAttachedTo},
 		EdgeDecl{TypeMediaPackageV2ChannelPolicy, TypeMediaPackageV2Channel, store.RelAttachedTo},
@@ -34,7 +38,7 @@ func mediapackageARN(region, acct, kind, id string) string {
 }
 
 // resolveMPV1OriginEndpointToChannel wires each origin-endpoint to its channel
-// via ChannelId (rebuild ARN as `arn:aws:mediapackage:r:a:channels/{id}`).
+// via ChannelID (rebuild ARN as `arn:aws:mediapackage:r:a:channels/{id}`).
 func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageOriginEndpoint}, Limit: util.AllResources,
@@ -51,12 +55,12 @@ func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ChannelId *string `json:"ChannelId"`
+			ChannelID *string `json:"ChannelId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		cid := sv(attrs.ChannelId)
+		cid := sv(attrs.ChannelID)
 		if cid == "" {
 			continue
 		}
@@ -97,7 +101,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			PackagingGroupId *string `json:"PackagingGroupId"`
+			PackagingGroupID *string `json:"PackagingGroupId"`
 			SourceArn        *string `json:"SourceArn"`
 			SourceRoleArn    *string `json:"SourceRoleArn"`
 		}
@@ -105,7 +109,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if pg := sv(attrs.PackagingGroupId); pg != "" {
+		if pg := sv(attrs.PackagingGroupID); pg != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeMediaPackagePackagingGroup, mediapackageARN(region, acct.ID, "packaging-groups", pg))
 			if pgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -139,7 +143,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 }
 
 // resolveMPV1PackagingConfigToGroup wires each packaging-configuration to its
-// packaging group via PackagingGroupId.
+// packaging group via PackagingGroupID.
 func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackagePackagingConfiguration}, Limit: util.AllResources,
@@ -156,12 +160,12 @@ func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			PackagingGroupId *string `json:"PackagingGroupId"`
+			PackagingGroupID *string `json:"PackagingGroupId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		pg := sv(attrs.PackagingGroupId)
+		pg := sv(attrs.PackagingGroupID)
 		if pg == "" {
 			continue
 		}

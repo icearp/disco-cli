@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCasesChildrenToDomain,
+	registerResolver(
+		resolveCasesChildrenToDomain,
 		EdgeDecl{TypeCasesCaseRule, TypeCasesDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCasesField, TypeCasesDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCasesLayout, TypeCasesDomain, store.RelAttachedTo},

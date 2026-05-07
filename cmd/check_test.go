@@ -275,10 +275,14 @@ func TestCheckCmd_DefaultsCustomerOnly(t *testing.T) {
 		t.Fatalf("CreateScan: %v", err)
 	}
 	rows := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-customer",
-			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-managed",
-			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID, ManagedByProvider: true},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-customer",
+			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:volume", NativeID: "vol-managed",
+			AttributesJSON: `{"Encrypted": false}`, DiscoveredBy: scanID, ManagedByProvider: true,
+		},
 	}
 	if _, err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)

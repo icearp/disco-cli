@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type curAPI interface {
-	DescribeReportDefinitions(context.Context, *costandusagereportservice.DescribeReportDefinitionsInput, ...func(*costandusagereportservice.Options)) (*costandusagereportservice.DescribeReportDefinitionsOutput, error)
-}
-
 // scanCUR discovers Cost and Usage Report definitions. CUR is global; gate
 // to us-east-1. Synth ARN: arn:aws:cur::{a}:definition/{name}.
 func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {

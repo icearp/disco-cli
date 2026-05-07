@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodeBuildProjectRefs,
+	registerResolver(
+		resolveCodeBuildProjectRefs,
 		EdgeDecl{TypeCodeBuildProject, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeCodeBuildProject, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCodeBuildProject, TypeEC2VPC, store.RelAttachedTo},
@@ -19,13 +20,15 @@ func init() {
 		EdgeDecl{TypeCodeBuildProject, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeCodeBuildProject, TypeLogsLogGroup, store.RelUses},
 	)
-	registerResolver(resolveCodeBuildFleetRefs,
+	registerResolver(
+		resolveCodeBuildFleetRefs,
 		EdgeDecl{TypeCodeBuildFleet, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeCodeBuildFleet, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeCodeBuildFleet, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeCodeBuildFleet, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveCodeBuildReportGroupRefs,
+	registerResolver(
+		resolveCodeBuildReportGroupRefs,
 		EdgeDecl{TypeCodeBuildReportGroup, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCodeBuildReportGroup, TypeS3Bucket, store.RelUses},
 	)

@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type uxcAPI interface {
-	GetAccountCustomizations(context.Context, *uxc.GetAccountCustomizationsInput, ...func(*uxc.Options)) (*uxc.GetAccountCustomizationsOutput, error)
-}
-
 // scanUXC captures the per-account console-customization config (singleton).
 // UXC is global; gate to us-east-1 to avoid duplicate scans across regions.
 // Synth ARN: arn:aws:uxc::{a}:account-customization.

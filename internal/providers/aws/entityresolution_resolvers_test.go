@@ -13,7 +13,7 @@ func TestResolveEntityResolutionPolicyStatementToParent(t *testing.T) {
 	mwARN := fmt.Sprintf("arn:aws:entityresolution:%s:%s:matchingworkflow/mw-1", testRegion, acct.ID)
 	mwID := upsertTestResource(t, st, "aws", acct.ID, TypeEntityResolutionMatchingWorkflow, mwARN, testRegion, "{}")
 	imwARN := fmt.Sprintf("arn:aws:entityresolution:%s:%s:idmappingworkflow/im-1", testRegion, acct.ID)
-	imwID := upsertTestResource(t, st, "aws", acct.ID, TypeEntityResolutionIdMappingWorkflow, imwARN, testRegion, "{}")
+	imwID := upsertTestResource(t, st, "aws", acct.ID, TypeEntityResolutionIDMappingWorkflow, imwARN, testRegion, "{}")
 
 	psMW := upsertTestResource(t, st, "aws", acct.ID, TypeEntityResolutionPolicyStatement, mwARN+"/policy", testRegion, "{}")
 	psIMW := upsertTestResource(t, st, "aws", acct.ID, TypeEntityResolutionPolicyStatement, imwARN+"/policy", testRegion, "{}")

@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type docDBElasticAPI interface {
-	ListClusters(context.Context, *docdbelastic.ListClustersInput, ...func(*docdbelastic.Options)) (*docdbelastic.ListClustersOutput, error)
-	GetCluster(context.Context, *docdbelastic.GetClusterInput, ...func(*docdbelastic.Options)) (*docdbelastic.GetClusterOutput, error)
-}
-
 // scanDocDBElastic discovers DocumentDB Elastic clusters.
 func scanDocDBElastic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := docdbelastic.NewFromConfig(acct.cfg, func(o *docdbelastic.Options) { o.Region = region })

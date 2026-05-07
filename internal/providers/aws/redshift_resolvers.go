@@ -10,18 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRedshiftClusterTargets,
+	registerResolver(
+		resolveRedshiftClusterTargets,
 		EdgeDecl{TypeRedshiftCluster, TypeRedshiftSubnetGroup, store.RelUses},
 		EdgeDecl{TypeRedshiftCluster, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftCluster, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeRedshiftCluster, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeRedshiftCluster, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveRedshiftSubnetGroupTargets,
+	registerResolver(
+		resolveRedshiftSubnetGroupTargets,
 		EdgeDecl{TypeRedshiftSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftSubnetGroup, TypeEC2Subnet, store.RelContains},
 	)
-	registerResolver(resolveRedshiftIntegrationRefs,
+	registerResolver(
+		resolveRedshiftIntegrationRefs,
 		EdgeDecl{TypeRedshiftIntegration, TypeRDSDBCluster, store.RelUses},
 		EdgeDecl{TypeRedshiftIntegration, TypeRedshiftCluster, store.RelUses},
 		EdgeDecl{TypeRedshiftIntegration, TypeRedshiftServerlessNamespace, store.RelUses},

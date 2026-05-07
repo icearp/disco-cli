@@ -17,37 +17,45 @@ import (
 )
 
 func init() {
-	registerResolver(resolveInstanceProfileRoles,
+	registerResolver(
+		resolveInstanceProfileRoles,
 		EdgeDecl{TypeIAMRole, TypeIAMInstanceProfile, store.RelContains},
 	)
-	registerResolver(resolveInlinePolicyParents,
+	registerResolver(
+		resolveInlinePolicyParents,
 		EdgeDecl{TypeIAMRole, TypeIAMRolePolicy, store.RelContains},
 		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMRolePolicy, store.RelContains},
 		EdgeDecl{TypeIAMUser, TypeIAMUserPolicy, store.RelContains},
 		EdgeDecl{TypeIAMGroup, TypeIAMGroupPolicy, store.RelContains},
 	)
-	registerResolver(resolveAccessKeyUsers,
+	registerResolver(
+		resolveAccessKeyUsers,
 		EdgeDecl{TypeIAMUser, TypeIAMAccessKey, store.RelContains},
 	)
-	registerResolver(resolveMFADeviceToUser,
+	registerResolver(
+		resolveMFADeviceToUser,
 		EdgeDecl{TypeIAMUser, TypeIAMVirtualMFADevice, store.RelContains},
 	)
-	registerResolver(resolveManagedPolicyAttachments,
+	registerResolver(
+		resolveManagedPolicyAttachments,
 		EdgeDecl{TypeIAMPolicy, TypeIAMRole, store.RelAttachedTo},
 		EdgeDecl{TypeIAMPolicy, TypeIAMServiceLinkedRole, store.RelAttachedTo},
 		EdgeDecl{TypeIAMPolicy, TypeIAMUser, store.RelAttachedTo},
 		EdgeDecl{TypeIAMPolicy, TypeIAMGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveUserGroupMemberships,
+	registerResolver(
+		resolveUserGroupMemberships,
 		EdgeDecl{TypeIAMGroup, TypeIAMUser, store.RelContains},
 	)
-	registerResolver(resolveIAMRoleFederatedTrust,
+	registerResolver(
+		resolveIAMRoleFederatedTrust,
 		EdgeDecl{TypeIAMRole, TypeIAMSAMLProvider, store.RelAssumes},
 		EdgeDecl{TypeIAMRole, TypeIAMOIDCProvider, store.RelAssumes},
 		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMSAMLProvider, store.RelAssumes},
 		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMOIDCProvider, store.RelAssumes},
 	)
-	registerResolver(resolveIAMPolicyResources,
+	registerResolver(
+		resolveIAMPolicyResources,
 		// Each source policy type emits `uses` to every classifyPolicyResource
 		// target type. Sources: managed + role/user/group inline. Targets:
 		// KMS, S3, Secrets, DynamoDB, Lambda, Logs, SNS, SQS, SSM, Kinesis,
@@ -130,11 +138,13 @@ func init() {
 		EdgeDecl{TypeIAMGroupPolicy, TypeEventsRule, store.RelUses},
 		EdgeDecl{TypeIAMGroupPolicy, TypeEFSFileSystem, store.RelUses},
 	)
-	registerResolver(resolveIAMRoleCrossAccountTrust,
+	registerResolver(
+		resolveIAMRoleCrossAccountTrust,
 		EdgeDecl{TypeIAMRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
 		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
 	)
-	registerResolver(resolveIAMPermissionBoundaries,
+	registerResolver(
+		resolveIAMPermissionBoundaries,
 		EdgeDecl{TypeIAMRole, TypeIAMPolicy, store.RelBoundedBy},
 		EdgeDecl{TypeIAMUser, TypeIAMPolicy, store.RelBoundedBy},
 	)

@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCassandraTableKMS,
+	registerResolver(
+		resolveCassandraTableKMS,
 		EdgeDecl{TypeCassandraTable, TypeKMSKey, store.RelUses},
 	)
 }

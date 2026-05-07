@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDocDBClusterTargets,
+	registerResolver(
+		resolveDocDBClusterTargets,
 		EdgeDecl{TypeDocDBCluster, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDocDBCluster, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveDocDBInstanceCluster,
+	registerResolver(
+		resolveDocDBInstanceCluster,
 		EdgeDecl{TypeDocDBCluster, TypeDocDBInstance, store.RelContains},
 	)
 }

@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLookoutEquipmentSchedulerRefs,
+	registerResolver(
+		resolveLookoutEquipmentSchedulerRefs,
 		EdgeDecl{TypeLookoutEquipmentInferenceScheduler, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeLookoutEquipmentInferenceScheduler, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLookoutEquipmentInferenceScheduler, TypeS3Bucket, store.RelUses},
@@ -17,7 +18,7 @@ func init() {
 }
 
 // resolveLookoutEquipmentSchedulerRefs wires each inference scheduler to its
-// IAM role (RoleArn), KMS keys (ServerSideKmsKeyId + output-config KmsKeyId),
+// IAM role (RoleArn), KMS keys (ServerSideKmsKeyID + output-config KmsKeyID),
 // and S3 buckets (input + output bucket). ModelArn refs a LookoutEquipment ML
 // model — disco does not scan that resource type, ref skipped.
 func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error {
@@ -45,14 +46,14 @@ func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error 
 	for _, r := range rows {
 		var attrs struct {
 			RoleArn                *string `json:"RoleArn"`
-			ServerSideKmsKeyId     *string `json:"ServerSideKmsKeyId"`
+			ServerSideKmsKeyID     *string `json:"ServerSideKmsKeyId"`
 			DataInputConfiguration *struct {
 				S3InputConfiguration *struct {
 					Bucket *string `json:"Bucket"`
 				} `json:"S3InputConfiguration"`
 			} `json:"DataInputConfiguration"`
 			DataOutputConfiguration *struct {
-				KmsKeyId              *string `json:"KmsKeyId"`
+				KmsKeyID              *string `json:"KmsKeyId"`
 				S3OutputConfiguration *struct {
 					Bucket *string `json:"Bucket"`
 				} `json:"S3OutputConfiguration"`
@@ -71,9 +72,9 @@ func resolveLookoutEquipmentSchedulerRefs(acct *account, st *store.Store) error 
 			}
 		}
 		var kmsRefs []string
-		kmsRefs = append(kmsRefs, sv(attrs.ServerSideKmsKeyId))
+		kmsRefs = append(kmsRefs, sv(attrs.ServerSideKmsKeyID))
 		if attrs.DataOutputConfiguration != nil {
-			kmsRefs = append(kmsRefs, sv(attrs.DataOutputConfiguration.KmsKeyId))
+			kmsRefs = append(kmsRefs, sv(attrs.DataOutputConfiguration.KmsKeyID))
 		}
 		for _, kref := range kmsRefs {
 			if kref == "" {

@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type codeStarNotificationsAPI interface {
-	ListNotificationRules(context.Context, *codestarnotifications.ListNotificationRulesInput, ...func(*codestarnotifications.Options)) (*codestarnotifications.ListNotificationRulesOutput, error)
-}
-
 // scanCodeStarNotifications discovers CodeStar Notifications notification rules.
 func scanCodeStarNotifications(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codestarnotifications.NewFromConfig(acct.cfg, func(o *codestarnotifications.Options) { o.Region = region })

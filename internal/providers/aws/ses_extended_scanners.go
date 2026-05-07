@@ -17,7 +17,7 @@ func scanSESExtended(ctx context.Context, client sesv2API, acct *account, region
 		func() (int, int, error) {
 			return scanSESCustomVerificationTemplates(ctx, client, acct, region, st, scanID)
 		},
-		func() (int, int, error) { return scanSESDedicatedIpPools(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanSESDedicatedIPPools(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanSESMultiRegionEndpoints(ctx, client, acct, region, st, scanID)
 		},
@@ -110,9 +110,9 @@ func scanSESCustomVerificationTemplates(ctx context.Context, client sesv2API, ac
 	return len(batch), n, nil
 }
 
-// scanSESDedicatedIpPools — ListDedicatedIpPools returns []string, no
+// scanSESDedicatedIPPools — ListDedicatedIpPools returns []string, no
 // per-pool body fan-out (no GetDedicatedIpPool returns useful extra).
-func scanSESDedicatedIpPools(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := sesv2.NewListDedicatedIpPoolsPaginator(client, &sesv2.ListDedicatedIpPoolsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -131,7 +131,7 @@ func scanSESDedicatedIpPools(ctx context.Context, client sesv2API, acct *account
 			n := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESDedicatedIpPool, NativeID: sesARN(region, acct.ID, "dedicated-ip-pool", name),
+				Type: TypeSESDedicatedIPPool, NativeID: sesARN(region, acct.ID, "dedicated-ip-pool", name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(map[string]string{"PoolName": name}), DiscoveredBy: scanID,
 			})
 		}

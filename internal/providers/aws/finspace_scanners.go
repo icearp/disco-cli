@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type finSpaceAPI interface {
-	ListEnvironments(context.Context, *finspace.ListEnvironmentsInput, ...func(*finspace.Options)) (*finspace.ListEnvironmentsOutput, error)
-}
-
 // scanFinSpace discovers FinSpace environments.
 func scanFinSpace(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := finspace.NewFromConfig(acct.cfg, func(o *finspace.Options) { o.Region = region })
@@ -31,7 +27,9 @@ func scanFinSpace(ctx context.Context, acct *account, region string, st *store.S
 	var batch []*store.Resource
 	var nextToken *string
 	for {
-		out, err := client.ListEnvironments(ctx, &finspace.ListEnvironmentsInput{NextToken: nextToken})
+		// AWS marked ListEnvironments deprecated with no successor op; FinSpace
+		// is in legacy maintenance and the only inventory entry point.
+		out, err := client.ListEnvironments(ctx, &finspace.ListEnvironmentsInput{NextToken: nextToken}) //nolint:staticcheck // SA1019: no replacement
 		if err != nil {
 			// Per-region feature gap: "You cannot access API in this region".
 			// FinSpace is deployed in a subset of regions only.

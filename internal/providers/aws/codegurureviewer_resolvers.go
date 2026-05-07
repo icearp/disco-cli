@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodeGuruReviewerAssociationRefs,
+	registerResolver(
+		resolveCodeGuruReviewerAssociationRefs,
 		EdgeDecl{TypeCodeGuruReviewerRepositoryAssociation, TypeCodeStarConnectionsConnection, store.RelUses},
 	)
 }

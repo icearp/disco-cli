@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSchedulerScheduleTargets,
+	registerResolver(
+		resolveSchedulerScheduleTargets,
 		EdgeDecl{TypeSchedulerSchedule, TypeSchedulerScheduleGroup, store.RelAttachedTo},
 		EdgeDecl{TypeSchedulerSchedule, TypeLambdaFunction, store.RelRoutesTo},
 		EdgeDecl{TypeSchedulerSchedule, TypeSNSTopic, store.RelRoutesTo},

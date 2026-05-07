@@ -9,13 +9,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolvePCACAdConnectorRefs,
+	registerResolver(
+		resolvePCACAdConnectorRefs,
 		EdgeDecl{TypePCAConnectorADConnector, TypeACMPrivateCA, store.RelUses},
 		EdgeDecl{TypePCAConnectorADConnector, TypeDSMicrosoftAD, store.RelAttachedTo},
 		EdgeDecl{TypePCAConnectorADConnector, TypeDSSimpleAD, store.RelAttachedTo},
 		EdgeDecl{TypePCAConnectorADConnector, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolvePCACAdDirRegRefs,
+	registerResolver(
+		resolvePCACAdDirRegRefs,
 		EdgeDecl{TypePCAConnectorADDirectoryRegistration, TypeDSMicrosoftAD, store.RelAttachedTo},
 		EdgeDecl{TypePCAConnectorADDirectoryRegistration, TypeDSSimpleAD, store.RelAttachedTo},
 	)
@@ -33,12 +35,12 @@ func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (
 		}
 		for _, r := range rows {
 			var a struct {
-				DirectoryId *string `json:"DirectoryId"`
+				DirectoryID *string `json:"DirectoryId"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 				continue
 			}
-			if sv(a.DirectoryId) == directoryID {
+			if sv(a.DirectoryID) == directoryID {
 				return r.ID, dt, true, nil
 			}
 		}
@@ -69,9 +71,9 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			CertificateAuthorityArn *string `json:"CertificateAuthorityArn"`
-			DirectoryId             *string `json:"DirectoryId"`
+			DirectoryID             *string `json:"DirectoryId"`
 			VpcInformation          *struct {
-				SecurityGroupIds []string `json:"SecurityGroupIds"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
 			} `json:"VpcInformation"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -86,7 +88,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if d := sv(attrs.DirectoryId); d != "" {
+		if d := sv(attrs.DirectoryID); d != "" {
 			if dirID, dirType, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
 				return lerr
 			} else if ok {
@@ -97,7 +99,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.VpcInformation != nil {
-			for _, sg := range attrs.VpcInformation.SecurityGroupIds {
+			for _, sg := range attrs.VpcInformation.SecurityGroupIDs {
 				if sg == "" {
 					continue
 				}
@@ -115,7 +117,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 }
 
 // resolvePCACAdDirRegRefs wires directory-registration → AD directory
-// (DirectoryId).
+// (DirectoryID).
 func resolvePCACAdDirRegRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypePCAConnectorADDirectoryRegistration}, Limit: util.AllResources,
@@ -128,12 +130,12 @@ func resolvePCACAdDirRegRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			DirectoryId *string `json:"DirectoryId"`
+			DirectoryID *string `json:"DirectoryId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if d := sv(attrs.DirectoryId); d != "" {
+		if d := sv(attrs.DirectoryID); d != "" {
 			if dirID, _, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
 				return lerr
 			} else if ok {

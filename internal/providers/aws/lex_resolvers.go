@@ -10,12 +10,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLexChildrenToBot,
+	registerResolver(
+		resolveLexChildrenToBot,
 		EdgeDecl{TypeLexBotAlias, TypeLexBot, store.RelAttachedTo},
 		EdgeDecl{TypeLexBotVersion, TypeLexBot, store.RelAttachedTo},
 		EdgeDecl{TypeLexResourcePolicy, TypeLexBot, store.RelAttachedTo},
 	)
-	registerResolver(resolveLexBotRole,
+	registerResolver(
+		resolveLexBotRole,
 		EdgeDecl{TypeLexBot, TypeIAMRole, store.RelAssumes},
 	)
 }

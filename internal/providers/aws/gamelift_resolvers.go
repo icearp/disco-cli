@@ -10,28 +10,34 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGameLiftAliasFleet,
+	registerResolver(
+		resolveGameLiftAliasFleet,
 		EdgeDecl{TypeGameLiftAlias, TypeGameLiftFleet, store.RelRoutesTo},
 	)
-	registerResolver(resolveGameLiftFleetRefs,
+	registerResolver(
+		resolveGameLiftFleetRefs,
 		EdgeDecl{TypeGameLiftFleet, TypeGameLiftBuild, store.RelUses},
 		EdgeDecl{TypeGameLiftFleet, TypeGameLiftScript, store.RelUses},
 		EdgeDecl{TypeGameLiftFleet, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveGameLiftContainerFleetRefs,
+	registerResolver(
+		resolveGameLiftContainerFleetRefs,
 		EdgeDecl{TypeGameLiftContainerFleet, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGameLiftContainerFleet, TypeGameLiftContainerGroupDefinition, store.RelUses},
 	)
-	registerResolver(resolveGameLiftGameServerGroupRefs,
+	registerResolver(
+		resolveGameLiftGameServerGroupRefs,
 		EdgeDecl{TypeGameLiftGameServerGroup, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGameLiftGameServerGroup, TypeAutoScalingGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveGameLiftGameSessionQueueRefs,
+	registerResolver(
+		resolveGameLiftGameSessionQueueRefs,
 		EdgeDecl{TypeGameLiftGameSessionQueue, TypeGameLiftFleet, store.RelRoutesTo},
 		EdgeDecl{TypeGameLiftGameSessionQueue, TypeGameLiftAlias, store.RelRoutesTo},
 		EdgeDecl{TypeGameLiftGameSessionQueue, TypeSNSTopic, store.RelRoutesTo},
 	)
-	registerResolver(resolveGameLiftMatchmakingConfigRefs,
+	registerResolver(
+		resolveGameLiftMatchmakingConfigRefs,
 		EdgeDecl{TypeGameLiftMatchmakingConfiguration, TypeGameLiftGameSessionQueue, store.RelRoutesTo},
 		EdgeDecl{TypeGameLiftMatchmakingConfiguration, TypeGameLiftMatchmakingRuleSet, store.RelUses},
 		EdgeDecl{TypeGameLiftMatchmakingConfiguration, TypeSNSTopic, store.RelRoutesTo},
@@ -39,14 +45,14 @@ func init() {
 }
 
 // gameliftFleetARN rebuilds `arn:aws:gamelift:{region}:{acct}:fleet/{id}` from
-// a bare fleet ID. Used for refs that carry only `FleetId` (alias routing
+// a bare fleet ID. Used for refs that carry only `FleetID` (alias routing
 // strategy).
 func gameliftFleetARN(region, acct, fleetID string) string {
 	return fmt.Sprintf("arn:aws:gamelift:%s:%s:fleet/%s", region, acct, fleetID)
 }
 
 // resolveGameLiftAliasFleet links each SIMPLE-routed alias to its target
-// fleet via `RoutingStrategy.FleetId`. TERMINAL aliases (no fleet) skip.
+// fleet via `RoutingStrategy.FleetID`. TERMINAL aliases (no fleet) skip.
 func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftAlias}, Limit: util.AllResources,
@@ -64,7 +70,7 @@ func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			RoutingStrategy *struct {
-				FleetId *string `json:"FleetId"`
+				FleetID *string `json:"FleetId"`
 				Type    *string `json:"Type"`
 			} `json:"RoutingStrategy"`
 		}
@@ -74,7 +80,7 @@ func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 		if attrs.RoutingStrategy == nil {
 			continue
 		}
-		fid := sv(attrs.RoutingStrategy.FleetId)
+		fid := sv(attrs.RoutingStrategy.FleetID)
 		if fid == "" {
 			continue
 		}

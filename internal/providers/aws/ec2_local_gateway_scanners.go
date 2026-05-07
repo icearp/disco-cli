@@ -24,7 +24,8 @@ func init() {
 
 // scanEC2LocalGateway discovers all Local Gateway resources in parallel.
 func scanEC2LocalGateway(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanLocalGatewayRouteTables(ctx, client, acct, region, st, scanID)
 		},
@@ -47,7 +48,8 @@ func scanEC2LocalGateway(ctx context.Context, client ec2API, acct *account, regi
 }
 
 func scanLocalGatewayRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLocalGatewayRouteTables", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLocalGatewayRouteTables", acct, region, st,
 		ec2.NewDescribeLocalGatewayRouteTablesPaginator(client, &ec2.DescribeLocalGatewayRouteTablesInput{}),
 		func(page *ec2.DescribeLocalGatewayRouteTablesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -86,7 +88,8 @@ func scanLocalGatewayRoutes(ctx context.Context, client ec2API, acct *account, r
 	g, ctx := errgroup.WithContext(ctx)
 	for _, rtID := range rtIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(ctx, "ec2:SearchLocalGatewayRoutes", acct, region, st,
+			tt, nn, e := ec2PageScan(
+				ctx, "ec2:SearchLocalGatewayRoutes", acct, region, st,
 				ec2.NewSearchLocalGatewayRoutesPaginator(client, &ec2.SearchLocalGatewayRoutesInput{
 					LocalGatewayRouteTableId: &rtID,
 				}),
@@ -148,7 +151,8 @@ func listLocalGatewayRouteTableIDs(ctx context.Context, client ec2API, acct *acc
 }
 
 func scanLocalGatewayVirtualInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLocalGatewayVirtualInterfaces", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLocalGatewayVirtualInterfaces", acct, region, st,
 		ec2.NewDescribeLocalGatewayVirtualInterfacesPaginator(client, &ec2.DescribeLocalGatewayVirtualInterfacesInput{}),
 		func(page *ec2.DescribeLocalGatewayVirtualInterfacesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -171,7 +175,8 @@ func scanLocalGatewayVirtualInterfaces(ctx context.Context, client ec2API, acct 
 }
 
 func scanLocalGatewayVirtualInterfaceGroups(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLocalGatewayVirtualInterfaceGroups", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLocalGatewayVirtualInterfaceGroups", acct, region, st,
 		ec2.NewDescribeLocalGatewayVirtualInterfaceGroupsPaginator(client, &ec2.DescribeLocalGatewayVirtualInterfaceGroupsInput{}),
 		func(page *ec2.DescribeLocalGatewayVirtualInterfaceGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -194,7 +199,8 @@ func scanLocalGatewayVirtualInterfaceGroups(ctx context.Context, client ec2API, 
 }
 
 func scanLocalGatewayRouteTableVPCAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLocalGatewayRouteTableVpcAssociations", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLocalGatewayRouteTableVpcAssociations", acct, region, st,
 		ec2.NewDescribeLocalGatewayRouteTableVpcAssociationsPaginator(client, &ec2.DescribeLocalGatewayRouteTableVpcAssociationsInput{}),
 		func(page *ec2.DescribeLocalGatewayRouteTableVpcAssociationsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -219,7 +225,8 @@ func scanLocalGatewayRouteTableVPCAssociations(ctx context.Context, client ec2AP
 }
 
 func scanLocalGatewayRouteTableVIGAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociations", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociations", acct, region, st,
 		ec2.NewDescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsPaginator(client, &ec2.DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsInput{}),
 		func(page *ec2.DescribeLocalGatewayRouteTableVirtualInterfaceGroupAssociationsOutput) []*store.Resource {
 			var out []*store.Resource

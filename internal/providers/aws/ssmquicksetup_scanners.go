@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type ssmQuickSetupAPI interface {
-	ListConfigurationManagers(context.Context, *ssmquicksetup.ListConfigurationManagersInput, ...func(*ssmquicksetup.Options)) (*ssmquicksetup.ListConfigurationManagersOutput, error)
-	GetConfigurationManager(context.Context, *ssmquicksetup.GetConfigurationManagerInput, ...func(*ssmquicksetup.Options)) (*ssmquicksetup.GetConfigurationManagerOutput, error)
-}
-
 // scanSSMQuickSetup discovers SSM Quick Setup configuration managers.
 // LifecycleAutomation is a sub-resource of a ConfigurationManager with no
 // listable endpoint — skip-logged.

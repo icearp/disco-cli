@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type codeCommitAPI interface {
-	ListRepositories(context.Context, *codecommit.ListRepositoriesInput, ...func(*codecommit.Options)) (*codecommit.ListRepositoriesOutput, error)
-	GetRepository(context.Context, *codecommit.GetRepositoryInput, ...func(*codecommit.Options)) (*codecommit.GetRepositoryOutput, error)
-}
-
 // scanCodeCommit discovers CodeCommit repositories. CodeCommit is closed
 // to new customers (2024) but existing customer accounts continue to use
 // it. Synth ARN: arn:aws:codecommit:{r}:{a}:{name}.

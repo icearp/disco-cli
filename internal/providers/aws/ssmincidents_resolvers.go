@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSMIRSetKMS,
+	registerResolver(
+		resolveSSMIRSetKMS,
 		EdgeDecl{TypeSSMIncidentsReplicationSet, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSSMIResponsePlanRefs,
+	registerResolver(
+		resolveSSMIResponsePlanRefs,
 		EdgeDecl{TypeSSMIncidentsResponsePlan, TypeSSMContactsContact, store.RelUses},
 		EdgeDecl{TypeSSMIncidentsResponsePlan, TypeSSMContactsPlan, store.RelUses},
 	)
@@ -72,7 +74,7 @@ func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 }
 
 // resolveSSMIRSetKMS wires replication-set → per-region KMS keys via
-// RegionMap[region].SseKmsKeyId.
+// RegionMap[region].SseKmsKeyID.
 func resolveSSMIRSetKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMIncidentsReplicationSet}, Limit: util.AllResources,
@@ -90,14 +92,14 @@ func resolveSSMIRSetKMS(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			RegionMap map[string]struct {
-				SseKmsKeyId *string `json:"SseKmsKeyId"`
+				SseKmsKeyID *string `json:"SseKmsKeyId"`
 			} `json:"RegionMap"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		for region, info := range attrs.RegionMap {
-			ref := sv(info.SseKmsKeyId)
+			ref := sv(info.SseKmsKeyID)
 			if ref == "" {
 				continue
 			}

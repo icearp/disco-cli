@@ -17,6 +17,7 @@ const (
 
 func ssoInstanceARN() string { return "arn:aws:sso:::instance/" + testSSOInsID }
 func ssoPermSetARN() string  { return "arn:aws:sso:::permissionSet/" + testSSOInsID + "/" + testPSId }
+
 func ssoInstanceAttrs() string {
 	return fmt.Sprintf(`{"InstanceArn":%q,"IdentityStoreId":%q,"OwnerAccountId":%q,"Name":"main"}`,
 		ssoInstanceARN(), testIdentityID, testOwnerAcct)

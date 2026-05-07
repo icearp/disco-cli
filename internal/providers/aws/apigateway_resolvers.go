@@ -10,33 +10,34 @@ import (
 )
 
 func init() {
-	registerResolver(func(acct *account, st *store.Store) error {
-		if err := resolveAPIGatewayStageRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
-			return err
-		}
-		if err := resolveAPIGatewayV2VpcLinkRelationships(acct, st); err != nil {
-			return err
-		}
-		return resolveAPIGatewayDomainCertRelationships(acct, st)
-	},
+	registerResolver(
+		func(acct *account, st *store.Store) error {
+			if err := resolveAPIGatewayStageRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+				return err
+			}
+			if err := resolveAPIGatewayV2VpcLinkRelationships(acct, st); err != nil {
+				return err
+			}
+			return resolveAPIGatewayDomainCertRelationships(acct, st)
+		},
 		// resolveAPIGatewayStageRelationships
 		EdgeDecl{TypeAPIGatewayRestAPI, TypeAPIGatewayStage, store.RelContains},
 		EdgeDecl{TypeAPIGatewayStage, TypeAPIGatewayDeployment, store.RelAttachedTo},

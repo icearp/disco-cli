@@ -10,12 +10,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudTrailResourcePolicyToParent,
+	registerResolver(
+		resolveCloudTrailResourcePolicyToParent,
 		EdgeDecl{TypeCloudTrailResourcePolicy, TypeCloudTrailTrail, store.RelAttachedTo},
 		EdgeDecl{TypeCloudTrailResourcePolicy, TypeCloudTrailEventDataStore, store.RelAttachedTo},
 		EdgeDecl{TypeCloudTrailResourcePolicy, TypeCloudTrailChannel, store.RelAttachedTo},
 	)
-	registerResolver(resolveCloudTrailChannelDestinations,
+	registerResolver(
+		resolveCloudTrailChannelDestinations,
 		EdgeDecl{TypeCloudTrailChannel, TypeCloudTrailEventDataStore, store.RelRoutesTo},
 	)
 }

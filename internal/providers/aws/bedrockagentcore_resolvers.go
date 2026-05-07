@@ -10,13 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBACGatewayTargetParent,
+	registerResolver(
+		resolveBACGatewayTargetParent,
 		EdgeDecl{TypeBedrockAgentCoreGatewayTarget, TypeBedrockAgentCoreGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveBACRuntimeEndpointParent,
+	registerResolver(
+		resolveBACRuntimeEndpointParent,
 		EdgeDecl{TypeBedrockAgentCoreRuntimeEndpoint, TypeBedrockAgentCoreRuntime, store.RelAttachedTo},
 	)
-	registerResolver(resolveBACPolicyEngine,
+	registerResolver(
+		resolveBACPolicyEngine,
 		EdgeDecl{TypeBedrockAgentCorePolicy, TypeBedrockAgentCorePolicyEngine, store.RelAttachedTo},
 	)
 }
@@ -104,7 +107,7 @@ func resolveBACRuntimeEndpointParent(acct *account, st *store.Store) error {
 }
 
 // resolveBACPolicyEngine wires each policy to its parent policy-engine via
-// `PolicyEngineId` bare-ID lookup against an engine ID index.
+// `PolicyEngineID` bare-ID lookup against an engine ID index.
 func resolveBACPolicyEngine(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicy},
@@ -122,12 +125,12 @@ func resolveBACPolicyEngine(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			PolicyEngineId *string `json:"PolicyEngineId"`
+			PolicyEngineID *string `json:"PolicyEngineId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		eid := sv(attrs.PolicyEngineId)
+		eid := sv(attrs.PolicyEngineID)
 		if eid == "" {
 			continue
 		}
@@ -142,7 +145,7 @@ func resolveBACPolicyEngine(acct *account, st *store.Store) error {
 	return nil
 }
 
-// bacPolicyEngineIDIndex maps PolicyEngineId → resource ID for FK-safe lookup.
+// bacPolicyEngineIDIndex maps PolicyEngineID → resource ID for FK-safe lookup.
 func bacPolicyEngineIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicyEngine},
@@ -154,12 +157,12 @@ func bacPolicyEngineIDIndex(acct *account, st *store.Store) (map[string]string, 
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			PolicyEngineId *string `json:"PolicyEngineId"`
+			PolicyEngineID *string `json:"PolicyEngineId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.PolicyEngineId); id != "" {
+		if id := sv(attrs.PolicyEngineID); id != "" {
 			idx[id] = r.ID
 		}
 	}

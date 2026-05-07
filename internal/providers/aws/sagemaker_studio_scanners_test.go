@@ -32,36 +32,47 @@ type stubSageMakerStudio struct {
 func (s *stubSageMakerStudio) ListDomains(_ context.Context, _ *sagemaker.ListDomainsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListDomainsOutput, error) {
 	return &sagemaker.ListDomainsOutput{Domains: s.domains}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeDomain(_ context.Context, in *sagemaker.DescribeDomainInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeDomainOutput, error) {
 	return s.domainOut[*in.DomainId], nil
 }
+
 func (s *stubSageMakerStudio) ListUserProfiles(_ context.Context, _ *sagemaker.ListUserProfilesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListUserProfilesOutput, error) {
 	return &sagemaker.ListUserProfilesOutput{UserProfiles: s.userProfiles}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeUserProfile(_ context.Context, in *sagemaker.DescribeUserProfileInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeUserProfileOutput, error) {
 	return s.userProfileOut[*in.DomainId+"/"+*in.UserProfileName], nil
 }
+
 func (s *stubSageMakerStudio) ListSpaces(_ context.Context, _ *sagemaker.ListSpacesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListSpacesOutput, error) {
 	return &sagemaker.ListSpacesOutput{Spaces: s.spaces}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeSpace(_ context.Context, in *sagemaker.DescribeSpaceInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeSpaceOutput, error) {
 	return s.spaceOut[*in.DomainId+"/"+*in.SpaceName], nil
 }
+
 func (s *stubSageMakerStudio) ListApps(_ context.Context, _ *sagemaker.ListAppsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListAppsOutput, error) {
 	return &sagemaker.ListAppsOutput{Apps: s.apps}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeApp(_ context.Context, in *sagemaker.DescribeAppInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeAppOutput, error) {
 	return s.appOut[*in.DomainId+"/"+string(in.AppType)+"/"+*in.AppName], nil
 }
+
 func (s *stubSageMakerStudio) ListAppImageConfigs(_ context.Context, _ *sagemaker.ListAppImageConfigsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListAppImageConfigsOutput, error) {
 	return &sagemaker.ListAppImageConfigsOutput{AppImageConfigs: s.appImageConfigs}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeAppImageConfig(_ context.Context, in *sagemaker.DescribeAppImageConfigInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeAppImageConfigOutput, error) {
 	return s.appImageConfigOut[*in.AppImageConfigName], nil
 }
+
 func (s *stubSageMakerStudio) ListStudioLifecycleConfigs(_ context.Context, _ *sagemaker.ListStudioLifecycleConfigsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListStudioLifecycleConfigsOutput, error) {
 	return &sagemaker.ListStudioLifecycleConfigsOutput{StudioLifecycleConfigs: s.studioLifecycles}, nil
 }
+
 func (s *stubSageMakerStudio) DescribeStudioLifecycleConfig(_ context.Context, in *sagemaker.DescribeStudioLifecycleConfigInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeStudioLifecycleConfigOutput, error) {
 	return s.studioLifecyclesOut[*in.StudioLifecycleConfigName], nil
 }

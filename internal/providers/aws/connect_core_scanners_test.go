@@ -24,21 +24,27 @@ type stubConnectCore struct {
 func (s *stubConnectCore) ListInstances(_ context.Context, _ *connect.ListInstancesInput, _ ...func(*connect.Options)) (*connect.ListInstancesOutput, error) {
 	return &connect.ListInstancesOutput{InstanceSummaryList: s.instances}, nil
 }
+
 func (s *stubConnectCore) DescribeInstance(_ context.Context, in *connect.DescribeInstanceInput, _ ...func(*connect.Options)) (*connect.DescribeInstanceOutput, error) {
 	return s.instanceOut[*in.InstanceId], nil
 }
+
 func (s *stubConnectCore) ListTrafficDistributionGroups(_ context.Context, _ *connect.ListTrafficDistributionGroupsInput, _ ...func(*connect.Options)) (*connect.ListTrafficDistributionGroupsOutput, error) {
 	return &connect.ListTrafficDistributionGroupsOutput{TrafficDistributionGroupSummaryList: s.tdgs}, nil
 }
+
 func (s *stubConnectCore) DescribeTrafficDistributionGroup(_ context.Context, in *connect.DescribeTrafficDistributionGroupInput, _ ...func(*connect.Options)) (*connect.DescribeTrafficDistributionGroupOutput, error) {
 	return s.tdgOut[*in.TrafficDistributionGroupId], nil
 }
+
 func (s *stubConnectCore) ListPhoneNumbersV2(_ context.Context, _ *connect.ListPhoneNumbersV2Input, _ ...func(*connect.Options)) (*connect.ListPhoneNumbersV2Output, error) {
 	return &connect.ListPhoneNumbersV2Output{ListPhoneNumbersSummaryList: s.phoneNumbers}, nil
 }
+
 func (s *stubConnectCore) DescribePhoneNumber(_ context.Context, in *connect.DescribePhoneNumberInput, _ ...func(*connect.Options)) (*connect.DescribePhoneNumberOutput, error) {
 	return s.phoneOut[*in.PhoneNumberId], nil
 }
+
 func (s *stubConnectCore) SearchEmailAddresses(_ context.Context, in *connect.SearchEmailAddressesInput, _ ...func(*connect.Options)) (*connect.SearchEmailAddressesOutput, error) {
 	return &connect.SearchEmailAddressesOutput{EmailAddresses: s.emailByInst[*in.InstanceId]}, nil
 }

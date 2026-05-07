@@ -12,14 +12,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOrganizationsSCPTargets,
+	registerResolver(
+		resolveOrganizationsSCPTargets,
 		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsOU, store.RelAttachedTo},
 		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
-	registerResolver(resolveOrganizationsDelegatedAdmins,
+	registerResolver(
+		resolveOrganizationsDelegatedAdmins,
 		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
-	registerResolver(resolveOrganizationsManagementAccount,
+	registerResolver(
+		resolveOrganizationsManagementAccount,
 		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
 		EdgeDecl{TypeOrganization, TypeIAMForeignAccount, store.RelAttachedTo},
 	)
@@ -194,7 +197,7 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 }
 
 // resolveOrganizationsManagementAccount links each org row to the AWS account
-// identified by Organization.MasterAccountId. When the master account row is
+// identified by Organization.MasterAccountID. When the master account row is
 // already in the store (management-account scan), the edge points to the real
 // aws:organizations:account row. Otherwise (member-account scan, master not
 // scanned by this run) the resolver synthesizes an aws:iam:foreign-account
@@ -227,12 +230,12 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 	stubByAcct := map[string]struct{}{}
 	for _, org := range orgs {
 		var attrs struct {
-			MasterAccountId *string `json:"MasterAccountId"`
+			MasterAccountID *string `json:"MasterAccountId"`
 		}
 		if jerr := json.Unmarshal([]byte(org.AttributesJSON), &attrs); jerr != nil {
 			continue
 		}
-		master := sv(attrs.MasterAccountId)
+		master := sv(attrs.MasterAccountID)
 		if master == "" {
 			continue
 		}

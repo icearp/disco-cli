@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEKSChildrenToCluster,
+	registerResolver(
+		resolveEKSChildrenToCluster,
 		EdgeDecl{TypeEKSAccessEntry, TypeEKSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEKSAddon, TypeEKSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEKSCapability, TypeEKSCluster, store.RelAttachedTo},

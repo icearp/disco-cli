@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type pipesAPI interface {
-	ListPipes(context.Context, *pipes.ListPipesInput, ...func(*pipes.Options)) (*pipes.ListPipesOutput, error)
-	DescribePipe(context.Context, *pipes.DescribePipeInput, ...func(*pipes.Options)) (*pipes.DescribePipeOutput, error)
-}
-
 // scanPipes discovers EventBridge Pipes.
 func scanPipes(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := pipes.NewFromConfig(acct.cfg, func(o *pipes.Options) { o.Region = region })
@@ -60,5 +55,5 @@ func scanPipes(ctx context.Context, acct *account, region string, st *store.Stor
 		}
 		nextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "pipes pipes")
+	return upsertBatch(st, batch, "pipes")
 }

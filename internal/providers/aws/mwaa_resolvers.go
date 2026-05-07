@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMWAAEnvironmentRefs,
+	registerResolver(
+		resolveMWAAEnvironmentRefs,
 		EdgeDecl{TypeMWAAEnvironment, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeMWAAEnvironment, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeMWAAEnvironment, TypeS3Bucket, store.RelUses},

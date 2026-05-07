@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveACMPCARelationships,
+	registerResolver(
+		resolveACMPCARelationships,
 		EdgeDecl{TypeACMPrivateCA, TypeS3Bucket, store.RelUses},
 	)
 }

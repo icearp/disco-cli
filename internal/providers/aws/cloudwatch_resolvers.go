@@ -11,7 +11,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudWatchRelationships,
+	registerResolver(
+		resolveCloudWatchRelationships,
 		EdgeDecl{TypeCloudWatchAlarm, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeCloudWatchCompositeAlarm, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeCloudWatchCompositeAlarm, TypeCloudWatchAlarm, store.RelContains},
@@ -25,7 +26,8 @@ func init() {
 		EdgeDecl{TypeCloudWatchAlarm, TypeELBv2LoadBalancer, store.RelUses},
 		EdgeDecl{TypeCloudWatchAlarm, TypeEKSCluster, store.RelUses},
 	)
-	registerResolver(resolveCWMetricStreamRefs,
+	registerResolver(
+		resolveCWMetricStreamRefs,
 		EdgeDecl{TypeCloudWatchMetricStream, TypeFirehoseDeliveryStream, store.RelUses},
 		EdgeDecl{TypeCloudWatchMetricStream, TypeIAMRole, store.RelUses},
 	)

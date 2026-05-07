@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDSQLClusterKMS,
+	registerResolver(
+		resolveDSQLClusterKMS,
 		EdgeDecl{TypeDSQLCluster, TypeKMSKey, store.RelUses},
 	)
 }

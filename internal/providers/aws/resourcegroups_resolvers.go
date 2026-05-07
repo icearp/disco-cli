@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveResourceGroupsTagSyncTaskToGroup,
+	registerResolver(
+		resolveResourceGroupsTagSyncTaskToGroup,
 		EdgeDecl{TypeResourceGroupsTagSyncTask, TypeResourceGroupsGroup, store.RelAttachedTo},
 	)
 }

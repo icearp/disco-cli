@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type dlmAPI interface {
-	GetLifecyclePolicies(context.Context, *dlm.GetLifecyclePoliciesInput, ...func(*dlm.Options)) (*dlm.GetLifecyclePoliciesOutput, error)
-}
-
 // scanDLM discovers Data Lifecycle Manager lifecycle policies. Synth ARN:
 // arn:aws:dlm:{r}:{a}:policy/{policyId}.
 func scanDLM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNeptuneGraphSnapshotRefs,
+	registerResolver(
+		resolveNeptuneGraphSnapshotRefs,
 		EdgeDecl{TypeNeptuneGraphGraphSnapshot, TypeNeptuneGraphGraph, store.RelAttachedTo},
 		EdgeDecl{TypeNeptuneGraphGraphSnapshot, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveNeptuneGraphPrivateEndpointRefs,
+	registerResolver(
+		resolveNeptuneGraphPrivateEndpointRefs,
 		EdgeDecl{TypeNeptuneGraphPrivateGraphEndpoint, TypeNeptuneGraphGraph, store.RelAttachedTo},
 		EdgeDecl{TypeNeptuneGraphPrivateGraphEndpoint, TypeEC2VPC, store.RelAttachedTo},
 	)
@@ -25,7 +27,7 @@ func neptuneGraphARN(region, acct, id string) string {
 }
 
 // resolveNeptuneGraphSnapshotRefs wires each graph-snapshot to its source
-// graph (SourceGraphId) and KMS key (KmsKeyIdentifier).
+// graph (SourceGraphID) and KMS key (KmsKeyIdentifier).
 func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNeptuneGraphGraphSnapshot}, Limit: util.AllResources,
@@ -46,14 +48,14 @@ func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			SourceGraphId    *string `json:"SourceGraphId"`
+			SourceGraphID    *string `json:"SourceGraphId"`
 			KmsKeyIdentifier *string `json:"KmsKeyIdentifier"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if gid := sv(attrs.SourceGraphId); gid != "" {
+		if gid := sv(attrs.SourceGraphID); gid != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeNeptuneGraphGraph, neptuneGraphARN(region, acct.ID, gid))
 			if gSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -107,12 +109,12 @@ func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) erro
 			}
 		}
 		var attrs struct {
-			VpcId *string `json:"VpcId"`
+			VpcID *string `json:"VpcId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if vid := sv(attrs.VpcId); vid != "" {
+		if vid := sv(attrs.VpcID); vid != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", vid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if vpcSet[tgtID] {

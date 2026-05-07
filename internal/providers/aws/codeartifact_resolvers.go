@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodeArtifactDomainToKMS,
+	registerResolver(
+		resolveCodeArtifactDomainToKMS,
 		EdgeDecl{TypeCodeArtifactDomain, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveCodeArtifactChildrenToDomain,
+	registerResolver(
+		resolveCodeArtifactChildrenToDomain,
 		EdgeDecl{TypeCodeArtifactRepository, TypeCodeArtifactDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCodeArtifactPackageGroup, TypeCodeArtifactDomain, store.RelAttachedTo},
 	)

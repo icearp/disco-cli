@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveM2DeploymentRefs,
+	registerResolver(
+		resolveM2DeploymentRefs,
 		EdgeDecl{TypeM2Deployment, TypeM2Application, store.RelAttachedTo},
 		EdgeDecl{TypeM2Deployment, TypeM2Environment, store.RelUses},
 	)
@@ -18,7 +19,7 @@ func init() {
 
 // resolveM2DeploymentRefs wires each deployment to its parent application
 // (NativeID `{appARN}/deployment/{id}` strip) and to the environment it
-// targets (EnvironmentId — looked up against a `lastSegment(envARN) → id` index).
+// targets (EnvironmentID — looked up against a `lastSegment(envARN) → id` index).
 func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeM2Deployment}, Limit: util.AllResources,
@@ -60,12 +61,12 @@ func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 		}
 		// → env via attribute
 		var attrs struct {
-			EnvironmentId *string `json:"EnvironmentId"`
+			EnvironmentID *string `json:"EnvironmentId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		eid := sv(attrs.EnvironmentId)
+		eid := sv(attrs.EnvironmentID)
 		if eid == "" {
 			continue
 		}

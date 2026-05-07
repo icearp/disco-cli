@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLogsRelationships,
+	registerResolver(
+		resolveLogsRelationships,
 		EdgeDecl{TypeLogsDelivery, TypeLogsDeliverySource, store.RelUses},
 		EdgeDecl{TypeLogsDelivery, TypeLogsDeliveryDest, store.RelUses},
 		EdgeDecl{TypeLogsLogAnomalyDetector, TypeLogsLogGroup, store.RelUses},

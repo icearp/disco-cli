@@ -9,18 +9,22 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNetworkFirewallFirewallRelationships,
+	registerResolver(
+		resolveNetworkFirewallFirewallRelationships,
 		EdgeDecl{TypeNetworkFirewallFirewall, TypeNetworkFirewallFirewallPolicy, store.RelUses},
 		EdgeDecl{TypeNetworkFirewallFirewall, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkFirewallFirewall, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveNetworkFirewallPolicyRelationships,
+	registerResolver(
+		resolveNetworkFirewallPolicyRelationships,
 		EdgeDecl{TypeNetworkFirewallFirewallPolicy, TypeNetworkFirewallRuleGroup, store.RelUses},
 	)
-	registerResolver(resolveNetworkFirewallRuleGroupKMS,
+	registerResolver(
+		resolveNetworkFirewallRuleGroupKMS,
 		EdgeDecl{TypeNetworkFirewallRuleGroup, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveNetworkFirewallTLSInspectionRefs,
+	registerResolver(
+		resolveNetworkFirewallTLSInspectionRefs,
 		EdgeDecl{TypeNetworkFirewallTLSInspectionConfiguration, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeNetworkFirewallTLSInspectionConfiguration, TypeACMCertificate, store.RelUses},
 	)

@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveACMCertificateRelationships,
+	registerResolver(
+		resolveACMCertificateRelationships,
 		EdgeDecl{TypeACMCertificate, TypeACMPrivateCA, store.RelUses},
 	)
 }

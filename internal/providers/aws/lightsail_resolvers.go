@@ -9,44 +9,55 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLightsailDatabaseSnapshotParent,
+	registerResolver(
+		resolveLightsailDatabaseSnapshotParent,
 		EdgeDecl{TypeLightsailDatabaseSnapshot, TypeLightsailDatabase, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailDiskSnapshotParent,
+	registerResolver(
+		resolveLightsailDiskSnapshotParent,
 		EdgeDecl{TypeLightsailDiskSnapshot, TypeLightsailDisk, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailInstanceSnapshotParent,
+	registerResolver(
+		resolveLightsailInstanceSnapshotParent,
 		EdgeDecl{TypeLightsailInstanceSnapshot, TypeLightsailInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailLoadBalancerTlsCertParent,
-		EdgeDecl{TypeLightsailLoadBalancerTlsCertificate, TypeLightsailLoadBalancer, store.RelAttachedTo},
+	registerResolver(
+		resolveLightsailLoadBalancerTLSCertParent,
+		EdgeDecl{TypeLightsailLoadBalancerTLSCertificate, TypeLightsailLoadBalancer, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailAlarmTarget,
+	registerResolver(
+		resolveLightsailAlarmTarget,
 		EdgeDecl{TypeLightsailAlarm, TypeLightsailInstance, store.RelUses},
 		EdgeDecl{TypeLightsailAlarm, TypeLightsailDatabase, store.RelUses},
 		EdgeDecl{TypeLightsailAlarm, TypeLightsailLoadBalancer, store.RelUses},
 	)
-	registerResolver(resolveLightsailInstanceDisks,
+	registerResolver(
+		resolveLightsailInstanceDisks,
 		EdgeDecl{TypeLightsailInstance, TypeLightsailDisk, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailDiskAttachedInstance,
+	registerResolver(
+		resolveLightsailDiskAttachedInstance,
 		EdgeDecl{TypeLightsailDisk, TypeLightsailInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailStaticIPAttachedInstance,
-		EdgeDecl{TypeLightsailStaticIp, TypeLightsailInstance, store.RelAttachedTo},
+	registerResolver(
+		resolveLightsailStaticIPAttachedInstance,
+		EdgeDecl{TypeLightsailStaticIP, TypeLightsailInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveLightsailLoadBalancerRefs,
+	registerResolver(
+		resolveLightsailLoadBalancerRefs,
 		EdgeDecl{TypeLightsailLoadBalancer, TypeLightsailInstance, store.RelAttachedTo},
 		EdgeDecl{TypeLightsailLoadBalancer, TypeLightsailCertificate, store.RelUses},
 	)
-	registerResolver(resolveLightsailDistributionOrigin,
+	registerResolver(
+		resolveLightsailDistributionOrigin,
 		EdgeDecl{TypeLightsailDistribution, TypeLightsailInstance, store.RelUses},
 		EdgeDecl{TypeLightsailDistribution, TypeLightsailLoadBalancer, store.RelUses},
 		EdgeDecl{TypeLightsailDistribution, TypeLightsailContainerService, store.RelUses},
 		EdgeDecl{TypeLightsailDistribution, TypeLightsailBucket, store.RelUses},
 		EdgeDecl{TypeLightsailDistribution, TypeLightsailCertificate, store.RelUses},
 	)
-	registerResolver(resolveLightsailCertificateDomain,
+	registerResolver(
+		resolveLightsailCertificateDomain,
 		EdgeDecl{TypeLightsailCertificate, TypeLightsailDomain, store.RelUses},
 	)
 }
@@ -127,8 +138,8 @@ func resolveLightsailInstanceSnapshotParent(acct *account, st *store.Store) erro
 	return resolveLightsailParentByNameField(acct, st, TypeLightsailInstanceSnapshot, TypeLightsailInstance, "FromInstanceName", "instance-snapshot")
 }
 
-func resolveLightsailLoadBalancerTlsCertParent(acct *account, st *store.Store) error {
-	return resolveLightsailParentByNameField(acct, st, TypeLightsailLoadBalancerTlsCertificate, TypeLightsailLoadBalancer, "LoadBalancerName", "lb-tls-cert")
+func resolveLightsailLoadBalancerTLSCertParent(acct *account, st *store.Store) error {
+	return resolveLightsailParentByNameField(acct, st, TypeLightsailLoadBalancerTLSCertificate, TypeLightsailLoadBalancer, "LoadBalancerName", "lb-tls-cert")
 }
 
 // resolveLightsailAlarmTarget walks each alarm's MonitoredResourceInfo
@@ -259,11 +270,11 @@ func resolveLightsailDiskAttachedInstance(acct *account, st *store.Store) error 
 // resolveLightsailStaticIPAttachedInstance reads each static-ip's AttachedTo
 // (instance name) and emits attached-to → instance.
 func resolveLightsailStaticIPAttachedInstance(acct *account, st *store.Store) error {
-	return resolveLightsailParentByNameField(acct, st, TypeLightsailStaticIp, TypeLightsailInstance, "AttachedTo", "static-ip")
+	return resolveLightsailParentByNameField(acct, st, TypeLightsailStaticIP, TypeLightsailInstance, "AttachedTo", "static-ip")
 }
 
 // resolveLightsailLoadBalancerRefs walks each load balancer's
-// InstanceHealthSummary[] (registered instances) and TlsCertificateSummaries[]
+// InstanceHealthSummary[] (registered instances) and TLSCertificateSummaries[]
 // (attached SSL/TLS certs) and emits the corresponding edges.
 func resolveLightsailLoadBalancerRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -289,7 +300,7 @@ func resolveLightsailLoadBalancerRefs(acct *account, st *store.Store) error {
 			InstanceHealthSummary []struct {
 				InstanceName *string `json:"InstanceName"`
 			} `json:"InstanceHealthSummary"`
-			TlsCertificateSummaries []struct {
+			TLSCertificateSummaries []struct {
 				Name       *string `json:"Name"`
 				IsAttached *bool   `json:"IsAttached"`
 			} `json:"TlsCertificateSummaries"`
@@ -311,7 +322,7 @@ func resolveLightsailLoadBalancerRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert lightsail-lb→instance: %w", err)
 			}
 		}
-		for _, tc := range attrs.TlsCertificateSummaries {
+		for _, tc := range attrs.TLSCertificateSummaries {
 			if tc.IsAttached == nil || !*tc.IsAttached {
 				continue
 			}

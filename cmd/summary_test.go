@@ -36,19 +36,31 @@ func seedSummaryDB(t *testing.T) {
 	regUE2 := r("us-east-2")
 	regUE1 := r("us-east-1")
 	rows := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-1",
-			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-2",
-			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-3",
-			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-9",
-			Region: &regUE1, AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-10",
-			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-1",
+			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-2",
+			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-3",
+			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-9",
+			Region: &regUE1, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-10",
+			Region: &regUE2, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
 		// Global (nil region) — should bucket as "(global)".
-		{Provider: "aws", AccountID: "111", Type: "aws:iam:role", NativeID: "role-x",
-			AttributesJSON: "{}", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:iam:role", NativeID: "role-x",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
 	}
 	if _, err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)

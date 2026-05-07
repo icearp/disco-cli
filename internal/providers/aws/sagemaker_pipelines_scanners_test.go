@@ -23,18 +23,23 @@ type stubSageMakerPipelines struct {
 func (s *stubSageMakerPipelines) ListPipelines(_ context.Context, _ *sagemaker.ListPipelinesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListPipelinesOutput, error) {
 	return &sagemaker.ListPipelinesOutput{PipelineSummaries: s.pipelines}, nil
 }
+
 func (s *stubSageMakerPipelines) DescribePipeline(_ context.Context, in *sagemaker.DescribePipelineInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribePipelineOutput, error) {
 	return s.pipelineOut[*in.PipelineName], nil
 }
+
 func (s *stubSageMakerPipelines) ListProjects(_ context.Context, _ *sagemaker.ListProjectsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListProjectsOutput, error) {
 	return &sagemaker.ListProjectsOutput{ProjectSummaryList: s.projects}, nil
 }
+
 func (s *stubSageMakerPipelines) DescribeProject(_ context.Context, in *sagemaker.DescribeProjectInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeProjectOutput, error) {
 	return s.projectOut[*in.ProjectName], nil
 }
+
 func (s *stubSageMakerPipelines) ListPartnerApps(_ context.Context, _ *sagemaker.ListPartnerAppsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListPartnerAppsOutput, error) {
 	return &sagemaker.ListPartnerAppsOutput{Summaries: s.partnerApps}, nil
 }
+
 func (s *stubSageMakerPipelines) DescribePartnerApp(_ context.Context, in *sagemaker.DescribePartnerAppInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribePartnerAppOutput, error) {
 	return s.partnerOut[*in.Arn], nil
 }

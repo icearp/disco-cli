@@ -10,18 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveQBusinessDataAccessorRefs,
+	registerResolver(
+		resolveQBusinessDataAccessorRefs,
 		EdgeDecl{TypeQBusinessDataAccessor, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeQBusinessDataAccessor, TypeSSOApplication, store.RelAttachedTo},
 	)
-	registerResolver(resolveQBusinessChildrenToApp,
+	registerResolver(
+		resolveQBusinessChildrenToApp,
 		EdgeDecl{TypeQBusinessIndex, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessPlugin, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessRetriever, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessWebExperience, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessDataSource, TypeQBusinessApplication, store.RelAttachedTo},
 	)
-	registerResolver(resolveQBusinessDataSourceToIndex,
+	registerResolver(
+		resolveQBusinessDataSourceToIndex,
 		EdgeDecl{TypeQBusinessDataSource, TypeQBusinessIndex, store.RelAttachedTo},
 	)
 }

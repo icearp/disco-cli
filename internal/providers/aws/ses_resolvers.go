@@ -10,16 +10,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSESEmailIdentityConfigSet,
+	registerResolver(
+		resolveSESEmailIdentityConfigSet,
 		EdgeDecl{TypeSESEmailIdentity, TypeSESConfigurationSet, store.RelUses},
 	)
-	registerResolver(resolveSESEventDestinationTargets,
+	registerResolver(
+		resolveSESEventDestinationTargets,
 		EdgeDecl{TypeSESConfigurationSetEventDestination, TypeSESConfigurationSet, store.RelAttachedTo},
 		EdgeDecl{TypeSESConfigurationSetEventDestination, TypeSNSTopic, store.RelUses},
 		EdgeDecl{TypeSESConfigurationSetEventDestination, TypeFirehoseDeliveryStream, store.RelUses},
 		EdgeDecl{TypeSESConfigurationSetEventDestination, TypePinpointApp, store.RelUses},
 	)
-	registerResolver(resolveSESReceiptRuleTargets,
+	registerResolver(
+		resolveSESReceiptRuleTargets,
 		EdgeDecl{TypeSESReceiptRule, TypeSESReceiptRuleSet, store.RelAttachedTo},
 		EdgeDecl{TypeSESReceiptRule, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSESReceiptRule, TypeSNSTopic, store.RelUses},

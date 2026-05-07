@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBackupGatewayRelationships,
+	registerResolver(
+		resolveBackupGatewayRelationships,
 		EdgeDecl{TypeBackupGatewayHypervisor, TypeKMSKey, store.RelUses},
 	)
 }

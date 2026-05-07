@@ -11,36 +11,37 @@ import (
 )
 
 func init() {
-	registerResolver(func(acct *account, st *store.Store) error {
-		if err := resolveLambdaRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaAliasRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaVersionRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaESMRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaEventInvokeConfigRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaFunctionURLRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaCodeSigningConfigRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaLayerRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
-			return err
-		}
-		return resolveLambdaLayerVersionPermissionRelationships(acct, st)
-	},
+	registerResolver(
+		func(acct *account, st *store.Store) error {
+			if err := resolveLambdaRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaAliasRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaVersionRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaESMRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaEventInvokeConfigRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaFunctionURLRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaCodeSigningConfigRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaLayerRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
+				return err
+			}
+			return resolveLambdaLayerVersionPermissionRelationships(acct, st)
+		},
 		EdgeDecl{TypeLambdaFunction, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeLambdaFunction, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLambdaFunction, TypeEC2Subnet, store.RelAttachedTo},
@@ -145,7 +146,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				TargetArn *string `json:"TargetArn"` // SQS queue or SNS topic
 			} `json:"DeadLetterConfig"`
 			Code *struct {
-				ImageUri *string `json:"ImageUri"` // ECR image URI for image-package functions
+				ImageURI *string `json:"ImageUri"` // ECR image URI for image-package functions
 			} `json:"Code"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -202,8 +203,8 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		// Function → ECR repository for image-package functions.
-		if attrs.Code != nil && sv(attrs.Code.ImageUri) != "" {
-			if repoARN := apprunnerImageToRepoARN(*attrs.Code.ImageUri); repoARN != "" {
+		if attrs.Code != nil && sv(attrs.Code.ImageURI) != "" {
+			if repoARN := apprunnerImageToRepoARN(*attrs.Code.ImageURI); repoARN != "" {
 				repoID := store.ResourceID("aws", acct.ID, TypeECRRepository, repoARN)
 				if ecrSet[repoID] {
 					if err := st.UpsertRelationship(r.ID, repoID, store.RelUses, "directed", nil); err != nil {

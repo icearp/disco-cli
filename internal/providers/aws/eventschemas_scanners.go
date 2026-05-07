@@ -152,7 +152,7 @@ func scanESSchemas(ctx context.Context, client eventSchemasAPI, acct *account, r
 			})
 		}
 	}
-	return upsertBatch(st, batch, "schemas schemas")
+	return upsertBatch(st, batch, "schemas")
 }
 
 func scanESRegistryPolicy(ctx context.Context, client eventSchemasAPI, acct *account, region string, st *store.Store, scanID string, registryName string) (int, int, error) {

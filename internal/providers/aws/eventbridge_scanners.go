@@ -63,7 +63,6 @@ func scanEventBridge(ctx context.Context, acct *account, region string, st *stor
 
 // scanEventBridgeAll holds the testable scan body.
 func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	// Phase 1: event buses
 	var busBatch []*store.Resource
 	var busNames []string

@@ -10,12 +10,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudTrailRelationships,
+	registerResolver(
+		resolveCloudTrailRelationships,
 		EdgeDecl{TypeCloudTrailTrail, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeCloudTrailTrail, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCloudTrailTrail, TypeLogsLogGroup, store.RelUses},
 	)
-	registerResolver(resolveCloudTrailEventDataStoreRelationships,
+	registerResolver(
+		resolveCloudTrailEventDataStoreRelationships,
 		EdgeDecl{TypeCloudTrailEventDataStore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCloudTrailEventDataStore, TypeIAMRole, store.RelAssumes},
 	)

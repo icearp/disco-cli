@@ -104,7 +104,8 @@ func rdsPageScan[P any](
 // scanRDS discovers all RDS resources in one region concurrently.
 func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanDBInstances(ctx, client, acct, region, st, scanID)
 		},
@@ -167,7 +168,8 @@ var nonRDSEngines = map[string]bool{
 }
 
 func scanDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBInstances", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBInstances", acct, region, st,
 		rds.NewDescribeDBInstancesPaginator(client, &rds.DescribeDBInstancesInput{}),
 		func(page *rds.DescribeDBInstancesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -197,7 +199,8 @@ func scanDBInstances(ctx context.Context, client rdsAPI, acct *account, region s
 }
 
 func scanDBClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBClusters", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBClusters", acct, region, st,
 		rds.NewDescribeDBClustersPaginator(client, &rds.DescribeDBClustersInput{}),
 		func(page *rds.DescribeDBClustersOutput) []*store.Resource {
 			var out []*store.Resource
@@ -220,7 +223,8 @@ func scanDBClusters(ctx context.Context, client rdsAPI, acct *account, region st
 }
 
 func scanDBClusterParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBClusterParameterGroups", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBClusterParameterGroups", acct, region, st,
 		rds.NewDescribeDBClusterParameterGroupsPaginator(client, &rds.DescribeDBClusterParameterGroupsInput{}),
 		func(page *rds.DescribeDBClusterParameterGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -239,7 +243,8 @@ func scanDBClusterParameterGroups(ctx context.Context, client rdsAPI, acct *acco
 }
 
 func scanDBParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBParameterGroups", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBParameterGroups", acct, region, st,
 		rds.NewDescribeDBParameterGroupsPaginator(client, &rds.DescribeDBParameterGroupsInput{}),
 		func(page *rds.DescribeDBParameterGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -258,7 +263,8 @@ func scanDBParameterGroups(ctx context.Context, client rdsAPI, acct *account, re
 }
 
 func scanDBProxies(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBProxies", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBProxies", acct, region, st,
 		rds.NewDescribeDBProxiesPaginator(client, &rds.DescribeDBProxiesInput{}),
 		func(page *rds.DescribeDBProxiesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -278,7 +284,8 @@ func scanDBProxies(ctx context.Context, client rdsAPI, acct *account, region str
 }
 
 func scanDBProxyEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBProxyEndpoints", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBProxyEndpoints", acct, region, st,
 		rds.NewDescribeDBProxyEndpointsPaginator(client, &rds.DescribeDBProxyEndpointsInput{}),
 		func(page *rds.DescribeDBProxyEndpointsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -303,7 +310,8 @@ func scanDBProxyEndpoints(ctx context.Context, client rdsAPI, acct *account, reg
 func scanDBProxyTargetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var proxyNames []string
 	// Collect proxy names — the toResources function returns nil so no upsert occurs.
-	if _, _, err := rdsPageScan(ctx, "rds:DescribeDBProxies (for target groups)", acct, region, st,
+	if _, _, err := rdsPageScan(
+		ctx, "rds:DescribeDBProxies (for target groups)", acct, region, st,
 		rds.NewDescribeDBProxiesPaginator(client, &rds.DescribeDBProxiesInput{}),
 		func(page *rds.DescribeDBProxiesOutput) []*store.Resource {
 			for _, p := range page.DBProxies {
@@ -326,7 +334,8 @@ func scanDBProxyTargetGroups(ctx context.Context, client rdsAPI, acct *account, 
 		proxyName := name
 		g.Go(func() error {
 			// toResources returns nil; resources are collected via closure.
-			_, _, err := rdsPageScan(ctx, "rds:DescribeDBProxyTargetGroups", acct, region, st,
+			_, _, err := rdsPageScan(
+				ctx, "rds:DescribeDBProxyTargetGroups", acct, region, st,
 				rds.NewDescribeDBProxyTargetGroupsPaginator(client, &rds.DescribeDBProxyTargetGroupsInput{
 					DBProxyName: &proxyName,
 				}),
@@ -365,7 +374,8 @@ func scanDBProxyTargetGroups(ctx context.Context, client rdsAPI, acct *account, 
 }
 
 func scanDBSecurityGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBSecurityGroups", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBSecurityGroups", acct, region, st,
 		rds.NewDescribeDBSecurityGroupsPaginator(client, &rds.DescribeDBSecurityGroupsInput{}),
 		func(page *rds.DescribeDBSecurityGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -425,7 +435,8 @@ func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region
 }
 
 func scanDBSubnetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeDBSubnetGroups", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeDBSubnetGroups", acct, region, st,
 		rds.NewDescribeDBSubnetGroupsPaginator(client, &rds.DescribeDBSubnetGroupsInput{}),
 		func(page *rds.DescribeDBSubnetGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -444,7 +455,8 @@ func scanDBSubnetGroups(ctx context.Context, client rdsAPI, acct *account, regio
 }
 
 func scanEventSubscriptions(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeEventSubscriptions", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeEventSubscriptions", acct, region, st,
 		rds.NewDescribeEventSubscriptionsPaginator(client, &rds.DescribeEventSubscriptionsInput{}),
 		func(page *rds.DescribeEventSubscriptionsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -466,7 +478,8 @@ func scanEventSubscriptions(ctx context.Context, client rdsAPI, acct *account, r
 // Global clusters are not region-scoped; this is called per-region but
 // UpsertResources deduplicates by NativeID (ARN contains no region).
 func scanGlobalClusters(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeGlobalClusters", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeGlobalClusters", acct, region, st,
 		rds.NewDescribeGlobalClustersPaginator(client, &rds.DescribeGlobalClustersInput{}),
 		func(page *rds.DescribeGlobalClustersOutput) []*store.Resource {
 			var out []*store.Resource
@@ -485,7 +498,8 @@ func scanGlobalClusters(ctx context.Context, client rdsAPI, acct *account, regio
 }
 
 func scanIntegrations(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeIntegrations", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeIntegrations", acct, region, st,
 		rds.NewDescribeIntegrationsPaginator(client, &rds.DescribeIntegrationsInput{}),
 		func(page *rds.DescribeIntegrationsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -506,7 +520,8 @@ func scanIntegrations(ctx context.Context, client rdsAPI, acct *account, region 
 }
 
 func scanOptionGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(ctx, "rds:DescribeOptionGroups", acct, region, st,
+	return rdsPageScan(
+		ctx, "rds:DescribeOptionGroups", acct, region, st,
 		rds.NewDescribeOptionGroupsPaginator(client, &rds.DescribeOptionGroupsInput{}),
 		func(page *rds.DescribeOptionGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -554,7 +569,8 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 		return out
 	}
 	for _, engine := range customEngines {
-		tt, nn, e := rdsPageScan(ctx, "rds:DescribeDBEngineVersions (custom)", acct, region, st,
+		tt, nn, e := rdsPageScan(
+			ctx, "rds:DescribeDBEngineVersions (custom)", acct, region, st,
 			rds.NewDescribeDBEngineVersionsPaginator(client, &rds.DescribeDBEngineVersionsInput{
 				Engine:     aws.String(engine),
 				IncludeAll: aws.Bool(true),

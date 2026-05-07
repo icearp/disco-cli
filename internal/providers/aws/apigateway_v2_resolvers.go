@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAPIGatewayV2APIChildren,
+	registerResolver(
+		resolveAPIGatewayV2APIChildren,
 		EdgeDecl{TypeAPIGatewayV2Authorizer, TypeAPIGatewayV2API, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2Deployment, TypeAPIGatewayV2API, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2Integration, TypeAPIGatewayV2API, store.RelAttachedTo},
@@ -20,27 +21,33 @@ func init() {
 		EdgeDecl{TypeAPIGatewayV2RouteResponse, TypeAPIGatewayV2API, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2Stage, TypeAPIGatewayV2API, store.RelAttachedTo},
 	)
-	registerResolver(resolveAPIGatewayV2GrandparentChildren,
+	registerResolver(
+		resolveAPIGatewayV2GrandparentChildren,
 		EdgeDecl{TypeAPIGatewayV2IntegrationResponse, TypeAPIGatewayV2Integration, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2RouteResponse, TypeAPIGatewayV2Route, store.RelAttachedTo},
 	)
-	registerResolver(resolveAPIGatewayV2DomainChildren,
+	registerResolver(
+		resolveAPIGatewayV2DomainChildren,
 		EdgeDecl{TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayDomainNameV2, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2RoutingRule, TypeAPIGatewayDomainNameV2, store.RelAttachedTo},
 	)
-	registerResolver(resolveAPIGatewayV2BasePathMappingTargets,
+	registerResolver(
+		resolveAPIGatewayV2BasePathMappingTargets,
 		EdgeDecl{TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayV2API, store.RelRoutesTo},
 		EdgeDecl{TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayV2Stage, store.RelRoutesTo},
 	)
-	registerResolver(resolveAPIGatewayV2RouteTargets,
+	registerResolver(
+		resolveAPIGatewayV2RouteTargets,
 		EdgeDecl{TypeAPIGatewayV2Route, TypeAPIGatewayV2Authorizer, store.RelUses},
 		EdgeDecl{TypeAPIGatewayV2Route, TypeAPIGatewayV2Integration, store.RelRoutesTo},
 	)
-	registerResolver(resolveAPIGatewayV2IntegrationVpcLink,
+	registerResolver(
+		resolveAPIGatewayV2IntegrationVpcLink,
 		EdgeDecl{TypeAPIGatewayV2Integration, TypeAPIGatewayV2VpcLink, store.RelAttachedTo},
 		EdgeDecl{TypeAPIGatewayV2Integration, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveAPIGatewayV2StageRefs,
+	registerResolver(
+		resolveAPIGatewayV2StageRefs,
 		EdgeDecl{TypeAPIGatewayV2Stage, TypeAPIGatewayV2Deployment, store.RelUses},
 	)
 }
@@ -223,13 +230,13 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ApiId *string `json:"ApiId"`
+			APIID *string `json:"ApiId"`
 			Stage *string `json:"Stage"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		apiID := sv(attrs.ApiId)
+		apiID := sv(attrs.APIID)
 		if apiID == "" {
 			continue
 		}
@@ -258,7 +265,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 }
 
 // resolveAPIGatewayV2RouteTargets wires each route to its authorizer
-// (AuthorizerId) and, when `Target` carries `integrations/{id}` form, the
+// (AuthorizerID) and, when `Target` carries `integrations/{id}` form, the
 // backing integration.
 func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -281,7 +288,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			AuthorizerId *string `json:"AuthorizerId"`
+			AuthorizerID *string `json:"AuthorizerId"`
 			Target       *string `json:"Target"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -293,7 +300,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 			continue
 		}
 		apiID := apiARN[strings.LastIndexByte(apiARN, '/')+1:]
-		if aid := sv(attrs.AuthorizerId); aid != "" {
+		if aid := sv(attrs.AuthorizerID); aid != "" {
 			authARN := apigatewayARN(region, "apis", apiID, "authorizers", aid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2Authorizer, authARN)
 			if authSet[tgtID] {
@@ -317,7 +324,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 }
 
 // resolveAPIGatewayV2IntegrationVpcLink wires VPC_LINK-typed integrations to
-// their vpc-link (ConnectionId) and any CredentialsArn IAM role.
+// their vpc-link (ConnectionID) and any CredentialsArn IAM role.
 func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Integration},
@@ -339,7 +346,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ConnectionId   *string `json:"ConnectionId"`
+			ConnectionID   *string `json:"ConnectionId"`
 			ConnectionType *string `json:"ConnectionType"`
 			CredentialsArn *string `json:"CredentialsArn"`
 		}
@@ -348,7 +355,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 		}
 		region := sv(r.Region)
 		if sv(attrs.ConnectionType) == "VPC_LINK" {
-			if cid := sv(attrs.ConnectionId); cid != "" {
+			if cid := sv(attrs.ConnectionID); cid != "" {
 				vlARN := apigatewayARN(region, "vpclinks", cid)
 				tgtID := store.ResourceID("aws", acct.ID, TypeAPIGatewayV2VpcLink, vlARN)
 				if vlSet[tgtID] {
@@ -370,7 +377,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 	return nil
 }
 
-// resolveAPIGatewayV2StageRefs links stage to its DeploymentId.
+// resolveAPIGatewayV2StageRefs links stage to its DeploymentID.
 func resolveAPIGatewayV2StageRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Stage},
@@ -388,12 +395,12 @@ func resolveAPIGatewayV2StageRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			DeploymentId *string `json:"DeploymentId"`
+			DeploymentID *string `json:"DeploymentId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		dep := sv(attrs.DeploymentId)
+		dep := sv(attrs.DeploymentID)
 		if dep == "" {
 			continue
 		}

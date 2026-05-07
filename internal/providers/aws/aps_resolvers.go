@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAPSRelationships,
+	registerResolver(
+		resolveAPSRelationships,
 		EdgeDecl{TypeAPSWorkspace, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeAPSScraper, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeAPSScraper, TypeAPSWorkspace, store.RelUses},

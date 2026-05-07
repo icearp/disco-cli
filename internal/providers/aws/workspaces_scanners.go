@@ -76,7 +76,7 @@ func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, 
 			})
 		}
 	}
-	return upsertBatch(st, batch, "workspaces workspaces")
+	return upsertBatch(st, batch, "workspaces")
 }
 
 func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

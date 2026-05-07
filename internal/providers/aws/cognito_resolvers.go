@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCognitoAppClientRelationships,
+	registerResolver(
+		resolveCognitoAppClientRelationships,
 		EdgeDecl{TypeCognitoAppClient, TypeCognitoUserPool, store.RelAttachedTo},
 	)
-	registerResolver(resolveCognitoIdentityPoolRelationships,
+	registerResolver(
+		resolveCognitoIdentityPoolRelationships,
 		EdgeDecl{TypeCognitoIdentityPool, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeCognitoIdentityPool, TypeCognitoUserPool, store.RelUses},
 		EdgeDecl{TypeCognitoIdentityPool, TypeCognitoAppClient, store.RelUses},

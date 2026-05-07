@@ -24,21 +24,27 @@ type stubConnectIntegration struct {
 func (s *stubConnectIntegration) ListApprovedOrigins(_ context.Context, _ *connect.ListApprovedOriginsInput, _ ...func(*connect.Options)) (*connect.ListApprovedOriginsOutput, error) {
 	return &connect.ListApprovedOriginsOutput{Origins: s.origins}, nil
 }
+
 func (s *stubConnectIntegration) ListSecurityKeys(_ context.Context, _ *connect.ListSecurityKeysInput, _ ...func(*connect.Options)) (*connect.ListSecurityKeysOutput, error) {
 	return &connect.ListSecurityKeysOutput{SecurityKeys: s.keys}, nil
 }
+
 func (s *stubConnectIntegration) ListInstanceStorageConfigs(_ context.Context, in *connect.ListInstanceStorageConfigsInput, _ ...func(*connect.Options)) (*connect.ListInstanceStorageConfigsOutput, error) {
 	return &connect.ListInstanceStorageConfigsOutput{StorageConfigs: s.storageByType[in.ResourceType]}, nil
 }
+
 func (s *stubConnectIntegration) ListIntegrationAssociations(_ context.Context, _ *connect.ListIntegrationAssociationsInput, _ ...func(*connect.Options)) (*connect.ListIntegrationAssociationsOutput, error) {
 	return &connect.ListIntegrationAssociationsOutput{IntegrationAssociationSummaryList: s.integrations}, nil
 }
+
 func (s *stubConnectIntegration) ListNotifications(_ context.Context, _ *connect.ListNotificationsInput, _ ...func(*connect.Options)) (*connect.ListNotificationsOutput, error) {
 	return &connect.ListNotificationsOutput{NotificationSummaryList: s.notifs}, nil
 }
+
 func (s *stubConnectIntegration) ListRules(_ context.Context, in *connect.ListRulesInput, _ ...func(*connect.Options)) (*connect.ListRulesOutput, error) {
 	return &connect.ListRulesOutput{RuleSummaryList: s.rulesBySource[in.EventSourceName]}, nil
 }
+
 func (s *stubConnectIntegration) DescribeRule(_ context.Context, in *connect.DescribeRuleInput, _ ...func(*connect.Options)) (*connect.DescribeRuleOutput, error) {
 	return s.ruleOut[*in.RuleId], nil
 }

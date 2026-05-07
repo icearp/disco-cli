@@ -19,21 +19,27 @@ func (s *stubIoTFW) ListCampaigns(_ context.Context, _ *iotfleetwise.ListCampaig
 	}
 	return &iotfleetwise.ListCampaignsOutput{}, nil
 }
+
 func (s *stubIoTFW) ListDecoderManifests(_ context.Context, _ *iotfleetwise.ListDecoderManifestsInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListDecoderManifestsOutput, error) {
 	return &iotfleetwise.ListDecoderManifestsOutput{}, nil
 }
+
 func (s *stubIoTFW) ListFleets(_ context.Context, _ *iotfleetwise.ListFleetsInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListFleetsOutput, error) {
 	return &iotfleetwise.ListFleetsOutput{}, nil
 }
+
 func (s *stubIoTFW) ListModelManifests(_ context.Context, _ *iotfleetwise.ListModelManifestsInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListModelManifestsOutput, error) {
 	return &iotfleetwise.ListModelManifestsOutput{}, nil
 }
+
 func (s *stubIoTFW) ListSignalCatalogs(_ context.Context, _ *iotfleetwise.ListSignalCatalogsInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListSignalCatalogsOutput, error) {
 	return &iotfleetwise.ListSignalCatalogsOutput{}, nil
 }
+
 func (s *stubIoTFW) ListStateTemplates(_ context.Context, _ *iotfleetwise.ListStateTemplatesInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListStateTemplatesOutput, error) {
 	return &iotfleetwise.ListStateTemplatesOutput{}, nil
 }
+
 func (s *stubIoTFW) ListVehicles(_ context.Context, _ *iotfleetwise.ListVehiclesInput, _ ...func(*iotfleetwise.Options)) (*iotfleetwise.ListVehiclesOutput, error) {
 	return &iotfleetwise.ListVehiclesOutput{}, nil
 }

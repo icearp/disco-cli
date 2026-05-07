@@ -9,23 +9,29 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIVSChannelRefs,
+	registerResolver(
+		resolveIVSChannelRefs,
 		EdgeDecl{TypeIVSChannel, TypeIVSRecordingConfiguration, store.RelUses},
 		EdgeDecl{TypeIVSChannel, TypeIVSPlaybackRestrictionPolicy, store.RelUses},
 	)
-	registerResolver(resolveIVSStreamKeyChannel,
+	registerResolver(
+		resolveIVSStreamKeyChannel,
 		EdgeDecl{TypeIVSStreamKey, TypeIVSChannel, store.RelAttachedTo},
 	)
-	registerResolver(resolveIVSIngestConfigStage,
+	registerResolver(
+		resolveIVSIngestConfigStage,
 		EdgeDecl{TypeIVSIngestConfiguration, TypeIVSStage, store.RelAttachedTo},
 	)
-	registerResolver(resolveIVSRecordingConfigS3,
+	registerResolver(
+		resolveIVSRecordingConfigS3,
 		EdgeDecl{TypeIVSRecordingConfiguration, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveIVSStorageConfigS3,
+	registerResolver(
+		resolveIVSStorageConfigS3,
 		EdgeDecl{TypeIVSStorageConfiguration, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveIVSStageStorageConfig,
+	registerResolver(
+		resolveIVSStageStorageConfig,
 		EdgeDecl{TypeIVSStage, TypeIVSStorageConfiguration, store.RelUses},
 	)
 }

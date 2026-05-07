@@ -10,14 +10,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMediaLiveISGRefs,
+	registerResolver(
+		resolveMediaLiveISGRefs,
 		EdgeDecl{TypeMediaLiveInputSecurityGroup, TypeMediaLiveChannel, store.RelAttachedTo},
 		EdgeDecl{TypeMediaLiveInputSecurityGroup, TypeMediaLiveInput, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaLiveSdiSourceRefs,
+	registerResolver(
+		resolveMediaLiveSdiSourceRefs,
 		EdgeDecl{TypeMediaLiveSdiSource, TypeMediaLiveInput, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaLiveNetworkRefs,
+	registerResolver(
+		resolveMediaLiveNetworkRefs,
 		EdgeDecl{TypeMediaLiveNetwork, TypeMediaLiveCluster, store.RelAttachedTo},
 	)
 }
@@ -132,7 +135,7 @@ func resolveMediaLiveSdiSourceRefs(acct *account, st *store.Store) error {
 }
 
 // resolveMediaLiveNetworkRefs wires each Network to associated clusters via
-// AssociatedClusterIds[].
+// AssociatedClusterIDs[].
 func resolveMediaLiveNetworkRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveNetwork}, Limit: util.AllResources,
@@ -149,13 +152,13 @@ func resolveMediaLiveNetworkRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			AssociatedClusterIds []string `json:"AssociatedClusterIds"`
+			AssociatedClusterIDs []string `json:"AssociatedClusterIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		for _, c := range attrs.AssociatedClusterIds {
+		for _, c := range attrs.AssociatedClusterIDs {
 			arn := listOrARN(c, region, acct.ID, "cluster")
 			tgtID := store.ResourceID("aws", acct.ID, TypeMediaLiveCluster, arn)
 			if !clSet[tgtID] {

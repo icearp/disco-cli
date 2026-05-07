@@ -9,34 +9,42 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTSWAssetToModel,
+	registerResolver(
+		resolveIoTSWAssetToModel,
 		EdgeDecl{TypeIoTSWAsset, TypeIoTSWAssetModel, store.RelUses},
 	)
-	registerResolver(resolveIoTSWAccessPolicyTarget,
+	registerResolver(
+		resolveIoTSWAccessPolicyTarget,
 		EdgeDecl{TypeIoTSWAccessPolicy, TypeIoTSWPortal, store.RelAttachedTo},
 		EdgeDecl{TypeIoTSWAccessPolicy, TypeIoTSWProject, store.RelAttachedTo},
 	)
-	registerResolver(resolveIoTSWPortalRole,
+	registerResolver(
+		resolveIoTSWPortalRole,
 		EdgeDecl{TypeIoTSWPortal, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveIoTSWGatewayThing,
+	registerResolver(
+		resolveIoTSWGatewayThing,
 		EdgeDecl{TypeIoTSWGateway, TypeIoTThing, store.RelUses},
 	)
-	registerResolver(resolveIoTSWDatasetRefs,
+	registerResolver(
+		resolveIoTSWDatasetRefs,
 		EdgeDecl{TypeIoTSWDataset, TypeBedrockKnowledgeBase, store.RelUses},
 		EdgeDecl{TypeIoTSWDataset, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveIoTSWAssetModelHierarchies,
+	registerResolver(
+		resolveIoTSWAssetModelHierarchies,
 		EdgeDecl{TypeIoTSWAssetModel, TypeIoTSWAssetModel, store.RelUses},
 	)
-	registerResolver(resolveIoTSWComputationModelBindings,
+	registerResolver(
+		resolveIoTSWComputationModelBindings,
 		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAssetModel, store.RelUses},
 		EdgeDecl{TypeIoTSWComputationModel, TypeIoTSWAsset, store.RelUses},
 	)
 	// Hierarchy emitted at scan time: portal contains project, project contains
 	// dashboard. Declared so coverage gap-analysis treats portal/project as
 	// containing parents rather than orphans.
-	registerResolver(noopIoTSWHierarchy,
+	registerResolver(
+		noopIoTSWHierarchy,
 		EdgeDecl{TypeIoTSWPortal, TypeIoTSWProject, store.RelContains},
 		EdgeDecl{TypeIoTSWProject, TypeIoTSWDashboard, store.RelContains},
 	)
@@ -52,7 +60,7 @@ func noopIoTSWHierarchy(_ *account, _ *store.Store) error {
 }
 
 // resolveIoTSWAssetToModel wires each asset to the asset-model it was
-// instantiated from via `AssetModelId`.
+// instantiated from via `AssetModelID`.
 func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAsset}, Limit: util.AllResources,
@@ -69,12 +77,12 @@ func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			AssetModelId *string `json:"AssetModelId"`
+			AssetModelID *string `json:"AssetModelId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		mid := sv(attrs.AssetModelId)
+		mid := sv(attrs.AssetModelID)
 		if mid == "" {
 			continue
 		}
@@ -91,7 +99,7 @@ func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 }
 
 // resolveIoTSWAccessPolicyTarget wires each access-policy to its target portal
-// or project via `Resource.Portal.Id` / `Resource.Project.Id`.
+// or project via `Resource.Portal.ID` / `Resource.Project.ID`.
 func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAccessPolicy}, Limit: util.AllResources,
@@ -114,10 +122,10 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 		var attrs struct {
 			Resource *struct {
 				Portal *struct {
-					Id *string `json:"Id"`
+					ID *string `json:"Id"`
 				} `json:"Portal"`
 				Project *struct {
-					Id *string `json:"Id"`
+					ID *string `json:"Id"`
 				} `json:"Project"`
 			} `json:"Resource"`
 		}
@@ -129,7 +137,7 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.Resource.Portal != nil {
-			if id := sv(attrs.Resource.Portal.Id); id != "" {
+			if id := sv(attrs.Resource.Portal.ID); id != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeIoTSWPortal, iotSWARN(region, acct.ID, "portal", id))
 				if portalSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -139,7 +147,7 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.Resource.Project != nil {
-			if id := sv(attrs.Resource.Project.Id); id != "" {
+			if id := sv(attrs.Resource.Project.ID); id != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeIoTSWProject, iotSWARN(region, acct.ID, "project", id))
 				if projectSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -194,10 +202,10 @@ func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
 // shape for JSON walk. Recursive via List.
 type computationBindingValue struct {
 	AssetModelProperty *struct {
-		AssetModelId *string `json:"AssetModelId"`
+		AssetModelID *string `json:"AssetModelId"`
 	} `json:"AssetModelProperty"`
 	AssetProperty *struct {
-		AssetId *string `json:"AssetId"`
+		AssetID *string `json:"AssetId"`
 	} `json:"AssetProperty"`
 	List []computationBindingValue `json:"List"`
 }
@@ -228,7 +236,7 @@ func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error 
 	var walk func(v computationBindingValue, region string, srcID string) error
 	walk = func(v computationBindingValue, region string, srcID string) error {
 		if v.AssetModelProperty != nil {
-			if id := sv(v.AssetModelProperty.AssetModelId); id != "" {
+			if id := sv(v.AssetModelProperty.AssetModelID); id != "" {
 				tgt := store.ResourceID("aws", acct.ID, TypeIoTSWAssetModel, iotSWARN(region, acct.ID, "asset-model", id))
 				if modelSet[tgt] {
 					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
@@ -238,7 +246,7 @@ func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error 
 			}
 		}
 		if v.AssetProperty != nil {
-			if id := sv(v.AssetProperty.AssetId); id != "" {
+			if id := sv(v.AssetProperty.AssetID); id != "" {
 				tgt := store.ResourceID("aws", acct.ID, TypeIoTSWAsset, iotSWARN(region, acct.ID, "asset", id))
 				if assetSet[tgt] {
 					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
@@ -292,7 +300,7 @@ func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			AssetModelHierarchies []struct {
-				ChildAssetModelId *string `json:"ChildAssetModelId"`
+				ChildAssetModelID *string `json:"ChildAssetModelId"`
 			} `json:"AssetModelHierarchies"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -300,7 +308,7 @@ func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		for _, h := range attrs.AssetModelHierarchies {
-			cid := sv(h.ChildAssetModelId)
+			cid := sv(h.ChildAssetModelID)
 			if cid == "" {
 				continue
 			}

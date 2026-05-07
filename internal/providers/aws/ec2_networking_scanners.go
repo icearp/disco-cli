@@ -42,7 +42,8 @@ func init() {
 // peering, DHCP options, egress-only IGWs, carrier gateways, VPC features,
 // VPC endpoint services, and network interface permissions.
 func scanEC2Networking(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) { return scanVPCs(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) { return scanSubnets(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) {
@@ -98,7 +99,8 @@ func scanEC2Networking(ctx context.Context, client ec2API, acct *account, region
 }
 
 func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVpcs", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVpcs", acct, region, st,
 		ec2.NewDescribeVpcsPaginator(client, &ec2.DescribeVpcsInput{}),
 		func(page *ec2.DescribeVpcsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -124,7 +126,8 @@ func scanVPCs(ctx context.Context, client ec2API, acct *account, region string, 
 }
 
 func scanSubnets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeSubnets", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeSubnets", acct, region, st,
 		ec2.NewDescribeSubnetsPaginator(client, &ec2.DescribeSubnetsInput{}),
 		func(page *ec2.DescribeSubnetsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -151,7 +154,8 @@ func scanSubnets(ctx context.Context, client ec2API, acct *account, region strin
 }
 
 func scanInternetGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeInternetGateways", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeInternetGateways", acct, region, st,
 		ec2.NewDescribeInternetGatewaysPaginator(client, &ec2.DescribeInternetGatewaysInput{}),
 		func(page *ec2.DescribeInternetGatewaysOutput) []*store.Resource {
 			var out []*store.Resource
@@ -175,7 +179,8 @@ func scanInternetGateways(ctx context.Context, client ec2API, acct *account, reg
 }
 
 func scanNatGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeNatGateways", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeNatGateways", acct, region, st,
 		ec2.NewDescribeNatGatewaysPaginator(client, &ec2.DescribeNatGatewaysInput{}),
 		func(page *ec2.DescribeNatGatewaysOutput) []*store.Resource {
 			var out []*store.Resource
@@ -202,7 +207,8 @@ func scanNatGateways(ctx context.Context, client ec2API, acct *account, region s
 }
 
 func scanRouteTables(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeRouteTables", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeRouteTables", acct, region, st,
 		ec2.NewDescribeRouteTablesPaginator(client, &ec2.DescribeRouteTablesInput{}),
 		func(page *ec2.DescribeRouteTablesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -261,7 +267,8 @@ func scanEIPs(ctx context.Context, client ec2API, acct *account, region string, 
 }
 
 func scanNetworkInterfaces(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeNetworkInterfaces", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeNetworkInterfaces", acct, region, st,
 		ec2.NewDescribeNetworkInterfacesPaginator(client, &ec2.DescribeNetworkInterfacesInput{}),
 		func(page *ec2.DescribeNetworkInterfacesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -287,7 +294,8 @@ func scanNetworkInterfaces(ctx context.Context, client ec2API, acct *account, re
 }
 
 func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeNetworkAcls", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeNetworkAcls", acct, region, st,
 		ec2.NewDescribeNetworkAclsPaginator(client, &ec2.DescribeNetworkAclsInput{}),
 		func(page *ec2.DescribeNetworkAclsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -311,7 +319,8 @@ func scanNetworkACLs(ctx context.Context, client ec2API, acct *account, region s
 }
 
 func scanVPCEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVpcEndpoints", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVpcEndpoints", acct, region, st,
 		ec2.NewDescribeVpcEndpointsPaginator(client, &ec2.DescribeVpcEndpointsInput{}),
 		func(page *ec2.DescribeVpcEndpointsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -338,7 +347,8 @@ func scanVPCEndpoints(ctx context.Context, client ec2API, acct *account, region 
 }
 
 func scanVPCPeeringConnections(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVpcPeeringConnections", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVpcPeeringConnections", acct, region, st,
 		ec2.NewDescribeVpcPeeringConnectionsPaginator(client, &ec2.DescribeVpcPeeringConnectionsInput{}),
 		func(page *ec2.DescribeVpcPeeringConnectionsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -364,7 +374,8 @@ func scanVPCPeeringConnections(ctx context.Context, client ec2API, acct *account
 }
 
 func scanDHCPOptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeDhcpOptions", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeDhcpOptions", acct, region, st,
 		ec2.NewDescribeDhcpOptionsPaginator(client, &ec2.DescribeDhcpOptionsInput{}),
 		func(page *ec2.DescribeDhcpOptionsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -388,7 +399,8 @@ func scanDHCPOptions(ctx context.Context, client ec2API, acct *account, region s
 }
 
 func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeEgressOnlyInternetGateways", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeEgressOnlyInternetGateways", acct, region, st,
 		ec2.NewDescribeEgressOnlyInternetGatewaysPaginator(client, &ec2.DescribeEgressOnlyInternetGatewaysInput{}),
 		func(page *ec2.DescribeEgressOnlyInternetGatewaysOutput) []*store.Resource {
 			var out []*store.Resource
@@ -412,7 +424,8 @@ func scanEgressOnlyIGWs(ctx context.Context, client ec2API, acct *account, regio
 }
 
 func scanCarrierGateways(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	total, inserted, err = ec2PageScan(ctx, "ec2:DescribeCarrierGateways", acct, region, st,
+	total, inserted, err = ec2PageScan(
+		ctx, "ec2:DescribeCarrierGateways", acct, region, st,
 		ec2.NewDescribeCarrierGatewaysPaginator(client, &ec2.DescribeCarrierGatewaysInput{}),
 		func(page *ec2.DescribeCarrierGatewaysOutput) []*store.Resource {
 			var out []*store.Resource
@@ -523,7 +536,8 @@ func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct
 }
 
 func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVpcEndpointConnectionNotifications", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVpcEndpointConnectionNotifications", acct, region, st,
 		ec2.NewDescribeVpcEndpointConnectionNotificationsPaginator(client, &ec2.DescribeVpcEndpointConnectionNotificationsInput{}),
 		func(page *ec2.DescribeVpcEndpointConnectionNotificationsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -608,7 +622,8 @@ func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct 
 	g, ctx := errgroup.WithContext(ctx)
 	for _, svcID := range svcIDs {
 		g.Go(func() error {
-			tt, nn, e := ec2PageScan(ctx, "ec2:DescribeVpcEndpointServicePermissions", acct, region, st,
+			tt, nn, e := ec2PageScan(
+				ctx, "ec2:DescribeVpcEndpointServicePermissions", acct, region, st,
 				ec2.NewDescribeVpcEndpointServicePermissionsPaginator(client, &ec2.DescribeVpcEndpointServicePermissionsInput{
 					ServiceId: &svcID,
 				}),
@@ -672,7 +687,8 @@ func listVPCEndpointServiceIDs(ctx context.Context, client ec2API, acct *account
 }
 
 func scanNetworkInterfacePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeNetworkInterfacePermissions", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeNetworkInterfacePermissions", acct, region, st,
 		ec2.NewDescribeNetworkInterfacePermissionsPaginator(client, &ec2.DescribeNetworkInterfacePermissionsInput{}),
 		func(page *ec2.DescribeNetworkInterfacePermissionsOutput) []*store.Resource {
 			var out []*store.Resource

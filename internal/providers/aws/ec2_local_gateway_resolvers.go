@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLocalGatewayRouteTableVPCAssociationRelationships,
+	registerResolver(
+		resolveLocalGatewayRouteTableVPCAssociationRelationships,
 		EdgeDecl{TypeEC2LocalGatewayRouteTableVPCAssociation, TypeEC2LocalGatewayRouteTable, store.RelAttachedTo},
 		EdgeDecl{TypeEC2LocalGatewayRouteTableVPCAssociation, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveLocalGatewayRouteTableVIGAssociationRelationships,
+	registerResolver(
+		resolveLocalGatewayRouteTableVIGAssociationRelationships,
 		EdgeDecl{TypeEC2LocalGatewayRouteTableVIGAssociation, TypeEC2LocalGatewayRouteTable, store.RelAttachedTo},
 		EdgeDecl{TypeEC2LocalGatewayRouteTableVIGAssociation, TypeEC2LocalGatewayVirtualInterfaceGroup, store.RelAttachedTo},
 	)

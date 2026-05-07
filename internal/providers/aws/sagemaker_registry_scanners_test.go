@@ -27,30 +27,39 @@ type stubSageMakerRegistry struct {
 func (s *stubSageMakerRegistry) ListModelPackages(_ context.Context, _ *sagemaker.ListModelPackagesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelPackagesOutput, error) {
 	return &sagemaker.ListModelPackagesOutput{ModelPackageSummaryList: s.packages}, nil
 }
+
 func (s *stubSageMakerRegistry) DescribeModelPackage(_ context.Context, in *sagemaker.DescribeModelPackageInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelPackageOutput, error) {
 	return s.packageOut[*in.ModelPackageName], nil
 }
+
 func (s *stubSageMakerRegistry) ListModelPackageGroups(_ context.Context, _ *sagemaker.ListModelPackageGroupsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelPackageGroupsOutput, error) {
 	return &sagemaker.ListModelPackageGroupsOutput{ModelPackageGroupSummaryList: s.groups}, nil
 }
+
 func (s *stubSageMakerRegistry) DescribeModelPackageGroup(_ context.Context, in *sagemaker.DescribeModelPackageGroupInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelPackageGroupOutput, error) {
 	return s.groupOut[*in.ModelPackageGroupName], nil
 }
+
 func (s *stubSageMakerRegistry) ListModelCards(_ context.Context, _ *sagemaker.ListModelCardsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelCardsOutput, error) {
 	return &sagemaker.ListModelCardsOutput{ModelCardSummaries: s.cards}, nil
 }
+
 func (s *stubSageMakerRegistry) DescribeModelCard(_ context.Context, in *sagemaker.DescribeModelCardInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelCardOutput, error) {
 	return s.cardOut[*in.ModelCardName], nil
 }
+
 func (s *stubSageMakerRegistry) ListFeatureGroups(_ context.Context, _ *sagemaker.ListFeatureGroupsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListFeatureGroupsOutput, error) {
 	return &sagemaker.ListFeatureGroupsOutput{FeatureGroupSummaries: s.featureGroups}, nil
 }
+
 func (s *stubSageMakerRegistry) DescribeFeatureGroup(_ context.Context, in *sagemaker.DescribeFeatureGroupInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeFeatureGroupOutput, error) {
 	return s.featureOut[*in.FeatureGroupName], nil
 }
+
 func (s *stubSageMakerRegistry) ListMlflowTrackingServers(_ context.Context, _ *sagemaker.ListMlflowTrackingServersInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListMlflowTrackingServersOutput, error) {
 	return &sagemaker.ListMlflowTrackingServersOutput{TrackingServerSummaries: s.servers}, nil
 }
+
 func (s *stubSageMakerRegistry) DescribeMlflowTrackingServer(_ context.Context, in *sagemaker.DescribeMlflowTrackingServerInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeMlflowTrackingServerOutput, error) {
 	return s.serverOut[*in.TrackingServerName], nil
 }

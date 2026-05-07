@@ -10,43 +10,49 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppSyncApiChildren,
-		EdgeDecl{TypeAppSyncApiKey, TypeAppSyncGraphQLApi, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncApiKey, TypeAppSyncApi, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncApiCache, TypeAppSyncGraphQLApi, store.RelAttachedTo},
+	registerResolver(
+		resolveAppSyncAPIChildren,
+		EdgeDecl{TypeAppSyncAPIKey, TypeAppSyncGraphQLApi, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncAPIKey, TypeAppSyncAPI, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncAPICache, TypeAppSyncGraphQLApi, store.RelAttachedTo},
 		EdgeDecl{TypeAppSyncDataSource, TypeAppSyncGraphQLApi, store.RelAttachedTo},
 		EdgeDecl{TypeAppSyncFunctionConfiguration, TypeAppSyncGraphQLApi, store.RelAttachedTo},
 		EdgeDecl{TypeAppSyncGraphQLSchema, TypeAppSyncGraphQLApi, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncSourceApiAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncChannelNamespace, TypeAppSyncApi, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncSourceAPIAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncChannelNamespace, TypeAppSyncAPI, store.RelAttachedTo},
 		EdgeDecl{TypeAppSyncResolver, TypeAppSyncGraphQLApi, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppSyncDataSourceTargets,
+	registerResolver(
+		resolveAppSyncDataSourceTargets,
 		EdgeDecl{TypeAppSyncDataSource, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppSyncDataSource, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeAppSyncDataSource, TypeDynamoDBTable, store.RelUses},
 		EdgeDecl{TypeAppSyncDataSource, TypeEventsEventBus, store.RelRoutesTo},
 	)
-	registerResolver(resolveAppSyncResolverDataSource,
+	registerResolver(
+		resolveAppSyncResolverDataSource,
 		EdgeDecl{TypeAppSyncResolver, TypeAppSyncDataSource, store.RelUses},
 		EdgeDecl{TypeAppSyncResolver, TypeAppSyncFunctionConfiguration, store.RelUses},
 	)
-	registerResolver(resolveAppSyncFunctionDataSource,
+	registerResolver(
+		resolveAppSyncFunctionDataSource,
 		EdgeDecl{TypeAppSyncFunctionConfiguration, TypeAppSyncDataSource, store.RelUses},
 	)
-	registerResolver(resolveAppSyncSourceApiAssoc,
-		EdgeDecl{TypeAppSyncSourceApiAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
+	registerResolver(
+		resolveAppSyncSourceAPIAssoc,
+		EdgeDecl{TypeAppSyncSourceAPIAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppSyncDomainNameApiAssoc,
-		EdgeDecl{TypeAppSyncDomainNameApiAssociation, TypeAppSyncDomainName, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncDomainNameApiAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
-		EdgeDecl{TypeAppSyncDomainNameApiAssociation, TypeAppSyncApi, store.RelAttachedTo},
+	registerResolver(
+		resolveAppSyncDomainNameAPIAssoc,
+		EdgeDecl{TypeAppSyncDomainNameAPIAssociation, TypeAppSyncDomainName, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncDomainNameAPIAssociation, TypeAppSyncGraphQLApi, store.RelAttachedTo},
+		EdgeDecl{TypeAppSyncDomainNameAPIAssociation, TypeAppSyncAPI, store.RelAttachedTo},
 	)
 }
 
-// appsyncApiARNFromChild extracts the parent api ARN from a child resource's
+// appsyncAPIARNFromChild extracts the parent api ARN from a child resource's
 // NativeID of shape `arn:aws:appsync:r:a:apis/{apiID}/<kind>/<id>`.
-func appsyncApiARNFromChild(arn string) string {
+func appsyncAPIARNFromChild(arn string) string {
 	const prefix = "apis/"
 	i := strings.Index(arn, prefix)
 	if i < 0 {
@@ -60,20 +66,20 @@ func appsyncApiARNFromChild(arn string) string {
 	return arn[:i] + prefix + tail[:end]
 }
 
-// resolveAppSyncApiChildren links each per-API sub-resource (api-key,
+// resolveAppSyncAPIChildren links each per-API sub-resource (api-key,
 // api-cache, data-source, function, schema, source-api-assoc, channel-
 // namespace, resolver) to its parent graphql-api or event-api by parsing
 // the NativeID's `apis/{apiID}` segment. Channel-namespace lives on event
-// APIs (TypeAppSyncApi); the rest live on graphql-apis. Try both target
+// APIs (TypeAppSyncAPI); the rest live on graphql-apis. Try both target
 // types per row — only the matching one will land via FK-safe set check.
-func resolveAppSyncApiChildren(acct *account, st *store.Store) error {
+func resolveAppSyncAPIChildren(acct *account, st *store.Store) error {
 	childTypes := []string{
-		TypeAppSyncApiKey,
-		TypeAppSyncApiCache,
+		TypeAppSyncAPIKey,
+		TypeAppSyncAPICache,
 		TypeAppSyncDataSource,
 		TypeAppSyncFunctionConfiguration,
 		TypeAppSyncGraphQLSchema,
-		TypeAppSyncSourceApiAssociation,
+		TypeAppSyncSourceAPIAssociation,
 		TypeAppSyncChannelNamespace,
 		TypeAppSyncResolver,
 	}
@@ -81,7 +87,7 @@ func resolveAppSyncApiChildren(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	apiSet, err := scannedIDSet(acct, st, TypeAppSyncApi)
+	apiSet, err := scannedIDSet(acct, st, TypeAppSyncAPI)
 	if err != nil {
 		return err
 	}
@@ -94,12 +100,12 @@ func resolveAppSyncApiChildren(acct *account, st *store.Store) error {
 			return err
 		}
 		for _, r := range rows {
-			parent := appsyncApiARNFromChild(r.NativeID)
+			parent := appsyncAPIARNFromChild(r.NativeID)
 			if parent == "" {
 				continue
 			}
 			gqlID := store.ResourceID("aws", acct.ID, TypeAppSyncGraphQLApi, parent)
-			apiID := store.ResourceID("aws", acct.ID, TypeAppSyncApi, parent)
+			apiID := store.ResourceID("aws", acct.ID, TypeAppSyncAPI, parent)
 			switch {
 			case graphqlSet[gqlID]:
 				if err := st.UpsertRelationship(r.ID, gqlID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -233,7 +239,7 @@ func appsyncDataSourceARNByName(acct *account, st *store.Store) (map[string]stri
 		if name == "" {
 			continue
 		}
-		apiARN := appsyncApiARNFromChild(r.NativeID)
+		apiARN := appsyncAPIARNFromChild(r.NativeID)
 		if apiARN == "" {
 			continue
 		}
@@ -273,7 +279,7 @@ func resolveAppSyncResolverDataSource(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		apiARN := appsyncApiARNFromChild(r.NativeID)
+		apiARN := appsyncAPIARNFromChild(r.NativeID)
 		if dsName := sv(attrs.DataSourceName); dsName != "" && apiARN != "" {
 			if dsID, ok := dsIdx[apiARN+"|"+dsName]; ok {
 				if err := st.UpsertRelationship(r.ID, dsID, store.RelUses, "directed", nil); err != nil {
@@ -329,7 +335,7 @@ func resolveAppSyncFunctionDataSource(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		apiARN := appsyncApiARNFromChild(r.NativeID)
+		apiARN := appsyncAPIARNFromChild(r.NativeID)
 		dsName := sv(attrs.DataSourceName)
 		if dsName == "" || apiARN == "" {
 			continue
@@ -345,12 +351,12 @@ func resolveAppSyncFunctionDataSource(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveAppSyncSourceApiAssoc links each source-api-association to the
-// MergedApi side; the parent (SourceApi) is wired by resolveAppSyncApiChildren
+// resolveAppSyncSourceAPIAssoc links each source-api-association to the
+// MergedApi side; the parent (SourceApi) is wired by resolveAppSyncAPIChildren
 // already since the row's NativeID encodes it.
-func resolveAppSyncSourceApiAssoc(acct *account, st *store.Store) error {
+func resolveAppSyncSourceAPIAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncSourceApiAssociation},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncSourceAPIAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -365,13 +371,13 @@ func resolveAppSyncSourceApiAssoc(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			MergedApiArn *string `json:"MergedApiArn"`
-			SourceApiArn *string `json:"SourceApiArn"`
+			MergedAPIArn *string `json:"MergedApiArn"`
+			SourceAPIArn *string `json:"SourceApiArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		for _, arn := range []string{sv(attrs.MergedApiArn), sv(attrs.SourceApiArn)} {
+		for _, arn := range []string{sv(attrs.MergedAPIArn), sv(attrs.SourceAPIArn)} {
 			if arn == "" {
 				continue
 			}
@@ -387,11 +393,11 @@ func resolveAppSyncSourceApiAssoc(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveAppSyncDomainNameApiAssoc links each association to its parent
-// domain-name (via NativeID parse) and to the associated api (ApiId attr).
-func resolveAppSyncDomainNameApiAssoc(acct *account, st *store.Store) error {
+// resolveAppSyncDomainNameAPIAssoc links each association to its parent
+// domain-name (via NativeID parse) and to the associated api (APIID attr).
+func resolveAppSyncDomainNameAPIAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncDomainNameApiAssociation},
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncDomainNameAPIAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -408,7 +414,7 @@ func resolveAppSyncDomainNameApiAssoc(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	apiSet, err := scannedIDSet(acct, st, TypeAppSyncApi)
+	apiSet, err := scannedIDSet(acct, st, TypeAppSyncAPI)
 	if err != nil {
 		return err
 	}
@@ -423,19 +429,19 @@ func resolveAppSyncDomainNameApiAssoc(acct *account, st *store.Store) error {
 			}
 		}
 		var attrs struct {
-			ApiId *string `json:"ApiId"`
+			APIID *string `json:"ApiId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		apiID := sv(attrs.ApiId)
+		apiID := sv(attrs.APIID)
 		if apiID == "" {
 			continue
 		}
 		region := sv(r.Region)
 		apiARN := fmt.Sprintf("arn:aws:appsync:%s:%s:apis/%s", region, acct.ID, apiID)
 		gqlID := store.ResourceID("aws", acct.ID, TypeAppSyncGraphQLApi, apiARN)
-		evtID := store.ResourceID("aws", acct.ID, TypeAppSyncApi, apiARN)
+		evtID := store.ResourceID("aws", acct.ID, TypeAppSyncAPI, apiARN)
 		switch {
 		case graphqlSet[gqlID]:
 			if err := st.UpsertRelationship(r.ID, gqlID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -451,7 +457,8 @@ func resolveAppSyncDomainNameApiAssoc(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveAppSyncGraphQLAPIRefs,
+	registerResolver(
+		resolveAppSyncGraphQLAPIRefs,
 		EdgeDecl{TypeAppSyncGraphQLApi, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeAppSyncGraphQLApi, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppSyncGraphQLApi, TypeCognitoUserPool, store.RelUses},
@@ -459,7 +466,7 @@ func init() {
 }
 
 // resolveAppSyncGraphQLAPIRefs wires GraphqlApi → Lambda authorizer
-// (LambdaAuthorizerConfig.AuthorizerUri), IAM CloudWatch logs role
+// (LambdaAuthorizerConfig.AuthorizerURI), IAM CloudWatch logs role
 // (LogConfig.CloudWatchLogsRoleArn), MergedApi execution role, and
 // Cognito user pool (UserPoolConfig.UserPoolId / per-region).
 func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
@@ -486,9 +493,9 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			MergedApiExecutionRoleArn *string `json:"MergedApiExecutionRoleArn"`
+			MergedAPIExecutionRoleArn *string `json:"MergedApiExecutionRoleArn"`
 			LambdaAuthorizerConfig    *struct {
-				AuthorizerUri *string `json:"AuthorizerUri"`
+				AuthorizerURI *string `json:"AuthorizerUri"`
 			} `json:"LambdaAuthorizerConfig"`
 			LogConfig *struct {
 				CloudWatchLogsRoleArn *string `json:"CloudWatchLogsRoleArn"`
@@ -511,7 +518,7 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 			}
 			return st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil)
 		}
-		if err := emitRole(sv(attrs.MergedApiExecutionRoleArn)); err != nil {
+		if err := emitRole(sv(attrs.MergedAPIExecutionRoleArn)); err != nil {
 			return fmt.Errorf("upsert appsync→merged-role: %w", err)
 		}
 		if attrs.LogConfig != nil {
@@ -520,7 +527,7 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.LambdaAuthorizerConfig != nil {
-			larn := sv(attrs.LambdaAuthorizerConfig.AuthorizerUri)
+			larn := sv(attrs.LambdaAuthorizerConfig.AuthorizerURI)
 			if strings.Contains(larn, ":lambda:") && strings.Contains(larn, ":function:") {
 				// Strip optional :version/:alias suffix to canonical function ARN.
 				if i := strings.Index(larn, ":function:"); i > 0 {
@@ -555,20 +562,21 @@ func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveAppSyncEventApiRefs,
-		EdgeDecl{TypeAppSyncApi, TypeIAMRole, store.RelAssumes},
-		EdgeDecl{TypeAppSyncApi, TypeLambdaFunction, store.RelUses},
-		EdgeDecl{TypeAppSyncApi, TypeCognitoUserPool, store.RelUses},
-		EdgeDecl{TypeAppSyncApi, TypeWAFv2WebACL, store.RelUses},
+	registerResolver(
+		resolveAppSyncEventAPIRefs,
+		EdgeDecl{TypeAppSyncAPI, TypeIAMRole, store.RelAssumes},
+		EdgeDecl{TypeAppSyncAPI, TypeLambdaFunction, store.RelUses},
+		EdgeDecl{TypeAppSyncAPI, TypeCognitoUserPool, store.RelUses},
+		EdgeDecl{TypeAppSyncAPI, TypeWAFv2WebACL, store.RelUses},
 	)
 }
 
-// resolveAppSyncEventApiRefs walks each AppSync Event API's EventConfig
+// resolveAppSyncEventAPIRefs walks each AppSync Event API's EventConfig
 // for AuthProviders (Cognito + Lambda authorizer) and LogConfig
-// (CloudWatchLogsRoleArn), plus top-level WafWebAclArn.
-func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
+// (CloudWatchLogsRoleArn), plus top-level WafWebACLArn.
+func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncApi}, Limit: util.AllResources,
+		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncAPI}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -594,7 +602,7 @@ func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			WafWebAclArn *string `json:"WafWebAclArn"`
+			WafWebACLArn *string `json:"WafWebAclArn"`
 			EventConfig  *struct {
 				AuthProviders []struct {
 					CognitoConfig *struct {
@@ -602,7 +610,7 @@ func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
 						AwsRegion  *string `json:"AwsRegion"`
 					} `json:"CognitoConfig"`
 					LambdaAuthorizerConfig *struct {
-						AuthorizerUri *string `json:"AuthorizerUri"`
+						AuthorizerURI *string `json:"AuthorizerUri"`
 					} `json:"LambdaAuthorizerConfig"`
 				} `json:"AuthProviders"`
 				LogConfig *struct {
@@ -613,7 +621,7 @@ func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if wa := sv(attrs.WafWebAclArn); strings.Contains(wa, ":wafv2:") {
+		if wa := sv(attrs.WafWebACLArn); strings.Contains(wa, ":wafv2:") {
 			tgt := store.ResourceID("aws", acct.ID, TypeWAFv2WebACL, wa)
 			if waclSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
@@ -637,7 +645,7 @@ func resolveAppSyncEventApiRefs(acct *account, st *store.Store) error {
 		}
 		for _, ap := range attrs.EventConfig.AuthProviders {
 			if ap.LambdaAuthorizerConfig != nil {
-				larn := sv(ap.LambdaAuthorizerConfig.AuthorizerUri)
+				larn := sv(ap.LambdaAuthorizerConfig.AuthorizerURI)
 				if strings.Contains(larn, ":lambda:") && strings.Contains(larn, ":function:") {
 					if i := strings.Index(larn, ":function:"); i > 0 {
 						tail := larn[i+len(":function:"):]

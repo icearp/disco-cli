@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVpcLatticeALSRefs,
+	registerResolver(
+		resolveVpcLatticeALSRefs,
 		EdgeDecl{TypeVpcLatticeAccessLogSubscription, TypeVpcLatticeService, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeAccessLogSubscription, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeAccessLogSubscription, TypeLogsLogGroup, store.RelUses},

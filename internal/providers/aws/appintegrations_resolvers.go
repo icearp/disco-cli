@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppIntegrationsRelationships,
+	registerResolver(
+		resolveAppIntegrationsRelationships,
 		EdgeDecl{TypeAppIntegrationsEventIntegration, TypeEventsEventBus, store.RelUses},
 	)
 }

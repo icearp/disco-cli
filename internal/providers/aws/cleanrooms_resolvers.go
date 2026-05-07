@@ -9,22 +9,25 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCleanRoomsMembershipCollaboration,
+	registerResolver(
+		resolveCleanRoomsMembershipCollaboration,
 		EdgeDecl{TypeCleanRoomsMembership, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 	)
-	registerResolver(resolveCleanRoomsChildToMembership,
+	registerResolver(
+		resolveCleanRoomsChildToMembership,
 		EdgeDecl{TypeCleanRoomsAnalysisTemplate, TypeCleanRoomsMembership, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsAnalysisTemplate, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsCollaboration, store.RelAttachedTo},
-		EdgeDecl{TypeCleanRoomsIdMappingTable, TypeCleanRoomsMembership, store.RelAttachedTo},
-		EdgeDecl{TypeCleanRoomsIdMappingTable, TypeCleanRoomsCollaboration, store.RelAttachedTo},
-		EdgeDecl{TypeCleanRoomsIdNamespaceAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
-		EdgeDecl{TypeCleanRoomsIdNamespaceAssociation, TypeCleanRoomsCollaboration, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsIDMappingTable, TypeCleanRoomsMembership, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsIDMappingTable, TypeCleanRoomsCollaboration, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsIDNamespaceAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsIDNamespaceAssociation, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsPrivacyBudgetTemplate, TypeCleanRoomsMembership, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsPrivacyBudgetTemplate, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 	)
-	registerResolver(resolveCleanRoomsConfiguredTableAssocToTable,
+	registerResolver(
+		resolveCleanRoomsConfiguredTableAssocToTable,
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsConfiguredTable, store.RelAttachedTo},
 	)
 }
@@ -84,8 +87,8 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 	childTypes := []string{
 		TypeCleanRoomsAnalysisTemplate,
 		TypeCleanRoomsConfiguredTableAssociation,
-		TypeCleanRoomsIdMappingTable,
-		TypeCleanRoomsIdNamespaceAssociation,
+		TypeCleanRoomsIDMappingTable,
+		TypeCleanRoomsIDNamespaceAssociation,
 		TypeCleanRoomsPrivacyBudgetTemplate,
 	}
 	for _, ctype := range childTypes {

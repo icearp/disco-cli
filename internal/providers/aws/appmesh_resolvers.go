@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppMeshChildren,
+	registerResolver(
+		resolveAppMeshChildren,
 		EdgeDecl{TypeAppMeshVirtualGateway, TypeAppMeshMesh, store.RelAttachedTo},
 		EdgeDecl{TypeAppMeshVirtualNode, TypeAppMeshMesh, store.RelAttachedTo},
 		EdgeDecl{TypeAppMeshVirtualRouter, TypeAppMeshMesh, store.RelAttachedTo},
@@ -17,10 +18,12 @@ func init() {
 		EdgeDecl{TypeAppMeshRoute, TypeAppMeshMesh, store.RelAttachedTo},
 		EdgeDecl{TypeAppMeshGatewayRoute, TypeAppMeshMesh, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppMeshRouteParent,
+	registerResolver(
+		resolveAppMeshRouteParent,
 		EdgeDecl{TypeAppMeshRoute, TypeAppMeshVirtualRouter, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppMeshGatewayRouteParent,
+	registerResolver(
+		resolveAppMeshGatewayRouteParent,
 		EdgeDecl{TypeAppMeshGatewayRoute, TypeAppMeshVirtualGateway, store.RelAttachedTo},
 	)
 }

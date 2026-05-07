@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSMContactsChannelToContact,
+	registerResolver(
+		resolveSSMContactsChannelToContact,
 		EdgeDecl{TypeSSMContactsContactChannel, TypeSSMContactsContact, store.RelAttachedTo},
 		EdgeDecl{TypeSSMContactsContactChannel, TypeSSMContactsPlan, store.RelAttachedTo},
 	)
-	registerResolver(resolveSSMContactsRotationContacts,
+	registerResolver(
+		resolveSSMContactsRotationContacts,
 		EdgeDecl{TypeSSMContactsRotation, TypeSSMContactsContact, store.RelAttachedTo},
 		EdgeDecl{TypeSSMContactsRotation, TypeSSMContactsPlan, store.RelAttachedTo},
 	)
@@ -66,7 +68,7 @@ func resolveSSMContactsChannelToContact(acct *account, st *store.Store) error {
 }
 
 // resolveSSMContactsRotationContacts wires rotation → contacts[]/plans[] via
-// ContactIds.
+// ContactIDs.
 func resolveSSMContactsRotationContacts(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMContactsRotation}, Limit: util.AllResources,
@@ -87,12 +89,12 @@ func resolveSSMContactsRotationContacts(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ContactIds []string `json:"ContactIds"`
+			ContactIDs []string `json:"ContactIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		for _, c := range attrs.ContactIds {
+		for _, c := range attrs.ContactIDs {
 			if c == "" {
 				continue
 			}

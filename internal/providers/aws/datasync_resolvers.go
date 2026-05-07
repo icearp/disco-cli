@@ -9,29 +9,34 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDataSyncLocationS3,
+	registerResolver(
+		resolveDataSyncLocationS3,
 		EdgeDecl{TypeDataSyncLocationS3, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationS3, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationS3, TypeDataSyncAgent, store.RelUses},
 	)
-	registerResolver(resolveDataSyncLocationEFS,
+	registerResolver(
+		resolveDataSyncLocationEFS,
 		EdgeDecl{TypeDataSyncLocationEFS, TypeEFSFileSystem, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncLocationEFS, TypeEFSAccessPoint, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncLocationEFS, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationEFS, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncLocationEFS, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveDataSyncLocationFSxOntap,
+	registerResolver(
+		resolveDataSyncLocationFSxOntap,
 		EdgeDecl{TypeDataSyncLocationFSxONTAP, TypeFSxFileSystem, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncLocationFSxONTAP, TypeFSxStorageVirtualMachine, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncLocationFSxONTAP, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveDataSyncFSxSGs,
+	registerResolver(
+		resolveDataSyncFSxSGs,
 		EdgeDecl{TypeDataSyncLocationFSxLustre, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationFSxOpenZFS, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationFSxWindows, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveDataSyncOnPremAgents,
+	registerResolver(
+		resolveDataSyncOnPremAgents,
 		EdgeDecl{TypeDataSyncLocationNFS, TypeDataSyncAgent, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationSMB, TypeDataSyncAgent, store.RelUses},
 		EdgeDecl{TypeDataSyncLocationHDFS, TypeDataSyncAgent, store.RelUses},
@@ -358,12 +363,14 @@ func resolveDataSyncOnPremAgents(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveDataSyncAgentRefs,
+	registerResolver(
+		resolveDataSyncAgentRefs,
 		EdgeDecl{TypeDataSyncAgent, TypeEC2VPCEndpoint, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncAgent, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDataSyncAgent, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveDataSyncTaskRefs,
+	registerResolver(
+		resolveDataSyncTaskRefs,
 		EdgeDecl{TypeDataSyncTask, TypeLogsLogGroup, store.RelUses},
 	)
 }

@@ -30,7 +30,8 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 		return 0, 0, ierr
 	}
 
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanConnectCore(ctx, client, instances, acct, region, st, scanID)
 		},

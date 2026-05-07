@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRDSInstanceRelationships,
+	registerResolver(
+		resolveRDSInstanceRelationships,
 		EdgeDecl{TypeRDSDBInstance, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeRDSDBInstance, TypeRDSDBCluster, store.RelAttachedTo},
 		EdgeDecl{TypeRDSDBInstance, TypeRDSDBSubnetGroup, store.RelAttachedTo},
@@ -18,30 +19,38 @@ func init() {
 		EdgeDecl{TypeRDSDBInstance, TypeRDSDBParameterGroup, store.RelUses},
 		EdgeDecl{TypeRDSDBInstance, TypeRDSOptionGroup, store.RelUses},
 	)
-	registerResolver(resolveDBClusterRelationships,
+	registerResolver(
+		resolveDBClusterRelationships,
 		EdgeDecl{TypeRDSDBCluster, TypeRDSDBSubnetGroup, store.RelAttachedTo},
 		EdgeDecl{TypeRDSDBCluster, TypeRDSDBClusterParameterGroup, store.RelUses},
 		EdgeDecl{TypeRDSDBCluster, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveDBSubnetGroupRelationships,
+	registerResolver(
+		resolveDBSubnetGroupRelationships,
 		EdgeDecl{TypeRDSDBSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveDBProxyRelationships,
+	registerResolver(
+		resolveDBProxyRelationships,
 		EdgeDecl{TypeRDSDBProxy, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveDBProxyEndpointRelationships,
+	registerResolver(
+		resolveDBProxyEndpointRelationships,
 		EdgeDecl{TypeRDSDBProxyEndpoint, TypeRDSDBProxy, store.RelAttachedTo},
 	)
-	registerResolver(resolveDBProxyTargetGroupRelationships,
+	registerResolver(
+		resolveDBProxyTargetGroupRelationships,
 		EdgeDecl{TypeRDSDBProxyTargetGroup, TypeRDSDBProxy, store.RelAttachedTo},
 	)
-	registerResolver(resolveDBShardGroupRelationships,
+	registerResolver(
+		resolveDBShardGroupRelationships,
 		EdgeDecl{TypeRDSDBShardGroup, TypeRDSDBCluster, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlobalClusterRelationships,
+	registerResolver(
+		resolveGlobalClusterRelationships,
 		EdgeDecl{TypeRDSGlobalCluster, TypeRDSDBCluster, store.RelContains},
 	)
-	registerResolver(resolveRDSIntegrationRefs,
+	registerResolver(
+		resolveRDSIntegrationRefs,
 		EdgeDecl{TypeRDSIntegration, TypeRDSDBCluster, store.RelAttachedTo},
 		EdgeDecl{TypeRDSIntegration, TypeRedshiftCluster, store.RelAttachedTo},
 		EdgeDecl{TypeRDSIntegration, TypeRedshiftServerlessNamespace, store.RelAttachedTo},

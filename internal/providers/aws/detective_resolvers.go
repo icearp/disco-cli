@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDetectiveMemberOrgAccount,
+	registerResolver(
+		resolveDetectiveMemberOrgAccount,
 		EdgeDecl{TypeDetectiveMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
-	registerResolver(resolveDetectiveOrgAdminRefs,
+	registerResolver(
+		resolveDetectiveOrgAdminRefs,
 		EdgeDecl{TypeDetectiveOrganizationAdmin, TypeDetectiveGraph, store.RelAttachedTo},
 		EdgeDecl{TypeDetectiveOrganizationAdmin, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
@@ -41,7 +43,7 @@ func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			AccountId *string `json:"AccountId"`
+			AccountID *string `json:"AccountId"`
 			GraphArn  *string `json:"GraphArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -55,7 +57,7 @@ func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if a := sv(attrs.AccountId); a != "" && len(orgArnByID) > 0 {
+		if a := sv(attrs.AccountID); a != "" && len(orgArnByID) > 0 {
 			if orgARN, ok := orgArnByID[a]; ok {
 				orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
 				if err := st.UpsertRelationship(r.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {

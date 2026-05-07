@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveWAFv2LoggingConfigToWebACL,
+	registerResolver(
+		resolveWAFv2LoggingConfigToWebACL,
 		EdgeDecl{TypeWAFv2LoggingConfiguration, TypeWAFv2WebACL, store.RelAttachedTo},
 	)
-	registerResolver(resolveWAFv2WebACLAssociationRefs,
+	registerResolver(
+		resolveWAFv2WebACLAssociationRefs,
 		EdgeDecl{TypeWAFv2WebACLAssociation, TypeWAFv2WebACL, store.RelAttachedTo},
 		EdgeDecl{TypeWAFv2WebACLAssociation, TypeELBv2LoadBalancer, store.RelAttachedTo},
 		EdgeDecl{TypeWAFv2WebACLAssociation, TypeAPIGatewayStage, store.RelAttachedTo},

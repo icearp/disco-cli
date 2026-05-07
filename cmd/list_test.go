@@ -39,10 +39,14 @@ func seedTestDB(t *testing.T) *store.Store {
 	name1, region1 := "web", "us-east-1"
 	name2, region2 := "db", "us-west-2"
 	resources := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-1",
-			Name: &name1, Region: &region1, AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-1",
-			Name: &name2, Region: &region2, AttributesJSON: "{}", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:instance", NativeID: "i-1",
+			Name: &name1, Region: &region1, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:s3:bucket", NativeID: "b-1",
+			Name: &name2, Region: &region2, AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
 	}
 	if _, err := st.UpsertResources(resources); err != nil {
 		t.Fatalf("UpsertResources: %v", err)
@@ -543,10 +547,14 @@ func TestListCmd_ExcludeTypes(t *testing.T) {
 		t.Fatalf("CreateScan: %v", err)
 	}
 	noisy := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-1",
-			AttributesJSON: "{}", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-2",
-			AttributesJSON: "{}", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-1",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:logs:log-stream", NativeID: "ls-2",
+			AttributesJSON: "{}", DiscoveredBy: scanID,
+		},
 	}
 	if _, err := st.UpsertResources(noisy); err != nil {
 		t.Fatalf("upsert: %v", err)
@@ -586,8 +594,10 @@ func TestListCmd_ScanID(t *testing.T) {
 		t.Fatalf("CreateScan: %v", err)
 	}
 	if _, err := st.UpsertResources([]*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-B",
-			AttributesJSON: "{}", DiscoveredBy: scanB},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-B",
+			AttributesJSON: "{}", DiscoveredBy: scanB,
+		},
 	}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -651,10 +661,14 @@ func TestListCmd_Since(t *testing.T) {
 		t.Fatalf("CreateScan: %v", err)
 	}
 	rows := []*store.Resource{
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-old",
-			AttributesJSON: "{}", DiscoveredAt: "2026-01-01T00:00:00Z", DiscoveredBy: scanID},
-		{Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-new",
-			AttributesJSON: "{}", DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: scanID},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-old",
+			AttributesJSON: "{}", DiscoveredAt: "2026-01-01T00:00:00Z", DiscoveredBy: scanID,
+		},
+		{
+			Provider: "aws", AccountID: "111", Type: "aws:ec2:vpc", NativeID: "vpc-new",
+			AttributesJSON: "{}", DiscoveredAt: "2026-05-01T00:00:00Z", DiscoveredBy: scanID,
+		},
 	}
 	if _, err := st.UpsertResources(rows); err != nil {
 		t.Fatalf("upsert: %v", err)

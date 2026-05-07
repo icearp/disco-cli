@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDirectoryServiceVpcRefs,
+	registerResolver(
+		resolveDirectoryServiceVpcRefs,
 		EdgeDecl{TypeDSMicrosoftAD, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeDSMicrosoftAD, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDSMicrosoftAD, TypeEC2SecurityGroup, store.RelAttachedTo},
@@ -44,9 +45,9 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 		for _, r := range rows {
 			var attrs struct {
 				VpcSettings *struct {
-					VpcId           *string  `json:"VpcId"`
-					SubnetIds       []string `json:"SubnetIds"`
-					SecurityGroupId *string  `json:"SecurityGroupId"`
+					VpcID           *string  `json:"VpcId"`
+					SubnetIDs       []string `json:"SubnetIds"`
+					SecurityGroupID *string  `json:"SecurityGroupId"`
 				} `json:"VpcSettings"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -56,7 +57,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			region := sv(r.Region)
-			if v := sv(attrs.VpcSettings.VpcId); v != "" {
+			if v := sv(attrs.VpcSettings.VpcID); v != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
 				if vpcSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -64,7 +65,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 					}
 				}
 			}
-			for _, sid := range attrs.VpcSettings.SubnetIds {
+			for _, sid := range attrs.VpcSettings.SubnetIDs {
 				if sid == "" {
 					continue
 				}
@@ -76,7 +77,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert ds %s→subnet: %w", t, err)
 				}
 			}
-			if g := sv(attrs.VpcSettings.SecurityGroupId); g != "" {
+			if g := sv(attrs.VpcSettings.SecurityGroupID); g != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", g))
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

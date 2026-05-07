@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSMQuickSetupConfigManagerRoles,
+	registerResolver(
+		resolveSSMQuickSetupConfigManagerRoles,
 		EdgeDecl{TypeSSMQuickSetupConfigurationManager, TypeIAMRole, store.RelAssumes},
 	)
 }

@@ -9,13 +9,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSageMakerProjectProduct,
+	registerResolver(
+		resolveSageMakerProjectProduct,
 		EdgeDecl{TypeSageMakerProject, TypeServiceCatalogProduct, store.RelUses},
 	)
 }
 
 // resolveSageMakerProjectProduct wires each SageMaker project to the Service
-// Catalog product its ServiceCatalogProvisioningDetails references. ProductId
+// Catalog product its ServiceCatalogProvisioningDetails references. ProductID
 // is a bare `prod-xxx` id; rebuild the catalog ARN per region+acct.
 func resolveSageMakerProjectProduct(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -34,7 +35,7 @@ func resolveSageMakerProjectProduct(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			ServiceCatalogProvisioningDetails *struct {
-				ProductId *string `json:"ProductId"`
+				ProductID *string `json:"ProductId"`
 			} `json:"ServiceCatalogProvisioningDetails"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -43,7 +44,7 @@ func resolveSageMakerProjectProduct(acct *account, st *store.Store) error {
 		if attrs.ServiceCatalogProvisioningDetails == nil {
 			continue
 		}
-		pid := sv(attrs.ServiceCatalogProvisioningDetails.ProductId)
+		pid := sv(attrs.ServiceCatalogProvisioningDetails.ProductID)
 		if pid == "" {
 			continue
 		}

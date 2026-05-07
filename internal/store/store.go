@@ -119,7 +119,7 @@ func (s *Store) ReportError(e ScanError) {
 // It creates the parent directory if it does not exist.
 func Open(path string) (*Store, error) {
 	if dir := filepath.Dir(path); dir != "." {
-		if err := os.MkdirAll(dir, 0700); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, fmt.Errorf("create db dir: %w", err)
 		}
 	}
@@ -151,7 +151,7 @@ func Open(path string) (*Store, error) {
 	// Chmod runs after migrate so the file is guaranteed to exist; skipped
 	// for non-regular paths like :memory: URIs.
 	if fi, statErr := os.Stat(path); statErr == nil && fi.Mode().IsRegular() {
-		if err := os.Chmod(path, 0600); err != nil {
+		if err := os.Chmod(path, 0o600); err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("chmod db: %w", err)
 		}

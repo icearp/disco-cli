@@ -64,8 +64,8 @@ func scanOpenSearchServerless(ctx context.Context, acct *account, region string,
 		},
 		func() (int, int, error) {
 			var t, i int
-			for _, st_ := range types.SecurityConfigType("").Values() {
-				tt, ii, e := scanOSSSecurityConfigs(ctx, client, acct, region, st, scanID, st_)
+			for _, sct := range types.SecurityConfigType("").Values() {
+				tt, ii, e := scanOSSSecurityConfigs(ctx, client, acct, region, st, scanID, sct)
 				if e != nil {
 					return t, i, e
 				}

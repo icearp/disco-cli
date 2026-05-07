@@ -10,19 +10,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGlueTableToDatabase,
+	registerResolver(
+		resolveGlueTableToDatabase,
 		EdgeDecl{TypeGlueTable, TypeGlueDatabase, store.RelAttachedTo},
 	)
-	registerResolver(resolveGluePartitionToTable,
+	registerResolver(
+		resolveGluePartitionToTable,
 		EdgeDecl{TypeGluePartition, TypeGlueTable, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlueTableOptimizerToTable,
+	registerResolver(
+		resolveGlueTableOptimizerToTable,
 		EdgeDecl{TypeGlueTableOptimizer, TypeGlueTable, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlueSchemaVersionToSchema,
+	registerResolver(
+		resolveGlueSchemaVersionToSchema,
 		EdgeDecl{TypeGlueSchemaVersion, TypeGlueSchema, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlueDataQualityRulesetTargets,
+	registerResolver(
+		resolveGlueDataQualityRulesetTargets,
 		EdgeDecl{TypeGlueDataQualityRuleset, TypeGlueDatabase, store.RelUses},
 		EdgeDecl{TypeGlueDataQualityRuleset, TypeGlueTable, store.RelUses},
 	)

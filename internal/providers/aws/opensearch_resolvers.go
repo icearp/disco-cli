@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOpenSearchDomainTargets,
+	registerResolver(
+		resolveOpenSearchDomainTargets,
 		EdgeDecl{TypeOpenSearchDomain, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeOpenSearchDomain, TypeEC2Subnet, store.RelUses},
 		EdgeDecl{TypeOpenSearchDomain, TypeEC2SecurityGroup, store.RelUses},

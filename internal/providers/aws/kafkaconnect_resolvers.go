@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKafkaConnectConnectorRefs,
+	registerResolver(
+		resolveKafkaConnectConnectorRefs,
 		EdgeDecl{TypeKafkaConnectConnector, TypeKafkaConnectCustomPlugin, store.RelUses},
 		EdgeDecl{TypeKafkaConnectConnector, TypeKafkaConnectWorkerConfiguration, store.RelUses},
 		EdgeDecl{TypeKafkaConnectConnector, TypeIAMRole, store.RelUses},

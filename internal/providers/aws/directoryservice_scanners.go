@@ -21,10 +21,6 @@ func init() {
 	})
 }
 
-type directoryServiceAPI interface {
-	DescribeDirectories(context.Context, *directoryservice.DescribeDirectoriesInput, ...func(*directoryservice.Options)) (*directoryservice.DescribeDirectoriesOutput, error)
-}
-
 // scanDirectoryService discovers Directory Service Microsoft AD and Simple
 // AD directories. DescribeDirectories returns all types; filter by
 // DirectoryType for the two CFN-resource shapes (AD Connector + Shared

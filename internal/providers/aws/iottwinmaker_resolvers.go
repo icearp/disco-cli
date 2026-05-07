@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTTwinMakerChildrenToWorkspace,
+	registerResolver(
+		resolveIoTTwinMakerChildrenToWorkspace,
 		EdgeDecl{TypeIoTTwinMakerComponentType, TypeIoTTwinMakerWorkspace, store.RelAttachedTo},
 		EdgeDecl{TypeIoTTwinMakerEntity, TypeIoTTwinMakerWorkspace, store.RelAttachedTo},
 		EdgeDecl{TypeIoTTwinMakerScene, TypeIoTTwinMakerWorkspace, store.RelAttachedTo},

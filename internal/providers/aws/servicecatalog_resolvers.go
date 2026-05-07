@@ -10,33 +10,41 @@ import (
 )
 
 func init() {
-	registerResolver(resolveServiceCatalogPortfolioProducts,
+	registerResolver(
+		resolveServiceCatalogPortfolioProducts,
 		EdgeDecl{TypeServiceCatalogPortfolio, TypeServiceCatalogProduct, store.RelContains},
 	)
-	registerResolver(resolveServiceCatalogPortfolioProductAssociations,
+	registerResolver(
+		resolveServiceCatalogPortfolioProductAssociations,
 		EdgeDecl{TypeServiceCatalogPortfolioProductAssociation, TypeServiceCatalogPortfolio, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogPortfolioProductAssociation, TypeServiceCatalogProduct, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceCatalogServiceActionAssociations,
+	registerResolver(
+		resolveServiceCatalogServiceActionAssociations,
 		EdgeDecl{TypeServiceCatalogServiceActionAssociation, TypeServiceCatalogProduct, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogServiceActionAssociation, TypeServiceCatalogServiceAction, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceCatalogProvisionedProductRefs,
+	registerResolver(
+		resolveServiceCatalogProvisionedProductRefs,
 		EdgeDecl{TypeServiceCatalogCloudFormationProvisionedProduct, TypeServiceCatalogProduct, store.RelUses},
 	)
-	registerResolver(resolveServiceCatalogPortfolioShares,
+	registerResolver(
+		resolveServiceCatalogPortfolioShares,
 		EdgeDecl{TypeServiceCatalogPortfolioShare, TypeServiceCatalogPortfolio, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceCatalogPortfolioPrincipals,
+	registerResolver(
+		resolveServiceCatalogPortfolioPrincipals,
 		EdgeDecl{TypeServiceCatalogPortfolioPrincipalAssociation, TypeServiceCatalogPortfolio, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogPortfolioPrincipalAssociation, TypeIAMRole, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogPortfolioPrincipalAssociation, TypeIAMUser, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogPortfolioPrincipalAssociation, TypeIAMGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceCatalogTagOptionAssociations,
+	registerResolver(
+		resolveServiceCatalogTagOptionAssociations,
 		EdgeDecl{TypeServiceCatalogTagOptionAssociation, TypeServiceCatalogTagOption, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceCatalogConstraints,
+	registerResolver(
+		resolveServiceCatalogConstraints,
 		EdgeDecl{TypeServiceCatalogLaunchRoleConstraint, TypeServiceCatalogPortfolio, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogLaunchRoleConstraint, TypeServiceCatalogProduct, store.RelAttachedTo},
 		EdgeDecl{TypeServiceCatalogLaunchNotificationConstraint, TypeServiceCatalogPortfolio, store.RelAttachedTo},
@@ -51,7 +59,7 @@ func init() {
 }
 
 // scPortfolioBareIDIndex builds a `bare-portfolio-id → store.ResourceID`
-// map by listing every scanned portfolio and reading `attrs.Portfolio.Id`
+// map by listing every scanned portfolio and reading `attrs.Portfolio.ID`
 // — portfolios are stored with their full ARN as NativeID, but
 // associations reference portfolios by bare id (e.g. "port-abc123").
 func scPortfolioBareIDIndex(acct *account, st *store.Store) (map[string]string, error) {
@@ -66,21 +74,21 @@ func scPortfolioBareIDIndex(acct *account, st *store.Store) (map[string]string, 
 	for _, r := range rs {
 		var attrs struct {
 			Portfolio struct {
-				Id string `json:"Id"`
+				ID string `json:"Id"`
 			} `json:"Portfolio"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.Portfolio.Id != "" {
-			out[attrs.Portfolio.Id] = r.ID
+		if attrs.Portfolio.ID != "" {
+			out[attrs.Portfolio.ID] = r.ID
 		}
 	}
 	return out, nil
 }
 
 // scProductBareIDIndex builds a `bare-product-id → store.ResourceID` map
-// by reading each scanned product's `ProductViewSummary.ProductId`. The
+// by reading each scanned product's `ProductViewSummary.ProductID`. The
 // product NativeID is the full ARN.
 func scProductBareIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
@@ -94,25 +102,17 @@ func scProductBareIDIndex(acct *account, st *store.Store) (map[string]string, er
 	for _, r := range rs {
 		var attrs struct {
 			ProductViewSummary struct {
-				ProductId string `json:"ProductId"`
+				ProductID string `json:"ProductId"`
 			} `json:"ProductViewSummary"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ProductViewSummary.ProductId != "" {
-			out[attrs.ProductViewSummary.ProductId] = r.ID
+		if attrs.ProductViewSummary.ProductID != "" {
+			out[attrs.ProductViewSummary.ProductID] = r.ID
 		}
 	}
 	return out, nil
-}
-
-// scAssociationAttrs is the wrapped-attrs shape used by per-association
-// scanners — they `mustJSON(p)` the SDK's `PortfolioDetail` so the bare
-// portfolio id lives at `Id`. Reused for portfolio-product associations.
-type scAssociationAttrs struct {
-	Id        string `json:"Id"`
-	ProductId string `json:"ProductId"`
 }
 
 // resolveServiceCatalogPortfolioProductAssociations links each
@@ -230,8 +230,8 @@ func resolveServiceCatalogServiceActionAssociations(acct *account, st *store.Sto
 // servicecatalogProvisionedProductAttrs mirrors the SDK
 // `ProvisionedProductAttribute` JSON written by scanSCProvisionedProducts.
 type servicecatalogProvisionedProductAttrs struct {
-	ProductId              string `json:"ProductId"`
-	ProvisioningArtifactId string `json:"ProvisioningArtifactId"`
+	ProductID              string `json:"ProductId"`
+	ProvisioningArtifactID string `json:"ProvisioningArtifactId"`
 }
 
 // resolveServiceCatalogProvisionedProductRefs emits provisioned-product
@@ -257,10 +257,10 @@ func resolveServiceCatalogProvisionedProductRefs(acct *account, st *store.Store)
 		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.ProductId == "" {
+		if attrs.ProductID == "" {
 			continue
 		}
-		prodRID, ok := prodIdx[attrs.ProductId]
+		prodRID, ok := prodIdx[attrs.ProductID]
 		if !ok {
 			continue
 		}
@@ -390,7 +390,7 @@ func resolveServiceCatalogPortfolioPrincipals(acct *account, st *store.Store) er
 
 // resolveServiceCatalogTagOptionAssociations attaches each tag-option-
 // association to its parent tag-option. Resource targets vary across
-// many AWS types and are not classified here — `ResourceDetail.Id`
+// many AWS types and are not classified here — `ResourceDetail.ID`
 // carries a bare id with no type hint.
 func resolveServiceCatalogTagOptionAssociations(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
@@ -427,10 +427,10 @@ func resolveServiceCatalogTagOptionAssociations(acct *account, st *store.Store) 
 }
 
 // servicecatalogConstraintAttrs mirrors the SDK ConstraintDetail JSON:
-// PortfolioId + ProductId both bare.
+// PortfolioID + ProductID both bare.
 type servicecatalogConstraintAttrs struct {
-	PortfolioId string `json:"PortfolioId"`
-	ProductId   string `json:"ProductId"`
+	PortfolioID string `json:"PortfolioId"`
+	ProductID   string `json:"ProductId"`
 }
 
 // resolveServiceCatalogConstraints attaches every constraint subtype
@@ -469,12 +469,12 @@ func resolveServiceCatalogConstraints(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if portRID, ok := portIdx[attrs.PortfolioId]; ok && attrs.PortfolioId != "" {
+		if portRID, ok := portIdx[attrs.PortfolioID]; ok && attrs.PortfolioID != "" {
 			if err := st.UpsertRelationship(r.ID, portRID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert servicecatalog constraint→portfolio: %w", err)
 			}
 		}
-		if prodRID, ok := prodIdx[attrs.ProductId]; ok && attrs.ProductId != "" {
+		if prodRID, ok := prodIdx[attrs.ProductID]; ok && attrs.ProductID != "" {
 			if err := st.UpsertRelationship(r.ID, prodRID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert servicecatalog constraint→product: %w", err)
 			}

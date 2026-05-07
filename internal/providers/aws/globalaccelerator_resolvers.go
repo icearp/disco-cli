@@ -10,16 +10,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGlobalAcceleratorListenerParent,
+	registerResolver(
+		resolveGlobalAcceleratorListenerParent,
 		EdgeDecl{TypeGlobalAcceleratorListener, TypeGlobalAcceleratorAccelerator, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlobalAcceleratorEndpointGroupRefs,
+	registerResolver(
+		resolveGlobalAcceleratorEndpointGroupRefs,
 		EdgeDecl{TypeGlobalAcceleratorEndpointGroup, TypeGlobalAcceleratorListener, store.RelAttachedTo},
 		EdgeDecl{TypeGlobalAcceleratorEndpointGroup, TypeELBv2LoadBalancer, store.RelRoutesTo},
 		EdgeDecl{TypeGlobalAcceleratorEndpointGroup, TypeEC2EIP, store.RelRoutesTo},
 		EdgeDecl{TypeGlobalAcceleratorEndpointGroup, TypeEC2Instance, store.RelRoutesTo},
 	)
-	registerResolver(resolveGlobalAcceleratorCrossAccountAttachmentRefs,
+	registerResolver(
+		resolveGlobalAcceleratorCrossAccountAttachmentRefs,
 		EdgeDecl{TypeGlobalAcceleratorCrossAccountAttachment, TypeELBv2LoadBalancer, store.RelRoutesTo},
 		EdgeDecl{TypeGlobalAcceleratorCrossAccountAttachment, TypeEC2EIP, store.RelRoutesTo},
 		EdgeDecl{TypeGlobalAcceleratorCrossAccountAttachment, TypeEC2Instance, store.RelRoutesTo},

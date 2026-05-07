@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type emrServerlessAPI interface {
-	ListApplications(context.Context, *emrserverless.ListApplicationsInput, ...func(*emrserverless.Options)) (*emrserverless.ListApplicationsOutput, error)
-}
-
 // scanEMRServerless discovers EMR Serverless applications.
 func scanEMRServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := emrserverless.NewFromConfig(acct.cfg, func(o *emrserverless.Options) { o.Region = region })

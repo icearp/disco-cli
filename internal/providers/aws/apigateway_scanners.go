@@ -90,7 +90,8 @@ func init() {
 // scanAPIGateway is the orchestrator for all API Gateway v1 (REST) resource types.
 // It runs all sub-scanners concurrently and aggregates their counts.
 func scanAPIGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayREST(ctx, acct, region, st, scanID)
 		},
@@ -185,7 +186,8 @@ func scanAPIGatewayREST(ctx context.Context, acct *account, region string, st *s
 
 // scanAPIGatewayPerAPI scans all child resources of a single REST API concurrently.
 func scanAPIGatewayPerAPI(ctx context.Context, client apigatewayAPI, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayAuthorizers(ctx, client, acct, region, apiID, st, scanID)
 		},

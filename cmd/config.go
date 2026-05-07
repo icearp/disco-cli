@@ -103,11 +103,11 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("config file already exists: %s (use --force to overwrite)", path)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(boilerplateConfig), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(boilerplateConfig), 0o600); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 

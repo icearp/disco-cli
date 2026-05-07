@@ -9,15 +9,16 @@ import (
 )
 
 func init() {
-	registerResolver(func(acct *account, st *store.Store) error {
-		if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
-			return err
-		}
-		if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
-			return err
-		}
-		return resolveDynamoDBGlobalTableRelationships(acct, st)
-	},
+	registerResolver(
+		func(acct *account, st *store.Store) error {
+			if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
+				return err
+			}
+			if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
+				return err
+			}
+			return resolveDynamoDBGlobalTableRelationships(acct, st)
+		},
 		EdgeDecl{TypeDynamoDBTable, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDynamoDBTable, TypeDynamoDBStream, store.RelContains},
 		EdgeDecl{TypeDynamoDBGlobalTable, TypeDynamoDBTable, store.RelContains},

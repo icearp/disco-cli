@@ -28,10 +28,10 @@ type lambdaFunctionAttrs struct {
 }
 
 // lambdaFunctionCodeAttrs holds the verbatim Code fields disco needs.
-// ImageUri is the only edge-bearing field; ResolvedImageUri / RepositoryType
+// ImageURI is the only edge-bearing field; ResolvedImageUri / RepositoryType
 // are not required for graph relationships.
 type lambdaFunctionCodeAttrs struct {
-	ImageUri *string `json:"ImageUri,omitempty"`
+	ImageURI *string `json:"ImageUri,omitempty"`
 }
 
 func init() {
@@ -150,7 +150,7 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 			name := sv(fn.FunctionName)
 			fns = append(fns, lambdaFunctionSummary{name: name, arn: sv(fn.FunctionArn)})
 			// For image-package functions, fan out to GetFunction once to
-			// recover Code.ImageUri (not present in ListFunctions). ImageUri
+			// recover Code.ImageURI (not present in ListFunctions). ImageURI
 			// is the only edge-bearing field on Code — image → ECR
 			// repository edges are emitted by resolveLambdaRelationships.
 			attrs := lambdaFunctionAttrs{FunctionConfiguration: fn}
@@ -158,7 +158,7 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 				if out, gerr := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: &name}); gerr == nil {
 					if out.Code != nil && sv(out.Code.ImageUri) != "" {
 						uri := sv(out.Code.ImageUri)
-						attrs.Code = &lambdaFunctionCodeAttrs{ImageUri: &uri}
+						attrs.Code = &lambdaFunctionCodeAttrs{ImageURI: &uri}
 					}
 				} else if !isAccessDenied(gerr) && !isAPIErrorCode(gerr, "ResourceNotFoundException") {
 					return nil, 0, 0, fmt.Errorf("lambda:GetFunction (%s): %w", name, gerr)

@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSecretsManagerResourcePolicyToSecret,
+	registerResolver(
+		resolveSecretsManagerResourcePolicyToSecret,
 		EdgeDecl{TypeSecretsManagerResourcePolicy, TypeSecretsManagerSecret, store.RelAttachedTo},
 	)
-	registerResolver(resolveSecretsManagerRotationScheduleRefs,
+	registerResolver(
+		resolveSecretsManagerRotationScheduleRefs,
 		EdgeDecl{TypeSecretsManagerRotationSchedule, TypeSecretsManagerSecret, store.RelAttachedTo},
 		EdgeDecl{TypeSecretsManagerRotationSchedule, TypeLambdaFunction, store.RelUses},
 	)
@@ -52,7 +54,7 @@ func resolveSecretsManagerResourcePolicyToSecret(acct *account, st *store.Store)
 }
 
 // resolveSecretsManagerRotationScheduleRefs wires rotation-schedule → secret
-// (SecretId attr) and rotation-lambda (RotationLambdaARN attr).
+// (SecretID attr) and rotation-lambda (RotationLambdaARN attr).
 func resolveSecretsManagerRotationScheduleRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSecretsManagerRotationSchedule}, Limit: util.AllResources,
@@ -73,13 +75,13 @@ func resolveSecretsManagerRotationScheduleRefs(acct *account, st *store.Store) e
 	}
 	for _, r := range rows {
 		var attrs struct {
-			SecretId          *string `json:"SecretId"`
+			SecretID          *string `json:"SecretId"`
 			RotationLambdaARN *string `json:"RotationLambdaARN"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if s := sv(attrs.SecretId); s != "" {
+		if s := sv(attrs.SecretID); s != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeSecretsManagerSecret, s)
 			if secretSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

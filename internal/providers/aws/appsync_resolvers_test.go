@@ -15,8 +15,8 @@ func TestAppsyncApiARNFromChild(t *testing.T) {
 		{"", ""},
 	}
 	for _, c := range cases {
-		if got := appsyncApiARNFromChild(c.in); got != c.want {
-			t.Errorf("appsyncApiARNFromChild(%q) = %q, want %q", c.in, got, c.want)
+		if got := appsyncAPIARNFromChild(c.in); got != c.want {
+			t.Errorf("appsyncAPIARNFromChild(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }
@@ -29,8 +29,8 @@ func TestResolveAppSyncApiChildren(t *testing.T) {
 	dsARN := apiARN + "/datasources/my-ds"
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncDataSource, dsARN, testRegion, `{"Name":"my-ds"}`)
 
-	if err := resolveAppSyncApiChildren(acct, st); err != nil {
-		t.Fatalf("resolveAppSyncApiChildren: %v", err)
+	if err := resolveAppSyncAPIChildren(acct, st); err != nil {
+		t.Fatalf("resolveAppSyncAPIChildren: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(dsID)
 	assertRelationship(t, rels, dsID, apiID, store.RelAttachedTo)
@@ -91,10 +91,10 @@ func TestResolveAppSyncDomainNameApiAssoc(t *testing.T) {
 
 	assocARN := dnARN + "/apiassociation"
 	attrs := `{"ApiId":"api-1"}`
-	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncDomainNameApiAssociation, assocARN, testRegion, attrs)
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncDomainNameAPIAssociation, assocARN, testRegion, attrs)
 
-	if err := resolveAppSyncDomainNameApiAssoc(acct, st); err != nil {
-		t.Fatalf("resolveAppSyncDomainNameApiAssoc: %v", err)
+	if err := resolveAppSyncDomainNameAPIAssoc(acct, st); err != nil {
+		t.Fatalf("resolveAppSyncDomainNameAPIAssoc: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(assocID)
 	assertRelationship(t, rels, assocID, dnID, store.RelAttachedTo)
@@ -142,14 +142,14 @@ func TestResolveAppSyncEventApiRefs(t *testing.T) {
 		`"AuthProviders":[{"CognitoConfig":{"UserPoolId":"us-east-1_evt","AwsRegion":"us-east-1"}},` +
 		`{"LambdaAuthorizerConfig":{"AuthorizerUri":"` + lambdaARN + `"}}]}}`
 
-	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncApi, apiARN, testRegion, attrs)
+	aID := upsertTestResource(t, st, "aws", acct.ID, TypeAppSyncAPI, apiARN, testRegion, attrs)
 	rID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, testRegion, "{}")
 	lID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, lambdaARN, testRegion, "{}")
 	uID := upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPool, upARN, testRegion, "{}")
 	wID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFv2WebACL, waclARN, testRegion, "{}")
 
-	if err := resolveAppSyncEventApiRefs(acct, st); err != nil {
-		t.Fatalf("resolveAppSyncEventApiRefs: %v", err)
+	if err := resolveAppSyncEventAPIRefs(acct, st); err != nil {
+		t.Fatalf("resolveAppSyncEventAPIRefs: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(aID)
 	assertRelationship(t, rels, aID, rID, store.RelAssumes)

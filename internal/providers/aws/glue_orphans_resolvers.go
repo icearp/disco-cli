@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGlueDatabaseTargets,
+	registerResolver(
+		resolveGlueDatabaseTargets,
 		EdgeDecl{TypeGlueDatabase, TypeGlueCatalog, store.RelAttachedTo},
 		EdgeDecl{TypeGlueDatabase, TypeGlueConnection, store.RelUses},
 	)
-	registerResolver(resolveGlueIntegrationRefs,
+	registerResolver(
+		resolveGlueIntegrationRefs,
 		EdgeDecl{TypeGlueIntegration, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeGlueIntegration, TypeRDSDBCluster, store.RelRoutesTo},
 		EdgeDecl{TypeGlueIntegration, TypeRDSDBInstance, store.RelRoutesTo},
@@ -23,7 +25,8 @@ func init() {
 		EdgeDecl{TypeGlueIntegration, TypeS3Bucket, store.RelRoutesTo},
 		EdgeDecl{TypeGlueIntegration, TypeDynamoDBTable, store.RelRoutesTo},
 	)
-	registerResolver(resolveGlueCatalogTargets,
+	registerResolver(
+		resolveGlueCatalogTargets,
 		EdgeDecl{TypeGlueCatalog, TypeRedshiftCluster, store.RelRoutesTo},
 	)
 }

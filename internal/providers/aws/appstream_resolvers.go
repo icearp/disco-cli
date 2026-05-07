@@ -10,47 +10,58 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppStreamFleetRefs,
+	registerResolver(
+		resolveAppStreamFleetRefs,
 		EdgeDecl{TypeAppStreamFleet, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamFleet, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeAppStreamFleet, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppStreamFleet, TypeAppStreamDirectoryConfig, store.RelUses},
 	)
-	registerResolver(resolveAppStreamImageBuilderRefs,
+	registerResolver(
+		resolveAppStreamImageBuilderRefs,
 		EdgeDecl{TypeAppStreamImageBuilder, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamImageBuilder, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeAppStreamImageBuilder, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppStreamImageBuilder, TypeAppStreamDirectoryConfig, store.RelUses},
 	)
-	registerResolver(resolveAppStreamAppBlockBuilderRefs,
+	registerResolver(
+		resolveAppStreamAppBlockBuilderRefs,
 		EdgeDecl{TypeAppStreamAppBlockBuilder, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamAppBlockBuilder, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveAppStreamApplicationAppBlock,
+	registerResolver(
+		resolveAppStreamApplicationAppBlock,
 		EdgeDecl{TypeAppStreamApplication, TypeAppStreamAppBlock, store.RelUses},
 	)
-	registerResolver(resolveAppStreamApplicationFleetAssoc,
+	registerResolver(
+		resolveAppStreamApplicationFleetAssoc,
 		EdgeDecl{TypeAppStreamApplicationFleetAssociation, TypeAppStreamFleet, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamApplicationFleetAssociation, TypeAppStreamApplication, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppStreamEntitlementStack,
+	registerResolver(
+		resolveAppStreamEntitlementStack,
 		EdgeDecl{TypeAppStreamEntitlement, TypeAppStreamStack, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppStreamStackFleetAssoc,
+	registerResolver(
+		resolveAppStreamStackFleetAssoc,
 		EdgeDecl{TypeAppStreamStackFleetAssociation, TypeAppStreamStack, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamStackFleetAssociation, TypeAppStreamFleet, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppStreamStackUserAssoc,
+	registerResolver(
+		resolveAppStreamStackUserAssoc,
 		EdgeDecl{TypeAppStreamStackUserAssociation, TypeAppStreamStack, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppStreamApplicationEntitlementAssoc,
+	registerResolver(
+		resolveAppStreamApplicationEntitlementAssoc,
 		EdgeDecl{TypeAppStreamApplicationEntitlementAssociation, TypeAppStreamStack, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamApplicationEntitlementAssociation, TypeAppStreamEntitlement, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppStreamStackAccessEndpoints,
+	registerResolver(
+		resolveAppStreamStackAccessEndpoints,
 		EdgeDecl{TypeAppStreamStack, TypeEC2VPCEndpoint, store.RelUses},
 	)
-	registerResolver(resolveAppStreamDirectoryConfigCA,
+	registerResolver(
+		resolveAppStreamDirectoryConfigCA,
 		EdgeDecl{TypeAppStreamDirectoryConfig, TypeACMPrivateCA, store.RelUses},
 	)
 }
@@ -102,7 +113,7 @@ func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
 }
 
 // resolveAppStreamStackAccessEndpoints wires each stack to the interface VPC
-// endpoints listed in AccessEndpoints[]. The endpoint is referenced by VpceId
+// endpoints listed in AccessEndpoints[]. The endpoint is referenced by VpceID
 // (a bare `vpce-…` id); rebuild the disco-shape VPCe ARN per region+acct and
 // look up FK-safe.
 func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error {
@@ -122,7 +133,7 @@ func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error 
 	for _, r := range rows {
 		var attrs struct {
 			AccessEndpoints []struct {
-				VpceId *string `json:"VpceId"`
+				VpceID *string `json:"VpceId"`
 			} `json:"AccessEndpoints"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -130,7 +141,7 @@ func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error 
 		}
 		region := sv(r.Region)
 		for _, ae := range attrs.AccessEndpoints {
-			id := sv(ae.VpceId)
+			id := sv(ae.VpceID)
 			if id == "" {
 				continue
 			}
@@ -148,8 +159,8 @@ func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error 
 
 type appstreamVpcRoleAttrs struct {
 	VpcConfig *struct {
-		SubnetIds        []string `json:"SubnetIds"`
-		SecurityGroupIds []string `json:"SecurityGroupIds"`
+		SubnetIDs        []string `json:"SubnetIds"`
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
 	} `json:"VpcConfig"`
 	IamRoleArn     *string `json:"IamRoleArn"`
 	DomainJoinInfo *struct {
@@ -205,7 +216,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 		}
 		region := sv(r.Region)
 		if attrs.VpcConfig != nil {
-			for _, sid := range attrs.VpcConfig.SubnetIds {
+			for _, sid := range attrs.VpcConfig.SubnetIDs {
 				sARN := ec2ARN(region, acct.ID, "subnet", sid)
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
 				if subnetSet[tgtID] {
@@ -214,7 +225,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 					}
 				}
 			}
-			for _, sg := range attrs.VpcConfig.SecurityGroupIds {
+			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
 				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
 				if sgSet[tgtID] {
@@ -528,7 +539,8 @@ func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store)
 }
 
 func init() {
-	registerResolver(resolveAppStreamAppBlockS3,
+	registerResolver(
+		resolveAppStreamAppBlockS3,
 		EdgeDecl{TypeAppStreamAppBlock, TypeS3Bucket, store.RelUses},
 	)
 }

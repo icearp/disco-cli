@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEC2LaunchTemplateRefs,
+	registerResolver(
+		resolveEC2LaunchTemplateRefs,
 		EdgeDecl{TypeEC2LaunchTemplate, TypeEC2Image, store.RelUses},
 		EdgeDecl{TypeEC2LaunchTemplate, TypeIAMInstanceProfile, store.RelUses},
 		EdgeDecl{TypeEC2LaunchTemplate, TypeEC2KeyPair, store.RelUses},

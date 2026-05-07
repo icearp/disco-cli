@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSCARAttributeGroupAssocRefs,
+	registerResolver(
+		resolveSCARAttributeGroupAssocRefs,
 		EdgeDecl{TypeSCARAttributeGroupAssociation, TypeSCARApplication, store.RelAttachedTo},
 		EdgeDecl{TypeSCARAttributeGroupAssociation, TypeSCARAttributeGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveSCARResourceAssocApplication,
+	registerResolver(
+		resolveSCARResourceAssocApplication,
 		EdgeDecl{TypeSCARResourceAssociation, TypeSCARApplication, store.RelAttachedTo},
 	)
 }

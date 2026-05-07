@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTWirelessDestinationRole,
+	registerResolver(
+		resolveIoTWirelessDestinationRole,
 		EdgeDecl{TypeIoTWirelessDestination, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveIoTWirelessDeviceToDestination,
+	registerResolver(
+		resolveIoTWirelessDeviceToDestination,
 		EdgeDecl{TypeIoTWirelessWirelessDevice, TypeIoTWirelessDestination, store.RelAttachedTo},
 	)
 }

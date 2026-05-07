@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveELBClassicRelationships,
+	registerResolver(
+		resolveELBClassicRelationships,
 		EdgeDecl{TypeELBClassicLoadBalancer, TypeEC2VPC, store.RelAttachedTo},
 	)
 }

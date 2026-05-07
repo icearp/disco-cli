@@ -75,7 +75,6 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 // scanCognitoAll holds the testable scan body — accepts both narrow ifaces
 // so unit tests can swap in stubs without touching production wiring.
 func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	// Phase 1: list user pool IDs.
 	var poolIDs []string
 	upPager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})

@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTFWRefs,
+	registerResolver(
+		resolveIoTFWRefs,
 		EdgeDecl{TypeIoTFWCampaign, TypeIoTFWSignalCatalog, store.RelUses},
 		EdgeDecl{TypeIoTFWFleet, TypeIoTFWSignalCatalog, store.RelUses},
 		EdgeDecl{TypeIoTFWModelManifest, TypeIoTFWSignalCatalog, store.RelUses},

@@ -25,24 +25,31 @@ type stubSageMakerTraining struct {
 func (s *stubSageMakerTraining) ListNotebookInstances(_ context.Context, _ *sagemaker.ListNotebookInstancesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListNotebookInstancesOutput, error) {
 	return &sagemaker.ListNotebookInstancesOutput{NotebookInstances: s.notebooks}, nil
 }
+
 func (s *stubSageMakerTraining) DescribeNotebookInstance(_ context.Context, in *sagemaker.DescribeNotebookInstanceInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeNotebookInstanceOutput, error) {
 	return s.notebookOut[*in.NotebookInstanceName], nil
 }
+
 func (s *stubSageMakerTraining) ListNotebookInstanceLifecycleConfigs(_ context.Context, _ *sagemaker.ListNotebookInstanceLifecycleConfigsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListNotebookInstanceLifecycleConfigsOutput, error) {
 	return &sagemaker.ListNotebookInstanceLifecycleConfigsOutput{NotebookInstanceLifecycleConfigs: s.lifecycles}, nil
 }
+
 func (s *stubSageMakerTraining) DescribeNotebookInstanceLifecycleConfig(_ context.Context, in *sagemaker.DescribeNotebookInstanceLifecycleConfigInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeNotebookInstanceLifecycleConfigOutput, error) {
 	return s.lifecyclesOut[*in.NotebookInstanceLifecycleConfigName], nil
 }
+
 func (s *stubSageMakerTraining) ListCodeRepositories(_ context.Context, _ *sagemaker.ListCodeRepositoriesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListCodeRepositoriesOutput, error) {
 	return &sagemaker.ListCodeRepositoriesOutput{CodeRepositorySummaryList: s.repos}, nil
 }
+
 func (s *stubSageMakerTraining) DescribeCodeRepository(_ context.Context, in *sagemaker.DescribeCodeRepositoryInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeCodeRepositoryOutput, error) {
 	return s.repoOut[*in.CodeRepositoryName], nil
 }
+
 func (s *stubSageMakerTraining) ListProcessingJobs(_ context.Context, _ *sagemaker.ListProcessingJobsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListProcessingJobsOutput, error) {
 	return &sagemaker.ListProcessingJobsOutput{ProcessingJobSummaries: s.procJobs}, nil
 }
+
 func (s *stubSageMakerTraining) DescribeProcessingJob(_ context.Context, in *sagemaker.DescribeProcessingJobInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeProcessingJobOutput, error) {
 	return s.procJobOut[*in.ProcessingJobName], nil
 }

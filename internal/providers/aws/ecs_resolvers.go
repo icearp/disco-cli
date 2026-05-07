@@ -16,20 +16,24 @@ import (
 var ecrImageRe = regexp.MustCompile(`^(\d+)\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com/([^:@]+)`)
 
 func init() {
-	registerResolver(resolveECSRelationships,
+	registerResolver(
+		resolveECSRelationships,
 		EdgeDecl{TypeECSService, TypeECSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeECSService, TypeECSTaskDefinition, store.RelUses},
 		EdgeDecl{TypeECSService, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeECSService, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveECSTaskDefinitionRelationships,
+	registerResolver(
+		resolveECSTaskDefinitionRelationships,
 		EdgeDecl{TypeECSTaskDefinition, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveECSContainerRelationships,
+	registerResolver(
+		resolveECSContainerRelationships,
 		EdgeDecl{TypeECSTaskDefinition, TypeECRRepository, store.RelUses},
 		EdgeDecl{TypeECSTaskDefinition, TypeLogsLogGroup, store.RelUses},
 	)
-	registerResolver(resolveECSTaskDefinitionSecrets,
+	registerResolver(
+		resolveECSTaskDefinitionSecrets,
 		EdgeDecl{TypeECSTaskDefinition, TypeSecretsManagerSecret, store.RelUses},
 		EdgeDecl{TypeECSTaskDefinition, TypeSSMParameter, store.RelUses},
 	)

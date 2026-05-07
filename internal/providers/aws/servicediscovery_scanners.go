@@ -15,9 +15,9 @@ func init() {
 		name: "aws:servicediscovery",
 		fn:   scanServiceDiscovery,
 		emits: []coverage.TypeDecl{
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryHttpNamespace},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPrivateDnsNamespace},
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPublicDnsNamespace},
+			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryHTTPNamespace},
+			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPrivateDNSNamespace},
+			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPublicDNSNamespace},
 			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryService},
 			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryInstance},
 		},
@@ -80,11 +80,11 @@ func scanSDNamespaces(ctx context.Context, client serviceDiscoveryAPI, acct *acc
 			var dt string
 			switch n.Type {
 			case sdtypes.NamespaceTypeHttp:
-				dt = TypeServiceDiscoveryHttpNamespace
+				dt = TypeServiceDiscoveryHTTPNamespace
 			case sdtypes.NamespaceTypeDnsPrivate:
-				dt = TypeServiceDiscoveryPrivateDnsNamespace
+				dt = TypeServiceDiscoveryPrivateDNSNamespace
 			case sdtypes.NamespaceTypeDnsPublic:
-				dt = TypeServiceDiscoveryPublicDnsNamespace
+				dt = TypeServiceDiscoveryPublicDNSNamespace
 			default:
 				continue
 			}

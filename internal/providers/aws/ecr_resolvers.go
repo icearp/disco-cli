@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveECRRepositoryRelationships,
+	registerResolver(
+		resolveECRRepositoryRelationships,
 		EdgeDecl{TypeECRRepository, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveECRReplicationConfiguration,
+	registerResolver(
+		resolveECRReplicationConfiguration,
 		EdgeDecl{TypeECRReplicationConfiguration, TypeECRRepository, store.RelUses},
 	)
 }

@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type iotDeviceAdvisorAPI interface {
-	ListSuiteDefinitions(context.Context, *iotdeviceadvisor.ListSuiteDefinitionsInput, ...func(*iotdeviceadvisor.Options)) (*iotdeviceadvisor.ListSuiteDefinitionsOutput, error)
-}
-
 // scanIoTDeviceAdvisor discovers IoT Core Device Advisor suite definitions.
 // Synth ARN: arn:aws:iotdeviceadvisor:{r}:{a}:suitedefinition/{id}.
 func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

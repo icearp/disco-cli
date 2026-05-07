@@ -10,15 +10,18 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKMSAliases,
+	registerResolver(
+		resolveKMSAliases,
 		EdgeDecl{TypeKMSAlias, TypeKMSKey, store.RelAttachedTo},
 		EdgeDecl{TypeKMSKey, TypeKMSAlias, store.RelContains},
 	)
-	registerResolver(resolveKMSGrants,
+	registerResolver(
+		resolveKMSGrants,
 		EdgeDecl{TypeKMSGrant, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeKMSGrant, TypeIAMUser, store.RelUses},
 	)
-	registerResolver(resolveKMSGrantEncryptionContext,
+	registerResolver(
+		resolveKMSGrantEncryptionContext,
 		EdgeDecl{TypeKMSGrant, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeKMSGrant, TypeEC2Volume, store.RelUses},
 	)

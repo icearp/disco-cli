@@ -10,64 +10,82 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEC2VolumeKMS,
+	registerResolver(
+		resolveEC2VolumeKMS,
 		EdgeDecl{TypeEC2Volume, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveEC2ImageKMS,
+	registerResolver(
+		resolveEC2ImageKMS,
 		EdgeDecl{TypeEC2Image, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveEC2VPNGatewayVPC,
+	registerResolver(
+		resolveEC2VPNGatewayVPC,
 		EdgeDecl{TypeEC2VPNGateway, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2NetworkInterfacePermissionENI,
+	registerResolver(
+		resolveEC2NetworkInterfacePermissionENI,
 		EdgeDecl{TypeEC2NetworkInterfacePermission, TypeEC2NetworkInterface, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TrafficMirrorTargetRefs,
+	registerResolver(
+		resolveEC2TrafficMirrorTargetRefs,
 		EdgeDecl{TypeEC2TrafficMirrorTarget, TypeEC2NetworkInterface, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TrafficMirrorTarget, TypeELBv2LoadBalancer, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TrafficMirrorFilterRuleParent,
+	registerResolver(
+		resolveEC2TrafficMirrorFilterRuleParent,
 		EdgeDecl{TypeEC2TrafficMirrorFilterRule, TypeEC2TrafficMirrorFilter, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2VerifiedAccessInstanceTrustProvider,
+	registerResolver(
+		resolveEC2VerifiedAccessInstanceTrustProvider,
 		EdgeDecl{TypeEC2VerifiedAccessInstance, TypeEC2VerifiedAccessTrustProvider, store.RelUses},
 	)
-	registerResolver(resolveEC2ClientVPNAuthorizationRuleEndpoint,
+	registerResolver(
+		resolveEC2ClientVPNAuthorizationRuleEndpoint,
 		EdgeDecl{TypeEC2ClientVPNAuthorizationRule, TypeEC2ClientVPNEndpoint, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2ClientVPNRouteRefs,
+	registerResolver(
+		resolveEC2ClientVPNRouteRefs,
 		EdgeDecl{TypeEC2ClientVPNRoute, TypeEC2ClientVPNEndpoint, store.RelAttachedTo},
 		EdgeDecl{TypeEC2ClientVPNRoute, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2NetworkInsightsPathRefs,
+	registerResolver(
+		resolveEC2NetworkInsightsPathRefs,
 		EdgeDecl{TypeEC2NetworkInsightsPath, TypeEC2NetworkInterface, store.RelUses},
 		EdgeDecl{TypeEC2NetworkInsightsPath, TypeEC2Instance, store.RelUses},
 	)
-	registerResolver(resolveEC2CapacityReservationPlacementGroup,
+	registerResolver(
+		resolveEC2CapacityReservationPlacementGroup,
 		EdgeDecl{TypeEC2CapacityReservation, TypeEC2PlacementGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TGPeeringAttachmentParents,
+	registerResolver(
+		resolveEC2TGPeeringAttachmentParents,
 		EdgeDecl{TypeEC2TransitGatewayPeeringAttachment, TypeEC2TransitGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2SpotFleetIAM,
+	registerResolver(
+		resolveEC2SpotFleetIAM,
 		EdgeDecl{TypeEC2SpotFleet, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveEC2FleetLaunchTemplate,
+	registerResolver(
+		resolveEC2FleetLaunchTemplate,
 		EdgeDecl{TypeEC2Fleet, TypeEC2LaunchTemplate, store.RelUses},
 	)
-	registerResolver(resolveEC2TGWMeteringPolicyRefs,
+	registerResolver(
+		resolveEC2TGWMeteringPolicyRefs,
 		EdgeDecl{TypeEC2TransitGatewayMeteringPolicy, TypeEC2TransitGateway, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayMeteringPolicy, TypeEC2TransitGatewayAttachment, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2VPCEndpointConnectionNotificationRefs,
+	registerResolver(
+		resolveEC2VPCEndpointConnectionNotificationRefs,
 		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeEC2VPCEndpoint, store.RelAttachedTo},
 		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeEC2VPCEndpointService, store.RelAttachedTo},
 		EdgeDecl{TypeEC2VPCEndpointConnectionNotification, TypeSNSTopic, store.RelUses},
 	)
-	registerResolver(resolveEC2RouteServerSNS,
+	registerResolver(
+		resolveEC2RouteServerSNS,
 		EdgeDecl{TypeEC2RouteServer, TypeSNSTopic, store.RelUses},
 	)
-	registerResolver(resolveEC2CapacityReservationFleetMembers,
+	registerResolver(
+		resolveEC2CapacityReservationFleetMembers,
 		EdgeDecl{TypeEC2CapacityReservationFleet, TypeEC2CapacityReservation, store.RelContains},
 	)
 }
@@ -90,12 +108,12 @@ func resolveEC2VolumeKMS(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			KmsKeyId *string `json:"KmsKeyId"`
+			KmsKeyID *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		ref := sv(attrs.KmsKeyId)
+		ref := sv(attrs.KmsKeyID)
 		if ref == "" {
 			continue
 		}
@@ -109,7 +127,7 @@ func resolveEC2VolumeKMS(acct *account, st *store.Store) error {
 }
 
 // resolveEC2ImageKMS links each AMI to KMS keys via per-block-device EBS
-// encryption-key refs (BlockDeviceMappings[].Ebs.KmsKeyId).
+// encryption-key refs (BlockDeviceMappings[].Ebs.KmsKeyID).
 func resolveEC2ImageKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
@@ -129,7 +147,7 @@ func resolveEC2ImageKMS(acct *account, st *store.Store) error {
 		var attrs struct {
 			BlockDeviceMappings []struct {
 				Ebs *struct {
-					KmsKeyId *string `json:"KmsKeyId"`
+					KmsKeyID *string `json:"KmsKeyId"`
 				} `json:"Ebs"`
 			} `json:"BlockDeviceMappings"`
 		}
@@ -141,7 +159,7 @@ func resolveEC2ImageKMS(acct *account, st *store.Store) error {
 			if bdm.Ebs == nil {
 				continue
 			}
-			ref := sv(bdm.Ebs.KmsKeyId)
+			ref := sv(bdm.Ebs.KmsKeyID)
 			if ref == "" {
 				continue
 			}
@@ -178,7 +196,7 @@ func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			VpcAttachments []struct {
-				VpcId *string `json:"VpcId"`
+				VpcID *string `json:"VpcId"`
 			} `json:"VpcAttachments"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -187,7 +205,7 @@ func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		seen := map[string]bool{}
 		for _, va := range attrs.VpcAttachments {
-			id := sv(va.VpcId)
+			id := sv(va.VpcID)
 			if id == "" || seen[id] {
 				continue
 			}
@@ -205,7 +223,7 @@ func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 }
 
 // resolveEC2NetworkInterfacePermissionENI links an ENI permission row to its
-// parent network-interface (NetworkInterfaceId).
+// parent network-interface (NetworkInterfaceID).
 func resolveEC2NetworkInterfacePermissionENI(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInterfacePermission},
@@ -223,12 +241,12 @@ func resolveEC2NetworkInterfacePermissionENI(acct *account, st *store.Store) err
 	}
 	for _, r := range rows {
 		var attrs struct {
-			NetworkInterfaceId *string `json:"NetworkInterfaceId"`
+			NetworkInterfaceID *string `json:"NetworkInterfaceId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		eni := sv(attrs.NetworkInterfaceId)
+		eni := sv(attrs.NetworkInterfaceID)
 		if eni == "" {
 			continue
 		}
@@ -266,14 +284,14 @@ func resolveEC2TrafficMirrorTargetRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			NetworkInterfaceId     *string `json:"NetworkInterfaceId"`
+			NetworkInterfaceID     *string `json:"NetworkInterfaceId"`
 			NetworkLoadBalancerArn *string `json:"NetworkLoadBalancerArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if eni := sv(attrs.NetworkInterfaceId); eni != "" {
+		if eni := sv(attrs.NetworkInterfaceID); eni != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2NetworkInterface, ec2ARN(region, acct.ID, "network-interface", eni))
 			if eniSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -294,7 +312,7 @@ func resolveEC2TrafficMirrorTargetRefs(acct *account, st *store.Store) error {
 }
 
 // resolveEC2TrafficMirrorFilterRuleParent links each rule to its filter via
-// TrafficMirrorFilterId.
+// TrafficMirrorFilterID.
 func resolveEC2TrafficMirrorFilterRuleParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorFilterRule},
@@ -312,12 +330,12 @@ func resolveEC2TrafficMirrorFilterRuleParent(acct *account, st *store.Store) err
 	}
 	for _, r := range rows {
 		var attrs struct {
-			TrafficMirrorFilterId *string `json:"TrafficMirrorFilterId"`
+			TrafficMirrorFilterID *string `json:"TrafficMirrorFilterId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		fid := sv(attrs.TrafficMirrorFilterId)
+		fid := sv(attrs.TrafficMirrorFilterID)
 		if fid == "" {
 			continue
 		}
@@ -352,7 +370,7 @@ func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Stor
 	for _, r := range rows {
 		var attrs struct {
 			VerifiedAccessTrustProviders []struct {
-				VerifiedAccessTrustProviderId *string `json:"VerifiedAccessTrustProviderId"`
+				VerifiedAccessTrustProviderID *string `json:"VerifiedAccessTrustProviderId"`
 			} `json:"VerifiedAccessTrustProviders"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -360,7 +378,7 @@ func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Stor
 		}
 		region := sv(r.Region)
 		for _, tp2 := range attrs.VerifiedAccessTrustProviders {
-			id := sv(tp2.VerifiedAccessTrustProviderId)
+			id := sv(tp2.VerifiedAccessTrustProviderID)
 			if id == "" {
 				continue
 			}
@@ -607,11 +625,11 @@ func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error 
 	for _, r := range rows {
 		var attrs struct {
 			RequesterTgwInfo *struct {
-				TransitGatewayId *string `json:"TransitGatewayId"`
+				TransitGatewayID *string `json:"TransitGatewayId"`
 				Region           *string `json:"Region"`
 			} `json:"RequesterTgwInfo"`
 			AccepterTgwInfo *struct {
-				TransitGatewayId *string `json:"TransitGatewayId"`
+				TransitGatewayID *string `json:"TransitGatewayId"`
 				Region           *string `json:"Region"`
 			} `json:"AccepterTgwInfo"`
 		}
@@ -631,12 +649,12 @@ func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error 
 			return st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil)
 		}
 		if attrs.RequesterTgwInfo != nil {
-			if err := emit(sv(attrs.RequesterTgwInfo.TransitGatewayId), sv(attrs.RequesterTgwInfo.Region)); err != nil {
+			if err := emit(sv(attrs.RequesterTgwInfo.TransitGatewayID), sv(attrs.RequesterTgwInfo.Region)); err != nil {
 				return fmt.Errorf("upsert ec2-tg-peering→tg (req): %w", err)
 			}
 		}
 		if attrs.AccepterTgwInfo != nil {
-			if err := emit(sv(attrs.AccepterTgwInfo.TransitGatewayId), sv(attrs.AccepterTgwInfo.Region)); err != nil {
+			if err := emit(sv(attrs.AccepterTgwInfo.TransitGatewayID), sv(attrs.AccepterTgwInfo.Region)); err != nil {
 				return fmt.Errorf("upsert ec2-tg-peering→tg (acc): %w", err)
 			}
 		}
@@ -709,7 +727,7 @@ func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 		var attrs struct {
 			LaunchTemplateConfigs []struct {
 				LaunchTemplateSpecification *struct {
-					LaunchTemplateId *string `json:"LaunchTemplateId"`
+					LaunchTemplateID *string `json:"LaunchTemplateId"`
 				} `json:"LaunchTemplateSpecification"`
 			} `json:"LaunchTemplateConfigs"`
 		}
@@ -722,7 +740,7 @@ func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 			if ltc.LaunchTemplateSpecification == nil {
 				continue
 			}
-			id := sv(ltc.LaunchTemplateSpecification.LaunchTemplateId)
+			id := sv(ltc.LaunchTemplateSpecification.LaunchTemplateID)
 			if id == "" || seen[id] {
 				continue
 			}
@@ -762,14 +780,14 @@ func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			TransitGatewayId       *string  `json:"TransitGatewayId"`
-			MiddleboxAttachmentIds []string `json:"MiddleboxAttachmentIds"`
+			TransitGatewayID       *string  `json:"TransitGatewayId"`
+			MiddleboxAttachmentIDs []string `json:"MiddleboxAttachmentIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if id := sv(attrs.TransitGatewayId); id != "" {
+		if id := sv(attrs.TransitGatewayID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2TransitGateway, ec2ARN(region, acct.ID, "transit-gateway", id))
 			if tgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -777,7 +795,7 @@ func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, aid := range attrs.MiddleboxAttachmentIds {
+		for _, aid := range attrs.MiddleboxAttachmentIDs {
 			if aid == "" {
 				continue
 			}
@@ -821,15 +839,15 @@ func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.St
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcEndpointId             *string `json:"VpcEndpointId"`
-			ServiceId                 *string `json:"ServiceId"`
+			VpcEndpointID             *string `json:"VpcEndpointId"`
+			ServiceID                 *string `json:"ServiceId"`
 			ConnectionNotificationArn *string `json:"ConnectionNotificationArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if id := sv(attrs.VpcEndpointId); id != "" {
+		if id := sv(attrs.VpcEndpointID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(region, acct.ID, "vpc-endpoint", id))
 			if vpceSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -837,7 +855,7 @@ func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.St
 				}
 			}
 		}
-		if id := sv(attrs.ServiceId); id != "" {
+		if id := sv(attrs.ServiceID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPCEndpointService, ec2ARN(region, acct.ID, "vpc-endpoint-service", id))
 			if svcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -917,7 +935,7 @@ func resolveEC2CapacityReservationFleetMembers(acct *account, st *store.Store) e
 	for _, r := range rows {
 		var attrs struct {
 			InstanceTypeSpecifications []struct {
-				CapacityReservationId *string `json:"CapacityReservationId"`
+				CapacityReservationID *string `json:"CapacityReservationId"`
 			} `json:"InstanceTypeSpecifications"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -926,7 +944,7 @@ func resolveEC2CapacityReservationFleetMembers(acct *account, st *store.Store) e
 		region := sv(r.Region)
 		seen := map[string]bool{}
 		for _, spec := range attrs.InstanceTypeSpecifications {
-			id := sv(spec.CapacityReservationId)
+			id := sv(spec.CapacityReservationID)
 			if id == "" || seen[id] {
 				continue
 			}

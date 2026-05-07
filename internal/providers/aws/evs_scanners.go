@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type evsAPI interface {
-	ListEnvironments(context.Context, *evs.ListEnvironmentsInput, ...func(*evs.Options)) (*evs.ListEnvironmentsOutput, error)
-}
-
 // scanEVS discovers Elastic VMware Service (EVS) environments.
 func scanEVS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := evs.NewFromConfig(acct.cfg, func(o *evs.Options) { o.Region = region })

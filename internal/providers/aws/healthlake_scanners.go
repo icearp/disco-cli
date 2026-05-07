@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type healthLakeAPI interface {
-	ListFHIRDatastores(context.Context, *healthlake.ListFHIRDatastoresInput, ...func(*healthlake.Options)) (*healthlake.ListFHIRDatastoresOutput, error)
-}
-
 // scanHealthLake discovers HealthLake FHIR datastores.
 func scanHealthLake(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := healthlake.NewFromConfig(acct.cfg, func(o *healthlake.Options) { o.Region = region })

@@ -25,6 +25,12 @@ import (
 )
 
 func main() {
+	if code := run(); code != 0 {
+		os.Exit(code)
+	}
+}
+
+func run() int {
 	dbPath := flag.String("db", "", "path to disco.db (required unless --list-edges)")
 	top := flag.Int("top", 0, "limit output to top N gap pairs (0 = all)")
 	sample := flag.Int("sample", 5, "rows sampled per type")
@@ -35,16 +41,16 @@ func main() {
 		for _, e := range awsprov.CollectResolverEdges() {
 			fmt.Printf("%s\t%s\t%s\n", e.Source, e.Target, e.Kind)
 		}
-		return
+		return 0
 	}
 	if *dbPath == "" {
 		fmt.Fprintln(os.Stderr, "--db required")
-		os.Exit(2)
+		return 2
 	}
 	st, err := store.Open(*dbPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "open store: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer st.Close()
 
@@ -55,7 +61,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "list resources: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Group by type, take up to N samples per type.
@@ -87,10 +93,6 @@ func main() {
 
 	// Walk attrs, collect (source_type, target_type, field_path) hits.
 	type pairKey struct{ src, tgt string }
-	type fieldHit struct {
-		path  string
-		value string
-	}
 	hits := map[pairKey]map[string]int{} // pair → field_path → count
 	for src, rows := range byType {
 		for _, r := range rows {
@@ -127,7 +129,7 @@ func main() {
 	edges, err := st.ListRelationships()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "list relationships: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	idType := make(map[string]string, len(resources))
 	for _, r := range resources {
@@ -205,6 +207,7 @@ func main() {
 		}
 		fmt.Printf("%s\t%s\t%d\t%s\t%s\n", g.src, g.tgt, g.freq, g.topPath, note)
 	}
+	return 0
 }
 
 // ref is one (path, value) string found inside a resource's AttributesJSON.

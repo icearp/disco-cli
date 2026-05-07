@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDocDBElasticClusterRefs,
+	registerResolver(
+		resolveDocDBElasticClusterRefs,
 		EdgeDecl{TypeDocDBElasticCluster, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDocDBElasticCluster, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDocDBElasticCluster, TypeEC2SecurityGroup, store.RelAttachedTo},

@@ -9,13 +9,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMediaLiveCWAlarmTemplateGroup,
+	registerResolver(
+		resolveMediaLiveCWAlarmTemplateGroup,
 		EdgeDecl{TypeMediaLiveCloudWatchAlarmTemplate, TypeMediaLiveCloudWatchAlarmTemplateGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaLiveEBRuleTemplateGroup,
+	registerResolver(
+		resolveMediaLiveEBRuleTemplateGroup,
 		EdgeDecl{TypeMediaLiveEventBridgeRuleTemplate, TypeMediaLiveEventBridgeRuleTemplateGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaLiveClusterRefs,
+	registerResolver(
+		resolveMediaLiveClusterRefs,
 		EdgeDecl{TypeMediaLiveCluster, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeMediaLiveCluster, TypeMediaLiveNetwork, store.RelAttachedTo},
 	)
@@ -29,7 +32,7 @@ func resolveMediaLiveEBRuleTemplateGroup(acct *account, st *store.Store) error {
 	return resolveMediaLiveTemplateToGroup(acct, st, TypeMediaLiveEventBridgeRuleTemplate, TypeMediaLiveEventBridgeRuleTemplateGroup)
 }
 
-// resolveMediaLiveTemplateToGroup links each template summary's `GroupId`
+// resolveMediaLiveTemplateToGroup links each template summary's `GroupID`
 // (bare ID) to its parent group via the SDK Id index.
 func resolveMediaLiveTemplateToGroup(acct *account, st *store.Store, childType, parentType string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -47,12 +50,12 @@ func resolveMediaLiveTemplateToGroup(acct *account, st *store.Store, childType, 
 	}
 	for _, r := range rows {
 		var attrs struct {
-			GroupId *string `json:"GroupId"`
+			GroupID *string `json:"GroupId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		gid := sv(attrs.GroupId)
+		gid := sv(attrs.GroupID)
 		if gid == "" {
 			continue
 		}
@@ -68,7 +71,7 @@ func resolveMediaLiveTemplateToGroup(acct *account, st *store.Store, childType, 
 }
 
 // resolveMediaLiveClusterRefs wires cluster → IAM role (InstanceRoleArn) +
-// every network referenced by NetworkSettings.InterfaceMappings[].NetworkId.
+// every network referenced by NetworkSettings.InterfaceMappings[].NetworkID.
 func resolveMediaLiveClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveCluster}, Limit: util.AllResources,
@@ -92,7 +95,7 @@ func resolveMediaLiveClusterRefs(acct *account, st *store.Store) error {
 			InstanceRoleArn *string `json:"InstanceRoleArn"`
 			NetworkSettings *struct {
 				InterfaceMappings []struct {
-					NetworkId *string `json:"NetworkId"`
+					NetworkID *string `json:"NetworkId"`
 				} `json:"InterfaceMappings"`
 			} `json:"NetworkSettings"`
 		}
@@ -111,7 +114,7 @@ func resolveMediaLiveClusterRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, im := range attrs.NetworkSettings.InterfaceMappings {
-			nid := sv(im.NetworkId)
+			nid := sv(im.NetworkID)
 			if nid == "" {
 				continue
 			}

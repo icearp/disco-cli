@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type dsqlAPI interface {
-	ListClusters(context.Context, *dsql.ListClustersInput, ...func(*dsql.Options)) (*dsql.ListClustersOutput, error)
-	GetCluster(context.Context, *dsql.GetClusterInput, ...func(*dsql.Options)) (*dsql.GetClusterOutput, error)
-}
-
 // scanDSQL discovers Aurora DSQL clusters.
 func scanDSQL(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := dsql.NewFromConfig(acct.cfg, func(o *dsql.Options) { o.Region = region })

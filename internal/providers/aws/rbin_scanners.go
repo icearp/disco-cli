@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type rbinAPI interface {
-	ListRules(context.Context, *rbin.ListRulesInput, ...func(*rbin.Options)) (*rbin.ListRulesOutput, error)
-}
-
 // scanRbin discovers Recycle Bin retention rules. ListRules requires a
 // ResourceType filter; iterate all known types. Synth ARN:
 // arn:aws:rbin:{r}:{a}:rule/{identifier}.

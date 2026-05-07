@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAIOpsRelationships,
+	registerResolver(
+		resolveAIOpsRelationships,
 		EdgeDecl{TypeAIOpsInvestigationGroup, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeAIOpsInvestigationGroup, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeAIOpsInvestigationGroup, TypeSNSTopic, store.RelUses},

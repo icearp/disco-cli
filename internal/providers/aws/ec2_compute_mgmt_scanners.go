@@ -35,7 +35,8 @@ func init() {
 // fleets, EC2 fleets, security group VPC associations, and snapshot block public
 // access settings.
 func scanEC2ComputeMgmt(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanInstances(ctx, client, acct, region, st, scanID)
 		},
@@ -79,7 +80,8 @@ func scanEC2ComputeMgmt(ctx context.Context, client ec2API, acct *account, regio
 }
 
 func scanInstances(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeInstances", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeInstances", acct, region, st,
 		ec2.NewDescribeInstancesPaginator(client, &ec2.DescribeInstancesInput{}),
 		func(page *ec2.DescribeInstancesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -109,7 +111,8 @@ func scanInstances(ctx context.Context, client ec2API, acct *account, region str
 }
 
 func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeSecurityGroups", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeSecurityGroups", acct, region, st,
 		ec2.NewDescribeSecurityGroupsPaginator(client, &ec2.DescribeSecurityGroupsInput{}),
 		func(page *ec2.DescribeSecurityGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -137,7 +140,8 @@ func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, regio
 }
 
 func scanVolumes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVolumes", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVolumes", acct, region, st,
 		ec2.NewDescribeVolumesPaginator(client, &ec2.DescribeVolumesInput{}),
 		func(page *ec2.DescribeVolumesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -169,7 +173,8 @@ func scanVolumes(ctx context.Context, client ec2API, acct *account, region strin
 // Instance→AMI edges in resolveInstanceRelationships silently skip AMIs missing
 // from the store so FK constraints stay intact for public-AMI references.
 func scanImages(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeImages", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeImages", acct, region, st,
 		ec2.NewDescribeImagesPaginator(client, &ec2.DescribeImagesInput{Owners: []string{"self"}}),
 		func(page *ec2.DescribeImagesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -195,7 +200,8 @@ func scanImages(ctx context.Context, client ec2API, acct *account, region string
 }
 
 func scanLaunchTemplates(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeLaunchTemplates", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeLaunchTemplates", acct, region, st,
 		ec2.NewDescribeLaunchTemplatesPaginator(client, &ec2.DescribeLaunchTemplatesInput{}),
 		func(page *ec2.DescribeLaunchTemplatesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -310,7 +316,8 @@ func scanPlacementGroups(ctx context.Context, client ec2API, acct *account, regi
 }
 
 func scanSpotFleets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeSpotFleetRequests", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeSpotFleetRequests", acct, region, st,
 		ec2.NewDescribeSpotFleetRequestsPaginator(client, &ec2.DescribeSpotFleetRequestsInput{}),
 		func(page *ec2.DescribeSpotFleetRequestsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -336,7 +343,8 @@ func scanSpotFleets(ctx context.Context, client ec2API, acct *account, region st
 }
 
 func scanHosts(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeHosts", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeHosts", acct, region, st,
 		ec2.NewDescribeHostsPaginator(client, &ec2.DescribeHostsInput{}),
 		func(page *ec2.DescribeHostsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -363,7 +371,8 @@ func scanHosts(ctx context.Context, client ec2API, acct *account, region string,
 }
 
 func scanCapacityReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeCapacityReservations", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeCapacityReservations", acct, region, st,
 		ec2.NewDescribeCapacityReservationsPaginator(client, &ec2.DescribeCapacityReservationsInput{}),
 		func(page *ec2.DescribeCapacityReservationsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -391,7 +400,8 @@ func scanCapacityReservations(ctx context.Context, client ec2API, acct *account,
 }
 
 func scanInstanceConnectEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeInstanceConnectEndpoints", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeInstanceConnectEndpoints", acct, region, st,
 		ec2.NewDescribeInstanceConnectEndpointsPaginator(client, &ec2.DescribeInstanceConnectEndpointsInput{}),
 		func(page *ec2.DescribeInstanceConnectEndpointsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -418,7 +428,8 @@ func scanInstanceConnectEndpoints(ctx context.Context, client ec2API, acct *acco
 }
 
 func scanCapacityReservationFleets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeCapacityReservationFleets", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeCapacityReservationFleets", acct, region, st,
 		ec2.NewDescribeCapacityReservationFleetsPaginator(client, &ec2.DescribeCapacityReservationFleetsInput{}),
 		func(page *ec2.DescribeCapacityReservationFleetsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -444,7 +455,8 @@ func scanCapacityReservationFleets(ctx context.Context, client ec2API, acct *acc
 }
 
 func scanEC2Fleets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeFleets", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeFleets", acct, region, st,
 		ec2.NewDescribeFleetsPaginator(client, &ec2.DescribeFleetsInput{}),
 		func(page *ec2.DescribeFleetsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -470,7 +482,8 @@ func scanEC2Fleets(ctx context.Context, client ec2API, acct *account, region str
 }
 
 func scanSecurityGroupVPCAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeSecurityGroupVpcAssociations", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeSecurityGroupVpcAssociations", acct, region, st,
 		ec2.NewDescribeSecurityGroupVpcAssociationsPaginator(client, &ec2.DescribeSecurityGroupVpcAssociationsInput{}),
 		func(page *ec2.DescribeSecurityGroupVpcAssociationsOutput) []*store.Resource {
 			var out []*store.Resource

@@ -85,7 +85,8 @@ func (s *Store) PersistCheckRun(rulesPaths, packs []string, severityFilter strin
 		sevPtr = &severityFilter
 	}
 	findingCount := len(findings)
-	_, err = tx.Exec(`
+	_, err = tx.Exec(
+		`
 		INSERT INTO check_runs
 			(id, started_at, finished_at, rules_paths, packs, severity_filter, resource_count, finding_count)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

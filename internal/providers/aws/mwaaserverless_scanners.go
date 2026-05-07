@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type mwaaServerlessAPI interface {
-	ListWorkflows(context.Context, *mwaaserverless.ListWorkflowsInput, ...func(*mwaaserverless.Options)) (*mwaaserverless.ListWorkflowsOutput, error)
-}
-
 // scanMWAAServerless discovers MWAA Serverless workflows.
 func scanMWAAServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mwaaserverless.NewFromConfig(acct.cfg, func(o *mwaaserverless.Options) { o.Region = region })

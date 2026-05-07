@@ -10,13 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSecretsManagerKMS,
+	registerResolver(
+		resolveSecretsManagerKMS,
 		EdgeDecl{TypeSecretsManagerSecret, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSecretsManagerRotation,
+	registerResolver(
+		resolveSecretsManagerRotation,
 		EdgeDecl{TypeSecretsManagerSecret, TypeLambdaFunction, store.RelUses},
 	)
-	registerResolver(resolveSecretsManagerReplication,
+	registerResolver(
+		resolveSecretsManagerReplication,
 		EdgeDecl{TypeSecretsManagerSecret, TypeSecretsManagerSecret, store.RelAttachedTo},
 	)
 }

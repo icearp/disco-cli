@@ -15,7 +15,7 @@ func init() {
 		name: "aws:bedrockagentcore",
 		fn:   scanBedrockAgentCore,
 		emits: []coverage.TypeDecl{
-			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreApiKeyCredentialProvider},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreAPIKeyCredentialProvider},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserCustom},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserProfile},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreterCustom},
@@ -127,7 +127,7 @@ func scanBACApiKeyCreds(ctx context.Context, client bedrockAgentCoreAPI, acct *a
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockAgentCoreApiKeyCredentialProvider, NativeID: arn,
+				Type: TypeBedrockAgentCoreAPIKeyCredentialProvider, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}

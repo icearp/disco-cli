@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveApplicationAutoScalingRelationships,
+	registerResolver(
+		resolveApplicationAutoScalingRelationships,
 		EdgeDecl{TypeApplicationAutoScalingScalingPolicy, TypeApplicationAutoScalingScalableTarget, store.RelAttachedTo},
 	)
 }

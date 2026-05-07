@@ -27,30 +27,39 @@ type stubSageMakerInference struct {
 func (s *stubSageMakerInference) ListEndpoints(_ context.Context, _ *sagemaker.ListEndpointsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListEndpointsOutput, error) {
 	return &sagemaker.ListEndpointsOutput{Endpoints: s.endpoints}, nil
 }
+
 func (s *stubSageMakerInference) DescribeEndpoint(_ context.Context, in *sagemaker.DescribeEndpointInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeEndpointOutput, error) {
 	return s.endpointOut[*in.EndpointName], nil
 }
+
 func (s *stubSageMakerInference) ListEndpointConfigs(_ context.Context, _ *sagemaker.ListEndpointConfigsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListEndpointConfigsOutput, error) {
 	return &sagemaker.ListEndpointConfigsOutput{EndpointConfigs: s.endpointConfigs}, nil
 }
+
 func (s *stubSageMakerInference) DescribeEndpointConfig(_ context.Context, in *sagemaker.DescribeEndpointConfigInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeEndpointConfigOutput, error) {
 	return s.endpointCfgOut[*in.EndpointConfigName], nil
 }
+
 func (s *stubSageMakerInference) ListModels(_ context.Context, _ *sagemaker.ListModelsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelsOutput, error) {
 	return &sagemaker.ListModelsOutput{Models: s.models}, nil
 }
+
 func (s *stubSageMakerInference) DescribeModel(_ context.Context, in *sagemaker.DescribeModelInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelOutput, error) {
 	return s.modelOut[*in.ModelName], nil
 }
+
 func (s *stubSageMakerInference) ListInferenceComponents(_ context.Context, _ *sagemaker.ListInferenceComponentsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListInferenceComponentsOutput, error) {
 	return &sagemaker.ListInferenceComponentsOutput{InferenceComponents: s.components}, nil
 }
+
 func (s *stubSageMakerInference) DescribeInferenceComponent(_ context.Context, in *sagemaker.DescribeInferenceComponentInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeInferenceComponentOutput, error) {
 	return s.componentOut[*in.InferenceComponentName], nil
 }
+
 func (s *stubSageMakerInference) ListInferenceExperiments(_ context.Context, _ *sagemaker.ListInferenceExperimentsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListInferenceExperimentsOutput, error) {
 	return &sagemaker.ListInferenceExperimentsOutput{InferenceExperiments: s.experiments}, nil
 }
+
 func (s *stubSageMakerInference) DescribeInferenceExperiment(_ context.Context, in *sagemaker.DescribeInferenceExperimentInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeInferenceExperimentOutput, error) {
 	return s.experimentOut[*in.Name], nil
 }

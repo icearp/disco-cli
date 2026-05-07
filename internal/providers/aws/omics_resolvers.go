@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveOmicsWorkflowVersionParent,
+	registerResolver(
+		resolveOmicsWorkflowVersionParent,
 		EdgeDecl{TypeOmicsWorkflowVersion, TypeOmicsWorkflow, store.RelAttachedTo},
 	)
-	registerResolver(resolveOmicsStoreKMS,
+	registerResolver(
+		resolveOmicsStoreKMS,
 		EdgeDecl{TypeOmicsAnnotationStore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeOmicsVariantStore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeOmicsReferenceStore, TypeKMSKey, store.RelUses},
@@ -21,7 +23,7 @@ func init() {
 }
 
 // resolveOmicsWorkflowVersionParent wires each workflow-version to its
-// parent workflow via `WorkflowId` bare-ID lookup against an Id index
+// parent workflow via `WorkflowID` bare-ID lookup against an ID index
 // built from scanned workflows.
 func resolveOmicsWorkflowVersionParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -40,12 +42,12 @@ func resolveOmicsWorkflowVersionParent(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			WorkflowId *string `json:"WorkflowId"`
+			WorkflowID *string `json:"WorkflowId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		wid := sv(attrs.WorkflowId)
+		wid := sv(attrs.WorkflowID)
 		if wid == "" {
 			continue
 		}
@@ -71,12 +73,12 @@ func omicsWorkflowIDIndex(acct *account, st *store.Store) (map[string]string, er
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			Id *string `json:"Id"`
+			ID *string `json:"Id"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.Id); id != "" {
+		if id := sv(attrs.ID); id != "" {
 			idx[id] = r.ID
 		}
 	}

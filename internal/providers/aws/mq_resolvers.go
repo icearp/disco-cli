@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMQRelationships,
+	registerResolver(
+		resolveMQRelationships,
 		EdgeDecl{TypeMQBroker, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeMQBroker, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeMQBroker, TypeEC2Subnet, store.RelAttachedTo},

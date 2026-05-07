@@ -15,17 +15,17 @@ func init() {
 		name: "aws:appsync",
 		fn:   scanAppSync,
 		emits: []coverage.TypeDecl{
-			{Service: "appsync", DiscoType: TypeAppSyncApi},
-			{Service: "appsync", DiscoType: TypeAppSyncApiCache},
-			{Service: "appsync", DiscoType: TypeAppSyncApiKey},
+			{Service: "appsync", DiscoType: TypeAppSyncAPI},
+			{Service: "appsync", DiscoType: TypeAppSyncAPICache},
+			{Service: "appsync", DiscoType: TypeAppSyncAPIKey},
 			{Service: "appsync", DiscoType: TypeAppSyncChannelNamespace},
 			{Service: "appsync", DiscoType: TypeAppSyncDataSource},
 			{Service: "appsync", DiscoType: TypeAppSyncDomainName},
-			{Service: "appsync", DiscoType: TypeAppSyncDomainNameApiAssociation},
+			{Service: "appsync", DiscoType: TypeAppSyncDomainNameAPIAssociation},
 			{Service: "appsync", DiscoType: TypeAppSyncFunctionConfiguration},
 			{Service: "appsync", DiscoType: TypeAppSyncGraphQLApi},
 			{Service: "appsync", DiscoType: TypeAppSyncGraphQLSchema},
-			{Service: "appsync", DiscoType: TypeAppSyncSourceApiAssociation},
+			{Service: "appsync", DiscoType: TypeAppSyncSourceAPIAssociation},
 			{Service: "appsync", DiscoType: TypeAppSyncResolver},
 		},
 	})
@@ -179,7 +179,7 @@ func scanASCEventApis(ctx context.Context, client appSyncAPI, acct *account, reg
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppSyncApi, NativeID: arn,
+				Type: TypeAppSyncAPI, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -187,7 +187,7 @@ func scanASCEventApis(ctx context.Context, client appSyncAPI, acct *account, reg
 	return upsertBatch(st, batch, "appsync event-apis")
 }
 
-func appsyncApiARN(region, acct, apiID, kind, id string) string {
+func appsyncAPIARN(region, acct, apiID, kind, id string) string {
 	return fmt.Sprintf("arn:aws:appsync:%s:%s:apis/%s/%s/%s", region, acct, apiID, kind, id)
 }
 
@@ -212,11 +212,11 @@ func scanASCApiKeys(ctx context.Context, client appSyncAPI, acct *account, regio
 				if kid == "" {
 					continue
 				}
-				arn := appsyncApiARN(region, acct.ID, aid, "apikeys", kid)
+				arn := appsyncAPIARN(region, acct.ID, aid, "apikeys", kid)
 				label := kid
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeAppSyncApiKey, NativeID: arn,
+					Type: TypeAppSyncAPIKey, NativeID: arn,
 					Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
 				})
 			}
@@ -244,11 +244,11 @@ func scanASCApiCaches(ctx context.Context, client appSyncAPI, acct *account, reg
 		if out.ApiCache == nil {
 			continue
 		}
-		arn := appsyncApiARN(region, acct.ID, aid, "apicache", "_")
+		arn := appsyncAPIARN(region, acct.ID, aid, "apicache", "_")
 		name := "api-cache"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeAppSyncApiCache, NativeID: arn,
+			Type: TypeAppSyncAPICache, NativeID: arn,
 			Name: &name, Region: &region, AttributesJSON: mustJSON(out.ApiCache), DiscoveredBy: scanID,
 		})
 	}
@@ -335,7 +335,7 @@ func scanASCSchemas(ctx context.Context, client appSyncAPI, acct *account, regio
 	}
 	var batch []*store.Resource
 	for _, aid := range apiIDs {
-		arn := appsyncApiARN(region, acct.ID, aid, "schema", "_")
+		arn := appsyncAPIARN(region, acct.ID, aid, "schema", "_")
 		name := "graphql-schema"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -373,7 +373,7 @@ func scanASCSourceAPIAssocs(ctx context.Context, client appSyncAPI, acct *accoun
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeAppSyncSourceApiAssociation, NativeID: arn,
+					Type: TypeAppSyncSourceAPIAssociation, NativeID: arn,
 					Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 				})
 			}
@@ -382,12 +382,12 @@ func scanASCSourceAPIAssocs(ctx context.Context, client appSyncAPI, acct *accoun
 	return upsertBatch(st, batch, "appsync source-api-associations")
 }
 
-func scanASCChannelNamespaces(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, eventApiIDs []string) (int, int, error) {
-	if len(eventApiIDs) == 0 {
+func scanASCChannelNamespaces(ctx context.Context, client appSyncAPI, acct *account, region string, st *store.Store, scanID string, eventAPIIDs []string) (int, int, error) {
+	if len(eventAPIIDs) == 0 {
 		return 0, 0, nil
 	}
 	var batch []*store.Resource
-	for _, aid := range eventApiIDs {
+	for _, aid := range eventAPIIDs {
 		id := aid
 		pager := appsync.NewListChannelNamespacesPaginator(client, &appsync.ListChannelNamespacesInput{ApiId: &id})
 		for pager.HasMorePages() {
@@ -476,7 +476,7 @@ func scanASCDomainNameAssocs(ctx context.Context, client appSyncAPI, acct *accou
 		label := dn
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeAppSyncDomainNameApiAssociation, NativeID: arn,
+			Type: TypeAppSyncDomainNameAPIAssociation, NativeID: arn,
 			Name: &label, Region: &region, AttributesJSON: mustJSON(out.ApiAssociation), DiscoveredBy: scanID,
 		})
 	}

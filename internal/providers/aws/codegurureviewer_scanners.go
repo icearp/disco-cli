@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type codeGuruReviewerAPI interface {
-	ListRepositoryAssociations(context.Context, *codegurureviewer.ListRepositoryAssociationsInput, ...func(*codegurureviewer.Options)) (*codegurureviewer.ListRepositoryAssociationsOutput, error)
-}
-
 // scanCodeGuruReviewer discovers CodeGuru Reviewer repository associations.
 func scanCodeGuruReviewer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codegurureviewer.NewFromConfig(acct.cfg, func(o *codegurureviewer.Options) { o.Region = region })

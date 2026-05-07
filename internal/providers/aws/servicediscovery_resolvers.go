@@ -10,16 +10,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveServiceDiscoveryServiceNamespace,
-		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryHttpNamespace, store.RelAttachedTo},
-		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPrivateDnsNamespace, store.RelAttachedTo},
-		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPublicDnsNamespace, store.RelAttachedTo},
+	registerResolver(
+		resolveServiceDiscoveryServiceNamespace,
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryHTTPNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPrivateDNSNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeServiceDiscoveryService, TypeServiceDiscoveryPublicDNSNamespace, store.RelAttachedTo},
 	)
-	registerResolver(resolveServiceDiscoveryNamespaceHostedZone,
-		EdgeDecl{TypeServiceDiscoveryPrivateDnsNamespace, TypeRoute53HostedZone, store.RelUses},
-		EdgeDecl{TypeServiceDiscoveryPublicDnsNamespace, TypeRoute53HostedZone, store.RelUses},
+	registerResolver(
+		resolveServiceDiscoveryNamespaceHostedZone,
+		EdgeDecl{TypeServiceDiscoveryPrivateDNSNamespace, TypeRoute53HostedZone, store.RelUses},
+		EdgeDecl{TypeServiceDiscoveryPublicDNSNamespace, TypeRoute53HostedZone, store.RelUses},
 	)
-	registerResolver(resolveServiceDiscoveryInstanceService,
+	registerResolver(
+		resolveServiceDiscoveryInstanceService,
 		EdgeDecl{TypeServiceDiscoveryInstance, TypeServiceDiscoveryService, store.RelAttachedTo},
 	)
 }
@@ -30,8 +33,8 @@ func sdNamespaceARN(region, acct, nsID string) string {
 }
 
 // resolveServiceDiscoveryServiceNamespace wires each Cloud Map service to
-// its parent namespace via DnsConfig.NamespaceId (ServiceSummary has no
-// top-level NamespaceId — the field is on DnsConfig). FK-safe across all
+// its parent namespace via DNSConfig.NamespaceId (ServiceSummary has no
+// top-level NamespaceId — the field is on DNSConfig). FK-safe across all
 // three namespace flavours.
 func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -45,9 +48,9 @@ func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) err
 		return nil
 	}
 	nsTypes := []string{
-		TypeServiceDiscoveryHttpNamespace,
-		TypeServiceDiscoveryPrivateDnsNamespace,
-		TypeServiceDiscoveryPublicDnsNamespace,
+		TypeServiceDiscoveryHTTPNamespace,
+		TypeServiceDiscoveryPrivateDNSNamespace,
+		TypeServiceDiscoveryPublicDNSNamespace,
 	}
 	nsSets := map[string]map[string]bool{}
 	for _, t := range nsTypes {
@@ -59,14 +62,14 @@ func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) err
 	}
 	for _, r := range rows {
 		var attrs struct {
-			DnsConfig *struct {
+			DNSConfig *struct {
 				NamespaceID *string `json:"NamespaceId"`
 			} `json:"DnsConfig"`
 		}
-		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.DnsConfig == nil {
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.DNSConfig == nil {
 			continue
 		}
-		nsID := sv(attrs.DnsConfig.NamespaceID)
+		nsID := sv(attrs.DNSConfig.NamespaceID)
 		if nsID == "" {
 			continue
 		}
@@ -87,13 +90,13 @@ func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) err
 
 // resolveServiceDiscoveryNamespaceHostedZone wires private/public DNS
 // namespaces to the Route 53 hosted zone Cloud Map auto-creates
-// (Properties.DnsProperties.HostedZoneId). HTTP namespaces have no zone.
+// (Properties.DNSProperties.HostedZoneId). HTTP namespaces have no zone.
 func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) error {
 	hzSet, err := scannedIDSet(acct, st, TypeRoute53HostedZone)
 	if err != nil {
 		return err
 	}
-	for _, ttyp := range []string{TypeServiceDiscoveryPrivateDnsNamespace, TypeServiceDiscoveryPublicDnsNamespace} {
+	for _, ttyp := range []string{TypeServiceDiscoveryPrivateDNSNamespace, TypeServiceDiscoveryPublicDNSNamespace} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
 			Limit: util.AllResources,
@@ -104,16 +107,16 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 		for _, r := range rows {
 			var attrs struct {
 				Properties *struct {
-					DnsProperties *struct {
+					DNSProperties *struct {
 						HostedZoneID *string `json:"HostedZoneId"`
 					} `json:"DnsProperties"`
 				} `json:"Properties"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil ||
-				attrs.Properties == nil || attrs.Properties.DnsProperties == nil {
+				attrs.Properties == nil || attrs.Properties.DNSProperties == nil {
 				continue
 			}
-			hz := sv(attrs.Properties.DnsProperties.HostedZoneID)
+			hz := sv(attrs.Properties.DNSProperties.HostedZoneID)
 			if hz == "" {
 				continue
 			}

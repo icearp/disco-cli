@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveFDDetectorEventType,
+	registerResolver(
+		resolveFDDetectorEventType,
 		EdgeDecl{TypeFraudDetectorDetector, TypeFraudDetectorEventType, store.RelUses},
 	)
-	registerResolver(resolveFDEventTypeRefs,
+	registerResolver(
+		resolveFDEventTypeRefs,
 		EdgeDecl{TypeFraudDetectorEventType, TypeFraudDetectorEntityType, store.RelUses},
 		EdgeDecl{TypeFraudDetectorEventType, TypeFraudDetectorLabel, store.RelUses},
 		EdgeDecl{TypeFraudDetectorEventType, TypeFraudDetectorVariable, store.RelUses},

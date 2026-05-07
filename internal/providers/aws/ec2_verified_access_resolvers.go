@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVerifiedAccessGroupRelationships,
+	registerResolver(
+		resolveVerifiedAccessGroupRelationships,
 		EdgeDecl{TypeEC2VerifiedAccessGroup, TypeEC2VerifiedAccessInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveVerifiedAccessEndpointRelationships,
+	registerResolver(
+		resolveVerifiedAccessEndpointRelationships,
 		EdgeDecl{TypeEC2VerifiedAccessEndpoint, TypeEC2VerifiedAccessGroup, store.RelAttachedTo},
 	)
 }

@@ -9,15 +9,18 @@ import (
 )
 
 func init() {
-	registerResolver(resolveFSxChildrenToFileSystem,
+	registerResolver(
+		resolveFSxChildrenToFileSystem,
 		EdgeDecl{TypeFSxVolume, TypeFSxFileSystem, store.RelAttachedTo},
 		EdgeDecl{TypeFSxStorageVirtualMachine, TypeFSxFileSystem, store.RelAttachedTo},
 		EdgeDecl{TypeFSxDataRepositoryAssociation, TypeFSxFileSystem, store.RelAttachedTo},
 	)
-	registerResolver(resolveFSxSnapshotToVolume,
+	registerResolver(
+		resolveFSxSnapshotToVolume,
 		EdgeDecl{TypeFSxSnapshot, TypeFSxVolume, store.RelAttachedTo},
 	)
-	registerResolver(resolveFSxFileSystemRefs,
+	registerResolver(
+		resolveFSxFileSystemRefs,
 		EdgeDecl{TypeFSxFileSystem, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeFSxFileSystem, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeFSxFileSystem, TypeEC2Subnet, store.RelAttachedTo},
@@ -108,7 +111,7 @@ func fsxARN(region, acct, kind, id string) string {
 
 // resolveFSxChildrenToFileSystem wires per-FS children — volumes, storage
 // virtual machines and data-repository-associations — to their parent
-// file-system via FileSystemId.
+// file-system via FileSystemID.
 func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 	fsSet, err := scannedIDSet(acct, st, TypeFSxFileSystem)
 	if err != nil {
@@ -123,12 +126,12 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 		}
 		for _, r := range rows {
 			var attrs struct {
-				FileSystemId *string `json:"FileSystemId"`
+				FileSystemID *string `json:"FileSystemId"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 				continue
 			}
-			fsID := sv(attrs.FileSystemId)
+			fsID := sv(attrs.FileSystemID)
 			if fsID == "" {
 				continue
 			}
@@ -145,7 +148,7 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 }
 
 // resolveFSxSnapshotToVolume wires each snapshot to the volume it was taken
-// from via VolumeId.
+// from via VolumeID.
 func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFSxSnapshot}, Limit: util.AllResources,
@@ -162,12 +165,12 @@ func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VolumeId *string `json:"VolumeId"`
+			VolumeID *string `json:"VolumeId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		vid := sv(attrs.VolumeId)
+		vid := sv(attrs.VolumeID)
 		if vid == "" {
 			continue
 		}

@@ -49,7 +49,8 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 		direction = "directed"
 	}
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(
+		`
 		INSERT INTO relationships (from_id, to_id, kind, direction, attributes, discovered_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(from_id, to_id, kind) DO UPDATE SET

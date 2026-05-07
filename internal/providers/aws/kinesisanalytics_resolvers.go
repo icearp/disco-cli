@@ -10,20 +10,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKAV1ChildrenToApp,
+	registerResolver(
+		resolveKAV1ChildrenToApp,
 		EdgeDecl{TypeKinesisAnalyticsApplicationOutput, TypeKinesisAnalyticsApplication, store.RelAttachedTo},
 		EdgeDecl{TypeKinesisAnalyticsApplicationReferenceData, TypeKinesisAnalyticsApplication, store.RelAttachedTo},
 	)
-	registerResolver(resolveKAV2ChildrenToApp,
+	registerResolver(
+		resolveKAV2ChildrenToApp,
 		EdgeDecl{TypeKAV2ApplicationOutput, TypeKAV2Application, store.RelAttachedTo},
 		EdgeDecl{TypeKAV2ApplicationReferenceData, TypeKAV2Application, store.RelAttachedTo},
 		EdgeDecl{TypeKAV2ApplicationCloudWatchLogOpt, TypeKAV2Application, store.RelAttachedTo},
 	)
-	registerResolver(resolveKAV1AppLogging,
+	registerResolver(
+		resolveKAV1AppLogging,
 		EdgeDecl{TypeKinesisAnalyticsApplication, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeKinesisAnalyticsApplication, TypeLogsLogGroup, store.RelUses},
 	)
-	registerResolver(resolveKAV2AppRefs,
+	registerResolver(
+		resolveKAV2AppRefs,
 		EdgeDecl{TypeKAV2Application, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeKAV2Application, TypeLogsLogGroup, store.RelUses},
 	)

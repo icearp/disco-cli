@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type mediaStoreAPI interface {
-	ListContainers(context.Context, *mediastore.ListContainersInput, ...func(*mediastore.Options)) (*mediastore.ListContainersOutput, error)
-}
-
 // scanMediaStore discovers Elemental MediaStore containers.
 func scanMediaStore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mediastore.NewFromConfig(acct.cfg, func(o *mediastore.Options) { o.Region = region })

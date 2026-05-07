@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMacieClassificationJobBuckets,
+	registerResolver(
+		resolveMacieClassificationJobBuckets,
 		EdgeDecl{TypeMacieClassificationJob, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveMacieAllowListBucket,
+	registerResolver(
+		resolveMacieAllowListBucket,
 		EdgeDecl{TypeMacieAllowList, TypeS3Bucket, store.RelUses},
 	)
 }

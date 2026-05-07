@@ -9,17 +9,20 @@ import (
 )
 
 func init() {
-	registerResolver(resolveImageBuilderPipelineRefs,
+	registerResolver(
+		resolveImageBuilderPipelineRefs,
 		EdgeDecl{TypeImageBuilderImagePipeline, TypeImageBuilderImageRecipe, store.RelUses},
 		EdgeDecl{TypeImageBuilderImagePipeline, TypeImageBuilderContainerRecipe, store.RelUses},
 		EdgeDecl{TypeImageBuilderImagePipeline, TypeImageBuilderDistributionConfiguration, store.RelUses},
 		EdgeDecl{TypeImageBuilderImagePipeline, TypeImageBuilderInfrastructureConfig, store.RelUses},
 		EdgeDecl{TypeImageBuilderImagePipeline, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveImageBuilderInfraInstanceProfile,
+	registerResolver(
+		resolveImageBuilderInfraInstanceProfile,
 		EdgeDecl{TypeImageBuilderInfrastructureConfig, TypeIAMInstanceProfile, store.RelAssumes},
 	)
-	registerResolver(resolveImageBuilderLifecycleRole,
+	registerResolver(
+		resolveImageBuilderLifecycleRole,
 		EdgeDecl{TypeImageBuilderLifecyclePolicy, TypeIAMRole, store.RelAssumes},
 	)
 }

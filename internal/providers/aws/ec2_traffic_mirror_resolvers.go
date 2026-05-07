@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveTrafficMirrorSessionRelationships,
+	registerResolver(
+		resolveTrafficMirrorSessionRelationships,
 		EdgeDecl{TypeEC2TrafficMirrorSession, TypeEC2TrafficMirrorFilter, store.RelUses},
 		EdgeDecl{TypeEC2TrafficMirrorSession, TypeEC2TrafficMirrorTarget, store.RelAttachedTo},
 	)

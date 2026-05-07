@@ -45,7 +45,8 @@ type dynamodbStreamsAPI interface {
 func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := dynamodb.NewFromConfig(acct.cfg, func(o *dynamodb.Options) { o.Region = region })
 	streamsClient := dynamodbstreams.NewFromConfig(acct.cfg, func(o *dynamodbstreams.Options) { o.Region = region })
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanDynamoDBTables(ctx, client, acct, region, st, scanID)
 		},

@@ -24,7 +24,7 @@ func init() {
 			{Service: "ses", DiscoType: TypeSESConfigurationSetEventDestination},
 			{Service: "ses", DiscoType: TypeSESContactList},
 			{Service: "ses", DiscoType: TypeSESCustomVerificationEmailTemplate},
-			{Service: "ses", DiscoType: TypeSESDedicatedIpPool},
+			{Service: "ses", DiscoType: TypeSESDedicatedIPPool},
 			{Service: "ses", DiscoType: TypeSESMultiRegionEndpoint},
 			{Service: "ses", DiscoType: TypeSESTemplate},
 			{Service: "ses", DiscoType: TypeSESTenant},

@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolvePipesPipeRefs,
+	registerResolver(
+		resolvePipesPipeRefs,
 		EdgeDecl{TypePipesPipe, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypePipesPipe, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypePipesPipe, TypeLambdaFunction, store.RelUses},

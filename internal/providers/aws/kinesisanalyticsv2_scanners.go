@@ -22,11 +22,6 @@ func init() {
 	})
 }
 
-type kav2API interface {
-	ListApplications(context.Context, *kinesisanalyticsv2.ListApplicationsInput, ...func(*kinesisanalyticsv2.Options)) (*kinesisanalyticsv2.ListApplicationsOutput, error)
-	DescribeApplication(context.Context, *kinesisanalyticsv2.DescribeApplicationInput, ...func(*kinesisanalyticsv2.Options)) (*kinesisanalyticsv2.DescribeApplicationOutput, error)
-}
-
 // scanKinesisAnalyticsV2 discovers Kinesis Data Analytics v2 applications and
 // the configuration sub-resources (CloudWatch logging options, outputs,
 // reference data sources) embedded in each application's DescribeApplication

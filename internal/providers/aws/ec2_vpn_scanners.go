@@ -19,7 +19,8 @@ func init() {
 
 // scanEC2VPN discovers VPN types: customer gateways, VPN gateways, and VPN connections.
 func scanEC2VPN(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomerGateways(ctx, client, acct, region, st, scanID)
 		},

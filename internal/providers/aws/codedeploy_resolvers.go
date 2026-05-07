@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodeDeployDGRefs,
+	registerResolver(
+		resolveCodeDeployDGRefs,
 		EdgeDecl{TypeCodeDeployDeploymentGroup, TypeCodeDeployApplication, store.RelAttachedTo},
 		EdgeDecl{TypeCodeDeployDeploymentGroup, TypeCodeDeployDeploymentConfig, store.RelUses},
 		EdgeDecl{TypeCodeDeployDeploymentGroup, TypeIAMRole, store.RelUses},

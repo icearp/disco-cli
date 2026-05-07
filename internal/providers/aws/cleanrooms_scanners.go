@@ -18,8 +18,8 @@ func init() {
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsCollaboration},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTable},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTableAssociation},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIdMappingTable},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIdNamespaceAssociation},
+			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDMappingTable},
+			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDNamespaceAssociation},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsMembership},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsPrivacyBudgetTemplate},
 		},
@@ -273,7 +273,7 @@ func scanCRIdMappingTables(ctx context.Context, client cleanRoomsAPI, acct *acco
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCleanRoomsIdMappingTable, NativeID: arn,
+				Type: TypeCleanRoomsIDMappingTable, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}
@@ -305,7 +305,7 @@ func scanCRIdNamespaceAssociations(ctx context.Context, client cleanRoomsAPI, ac
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCleanRoomsIdNamespaceAssociation, NativeID: arn,
+				Type: TypeCleanRoomsIDNamespaceAssociation, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}

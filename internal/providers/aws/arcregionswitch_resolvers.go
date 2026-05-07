@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveARCRegionSwitchRelationships,
+	registerResolver(
+		resolveARCRegionSwitchRelationships,
 		EdgeDecl{TypeARCRegionSwitchPlan, TypeIAMRole, store.RelAssumes},
 	)
 }

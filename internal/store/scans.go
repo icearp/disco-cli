@@ -116,7 +116,8 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 	if err != nil {
 		return "", err
 	}
-	_, err = s.db.Exec(`
+	_, err = s.db.Exec(
+		`
 		INSERT INTO scans (id, started_at, status, providers, scope)
 		VALUES (?, datetime('now'), 'running', ?, ?)`,
 		id, string(provJSON), string(scopeJSON),
@@ -129,7 +130,8 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 
 // CompleteScan marks a scan as completed and records the resource count.
 func (s *Store) CompleteScan(id string, resourceCount int) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(
+		`
 		UPDATE scans
 		SET status = 'completed', finished_at = datetime('now'), resource_count = ?
 		WHERE id = ?`,
@@ -140,7 +142,8 @@ func (s *Store) CompleteScan(id string, resourceCount int) error {
 
 // FailScan marks a scan as failed with an error message.
 func (s *Store) FailScan(id string, scanErr string) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(
+		`
 		UPDATE scans
 		SET status = 'failed', finished_at = datetime('now'), error = ?
 		WHERE id = ?`,
@@ -153,7 +156,8 @@ func (s *Store) FailScan(id string, scanErr string) error {
 // succeeded while others failed. The error message should summarize which
 // providers failed and why.
 func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(
+		`
 		UPDATE scans
 		SET status = 'partial', finished_at = datetime('now'), resource_count = ?, error = ?
 		WHERE id = ?`,

@@ -9,16 +9,19 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRSSNamespaceRefs,
+	registerResolver(
+		resolveRSSNamespaceRefs,
 		EdgeDecl{TypeRedshiftServerlessNamespace, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeRedshiftServerlessNamespace, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveRSSWorkgroupRefs,
+	registerResolver(
+		resolveRSSWorkgroupRefs,
 		EdgeDecl{TypeRedshiftServerlessWorkgroup, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftServerlessWorkgroup, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftServerlessWorkgroup, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveRSSSnapshotRefs,
+	registerResolver(
+		resolveRSSSnapshotRefs,
 		EdgeDecl{TypeRedshiftServerlessSnapshot, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftServerlessSnapshot, TypeKMSKey, store.RelUses},
 	)
@@ -49,14 +52,14 @@ func resolveRSSNamespaceRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			KmsKeyId *string  `json:"KmsKeyId"`
+			KmsKeyID *string  `json:"KmsKeyId"`
 			IamRoles []string `json:"IamRoles"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if k := sv(attrs.KmsKeyId); k != "" {
+		if k := sv(attrs.KmsKeyID); k != "" {
 			if keyID, ok := kmsIdx.resolveKMSKeyID(k, region, acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss ns→kms: %w", err)
@@ -106,8 +109,8 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			NamespaceName    *string  `json:"NamespaceName"`
-			SubnetIds        []string `json:"SubnetIds"`
-			SecurityGroupIds []string `json:"SecurityGroupIds"`
+			SubnetIDs        []string `json:"SubnetIds"`
+			SecurityGroupIDs []string `json:"SecurityGroupIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -121,7 +124,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sid := range attrs.SubnetIds {
+		for _, sid := range attrs.SubnetIDs {
 			if sid == "" {
 				continue
 			}
@@ -133,7 +136,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert rss wg→subnet: %w", err)
 			}
 		}
-		for _, gid := range attrs.SecurityGroupIds {
+		for _, gid := range attrs.SecurityGroupIDs {
 			if gid == "" {
 				continue
 			}
@@ -172,7 +175,7 @@ func resolveRSSSnapshotRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			NamespaceName *string `json:"NamespaceName"`
-			KmsKeyId      *string `json:"KmsKeyId"`
+			KmsKeyID      *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
@@ -186,7 +189,7 @@ func resolveRSSSnapshotRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if k := sv(attrs.KmsKeyId); k != "" {
+		if k := sv(attrs.KmsKeyID); k != "" {
 			if keyID, ok := kmsIdx.resolveKMSKeyID(k, region, acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss snap→kms: %w", err)

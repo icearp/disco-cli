@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveWSWPortalRefs,
+	registerResolver(
+		resolveWSWPortalRefs,
 		EdgeDecl{TypeWSWPortal, TypeWSWBrowserSettings, store.RelUses},
 		EdgeDecl{TypeWSWPortal, TypeWSWDataProtectionSettings, store.RelUses},
 		EdgeDecl{TypeWSWPortal, TypeWSWIPAccessSettings, store.RelUses},
@@ -20,15 +21,18 @@ func init() {
 		EdgeDecl{TypeWSWPortal, TypeWSWUserAccessLoggingSettings, store.RelUses},
 		EdgeDecl{TypeWSWPortal, TypeWSWUserSettings, store.RelUses},
 	)
-	registerResolver(resolveWSWNetworkSettingsRefs,
+	registerResolver(
+		resolveWSWNetworkSettingsRefs,
 		EdgeDecl{TypeWSWNetworkSettings, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeWSWNetworkSettings, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeWSWNetworkSettings, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveWSWUserAccessLoggingKinesis,
+	registerResolver(
+		resolveWSWUserAccessLoggingKinesis,
 		EdgeDecl{TypeWSWUserAccessLoggingSettings, TypeKinesisStream, store.RelRoutesTo},
 	)
-	registerResolver(resolveWSWIdentityProviderPortal,
+	registerResolver(
+		resolveWSWIdentityProviderPortal,
 		EdgeDecl{TypeWSWIdentityProvider, TypeWSWPortal, store.RelAttachedTo},
 	)
 }
@@ -81,7 +85,7 @@ func resolveWSWPortalRefs(acct *account, st *store.Store) error {
 		var attrs struct {
 			BrowserSettingsArn           *string `json:"BrowserSettingsArn"`
 			DataProtectionSettingsArn    *string `json:"DataProtectionSettingsArn"`
-			IpAccessSettingsArn          *string `json:"IpAccessSettingsArn"`
+			IPAccessSettingsArn          *string `json:"IpAccessSettingsArn"`
 			NetworkSettingsArn           *string `json:"NetworkSettingsArn"`
 			SessionLoggerArn             *string `json:"SessionLoggerArn"`
 			TrustStoreArn                *string `json:"TrustStoreArn"`
@@ -98,7 +102,7 @@ func resolveWSWPortalRefs(acct *account, st *store.Store) error {
 		}{
 			{sv(attrs.BrowserSettingsArn), TypeWSWBrowserSettings, bsSet},
 			{sv(attrs.DataProtectionSettingsArn), TypeWSWDataProtectionSettings, dpSet},
-			{sv(attrs.IpAccessSettingsArn), TypeWSWIPAccessSettings, ipSet},
+			{sv(attrs.IPAccessSettingsArn), TypeWSWIPAccessSettings, ipSet},
 			{sv(attrs.NetworkSettingsArn), TypeWSWNetworkSettings, nsSet},
 			{sv(attrs.SessionLoggerArn), TypeWSWSessionLogger, slSet},
 			{sv(attrs.TrustStoreArn), TypeWSWTrustStore, tsSet},
@@ -147,15 +151,15 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId            *string  `json:"VpcId"`
-			SubnetIds        []string `json:"SubnetIds"`
-			SecurityGroupIds []string `json:"SecurityGroupIds"`
+			VpcID            *string  `json:"VpcId"`
+			SubnetIDs        []string `json:"SubnetIds"`
+			SecurityGroupIDs []string `json:"SecurityGroupIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if vpc := sv(attrs.VpcId); vpc != "" {
+		if vpc := sv(attrs.VpcID); vpc != "" {
 			vARN := ec2ARN(region, acct.ID, "vpc", vpc)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vARN)
 			if vpcSet[tgtID] {
@@ -164,7 +168,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sid := range attrs.SubnetIds {
+		for _, sid := range attrs.SubnetIDs {
 			sARN := ec2ARN(region, acct.ID, "subnet", sid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, sARN)
 			if subnetSet[tgtID] {
@@ -173,7 +177,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sg := range attrs.SecurityGroupIds {
+		for _, sg := range attrs.SecurityGroupIDs {
 			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
 			if sgSet[tgtID] {
@@ -270,7 +274,8 @@ func resolveWSWIdentityProviderPortal(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveWSWSettingsKMS,
+	registerResolver(
+		resolveWSWSettingsKMS,
 		EdgeDecl{TypeWSWBrowserSettings, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeWSWDataProtectionSettings, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeWSWIPAccessSettings, TypeKMSKey, store.RelUses},

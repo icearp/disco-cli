@@ -9,13 +9,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveComprehendDocumentClassifierRefs,
+	registerResolver(
+		resolveComprehendDocumentClassifierRefs,
 		EdgeDecl{TypeComprehendDocumentClassifier, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeComprehendDocumentClassifier, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeComprehendDocumentClassifier, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeComprehendDocumentClassifier, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveComprehendFlywheelRefs,
+	registerResolver(
+		resolveComprehendFlywheelRefs,
 		EdgeDecl{TypeComprehendFlywheel, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeComprehendFlywheel, TypeComprehendDocumentClassifier, store.RelUses},
 	)
@@ -52,10 +54,10 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 	for _, r := range rows {
 		var attrs struct {
 			DataAccessRoleArn *string `json:"DataAccessRoleArn"`
-			ModelKmsKeyId     *string `json:"ModelKmsKeyId"`
-			VolumeKmsKeyId    *string `json:"VolumeKmsKeyId"`
+			ModelKmsKeyID     *string `json:"ModelKmsKeyId"`
+			VolumeKmsKeyID    *string `json:"VolumeKmsKeyId"`
 			VpcConfig         *struct {
-				SecurityGroupIds []string `json:"SecurityGroupIds"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
 				Subnets          []string `json:"Subnets"`
 			} `json:"VpcConfig"`
 		}
@@ -71,7 +73,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 				}
 			}
 		}
-		for _, k := range []*string{attrs.ModelKmsKeyId, attrs.VolumeKmsKeyId} {
+		for _, k := range []*string{attrs.ModelKmsKeyID, attrs.VolumeKmsKeyID} {
 			ref := sv(k)
 			if ref == "" {
 				continue
@@ -95,7 +97,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 					return fmt.Errorf("upsert comprehend dc→subnet: %w", err)
 				}
 			}
-			for _, gid := range attrs.VpcConfig.SecurityGroupIds {
+			for _, gid := range attrs.VpcConfig.SecurityGroupIDs {
 				if gid == "" {
 					continue
 				}

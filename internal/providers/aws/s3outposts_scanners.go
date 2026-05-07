@@ -23,10 +23,6 @@ func init() {
 	})
 }
 
-type s3outpostsAPI interface {
-	ListEndpoints(context.Context, *s3outposts.ListEndpointsInput, ...func(*s3outposts.Options)) (*s3outposts.ListEndpointsOutput, error)
-}
-
 // scanS3Outposts discovers S3 Outposts endpoints, regional buckets, access
 // points, and bucket policies. ListOutpostsWithS3 short-circuits empty (no
 // Outposts), so the cross-SDK fan-out has zero cost in non-Outposts accounts.

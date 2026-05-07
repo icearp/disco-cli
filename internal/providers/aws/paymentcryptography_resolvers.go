@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolvePaymentCryptographyAliasToKey,
+	registerResolver(
+		resolvePaymentCryptographyAliasToKey,
 		EdgeDecl{TypePaymentCryptographyAlias, TypePaymentCryptographyKey, store.RelAttachedTo},
 	)
 }

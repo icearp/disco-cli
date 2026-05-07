@@ -28,8 +28,10 @@ func TestIsAPIErrorCode(t *testing.T) {
 }
 
 func TestIsAccessDenied(t *testing.T) {
-	codes := []string{"AccessDenied", "UnauthorizedOperation", "AuthFailure",
-		"AccessDeniedException", "NotAuthorized", "ForbiddenException"}
+	codes := []string{
+		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
+		"AccessDeniedException", "NotAuthorized", "ForbiddenException",
+	}
 	for _, c := range codes {
 		if !isAccessDenied(apiErr(c, "")) {
 			t.Errorf("isAccessDenied(%s) = false, want true", c)
@@ -88,8 +90,10 @@ func TestIsShieldNotSubscribed(t *testing.T) {
 }
 
 func TestIsControlTowerNotEnabled(t *testing.T) {
-	hints := []string{"AWSControlTowerAdmin role missing", "not the management account",
-		"landing zone is not configured", "AWS Control Tower has not been deployed"}
+	hints := []string{
+		"AWSControlTowerAdmin role missing", "not the management account",
+		"landing zone is not configured", "AWS Control Tower has not been deployed",
+	}
 	for _, msg := range hints {
 		if !isControlTowerNotEnabled(apiErr("AccessDeniedException", msg)) {
 			t.Errorf("AD + %q should classify CT not-enabled", msg)

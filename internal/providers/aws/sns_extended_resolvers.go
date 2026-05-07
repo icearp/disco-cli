@@ -10,12 +10,14 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSNSSubscriptionRefs,
+	registerResolver(
+		resolveSNSSubscriptionRefs,
 		EdgeDecl{TypeSNSSubscription, TypeSNSTopic, store.RelAttachedTo},
 		EdgeDecl{TypeSNSSubscription, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeSNSSubscription, TypeSQSQueue, store.RelUses},
 	)
-	registerResolver(resolveSNSTopicPolicyToTopic,
+	registerResolver(
+		resolveSNSTopicPolicyToTopic,
 		EdgeDecl{TypeSNSTopicPolicy, TypeSNSTopic, store.RelAttachedTo},
 	)
 }

@@ -9,41 +9,50 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGlueTriggerWorkflow,
+	registerResolver(
+		resolveGlueTriggerWorkflow,
 		EdgeDecl{TypeGlueTrigger, TypeGlueWorkflow, store.RelAttachedTo},
 		EdgeDecl{TypeGlueTrigger, TypeGlueJob, store.RelRoutesTo},
 		EdgeDecl{TypeGlueTrigger, TypeGlueCrawler, store.RelRoutesTo},
 	)
-	registerResolver(resolveGlueDevEndpointRefs,
+	registerResolver(
+		resolveGlueDevEndpointRefs,
 		EdgeDecl{TypeGlueDevEndpoint, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGlueDevEndpoint, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeGlueDevEndpoint, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeGlueDevEndpoint, TypeGlueSecurityConfiguration, store.RelUses},
 	)
-	registerResolver(resolveGlueMLTransformRefs,
+	registerResolver(
+		resolveGlueMLTransformRefs,
 		EdgeDecl{TypeGlueMLTransform, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGlueMLTransform, TypeGlueDatabase, store.RelUses},
 		EdgeDecl{TypeGlueMLTransform, TypeGlueTable, store.RelUses},
 	)
-	registerResolver(resolveGlueConnectionRefs,
+	registerResolver(
+		resolveGlueConnectionRefs,
 		EdgeDecl{TypeGlueConnection, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeGlueConnection, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveGlueSchemaRegistry,
+	registerResolver(
+		resolveGlueSchemaRegistry,
 		EdgeDecl{TypeGlueSchema, TypeGlueRegistry, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlueSecurityConfigKMS,
+	registerResolver(
+		resolveGlueSecurityConfigKMS,
 		EdgeDecl{TypeGlueSecurityConfiguration, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveGlueDataCatalogEncryptionKMS,
+	registerResolver(
+		resolveGlueDataCatalogEncryptionKMS,
 		EdgeDecl{TypeGlueDataCatalogEncryptionSettings, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveGlueWorkflowGraphNodes,
+	registerResolver(
+		resolveGlueWorkflowGraphNodes,
 		EdgeDecl{TypeGlueWorkflow, TypeGlueJob, store.RelContains},
 		EdgeDecl{TypeGlueWorkflow, TypeGlueTrigger, store.RelContains},
 		EdgeDecl{TypeGlueWorkflow, TypeGlueCrawler, store.RelContains},
 	)
-	registerResolver(resolveGlueIdentityCenterRefs,
+	registerResolver(
+		resolveGlueIdentityCenterRefs,
 		EdgeDecl{TypeGlueIdentityCenterConfiguration, TypeSSOInstance, store.RelUses},
 	)
 }
@@ -116,8 +125,8 @@ func resolveGlueTriggerWorkflow(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveGlueDevEndpointRefs walks each dev-endpoint's RoleArn, SubnetId,
-// SecurityGroupIds[], and SecurityConfiguration name.
+// resolveGlueDevEndpointRefs walks each dev-endpoint's RoleArn, SubnetID,
+// SecurityGroupIDs[], and SecurityConfiguration name.
 func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDevEndpoint},
@@ -148,8 +157,8 @@ func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			RoleArn               *string  `json:"RoleArn"`
-			SubnetId              *string  `json:"SubnetId"`
-			SecurityGroupIds      []string `json:"SecurityGroupIds"`
+			SubnetID              *string  `json:"SubnetId"`
+			SecurityGroupIDs      []string `json:"SecurityGroupIds"`
 			SecurityConfiguration *string  `json:"SecurityConfiguration"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -164,7 +173,7 @@ func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if id := sv(attrs.SubnetId); id != "" {
+		if id := sv(attrs.SubnetID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -172,7 +181,7 @@ func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sg := range attrs.SecurityGroupIds {
+		for _, sg := range attrs.SecurityGroupIDs {
 			if sg == "" {
 				continue
 			}
@@ -267,7 +276,7 @@ func resolveGlueMLTransformRefs(acct *account, st *store.Store) error {
 }
 
 // resolveGlueConnectionRefs walks each connection's
-// PhysicalConnectionRequirements.{SubnetId, SecurityGroupIdList[]}.
+// PhysicalConnectionRequirements.{SubnetID, SecurityGroupIDList[]}.
 func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueConnection},
@@ -290,8 +299,8 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			PhysicalConnectionRequirements *struct {
-				SubnetId            *string  `json:"SubnetId"`
-				SecurityGroupIdList []string `json:"SecurityGroupIdList"`
+				SubnetID            *string  `json:"SubnetId"`
+				SecurityGroupIDList []string `json:"SecurityGroupIdList"`
 			} `json:"PhysicalConnectionRequirements"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -301,7 +310,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if id := sv(attrs.PhysicalConnectionRequirements.SubnetId); id != "" {
+		if id := sv(attrs.PhysicalConnectionRequirements.SubnetID); id != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -309,7 +318,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sg := range attrs.PhysicalConnectionRequirements.SecurityGroupIdList {
+		for _, sg := range attrs.PhysicalConnectionRequirements.SecurityGroupIDList {
 			if sg == "" {
 				continue
 			}
@@ -326,7 +335,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 }
 
 // resolveGlueSchemaRegistry links each schema to its parent registry via
-// `RegistryId.RegistryArn` (or RegistryName fallback).
+// `RegistryID.RegistryArn` (or RegistryName fallback).
 func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueSchema},
@@ -344,7 +353,7 @@ func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			RegistryId *struct {
+			RegistryID *struct {
 				RegistryName *string `json:"RegistryName"`
 				RegistryArn  *string `json:"RegistryArn"`
 			} `json:"RegistryId"`
@@ -352,13 +361,13 @@ func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if attrs.RegistryId == nil {
+		if attrs.RegistryID == nil {
 			continue
 		}
 		region := sv(r.Region)
-		arn := sv(attrs.RegistryId.RegistryArn)
+		arn := sv(attrs.RegistryID.RegistryArn)
 		if arn == "" {
-			if name := sv(attrs.RegistryId.RegistryName); name != "" {
+			if name := sv(attrs.RegistryID.RegistryName); name != "" {
 				arn = glueResourceARN(region, acct.ID, "registry", name)
 			}
 		}
@@ -447,7 +456,7 @@ func resolveGlueSecurityConfigKMS(acct *account, st *store.Store) error {
 
 // resolveGlueDataCatalogEncryptionKMS wires the per-region data-catalog
 // encryption singleton to the KMS keys used for catalog and connection-password
-// encryption (EncryptionAtRest.SseAwsKmsKeyId, ConnectionPasswordEncryption.AwsKmsKeyId).
+// encryption (EncryptionAtRest.SseAwsKmsKeyID, ConnectionPasswordEncryption.AwsKmsKeyID).
 func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDataCatalogEncryptionSettings},
@@ -467,10 +476,10 @@ func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 		var attrs struct {
 			DataCatalogEncryptionSettings *struct {
 				EncryptionAtRest *struct {
-					SseAwsKmsKeyId *string `json:"SseAwsKmsKeyId"`
+					SseAwsKmsKeyID *string `json:"SseAwsKmsKeyId"`
 				} `json:"EncryptionAtRest"`
 				ConnectionPasswordEncryption *struct {
-					AwsKmsKeyId *string `json:"AwsKmsKeyId"`
+					AwsKmsKeyID *string `json:"AwsKmsKeyId"`
 				} `json:"ConnectionPasswordEncryption"`
 			} `json:"DataCatalogEncryptionSettings"`
 		}
@@ -494,12 +503,12 @@ func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 			return st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil)
 		}
 		if e := attrs.DataCatalogEncryptionSettings.EncryptionAtRest; e != nil {
-			if err := emit(sv(e.SseAwsKmsKeyId)); err != nil {
+			if err := emit(sv(e.SseAwsKmsKeyID)); err != nil {
 				return fmt.Errorf("upsert glue data-catalog-encryption→kms: %w", err)
 			}
 		}
 		if c := attrs.DataCatalogEncryptionSettings.ConnectionPasswordEncryption; c != nil {
-			if err := emit(sv(c.AwsKmsKeyId)); err != nil {
+			if err := emit(sv(c.AwsKmsKeyID)); err != nil {
 				return fmt.Errorf("upsert glue data-catalog-encryption→kms: %w", err)
 			}
 		}

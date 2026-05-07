@@ -9,14 +9,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDAXClusterRefs,
+	registerResolver(
+		resolveDAXClusterRefs,
 		EdgeDecl{TypeDAXCluster, TypeDAXParameterGroup, store.RelUses},
 		EdgeDecl{TypeDAXCluster, TypeDAXSubnetGroup, store.RelAttachedTo},
 		EdgeDecl{TypeDAXCluster, TypeEC2SecurityGroup, store.RelAttachedTo},
 		EdgeDecl{TypeDAXCluster, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeDAXCluster, TypeSNSTopic, store.RelUses},
 	)
-	registerResolver(resolveDAXSubnetGroupRefs,
+	registerResolver(
+		resolveDAXSubnetGroupRefs,
 		EdgeDecl{TypeDAXSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeDAXSubnetGroup, TypeEC2Subnet, store.RelAttachedTo},
 	)
@@ -154,7 +156,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId   *string `json:"VpcId"`
+			VpcID   *string `json:"VpcId"`
 			Subnets []struct {
 				SubnetIdentifier *string `json:"SubnetIdentifier"`
 			} `json:"Subnets"`
@@ -163,7 +165,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if v := sv(attrs.VpcId); v != "" {
+		if v := sv(attrs.VpcID); v != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

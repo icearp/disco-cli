@@ -275,12 +275,12 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	}
 
 	// Phase 5: organization resource policy (per-org singleton).
-	if t, i, ferr := scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID); ferr != nil {
+	t, i, ferr := scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID)
+	if ferr != nil {
 		return total, inserted, ferr
-	} else {
-		total += t
-		inserted += i
 	}
+	total += t
+	inserted += i
 	return total, inserted, nil
 }
 

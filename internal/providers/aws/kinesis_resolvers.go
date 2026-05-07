@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveKinesisStreamRelationships,
+	registerResolver(
+		resolveKinesisStreamRelationships,
 		EdgeDecl{TypeKinesisStream, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveKinesisStreamConsumerToStream,
+	registerResolver(
+		resolveKinesisStreamConsumerToStream,
 		EdgeDecl{TypeKinesisStreamConsumer, TypeKinesisStream, store.RelAttachedTo},
 	)
 }

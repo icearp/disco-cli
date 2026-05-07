@@ -8,7 +8,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveUXCAccountCustomizationToOrgAccount,
+	registerResolver(
+		resolveUXCAccountCustomizationToOrgAccount,
 		EdgeDecl{TypeUXCAccountCustomization, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
 }

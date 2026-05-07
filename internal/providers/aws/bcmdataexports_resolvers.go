@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBCMDataExportsRelationships,
+	registerResolver(
+		resolveBCMDataExportsRelationships,
 		EdgeDecl{TypeBCMDataExportsExport, TypeS3Bucket, store.RelUses},
 	)
 }

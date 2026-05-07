@@ -10,45 +10,55 @@ import (
 )
 
 func init() {
-	registerResolver(resolveConnectQueueRefs,
+	registerResolver(
+		resolveConnectQueueRefs,
 		EdgeDecl{TypeConnectQueue, TypeConnectHoursOfOperation, store.RelAttachedTo},
 		EdgeDecl{TypeConnectQueue, TypeConnectPhoneNumber, store.RelUses},
 		EdgeDecl{TypeConnectQueue, TypeConnectContactFlow, store.RelUses},
 	)
-	registerResolver(resolveConnectRoutingProfileRefs,
+	registerResolver(
+		resolveConnectRoutingProfileRefs,
 		EdgeDecl{TypeConnectRoutingProfile, TypeConnectQueue, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectIntegrationAssociationTarget,
+	registerResolver(
+		resolveConnectIntegrationAssociationTarget,
 		EdgeDecl{TypeConnectIntegrationAssociation, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeConnectIntegrationAssociation, TypeLexBot, store.RelUses},
 		EdgeDecl{TypeConnectIntegrationAssociation, TypeWisdomAssistant, store.RelUses},
 	)
-	registerResolver(resolveConnectInstanceStorageConfigRefs,
+	registerResolver(
+		resolveConnectInstanceStorageConfigRefs,
 		EdgeDecl{TypeConnectInstanceStorageConfig, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeConnectInstanceStorageConfig, TypeKinesisStream, store.RelUses},
 		EdgeDecl{TypeConnectInstanceStorageConfig, TypeFirehoseDeliveryStream, store.RelUses},
 		EdgeDecl{TypeConnectInstanceStorageConfig, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveConnectUserRefs,
+	registerResolver(
+		resolveConnectUserRefs,
 		EdgeDecl{TypeConnectUser, TypeConnectSecurityProfile, store.RelAttachedTo},
 		EdgeDecl{TypeConnectUser, TypeConnectRoutingProfile, store.RelAttachedTo},
 		EdgeDecl{TypeConnectUser, TypeConnectUserHierarchyGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectQuickConnectRefs,
+	registerResolver(
+		resolveConnectQuickConnectRefs,
 		EdgeDecl{TypeConnectQuickConnect, TypeConnectQueue, store.RelUses},
 		EdgeDecl{TypeConnectQuickConnect, TypeConnectContactFlow, store.RelUses},
 	)
-	registerResolver(resolveConnectTrafficDistributionGroupInstance,
+	registerResolver(
+		resolveConnectTrafficDistributionGroupInstance,
 		EdgeDecl{TypeConnectTrafficDistributionGroup, TypeConnectInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectContactFlowVersionParent,
+	registerResolver(
+		resolveConnectContactFlowVersionParent,
 		EdgeDecl{TypeConnectContactFlowVersion, TypeConnectContactFlow, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectContactFlowModuleVersionAndAliasParent,
+	registerResolver(
+		resolveConnectContactFlowModuleVersionAndAliasParent,
 		EdgeDecl{TypeConnectContactFlowModuleVersion, TypeConnectContactFlowModule, store.RelAttachedTo},
 		EdgeDecl{TypeConnectContactFlowModuleAlias, TypeConnectContactFlowModule, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectPhoneNumberTarget,
+	registerResolver(
+		resolveConnectPhoneNumberTarget,
 		EdgeDecl{TypeConnectPhoneNumber, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectPhoneNumber, TypeConnectTrafficDistributionGroup, store.RelAttachedTo},
 	)
@@ -97,9 +107,9 @@ func connectAccountResourceARN(region, acctID, kind, id string) string {
 	return fmt.Sprintf("arn:aws:connect:%s:%s:%s/%s", region, acctID, kind, id)
 }
 
-// resolveConnectQueueRefs walks each queue's HoursOfOperationId,
-// OutboundCallerConfig.OutboundCallerIdNumberId, and
-// OutboundCallerConfig.OutboundFlowId fields and emits the corresponding
+// resolveConnectQueueRefs walks each queue's HoursOfOperationID,
+// OutboundCallerConfig.OutboundCallerIDNumberID, and
+// OutboundCallerConfig.OutboundFlowID fields and emits the corresponding
 // edges. The scanner stores `DescribeQueueOutput` whose top-level shape
 // is `{Queue: {...}}`, so we unmarshal under that key.
 func resolveConnectQueueRefs(acct *account, st *store.Store) error {
@@ -125,10 +135,10 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 	for _, r := range queues {
 		var attrs struct {
 			Queue struct {
-				HoursOfOperationId   *string `json:"HoursOfOperationId"`
+				HoursOfOperationID   *string `json:"HoursOfOperationId"`
 				OutboundCallerConfig *struct {
-					OutboundCallerIdNumberId *string `json:"OutboundCallerIdNumberId"`
-					OutboundFlowId           *string `json:"OutboundFlowId"`
+					OutboundCallerIDNumberID *string `json:"OutboundCallerIdNumberId"`
+					OutboundFlowID           *string `json:"OutboundFlowId"`
 				} `json:"OutboundCallerConfig"`
 			} `json:"Queue"`
 		}
@@ -137,7 +147,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		// HoursOfOperation lives under the same instance.
-		if id := sv(attrs.Queue.HoursOfOperationId); id != "" {
+		if id := sv(attrs.Queue.HoursOfOperationID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "hours-of-operation", id)
 			if tgtARN != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeConnectHoursOfOperation, tgtARN)
@@ -152,7 +162,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		// PhoneNumber is account-scoped, not instance-nested.
-		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundCallerIdNumberId); id != "" {
+		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundCallerIDNumberID); id != "" {
 			tgtARN := connectAccountResourceARN(region, acct.ID, "phone-number", id)
 			tgtID := store.ResourceID("aws", acct.ID, TypeConnectPhoneNumber, tgtARN)
 			if phoneSet[tgtID] {
@@ -162,7 +172,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 			}
 		}
 		// Outbound flow lives under the same instance.
-		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundFlowId); id != "" {
+		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundFlowID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "contact-flow", id)
 			if tgtARN != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeConnectContactFlow, tgtARN)
@@ -178,7 +188,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 }
 
 // resolveConnectRoutingProfileRefs walks each routing profile's
-// AssociatedQueueIds + DefaultOutboundQueueId and emits attached-to edges
+// AssociatedQueueIDs + DefaultOutboundQueueID and emits attached-to edges
 // to the local queue rows. The scanner wraps the SDK
 // DescribeRoutingProfileOutput, so attrs root is `{RoutingProfile: ...}`.
 func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
@@ -196,18 +206,18 @@ func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 	for _, r := range profiles {
 		var attrs struct {
 			RoutingProfile struct {
-				AssociatedQueueIds                 []string `json:"AssociatedQueueIds"`
-				AssociatedManualAssignmentQueueIds []string `json:"AssociatedManualAssignmentQueueIds"`
-				DefaultOutboundQueueId             *string  `json:"DefaultOutboundQueueId"`
+				AssociatedQueueIDs                 []string `json:"AssociatedQueueIds"`
+				AssociatedManualAssignmentQueueIDs []string `json:"AssociatedManualAssignmentQueueIds"`
+				DefaultOutboundQueueID             *string  `json:"DefaultOutboundQueueId"`
 			} `json:"RoutingProfile"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		seen := map[string]bool{}
-		ids := append([]string{}, attrs.RoutingProfile.AssociatedQueueIds...)
-		ids = append(ids, attrs.RoutingProfile.AssociatedManualAssignmentQueueIds...)
-		if id := sv(attrs.RoutingProfile.DefaultOutboundQueueId); id != "" {
+		ids := append([]string{}, attrs.RoutingProfile.AssociatedQueueIDs...)
+		ids = append(ids, attrs.RoutingProfile.AssociatedManualAssignmentQueueIDs...)
+		if id := sv(attrs.RoutingProfile.DefaultOutboundQueueID); id != "" {
 			ids = append(ids, id)
 		}
 		for _, id := range ids {
@@ -327,7 +337,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 			S3Config *struct {
 				BucketName       *string `json:"BucketName"`
 				EncryptionConfig *struct {
-					KeyId *string `json:"KeyId"`
+					KeyID *string `json:"KeyId"`
 				} `json:"EncryptionConfig"`
 			} `json:"S3Config"`
 			KinesisStreamConfig *struct {
@@ -338,7 +348,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 			} `json:"KinesisFirehoseConfig"`
 			KinesisVideoStreamConfig *struct {
 				EncryptionConfig *struct {
-					KeyId *string `json:"KeyId"`
+					KeyID *string `json:"KeyId"`
 				} `json:"EncryptionConfig"`
 			} `json:"KinesisVideoStreamConfig"`
 		}
@@ -357,7 +367,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 				}
 			}
 			if attrs.S3Config.EncryptionConfig != nil {
-				if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.S3Config.EncryptionConfig.KeyId), region, acct.ID); ok {
+				if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.S3Config.EncryptionConfig.KeyID), region, acct.ID); ok {
 					if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert connect-storage→kms (s3): %w", err)
 					}
@@ -385,7 +395,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 			}
 		}
 		if attrs.KinesisVideoStreamConfig != nil && attrs.KinesisVideoStreamConfig.EncryptionConfig != nil {
-			if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KinesisVideoStreamConfig.EncryptionConfig.KeyId), region, acct.ID); ok {
+			if id, ok := kmsIdx.resolveKMSKeyID(sv(attrs.KinesisVideoStreamConfig.EncryptionConfig.KeyID), region, acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert connect-storage→kms (kvs): %w", err)
 				}
@@ -395,8 +405,8 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 	return nil
 }
 
-// resolveConnectUserRefs walks each user's SecurityProfileIds[],
-// RoutingProfileId, and HierarchyGroupId and emits attached-to edges. The
+// resolveConnectUserRefs walks each user's SecurityProfileIDs[],
+// RoutingProfileID, and HierarchyGroupID and emits attached-to edges. The
 // scanner stores DescribeUserOutput so attrs root is `{"User": {...}}`.
 func resolveConnectUserRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -424,15 +434,15 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			User struct {
-				SecurityProfileIds []string `json:"SecurityProfileIds"`
-				RoutingProfileId   *string  `json:"RoutingProfileId"`
-				HierarchyGroupId   *string  `json:"HierarchyGroupId"`
+				SecurityProfileIDs []string `json:"SecurityProfileIds"`
+				RoutingProfileID   *string  `json:"RoutingProfileId"`
+				HierarchyGroupID   *string  `json:"HierarchyGroupId"`
 			} `json:"User"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		for _, spID := range attrs.User.SecurityProfileIds {
+		for _, spID := range attrs.User.SecurityProfileIDs {
 			tgtARN := connectInstanceChildARN(r.NativeID, "security-profile", spID)
 			if tgtARN == "" {
 				continue
@@ -445,7 +455,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert connect-user→security-profile: %w", err)
 			}
 		}
-		if id := sv(attrs.User.RoutingProfileId); id != "" {
+		if id := sv(attrs.User.RoutingProfileID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "routing-profile", id)
 			if tgtARN != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeConnectRoutingProfile, tgtARN)
@@ -456,7 +466,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if id := sv(attrs.User.HierarchyGroupId); id != "" {
+		if id := sv(attrs.User.HierarchyGroupID); id != "" {
 			tgtARN := connectInstanceChildARN(r.NativeID, "agent-group", id)
 			if tgtARN != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeConnectUserHierarchyGroup, tgtARN)
@@ -471,8 +481,8 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveConnectQuickConnectRefs walks each quick-connect's QueueConfig.QueueId
-// and {UserConfig|QueueConfig}.ContactFlowId and emits uses edges. Scanner
+// resolveConnectQuickConnectRefs walks each quick-connect's QueueConfig.QueueID
+// and {UserConfig|QueueConfig}.ContactFlowID and emits uses edges. Scanner
 // stores DescribeQuickConnectOutput so attrs root is `{"QuickConnect": {...}}`.
 func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -498,11 +508,11 @@ func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 			QuickConnect struct {
 				QuickConnectConfig struct {
 					UserConfig *struct {
-						ContactFlowId *string `json:"ContactFlowId"`
+						ContactFlowID *string `json:"ContactFlowId"`
 					} `json:"UserConfig"`
 					QueueConfig *struct {
-						ContactFlowId *string `json:"ContactFlowId"`
-						QueueId       *string `json:"QueueId"`
+						ContactFlowID *string `json:"ContactFlowId"`
+						QueueID       *string `json:"QueueId"`
 					} `json:"QueueConfig"`
 				} `json:"QuickConnectConfig"`
 			} `json:"QuickConnect"`
@@ -526,15 +536,15 @@ func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 			return st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil)
 		}
 		if cfg.QueueConfig != nil {
-			if err := emit("queue", sv(cfg.QueueConfig.QueueId), TypeConnectQueue, queueSet); err != nil {
+			if err := emit("queue", sv(cfg.QueueConfig.QueueID), TypeConnectQueue, queueSet); err != nil {
 				return fmt.Errorf("upsert connect-quick-connect→queue: %w", err)
 			}
-			if err := emit("contact-flow", sv(cfg.QueueConfig.ContactFlowId), TypeConnectContactFlow, flowSet); err != nil {
+			if err := emit("contact-flow", sv(cfg.QueueConfig.ContactFlowID), TypeConnectContactFlow, flowSet); err != nil {
 				return fmt.Errorf("upsert connect-quick-connect→flow: %w", err)
 			}
 		}
 		if cfg.UserConfig != nil {
-			if err := emit("contact-flow", sv(cfg.UserConfig.ContactFlowId), TypeConnectContactFlow, flowSet); err != nil {
+			if err := emit("contact-flow", sv(cfg.UserConfig.ContactFlowID), TypeConnectContactFlow, flowSet); err != nil {
 				return fmt.Errorf("upsert connect-quick-connect→flow (user): %w", err)
 			}
 		}
@@ -638,7 +648,7 @@ func resolveConnectContactFlowVersionParent(acct *account, st *store.Store) erro
 
 // resolveConnectContactFlowModuleVersionAndAliasParent links module versions
 // (via stripped `:version` suffix) and module aliases (via attrs
-// `ContactFlowModuleId` from the wrapped DescribeContactFlowModuleAliasOutput)
+// `ContactFlowModuleID` from the wrapped DescribeContactFlowModuleAliasOutput)
 // to their parent contact-flow-module. FK-safe.
 func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *store.Store) error {
 	moduleSet, err := scannedIDSet(acct, st, TypeConnectContactFlowModule)
@@ -675,13 +685,13 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 	for _, r := range aliases {
 		var attrs struct {
 			ContactFlowModuleAlias struct {
-				ContactFlowModuleId *string `json:"ContactFlowModuleId"`
+				ContactFlowModuleID *string `json:"ContactFlowModuleId"`
 			} `json:"ContactFlowModuleAlias"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		id := sv(attrs.ContactFlowModuleAlias.ContactFlowModuleId)
+		id := sv(attrs.ContactFlowModuleAlias.ContactFlowModuleID)
 		if id == "" {
 			continue
 		}

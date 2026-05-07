@@ -10,33 +10,38 @@ import (
 )
 
 func init() {
-	registerResolver(resolveWisdomAssistantChildren,
+	registerResolver(
+		resolveWisdomAssistantChildren,
 		EdgeDecl{TypeWisdomAssistantAssociation, TypeWisdomAssistant, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomAIAgent, TypeWisdomAssistant, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomAIGuardrail, TypeWisdomAssistant, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomAIPrompt, TypeWisdomAssistant, store.RelAttachedTo},
 	)
-	registerResolver(resolveWisdomKnowledgeBaseChildren,
+	registerResolver(
+		resolveWisdomKnowledgeBaseChildren,
 		EdgeDecl{TypeWisdomMessageTemplate, TypeWisdomKnowledgeBase, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomQuickResponse, TypeWisdomKnowledgeBase, store.RelAttachedTo},
 	)
-	registerResolver(resolveWisdomVersionParent,
+	registerResolver(
+		resolveWisdomVersionParent,
 		EdgeDecl{TypeWisdomAIAgentVersion, TypeWisdomAIAgent, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomAIGuardrailVersion, TypeWisdomAIGuardrail, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomAIPromptVersion, TypeWisdomAIPrompt, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomMessageTemplateVersion, TypeWisdomMessageTemplate, store.RelAttachedTo},
 	)
-	registerResolver(resolveWisdomAssistantAssociationKnowledgeBase,
+	registerResolver(
+		resolveWisdomAssistantAssociationKnowledgeBase,
 		EdgeDecl{TypeWisdomAssistantAssociation, TypeWisdomKnowledgeBase, store.RelUses},
 	)
-	registerResolver(resolveWisdomKMSRefs,
+	registerResolver(
+		resolveWisdomKMSRefs,
 		EdgeDecl{TypeWisdomAssistant, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeWisdomKnowledgeBase, TypeKMSKey, store.RelUses},
 	)
 }
 
 // resolveWisdomKMSRefs wires assistant + knowledge-base to their customer
-// managed KMS key (ServerSideEncryptionConfiguration.KmsKeyId).
+// managed KMS key (ServerSideEncryptionConfiguration.KmsKeyID).
 func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
@@ -52,7 +57,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 		for _, r := range rows {
 			var attrs struct {
 				ServerSideEncryptionConfiguration *struct {
-					KmsKeyId *string `json:"KmsKeyId"`
+					KmsKeyID *string `json:"KmsKeyId"`
 				} `json:"ServerSideEncryptionConfiguration"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -61,7 +66,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 			if attrs.ServerSideEncryptionConfiguration == nil {
 				continue
 			}
-			ref := sv(attrs.ServerSideEncryptionConfiguration.KmsKeyId)
+			ref := sv(attrs.ServerSideEncryptionConfiguration.KmsKeyID)
 			if ref == "" {
 				continue
 			}

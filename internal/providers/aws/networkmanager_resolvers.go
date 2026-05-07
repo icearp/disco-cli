@@ -10,57 +10,72 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNMSiteRefs,
+	registerResolver(
+		resolveNMSiteRefs,
 		EdgeDecl{TypeNetworkManagerSite, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMDeviceRefs,
+	registerResolver(
+		resolveNMDeviceRefs,
 		EdgeDecl{TypeNetworkManagerDevice, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerDevice, TypeNetworkManagerSite, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMLinkRefs,
+	registerResolver(
+		resolveNMLinkRefs,
 		EdgeDecl{TypeNetworkManagerLink, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerLink, TypeNetworkManagerSite, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMLinkAssociationRefs,
+	registerResolver(
+		resolveNMLinkAssociationRefs,
 		EdgeDecl{TypeNetworkManagerLinkAssociation, TypeNetworkManagerDevice, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerLinkAssociation, TypeNetworkManagerLink, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMCoreNetworkRefs,
+	registerResolver(
+		resolveNMCoreNetworkRefs,
 		EdgeDecl{TypeNetworkManagerCoreNetwork, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMTGWRegistrationRefs,
+	registerResolver(
+		resolveNMTGWRegistrationRefs,
 		EdgeDecl{TypeNetworkManagerTransitGatewayRegistration, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerTransitGatewayRegistration, TypeEC2TransitGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMCGWAssociationRefs,
+	registerResolver(
+		resolveNMCGWAssociationRefs,
 		EdgeDecl{TypeNetworkManagerCustomerGatewayAssociation, TypeNetworkManagerGlobalNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerCustomerGatewayAssociation, TypeEC2CustomerGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMVpcAttachmentRefs,
+	registerResolver(
+		resolveNMVpcAttachmentRefs,
 		EdgeDecl{TypeNetworkManagerVpcAttachment, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerVpcAttachment, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerVpcAttachment, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMConnectAttachmentRefs,
+	registerResolver(
+		resolveNMConnectAttachmentRefs,
 		EdgeDecl{TypeNetworkManagerConnectAttachment, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMSiteToSiteVpnAttachmentRefs,
+	registerResolver(
+		resolveNMSiteToSiteVpnAttachmentRefs,
 		EdgeDecl{TypeNetworkManagerSiteToSiteVpnAttachment, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMDirectConnectGatewayAttachmentRefs,
+	registerResolver(
+		resolveNMDirectConnectGatewayAttachmentRefs,
 		EdgeDecl{TypeNetworkManagerDirectConnectGatewayAttachment, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMTGWRouteTableAttachmentRefs,
+	registerResolver(
+		resolveNMTGWRouteTableAttachmentRefs,
 		EdgeDecl{TypeNetworkManagerTransitGatewayRouteTableAttachment, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMTransitGatewayPeeringRefs,
+	registerResolver(
+		resolveNMTransitGatewayPeeringRefs,
 		EdgeDecl{TypeNetworkManagerTransitGatewayPeering, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerTransitGatewayPeering, TypeEC2TransitGateway, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMConnectPeerRefs,
+	registerResolver(
+		resolveNMConnectPeerRefs,
 		EdgeDecl{TypeNetworkManagerConnectPeer, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveNMCorePLAssocRefs,
+	registerResolver(
+		resolveNMCorePLAssocRefs,
 		EdgeDecl{TypeNetworkManagerCoreNetworkPrefixListAssociation, TypeNetworkManagerCoreNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkManagerCoreNetworkPrefixListAssociation, TypeEC2PrefixList, store.RelAttachedTo},
 	)

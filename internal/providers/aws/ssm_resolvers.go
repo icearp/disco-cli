@@ -10,26 +10,32 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSMRelationships,
+	registerResolver(
+		resolveSSMRelationships,
 		EdgeDecl{TypeSSMParameter, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSSMAssociationDocument,
+	registerResolver(
+		resolveSSMAssociationDocument,
 		EdgeDecl{TypeSSMAssociation, TypeSSMDocument, store.RelUses},
 	)
-	registerResolver(resolveSSMMaintenanceWindowTargetParent,
+	registerResolver(
+		resolveSSMMaintenanceWindowTargetParent,
 		EdgeDecl{TypeSSMMaintenanceWindowTarget, TypeSSMMaintenanceWindow, store.RelAttachedTo},
 	)
-	registerResolver(resolveSSMMaintenanceWindowTaskRefs,
+	registerResolver(
+		resolveSSMMaintenanceWindowTaskRefs,
 		EdgeDecl{TypeSSMMaintenanceWindowTask, TypeSSMMaintenanceWindow, store.RelAttachedTo},
 		EdgeDecl{TypeSSMMaintenanceWindowTask, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSSMMaintenanceWindowTask, TypeLambdaFunction, store.RelRoutesTo},
 		EdgeDecl{TypeSSMMaintenanceWindowTask, TypeSFNStateMachine, store.RelRoutesTo},
 	)
-	registerResolver(resolveSSMResourceDataSyncRefs,
+	registerResolver(
+		resolveSSMResourceDataSyncRefs,
 		EdgeDecl{TypeSSMResourceDataSync, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSSMResourceDataSync, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSSMDocumentRequires,
+	registerResolver(
+		resolveSSMDocumentRequires,
 		EdgeDecl{TypeSSMDocument, TypeSSMDocument, store.RelUses},
 	)
 }
@@ -178,7 +184,7 @@ func resolveSSMAssociationDocument(acct *account, st *store.Store) error {
 }
 
 // resolveSSMMaintenanceWindowTargetParent wires each mw-target to its parent
-// maintenance-window via WindowId.
+// maintenance-window via WindowID.
 func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTarget}, Limit: util.AllResources,
@@ -195,12 +201,12 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 	}
 	for _, r := range rows {
 		var attrs struct {
-			WindowId *string `json:"WindowId"`
+			WindowID *string `json:"WindowId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		wid := sv(attrs.WindowId)
+		wid := sv(attrs.WindowID)
 		if wid == "" {
 			continue
 		}
@@ -217,7 +223,7 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 	return nil
 }
 
-// resolveSSMMaintenanceWindowTaskRefs walks each mw-task's WindowId,
+// resolveSSMMaintenanceWindowTaskRefs walks each mw-task's WindowID,
 // ServiceRoleArn, and TaskArn (dispatched on Type for LAMBDA / STEP_FUNCTIONS).
 // RUN_COMMAND / AUTOMATION TaskArns are document names without per-region
 // resolution context — skip those rather than synthesize a wrong document
@@ -250,7 +256,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			WindowId       *string `json:"WindowId"`
+			WindowID       *string `json:"WindowId"`
 			ServiceRoleArn *string `json:"ServiceRoleArn"`
 			TaskArn        *string `json:"TaskArn"`
 			Type           string  `json:"Type"`
@@ -259,7 +265,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if wid := sv(attrs.WindowId); wid != "" {
+		if wid := sv(attrs.WindowID); wid != "" {
 			mwARN := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, wid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeSSMMaintenanceWindow, mwARN)
 			if mwSet[tgtID] {

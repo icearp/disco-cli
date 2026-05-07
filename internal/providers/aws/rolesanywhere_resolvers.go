@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRACRLToTrustAnchor,
+	registerResolver(
+		resolveRACRLToTrustAnchor,
 		EdgeDecl{TypeRolesAnywhereCRL, TypeRolesAnywhereTrustAnchor, store.RelAttachedTo},
 	)
-	registerResolver(resolveRAProfileRefs,
+	registerResolver(
+		resolveRAProfileRefs,
 		EdgeDecl{TypeRolesAnywhereProfile, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeRolesAnywhereProfile, TypeIAMPolicy, store.RelUses},
 	)

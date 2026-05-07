@@ -10,18 +10,22 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEMRChildrenToCluster,
+	registerResolver(
+		resolveEMRChildrenToCluster,
 		EdgeDecl{TypeEMRStep, TypeEMRCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEMRInstanceFleet, TypeEMRCluster, store.RelAttachedTo},
 		EdgeDecl{TypeEMRInstanceGroup, TypeEMRCluster, store.RelAttachedTo},
 	)
-	registerResolver(resolveEMRStudioSessionMappingToStudio,
+	registerResolver(
+		resolveEMRStudioSessionMappingToStudio,
 		EdgeDecl{TypeEMRStudioSessionMapping, TypeEMRStudio, store.RelAttachedTo},
 	)
-	registerResolver(resolveEMRStudioVPC,
+	registerResolver(
+		resolveEMRStudioVPC,
 		EdgeDecl{TypeEMRStudio, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveEMRClusterRefs,
+	registerResolver(
+		resolveEMRClusterRefs,
 		EdgeDecl{TypeEMRCluster, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeEMRCluster, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeEMRCluster, TypeEC2Subnet, store.RelAttachedTo},

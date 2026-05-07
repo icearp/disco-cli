@@ -10,14 +10,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveECSCapacityProviderToASG,
+	registerResolver(
+		resolveECSCapacityProviderToASG,
 		EdgeDecl{TypeECSCapacityProvider, TypeAutoScalingGroup, store.RelUses},
 	)
-	registerResolver(resolveECSCCPARefs,
+	registerResolver(
+		resolveECSCCPARefs,
 		EdgeDecl{TypeECSClusterCapacityProviderAssociations, TypeECSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeECSClusterCapacityProviderAssociations, TypeECSCapacityProvider, store.RelUses},
 	)
-	registerResolver(resolveECSTaskSetRefs,
+	registerResolver(
+		resolveECSTaskSetRefs,
 		EdgeDecl{TypeECSTaskSet, TypeECSCluster, store.RelAttachedTo},
 		EdgeDecl{TypeECSTaskSet, TypeECSService, store.RelAttachedTo},
 		EdgeDecl{TypeECSTaskSet, TypeECSTaskDefinition, store.RelUses},

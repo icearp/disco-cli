@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"fmt"
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -32,7 +31,7 @@ func TestResolveFDEventTypeRefs(t *testing.T) {
 	vARN := fdARN(testRegion, acct.ID, "variable", "ip_address")
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorVariable, vARN, testRegion, "{}")
 	etARN := fdARN(testRegion, acct.ID, "event-type", "purchase")
-	attrs := fmt.Sprintf(`{"EntityTypes":["buyer"],"Labels":["fraud"],"EventVariables":["ip_address"]}`)
+	attrs := `{"EntityTypes":["buyer"],"Labels":["fraud"],"EventVariables":["ip_address"]}`
 	etID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorEventType, etARN, testRegion, attrs)
 	if err := resolveFDEventTypeRefs(acct, st); err != nil {
 		t.Fatalf("resolveFDEventTypeRefs: %v", err)

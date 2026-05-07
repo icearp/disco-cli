@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppConfigChildren,
+	registerResolver(
+		resolveAppConfigChildren,
 		EdgeDecl{TypeAppConfigEnvironment, TypeAppConfigApplication, store.RelAttachedTo},
 		EdgeDecl{TypeAppConfigConfigurationProfile, TypeAppConfigApplication, store.RelAttachedTo},
 		EdgeDecl{TypeAppConfigDeployment, TypeAppConfigApplication, store.RelAttachedTo},
@@ -18,7 +19,8 @@ func init() {
 		EdgeDecl{TypeAppConfigHostedConfigurationVersion, TypeAppConfigApplication, store.RelAttachedTo},
 		EdgeDecl{TypeAppConfigHostedConfigurationVersion, TypeAppConfigConfigurationProfile, store.RelAttachedTo},
 	)
-	registerResolver(resolveAppConfigExtensionAssociation,
+	registerResolver(
+		resolveAppConfigExtensionAssociation,
 		EdgeDecl{TypeAppConfigExtensionAssociation, TypeAppConfigExtension, store.RelUses},
 	)
 }

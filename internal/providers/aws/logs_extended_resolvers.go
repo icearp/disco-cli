@@ -10,28 +10,34 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLogsLogStreamParent,
+	registerResolver(
+		resolveLogsLogStreamParent,
 		EdgeDecl{TypeLogsLogStream, TypeLogsLogGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveLogsMetricFilterParent,
+	registerResolver(
+		resolveLogsMetricFilterParent,
 		EdgeDecl{TypeLogsMetricFilter, TypeLogsLogGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveLogsSubscriptionFilterRefs,
+	registerResolver(
+		resolveLogsSubscriptionFilterRefs,
 		EdgeDecl{TypeLogsSubscriptionFilter, TypeLogsLogGroup, store.RelAttachedTo},
 		EdgeDecl{TypeLogsSubscriptionFilter, TypeLambdaFunction, store.RelRoutesTo},
 		EdgeDecl{TypeLogsSubscriptionFilter, TypeKinesisStream, store.RelRoutesTo},
 		EdgeDecl{TypeLogsSubscriptionFilter, TypeFirehoseDeliveryStream, store.RelRoutesTo},
 		EdgeDecl{TypeLogsSubscriptionFilter, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveLogsDestinationTargets,
+	registerResolver(
+		resolveLogsDestinationTargets,
 		EdgeDecl{TypeLogsDestination, TypeKinesisStream, store.RelRoutesTo},
 		EdgeDecl{TypeLogsDestination, TypeFirehoseDeliveryStream, store.RelRoutesTo},
 		EdgeDecl{TypeLogsDestination, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveLogsTransformerParent,
+	registerResolver(
+		resolveLogsTransformerParent,
 		EdgeDecl{TypeLogsTransformer, TypeLogsLogGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveLogsQueryDefinitionLogGroups,
+	registerResolver(
+		resolveLogsQueryDefinitionLogGroups,
 		EdgeDecl{TypeLogsQueryDefinition, TypeLogsLogGroup, store.RelUses},
 	)
 }

@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveHealthImagingDatastoreRefs,
+	registerResolver(
+		resolveHealthImagingDatastoreRefs,
 		EdgeDecl{TypeHealthImagingDatastore, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeHealthImagingDatastore, TypeLambdaFunction, store.RelUses},
 	)

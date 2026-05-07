@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNeptuneClusterTargets,
+	registerResolver(
+		resolveNeptuneClusterTargets,
 		EdgeDecl{TypeNeptuneCluster, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeNeptuneCluster, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveNeptuneInstanceCluster,
+	registerResolver(
+		resolveNeptuneInstanceCluster,
 		EdgeDecl{TypeNeptuneCluster, TypeNeptuneInstance, store.RelContains},
 	)
 }

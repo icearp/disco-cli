@@ -9,7 +9,7 @@ import (
 )
 
 // All Pinpoint child resources (channels, campaigns, segments, settings,
-// event-streams) attach to the parent application via ApplicationId. Each
+// event-streams) attach to the parent application via ApplicationID. Each
 // resolver below rebuilds the canonical app ARN (mobiletargeting :apps/{id})
 // and FK-safe-emits an `attached-to` edge when the parent app is scanned.
 //
@@ -17,7 +17,8 @@ import (
 // their own; campaigns reference templates via TemplateConfiguration.*.Name
 // → resolved through a name-keyed index over scanned templates.
 func init() {
-	registerResolver(resolvePinpointChannelApps,
+	registerResolver(
+		resolvePinpointChannelApps,
 		EdgeDecl{TypePinpointADMChannel, TypePinpointApp, store.RelAttachedTo},
 		EdgeDecl{TypePinpointAPNSChannel, TypePinpointApp, store.RelAttachedTo},
 		EdgeDecl{TypePinpointAPNSSandboxChannel, TypePinpointApp, store.RelAttachedTo},
@@ -30,7 +31,8 @@ func init() {
 		EdgeDecl{TypePinpointVoiceChannel, TypePinpointApp, store.RelAttachedTo},
 		EdgeDecl{TypePinpointApplicationSettings, TypePinpointApp, store.RelAttachedTo},
 	)
-	registerResolver(resolvePinpointCampaigns,
+	registerResolver(
+		resolvePinpointCampaigns,
 		EdgeDecl{TypePinpointCampaign, TypePinpointApp, store.RelAttachedTo},
 		EdgeDecl{TypePinpointCampaign, TypePinpointSegment, store.RelUses},
 		EdgeDecl{TypePinpointCampaign, TypePinpointEmailTemplate, store.RelUses},
@@ -38,10 +40,12 @@ func init() {
 		EdgeDecl{TypePinpointCampaign, TypePinpointPushTemplate, store.RelUses},
 		EdgeDecl{TypePinpointCampaign, TypePinpointInAppTemplate, store.RelUses},
 	)
-	registerResolver(resolvePinpointSegments,
+	registerResolver(
+		resolvePinpointSegments,
 		EdgeDecl{TypePinpointSegment, TypePinpointApp, store.RelAttachedTo},
 	)
-	registerResolver(resolvePinpointEventStreams,
+	registerResolver(
+		resolvePinpointEventStreams,
 		EdgeDecl{TypePinpointEventStream, TypePinpointApp, store.RelAttachedTo},
 		EdgeDecl{TypePinpointEventStream, TypeKinesisStream, store.RelUses},
 		EdgeDecl{TypePinpointEventStream, TypeFirehoseDeliveryStream, store.RelUses},
@@ -57,10 +61,10 @@ func pinpointAppARN(region, acctID, appID string) string {
 }
 
 // pinpointAppIDOnly carries just the field used to recover the parent app
-// ARN; channels, settings, and event-streams all surface ApplicationId as
+// ARN; channels, settings, and event-streams all surface ApplicationID as
 // a top-level field on their respective response wrappers.
 type pinpointAppIDOnly struct {
-	ApplicationId *string `json:"ApplicationId"`
+	ApplicationID *string `json:"ApplicationId"`
 }
 
 // resolvePinpointChannelApps emits `attached-to` edges from each channel
@@ -94,7 +98,7 @@ func resolvePinpointChannelApps(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		appID := sv(attrs.ApplicationId)
+		appID := sv(attrs.ApplicationID)
 		if appID == "" {
 			continue
 		}
@@ -118,8 +122,8 @@ type pinpointTemplateRef struct {
 
 // pinpointCampaignAttrs mirrors the verbatim CampaignResponse fields.
 type pinpointCampaignAttrs struct {
-	ApplicationId         *string `json:"ApplicationId"`
-	SegmentId             *string `json:"SegmentId"`
+	ApplicationID         *string `json:"ApplicationId"`
+	SegmentID             *string `json:"SegmentId"`
 	TemplateConfiguration *struct {
 		EmailTemplate *pinpointTemplateRef `json:"EmailTemplate"`
 		SMSTemplate   *pinpointTemplateRef `json:"SMSTemplate"`
@@ -190,7 +194,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(c.Region)
-		appID := sv(attrs.ApplicationId)
+		appID := sv(attrs.ApplicationID)
 		if appID != "" {
 			ar := store.ResourceID("aws", acct.ID, TypePinpointApp, pinpointAppARN(region, acct.ID, appID))
 			if appSet[ar] {
@@ -199,7 +203,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if seg := sv(attrs.SegmentId); seg != "" && appID != "" {
+		if seg := sv(attrs.SegmentID); seg != "" && appID != "" {
 			segARN := pinpointARN(region, acct.ID, "segments/"+seg, appID)
 			segID := store.ResourceID("aws", acct.ID, TypePinpointSegment, segARN)
 			if segSet[segID] {
@@ -234,7 +238,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 }
 
 // resolvePinpointSegments wires each segment to its parent app. Segments
-// have their own ARN as NativeID, so we read ApplicationId from attrs.
+// have their own ARN as NativeID, so we read ApplicationID from attrs.
 func resolvePinpointSegments(acct *account, st *store.Store) error {
 	segs, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypePinpointSegment},
@@ -255,7 +259,7 @@ func resolvePinpointSegments(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		appID := sv(attrs.ApplicationId)
+		appID := sv(attrs.ApplicationID)
 		if appID == "" {
 			continue
 		}
@@ -273,7 +277,7 @@ func resolvePinpointSegments(acct *account, st *store.Store) error {
 
 // pinpointEventStreamAttrs covers the verbatim EventStream fields.
 type pinpointEventStreamAttrs struct {
-	ApplicationId        *string `json:"ApplicationId"`
+	ApplicationID        *string `json:"ApplicationId"`
 	DestinationStreamArn *string `json:"DestinationStreamArn"`
 	RoleArn              *string `json:"RoleArn"`
 }
@@ -314,7 +318,7 @@ func resolvePinpointEventStreams(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(s.Region)
-		if appID := sv(attrs.ApplicationId); appID != "" {
+		if appID := sv(attrs.ApplicationID); appID != "" {
 			ar := store.ResourceID("aws", acct.ID, TypePinpointApp, pinpointAppARN(region, acct.ID, appID))
 			if appSet[ar] {
 				if err := st.UpsertRelationship(s.ID, ar, store.RelAttachedTo, "directed", nil); err != nil {

@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAutoScalingRelationships,
+	registerResolver(
+		resolveAutoScalingRelationships,
 		// resolveAutoScalingGroupEdges
 		EdgeDecl{TypeAutoScalingGroup, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeAutoScalingGroup, TypeAutoScalingLaunchConfiguration, store.RelUses},
@@ -99,10 +100,7 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	if err := resolveAutoScalingLaunchConfigEdges(acct, st, instProfileIDs, sgIDs); err != nil {
 		return err
 	}
-	if err := resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs); err != nil {
-		return err
-	}
-	return nil
+	return resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs)
 }
 
 func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store.Resource, asgIDByName map[string]string, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs map[string]bool) error {

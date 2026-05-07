@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCognitoUserPoolChildren,
+	registerResolver(
+		resolveCognitoUserPoolChildren,
 		EdgeDecl{TypeCognitoUserPoolDomain, TypeCognitoUserPool, store.RelAttachedTo},
 		EdgeDecl{TypeCognitoUserPoolGroup, TypeCognitoUserPool, store.RelAttachedTo},
 		EdgeDecl{TypeCognitoUserPoolIdentityProvider, TypeCognitoUserPool, store.RelAttachedTo},
@@ -21,14 +22,17 @@ func init() {
 		EdgeDecl{TypeCognitoTerms, TypeCognitoUserPool, store.RelAttachedTo},
 		EdgeDecl{TypeCognitoManagedLoginBranding, TypeCognitoUserPool, store.RelAttachedTo},
 	)
-	registerResolver(resolveCognitoUserPoolGroupRole,
+	registerResolver(
+		resolveCognitoUserPoolGroupRole,
 		EdgeDecl{TypeCognitoUserPoolGroup, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveCognitoIdentityPoolRoleAttachment,
+	registerResolver(
+		resolveCognitoIdentityPoolRoleAttachment,
 		EdgeDecl{TypeCognitoIdentityPoolRoleAttachment, TypeCognitoIdentityPool, store.RelAttachedTo},
 		EdgeDecl{TypeCognitoIdentityPoolRoleAttachment, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveCognitoUserPoolRefs,
+	registerResolver(
+		resolveCognitoUserPoolRefs,
 		EdgeDecl{TypeCognitoUserPool, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeCognitoUserPool, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCognitoUserPool, TypeIAMRole, store.RelAssumes},

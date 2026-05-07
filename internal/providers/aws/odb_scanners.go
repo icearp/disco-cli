@@ -22,9 +22,9 @@ func init() {
 		name: "aws:odb",
 		fn:   scanODB,
 		emits: []coverage.TypeDecl{
-			{Service: "odb", DiscoType: TypeODBCloudAutonomousVmCluster},
+			{Service: "odb", DiscoType: TypeODBCloudAutonomousVMCluster},
 			{Service: "odb", DiscoType: TypeODBCloudExadataInfrastructure},
-			{Service: "odb", DiscoType: TypeODBCloudVmCluster},
+			{Service: "odb", DiscoType: TypeODBCloudVMCluster},
 			{Service: "odb", DiscoType: TypeODBOdbNetwork},
 			{Service: "odb", DiscoType: TypeODBOdbPeeringConnection},
 		},
@@ -44,7 +44,7 @@ func scanODB(ctx context.Context, acct *account, region string, st *store.Store,
 	client := odb.NewFromConfig(acct.cfg, func(o *odb.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanODBAutonomousVmClusters(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanODBAutonomousVMClusters(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanODBExadataInfras(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanODBVmClusters(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanODBNetworks(ctx, client, acct, region, st, scanID) },
@@ -60,7 +60,7 @@ func scanODB(ctx context.Context, acct *account, region string, st *store.Store,
 	return total, inserted, nil
 }
 
-func scanODBAutonomousVmClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := odb.NewListCloudAutonomousVmClustersPaginator(client, &odb.ListCloudAutonomousVmClustersInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -81,7 +81,7 @@ func scanODBAutonomousVmClusters(ctx context.Context, client odbAPI, acct *accou
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBCloudAutonomousVmCluster, NativeID: arn,
+				Type: TypeODBCloudAutonomousVMCluster, NativeID: arn,
 				Name: c.DisplayName, Region: &region,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
@@ -141,7 +141,7 @@ func scanODBVmClusters(ctx context.Context, client odbAPI, acct *account, region
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBCloudVmCluster, NativeID: arn,
+				Type: TypeODBCloudVMCluster, NativeID: arn,
 				Name: c.ClusterName, Region: &region,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})

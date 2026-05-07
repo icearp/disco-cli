@@ -33,7 +33,6 @@ type m2API interface {
 func scanM2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := m2.NewFromConfig(acct.cfg, func(o *m2.Options) { o.Region = region })
 
-	type appRef struct{ id, arn string }
 	apps, t, i, ferr := scanM2Applications(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
@@ -49,7 +48,6 @@ func scanM2(ctx context.Context, acct *account, region string, st *store.Store, 
 	inserted += i
 
 	for _, a := range apps {
-		_ = appRef{}
 		t, i, ferr = scanM2Deployments(ctx, client, acct, region, st, scanID, a.id, a.arn)
 		if ferr != nil {
 			return total, inserted, ferr

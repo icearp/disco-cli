@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSFNRelationships,
+	registerResolver(
+		resolveSFNRelationships,
 		EdgeDecl{TypeSFNStateMachine, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSFNStateMachine, TypeLogsLogGroup, store.RelUses},
 		EdgeDecl{TypeSFNStateMachine, TypeLambdaFunction, store.RelRoutesTo},

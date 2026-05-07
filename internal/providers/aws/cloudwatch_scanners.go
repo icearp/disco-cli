@@ -73,7 +73,6 @@ func scanCloudWatch(ctx context.Context, acct *account, region string, st *store
 // types are returned by DescribeAlarms; we split them into their own disco
 // resource types so gap-analysis and filtering work correctly.
 func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	pager := cloudwatch.NewDescribeAlarmsPaginator(client, &cloudwatch.DescribeAlarmsInput{
 		AlarmTypes: []cwtypes.AlarmType{
 			cwtypes.AlarmTypeMetricAlarm,
@@ -136,7 +135,6 @@ func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, regi
 // scanCWAlarmMuteRules discovers CloudWatch alarm mute rules. Mute rules are
 // not paginated via a SDK Paginator type; we iterate manually using NextToken.
 func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	pager := cloudwatch.NewListAlarmMuteRulesPaginator(client, &cloudwatch.ListAlarmMuteRulesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -179,7 +177,6 @@ func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *accou
 // expose an ARN: "<Namespace>/<MetricName>/<Stat>" for single-metric detectors,
 // or "<first-query-id>" for metric-math detectors.
 func scanCWAnomalyDetectors(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	p := cloudwatch.NewDescribeAnomalyDetectorsPaginator(client, &cloudwatch.DescribeAnomalyDetectorsInput{
 		MaxResults: sdkaws.Int32(100),
 	})
@@ -235,7 +232,6 @@ func anomalyDetectorID(d cwtypes.AnomalyDetector) string {
 // scanCWDashboards discovers CloudWatch dashboards and fetches their body via
 // GetDashboard concurrently (one goroutine per dashboard in each page).
 func scanCWDashboards(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	pager := cloudwatch.NewListDashboardsPaginator(client, &cloudwatch.ListDashboardsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -299,7 +295,6 @@ func scanCWDashboards(ctx context.Context, client cloudwatchAPI, acct *account, 
 // scanCWInsightRules discovers CloudWatch Contributor Insights rules.
 // InsightRules are identified by name; there is no ARN exposed in the API.
 func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	pager := cloudwatch.NewDescribeInsightRulesPaginator(client, &cloudwatch.DescribeInsightRulesInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -341,7 +336,6 @@ func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account
 // full configuration via GetMetricStream concurrently (one goroutine per
 // stream in each page).
 func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-
 	pager := cloudwatch.NewListMetricStreamsPaginator(client, &cloudwatch.ListMetricStreamsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

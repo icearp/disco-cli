@@ -22,7 +22,8 @@ type apigatewayv2API interface {
 
 // scanAPIGatewayV2 is the orchestrator for all API Gateway v2 (HTTP/WebSocket) resource types.
 func scanAPIGatewayV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanAPIGatewayHTTPAPIs(ctx, acct, region, st, scanID)
 		},

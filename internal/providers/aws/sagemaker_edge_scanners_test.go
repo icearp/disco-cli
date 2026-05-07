@@ -25,24 +25,31 @@ type stubSageMakerEdge struct {
 func (s *stubSageMakerEdge) ListDeviceFleets(_ context.Context, _ *sagemaker.ListDeviceFleetsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListDeviceFleetsOutput, error) {
 	return &sagemaker.ListDeviceFleetsOutput{DeviceFleetSummaries: s.fleets}, nil
 }
+
 func (s *stubSageMakerEdge) DescribeDeviceFleet(_ context.Context, in *sagemaker.DescribeDeviceFleetInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeDeviceFleetOutput, error) {
 	return s.fleetOut[*in.DeviceFleetName], nil
 }
+
 func (s *stubSageMakerEdge) ListDevices(_ context.Context, _ *sagemaker.ListDevicesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListDevicesOutput, error) {
 	return &sagemaker.ListDevicesOutput{DeviceSummaries: s.devices}, nil
 }
+
 func (s *stubSageMakerEdge) DescribeDevice(_ context.Context, in *sagemaker.DescribeDeviceInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeDeviceOutput, error) {
 	return s.deviceOut[*in.DeviceFleetName+"/"+*in.DeviceName], nil
 }
+
 func (s *stubSageMakerEdge) ListImages(_ context.Context, _ *sagemaker.ListImagesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListImagesOutput, error) {
 	return &sagemaker.ListImagesOutput{Images: s.images}, nil
 }
+
 func (s *stubSageMakerEdge) DescribeImage(_ context.Context, in *sagemaker.DescribeImageInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeImageOutput, error) {
 	return s.imageOut[*in.ImageName], nil
 }
+
 func (s *stubSageMakerEdge) ListImageVersions(_ context.Context, in *sagemaker.ListImageVersionsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListImageVersionsOutput, error) {
 	return &sagemaker.ListImageVersionsOutput{ImageVersions: s.versionsByImg[*in.ImageName]}, nil
 }
+
 func (s *stubSageMakerEdge) DescribeImageVersion(_ context.Context, in *sagemaker.DescribeImageVersionInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeImageVersionOutput, error) {
 	return s.versionOut[fmt.Sprintf("%s/%d", *in.ImageName, *in.Version)], nil
 }

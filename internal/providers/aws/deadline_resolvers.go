@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDeadlineFarmChildren,
+	registerResolver(
+		resolveDeadlineFarmChildren,
 		EdgeDecl{TypeDeadlineFleet, TypeDeadlineFarm, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueue, TypeDeadlineFarm, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineLimit, TypeDeadlineFarm, store.RelAttachedTo},
@@ -18,27 +19,34 @@ func init() {
 		EdgeDecl{TypeDeadlineQueueFleetAssociation, TypeDeadlineFarm, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineFarm, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineQueueEnvParent,
+	registerResolver(
+		resolveDeadlineQueueEnvParent,
 		EdgeDecl{TypeDeadlineQueueEnvironment, TypeDeadlineQueue, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineMeteredProductParent,
+	registerResolver(
+		resolveDeadlineMeteredProductParent,
 		EdgeDecl{TypeDeadlineMeteredProduct, TypeDeadlineLicenseEndpoint, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineQueueFleetAssoc,
+	registerResolver(
+		resolveDeadlineQueueFleetAssoc,
 		EdgeDecl{TypeDeadlineQueueFleetAssociation, TypeDeadlineQueue, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueFleetAssociation, TypeDeadlineFleet, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineQueueLimitAssoc,
+	registerResolver(
+		resolveDeadlineQueueLimitAssoc,
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineQueue, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineLimit, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineFarmKMS,
+	registerResolver(
+		resolveDeadlineFarmKMS,
 		EdgeDecl{TypeDeadlineFarm, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveDeadlineLicenseEndpointVPC,
+	registerResolver(
+		resolveDeadlineLicenseEndpointVPC,
 		EdgeDecl{TypeDeadlineLicenseEndpoint, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveDeadlineMonitorRefs,
+	registerResolver(
+		resolveDeadlineMonitorRefs,
 		EdgeDecl{TypeDeadlineMonitor, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeDeadlineMonitor, TypeSSOInstance, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineMonitor, TypeSSOApplication, store.RelAttachedTo},
@@ -78,7 +86,7 @@ func resolveDeadlineFarmKMS(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveDeadlineLicenseEndpointVPC wires license-endpoint → VPC (VpcId).
+// resolveDeadlineLicenseEndpointVPC wires license-endpoint → VPC (VpcID).
 func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineLicenseEndpoint}, Limit: util.AllResources,
@@ -95,12 +103,12 @@ func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId *string `json:"VpcId"`
+			VpcID *string `json:"VpcId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if v := sv(attrs.VpcId); v != "" {
+		if v := sv(attrs.VpcID); v != "" {
 			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", v)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if vpcSet[tgtID] {

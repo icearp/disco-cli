@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNotifChildrenToConfig,
+	registerResolver(
+		resolveNotifChildrenToConfig,
 		EdgeDecl{TypeNotificationsChannelAssociation, TypeNotificationsNotificationConfiguration, store.RelAttachedTo},
 		EdgeDecl{TypeNotificationsEventRule, TypeNotificationsNotificationConfiguration, store.RelAttachedTo},
 		EdgeDecl{TypeNotificationsOrganizationalUnitAssociation, TypeNotificationsNotificationConfiguration, store.RelAttachedTo},

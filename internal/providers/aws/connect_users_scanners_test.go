@@ -25,27 +25,35 @@ type stubConnectUsers struct {
 func (s *stubConnectUsers) ListUsers(_ context.Context, _ *connect.ListUsersInput, _ ...func(*connect.Options)) (*connect.ListUsersOutput, error) {
 	return &connect.ListUsersOutput{UserSummaryList: s.users}, nil
 }
+
 func (s *stubConnectUsers) DescribeUser(_ context.Context, in *connect.DescribeUserInput, _ ...func(*connect.Options)) (*connect.DescribeUserOutput, error) {
 	return s.userOut[*in.UserId], nil
 }
+
 func (s *stubConnectUsers) ListUserHierarchyGroups(_ context.Context, _ *connect.ListUserHierarchyGroupsInput, _ ...func(*connect.Options)) (*connect.ListUserHierarchyGroupsOutput, error) {
 	return &connect.ListUserHierarchyGroupsOutput{UserHierarchyGroupSummaryList: s.groups}, nil
 }
+
 func (s *stubConnectUsers) DescribeUserHierarchyGroup(_ context.Context, in *connect.DescribeUserHierarchyGroupInput, _ ...func(*connect.Options)) (*connect.DescribeUserHierarchyGroupOutput, error) {
 	return s.groupOut[*in.HierarchyGroupId], nil
 }
+
 func (s *stubConnectUsers) DescribeUserHierarchyStructure(_ context.Context, _ *connect.DescribeUserHierarchyStructureInput, _ ...func(*connect.Options)) (*connect.DescribeUserHierarchyStructureOutput, error) {
 	return &connect.DescribeUserHierarchyStructureOutput{HierarchyStructure: s.structure}, nil
 }
+
 func (s *stubConnectUsers) ListSecurityProfiles(_ context.Context, _ *connect.ListSecurityProfilesInput, _ ...func(*connect.Options)) (*connect.ListSecurityProfilesOutput, error) {
 	return &connect.ListSecurityProfilesOutput{SecurityProfileSummaryList: s.profiles}, nil
 }
+
 func (s *stubConnectUsers) DescribeSecurityProfile(_ context.Context, in *connect.DescribeSecurityProfileInput, _ ...func(*connect.Options)) (*connect.DescribeSecurityProfileOutput, error) {
 	return s.profileOut[*in.SecurityProfileId], nil
 }
+
 func (s *stubConnectUsers) ListPredefinedAttributes(_ context.Context, _ *connect.ListPredefinedAttributesInput, _ ...func(*connect.Options)) (*connect.ListPredefinedAttributesOutput, error) {
 	return &connect.ListPredefinedAttributesOutput{PredefinedAttributeSummaryList: s.attrs}, nil
 }
+
 func (s *stubConnectUsers) DescribePredefinedAttribute(_ context.Context, in *connect.DescribePredefinedAttributeInput, _ ...func(*connect.Options)) (*connect.DescribePredefinedAttributeOutput, error) {
 	return s.attrOut[*in.Name], nil
 }

@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type internetMonitorAPI interface {
-	ListMonitors(context.Context, *internetmonitor.ListMonitorsInput, ...func(*internetmonitor.Options)) (*internetmonitor.ListMonitorsOutput, error)
-}
-
 // scanInternetMonitor discovers CloudWatch Internet Monitor monitors.
 func scanInternetMonitor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := internetmonitor.NewFromConfig(acct.cfg, func(o *internetmonitor.Options) { o.Region = region })

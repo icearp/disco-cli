@@ -69,9 +69,9 @@ func TestResolveLightsailLoadBalancerTlsCertParent(t *testing.T) {
 	lbARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:LoadBalancer/lb-1", testRegion, acct.ID)
 	lbID := upsertLightsailRow(t, st, acct, TypeLightsailLoadBalancer, lbARN, "my-lb", testRegion, "{}")
 	cARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:LoadBalancerTlsCertificate/c-1", testRegion, acct.ID)
-	cID := upsertLightsailRow(t, st, acct, TypeLightsailLoadBalancerTlsCertificate, cARN, "c-1", testRegion, `{"LoadBalancerName":"my-lb"}`)
-	if err := resolveLightsailLoadBalancerTlsCertParent(acct, st); err != nil {
-		t.Fatalf("resolveLightsailLoadBalancerTlsCertParent: %v", err)
+	cID := upsertLightsailRow(t, st, acct, TypeLightsailLoadBalancerTLSCertificate, cARN, "c-1", testRegion, `{"LoadBalancerName":"my-lb"}`)
+	if err := resolveLightsailLoadBalancerTLSCertParent(acct, st); err != nil {
+		t.Fatalf("resolveLightsailLoadBalancerTLSCertParent: %v", err)
 	}
 	rels, _ := st.RelationshipsFrom(cID)
 	assertRelationship(t, rels, cID, lbID, store.RelAttachedTo)
@@ -126,7 +126,7 @@ func TestResolveLightsailStaticIPAttachedInstance(t *testing.T) {
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
 	iID := upsertLightsailRow(t, st, acct, TypeLightsailInstance, iARN, "host-1", testRegion, "{}")
 	sARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:StaticIp/sip-1", testRegion, acct.ID)
-	sID := upsertLightsailRow(t, st, acct, TypeLightsailStaticIp, sARN, "ip-a", testRegion, `{"AttachedTo":"host-1"}`)
+	sID := upsertLightsailRow(t, st, acct, TypeLightsailStaticIP, sARN, "ip-a", testRegion, `{"AttachedTo":"host-1"}`)
 	if err := resolveLightsailStaticIPAttachedInstance(acct, st); err != nil {
 		t.Fatalf("resolveLightsailStaticIPAttachedInstance: %v", err)
 	}

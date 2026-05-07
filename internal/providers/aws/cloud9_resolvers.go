@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloud9EnvOwner,
+	registerResolver(
+		resolveCloud9EnvOwner,
 		EdgeDecl{TypeCloud9EnvironmentEC2, TypeIAMRole, store.RelAttachedTo},
 		EdgeDecl{TypeCloud9EnvironmentEC2, TypeIAMUser, store.RelAttachedTo},
 	)

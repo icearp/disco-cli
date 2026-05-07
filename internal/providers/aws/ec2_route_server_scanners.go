@@ -24,7 +24,8 @@ func init() {
 // fields on existing scanned resources (route table, route server) and
 // have no separate SDK list op (see docs/aws-missing-services.md).
 func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanRouteServers(ctx, client, acct, region, st, scanID)
 		},
@@ -38,7 +39,8 @@ func scanEC2RouteServer(ctx context.Context, client ec2API, acct *account, regio
 }
 
 func scanRouteServers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeRouteServers", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeRouteServers", acct, region, st,
 		ec2.NewDescribeRouteServersPaginator(client, &ec2.DescribeRouteServersInput{}),
 		func(page *ec2.DescribeRouteServersOutput) []*store.Resource {
 			var out []*store.Resource
@@ -67,7 +69,8 @@ func scanRouteServers(ctx context.Context, client ec2API, acct *account, region 
 }
 
 func scanRouteServerEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeRouteServerEndpoints", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeRouteServerEndpoints", acct, region, st,
 		ec2.NewDescribeRouteServerEndpointsPaginator(client, &ec2.DescribeRouteServerEndpointsInput{}),
 		func(page *ec2.DescribeRouteServerEndpointsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -96,7 +99,8 @@ func scanRouteServerEndpoints(ctx context.Context, client ec2API, acct *account,
 }
 
 func scanRouteServerPeers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeRouteServerPeers", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeRouteServerPeers", acct, region, st,
 		ec2.NewDescribeRouteServerPeersPaginator(client, &ec2.DescribeRouteServerPeersInput{}),
 		func(page *ec2.DescribeRouteServerPeersOutput) []*store.Resource {
 			var out []*store.Resource

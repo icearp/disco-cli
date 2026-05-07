@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGuardDutyChildrenToDetector,
+	registerResolver(
+		resolveGuardDutyChildrenToDetector,
 		EdgeDecl{TypeGuardDutyFilter, TypeGuardDutyDetector, store.RelAttachedTo},
 		EdgeDecl{TypeGuardDutyPublishingDestination, TypeGuardDutyDetector, store.RelAttachedTo},
 		EdgeDecl{TypeGuardDutyThreatEntitySet, TypeGuardDutyDetector, store.RelAttachedTo},

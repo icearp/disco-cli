@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolvePCSChildrenToCluster,
+	registerResolver(
+		resolvePCSChildrenToCluster,
 		EdgeDecl{TypePCSComputeNodeGroup, TypePCSCluster, store.RelAttachedTo},
 		EdgeDecl{TypePCSQueue, TypePCSCluster, store.RelAttachedTo},
 	)

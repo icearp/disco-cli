@@ -27,30 +27,39 @@ type stubConnectWorkspace struct {
 func (s *stubConnectWorkspace) ListTaskTemplates(_ context.Context, _ *connect.ListTaskTemplatesInput, _ ...func(*connect.Options)) (*connect.ListTaskTemplatesOutput, error) {
 	return &connect.ListTaskTemplatesOutput{TaskTemplates: s.tasks}, nil
 }
+
 func (s *stubConnectWorkspace) ListEvaluationForms(_ context.Context, _ *connect.ListEvaluationFormsInput, _ ...func(*connect.Options)) (*connect.ListEvaluationFormsOutput, error) {
 	return &connect.ListEvaluationFormsOutput{EvaluationFormSummaryList: s.forms}, nil
 }
+
 func (s *stubConnectWorkspace) DescribeEvaluationForm(_ context.Context, in *connect.DescribeEvaluationFormInput, _ ...func(*connect.Options)) (*connect.DescribeEvaluationFormOutput, error) {
 	return s.formOut[*in.EvaluationFormId], nil
 }
+
 func (s *stubConnectWorkspace) ListViews(_ context.Context, _ *connect.ListViewsInput, _ ...func(*connect.Options)) (*connect.ListViewsOutput, error) {
 	return &connect.ListViewsOutput{ViewsSummaryList: s.views}, nil
 }
+
 func (s *stubConnectWorkspace) DescribeView(_ context.Context, in *connect.DescribeViewInput, _ ...func(*connect.Options)) (*connect.DescribeViewOutput, error) {
 	return s.viewOut[*in.ViewId], nil
 }
+
 func (s *stubConnectWorkspace) ListViewVersions(_ context.Context, in *connect.ListViewVersionsInput, _ ...func(*connect.Options)) (*connect.ListViewVersionsOutput, error) {
 	return &connect.ListViewVersionsOutput{ViewVersionSummaryList: s.versionsByView[*in.ViewId]}, nil
 }
+
 func (s *stubConnectWorkspace) ListWorkspaces(_ context.Context, _ *connect.ListWorkspacesInput, _ ...func(*connect.Options)) (*connect.ListWorkspacesOutput, error) {
 	return &connect.ListWorkspacesOutput{WorkspaceSummaryList: s.workspaces}, nil
 }
+
 func (s *stubConnectWorkspace) DescribeWorkspace(_ context.Context, in *connect.DescribeWorkspaceInput, _ ...func(*connect.Options)) (*connect.DescribeWorkspaceOutput, error) {
 	return s.workspaceOut[*in.WorkspaceId], nil
 }
+
 func (s *stubConnectWorkspace) ListPrompts(_ context.Context, _ *connect.ListPromptsInput, _ ...func(*connect.Options)) (*connect.ListPromptsOutput, error) {
 	return &connect.ListPromptsOutput{PromptSummaryList: s.prompts}, nil
 }
+
 func (s *stubConnectWorkspace) DescribePrompt(_ context.Context, in *connect.DescribePromptInput, _ ...func(*connect.Options)) (*connect.DescribePromptOutput, error) {
 	return s.promptOut[*in.PromptId], nil
 }

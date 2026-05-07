@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCustomerProfilesChildrenToDomain,
+	registerResolver(
+		resolveCustomerProfilesChildrenToDomain,
 		EdgeDecl{TypeCPCalculatedAttributeDefinition, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPEventStream, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPEventTrigger, TypeCPDomain, store.RelAttachedTo},
@@ -19,7 +20,8 @@ func init() {
 		EdgeDecl{TypeCPRecommender, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPSegmentDefinition, TypeCPDomain, store.RelAttachedTo},
 	)
-	registerResolver(resolveCPDomainRefs,
+	registerResolver(
+		resolveCPDomainRefs,
 		EdgeDecl{TypeCPDomain, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeCPDomain, TypeSQSQueue, store.RelRoutesTo},
 	)

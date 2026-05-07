@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSQSQueueRelationships,
+	registerResolver(
+		resolveSQSQueueRelationships,
 		EdgeDecl{TypeSQSQueue, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSQSQueue, TypeSQSQueue, store.RelRoutesTo},
 	)

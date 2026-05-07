@@ -16,42 +16,52 @@ import (
 // the ARN directly. All edges are FK-safe via scannedIDSet — refs to
 // unscanned targets (e.g. cross-account VPC, foreign service) silently skip.
 func init() {
-	registerResolver(resolveVPCLatticeSNVA,
+	registerResolver(
+		resolveVPCLatticeSNVA,
 		EdgeDecl{TypeVpcLatticeServiceNetworkVpcAssociation, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeServiceNetworkVpcAssociation, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeSNSA,
+	registerResolver(
+		resolveVPCLatticeSNSA,
 		EdgeDecl{TypeVpcLatticeServiceNetworkServiceAssociation, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeServiceNetworkServiceAssociation, TypeVpcLatticeService, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeSNRA,
+	registerResolver(
+		resolveVPCLatticeSNRA,
 		EdgeDecl{TypeVpcLatticeServiceNetworkResourceAssociation, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeServiceNetworkResourceAssociation, TypeVpcLatticeResourceConfiguration, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeTargetGroup,
+	registerResolver(
+		resolveVPCLatticeTargetGroup,
 		EdgeDecl{TypeVpcLatticeTargetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeTargetGroup, TypeVpcLatticeService, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeListenerService,
+	registerResolver(
+		resolveVPCLatticeListenerService,
 		EdgeDecl{TypeVpcLatticeListener, TypeVpcLatticeService, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeRuleListener,
+	registerResolver(
+		resolveVPCLatticeRuleListener,
 		EdgeDecl{TypeVpcLatticeRule, TypeVpcLatticeListener, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeAuthPolicyParent,
+	registerResolver(
+		resolveVPCLatticeAuthPolicyParent,
 		EdgeDecl{TypeVpcLatticeAuthPolicy, TypeVpcLatticeService, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeAuthPolicy, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeResourcePolicyParent,
+	registerResolver(
+		resolveVPCLatticeResourcePolicyParent,
 		EdgeDecl{TypeVpcLatticeResourcePolicy, TypeVpcLatticeService, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeResourcePolicy, TypeVpcLatticeServiceNetwork, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeResourceGateway,
+	registerResolver(
+		resolveVPCLatticeResourceGateway,
 		EdgeDecl{TypeVpcLatticeResourceGateway, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeResourceGateway, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeVpcLatticeResourceGateway, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveVPCLatticeResourceConfigurationGateway,
+	registerResolver(
+		resolveVPCLatticeResourceConfigurationGateway,
 		EdgeDecl{TypeVpcLatticeResourceConfiguration, TypeVpcLatticeResourceGateway, store.RelAttachedTo},
 	)
 }
@@ -553,7 +563,8 @@ func vlRuleParentListener(ruleARN string) (string, bool) {
 }
 
 func init() {
-	registerResolver(resolveVPCLatticeServiceCert,
+	registerResolver(
+		resolveVPCLatticeServiceCert,
 		EdgeDecl{TypeVpcLatticeService, TypeACMCertificate, store.RelUses},
 	)
 }

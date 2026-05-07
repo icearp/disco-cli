@@ -20,10 +20,6 @@ func init() {
 	})
 }
 
-type invoicingAPI interface {
-	ListInvoiceUnits(context.Context, *invoicing.ListInvoiceUnitsInput, ...func(*invoicing.Options)) (*invoicing.ListInvoiceUnitsOutput, error)
-}
-
 // scanInvoicing discovers Invoicing invoice units. Service is global; gate
 // to us-east-1 to avoid duplicate scans across regions.
 func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {

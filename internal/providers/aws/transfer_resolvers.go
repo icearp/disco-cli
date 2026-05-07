@@ -10,23 +10,27 @@ import (
 )
 
 func init() {
-	registerResolver(resolveTransferAgreementRefs,
+	registerResolver(
+		resolveTransferAgreementRefs,
 		EdgeDecl{TypeTransferAgreement, TypeTransferServer, store.RelAttachedTo},
 		EdgeDecl{TypeTransferAgreement, TypeTransferProfile, store.RelUses},
 	)
-	registerResolver(resolveTransferUserParent,
+	registerResolver(
+		resolveTransferUserParent,
 		EdgeDecl{TypeTransferUser, TypeTransferServer, store.RelAttachedTo},
 	)
-	registerResolver(resolveTransferUserRole,
+	registerResolver(
+		resolveTransferUserRole,
 		EdgeDecl{TypeTransferUser, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveTransferServerLoggingRole,
+	registerResolver(
+		resolveTransferServerLoggingRole,
 		EdgeDecl{TypeTransferServer, TypeIAMRole, store.RelAssumes},
 	)
 }
 
-// transferServerIDIndex maps ServerId → resource ID. Server List items carry
-// ServerId, so we read it from attrs.
+// transferServerIDIndex maps ServerID → resource ID. Server List items carry
+// ServerID, so we read it from attrs.
 func transferServerIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferServer},
@@ -38,19 +42,19 @@ func transferServerIDIndex(acct *account, st *store.Store) (map[string]string, e
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			ServerId *string `json:"ServerId"`
+			ServerID *string `json:"ServerId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.ServerId); id != "" {
+		if id := sv(attrs.ServerID); id != "" {
 			idx[id] = r.ID
 		}
 	}
 	return idx, nil
 }
 
-// transferProfileIDIndex maps ProfileId → resource ID.
+// transferProfileIDIndex maps ProfileID → resource ID.
 func transferProfileIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferProfile},
@@ -62,20 +66,20 @@ func transferProfileIDIndex(acct *account, st *store.Store) (map[string]string, 
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			ProfileId *string `json:"ProfileId"`
+			ProfileID *string `json:"ProfileId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.ProfileId); id != "" {
+		if id := sv(attrs.ProfileID); id != "" {
 			idx[id] = r.ID
 		}
 	}
 	return idx, nil
 }
 
-// resolveTransferAgreementRefs wires each agreement → server (ServerId) +
-// local + partner profile (ProfileId via index).
+// resolveTransferAgreementRefs wires each agreement → server (ServerID) +
+// local + partner profile (ProfileID via index).
 func resolveTransferAgreementRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferAgreement}, Limit: util.AllResources,
@@ -96,21 +100,21 @@ func resolveTransferAgreementRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ServerId         *string `json:"ServerId"`
-			LocalProfileId   *string `json:"LocalProfileId"`
-			PartnerProfileId *string `json:"PartnerProfileId"`
+			ServerID         *string `json:"ServerId"`
+			LocalProfileID   *string `json:"LocalProfileId"`
+			PartnerProfileID *string `json:"PartnerProfileId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if sid := sv(attrs.ServerId); sid != "" {
+		if sid := sv(attrs.ServerID); sid != "" {
 			if tgtID, ok := srvIdx[sid]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert transfer agreement→server: %w", err)
 				}
 			}
 		}
-		for _, pid := range []string{sv(attrs.LocalProfileId), sv(attrs.PartnerProfileId)} {
+		for _, pid := range []string{sv(attrs.LocalProfileID), sv(attrs.PartnerProfileID)} {
 			if pid == "" {
 				continue
 			}

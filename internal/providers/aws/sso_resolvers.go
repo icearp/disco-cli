@@ -10,24 +10,29 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSSOPermissionSetInstance,
+	registerResolver(
+		resolveSSOPermissionSetInstance,
 		EdgeDecl{TypeSSOInstance, TypeSSOPermissionSet, store.RelContains},
 	)
-	registerResolver(resolveSSOAccountAssignments,
+	registerResolver(
+		resolveSSOAccountAssignments,
 		EdgeDecl{TypeSSOAccountAssignment, TypeSSOPermissionSet, store.RelUses},
 		EdgeDecl{TypeSSOAccountAssignment, TypeIdentityStoreUser, store.RelUses},
 		EdgeDecl{TypeSSOAccountAssignment, TypeIdentityStoreGroup, store.RelUses},
 		EdgeDecl{TypeSSOAccountAssignment, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
-	registerResolver(resolveSSOApplicationInstance,
+	registerResolver(
+		resolveSSOApplicationInstance,
 		EdgeDecl{TypeSSOApplication, TypeSSOInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveSSOApplicationAssignmentRefs,
+	registerResolver(
+		resolveSSOApplicationAssignmentRefs,
 		EdgeDecl{TypeSSOApplicationAssignment, TypeSSOApplication, store.RelAttachedTo},
 		EdgeDecl{TypeSSOApplicationAssignment, TypeIdentityStoreUser, store.RelUses},
 		EdgeDecl{TypeSSOApplicationAssignment, TypeIdentityStoreGroup, store.RelUses},
 	)
-	registerResolver(resolveSSOAttrConfigInstance,
+	registerResolver(
+		resolveSSOAttrConfigInstance,
 		EdgeDecl{TypeSSOInstanceAccessControlAttributeConfiguration, TypeSSOInstance, store.RelAttachedTo},
 	)
 }

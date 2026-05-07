@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type novaActAPI interface {
-	ListWorkflowDefinitions(context.Context, *novaact.ListWorkflowDefinitionsInput, ...func(*novaact.Options)) (*novaact.ListWorkflowDefinitionsOutput, error)
-}
-
 // scanNovaAct discovers Nova Act workflow definitions.
 func scanNovaAct(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := novaact.NewFromConfig(acct.cfg, func(o *novaact.Options) { o.Region = region })

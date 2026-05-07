@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type chimeAPI interface {
-	ListAppInstances(context.Context, *chimesdkidentity.ListAppInstancesInput, ...func(*chimesdkidentity.Options)) (*chimesdkidentity.ListAppInstancesOutput, error)
-}
-
 // scanChime discovers Chime SDK AppInstances. Per-region — Chime SDK is
 // available in a fixed list of control regions; unsupported regions surface
 // as endpoint or access errors and are tolerated by the dispatcher.

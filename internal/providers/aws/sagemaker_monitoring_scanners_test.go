@@ -27,30 +27,39 @@ type stubSageMakerMonitoring struct {
 func (s *stubSageMakerMonitoring) ListMonitoringSchedules(_ context.Context, _ *sagemaker.ListMonitoringSchedulesInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringSchedulesOutput, error) {
 	return &sagemaker.ListMonitoringSchedulesOutput{MonitoringScheduleSummaries: s.schedules}, nil
 }
+
 func (s *stubSageMakerMonitoring) DescribeMonitoringSchedule(_ context.Context, in *sagemaker.DescribeMonitoringScheduleInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeMonitoringScheduleOutput, error) {
 	return s.scheduleOut[*in.MonitoringScheduleName], nil
 }
+
 func (s *stubSageMakerMonitoring) ListDataQualityJobDefinitions(_ context.Context, _ *sagemaker.ListDataQualityJobDefinitionsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListDataQualityJobDefinitionsOutput, error) {
 	return &sagemaker.ListDataQualityJobDefinitionsOutput{JobDefinitionSummaries: s.dataQ}, nil
 }
+
 func (s *stubSageMakerMonitoring) DescribeDataQualityJobDefinition(_ context.Context, in *sagemaker.DescribeDataQualityJobDefinitionInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeDataQualityJobDefinitionOutput, error) {
 	return s.dataQOut[*in.JobDefinitionName], nil
 }
+
 func (s *stubSageMakerMonitoring) ListModelBiasJobDefinitions(_ context.Context, _ *sagemaker.ListModelBiasJobDefinitionsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelBiasJobDefinitionsOutput, error) {
 	return &sagemaker.ListModelBiasJobDefinitionsOutput{JobDefinitionSummaries: s.bias}, nil
 }
+
 func (s *stubSageMakerMonitoring) DescribeModelBiasJobDefinition(_ context.Context, in *sagemaker.DescribeModelBiasJobDefinitionInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelBiasJobDefinitionOutput, error) {
 	return s.biasOut[*in.JobDefinitionName], nil
 }
+
 func (s *stubSageMakerMonitoring) ListModelExplainabilityJobDefinitions(_ context.Context, _ *sagemaker.ListModelExplainabilityJobDefinitionsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelExplainabilityJobDefinitionsOutput, error) {
 	return &sagemaker.ListModelExplainabilityJobDefinitionsOutput{JobDefinitionSummaries: s.expl}, nil
 }
+
 func (s *stubSageMakerMonitoring) DescribeModelExplainabilityJobDefinition(_ context.Context, in *sagemaker.DescribeModelExplainabilityJobDefinitionInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelExplainabilityJobDefinitionOutput, error) {
 	return s.explOut[*in.JobDefinitionName], nil
 }
+
 func (s *stubSageMakerMonitoring) ListModelQualityJobDefinitions(_ context.Context, _ *sagemaker.ListModelQualityJobDefinitionsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListModelQualityJobDefinitionsOutput, error) {
 	return &sagemaker.ListModelQualityJobDefinitionsOutput{JobDefinitionSummaries: s.quality}, nil
 }
+
 func (s *stubSageMakerMonitoring) DescribeModelQualityJobDefinition(_ context.Context, in *sagemaker.DescribeModelQualityJobDefinitionInput, _ ...func(*sagemaker.Options)) (*sagemaker.DescribeModelQualityJobDefinitionOutput, error) {
 	return s.qualityOut[*in.JobDefinitionName], nil
 }

@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveForecastDatasetRefs,
+	registerResolver(
+		resolveForecastDatasetRefs,
 		EdgeDecl{TypeForecastDataset, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeForecastDataset, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveForecastDatasetGroupMembers,
+	registerResolver(
+		resolveForecastDatasetGroupMembers,
 		EdgeDecl{TypeForecastDatasetGroup, TypeForecastDataset, store.RelContains},
 	)
 }

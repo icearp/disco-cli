@@ -27,8 +27,8 @@ func init() {
 			{Service: "lightsail", DiscoType: TypeLightsailDomain},
 			{Service: "lightsail", DiscoType: TypeLightsailInstanceSnapshot},
 			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancer},
-			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancerTlsCertificate},
-			{Service: "lightsail", DiscoType: TypeLightsailStaticIp},
+			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancerTLSCertificate},
+			{Service: "lightsail", DiscoType: TypeLightsailStaticIP},
 		},
 	})
 }

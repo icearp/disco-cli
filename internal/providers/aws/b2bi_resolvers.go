@@ -9,14 +9,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveB2BIProfileLogGroup,
+	registerResolver(
+		resolveB2BIProfileLogGroup,
 		EdgeDecl{TypeB2BIProfile, TypeLogsLogGroup, store.RelUses},
 	)
-	registerResolver(resolveB2BIPartnershipRefs,
+	registerResolver(
+		resolveB2BIPartnershipRefs,
 		EdgeDecl{TypeB2BIPartnership, TypeB2BIProfile, store.RelAttachedTo},
 		EdgeDecl{TypeB2BIPartnership, TypeB2BICapability, store.RelUses},
 	)
-	registerResolver(resolveB2BICapabilityS3,
+	registerResolver(
+		resolveB2BICapabilityS3,
 		EdgeDecl{TypeB2BICapability, TypeS3Bucket, store.RelUses},
 	)
 }
@@ -70,7 +73,7 @@ func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 }
 
 // resolveB2BIPartnershipRefs wires each partnership to its trading profile
-// (ProfileId) and capabilities (Capabilities[] — list of capability IDs).
+// (ProfileID) and capabilities (Capabilities[] — list of capability IDs).
 // Both ARN shapes synthesised per region+acct from the bare ID; ARNs use
 // `:profile/<id>` and `:capability/<id>` segments.
 func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
@@ -93,14 +96,14 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ProfileId    *string  `json:"ProfileId"`
+			ProfileID    *string  `json:"ProfileId"`
 			Capabilities []string `json:"Capabilities"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if pid := sv(attrs.ProfileId); pid != "" {
+		if pid := sv(attrs.ProfileID); pid != "" {
 			pARN := fmt.Sprintf("arn:aws:b2bi:%s:%s:profile/%s", region, acct.ID, pid)
 			tgt := store.ResourceID("aws", acct.ID, TypeB2BIProfile, pARN)
 			if profSet[tgt] {

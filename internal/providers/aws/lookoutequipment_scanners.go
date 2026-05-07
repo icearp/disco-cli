@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type lookoutEquipmentAPI interface {
-	ListInferenceSchedulers(context.Context, *lookoutequipment.ListInferenceSchedulersInput, ...func(*lookoutequipment.Options)) (*lookoutequipment.ListInferenceSchedulersOutput, error)
-	DescribeInferenceScheduler(context.Context, *lookoutequipment.DescribeInferenceSchedulerInput, ...func(*lookoutequipment.Options)) (*lookoutequipment.DescribeInferenceSchedulerOutput, error)
-}
-
 // scanLookoutEquipment discovers Lookout for Equipment inference schedulers.
 func scanLookoutEquipment(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := lookoutequipment.NewFromConfig(acct.cfg, func(o *lookoutequipment.Options) { o.Region = region })

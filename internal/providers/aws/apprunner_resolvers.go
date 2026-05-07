@@ -10,17 +10,20 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAppRunnerServiceTargets,
+	registerResolver(
+		resolveAppRunnerServiceTargets,
 		EdgeDecl{TypeAppRunnerService, TypeAppRunnerVPCConnector, store.RelUses},
 		EdgeDecl{TypeAppRunnerService, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppRunnerService, TypeECRRepository, store.RelUses},
 		EdgeDecl{TypeAppRunnerService, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveAppRunnerVPCConnectorTargets,
+	registerResolver(
+		resolveAppRunnerVPCConnectorTargets,
 		EdgeDecl{TypeAppRunnerVPCConnector, TypeEC2Subnet, store.RelUses},
 		EdgeDecl{TypeAppRunnerVPCConnector, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveAppRunnerVpcIngressConnectionTargets,
+	registerResolver(
+		resolveAppRunnerVpcIngressConnectionTargets,
 		EdgeDecl{TypeAppRunnerVpcIngressConnection, TypeAppRunnerService, store.RelUses},
 	)
 }

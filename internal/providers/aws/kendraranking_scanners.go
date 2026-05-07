@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type kendraRankingAPI interface {
-	ListRescoreExecutionPlans(context.Context, *kendraranking.ListRescoreExecutionPlansInput, ...func(*kendraranking.Options)) (*kendraranking.ListRescoreExecutionPlansOutput, error)
-}
-
 // scanKendraRanking discovers Kendra Ranking rescore execution plans. Synth
 // ARN: arn:aws:kendra-ranking:{r}:{a}:rescore-execution-plan/{id}.
 func scanKendraRanking(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

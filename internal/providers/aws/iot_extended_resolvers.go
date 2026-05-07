@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIoTSecurityProfileRefs,
+	registerResolver(
+		resolveIoTSecurityProfileRefs,
 		EdgeDecl{TypeIoTSecurityProfile, TypeIoTCustomMetric, store.RelUses},
 		EdgeDecl{TypeIoTSecurityProfile, TypeIoTDimension, store.RelUses},
 	)

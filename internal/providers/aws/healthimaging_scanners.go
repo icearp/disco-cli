@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type healthImagingAPI interface {
-	ListDatastores(context.Context, *medicalimaging.ListDatastoresInput, ...func(*medicalimaging.Options)) (*medicalimaging.ListDatastoresOutput, error)
-	GetDatastore(context.Context, *medicalimaging.GetDatastoreInput, ...func(*medicalimaging.Options)) (*medicalimaging.GetDatastoreOutput, error)
-}
-
 // scanHealthImaging discovers HealthImaging (Medical Imaging) datastores.
 func scanHealthImaging(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := medicalimaging.NewFromConfig(acct.cfg, func(o *medicalimaging.Options) { o.Region = region })

@@ -25,7 +25,8 @@ func init() {
 // VPC encryption controls, VPN concentrators. None carry native ARN
 // fields on the SDK summary — synthesize via ec2ARN.
 func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanCapacityManagerDataExports(ctx, client, acct, region, st, scanID)
 		},
@@ -45,7 +46,8 @@ func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region 
 }
 
 func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeCapacityManagerDataExports", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeCapacityManagerDataExports", acct, region, st,
 		ec2.NewDescribeCapacityManagerDataExportsPaginator(client, &ec2.DescribeCapacityManagerDataExportsInput{}),
 		func(page *ec2.DescribeCapacityManagerDataExportsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -73,7 +75,8 @@ func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *ac
 // scanNetworkPerformanceMetricSubscriptions — Subscription has no ID field
 // on the SDK type; key NativeID by composite (Source, Destination, Metric).
 func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeAwsNetworkPerformanceMetricSubscriptions", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeAwsNetworkPerformanceMetricSubscriptions", acct, region, st,
 		ec2.NewDescribeAwsNetworkPerformanceMetricSubscriptionsPaginator(client, &ec2.DescribeAwsNetworkPerformanceMetricSubscriptionsInput{}),
 		func(page *ec2.DescribeAwsNetworkPerformanceMetricSubscriptionsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -189,7 +192,8 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 }
 
 func scanVPNConcentrators(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVpnConcentrators", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVpnConcentrators", acct, region, st,
 		ec2.NewDescribeVpnConcentratorsPaginator(client, &ec2.DescribeVpnConcentratorsInput{}),
 		func(page *ec2.DescribeVpnConcentratorsOutput) []*store.Resource {
 			var out []*store.Resource

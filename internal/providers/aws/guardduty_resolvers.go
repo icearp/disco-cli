@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGuardDutyRelationships,
+	registerResolver(
+		resolveGuardDutyRelationships,
 		EdgeDecl{TypeGuardDutyIPSet, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveGuardDutyMemberOrgAccount,
+	registerResolver(
+		resolveGuardDutyMemberOrgAccount,
 		EdgeDecl{TypeGuardDutyMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
 }

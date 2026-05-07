@@ -10,24 +10,28 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMediaLiveChannelRefs,
+	registerResolver(
+		resolveMediaLiveChannelRefs,
 		EdgeDecl{TypeMediaLiveChannel, TypeMediaLiveInput, store.RelUses},
 		EdgeDecl{TypeMediaLiveChannel, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveMediaLiveInputSecurityGroups,
+	registerResolver(
+		resolveMediaLiveInputSecurityGroups,
 		EdgeDecl{TypeMediaLiveInput, TypeMediaLiveInputSecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveMediaLiveChannelPlacementGroupCluster,
+	registerResolver(
+		resolveMediaLiveChannelPlacementGroupCluster,
 		EdgeDecl{TypeMediaLiveChannelPlacementGroup, TypeMediaLiveCluster, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaLiveMultiplexProgramParent,
+	registerResolver(
+		resolveMediaLiveMultiplexProgramParent,
 		EdgeDecl{TypeMediaLiveMultiplexProgram, TypeMediaLiveMultiplex, store.RelAttachedTo},
 	)
 }
 
-// medialiveByIDIndex builds a map keyed on the SDK Id field — necessary
+// medialiveByIDIndex builds a map keyed on the SDK ID field — necessary
 // because some children (multiplex-program, channel-placement-group) only
-// carry the parent's bare Id, not its full ARN.
+// carry the parent's bare ID, not its full ARN.
 func medialiveByIDIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{rtype},
@@ -39,12 +43,12 @@ func medialiveByIDIndex(acct *account, st *store.Store, rtype string) (map[strin
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			Id *string `json:"Id"`
+			ID *string `json:"Id"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		id := sv(attrs.Id)
+		id := sv(attrs.ID)
 		if id == "" {
 			continue
 		}
@@ -53,7 +57,7 @@ func medialiveByIDIndex(acct *account, st *store.Store, rtype string) (map[strin
 	return idx, nil
 }
 
-// resolveMediaLiveChannelRefs walks each channel's InputAttachments[].InputId
+// resolveMediaLiveChannelRefs walks each channel's InputAttachments[].InputID
 // + RoleArn and emits the corresponding edges.
 func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -78,7 +82,7 @@ func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 		var attrs struct {
 			RoleArn          *string `json:"RoleArn"`
 			InputAttachments []struct {
-				InputId *string `json:"InputId"`
+				InputID *string `json:"InputId"`
 			} `json:"InputAttachments"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -94,7 +98,7 @@ func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 		}
 		seen := map[string]bool{}
 		for _, ia := range attrs.InputAttachments {
-			id := sv(ia.InputId)
+			id := sv(ia.InputID)
 			if id == "" || seen[id] {
 				continue
 			}
@@ -154,7 +158,7 @@ func resolveMediaLiveInputSecurityGroups(acct *account, st *store.Store) error {
 }
 
 // resolveMediaLiveChannelPlacementGroupCluster links each placement group to
-// its parent cluster via ClusterId.
+// its parent cluster via ClusterID.
 func resolveMediaLiveChannelPlacementGroupCluster(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveChannelPlacementGroup},
@@ -172,12 +176,12 @@ func resolveMediaLiveChannelPlacementGroupCluster(acct *account, st *store.Store
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ClusterId *string `json:"ClusterId"`
+			ClusterID *string `json:"ClusterId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		id := sv(attrs.ClusterId)
+		id := sv(attrs.ClusterID)
 		if id == "" {
 			continue
 		}

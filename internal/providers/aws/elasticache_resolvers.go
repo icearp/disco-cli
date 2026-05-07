@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveElastiCacheRelationships,
+	registerResolver(
+		resolveElastiCacheRelationships,
 		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheReplicationGroup, store.RelAttachedTo},
 		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheSubnetGroup, store.RelAttachedTo},
 		EdgeDecl{TypeElastiCacheCacheCluster, TypeElastiCacheParameterGroup, store.RelUses},
@@ -19,13 +20,14 @@ func init() {
 		EdgeDecl{TypeElastiCacheUserGroup, TypeElastiCacheUser, store.RelContains},
 		EdgeDecl{TypeElastiCacheServerlessCache, TypeElastiCacheUserGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveElastiCacheSubnetGroupVPC,
+	registerResolver(
+		resolveElastiCacheSubnetGroupVPC,
 		EdgeDecl{TypeElastiCacheSubnetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeElastiCacheSubnetGroup, TypeEC2Subnet, store.RelAttachedTo},
 	)
 }
 
-// resolveElastiCacheSubnetGroupVPC wires subnet-group → VPC (VpcId) and
+// resolveElastiCacheSubnetGroupVPC wires subnet-group → VPC (VpcID) and
 // subnets (Subnets[].SubnetIdentifier).
 func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -47,7 +49,7 @@ func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			VpcId   *string `json:"VpcId"`
+			VpcID   *string `json:"VpcId"`
 			Subnets []struct {
 				SubnetIdentifier *string `json:"SubnetIdentifier"`
 			} `json:"Subnets"`
@@ -56,7 +58,7 @@ func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if v := sv(attrs.VpcId); v != "" {
+		if v := sv(attrs.VpcID); v != "" {
 			vpcARN := ec2ARN(region, acct.ID, "vpc", v)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
 			if vpcSet[tgtID] {

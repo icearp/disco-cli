@@ -26,10 +26,6 @@ func init() {
 	})
 }
 
-type simSpaceWeaverAPI interface {
-	ListSimulations(context.Context, *simspaceweaver.ListSimulationsInput, ...func(*simspaceweaver.Options)) (*simspaceweaver.ListSimulationsOutput, error)
-}
-
 // scanSimSpaceWeaver discovers SimSpace Weaver simulations.
 func scanSimSpaceWeaver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := simspaceweaver.NewFromConfig(acct.cfg, func(o *simspaceweaver.Options) { o.Region = region })

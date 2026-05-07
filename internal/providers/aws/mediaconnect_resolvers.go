@@ -10,19 +10,23 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMediaConnectBridgeChildren,
+	registerResolver(
+		resolveMediaConnectBridgeChildren,
 		EdgeDecl{TypeMediaConnectBridgeOutput, TypeMediaConnectBridge, store.RelAttachedTo},
 		EdgeDecl{TypeMediaConnectBridgeSource, TypeMediaConnectBridge, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaConnectFlowVpcInterface,
+	registerResolver(
+		resolveMediaConnectFlowVpcInterface,
 		EdgeDecl{TypeMediaConnectFlowVpcInterface, TypeMediaConnectFlow, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaConnectFlowChildren,
+	registerResolver(
+		resolveMediaConnectFlowChildren,
 		EdgeDecl{TypeMediaConnectFlowSource, TypeMediaConnectFlow, store.RelAttachedTo},
 		EdgeDecl{TypeMediaConnectFlowOutput, TypeMediaConnectFlow, store.RelAttachedTo},
 		EdgeDecl{TypeMediaConnectFlowEntitlement, TypeMediaConnectFlow, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaConnectBridgePlacement,
+	registerResolver(
+		resolveMediaConnectBridgePlacement,
 		EdgeDecl{TypeMediaConnectBridge, TypeMediaConnectGateway, store.RelAttachedTo},
 	)
 }

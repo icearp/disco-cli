@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMediaTailorChannelPolicyToChannel,
+	registerResolver(
+		resolveMediaTailorChannelPolicyToChannel,
 		EdgeDecl{TypeMediaTailorChannelPolicy, TypeMediaTailorChannel, store.RelAttachedTo},
 	)
-	registerResolver(resolveMediaTailorSourcesToSourceLocation,
+	registerResolver(
+		resolveMediaTailorSourcesToSourceLocation,
 		EdgeDecl{TypeMediaTailorLiveSource, TypeMediaTailorSourceLocation, store.RelAttachedTo},
 		EdgeDecl{TypeMediaTailorVodSource, TypeMediaTailorSourceLocation, store.RelAttachedTo},
 	)

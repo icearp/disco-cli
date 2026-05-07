@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveApplicationInsightsRelationships,
+	registerResolver(
+		resolveApplicationInsightsRelationships,
 		EdgeDecl{TypeApplicationInsightsApplication, TypeSNSTopic, store.RelUses},
 	)
 }

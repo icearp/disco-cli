@@ -10,25 +10,31 @@ import (
 )
 
 func init() {
-	registerResolver(resolveELBv2LBRelationships,
+	registerResolver(
+		resolveELBv2LBRelationships,
 		EdgeDecl{TypeELBv2LoadBalancer, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveELBv2ListenerRelationships,
+	registerResolver(
+		resolveELBv2ListenerRelationships,
 		EdgeDecl{TypeELBv2Listener, TypeELBv2LoadBalancer, store.RelAttachedTo},
 		EdgeDecl{TypeELBv2Listener, TypeACMCertificate, store.RelUses},
 	)
-	registerResolver(resolveELBv2RuleRelationships,
+	registerResolver(
+		resolveELBv2RuleRelationships,
 		EdgeDecl{TypeELBv2ListenerRule, TypeELBv2Listener, store.RelAttachedTo},
 	)
-	registerResolver(resolveELBv2CertRelationships,
+	registerResolver(
+		resolveELBv2CertRelationships,
 		EdgeDecl{TypeELBv2ListenerCertificate, TypeELBv2Listener, store.RelAttachedTo},
 	)
-	registerResolver(resolveELBv2TGRelationships,
+	registerResolver(
+		resolveELBv2TGRelationships,
 		EdgeDecl{TypeELBv2TargetGroup, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeELBv2TargetGroup, TypeLambdaFunction, store.RelUses},
 		EdgeDecl{TypeELBv2TargetGroup, TypeEC2Instance, store.RelAttachedTo},
 	)
-	registerResolver(resolveELBv2RevocationRelationships,
+	registerResolver(
+		resolveELBv2RevocationRelationships,
 		EdgeDecl{TypeELBv2TrustStoreRevocation, TypeELBv2TrustStore, store.RelAttachedTo},
 	)
 }

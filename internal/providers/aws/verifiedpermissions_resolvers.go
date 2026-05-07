@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVPChildToPolicyStore,
+	registerResolver(
+		resolveVPChildToPolicyStore,
 		EdgeDecl{TypeVerifiedPermissionsPolicy, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},
 		EdgeDecl{TypeVerifiedPermissionsPolicyTemplate, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},
 		EdgeDecl{TypeVerifiedPermissionsIdentitySource, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},

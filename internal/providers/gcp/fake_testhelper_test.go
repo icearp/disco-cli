@@ -57,7 +57,8 @@ func fakeGCPServerStatus(t *testing.T, status int, body string) *httptest.Server
 // fakes-over-mocks guidance).
 func fakeComputeService(t *testing.T, srv *httptest.Server) *compute.Service {
 	t.Helper()
-	svc, err := compute.NewService(t.Context(),
+	svc, err := compute.NewService(
+		t.Context(),
 		option.WithEndpoint(srv.URL),
 		option.WithHTTPClient(srv.Client()),
 		option.WithoutAuthentication(),

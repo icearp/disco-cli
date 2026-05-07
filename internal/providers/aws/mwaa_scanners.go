@@ -19,11 +19,6 @@ func init() {
 	})
 }
 
-type mwaaAPI interface {
-	ListEnvironments(context.Context, *mwaa.ListEnvironmentsInput, ...func(*mwaa.Options)) (*mwaa.ListEnvironmentsOutput, error)
-	GetEnvironment(context.Context, *mwaa.GetEnvironmentInput, ...func(*mwaa.Options)) (*mwaa.GetEnvironmentOutput, error)
-}
-
 // scanMWAA discovers Managed Workflows for Apache Airflow environments.
 // ListEnvironments returns names; GetEnvironment supplies the ARN-bearing
 // body.

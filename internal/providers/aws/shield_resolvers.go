@@ -10,14 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveShieldProtectionTargets,
+	registerResolver(
+		resolveShieldProtectionTargets,
 		EdgeDecl{TypeShieldProtection, TypeELBv2LoadBalancer, store.RelAttachedTo},
 		EdgeDecl{TypeShieldProtection, TypeELBClassicLoadBalancer, store.RelAttachedTo},
 		EdgeDecl{TypeShieldProtection, TypeCloudFrontDistribution, store.RelAttachedTo},
 		EdgeDecl{TypeShieldProtection, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeShieldProtection, TypeEC2EIP, store.RelAttachedTo},
 	)
-	registerResolver(resolveShieldProtectionGroupMembers,
+	registerResolver(
+		resolveShieldProtectionGroupMembers,
 		EdgeDecl{TypeShieldProtectionGroup, TypeShieldProtection, store.RelContains},
 	)
 }

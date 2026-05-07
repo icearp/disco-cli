@@ -10,17 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGlueTableS3Location,
+	registerResolver(
+		resolveGlueTableS3Location,
 		EdgeDecl{TypeGlueTable, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveGlueTableDatabase,
+	registerResolver(
+		resolveGlueTableDatabase,
 		EdgeDecl{TypeGlueTable, TypeGlueDatabase, store.RelAttachedTo},
 	)
-	registerResolver(resolveGlueJobRefs,
+	registerResolver(
+		resolveGlueJobRefs,
 		EdgeDecl{TypeGlueJob, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGlueJob, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveGlueCrawlerRefs,
+	registerResolver(
+		resolveGlueCrawlerRefs,
 		EdgeDecl{TypeGlueCrawler, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeGlueCrawler, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeGlueCrawler, TypeGlueDatabase, store.RelAttachedTo},

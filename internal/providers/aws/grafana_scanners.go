@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type grafanaAPI interface {
-	ListWorkspaces(context.Context, *grafana.ListWorkspacesInput, ...func(*grafana.Options)) (*grafana.ListWorkspacesOutput, error)
-}
-
 // scanGrafana discovers Amazon Managed Grafana workspaces.
 func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := grafana.NewFromConfig(acct.cfg, func(o *grafana.Options) { o.Region = region })

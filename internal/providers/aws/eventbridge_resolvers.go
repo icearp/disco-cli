@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEventBridgeRelationships,
+	registerResolver(
+		resolveEventBridgeRelationships,
 		EdgeDecl{TypeEventsRule, TypeEventsEventBus, store.RelAttachedTo},
 		EdgeDecl{TypeEventsRule, TypeLambdaFunction, store.RelRoutesTo},
 		EdgeDecl{TypeEventsRule, TypeSNSTopic, store.RelRoutesTo},
@@ -20,7 +21,8 @@ func init() {
 		EdgeDecl{TypeEventsRule, TypeFirehoseDeliveryStream, store.RelRoutesTo},
 		EdgeDecl{TypeEventsRule, TypeEventsAPIDestination, store.RelRoutesTo},
 	)
-	registerResolver(resolveEventBridgeAPIDestinationConnection,
+	registerResolver(
+		resolveEventBridgeAPIDestinationConnection,
 		EdgeDecl{TypeEventsAPIDestination, TypeEventsConnection, store.RelUses},
 	)
 }
@@ -158,11 +160,13 @@ func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) 
 }
 
 func init() {
-	registerResolver(resolveEventBridgeBusRefs,
+	registerResolver(
+		resolveEventBridgeBusRefs,
 		EdgeDecl{TypeEventsEventBus, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeEventsEventBus, TypeSQSQueue, store.RelRoutesTo},
 	)
-	registerResolver(resolveEventBridgeConnectionRefs,
+	registerResolver(
+		resolveEventBridgeConnectionRefs,
 		EdgeDecl{TypeEventsConnection, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeEventsConnection, TypeSecretsManagerSecret, store.RelUses},
 	)

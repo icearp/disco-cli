@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveConnectChildrenToInstance,
+	registerResolver(
+		resolveConnectChildrenToInstance,
 		EdgeDecl{TypeConnectAgentStatus, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectApprovedOrigin, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectContactFlow, TypeConnectInstance, store.RelAttachedTo},
@@ -32,14 +33,17 @@ func init() {
 		EdgeDecl{TypeConnectViewVersion, TypeConnectInstance, store.RelAttachedTo},
 		EdgeDecl{TypeConnectWorkspace, TypeConnectInstance, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectViewVersionToView,
+	registerResolver(
+		resolveConnectViewVersionToView,
 		EdgeDecl{TypeConnectViewVersion, TypeConnectView, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectDataTableChildrenToTable,
+	registerResolver(
+		resolveConnectDataTableChildrenToTable,
 		EdgeDecl{TypeConnectDataTableAttribute, TypeConnectDataTable, store.RelAttachedTo},
 		EdgeDecl{TypeConnectDataTableRecord, TypeConnectDataTable, store.RelAttachedTo},
 	)
-	registerResolver(resolveConnectInstanceServiceRole,
+	registerResolver(
+		resolveConnectInstanceServiceRole,
 		EdgeDecl{TypeConnectInstance, TypeIAMRole, store.RelAssumes},
 	)
 }

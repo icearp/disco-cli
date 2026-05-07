@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAmplifyRelationships,
+	registerResolver(
+		resolveAmplifyRelationships,
 		EdgeDecl{TypeAmplifyApp, TypeIAMRole, store.RelUses},
 		EdgeDecl{TypeAmplifyBranch, TypeIAMRole, store.RelUses},
 	)

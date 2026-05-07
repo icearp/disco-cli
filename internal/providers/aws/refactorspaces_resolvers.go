@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveRefactorSpacesHierarchy,
+	registerResolver(
+		resolveRefactorSpacesHierarchy,
 		EdgeDecl{TypeRefactorSpacesApplication, TypeRefactorSpacesEnvironment, store.RelAttachedTo},
 		EdgeDecl{TypeRefactorSpacesService, TypeRefactorSpacesApplication, store.RelAttachedTo},
 		EdgeDecl{TypeRefactorSpacesRoute, TypeRefactorSpacesApplication, store.RelAttachedTo},

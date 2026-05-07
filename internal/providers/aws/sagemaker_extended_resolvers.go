@@ -16,7 +16,8 @@ import (
 // SDK PascalCase field names (per aws/CLAUDE.md).
 
 func init() {
-	registerResolver(resolveSageMakerNotebookInstance,
+	registerResolver(
+		resolveSageMakerNotebookInstance,
 		EdgeDecl{TypeSageMakerNotebookInstance, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerNotebookInstance, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerNotebookInstance, TypeEC2SecurityGroup, store.RelUses},
@@ -24,47 +25,58 @@ func init() {
 		EdgeDecl{TypeSageMakerNotebookInstance, TypeSageMakerNotebookInstanceLifecycleConfig, store.RelUses},
 		EdgeDecl{TypeSageMakerNotebookInstance, TypeSageMakerCodeRepository, store.RelUses},
 	)
-	registerResolver(resolveSageMakerDomain,
+	registerResolver(
+		resolveSageMakerDomain,
 		EdgeDecl{TypeSageMakerDomain, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerDomain, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerDomain, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerDomain, TypeEFSFileSystem, store.RelUses},
 	)
-	registerResolver(resolveSageMakerUserProfile,
+	registerResolver(
+		resolveSageMakerUserProfile,
 		EdgeDecl{TypeSageMakerUserProfile, TypeSageMakerDomain, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerSpace,
+	registerResolver(
+		resolveSageMakerSpace,
 		EdgeDecl{TypeSageMakerSpace, TypeSageMakerDomain, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerApp,
+	registerResolver(
+		resolveSageMakerApp,
 		EdgeDecl{TypeSageMakerApp, TypeSageMakerDomain, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerApp, TypeSageMakerUserProfile, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerApp, TypeSageMakerSpace, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerApp, TypeSageMakerImageVersion, store.RelUses},
 	)
-	registerResolver(resolveSageMakerImageVersionParent,
+	registerResolver(
+		resolveSageMakerImageVersionParent,
 		EdgeDecl{TypeSageMakerImageVersion, TypeSageMakerImage, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerImageRefs,
+	registerResolver(
+		resolveSageMakerImageRefs,
 		EdgeDecl{TypeSageMakerImage, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveSageMakerFeatureGroup,
+	registerResolver(
+		resolveSageMakerFeatureGroup,
 		EdgeDecl{TypeSageMakerFeatureGroup, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerFeatureGroup, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSageMakerFeatureGroup, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelPackageGroup,
+	registerResolver(
+		resolveSageMakerModelPackageGroup,
 		EdgeDecl{TypeSageMakerModelPackageGroup, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelPackage,
+	registerResolver(
+		resolveSageMakerModelPackage,
 		EdgeDecl{TypeSageMakerModelPackage, TypeSageMakerModelPackageGroup, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerModelPackage, TypeECRRepository, store.RelUses},
 		EdgeDecl{TypeSageMakerModelPackage, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveSageMakerMonitoringSchedule,
+	registerResolver(
+		resolveSageMakerMonitoringSchedule,
 		EdgeDecl{TypeSageMakerMonitoringSchedule, TypeSageMakerEndpoint, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerDataQualityJobDefinition,
+	registerResolver(
+		resolveSageMakerDataQualityJobDefinition,
 		EdgeDecl{TypeSageMakerDataQualityJobDefinition, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerDataQualityJobDefinition, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerDataQualityJobDefinition, TypeS3Bucket, store.RelUses},
@@ -72,7 +84,8 @@ func init() {
 		EdgeDecl{TypeSageMakerDataQualityJobDefinition, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerDataQualityJobDefinition, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelBiasJobDefinition,
+	registerResolver(
+		resolveSageMakerModelBiasJobDefinition,
 		EdgeDecl{TypeSageMakerModelBiasJobDefinition, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerModelBiasJobDefinition, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerModelBiasJobDefinition, TypeS3Bucket, store.RelUses},
@@ -80,7 +93,8 @@ func init() {
 		EdgeDecl{TypeSageMakerModelBiasJobDefinition, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerModelBiasJobDefinition, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelExplainabilityJobDefinition,
+	registerResolver(
+		resolveSageMakerModelExplainabilityJobDefinition,
 		EdgeDecl{TypeSageMakerModelExplainabilityJobDefinition, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerModelExplainabilityJobDefinition, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerModelExplainabilityJobDefinition, TypeS3Bucket, store.RelUses},
@@ -88,7 +102,8 @@ func init() {
 		EdgeDecl{TypeSageMakerModelExplainabilityJobDefinition, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerModelExplainabilityJobDefinition, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelQualityJobDefinition,
+	registerResolver(
+		resolveSageMakerModelQualityJobDefinition,
 		EdgeDecl{TypeSageMakerModelQualityJobDefinition, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerModelQualityJobDefinition, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerModelQualityJobDefinition, TypeS3Bucket, store.RelUses},
@@ -96,49 +111,59 @@ func init() {
 		EdgeDecl{TypeSageMakerModelQualityJobDefinition, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerModelQualityJobDefinition, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerProcessingJob,
+	registerResolver(
+		resolveSageMakerProcessingJob,
 		EdgeDecl{TypeSageMakerProcessingJob, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerProcessingJob, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeSageMakerProcessingJob, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSageMakerProcessingJob, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerProcessingJob, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerPipeline,
+	registerResolver(
+		resolveSageMakerPipeline,
 		EdgeDecl{TypeSageMakerPipeline, TypeIAMRole, store.RelAssumes},
 	)
 	registerResolver(resolveSageMakerProject) // Project has no edge-bearing attributes beyond the service-catalog
 	// product details, which point at non-disco resource types.
 
-	registerResolver(resolveSageMakerMlflowTrackingServer,
+	registerResolver(
+		resolveSageMakerMlflowTrackingServer,
 		EdgeDecl{TypeSageMakerMlflowTrackingServer, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerMlflowTrackingServer, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveSageMakerPartnerApp,
+	registerResolver(
+		resolveSageMakerPartnerApp,
 		EdgeDecl{TypeSageMakerPartnerApp, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerPartnerApp, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSageMakerCluster,
+	registerResolver(
+		resolveSageMakerCluster,
 		EdgeDecl{TypeSageMakerCluster, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerCluster, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerCluster, TypeEC2SecurityGroup, store.RelUses},
 	)
-	registerResolver(resolveSageMakerDeviceFleet,
+	registerResolver(
+		resolveSageMakerDeviceFleet,
 		EdgeDecl{TypeSageMakerDeviceFleet, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerDeviceFleet, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeSageMakerDeviceFleet, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSageMakerDevice,
+	registerResolver(
+		resolveSageMakerDevice,
 		EdgeDecl{TypeSageMakerDevice, TypeSageMakerDeviceFleet, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerInferenceComponent,
+	registerResolver(
+		resolveSageMakerInferenceComponent,
 		EdgeDecl{TypeSageMakerInferenceComponent, TypeSageMakerEndpoint, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerInferenceExperiment,
+	registerResolver(
+		resolveSageMakerInferenceExperiment,
 		EdgeDecl{TypeSageMakerInferenceExperiment, TypeSageMakerEndpoint, store.RelAttachedTo},
 		EdgeDecl{TypeSageMakerInferenceExperiment, TypeSageMakerModel, store.RelUses},
 		EdgeDecl{TypeSageMakerInferenceExperiment, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveSageMakerModelCard,
+	registerResolver(
+		resolveSageMakerModelCard,
 		EdgeDecl{TypeSageMakerModelCard, TypeKMSKey, store.RelUses},
 	)
 	// model-package, app-image-config, code-repository, mlflow-tracking-server
@@ -349,9 +374,9 @@ func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
 	for _, r := range rs {
 		var a struct {
 			RoleArn                             *string  `json:"RoleArn"`
-			SubnetId                            *string  `json:"SubnetId"`
+			SubnetID                            *string  `json:"SubnetId"`
 			SecurityGroups                      []string `json:"SecurityGroups"`
-			KmsKeyId                            *string  `json:"KmsKeyId"`
+			KmsKeyID                            *string  `json:"KmsKeyId"`
 			NotebookInstanceLifecycleConfigName *string  `json:"NotebookInstanceLifecycleConfigName"`
 			DefaultCodeRepository               *string  `json:"DefaultCodeRepository"`
 			AdditionalCodeRepositories          []string `json:"AdditionalCodeRepositories"`
@@ -363,13 +388,13 @@ func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
 		if err := emitIAMRole(st, r.ID, sv(a.RoleArn), acct.ID, sets); err != nil {
 			return fmt.Errorf("notebook→role: %w", err)
 		}
-		if err := emitSubnetEdges(st, r.ID, region, acct.ID, []string{sv(a.SubnetId)}, sets); err != nil {
+		if err := emitSubnetEdges(st, r.ID, region, acct.ID, []string{sv(a.SubnetID)}, sets); err != nil {
 			return fmt.Errorf("notebook→subnet: %w", err)
 		}
 		if err := emitSGEdges(st, r.ID, region, acct.ID, a.SecurityGroups, sets); err != nil {
 			return fmt.Errorf("notebook→sg: %w", err)
 		}
-		if err := emitKMS(st, r.ID, sv(a.KmsKeyId), region, acct.ID, sets); err != nil {
+		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
 			return fmt.Errorf("notebook→kms: %w", err)
 		}
 		if err := emitNotebookLCConfig(st, r.ID, region, acct.ID, sv(a.NotebookInstanceLifecycleConfigName), sets); err != nil {
@@ -428,16 +453,16 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 	}
 	for _, r := range rs {
 		var a struct {
-			VpcId               *string  `json:"VpcId"`
-			SubnetIds           []string `json:"SubnetIds"`
-			KmsKeyId            *string  `json:"KmsKeyId"`
-			HomeEfsFileSystemId *string  `json:"HomeEfsFileSystemId"`
+			VpcID               *string  `json:"VpcId"`
+			SubnetIDs           []string `json:"SubnetIds"`
+			KmsKeyID            *string  `json:"KmsKeyId"`
+			HomeEfsFileSystemID *string  `json:"HomeEfsFileSystemId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if vpc := sv(a.VpcId); vpc != "" {
+		if vpc := sv(a.VpcID); vpc != "" {
 			vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", vpc))
 			if sets.vpcs[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -445,13 +470,13 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if err := emitSubnetEdges(st, r.ID, region, acct.ID, a.SubnetIds, sets); err != nil {
+		if err := emitSubnetEdges(st, r.ID, region, acct.ID, a.SubnetIDs, sets); err != nil {
 			return fmt.Errorf("domain→subnet: %w", err)
 		}
-		if err := emitKMS(st, r.ID, sv(a.KmsKeyId), region, acct.ID, sets); err != nil {
+		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
 			return fmt.Errorf("domain→kms: %w", err)
 		}
-		if fs := sv(a.HomeEfsFileSystemId); fs != "" {
+		if fs := sv(a.HomeEfsFileSystemID); fs != "" {
 			fsID := store.ResourceID("aws", acct.ID, TypeEFSFileSystem, efsFileSystemARN(region, acct.ID, fs))
 			if sets.efs[fsID] {
 				if err := st.UpsertRelationship(r.ID, fsID, store.RelUses, "directed", nil); err != nil {
@@ -474,7 +499,7 @@ func resolveSageMakerSpace(acct *account, st *store.Store) error {
 }
 
 // resolveSagemakerDomainParent emits a `attached-to` edge from each row of
-// `srcType` to the domain referenced by its `DomainId` attr. Shared by
+// `srcType` to the domain referenced by its `DomainID` attr. Shared by
 // user-profile and space resolvers — both have the identical shape.
 func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string) error {
 	rs, err := listSources(acct, st, srcType)
@@ -487,12 +512,12 @@ func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string
 	}
 	for _, r := range rs {
 		var a struct {
-			DomainId *string `json:"DomainId"`
+			DomainID *string `json:"DomainId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 			continue
 		}
-		id := sv(a.DomainId)
+		id := sv(a.DomainID)
 		if id == "" {
 			continue
 		}
@@ -522,7 +547,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 	}
 	for _, r := range rs {
 		var a struct {
-			DomainId        *string `json:"DomainId"`
+			DomainID        *string `json:"DomainId"`
 			UserProfileName *string `json:"UserProfileName"`
 			SpaceName       *string `json:"SpaceName"`
 			ResourceSpec    *struct {
@@ -533,7 +558,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		dom := sv(a.DomainId)
+		dom := sv(a.DomainID)
 		if dom != "" {
 			domID := store.ResourceID("aws", acct.ID, TypeSageMakerDomain,
 				sagemakerARN(region, acct.ID, "domain", dom))
@@ -649,12 +674,12 @@ func resolveSageMakerFeatureGroup(acct *account, st *store.Store) error {
 			OfflineStoreConfig *struct {
 				S3StorageConfig *struct {
 					S3Uri    *string `json:"S3Uri"`
-					KmsKeyId *string `json:"KmsKeyId"`
+					KmsKeyID *string `json:"KmsKeyId"`
 				} `json:"S3StorageConfig"`
 			} `json:"OfflineStoreConfig"`
 			OnlineStoreConfig *struct {
 				SecurityConfig *struct {
-					KmsKeyId *string `json:"KmsKeyId"`
+					KmsKeyID *string `json:"KmsKeyId"`
 				} `json:"SecurityConfig"`
 			} `json:"OnlineStoreConfig"`
 		}
@@ -670,12 +695,12 @@ func resolveSageMakerFeatureGroup(acct *account, st *store.Store) error {
 			if err := emitS3Bucket(st, r.ID, sv(s3.S3Uri), acct.ID, sets); err != nil {
 				return fmt.Errorf("feature-group→s3: %w", err)
 			}
-			if err := emitKMS(st, r.ID, sv(s3.KmsKeyId), region, acct.ID, sets); err != nil {
+			if err := emitKMS(st, r.ID, sv(s3.KmsKeyID), region, acct.ID, sets); err != nil {
 				return fmt.Errorf("feature-group→kms (offline): %w", err)
 			}
 		}
 		if a.OnlineStoreConfig != nil && a.OnlineStoreConfig.SecurityConfig != nil {
-			if err := emitKMS(st, r.ID, sv(a.OnlineStoreConfig.SecurityConfig.KmsKeyId), region, acct.ID, sets); err != nil {
+			if err := emitKMS(st, r.ID, sv(a.OnlineStoreConfig.SecurityConfig.KmsKeyID), region, acct.ID, sets); err != nil {
 				return fmt.Errorf("feature-group→kms (online): %w", err)
 			}
 		}
@@ -778,31 +803,15 @@ func resolveSageMakerMonitoringSchedule(acct *account, st *store.Store) error {
 	return nil
 }
 
-// jobDefAttrs is the shared shape walked by every monitoring job-definition
-// resolver (data-quality, model-bias, model-explainability, model-quality).
-// All four Describe responses expose the same edge-bearing keys.
-type jobDefAttrs struct {
-	RoleArn               *string `json:"RoleArn"`
-	NetworkConfig         *jobDefNetworkConfig
-	StoppingCondition     any `json:"StoppingCondition"`
-	OutputConfig          *jobDefOutputConfig
-	JobInput              *jobDefJobInput
-	BiasOrExplainOutput   *jobDefOutputConfig
-	endpointInput         *string
-	outputS3              string
-	outputKMSKeyID        string
-	jobInputBatchOrEpName string
-}
-
 type jobDefNetworkConfig struct {
 	VpcConfig *struct {
 		Subnets          []string `json:"Subnets"`
-		SecurityGroupIds []string `json:"SecurityGroupIds"`
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
 	} `json:"VpcConfig"`
 }
 
 type jobDefOutputConfig struct {
-	KmsKeyId          *string `json:"KmsKeyId"`
+	KmsKeyID          *string `json:"KmsKeyId"`
 	MonitoringOutputs []struct {
 		S3Output *struct {
 			S3Uri *string `json:"S3Uri"`
@@ -895,7 +904,7 @@ func emitJobDefNetwork(st *store.Store, srcID, region, acctID string, raw map[st
 	if err := emitSubnetEdges(st, srcID, region, acctID, nc.VpcConfig.Subnets, sets); err != nil {
 		return err
 	}
-	return emitSGEdges(st, srcID, region, acctID, nc.VpcConfig.SecurityGroupIds, sets)
+	return emitSGEdges(st, srcID, region, acctID, nc.VpcConfig.SecurityGroupIDs, sets)
 }
 
 // emitJobDefInput emits the endpoint edge from a `*JobInput.EndpointInput`.
@@ -919,7 +928,7 @@ func emitJobDefOutput(st *store.Store, srcID, region, acctID string, raw json.Ra
 	if err := json.Unmarshal(raw, &oc); err != nil {
 		return nil
 	}
-	if err := emitKMS(st, srcID, sv(oc.KmsKeyId), region, acctID, sets); err != nil {
+	if err := emitKMS(st, srcID, sv(oc.KmsKeyID), region, acctID, sets); err != nil {
 		return err
 	}
 	for _, mo := range oc.MonitoringOutputs {
@@ -951,11 +960,11 @@ func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
 			NetworkConfig *struct {
 				VpcConfig *struct {
 					Subnets          []string `json:"Subnets"`
-					SecurityGroupIds []string `json:"SecurityGroupIds"`
+					SecurityGroupIDs []string `json:"SecurityGroupIds"`
 				} `json:"VpcConfig"`
 			} `json:"NetworkConfig"`
 			ProcessingOutputConfig *struct {
-				KmsKeyId *string `json:"KmsKeyId"`
+				KmsKeyID *string `json:"KmsKeyId"`
 				Outputs  []struct {
 					S3Output *struct {
 						S3Uri *string `json:"S3Uri"`
@@ -975,12 +984,12 @@ func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
 			if err := emitSubnetEdges(st, r.ID, region, acct.ID, vc.Subnets, sets); err != nil {
 				return err
 			}
-			if err := emitSGEdges(st, r.ID, region, acct.ID, vc.SecurityGroupIds, sets); err != nil {
+			if err := emitSGEdges(st, r.ID, region, acct.ID, vc.SecurityGroupIDs, sets); err != nil {
 				return err
 			}
 		}
 		if a.ProcessingOutputConfig != nil {
-			if err := emitKMS(st, r.ID, sv(a.ProcessingOutputConfig.KmsKeyId), region, acct.ID, sets); err != nil {
+			if err := emitKMS(st, r.ID, sv(a.ProcessingOutputConfig.KmsKeyID), region, acct.ID, sets); err != nil {
 				return err
 			}
 			for _, o := range a.ProcessingOutputConfig.Outputs {
@@ -1042,7 +1051,7 @@ func resolveSageMakerMlflowTrackingServer(acct *account, st *store.Store) error 
 	for _, r := range rs {
 		var a struct {
 			RoleArn          *string `json:"RoleArn"`
-			ArtifactStoreUri *string `json:"ArtifactStoreUri"`
+			ArtifactStoreURI *string `json:"ArtifactStoreUri"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 			continue
@@ -1050,7 +1059,7 @@ func resolveSageMakerMlflowTrackingServer(acct *account, st *store.Store) error 
 		if err := emitIAMRole(st, r.ID, sv(a.RoleArn), acct.ID, sets); err != nil {
 			return fmt.Errorf("mlflow→role: %w", err)
 		}
-		if err := emitS3Bucket(st, r.ID, sv(a.ArtifactStoreUri), acct.ID, sets); err != nil {
+		if err := emitS3Bucket(st, r.ID, sv(a.ArtifactStoreURI), acct.ID, sets); err != nil {
 			return fmt.Errorf("mlflow→s3: %w", err)
 		}
 	}
@@ -1070,7 +1079,7 @@ func resolveSageMakerPartnerApp(acct *account, st *store.Store) error {
 	for _, r := range rs {
 		var a struct {
 			ExecutionRoleArn *string `json:"ExecutionRoleArn"`
-			KmsKeyId         *string `json:"KmsKeyId"`
+			KmsKeyID         *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 			continue
@@ -1079,7 +1088,7 @@ func resolveSageMakerPartnerApp(acct *account, st *store.Store) error {
 		if err := emitIAMRole(st, r.ID, sv(a.ExecutionRoleArn), acct.ID, sets); err != nil {
 			return fmt.Errorf("partner-app→role: %w", err)
 		}
-		if err := emitKMS(st, r.ID, sv(a.KmsKeyId), region, acct.ID, sets); err != nil {
+		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
 			return fmt.Errorf("partner-app→kms: %w", err)
 		}
 	}
@@ -1103,7 +1112,7 @@ func resolveSageMakerCluster(acct *account, st *store.Store) error {
 			ClusterRole *string `json:"ClusterRole"`
 			VpcConfig   *struct {
 				Subnets          []string `json:"Subnets"`
-				SecurityGroupIds []string `json:"SecurityGroupIds"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
 			} `json:"VpcConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
@@ -1117,7 +1126,7 @@ func resolveSageMakerCluster(acct *account, st *store.Store) error {
 			if err := emitSubnetEdges(st, r.ID, region, acct.ID, a.VpcConfig.Subnets, sets); err != nil {
 				return err
 			}
-			if err := emitSGEdges(st, r.ID, region, acct.ID, a.VpcConfig.SecurityGroupIds, sets); err != nil {
+			if err := emitSGEdges(st, r.ID, region, acct.ID, a.VpcConfig.SecurityGroupIDs, sets); err != nil {
 				return err
 			}
 		}
@@ -1141,7 +1150,7 @@ func resolveSageMakerDeviceFleet(acct *account, st *store.Store) error {
 			RoleArn      *string `json:"RoleArn"`
 			OutputConfig *struct {
 				S3OutputLocation *string `json:"S3OutputLocation"`
-				KmsKeyId         *string `json:"KmsKeyId"`
+				KmsKeyID         *string `json:"KmsKeyId"`
 			} `json:"OutputConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
@@ -1155,7 +1164,7 @@ func resolveSageMakerDeviceFleet(acct *account, st *store.Store) error {
 			if err := emitS3Bucket(st, r.ID, sv(a.OutputConfig.S3OutputLocation), acct.ID, sets); err != nil {
 				return err
 			}
-			if err := emitKMS(st, r.ID, sv(a.OutputConfig.KmsKeyId), region, acct.ID, sets); err != nil {
+			if err := emitKMS(st, r.ID, sv(a.OutputConfig.KmsKeyID), region, acct.ID, sets); err != nil {
 				return err
 			}
 		}
@@ -1294,7 +1303,7 @@ func resolveSageMakerModelCard(acct *account, st *store.Store) error {
 	for _, r := range rs {
 		var a struct {
 			SecurityConfig *struct {
-				KmsKeyId *string `json:"KmsKeyId"`
+				KmsKeyID *string `json:"KmsKeyId"`
 			} `json:"SecurityConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
@@ -1303,7 +1312,7 @@ func resolveSageMakerModelCard(acct *account, st *store.Store) error {
 		if a.SecurityConfig == nil {
 			continue
 		}
-		if err := emitKMS(st, r.ID, sv(a.SecurityConfig.KmsKeyId), sv(r.Region), acct.ID, sets); err != nil {
+		if err := emitKMS(st, r.ID, sv(a.SecurityConfig.KmsKeyID), sv(r.Region), acct.ID, sets); err != nil {
 			return fmt.Errorf("model-card→kms: %w", err)
 		}
 	}

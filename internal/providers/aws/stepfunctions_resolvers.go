@@ -8,7 +8,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSFNChildrenToStateMachine,
+	registerResolver(
+		resolveSFNChildrenToStateMachine,
 		EdgeDecl{TypeSFNStateMachineAlias, TypeSFNStateMachine, store.RelAttachedTo},
 		EdgeDecl{TypeSFNStateMachineVersion, TypeSFNStateMachine, store.RelAttachedTo},
 	)

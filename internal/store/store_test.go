@@ -843,7 +843,7 @@ func TestOpen_DBFilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat: %v", err)
 	}
-	if got := fi.Mode().Perm(); got != 0600 {
+	if got := fi.Mode().Perm(); got != 0o600 {
 		t.Errorf("DB file perms: got %o, want 0600", got)
 	}
 }

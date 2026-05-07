@@ -10,13 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEntityResolutionPolicyStatementToParent,
+	registerResolver(
+		resolveEntityResolutionPolicyStatementToParent,
 		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionMatchingWorkflow, store.RelAttachedTo},
-		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionIdMappingWorkflow, store.RelAttachedTo},
-		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionIdNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionIDMappingWorkflow, store.RelAttachedTo},
+		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionIDNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeEntityResolutionPolicyStatement, TypeEntityResolutionSchemaMapping, store.RelAttachedTo},
 	)
-	registerResolver(resolveEntityResolutionMatchingWorkflowRefs,
+	registerResolver(
+		resolveEntityResolutionMatchingWorkflowRefs,
 		EdgeDecl{TypeEntityResolutionMatchingWorkflow, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeEntityResolutionMatchingWorkflow, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeEntityResolutionMatchingWorkflow, TypeGlueTable, store.RelUses},
@@ -152,11 +154,11 @@ func resolveEntityResolutionPolicyStatementToParent(acct *account, st *store.Sto
 	if err != nil {
 		return err
 	}
-	imwSet, err := scannedIDSet(acct, st, TypeEntityResolutionIdMappingWorkflow)
+	imwSet, err := scannedIDSet(acct, st, TypeEntityResolutionIDMappingWorkflow)
 	if err != nil {
 		return err
 	}
-	insSet, err := scannedIDSet(acct, st, TypeEntityResolutionIdNamespace)
+	insSet, err := scannedIDSet(acct, st, TypeEntityResolutionIDNamespace)
 	if err != nil {
 		return err
 	}
@@ -176,10 +178,10 @@ func resolveEntityResolutionPolicyStatementToParent(acct *account, st *store.Sto
 			tgtType = TypeEntityResolutionMatchingWorkflow
 			present = mwSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
 		case strings.Contains(parent, "/idmappingworkflow/"), strings.Contains(parent, ":idmappingworkflow/"):
-			tgtType = TypeEntityResolutionIdMappingWorkflow
+			tgtType = TypeEntityResolutionIDMappingWorkflow
 			present = imwSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
 		case strings.Contains(parent, "/idnamespace/"), strings.Contains(parent, ":idnamespace/"):
-			tgtType = TypeEntityResolutionIdNamespace
+			tgtType = TypeEntityResolutionIDNamespace
 			present = insSet[store.ResourceID("aws", acct.ID, tgtType, parent)]
 		case strings.Contains(parent, "/schemamapping/"), strings.Contains(parent, ":schemamapping/"):
 			tgtType = TypeEntityResolutionSchemaMapping

@@ -42,7 +42,8 @@ func newRegionFanoutServer(t *testing.T, routes map[string]regionResp) *httptest
 // Mirrors fakeComputeService in fake_testhelper_test.go.
 func fakeDataprocService(t *testing.T, baseURL string, c *http.Client) *dataproc.Service {
 	t.Helper()
-	svc, err := dataproc.NewService(t.Context(),
+	svc, err := dataproc.NewService(
+		t.Context(),
 		option.WithEndpoint(baseURL),
 		option.WithHTTPClient(c),
 		option.WithoutAuthentication(),

@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type ssmSAPAPI interface {
-	ListApplications(context.Context, *ssmsap.ListApplicationsInput, ...func(*ssmsap.Options)) (*ssmsap.ListApplicationsOutput, error)
-}
-
 // scanSSMSAP discovers Systems Manager for SAP applications.
 func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssmsap.NewFromConfig(acct.cfg, func(o *ssmsap.Options) { o.Region = region })

@@ -10,14 +10,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEBArchiveBus,
+	registerResolver(
+		resolveEBArchiveBus,
 		EdgeDecl{TypeEventsArchive, TypeEventsEventBus, store.RelAttachedTo},
 	)
-	registerResolver(resolveEBEndpointBuses,
+	registerResolver(
+		resolveEBEndpointBuses,
 		EdgeDecl{TypeEventsEndpoint, TypeEventsEventBus, store.RelAttachedTo},
 		EdgeDecl{TypeEventsEndpoint, TypeIAMRole, store.RelUses},
 	)
-	registerResolver(resolveEBEventBusPolicyToBus,
+	registerResolver(
+		resolveEBEventBusPolicyToBus,
 		EdgeDecl{TypeEventsEventBusPolicy, TypeEventsEventBus, store.RelAttachedTo},
 	)
 }

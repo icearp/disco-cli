@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type osisAPI interface {
-	ListPipelines(context.Context, *osis.ListPipelinesInput, ...func(*osis.Options)) (*osis.ListPipelinesOutput, error)
-}
-
 // scanOSIS discovers OpenSearch Ingestion Service (OSIS) pipelines.
 func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := osis.NewFromConfig(acct.cfg, func(o *osis.Options) { o.Region = region })

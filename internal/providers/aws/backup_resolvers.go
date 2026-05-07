@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveBackupRelationships,
+	registerResolver(
+		resolveBackupRelationships,
 		EdgeDecl{TypeBackupVault, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeBackupLogicallyAirGappedVault, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeBackupSelection, TypeIAMRole, store.RelAssumes},
@@ -89,7 +90,8 @@ func resolveBackupSelections(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveBackupPlanVaultRefs,
+	registerResolver(
+		resolveBackupPlanVaultRefs,
 		EdgeDecl{TypeBackupPlan, TypeBackupVault, store.RelRoutesTo},
 	)
 }

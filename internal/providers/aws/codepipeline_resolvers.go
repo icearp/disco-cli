@@ -9,10 +9,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodePipelineWebhookToPipeline,
+	registerResolver(
+		resolveCodePipelineWebhookToPipeline,
 		EdgeDecl{TypeCodePipelineWebhook, TypeCodePipelinePipeline, store.RelAttachedTo},
 	)
-	registerResolver(resolveCodePipelinePipelineRefs,
+	registerResolver(
+		resolveCodePipelinePipelineRefs,
 		EdgeDecl{TypeCodePipelinePipeline, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeCodePipelinePipeline, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeCodePipelinePipeline, TypeKMSKey, store.RelUses},

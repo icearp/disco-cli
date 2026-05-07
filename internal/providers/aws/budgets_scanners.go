@@ -90,7 +90,7 @@ func scanBudgetsBudgets(ctx context.Context, client budgetsAPI, acct *account, r
 		}
 		nextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "budgets budgets")
+	return upsertBatch(st, batch, "budgets")
 }
 
 func scanBudgetsActions(ctx context.Context, client budgetsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

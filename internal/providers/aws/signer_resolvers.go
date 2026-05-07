@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSignerProfilePermissionToProfile,
+	registerResolver(
+		resolveSignerProfilePermissionToProfile,
 		EdgeDecl{TypeSignerProfilePermission, TypeSignerSigningProfile, store.RelAttachedTo},
 	)
 }

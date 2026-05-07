@@ -10,11 +10,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveAthenaWorkgroupTargets,
+	registerResolver(
+		resolveAthenaWorkgroupTargets,
 		EdgeDecl{TypeAthenaWorkgroup, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeAthenaWorkgroup, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveAthenaDataCatalogLambda,
+	registerResolver(
+		resolveAthenaDataCatalogLambda,
 		EdgeDecl{TypeAthenaDataCatalog, TypeLambdaFunction, store.RelUses},
 	)
 }

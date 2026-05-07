@@ -19,7 +19,8 @@ func init() {
 
 // scanEC2VerifiedAccess discovers all Verified Access resources in parallel.
 func scanEC2VerifiedAccess(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanVerifiedAccessInstances(ctx, client, acct, region, st, scanID)
 		},
@@ -36,7 +37,8 @@ func scanEC2VerifiedAccess(ctx context.Context, client ec2API, acct *account, re
 }
 
 func scanVerifiedAccessInstances(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVerifiedAccessInstances", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVerifiedAccessInstances", acct, region, st,
 		ec2.NewDescribeVerifiedAccessInstancesPaginator(client, &ec2.DescribeVerifiedAccessInstancesInput{}),
 		func(page *ec2.DescribeVerifiedAccessInstancesOutput) []*store.Resource {
 			var out []*store.Resource
@@ -59,7 +61,8 @@ func scanVerifiedAccessInstances(ctx context.Context, client ec2API, acct *accou
 }
 
 func scanVerifiedAccessTrustProviders(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVerifiedAccessTrustProviders", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVerifiedAccessTrustProviders", acct, region, st,
 		ec2.NewDescribeVerifiedAccessTrustProvidersPaginator(client, &ec2.DescribeVerifiedAccessTrustProvidersInput{}),
 		func(page *ec2.DescribeVerifiedAccessTrustProvidersOutput) []*store.Resource {
 			var out []*store.Resource
@@ -82,7 +85,8 @@ func scanVerifiedAccessTrustProviders(ctx context.Context, client ec2API, acct *
 }
 
 func scanVerifiedAccessGroups(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVerifiedAccessGroups", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVerifiedAccessGroups", acct, region, st,
 		ec2.NewDescribeVerifiedAccessGroupsPaginator(client, &ec2.DescribeVerifiedAccessGroupsInput{}),
 		func(page *ec2.DescribeVerifiedAccessGroupsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -105,7 +109,8 @@ func scanVerifiedAccessGroups(ctx context.Context, client ec2API, acct *account,
 }
 
 func scanVerifiedAccessEndpoints(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeVerifiedAccessEndpoints", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeVerifiedAccessEndpoints", acct, region, st,
 		ec2.NewDescribeVerifiedAccessEndpointsPaginator(client, &ec2.DescribeVerifiedAccessEndpointsInput{}),
 		func(page *ec2.DescribeVerifiedAccessEndpointsOutput) []*store.Resource {
 			var out []*store.Resource

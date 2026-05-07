@@ -9,13 +9,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSageMakerEndpointConfig,
+	registerResolver(
+		resolveSageMakerEndpointConfig,
 		EdgeDecl{TypeSageMakerEndpoint, TypeSageMakerEndpointConfig, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerEndpointConfigModels,
+	registerResolver(
+		resolveSageMakerEndpointConfigModels,
 		EdgeDecl{TypeSageMakerEndpointConfig, TypeSageMakerModel, store.RelAttachedTo},
 	)
-	registerResolver(resolveSageMakerModelRefs,
+	registerResolver(
+		resolveSageMakerModelRefs,
 		EdgeDecl{TypeSageMakerModel, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeSageMakerModel, TypeECRRepository, store.RelUses},
 		EdgeDecl{TypeSageMakerModel, TypeEC2VPC, store.RelAttachedTo},
@@ -118,7 +121,7 @@ func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error 
 // resolveSageMakerModelRefs walks every Model row's outbound refs:
 // ExecutionRoleArn → IAM role; Containers[].Image → ECR repository (via
 // the apprunnerImageToRepoARN helper, shared across services that store
-// container image URLs); VpcConfig.{VpcId, Subnets[], SecurityGroupIds[]}
+// container image URLs); VpcConfig.{VpcId, Subnets[], SecurityGroupIDs[]}
 // → EC2 networking targets.
 func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 	models, err := st.ListResources(store.ResourceFilter{
@@ -159,7 +162,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 			} `json:"PrimaryContainer"`
 			VpcConfig *struct {
 				Subnets          []string `json:"Subnets"`
-				SecurityGroupIds []string `json:"SecurityGroupIds"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
 			} `json:"VpcConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -200,7 +203,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 		}
 		// VPC config — note: SageMaker's VpcConfig has no top-level VpcId; the
 		// VPC is derived from the subnets. Skip the VPC edge here; subnet/SG
-		// edges suffice. Subnets[] and SecurityGroupIds[] are []*string in the
+		// edges suffice. Subnets[] and SecurityGroupIDs[] are []*string in the
 		// SDK; JSON-marshalled they appear as []string with bare IDs.
 		if attrs.VpcConfig == nil {
 			continue
@@ -218,7 +221,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert sagemaker-model→subnet: %w", err)
 			}
 		}
-		for _, sg := range attrs.VpcConfig.SecurityGroupIds {
+		for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
 			if sg == "" {
 				continue
 			}

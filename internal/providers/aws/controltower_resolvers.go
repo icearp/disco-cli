@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveControlTowerBaselineTarget,
+	registerResolver(
+		resolveControlTowerBaselineTarget,
 		EdgeDecl{TypeControlTowerEnabledBaseline, TypeOrganizationsAccount, store.RelAttachedTo},
 		EdgeDecl{TypeControlTowerEnabledBaseline, TypeOrganizationsOU, store.RelAttachedTo},
 	)

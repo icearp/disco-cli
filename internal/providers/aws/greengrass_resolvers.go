@@ -13,7 +13,8 @@ func init() {
 	// Greengrass v2 deployments target an IoT thing or thing-group via
 	// the canonical TargetArn field. The shape of TargetArn (`:thing/...`
 	// vs `:thinggroup/...`) selects the target type.
-	registerResolver(resolveGGV2DeploymentTarget,
+	registerResolver(
+		resolveGGV2DeploymentTarget,
 		EdgeDecl{TypeGreengrassV2Deployment, TypeIoTThing, store.RelUses},
 		EdgeDecl{TypeGreengrassV2Deployment, TypeIoTThingGroup, store.RelUses},
 	)

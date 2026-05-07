@@ -62,7 +62,8 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 	} else if !inUse {
 		return 0, 0, nil
 	}
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanSageMakerStudio(ctx, client, acct, region, st, scanID)
 		},

@@ -10,10 +10,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveNFLoggingConfigToFirewall,
+	registerResolver(
+		resolveNFLoggingConfigToFirewall,
 		EdgeDecl{TypeNetworkFirewallLoggingConfiguration, TypeNetworkFirewallFirewall, store.RelAttachedTo},
 	)
-	registerResolver(resolveNFVpcEndpointAssociationRefs,
+	registerResolver(
+		resolveNFVpcEndpointAssociationRefs,
 		EdgeDecl{TypeNetworkFirewallVpcEndpointAssociation, TypeNetworkFirewallFirewall, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkFirewallVpcEndpointAssociation, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeNetworkFirewallVpcEndpointAssociation, TypeEC2Subnet, store.RelAttachedTo},
@@ -53,7 +55,7 @@ func resolveNFLoggingConfigToFirewall(acct *account, st *store.Store) error {
 }
 
 // resolveNFVpcEndpointAssociationRefs wires each VPC-endpoint-association to
-// its firewall (FirewallArn), VPC (VpcId), and subnet (SubnetMapping.SubnetId).
+// its firewall (FirewallArn), VPC (VpcID), and subnet (SubnetMapping.SubnetID).
 func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallVpcEndpointAssociation}, Limit: util.AllResources,
@@ -79,9 +81,9 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			FirewallArn   *string `json:"FirewallArn"`
-			VpcId         *string `json:"VpcId"`
+			VpcID         *string `json:"VpcId"`
 			SubnetMapping *struct {
-				SubnetId *string `json:"SubnetId"`
+				SubnetID *string `json:"SubnetId"`
 			} `json:"SubnetMapping"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -96,7 +98,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if v := sv(attrs.VpcId); v != "" {
+		if v := sv(attrs.VpcID); v != "" {
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -105,7 +107,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.SubnetMapping != nil {
-			if s := sv(attrs.SubnetMapping.SubnetId); s != "" {
+			if s := sv(attrs.SubnetMapping.SubnetID); s != "" {
 				tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", s))
 				if subnetSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

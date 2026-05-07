@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCodeCommitRepoKMS,
+	registerResolver(
+		resolveCodeCommitRepoKMS,
 		EdgeDecl{TypeCodeCommitRepository, TypeKMSKey, store.RelUses},
 	)
 }

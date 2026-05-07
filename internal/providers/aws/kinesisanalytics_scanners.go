@@ -21,11 +21,6 @@ func init() {
 	})
 }
 
-type kinesisAnalyticsAPI interface {
-	ListApplications(context.Context, *kinesisanalytics.ListApplicationsInput, ...func(*kinesisanalytics.Options)) (*kinesisanalytics.ListApplicationsOutput, error)
-	DescribeApplication(context.Context, *kinesisanalytics.DescribeApplicationInput, ...func(*kinesisanalytics.Options)) (*kinesisanalytics.DescribeApplicationOutput, error)
-}
-
 // scanKinesisAnalyticsV1 discovers v1 Kinesis Analytics SQL applications and
 // their embedded outputs and reference data sources. ARN native on
 // applications; outputs and reference data sources synthesize off the

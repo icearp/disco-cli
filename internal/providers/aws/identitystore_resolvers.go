@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveIdentityStoreGroupMembershipRefs,
+	registerResolver(
+		resolveIdentityStoreGroupMembershipRefs,
 		EdgeDecl{TypeIdentityStoreGroupMembership, TypeIdentityStoreGroup, store.RelAttachedTo},
 		EdgeDecl{TypeIdentityStoreGroupMembership, TypeIdentityStoreUser, store.RelAttachedTo},
 	)

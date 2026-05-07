@@ -27,10 +27,6 @@ func init() {
 	})
 }
 
-type voiceIDAPI interface {
-	ListDomains(context.Context, *voiceid.ListDomainsInput, ...func(*voiceid.Options)) (*voiceid.ListDomainsOutput, error)
-}
-
 // scanVoiceID discovers Voice ID domains.
 func scanVoiceID(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := voiceid.NewFromConfig(acct.cfg, func(o *voiceid.Options) { o.Region = region })

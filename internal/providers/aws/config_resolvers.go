@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveConfigRelationships,
+	registerResolver(
+		resolveConfigRelationships,
 		EdgeDecl{TypeConfigRecorder, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeConfigDeliveryChannel, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeConfigDeliveryChannel, TypeKMSKey, store.RelUses},

@@ -10,19 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveQuickSightVPCConnectionRefs,
+	registerResolver(
+		resolveQuickSightVPCConnectionRefs,
 		EdgeDecl{TypeQuickSightVPCConnection, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeQuickSightVPCConnection, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeQuickSightVPCConnection, TypeEC2SecurityGroup, store.RelUses},
 		EdgeDecl{TypeQuickSightVPCConnection, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveQuickSightRefreshScheduleParent,
+	registerResolver(
+		resolveQuickSightRefreshScheduleParent,
 		EdgeDecl{TypeQuickSightRefreshSchedule, TypeQuickSightDataSet, store.RelAttachedTo},
 	)
 }
 
 // resolveQuickSightVPCConnectionRefs wires VPC connection → vpc + subnets
-// (NetworkInterfaces[].SubnetId) + security groups + IAM role.
+// (NetworkInterfaces[].SubnetID) + security groups + IAM role.
 func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQuickSightVPCConnection},
@@ -53,10 +55,10 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		var attrs struct {
 			VPCId             *string  `json:"VPCId"`
-			SecurityGroupIds  []string `json:"SecurityGroupIds"`
+			SecurityGroupIDs  []string `json:"SecurityGroupIds"`
 			RoleArn           *string  `json:"RoleArn"`
 			NetworkInterfaces []struct {
-				SubnetId *string `json:"SubnetId"`
+				SubnetID *string `json:"SubnetId"`
 			} `json:"NetworkInterfaces"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
@@ -73,7 +75,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, ni := range attrs.NetworkInterfaces {
-			sid := sv(ni.SubnetId)
+			sid := sv(ni.SubnetID)
 			if sid == "" {
 				continue
 			}
@@ -85,7 +87,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		for _, sg := range attrs.SecurityGroupIds {
+		for _, sg := range attrs.SecurityGroupIDs {
 			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
 			if sgSet[tgtID] {
@@ -143,7 +145,8 @@ func resolveQuickSightRefreshScheduleParent(acct *account, st *store.Store) erro
 }
 
 func init() {
-	registerResolver(resolveQSDataSourceRefs,
+	registerResolver(
+		resolveQSDataSourceRefs,
 		EdgeDecl{TypeQuickSightDataSource, TypeSecretsManagerSecret, store.RelUses},
 		EdgeDecl{TypeQuickSightDataSource, TypeQuickSightVPCConnection, store.RelAttachedTo},
 	)

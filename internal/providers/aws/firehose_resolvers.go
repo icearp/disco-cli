@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveFirehoseDeliveryStreamRelationships,
+	registerResolver(
+		resolveFirehoseDeliveryStreamRelationships,
 		EdgeDecl{TypeFirehoseDeliveryStream, TypeKinesisStream, store.RelUses},
 		EdgeDecl{TypeFirehoseDeliveryStream, TypeS3Bucket, store.RelRoutesTo},
 		EdgeDecl{TypeFirehoseDeliveryStream, TypeKMSKey, store.RelUses},

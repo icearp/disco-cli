@@ -10,15 +10,18 @@ import (
 )
 
 func init() {
-	registerResolver(resolveLocationTrackerConsumerRefs,
+	registerResolver(
+		resolveLocationTrackerConsumerRefs,
 		EdgeDecl{TypeLocationTrackerConsumer, TypeLocationTracker, store.RelAttachedTo},
 		EdgeDecl{TypeLocationTrackerConsumer, TypeLocationGeofenceCollection, store.RelUses},
 	)
-	registerResolver(resolveLocationKMSRefs,
+	registerResolver(
+		resolveLocationKMSRefs,
 		EdgeDecl{TypeLocationGeofenceCollection, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLocationTracker, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveLocationAPIKeyResources,
+	registerResolver(
+		resolveLocationAPIKeyResources,
 		EdgeDecl{TypeLocationAPIKey, TypeLocationTracker, store.RelUses},
 		EdgeDecl{TypeLocationAPIKey, TypeLocationGeofenceCollection, store.RelUses},
 		EdgeDecl{TypeLocationAPIKey, TypeLocationMap, store.RelUses},

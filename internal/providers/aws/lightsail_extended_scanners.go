@@ -426,7 +426,7 @@ func scanLSLBTlsCertificates(ctx context.Context, client lightsailAPI, acct *acc
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailLoadBalancerTlsCertificate, NativeID: arn,
+				Type: TypeLightsailLoadBalancerTLSCertificate, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -456,7 +456,7 @@ func scanLSStaticIps(ctx context.Context, client lightsailAPI, acct *account, re
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailStaticIp, NativeID: arn,
+				Type: TypeLightsailStaticIP, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(ip), DiscoveredBy: scanID,
 			})
 		}

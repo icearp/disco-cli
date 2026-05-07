@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type codeGuruProfilerAPI interface {
-	ListProfilingGroups(context.Context, *codeguruprofiler.ListProfilingGroupsInput, ...func(*codeguruprofiler.Options)) (*codeguruprofiler.ListProfilingGroupsOutput, error)
-}
-
 // scanCodeGuruProfiler discovers CodeGuru Profiler profiling groups.
 func scanCodeGuruProfiler(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := codeguruprofiler.NewFromConfig(acct.cfg, func(o *codeguruprofiler.Options) { o.Region = region })

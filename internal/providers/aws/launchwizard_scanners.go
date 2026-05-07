@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type launchWizardAPI interface {
-	ListDeployments(context.Context, *launchwizard.ListDeploymentsInput, ...func(*launchwizard.Options)) (*launchwizard.ListDeploymentsOutput, error)
-}
-
 // scanLaunchWizard discovers Launch Wizard deployments. Synth ARN:
 // arn:aws:launchwizard:{r}:{a}:deployment/{id}.
 func scanLaunchWizard(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

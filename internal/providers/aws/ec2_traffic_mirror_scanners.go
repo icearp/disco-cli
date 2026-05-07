@@ -20,7 +20,8 @@ func init() {
 
 // scanEC2TrafficMirror discovers all Traffic Mirror resources in parallel.
 func scanEC2TrafficMirror(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanTrafficMirrorFilters(ctx, client, acct, region, st, scanID)
 		},
@@ -37,7 +38,8 @@ func scanEC2TrafficMirror(ctx context.Context, client ec2API, acct *account, reg
 }
 
 func scanTrafficMirrorFilters(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorFilters", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeTrafficMirrorFilters", acct, region, st,
 		ec2.NewDescribeTrafficMirrorFiltersPaginator(client, &ec2.DescribeTrafficMirrorFiltersInput{}),
 		func(page *ec2.DescribeTrafficMirrorFiltersOutput) []*store.Resource {
 			var out []*store.Resource
@@ -94,7 +96,8 @@ func scanTrafficMirrorFilterRules(ctx context.Context, client ec2API, acct *acco
 }
 
 func scanTrafficMirrorSessions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorSessions", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeTrafficMirrorSessions", acct, region, st,
 		ec2.NewDescribeTrafficMirrorSessionsPaginator(client, &ec2.DescribeTrafficMirrorSessionsInput{}),
 		func(page *ec2.DescribeTrafficMirrorSessionsOutput) []*store.Resource {
 			var out []*store.Resource
@@ -117,7 +120,8 @@ func scanTrafficMirrorSessions(ctx context.Context, client ec2API, acct *account
 }
 
 func scanTrafficMirrorTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeTrafficMirrorTargets", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeTrafficMirrorTargets", acct, region, st,
 		ec2.NewDescribeTrafficMirrorTargetsPaginator(client, &ec2.DescribeTrafficMirrorTargetsInput{}),
 		func(page *ec2.DescribeTrafficMirrorTargetsOutput) []*store.Resource {
 			var out []*store.Resource

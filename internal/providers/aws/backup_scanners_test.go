@@ -40,15 +40,19 @@ func (s *stubBackup) ListBackupSelections(_ context.Context, in *backup.ListBack
 func (s *stubBackup) ListFrameworks(_ context.Context, _ *backup.ListFrameworksInput, _ ...func(*backup.Options)) (*backup.ListFrameworksOutput, error) {
 	return &backup.ListFrameworksOutput{}, nil
 }
+
 func (s *stubBackup) ListReportPlans(_ context.Context, _ *backup.ListReportPlansInput, _ ...func(*backup.Options)) (*backup.ListReportPlansOutput, error) {
 	return &backup.ListReportPlansOutput{}, nil
 }
+
 func (s *stubBackup) ListRestoreTestingPlans(_ context.Context, _ *backup.ListRestoreTestingPlansInput, _ ...func(*backup.Options)) (*backup.ListRestoreTestingPlansOutput, error) {
 	return &backup.ListRestoreTestingPlansOutput{}, nil
 }
+
 func (s *stubBackup) ListRestoreTestingSelections(_ context.Context, _ *backup.ListRestoreTestingSelectionsInput, _ ...func(*backup.Options)) (*backup.ListRestoreTestingSelectionsOutput, error) {
 	return &backup.ListRestoreTestingSelectionsOutput{}, nil
 }
+
 func (s *stubBackup) ListTieringConfigurations(_ context.Context, _ *backup.ListTieringConfigurationsInput, _ ...func(*backup.Options)) (*backup.ListTieringConfigurationsOutput, error) {
 	return &backup.ListTieringConfigurationsOutput{}, nil
 }

@@ -9,13 +9,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveR53RResolverEndpointVPC,
+	registerResolver(
+		resolveR53RResolverEndpointVPC,
 		EdgeDecl{TypeRoute53ResolverResolverEndpoint, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RDNSSECConfigVPC,
+	registerResolver(
+		resolveR53RDNSSECConfigVPC,
 		EdgeDecl{TypeRoute53ResolverResolverDNSSECConfig, TypeEC2VPC, store.RelAttachedTo},
 	)
-	registerResolver(resolveR53RQueryLogAssocRefs,
+	registerResolver(
+		resolveR53RQueryLogAssocRefs,
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfigAssociation, TypeRoute53ResolverResolverQueryLoggingConfig, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfigAssociation, TypeEC2VPC, store.RelAttachedTo},
 	)
@@ -89,20 +92,20 @@ func resolveR53RQueryLogAssocRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			ResolverQueryLogConfigId *string `json:"ResolverQueryLogConfigId"`
-			ResourceId               *string `json:"ResourceId"`
+			ResolverQueryLogConfigID *string `json:"ResolverQueryLogConfigId"`
+			ResourceID               *string `json:"ResourceId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if cid := sv(attrs.ResolverQueryLogConfigId); cid != "" {
+		if cid := sv(attrs.ResolverQueryLogConfigID); cid != "" {
 			if tgtID, ok := cfgIdx[cid]; ok {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert r53r ql-assoc→config: %w", err)
 				}
 			}
 		}
-		if vid := sv(attrs.ResourceId); vid != "" {
+		if vid := sv(attrs.ResourceID); vid != "" {
 			region := sv(r.Region)
 			vARN := ec2ARN(region, acct.ID, "vpc", vid)
 			tgtID := store.ResourceID("aws", acct.ID, TypeEC2VPC, vARN)
@@ -127,12 +130,12 @@ func r53rQueryLogConfigIDIndex(acct *account, st *store.Store) (map[string]strin
 	idx := make(map[string]string, len(rows))
 	for _, r := range rows {
 		var attrs struct {
-			Id *string `json:"Id"`
+			ID *string `json:"Id"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.Id); id != "" {
+		if id := sv(attrs.ID); id != "" {
 			idx[id] = r.ID
 		}
 	}

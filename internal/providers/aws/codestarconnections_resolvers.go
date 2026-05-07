@@ -9,11 +9,13 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCSCRepositoryLinkRefs,
+	registerResolver(
+		resolveCSCRepositoryLinkRefs,
 		EdgeDecl{TypeCodeStarConnectionsRepositoryLink, TypeCodeStarConnectionsConnection, store.RelAttachedTo},
 		EdgeDecl{TypeCodeStarConnectionsRepositoryLink, TypeKMSKey, store.RelUses},
 	)
-	registerResolver(resolveCSCSyncConfigurationRefs,
+	registerResolver(
+		resolveCSCSyncConfigurationRefs,
 		EdgeDecl{TypeCodeStarConnectionsSyncConfiguration, TypeCodeStarConnectionsRepositoryLink, store.RelAttachedTo},
 		EdgeDecl{TypeCodeStarConnectionsSyncConfiguration, TypeIAMRole, store.RelUses},
 	)
@@ -68,7 +70,7 @@ func resolveCSCRepositoryLinkRefs(acct *account, st *store.Store) error {
 }
 
 // resolveCSCSyncConfigurationRefs wires sync-configuration → repository-link
-// (RepositoryLinkId, looked up in an index of scanned link IDs) and IAM role
+// (RepositoryLinkID, looked up in an index of scanned link IDs) and IAM role
 // (RoleArn).
 func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
@@ -86,16 +88,16 @@ func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	// index: RepositoryLinkId → repository-link resource ID.
+	// index: RepositoryLinkID → repository-link resource ID.
 	linkByID := map[string]string{}
 	for _, lr := range linkRows {
 		var la struct {
-			RepositoryLinkId *string `json:"RepositoryLinkId"`
+			RepositoryLinkID *string `json:"RepositoryLinkId"`
 		}
 		if err := json.Unmarshal([]byte(lr.AttributesJSON), &la); err != nil {
 			continue
 		}
-		if id := sv(la.RepositoryLinkId); id != "" {
+		if id := sv(la.RepositoryLinkID); id != "" {
 			linkByID[id] = lr.ID
 		}
 	}
@@ -105,13 +107,13 @@ func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			RepositoryLinkId *string `json:"RepositoryLinkId"`
+			RepositoryLinkID *string `json:"RepositoryLinkId"`
 			RoleArn          *string `json:"RoleArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if id := sv(attrs.RepositoryLinkId); id != "" {
+		if id := sv(attrs.RepositoryLinkID); id != "" {
 			if linkID, ok := linkByID[id]; ok {
 				if err := st.UpsertRelationship(r.ID, linkID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert csc sc→rl: %w", err)

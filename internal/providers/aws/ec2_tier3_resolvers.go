@@ -10,46 +10,58 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEC2TGWRouteParent,
+	registerResolver(
+		resolveEC2TGWRouteParent,
 		EdgeDecl{TypeEC2TransitGatewayRoute, TypeEC2TransitGatewayRouteTable, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TGWRTBAssociation,
+	registerResolver(
+		resolveEC2TGWRTBAssociation,
 		EdgeDecl{TypeEC2TransitGatewayRouteTableAssociation, TypeEC2TransitGatewayRouteTable, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayRouteTableAssociation, TypeEC2TransitGatewayAttachment, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TGWRTBPropagation,
+	registerResolver(
+		resolveEC2TGWRTBPropagation,
 		EdgeDecl{TypeEC2TransitGatewayRouteTablePropagation, TypeEC2TransitGatewayRouteTable, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayRouteTablePropagation, TypeEC2TransitGatewayAttachment, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TGWMulticastDomainAssoc,
+	registerResolver(
+		resolveEC2TGWMulticastDomainAssoc,
 		EdgeDecl{TypeEC2TransitGatewayMulticastDomainAssociation, TypeEC2TransitGatewayMulticastDomain, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayMulticastDomainAssociation, TypeEC2Subnet, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2TGWMulticastGroup,
+	registerResolver(
+		resolveEC2TGWMulticastGroup,
 		EdgeDecl{TypeEC2TransitGatewayMulticastGroupMember, TypeEC2TransitGatewayMulticastDomain, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayMulticastGroupMember, TypeEC2NetworkInterface, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayMulticastGroupSource, TypeEC2TransitGatewayMulticastDomain, store.RelAttachedTo},
 		EdgeDecl{TypeEC2TransitGatewayMulticastGroupSource, TypeEC2NetworkInterface, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2LocalGatewayRouteParent,
+	registerResolver(
+		resolveEC2LocalGatewayRouteParent,
 		EdgeDecl{TypeEC2LocalGatewayRoute, TypeEC2LocalGatewayRouteTable, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2LocalGatewayVIToVIG,
+	registerResolver(
+		resolveEC2LocalGatewayVIToVIG,
 		EdgeDecl{TypeEC2LocalGatewayVirtualInterface, TypeEC2LocalGatewayVirtualInterfaceGroup, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2IPAMAllocationToPool,
+	registerResolver(
+		resolveEC2IPAMAllocationToPool,
 		EdgeDecl{TypeEC2IPAMAllocation, TypeEC2IPAMPool, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2IPAMPoolCIDRToPool,
+	registerResolver(
+		resolveEC2IPAMPoolCIDRToPool,
 		EdgeDecl{TypeEC2IPAMPoolCIDR, TypeEC2IPAMPool, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2IPAMPLRTargetToResolver,
+	registerResolver(
+		resolveEC2IPAMPLRTargetToResolver,
 		EdgeDecl{TypeEC2IPAMPrefixListResolverTarget, TypeEC2IPAMPrefixListResolver, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2RouteServerEndpointToServer,
+	registerResolver(
+		resolveEC2RouteServerEndpointToServer,
 		EdgeDecl{TypeEC2RouteServerEndpoint, TypeEC2RouteServer, store.RelAttachedTo},
 	)
-	registerResolver(resolveEC2RouteServerPeerToEndpoint,
+	registerResolver(
+		resolveEC2RouteServerPeerToEndpoint,
 		EdgeDecl{TypeEC2RouteServerPeer, TypeEC2RouteServerEndpoint, store.RelAttachedTo},
 	)
 }
@@ -287,7 +299,7 @@ func resolveEC2LocalGatewayRouteParent(acct *account, st *store.Store) error {
 }
 
 // resolveEC2LocalGatewayVIToVIG wires LG virtual-interface to its parent VIG
-// via the `LocalGatewayVirtualInterfaceGroupId` SDK attribute.
+// via the `LocalGatewayVirtualInterfaceGroupID` SDK attribute.
 func resolveEC2LocalGatewayVIToVIG(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayVirtualInterface},
@@ -305,12 +317,12 @@ func resolveEC2LocalGatewayVIToVIG(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			LocalGatewayVirtualInterfaceGroupId *string `json:"LocalGatewayVirtualInterfaceGroupId"`
+			LocalGatewayVirtualInterfaceGroupID *string `json:"LocalGatewayVirtualInterfaceGroupId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		gid := sv(attrs.LocalGatewayVirtualInterfaceGroupId)
+		gid := sv(attrs.LocalGatewayVirtualInterfaceGroupID)
 		if gid == "" {
 			continue
 		}
@@ -370,7 +382,7 @@ func resolveEC2IPAMChildToPool(acct *account, st *store.Store, sourceType, kind 
 }
 
 // resolveEC2IPAMPLRTargetToResolver wires prefix-list-resolver-target to its
-// parent prefix-list-resolver via the SDK `IpamPrefixListResolverId` attr.
+// parent prefix-list-resolver via the SDK `IpamPrefixListResolverID` attr.
 func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2IPAMPrefixListResolverTarget},
@@ -388,12 +400,12 @@ func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 	}
 	for _, r := range rows {
 		var attrs struct {
-			IpamPrefixListResolverId *string `json:"IpamPrefixListResolverId"`
+			IpamPrefixListResolverID *string `json:"IpamPrefixListResolverId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		id := sv(attrs.IpamPrefixListResolverId)
+		id := sv(attrs.IpamPrefixListResolverID)
 		if id == "" {
 			continue
 		}
@@ -412,7 +424,8 @@ func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 // resolveEC2RouteServerEndpointToServer wires route-server-endpoint → its
 // route-server via the `RouteServerId` attr.
 func resolveEC2RouteServerEndpointToServer(acct *account, st *store.Store) error {
-	return resolveEC2RouteServerAttrEdge(acct, st,
+	return resolveEC2RouteServerAttrEdge(
+		acct, st,
 		TypeEC2RouteServerEndpoint, "RouteServerId",
 		TypeEC2RouteServer, "route-server",
 	)
@@ -421,7 +434,8 @@ func resolveEC2RouteServerEndpointToServer(acct *account, st *store.Store) error
 // resolveEC2RouteServerPeerToEndpoint wires route-server-peer → its parent
 // route-server-endpoint via `RouteServerEndpointId`.
 func resolveEC2RouteServerPeerToEndpoint(acct *account, st *store.Store) error {
-	return resolveEC2RouteServerAttrEdge(acct, st,
+	return resolveEC2RouteServerAttrEdge(
+		acct, st,
 		TypeEC2RouteServerPeer, "RouteServerEndpointId",
 		TypeEC2RouteServerEndpoint, "route-server-endpoint",
 	)

@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGreengrassVersionsToParent,
+	registerResolver(
+		resolveGreengrassVersionsToParent,
 		EdgeDecl{TypeGreengrassConnectorDefinitionVersion, TypeGreengrassConnectorDefinition, store.RelAttachedTo},
 		EdgeDecl{TypeGreengrassCoreDefinitionVersion, TypeGreengrassCoreDefinition, store.RelAttachedTo},
 		EdgeDecl{TypeGreengrassDeviceDefinitionVersion, TypeGreengrassDeviceDefinition, store.RelAttachedTo},

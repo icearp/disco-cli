@@ -35,7 +35,6 @@ type lexAPI interface {
 func scanLex(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := lexmodelsv2.NewFromConfig(acct.cfg, func(o *lexmodelsv2.Options) { o.Region = region })
 
-	type botRef struct{ id, arn string }
 	bots, t, i, ferr := scanLexBots(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
@@ -44,7 +43,6 @@ func scanLex(ctx context.Context, acct *account, region string, st *store.Store,
 	inserted += i
 
 	for _, b := range bots {
-		_ = botRef{}
 		t, i, ferr = scanLexBotAliases(ctx, client, acct, region, st, scanID, b.id)
 		if ferr != nil {
 			return total, inserted, ferr

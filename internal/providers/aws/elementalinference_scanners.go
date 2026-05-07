@@ -19,10 +19,6 @@ func init() {
 	})
 }
 
-type elementalInferenceAPI interface {
-	ListFeeds(context.Context, *elementalinference.ListFeedsInput, ...func(*elementalinference.Options)) (*elementalinference.ListFeedsOutput, error)
-}
-
 // scanElementalInference discovers Elemental Inference feeds.
 func scanElementalInference(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elementalinference.NewFromConfig(acct.cfg, func(o *elementalinference.Options) { o.Region = region })

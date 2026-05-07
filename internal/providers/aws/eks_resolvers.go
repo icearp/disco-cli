@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveEKSRelationships,
+	registerResolver(
+		resolveEKSRelationships,
 		EdgeDecl{TypeEKSCluster, TypeEC2VPC, store.RelAttachedTo},
 	)
 }

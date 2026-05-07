@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveStorageLensRelationships,
+	registerResolver(
+		resolveStorageLensRelationships,
 		EdgeDecl{TypeS3StorageLens, TypeS3Bucket, store.RelUses},
 	)
 }
@@ -83,7 +84,8 @@ func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveS3MRAPRegionBuckets,
+	registerResolver(
+		resolveS3MRAPRegionBuckets,
 		EdgeDecl{TypeS3MultiRegionAccessPoint, TypeS3Bucket, store.RelUses},
 	)
 }

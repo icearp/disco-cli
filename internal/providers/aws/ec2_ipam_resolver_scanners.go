@@ -19,7 +19,8 @@ func init() {
 // Resolvers and resolver targets each carry a native ARN field on the
 // SDK summary so no synthesis is required.
 func scanEC2IPAMResolver(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return runScanners(ctx,
+	return runScanners(
+		ctx,
 		func(ctx context.Context) (int, int, error) {
 			return scanIPAMPrefixListResolvers(ctx, client, acct, region, st, scanID)
 		},
@@ -30,7 +31,8 @@ func scanEC2IPAMResolver(ctx context.Context, client ec2API, acct *account, regi
 }
 
 func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeIpamPrefixListResolvers", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeIpamPrefixListResolvers", acct, region, st,
 		ec2.NewDescribeIpamPrefixListResolversPaginator(client, &ec2.DescribeIpamPrefixListResolversInput{}),
 		func(page *ec2.DescribeIpamPrefixListResolversOutput) []*store.Resource {
 			var out []*store.Resource
@@ -57,7 +59,8 @@ func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *accou
 }
 
 func scanIPAMPrefixListResolverTargets(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(ctx, "ec2:DescribeIpamPrefixListResolverTargets", acct, region, st,
+	return ec2PageScan(
+		ctx, "ec2:DescribeIpamPrefixListResolverTargets", acct, region, st,
 		ec2.NewDescribeIpamPrefixListResolverTargetsPaginator(client, &ec2.DescribeIpamPrefixListResolverTargetsInput{}),
 		func(page *ec2.DescribeIpamPrefixListResolverTargetsOutput) []*store.Resource {
 			var out []*store.Resource

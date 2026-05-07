@@ -9,7 +9,8 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDataBrewRefs,
+	registerResolver(
+		resolveDataBrewRefs,
 		EdgeDecl{TypeDataBrewJob, TypeDataBrewDataset, store.RelUses},
 		EdgeDecl{TypeDataBrewJob, TypeDataBrewProject, store.RelUses},
 		EdgeDecl{TypeDataBrewJob, TypeIAMRole, store.RelUses},
@@ -174,10 +175,12 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 }
 
 func init() {
-	registerResolver(resolveDataBrewDatasetRefs,
+	registerResolver(
+		resolveDataBrewDatasetRefs,
 		EdgeDecl{TypeDataBrewDataset, TypeS3Bucket, store.RelUses},
 	)
-	registerResolver(resolveDataBrewRulesetTarget,
+	registerResolver(
+		resolveDataBrewRulesetTarget,
 		EdgeDecl{TypeDataBrewRuleset, TypeDataBrewDataset, store.RelUses},
 	)
 }

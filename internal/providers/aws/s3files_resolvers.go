@@ -10,20 +10,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveS3FilesFileSystemRefs,
+	registerResolver(
+		resolveS3FilesFileSystemRefs,
 		EdgeDecl{TypeS3FilesFileSystem, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeS3FilesFileSystem, TypeIAMRole, store.RelAssumes},
 	)
-	registerResolver(resolveS3FilesAccessPointRefs,
+	registerResolver(
+		resolveS3FilesAccessPointRefs,
 		EdgeDecl{TypeS3FilesAccessPoint, TypeS3FilesFileSystem, store.RelAttachedTo},
 	)
-	registerResolver(resolveS3FilesMountTargetRefs,
+	registerResolver(
+		resolveS3FilesMountTargetRefs,
 		EdgeDecl{TypeS3FilesMountTarget, TypeS3FilesFileSystem, store.RelAttachedTo},
 		EdgeDecl{TypeS3FilesMountTarget, TypeEC2VPC, store.RelAttachedTo},
 		EdgeDecl{TypeS3FilesMountTarget, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeS3FilesMountTarget, TypeEC2NetworkInterface, store.RelAttachedTo},
 	)
-	registerResolver(resolveS3FilesPolicyParent,
+	registerResolver(
+		resolveS3FilesPolicyParent,
 		EdgeDecl{TypeS3FilesFileSystemPolicy, TypeS3FilesFileSystem, store.RelAttachedTo},
 	)
 }

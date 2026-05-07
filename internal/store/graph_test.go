@@ -299,10 +299,14 @@ func TestResolveResource(t *testing.T) {
 	st := openTestStore(t)
 
 	// Two resources share native_id "shared" across different types.
-	r1 := &Resource{Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
-		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID}
-	r2 := &Resource{Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
-		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID}
+	r1 := &Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:ec2:instance",
+		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}
+	r2 := &Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
+		NativeID: "shared", AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}
 	for _, r := range []*Resource{r1, r2} {
 		if _, err := st.UpsertResource(r); err != nil {
 			t.Fatalf("upsert: %v", err)
@@ -335,8 +339,10 @@ func TestResolveResource(t *testing.T) {
 
 	// 5. Lookup by name (Name field, not native_id).
 	name := "prod-db"
-	r3 := &Resource{Provider: "aws", AccountID: "111", Type: "aws:rds:db-instance",
-		NativeID: "db-xyz", Name: &name, AttributesJSON: "{}", DiscoveredBy: testScanID}
+	r3 := &Resource{
+		Provider: "aws", AccountID: "111", Type: "aws:rds:db-instance",
+		NativeID: "db-xyz", Name: &name, AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}
 	if _, err := st.UpsertResource(r3); err != nil {
 		t.Fatalf("upsert r3: %v", err)
 	}

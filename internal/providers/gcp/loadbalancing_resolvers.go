@@ -13,9 +13,7 @@ func init() { registerResolver(resolveLoadBalancingRelationships) }
 // resolveLoadBalancingRelationships derives the LB traffic-flow chain:
 //
 //	forwardingRule -[routes-to]-> targetHttpProxy / targetHttpsProxy / backendService
-//	targetHttp(s)Proxy -[routes-to]-> urlMap
-//	urlMap -[routes-to]-> backendService (defaultService)
-//	urlMap -[routes-to]-> backendBucket  (defaultService)
+//	targetHttp(s)Proxy -[routes-to]-> urlMap, then -> backendService / backendBucket (defaultService)
 //
 // All target-of-edge fields are full SelfLink URLs in the SDK responses, so
 // the lookup is a direct NativeID match against the in-store catalog of LB
