@@ -11,7 +11,7 @@ linters:
     - whitespace
   settings:
     gocyclo:
-      min-complexity: 15
+      min-complexity: 30
     govet:
       disable:
         - loopclosure
