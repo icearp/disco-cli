@@ -172,6 +172,51 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
+// codeBuildArtifacts mirrors the project's Artifacts / Cache shape — Type
+// flags S3-vs-other, Location is the bucket-or-path string.
+type codeBuildArtifacts struct {
+	Type     *string `json:"Type"`
+	Location *string `json:"Location"`
+}
+
+// codeBuildProjectAttrs mirrors the BatchGetProjects-populated fields the
+// resolver walks. PascalCase JSON tags match mustJSON of the SDK struct.
+type codeBuildProjectAttrs struct {
+	ServiceRole        *string `json:"ServiceRole"`
+	ResourceAccessRole *string `json:"ResourceAccessRole"`
+	EncryptionKey      *string `json:"EncryptionKey"`
+	VpcConfig          *struct {
+		VpcID            *string  `json:"VpcId"`
+		Subnets          []string `json:"Subnets"`
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
+	} `json:"VpcConfig"`
+	Artifacts          *codeBuildArtifacts  `json:"Artifacts"`
+	SecondaryArtifacts []codeBuildArtifacts `json:"SecondaryArtifacts"`
+	Cache              *codeBuildArtifacts  `json:"Cache"`
+	LogsConfig         *struct {
+		CloudWatchLogs *struct {
+			Status    *string `json:"Status"`
+			GroupName *string `json:"GroupName"`
+		} `json:"CloudWatchLogs"`
+		S3Logs *struct {
+			Status   *string `json:"Status"`
+			Location *string `json:"Location"`
+		} `json:"S3Logs"`
+	} `json:"LogsConfig"`
+}
+
+// codeBuildTargetSets bundles the FK-safe target id sets so per-edge-kind
+// helpers below take a single struct rather than seven maps.
+type codeBuildTargetSets struct {
+	roleSet   map[string]bool
+	vpcSet    map[string]bool
+	subnetSet map[string]bool
+	sgSet     map[string]bool
+	bucketSet map[string]bool
+	lgSet     map[string]bool
+	kidx      *kmsResolveIndex
+}
+
 // resolveCodeBuildProjectRefs walks each enriched CodeBuild project body
 // (BatchGetProjects-populated) and emits source-side edges for ServiceRole
 // (IAM), EncryptionKey (KMS), VpcConfig (VPC + subnet + SG), Artifacts/
@@ -189,176 +234,197 @@ func resolveCodeBuildProjectRefs(acct *account, st *store.Store) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	sets, err := loadCodeBuildTargetSets(acct, st)
 	if err != nil {
 		return err
-	}
-	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
-	if err != nil {
-		return err
-	}
-	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
-	if err != nil {
-		return err
-	}
-	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
-	if err != nil {
-		return err
-	}
-	bucketSet, err := scannedIDSet(acct, st, TypeS3Bucket)
-	if err != nil {
-		return err
-	}
-	lgSet, err := scannedIDSet(acct, st, TypeLogsLogGroup)
-	if err != nil {
-		return err
-	}
-	kidx, err := loadKMSResolveIndex(acct, st)
-	if err != nil {
-		return err
-	}
-	type artifacts struct {
-		Type     *string `json:"Type"`
-		Location *string `json:"Location"`
 	}
 	for _, r := range rows {
-		var attrs struct {
-			ServiceRole        *string `json:"ServiceRole"`
-			ResourceAccessRole *string `json:"ResourceAccessRole"`
-			EncryptionKey      *string `json:"EncryptionKey"`
-			VpcConfig          *struct {
-				VpcID            *string  `json:"VpcId"`
-				Subnets          []string `json:"Subnets"`
-				SecurityGroupIDs []string `json:"SecurityGroupIds"`
-			} `json:"VpcConfig"`
-			Artifacts          *artifacts  `json:"Artifacts"`
-			SecondaryArtifacts []artifacts `json:"SecondaryArtifacts"`
-			Cache              *artifacts  `json:"Cache"`
-			LogsConfig         *struct {
-				CloudWatchLogs *struct {
-					Status    *string `json:"Status"`
-					GroupName *string `json:"GroupName"`
-				} `json:"CloudWatchLogs"`
-				S3Logs *struct {
-					Status   *string `json:"Status"`
-					Location *string `json:"Location"`
-				} `json:"S3Logs"`
-			} `json:"LogsConfig"`
-		}
+		var attrs codeBuildProjectAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		emitRole := func(arn string) error {
-			if arn == "" {
-				return nil
+		if err := emitCodeBuildRoleEdges(st, acct, r, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCodeBuildKMSEdge(st, acct, r, region, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCodeBuildVPCEdges(st, acct, r, region, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCodeBuildS3Edges(st, acct, r, attrs, sets); err != nil {
+			return err
+		}
+		if err := emitCodeBuildLogsEdges(st, acct, r, region, attrs, sets); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func loadCodeBuildTargetSets(acct *account, st *store.Store) (codeBuildTargetSets, error) {
+	var sets codeBuildTargetSets
+	var err error
+	if sets.roleSet, err = scannedIDSet(acct, st, TypeIAMRole); err != nil {
+		return sets, err
+	}
+	if sets.vpcSet, err = scannedIDSet(acct, st, TypeEC2VPC); err != nil {
+		return sets, err
+	}
+	if sets.subnetSet, err = scannedIDSet(acct, st, TypeEC2Subnet); err != nil {
+		return sets, err
+	}
+	if sets.sgSet, err = scannedIDSet(acct, st, TypeEC2SecurityGroup); err != nil {
+		return sets, err
+	}
+	if sets.bucketSet, err = scannedIDSet(acct, st, TypeS3Bucket); err != nil {
+		return sets, err
+	}
+	if sets.lgSet, err = scannedIDSet(acct, st, TypeLogsLogGroup); err != nil {
+		return sets, err
+	}
+	if sets.kidx, err = loadKMSResolveIndex(acct, st); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+func emitCodeBuildRoleEdges(st *store.Store, acct *account, r store.Resource, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	for _, pair := range []struct {
+		arn string
+		tag string
+	}{
+		{sv(attrs.ServiceRole), "role"},
+		{sv(attrs.ResourceAccessRole), "resource-access-role"},
+	} {
+		if pair.arn == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, pair.arn)
+		if !sets.roleSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+			return fmt.Errorf("upsert codebuild project→%s: %w", pair.tag, err)
+		}
+	}
+	return nil
+}
+
+func emitCodeBuildKMSEdge(st *store.Store, acct *account, r store.Resource, region string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	k := sv(attrs.EncryptionKey)
+	if k == "" {
+		return nil
+	}
+	keyID, ok := sets.kidx.resolveKMSKeyID(k, region, acct.ID)
+	if !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert codebuild project→kms: %w", err)
+	}
+	return nil
+}
+
+func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, region string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	vc := attrs.VpcConfig
+	if vc == nil {
+		return nil
+	}
+	if vpc := sv(vc.VpcID); vpc != "" {
+		tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, ec2ARN(region, acct.ID, "vpc", vpc))
+		if sets.vpcSet[tgt] {
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert codebuild project→vpc: %w", err)
 			}
-			tgt := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
-			if !roleSet[tgt] {
-				return nil
-			}
-			return st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil)
 		}
-		if err := emitRole(sv(attrs.ServiceRole)); err != nil {
-			return fmt.Errorf("upsert codebuild project→role: %w", err)
+	}
+	for _, sn := range vc.Subnets {
+		if sn == "" {
+			continue
 		}
-		if err := emitRole(sv(attrs.ResourceAccessRole)); err != nil {
-			return fmt.Errorf("upsert codebuild project→resource-access-role: %w", err)
+		tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", sn))
+		if !sets.subnetSet[tgt] {
+			continue
 		}
-		if k := sv(attrs.EncryptionKey); k != "" {
-			if keyID, ok := kidx.resolveKMSKeyID(k, region, acct.ID); ok {
-				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert codebuild project→kms: %w", err)
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert codebuild project→subnet: %w", err)
+		}
+	}
+	for _, sg := range vc.SecurityGroupIDs {
+		if sg == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+		if !sets.sgSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert codebuild project→sg: %w", err)
+		}
+	}
+	return nil
+}
+
+// codeBuildArtifactsLocation returns the S3 Location field iff the
+// artifacts entry is type-S3; empty otherwise (no edge to emit).
+func codeBuildArtifactsLocation(a *codeBuildArtifacts) string {
+	if a == nil || sv(a.Type) != "S3" {
+		return ""
+	}
+	return sv(a.Location)
+}
+
+func emitCodeBuildBucketEdge(st *store.Store, acct *account, r store.Resource, sets codeBuildTargetSets, bucketName, tag string) error {
+	if bucketName == "" {
+		return nil
+	}
+	// Cache/Artifacts.Location for S3 type carries `bucket-name/path`;
+	// strip path for bucket lookup.
+	if i := strings.IndexByte(bucketName, '/'); i >= 0 {
+		bucketName = bucketName[:i]
+	}
+	tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucketName)
+	if !sets.bucketSet[tgt] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert codebuild project→%s: %w", tag, err)
+	}
+	return nil
+}
+
+func emitCodeBuildS3Edges(st *store.Store, acct *account, r store.Resource, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	if err := emitCodeBuildBucketEdge(st, acct, r, sets, codeBuildArtifactsLocation(attrs.Artifacts), "artifacts-s3"); err != nil {
+		return err
+	}
+	for i := range attrs.SecondaryArtifacts {
+		if err := emitCodeBuildBucketEdge(st, acct, r, sets, codeBuildArtifactsLocation(&attrs.SecondaryArtifacts[i]), "secondary-artifacts-s3"); err != nil {
+			return err
+		}
+	}
+	return emitCodeBuildBucketEdge(st, acct, r, sets, codeBuildArtifactsLocation(attrs.Cache), "cache-s3")
+}
+
+func emitCodeBuildLogsEdges(st *store.Store, acct *account, r store.Resource, region string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	lc := attrs.LogsConfig
+	if lc == nil {
+		return nil
+	}
+	if lc.CloudWatchLogs != nil && sv(lc.CloudWatchLogs.Status) != "DISABLED" {
+		if name := sv(lc.CloudWatchLogs.GroupName); name != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, logGroupNativeIDFromName(acct.ID, region, name))
+			if sets.lgSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert codebuild project→log-group: %w", err)
 				}
 			}
 		}
-		if vc := attrs.VpcConfig; vc != nil {
-			if vpc := sv(vc.VpcID); vpc != "" {
-				vpcARN := ec2ARN(region, acct.ID, "vpc", vpc)
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2VPC, vpcARN)
-				if vpcSet[tgt] {
-					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert codebuild project→vpc: %w", err)
-					}
-				}
-			}
-			for _, sn := range vc.Subnets {
-				if sn == "" {
-					continue
-				}
-				snARN := ec2ARN(region, acct.ID, "subnet", sn)
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2Subnet, snARN)
-				if !subnetSet[tgt] {
-					continue
-				}
-				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert codebuild project→subnet: %w", err)
-				}
-			}
-			for _, sg := range vc.SecurityGroupIDs {
-				if sg == "" {
-					continue
-				}
-				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
-				tgt := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, sgARN)
-				if !sgSet[tgt] {
-					continue
-				}
-				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert codebuild project→sg: %w", err)
-				}
-			}
-		}
-		emitS3 := func(bucketName string) error {
-			if bucketName == "" {
-				return nil
-			}
-			// Cache/Artifacts.Location for S3 type carries `bucket-name/path`;
-			// strip path for bucket lookup.
-			if i := strings.IndexByte(bucketName, '/'); i >= 0 {
-				bucketName = bucketName[:i]
-			}
-			bArn := "arn:aws:s3:::" + bucketName
-			tgt := store.ResourceID("aws", acct.ID, TypeS3Bucket, bArn)
-			if !bucketSet[tgt] {
-				return nil
-			}
-			return st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil)
-		}
-		s3Loc := func(a *artifacts) string {
-			if a == nil || sv(a.Type) != "S3" {
-				return ""
-			}
-			return sv(a.Location)
-		}
-		if err := emitS3(s3Loc(attrs.Artifacts)); err != nil {
-			return fmt.Errorf("upsert codebuild project→artifacts-s3: %w", err)
-		}
-		for i := range attrs.SecondaryArtifacts {
-			if err := emitS3(s3Loc(&attrs.SecondaryArtifacts[i])); err != nil {
-				return fmt.Errorf("upsert codebuild project→secondary-artifacts-s3: %w", err)
-			}
-		}
-		if err := emitS3(s3Loc(attrs.Cache)); err != nil {
-			return fmt.Errorf("upsert codebuild project→cache-s3: %w", err)
-		}
-		if lc := attrs.LogsConfig; lc != nil {
-			if lc.CloudWatchLogs != nil && sv(lc.CloudWatchLogs.Status) != "DISABLED" {
-				if name := sv(lc.CloudWatchLogs.GroupName); name != "" {
-					lgARN := logGroupNativeIDFromName(acct.ID, region, name)
-					tgt := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lgARN)
-					if lgSet[tgt] {
-						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
-							return fmt.Errorf("upsert codebuild project→log-group: %w", err)
-						}
-					}
-				}
-			}
-			if lc.S3Logs != nil && sv(lc.S3Logs.Status) != "DISABLED" {
-				if err := emitS3(sv(lc.S3Logs.Location)); err != nil {
-					return fmt.Errorf("upsert codebuild project→s3-logs: %w", err)
-				}
-			}
+	}
+	if lc.S3Logs != nil && sv(lc.S3Logs.Status) != "DISABLED" {
+		if err := emitCodeBuildBucketEdge(st, acct, r, sets, sv(lc.S3Logs.Location), "s3-logs"); err != nil {
+			return err
 		}
 	}
 	return nil
