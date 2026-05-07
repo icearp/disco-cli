@@ -154,6 +154,17 @@ within the configured constraints.`,
 				// suppresses the trailing error message.
 				cmd.SilenceErrors = true
 				cmd.SilenceUsage = true
+				// Print a one-line stderr hint so interactive operators see
+				// the retry shape; pipelines that discard stderr (or read
+				// only stdout / $?) are unaffected — stdout stays empty,
+				// exit code stays 1.
+				kindsHint := "any"
+				if len(graphKinds) > 0 {
+					kindsHint = strings.Join(graphKinds, ",")
+				}
+				_, _ = fmt.Fprintf(os.Stderr,
+					"no path between %s and %s within depth=%d, kinds=%s; retry with --depth %d or widen --kinds\n",
+					args[0], args[1], graphPathDepth, kindsHint, graphPathDepth*2)
 			}
 			return err
 		}
