@@ -29,7 +29,7 @@ func TestVerifyCmd_OK_TarXz(t *testing.T) { verifyOK(t, snapshotForVerifyTest(t,
 
 func verifyOK(t *testing.T, path string) {
 	t.Helper()
-	out, err := captureStdout(t, func() error {
+	out, err := captureStderr(t, func() error {
 		cmd := rootCmd
 		cmd.SetArgs([]string{"verify", path})
 		return cmd.Execute()
@@ -38,7 +38,7 @@ func verifyOK(t *testing.T, path string) {
 		t.Fatalf("verify: %v", err)
 	}
 	if !strings.HasPrefix(out, "OK (unsigned") {
-		t.Errorf("want OK (unsigned... prefix, got %q", out)
+		t.Errorf("want OK (unsigned... prefix on stderr, got %q", out)
 	}
 }
 

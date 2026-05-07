@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/snapshot"
 	"github.com/spf13/cobra"
@@ -49,6 +50,20 @@ Examples:
 		if m.Format != snapshot.FormatV1 {
 			return fmt.Errorf("unsupported manifest format %q (want %q)", m.Format, snapshot.FormatV1)
 		}
+
+		// --print-canonical-payload short-circuits all integrity checks below;
+		// the operator just wants the byte-stable canonical bytes the embedded
+		// manifest would have signed against, so they can re-derive it without
+		// trusting an out-of-band --signing-payload sidecar.
+		if verifyPrintPayload {
+			payload, perr := snapshot.CanonicalManifestBytes(m)
+			if perr != nil {
+				return fmt.Errorf("canonical payload: %w", perr)
+			}
+			_, _ = os.Stdout.Write(payload)
+			return nil
+		}
+
 		if computed != m.DBSHA256 {
 			return fmt.Errorf("verification failed: db_sha256 mismatch (manifest=%s, computed=%s)", m.DBSHA256, computed)
 		}
@@ -66,15 +81,20 @@ Examples:
 		if verifyRequireSigned && !signed {
 			return fmt.Errorf("verification failed: --require-signed but archive carries no detached signature (pass --signature and --pubkey)")
 		}
+		if verifyRequireClean && strings.HasSuffix(m.ToolVersion, "+dirty") {
+			return fmt.Errorf("verification failed: --require-clean but tool_version=%q (snapshot built from a dirty worktree)", m.ToolVersion)
+		}
 
 		prefix := "OK (unsigned — manifest not authenticated)"
 		if signed {
 			prefix = "OK (signed — manifest authenticated via ed25519)"
 		}
-		_, _ = fmt.Fprintf(os.Stdout, "%s: %s (tool_version=%s, sha256=%s, scans=%d, generated_at=%s)\n",
-			prefix, path, m.ToolVersion, short(computed), len(m.ScanIDs), m.GeneratedAt)
-		if !signed && m.ToolVersion == "dev" {
+		_, _ = fmt.Fprintf(os.Stderr, "%s: %s (tool_version=%s, sha256=%s, scans=%d, generated_at=%s)\n",
+			prefix, path, m.ToolVersion, computed, len(m.ScanIDs), m.GeneratedAt)
+		if m.ToolVersion == "dev" {
 			_, _ = fmt.Fprintln(os.Stderr, "WARN: tool_version=dev — snapshot was built without a release version stamp")
+		} else if strings.HasSuffix(m.ToolVersion, "+dirty") {
+			_, _ = fmt.Fprintf(os.Stderr, "WARN: tool_version=%s — snapshot was built from a dirty worktree (pass --require-clean to fail closed)\n", m.ToolVersion)
 		}
 		return nil
 	},
@@ -108,11 +128,15 @@ var (
 	verifySigPath       string
 	verifyPubKeyPath    string
 	verifyRequireSigned bool
+	verifyRequireClean  bool
+	verifyPrintPayload  bool
 )
 
 func init() {
 	verifyCmd.Flags().StringVar(&verifySigPath, "signature", "", "Path to a detached ed25519 signature over the canonical manifest bytes")
 	verifyCmd.Flags().StringVar(&verifyPubKeyPath, "pubkey", "", "Path to the ed25519 public key (PEM, OpenSSH, or 32-byte raw) that produced --signature")
 	verifyCmd.Flags().BoolVar(&verifyRequireSigned, "require-signed", false, "Exit non-zero when the archive carries no detached signature (compliance gate)")
+	verifyCmd.Flags().BoolVar(&verifyRequireClean, "require-clean", false, "Exit non-zero when manifest tool_version ends in +dirty (engagement-grade audit gate)")
+	verifyCmd.Flags().BoolVar(&verifyPrintPayload, "print-canonical-payload", false, "Re-emit the canonical (JCS) manifest bytes from the archive to stdout and exit; skips integrity checks")
 	rootCmd.AddCommand(verifyCmd)
 }

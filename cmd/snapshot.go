@@ -135,7 +135,7 @@ Signing example:
 		}
 
 		abs, _ := filepath.Abs(out)
-		fmt.Fprintf(os.Stderr, "Wrote snapshot to %s (sha256=%s, scans=%d, format=%s)\n", abs, short(hash), len(ids), format)
+		fmt.Fprintf(os.Stderr, "Wrote snapshot to %s (sha256=%s, scans=%d, format=%s)\n", abs, hash, len(ids), format)
 		return nil
 	},
 }
