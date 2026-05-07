@@ -30,6 +30,14 @@ func main() {
 	}
 }
 
+type pairKey struct{ src, tgt string }
+
+type gap struct {
+	src, tgt string
+	topPath  string
+	freq     int
+}
+
 func run() int {
 	dbPath := flag.String("db", "", "path to disco.db (required unless --list-edges)")
 	top := flag.Int("top", 0, "limit output to top N gap pairs (0 = all)")
@@ -63,46 +71,60 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "list resources: %v\n", err)
 		return 1
 	}
+	byType := groupByType(resources, *sample)
+	knownTypes := loadKnownTypes(byType)
+	hits := collectHits(byType, knownTypes)
+	edges, err := st.ListRelationships()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "list relationships: %v\n", err)
+		return 1
+	}
+	actualBoth := buildCoverSet(resources, edges)
+	gaps := rankGaps(hits, actualBoth)
+	printGaps(gaps, byType, *sample, *top)
+	return 0
+}
 
-	// Group by type, take up to N samples per type.
+func groupByType(resources []store.Resource, sample int) map[string][]store.Resource {
 	byType := map[string][]store.Resource{}
 	for _, r := range resources {
-		if len(byType[r.Type]) < *sample {
+		if len(byType[r.Type]) < sample {
 			byType[r.Type] = append(byType[r.Type], r)
 		}
 	}
+	return byType
+}
 
-	// Build the full disco-type catalog from the AWS coverage Provider —
-	// every Type* const ever declared, regardless of whether an instance
-	// was scanned in the current DB. Without this, candidates whose target
-	// type happens to have zero rows in the current account are silently
-	// dropped. Source still requires ≥1 sampled row (no attrs = no signal).
+// loadKnownTypes builds the full disco-type catalog from the AWS coverage
+// Provider — every Type* const ever declared, regardless of scan state.
+// Falls back to scanned types when the catalog can't load.
+func loadKnownTypes(byType map[string][]store.Resource) map[string]struct{} {
 	knownTypes := make(map[string]struct{})
 	if p, ok := coverage.Get("aws"); ok {
 		for _, decl := range p.Emits() {
 			knownTypes[decl.DiscoType] = struct{}{}
 		}
 	}
-	// Fall back to scanned types if the catalog couldn't be loaded for any
-	// reason — keeps the tool usable rather than emitting zero hits.
 	if len(knownTypes) == 0 {
 		for t := range byType {
 			knownTypes[t] = struct{}{}
 		}
 	}
+	return knownTypes
+}
 
-	// Walk attrs, collect (source_type, target_type, field_path) hits.
-	type pairKey struct{ src, tgt string }
-	hits := map[pairKey]map[string]int{} // pair → field_path → count
+// collectHits walks each sampled row's AttributesJSON, classifies every
+// ARN/bare-ID reference, and accumulates (source, target) → field-path
+// hit counts. Self-NativeID, unknown-target, and same-type refs are skipped.
+func collectHits(byType map[string][]store.Resource, knownTypes map[string]struct{}) map[pairKey]map[string]int {
+	hits := map[pairKey]map[string]int{}
 	for src, rows := range byType {
 		for _, r := range rows {
-			refs := extractRefs(r.AttributesJSON)
-			for _, ref := range refs {
-				// Skip references that are the source row's own NativeID —
-				// e.g. SLR's `Arn` field matches the `:role/` ARN pattern,
-				// classifying as TypeIAMRole (the SLR is itself stored as
-				// aws:iam:service-linked-role). Self-NativeID = same physical
-				// resource, no implementable cross-edge.
+			for _, ref := range extractRefs(r.AttributesJSON) {
+				// Skip self-NativeID — e.g. SLR's `Arn` field matches
+				// `:role/` and classifies as TypeIAMRole (the SLR row
+				// is itself aws:iam:service-linked-role). Same physical
+				// resource = no implementable cross-edge.
 				if ref.value == r.NativeID {
 					continue
 				}
@@ -124,48 +146,37 @@ func run() int {
 			}
 		}
 	}
+	return hits
+}
 
-	// Load actual emitted edges. Group by (source_type, target_type).
-	edges, err := st.ListRelationships()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "list relationships: %v\n", err)
-		return 1
-	}
+// buildCoverSet groups DB-emitted edges + EdgeDecl metadata into a
+// direction-blind {source, target} set used to mark hits as covered.
+func buildCoverSet(resources []store.Resource, edges []store.Relationship) map[pairKey]struct{} {
 	idType := make(map[string]string, len(resources))
 	for _, r := range resources {
 		idType[r.ID] = r.Type
 	}
-	// Direction-blind cover set: existing resolvers may emit the reverse
-	// direction (e.g. `policy → role` when audit detects `role.AttachedPolicies[]
-	// → policy`). Treat a candidate as covered if either direction has an edge.
-	actualBoth := map[pairKey]struct{}{}
+	out := map[pairKey]struct{}{}
 	for _, e := range edges {
 		s, ok1 := idType[e.FromID]
 		t, ok2 := idType[e.ToID]
 		if !ok1 || !ok2 {
 			continue
 		}
-		actualBoth[pairKey{s, t}] = struct{}{}
-		actualBoth[pairKey{t, s}] = struct{}{}
+		out[pairKey{s, t}] = struct{}{}
+		out[pairKey{t, s}] = struct{}{}
 	}
-	// Folded into the cover set: every (source, target) declared by a
-	// registered resolver via the EdgeDecl metadata. Closes the
-	// `target_unscanned` blind spot — a resolver that emits FK-safely against
-	// an empty target type now counts as covered.
 	for _, decl := range awsprov.CollectResolverEdges() {
-		actualBoth[pairKey{decl.Source, decl.Target}] = struct{}{}
-		actualBoth[pairKey{decl.Target, decl.Source}] = struct{}{}
+		out[pairKey{decl.Source, decl.Target}] = struct{}{}
+		out[pairKey{decl.Target, decl.Source}] = struct{}{}
 	}
+	return out
+}
 
-	// Diff + rank.
-	type gap struct {
-		src, tgt string
-		topPath  string
-		freq     int
-	}
+func rankGaps(hits map[pairKey]map[string]int, covered map[pairKey]struct{}) []gap {
 	var gaps []gap
 	for pk, paths := range hits {
-		if _, covered := actualBoth[pk]; covered {
+		if _, ok := covered[pk]; ok {
 			continue
 		}
 		var topPath string
@@ -189,16 +200,19 @@ func run() int {
 		}
 		return gaps[i].tgt < gaps[j].tgt
 	})
+	return gaps
+}
 
+func printGaps(gaps []gap, byType map[string][]store.Resource, sample, top int) {
 	fmt.Printf("# AWS resolver gaps — %d candidate pairs\n", len(gaps))
-	fmt.Printf("# scanned types: %d, sampled rows: %d\n", len(byType), *sample)
+	fmt.Printf("# scanned types: %d, sampled rows: %d\n", len(byType), sample)
 	fmt.Printf("# note column: target_unscanned = no rows of target type in DB,\n")
 	fmt.Printf("#              so a resolver that emits FK-safely produces zero\n")
 	fmt.Printf("#              edges and stays indistinguishable from no resolver.\n\n")
 	fmt.Println("source_type\ttarget_type\tfreq\ttop_field_path\tnote")
 	limit := len(gaps)
-	if *top > 0 && *top < limit {
-		limit = *top
+	if top > 0 && top < limit {
+		limit = top
 	}
 	for _, g := range gaps[:limit] {
 		note := ""
@@ -207,7 +221,6 @@ func run() int {
 		}
 		fmt.Printf("%s\t%s\t%d\t%s\t%s\n", g.src, g.tgt, g.freq, g.topPath, note)
 	}
-	return 0
 }
 
 // ref is one (path, value) string found inside a resource's AttributesJSON.
@@ -401,71 +414,50 @@ func arnKindSuffix(_ /*svc*/, kind string) string {
 	return ""
 }
 
+// bareIDPrefixMap is consulted by classifyBareID. Prefix order matters:
+// longer/more-specific prefixes must precede shorter shared prefixes
+// (e.g. `igw-` before `i-`, `tgw-attach-` before `tgw-`).
+var bareIDPrefixMap = []struct {
+	prefix, discoType string
+}{
+	{"tgw-attach-", "aws:ec2:transit-gateway-attachment"},
+	{"tgw-rtb-", "aws:ec2:transit-gateway-route-table"},
+	{"tgw-mc-", "aws:ec2:transit-gateway-multicast-domain"},
+	{"eipalloc-", "aws:ec2:elastic-ip"},
+	{"subnet-", "aws:ec2:subnet"},
+	{"snap-", "aws:ec2:snapshot"},
+	{"fpga-", "aws:ec2:fpga-image"},
+	{"vpce-", "aws:ec2:vpc-endpoint"},
+	{"dxgw-", "aws:directconnect:gateway"},
+	{"dxcon-", "aws:directconnect:connection"},
+	{"dxvif-", "aws:directconnect:virtual-interface"},
+	{"fsmt-", "aws:efs:mount-target"},
+	{"fsap-", "aws:efs:access-point"},
+	{"vpc-", "aws:ec2:vpc"},
+	{"sg-", "aws:ec2:security-group"},
+	{"eni-", "aws:ec2:network-interface"},
+	{"ami-", "aws:ec2:image"},
+	{"igw-", "aws:ec2:internet-gateway"},
+	{"vol-", "aws:ec2:volume"},
+	{"nat-", "aws:ec2:nat-gateway"},
+	{"rtb-", "aws:ec2:route-table"},
+	{"pl-", "aws:ec2:prefix-list"},
+	{"tgw-", "aws:ec2:transit-gateway"},
+	{"vgw-", "aws:ec2:vpn-gateway"},
+	{"cgw-", "aws:ec2:customer-gateway"},
+	{"dx-", "aws:directconnect:connection"},
+	{"acl-", "aws:ec2:network-acl"},
+	{"lt-", "aws:ec2:launch-template"},
+	{"fs-", "aws:efs:file-system"},
+	{"i-", "aws:ec2:instance"},
+}
+
 // classifyBareID maps a bare AWS ID (e.g. `vpc-abc123`) to a disco type.
-// Prefix order matters: longer/more-specific prefixes must precede shorter
-// shared prefixes (e.g. `igw-` before `i-`, `tgw-attach-` before `tgw-`).
 func classifyBareID(id string) string {
-	switch {
-	case strings.HasPrefix(id, "vpc-"):
-		return "aws:ec2:vpc"
-	case strings.HasPrefix(id, "subnet-"):
-		return "aws:ec2:subnet"
-	case strings.HasPrefix(id, "sg-"):
-		return "aws:ec2:security-group"
-	case strings.HasPrefix(id, "eni-"):
-		return "aws:ec2:network-interface"
-	case strings.HasPrefix(id, "ami-"):
-		return "aws:ec2:image"
-	case strings.HasPrefix(id, "igw-"):
-		return "aws:ec2:internet-gateway"
-	case strings.HasPrefix(id, "i-"):
-		return "aws:ec2:instance"
-	case strings.HasPrefix(id, "vol-"):
-		return "aws:ec2:volume"
-	case strings.HasPrefix(id, "snap-"):
-		return "aws:ec2:snapshot"
-	case strings.HasPrefix(id, "nat-"):
-		return "aws:ec2:nat-gateway"
-	case strings.HasPrefix(id, "rtb-"):
-		return "aws:ec2:route-table"
-	case strings.HasPrefix(id, "pl-"):
-		return "aws:ec2:prefix-list"
-	case strings.HasPrefix(id, "eipalloc-"):
-		return "aws:ec2:elastic-ip"
-	case strings.HasPrefix(id, "tgw-attach-"):
-		return "aws:ec2:transit-gateway-attachment"
-	case strings.HasPrefix(id, "tgw-rtb-"):
-		return "aws:ec2:transit-gateway-route-table"
-	case strings.HasPrefix(id, "tgw-mc-"):
-		return "aws:ec2:transit-gateway-multicast-domain"
-	case strings.HasPrefix(id, "tgw-"):
-		return "aws:ec2:transit-gateway"
-	case strings.HasPrefix(id, "vgw-"):
-		return "aws:ec2:vpn-gateway"
-	case strings.HasPrefix(id, "cgw-"):
-		return "aws:ec2:customer-gateway"
-	case strings.HasPrefix(id, "dxgw-"):
-		return "aws:directconnect:gateway"
-	case strings.HasPrefix(id, "dxcon-"):
-		return "aws:directconnect:connection"
-	case strings.HasPrefix(id, "dxvif-"):
-		return "aws:directconnect:virtual-interface"
-	case strings.HasPrefix(id, "dx-"):
-		return "aws:directconnect:connection"
-	case strings.HasPrefix(id, "vpce-"):
-		return "aws:ec2:vpc-endpoint"
-	case strings.HasPrefix(id, "acl-"):
-		return "aws:ec2:network-acl"
-	case strings.HasPrefix(id, "lt-"):
-		return "aws:ec2:launch-template"
-	case strings.HasPrefix(id, "fpga-"):
-		return "aws:ec2:fpga-image"
-	case strings.HasPrefix(id, "fsmt-"):
-		return "aws:efs:mount-target"
-	case strings.HasPrefix(id, "fsap-"):
-		return "aws:efs:access-point"
-	case strings.HasPrefix(id, "fs-"):
-		return "aws:efs:file-system"
+	for _, p := range bareIDPrefixMap {
+		if strings.HasPrefix(id, p.prefix) {
+			return p.discoType
+		}
 	}
 	return ""
 }
