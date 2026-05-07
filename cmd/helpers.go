@@ -130,6 +130,12 @@ func (s *singleSetString) reset() { s.val, s.set = "", false }
 // YYYY-MM-DD (auto-extended to T00:00:00Z UTC). Empty input passes through
 // as a no-op so callers can blindly forward the flag.
 func parseSince(raw string) (string, error) {
+	return parseTimeFlag("--since", raw)
+}
+
+// parseTimeFlag is the shared parser for --since / --until / --older-than.
+// flag is the user-facing name used in error messages.
+func parseTimeFlag(flag, raw string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
@@ -139,7 +145,7 @@ func parseSince(raw string) (string, error) {
 	if t, err := time.Parse("2006-01-02", raw); err == nil {
 		return t.UTC().Format(time.RFC3339), nil
 	}
-	return "", fmt.Errorf("--since: %q must be RFC3339 (2026-04-01T00:00:00Z) or bare date (2026-04-01)", raw)
+	return "", fmt.Errorf("%s: %q must be RFC3339 (2026-04-01T00:00:00Z) or bare date (2026-04-01)", flag, raw)
 }
 
 // ptrOrDash returns the pointed-to string, or "-" if the pointer is nil.

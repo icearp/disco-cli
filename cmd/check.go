@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
 	"codeberg.org/icearp/disco/internal/policy"
+	"codeberg.org/icearp/disco/internal/snapshot"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -134,7 +136,20 @@ Examples:
 			return fmt.Errorf("list resources: %w", err)
 		}
 
-		fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
+		if checkIncludeManaged {
+			fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
+		} else {
+			managed, mErr := db.CountManaged()
+			if mErr != nil {
+				// Non-fatal: fall back to the bare count rather than blocking
+				// the check on a hygiene-stat read.
+				fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
+			} else {
+				fmt.Fprintf(os.Stderr,
+					"Evaluating %d customer-managed resource(s) (%d provider-managed excluded — pass --include-managed to evaluate all)\n",
+					len(resources), managed)
+			}
+		}
 
 		findings, err := eng.Evaluate(ctx, resources)
 		if err != nil {
@@ -169,7 +184,18 @@ Examples:
 				}
 			}
 		case "sarif":
-			if err := renderCheckSARIF(findings, os.Stdout); err != nil {
+			ev := sarifEvidence{}
+			if h, herr := snapshot.HashFile(defaultDBPath()); herr == nil {
+				ev.DBSHA256 = h
+			}
+			if scans, sErr := db.ListScans(); sErr == nil {
+				ev.ScanIDs = make([]string, 0, len(scans))
+				for _, s := range scans {
+					ev.ScanIDs = append(ev.ScanIDs, s.ID)
+				}
+				sort.Strings(ev.ScanIDs)
+			}
+			if err := renderCheckSARIF(findings, os.Stdout, ev); err != nil {
 				return err
 			}
 		case "table", "":

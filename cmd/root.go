@@ -81,6 +81,12 @@ func Execute() {
 		if errors.Is(err, store.ErrNoPath) {
 			os.Exit(1)
 		}
+		// `tag-coverage --min-coverage` and `check --exit-nonzero` already
+		// rendered their report; the sentinel only carries the exit-code
+		// gate. Suppress Cobra's duplicate stderr print for both.
+		if errors.Is(err, errTagCoverageBelow) || errors.Is(err, errFindingsReported) {
+			os.Exit(1)
+		}
 		// When the command already wrote a structured-JSON error envelope to
 		// stdout (json/jsonl outputs), don't duplicate the message on stderr
 		// — pipelines see one signal, not two.

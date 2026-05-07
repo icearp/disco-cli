@@ -57,6 +57,8 @@ var (
 	listScanAs         string
 	listID             string
 	listSince          = singleSetString{flag: "since"}
+	listUntil          = singleSetString{flag: "until"}
+	listOlderThan      = singleSetString{flag: "older-than"}
 	listOutputFmt      string
 	listLimit          uint64
 	listIncludeManaged bool
@@ -89,6 +91,14 @@ Examples:
 		if err != nil {
 			return err
 		}
+		until, err := parseTimeFlag("--until", listUntil.val)
+		if err != nil {
+			return err
+		}
+		olderThan, err := parseTimeFlag("--older-than", listOlderThan.val)
+		if err != nil {
+			return err
+		}
 
 		var types []string
 		if listType != "" {
@@ -116,6 +126,8 @@ Examples:
 			ScanAs:         listScanAs,
 			ID:             listID,
 			Since:          since,
+			Until:          until,
+			OlderThan:      olderThan,
 			Limit:          listLimit,
 			IncludeManaged: listIncludeManaged,
 		}
@@ -197,13 +209,15 @@ func init() {
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	listCmd.Flags().StringVar(&listScanAs, "scan-as", "any",
-		"Treat --scan-id as the row's discoverer | verifier | any (default: any)")
+		"Treat --scan-id as the row's discovered | verified | any (default: any)")
 	listCmd.Flags().StringVar(&listID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
 	listCmd.Flags().Var(&listSince, "since", "Show rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	listCmd.Flags().Var(&listUntil, "until", "Show rows first-seen on or before this timestamp (closes the --since interval)")
+	listCmd.Flags().Var(&listOlderThan, "older-than", "Show rows first-seen strictly before this timestamp (hygiene queries: stale access keys, etc.)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
-	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key")
-	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (requires --tag-key)")
+	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")
+	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (matches any key when --tag-key is unset)")
 	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
 	listCmd.Flags().Uint64Var(&listLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
 	listCmd.Flags().BoolVar(&listIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")

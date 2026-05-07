@@ -23,9 +23,19 @@ type sarifLog struct {
 }
 
 type sarifRun struct {
-	Tool       sarifTool       `json:"tool"`
-	Taxonomies []sarifTaxonomy `json:"taxonomies,omitempty"`
-	Results    []sarifResult   `json:"results"`
+	Tool        sarifTool         `json:"tool"`
+	Invocations []sarifInvocation `json:"invocations,omitempty"`
+	Taxonomies  []sarifTaxonomy   `json:"taxonomies,omitempty"`
+	Results     []sarifResult     `json:"results"`
+}
+
+// sarifInvocation carries per-run provenance (which scans contributed to
+// the evaluated population). SARIF spec lets `properties` carry arbitrary
+// keys; consumers reading only the SARIF doc can trace findings back to
+// the source scan IDs without needing the snapshot manifest.
+type sarifInvocation struct {
+	ExecutionSuccessful bool           `json:"executionSuccessful"`
+	Properties          map[string]any `json:"properties,omitempty"`
 }
 
 // sarifTaxonomy / sarifTaxon model the SARIF 2.1.0 taxonomies block —
@@ -54,6 +64,7 @@ type sarifDriver struct {
 	InformationURI string           `json:"informationUri,omitempty"`
 	Version        string           `json:"version,omitempty"`
 	Rules          []sarifRuleDescr `json:"rules"`
+	Properties     map[string]any   `json:"properties,omitempty"`
 }
 
 type sarifRuleDescr struct {
@@ -109,27 +120,48 @@ func severityToLevel(s string) string {
 	}
 }
 
+// sarifEvidence carries the per-emit chain-of-custody pointers stamped
+// into SARIF so a consumer reading only the doc can bind findings back to
+// the source DB and the scan runs that populated it.
+type sarifEvidence struct {
+	DBSHA256 string
+	ScanIDs  []string
+}
+
 // renderCheckSARIF writes findings as a SARIF v2.1.0 document. Empty input
 // still produces a valid (results: []) doc — code-scanning ingesters use
 // that to clear stale findings, which is the desired post-fix behaviour.
-func renderCheckSARIF(findings []policy.Finding, w io.Writer) error {
+func renderCheckSARIF(findings []policy.Finding, w io.Writer, evidence sarifEvidence) error {
 	rules, ruleIndex := buildSARIFRules(findings)
 	results := make([]sarifResult, 0, len(findings))
 	for _, f := range findings {
 		results = append(results, findingToSARIFResult(f, ruleIndex))
 	}
+	driverProps := map[string]any{}
+	if evidence.DBSHA256 != "" {
+		driverProps["disco_db_sha256"] = evidence.DBSHA256
+	}
+	invocations := []sarifInvocation{{ExecutionSuccessful: true}}
+	if len(evidence.ScanIDs) > 0 {
+		invocations[0].Properties = map[string]any{"scan_ids": evidence.ScanIDs}
+	}
+	driver := sarifDriver{
+		Name:           "disco",
+		InformationURI: "https://codeberg.org/icearp/disco",
+		Version:        discoVersion(),
+		Rules:          rules,
+	}
+	if len(driverProps) > 0 {
+		driver.Properties = driverProps
+	}
 	doc := sarifLog{
 		Schema:  "https://json.schemastore.org/sarif-2.1.0.json",
 		Version: "2.1.0",
 		Runs: []sarifRun{{
-			Tool: sarifTool{Driver: sarifDriver{
-				Name:           "disco",
-				InformationURI: "https://codeberg.org/icearp/disco",
-				Version:        discoVersion(),
-				Rules:          rules,
-			}},
-			Taxonomies: buildSARIFTaxonomies(findings),
-			Results:    results,
+			Tool:        sarifTool{Driver: driver},
+			Invocations: invocations,
+			Taxonomies:  buildSARIFTaxonomies(findings),
+			Results:     results,
 		}},
 	}
 	enc := json.NewEncoder(w)

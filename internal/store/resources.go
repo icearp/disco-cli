@@ -196,11 +196,17 @@ type ResourceFilter struct {
 	// Since filters rows whose discovered_at >= this RFC3339 timestamp.
 	// Stored timestamps sort lexicographically the same as chronologically,
 	// so plain string comparison suffices.
-	Since    string
-	TagKey   string
-	TagValue string
-	Limit    uint64
-	Offset   uint64
+	Since string
+	// Until filters rows whose discovered_at <= this RFC3339 timestamp
+	// (inclusive upper bound). Pairs with Since for closed-interval queries.
+	Until string
+	// OlderThan filters rows whose discovered_at < this RFC3339 timestamp
+	// (strict). Independent of Since/Until — used for "stale" hygiene queries.
+	OlderThan string
+	TagKey    string
+	TagValue  string
+	Limit     uint64
+	Offset    uint64
 	// ID, when set, restricts the result to a single row by primary key.
 	// Mirrors a `WHERE id = ?` short-circuit.
 	ID string
@@ -250,10 +256,21 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	if f.Since != "" {
 		q = q.Where(sq.GtOrEq{"discovered_at": f.Since})
 	}
-	if f.TagKey != "" && f.TagValue != "" {
+	if f.Until != "" {
+		q = q.Where(sq.LtOrEq{"discovered_at": f.Until})
+	}
+	if f.OlderThan != "" {
+		q = q.Where(sq.Lt{"discovered_at": f.OlderThan})
+	}
+	switch {
+	case f.TagKey != "" && f.TagValue != "":
 		q = q.Where("json_extract(tags, ?) = ?", "$."+f.TagKey, f.TagValue)
-	} else if f.TagKey != "" {
+	case f.TagKey != "":
 		q = q.Where("json_extract(tags, ?) IS NOT NULL", "$."+f.TagKey)
+	case f.TagValue != "":
+		// Value-only match: any tag whose value matches, regardless of key.
+		// json_each yields one row per tag entry so EXISTS short-circuits.
+		q = q.Where("EXISTS (SELECT 1 FROM json_each(tags) WHERE json_each.value = ?)", f.TagValue)
 	}
 	if !f.IncludeManaged {
 		q = q.Where(sq.Eq{"managed_by_provider": false})
@@ -295,6 +312,17 @@ func (r *Resource) UnmarshalAttributes(v any) error {
 func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 	var n int
 	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE discovered_by = ?", scanID)
+	return n, err
+}
+
+// CountManaged returns the count of provider-managed rows in the resources
+// table — the population a customer-only query (IncludeManaged=false) hides.
+// Used by `disco check` to print the excluded-managed count alongside the
+// evaluated count so SecEng/Compliance personas don't misread the small
+// denominator as "no resources".
+func (s *Store) CountManaged() (int, error) {
+	var n int
+	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider = 1")
 	return n, err
 }
 

@@ -101,6 +101,22 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		names[i] = s.Name()
 	}
 
+	// --if-older-than gates the scan on recency: if the latest complete
+	// (or partial) scan covering each requested provider is younger than the
+	// threshold, skip with exit 0 + a stderr note. Cron-friendly idempotency
+	// — drop a `disco scan aws --if-older-than 1h` into a 5-min cron and
+	// only do real work when the cached state is stale.
+	if d, _ := cmd.Flags().GetDuration("if-older-than"); d > 0 {
+		skip, msg, err := evaluateIfOlderThan(db, names, d)
+		if err != nil {
+			return err
+		}
+		if skip {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), msg)
+			return nil
+		}
+	}
+
 	// --resume reuses a previously-started scan_id and its checkpoint set.
 	// Without it (default), a fresh scan_id is generated. The actual
 	// per-page resume hook is consumed by the paid incremental scanner;
@@ -262,6 +278,35 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	return nil
 }
 
+// evaluateIfOlderThan returns (skip, message, error). skip=true means the
+// freshest qualifying scan for every requested provider is younger than d
+// — so the caller should print message and exit 0. Any provider missing a
+// recent scan keeps skip=false (the scan must run for that provider).
+func evaluateIfOlderThan(db *store.Store, names []string, d time.Duration) (bool, string, error) {
+	threshold := time.Now().UTC().Add(-d)
+	youngest := time.Time{}
+	for _, name := range names {
+		sc, err := db.LatestCompleteScan(name)
+		if err != nil {
+			// No prior scan for this provider — must run.
+			return false, "", nil
+		}
+		t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt)
+		if perr != nil {
+			// Unparseable timestamp — be safe and run rather than skip.
+			return false, "", nil
+		}
+		if t.Before(threshold) {
+			return false, "", nil
+		}
+		if t.After(youngest) {
+			youngest = t
+		}
+	}
+	age := time.Since(youngest).Round(time.Second)
+	return true, fmt.Sprintf("scan skipped: latest scan %s ago (threshold %s)", age, d), nil
+}
+
 // renderErrors prints a grouped, column-aligned block of scan errors at the
 // end of the run so each failure is shown exactly once.
 func renderErrors(w io.Writer, errs []store.ScanError, quiet bool) {
@@ -286,6 +331,8 @@ func init() {
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
 	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
 	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
+	scanCmd.PersistentFlags().Duration("if-older-than", 0,
+		"skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,

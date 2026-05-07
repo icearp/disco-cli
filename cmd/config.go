@@ -66,6 +66,9 @@ func init() {
 }
 
 func runConfigInit(_ *cobra.Command, _ []string) error {
+	if dbReadOnly {
+		return fmt.Errorf("config init refused: --db-readonly is set (no write paths permitted)")
+	}
 	path := configFilePath()
 
 	// Refuse to clobber an existing file unless --force is set.

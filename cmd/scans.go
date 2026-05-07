@@ -27,6 +27,12 @@ Subcommands:
 
 The 'latest' shorthand resolves to the most-recent scan, regardless of status.
 
+The RESOURCES column is rows the scan touched (insert + re-verify), not
+first-seen attribution. To split them, use:
+  disco list --scan-id <id> --scan-as discovered   # rows the scan first saw
+  disco list --scan-id <id> --scan-as verified     # rows the scan re-verified
+  disco list --scan-id <id> --scan-as any          # both (default)
+
 Examples:
   disco scans
   disco scans show latest

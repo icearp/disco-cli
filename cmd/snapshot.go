@@ -36,11 +36,26 @@ file is its own write target). Output is silent on stdout; a single-line
 summary lands on stderr.
 
 Pass --signing-payload <file> to write the canonical (RFC 8785-style
-JCS) bytes of the manifest alongside the archive. Sign the file with
-any external tool (` + "`minisign -Sm <file>`" + `, ` + "`ssh-keygen -Y sign -n disco -f key`" + `,
-` + "`cosign sign-blob`" + `, ` + "`openssl pkeyutl -sign`" + `) and ship the detached signature
-plus an ed25519 public key to the receiver. They run
+JCS) bytes of the manifest alongside the archive. Sign with any tool
+that produces a raw 64-byte ed25519 signature (` + "`minisign`" + `,
+` + "`cosign sign-blob`" + `, ` + "`openssl pkeyutl -sign -rawin`" + `) and ship the detached
+signature plus an ed25519 public key to the receiver. They run
 ` + "`disco verify --signature <sig> --pubkey <key>`" + `.
+
+The pubkey may be PEM (` + "`openssl pkey -pubout`" + `), an OpenSSH ` + "`.pub`" + ` line
+(` + "`ssh-keygen -t ed25519`" + `), or a raw 32-byte file. NOTE:
+` + "`ssh-keygen -Y sign`" + ` produces an SSHSIG-armored envelope, NOT a raw
+ed25519 signature, so its output is incompatible with --signature. Use
+openssl/cosign/minisign for the signing step even when reusing your
+SSH ed25519 key as the verifier identity.
+
+Canonical OpenSSL recipe end-to-end:
+
+  openssl genpkey -algorithm ed25519 -out priv.pem
+  openssl pkey -in priv.pem -pubout -out pub.pem
+  disco snapshot evidence.tgz --signing-payload payload
+  openssl pkeyutl -sign -inkey priv.pem -rawin -in payload -out evidence.sig
+  disco verify evidence.tgz --signature evidence.sig --pubkey pub.pem
 
 Cosign/Sigstore-witnessed signing (transparency log inclusion) ships in
 a paid follow-up. The OSS plumbing here (canonical payload + ed25519

@@ -195,6 +195,29 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	return &sc, nil
 }
 
+// LatestCompleteScan returns the most-recent scan with status "complete" or
+// "partial" that names the given provider (or any provider when provider="").
+// Returns sql.ErrNoRows when no such scan exists. Used by
+// `disco scan --if-older-than` to skip cron-driven re-scans when a recent run
+// already covered the same provider scope.
+func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
+	var sc Scan
+	q := `SELECT * FROM scans WHERE status IN ('complete','partial')`
+	args := []any{}
+	if provider != "" {
+		q += ` AND providers LIKE ?`
+		args = append(args, "%\""+provider+"\"%")
+	}
+	q += ` ORDER BY started_at DESC, rowid DESC LIMIT 1`
+	if err := s.db.Get(&sc, q, args...); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(sc.ProvidersJSON), &sc.Providers); err != nil {
+		return nil, fmt.Errorf("unmarshal providers: %w", err)
+	}
+	return &sc, nil
+}
+
 // ListScans returns all scans ordered by start time descending. Providers
 // is decoded per row so callers can render the slice without a follow-up
 // GetScan fan-out.

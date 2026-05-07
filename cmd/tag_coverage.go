@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -15,6 +16,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// errTagCoverageBelow is the sentinel returned when --min-coverage trips on
+// at least one reported key. cmd/root.go maps it to a non-zero exit; the
+// deferred maybeStructuredError wrapper skips the JSON envelope so the
+// stdout report is the gate's payload.
+var errTagCoverageBelow = errors.New("tag coverage below threshold")
+
 var (
 	tagCovProvider        string
 	tagCovType            string
@@ -25,6 +32,9 @@ var (
 	tagCovOutputFmt       string
 	tagCovIncludeManaged  bool
 	tagCovCaseInsensitive bool
+	tagCovMinCoverage     float64
+	tagCovMinCovSet       bool
+	tagCovExitZero        bool
 )
 
 // awsAccessKeyTagRE matches an AWS access-key ID (`AKIA[20-char base32]`)
@@ -51,8 +61,17 @@ Examples:
   disco tag-coverage owner cost-center
   disco tag-coverage --provider aws --type aws:ec2:instance
   disco tag-coverage -o json | jq '.[] | select(.coverage < 0.5)'`,
-	RunE: func(_ *cobra.Command, args []string) (rerr error) {
-		defer func() { maybeStructuredError(tagCovOutputFmt, rerr) }()
+	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
+		defer func() {
+			if errors.Is(rerr, errTagCoverageBelow) {
+				return
+			}
+			maybeStructuredError(tagCovOutputFmt, rerr)
+		}()
+		tagCovMinCovSet = cmd.Flags().Changed("min-coverage")
+		if tagCovMinCovSet && (tagCovMinCoverage < 0 || tagCovMinCoverage > 1) {
+			return fmt.Errorf("--min-coverage must be in [0,1] (got %v)", tagCovMinCoverage)
+		}
 
 		db, err := openDB()
 		if err != nil {
@@ -91,8 +110,30 @@ Examples:
 		}
 
 		report := buildTagReport(rows, args, tagCovCaseInsensitive)
-		return renderTagReport(report, tagCovOutputFmt)
+		if err := renderTagReport(report, tagCovOutputFmt); err != nil {
+			return err
+		}
+		if tagCovMinCovSet && !tagCovExitZero {
+			for _, r := range report {
+				if r.Coverage < tagCovMinCoverage {
+					fmt.Fprintf(os.Stderr, "tag-coverage: %d row(s) below --min-coverage=%.4f\n",
+						countBelow(report, tagCovMinCoverage), tagCovMinCoverage)
+					return errTagCoverageBelow
+				}
+			}
+		}
+		return nil
 	},
+}
+
+func countBelow(rep []tagCoverage, t float64) int {
+	n := 0
+	for _, r := range rep {
+		if r.Coverage < t {
+			n++
+		}
+	}
+	return n
 }
 
 // tagCoverage is one row of the report. Coverage is a float in [0,1] for
@@ -230,5 +271,9 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
+	tagCoverageCmd.Flags().Float64Var(&tagCovMinCoverage, "min-coverage", 0,
+		"Coverage threshold in [0,1]; if any reported key falls below, exit non-zero (use --exit-zero to override)")
+	tagCoverageCmd.Flags().BoolVar(&tagCovExitZero, "exit-zero", false,
+		"Force exit 0 even when --min-coverage is breached (still renders the report)")
 	rootCmd.AddCommand(tagCoverageCmd)
 }

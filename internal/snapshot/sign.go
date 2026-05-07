@@ -1,12 +1,15 @@
 package snapshot
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"os"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // CanonicalManifestBytes returns the deterministic byte form of m used as
@@ -50,13 +53,14 @@ func VerifyDetachedSignature(m Manifest, sigPath, pubKeyPath string) error {
 }
 
 // LoadEd25519PublicKey reads an ed25519 public key from path. Accepts:
-//   - PEM-wrapped X.509/PKIX SubjectPublicKeyInfo (the format `openssl
-//     genpkey -algorithm ed25519` produces with `-pubout`).
+//   - PEM-wrapped X.509/PKIX SubjectPublicKeyInfo (`openssl pkey -pubout`).
+//   - OpenSSH authorized-keys / `.pub` line (`ssh-ed25519 AAAAC3... [comment]`).
 //   - Raw 32-byte key (binary).
 //
-// OpenSSH `ssh-ed25519 AAAAC3...` text format is intentionally out of scope
-// — convert with `ssh-keygen -e -m PKCS8 ...` first. Keeping the parser
-// stdlib-only avoids pulling in `golang.org/x/crypto` for OSS.
+// OpenSSH parsing uses x/crypto/ssh, which is already a transitive dep — no
+// new module required. SSHSIG-armored signatures (`ssh-keygen -Y sign` output)
+// are NOT accepted on the --signature path; pair an OpenSSH pubkey with a
+// raw 64-byte ed25519 signature produced by openssl/cosign/minisign instead.
 func LoadEd25519PublicKey(path string) (ed25519.PublicKey, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -73,8 +77,27 @@ func LoadEd25519PublicKey(path string) (ed25519.PublicKey, error) {
 		}
 		return ed, nil
 	}
+	// OpenSSH wire-format detection: an authorized-keys line starts with
+	// `ssh-ed25519 ` (other algos rejected below). Trim any trailing
+	// whitespace so multi-line files with a blank tail still parse.
+	trimmed := bytes.TrimSpace(b)
+	if bytes.HasPrefix(trimmed, []byte("ssh-")) {
+		pk, _, _, _, err := ssh.ParseAuthorizedKey(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("parse openssh pubkey: %w", err)
+		}
+		ck, ok := pk.(ssh.CryptoPublicKey)
+		if !ok {
+			return nil, fmt.Errorf("openssh pubkey wrapper has no CryptoPublicKey accessor")
+		}
+		ed, ok := ck.CryptoPublicKey().(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("openssh pubkey is not ed25519 (got %s)", pk.Type())
+		}
+		return ed, nil
+	}
 	if len(b) == ed25519.PublicKeySize {
 		return ed25519.PublicKey(b), nil
 	}
-	return nil, fmt.Errorf("pubkey: not PEM and not %d raw bytes (got %d)", ed25519.PublicKeySize, len(b))
+	return nil, fmt.Errorf("pubkey: expected PEM, OpenSSH ssh-ed25519, or %d raw bytes (got %d)", ed25519.PublicKeySize, len(b))
 }

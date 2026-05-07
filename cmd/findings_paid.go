@@ -152,7 +152,10 @@ func renderFindings(fs []policy.Finding, format string) error {
 		}
 		return nil
 	case "sarif":
-		return renderCheckSARIF(fs, os.Stdout)
+		// Persisted-findings re-emit can't bind to a single live DB hash —
+		// findings span scans by design. Pass an empty evidence stamp so the
+		// SARIF doc still validates without claiming a single source.
+		return renderCheckSARIF(fs, os.Stdout, sarifEvidence{})
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()

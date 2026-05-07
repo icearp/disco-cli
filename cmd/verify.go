@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -55,6 +56,9 @@ Examples:
 			}
 			signed = true
 		}
+		if verifyRequireSigned && !signed {
+			return fmt.Errorf("verification failed: --require-signed but archive carries no detached signature (pass --signature and --pubkey)")
+		}
 
 		prefix := "OK (unsigned — manifest not authenticated)"
 		if signed {
@@ -69,27 +73,39 @@ Examples:
 	},
 }
 
-// friendlyArchiveErr converts a raw decoder error into a single
-// "verify failed: archive corrupt or truncated" line so users at 4pm on a
-// Friday don't see `hash: writeMatch: distance out of range` from the xz
-// reader. The underlying message is preserved on --verbose.
+// friendlyArchiveErr converts a raw decoder error into one of four explicit
+// auditor-grade strings (manifest missing / manifest format invalid /
+// trailing bytes / archive corrupt) instead of one collapsed line. Same
+// exit code (1) for all; the difference is the diagnostic an auditor
+// quotes in their report. Underlying error is preserved on --verbose.
 func friendlyArchiveErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if verbose {
-		return fmt.Errorf("verify failed: archive corrupt or truncated: %w", err)
+	tag := "archive corrupt or truncated"
+	switch {
+	case errors.Is(err, snapshot.ErrManifestMissing):
+		tag = "manifest entry missing"
+	case errors.Is(err, snapshot.ErrManifestFormat):
+		tag = "manifest format invalid"
+	case errors.Is(err, snapshot.ErrTrailingBytes):
+		tag = "trailing bytes after archive end"
 	}
-	return fmt.Errorf("verify failed: archive corrupt or truncated")
+	if verbose {
+		return fmt.Errorf("verify failed: %s: %w", tag, err)
+	}
+	return fmt.Errorf("verify failed: %s", tag)
 }
 
 var (
-	verifySigPath    string
-	verifyPubKeyPath string
+	verifySigPath       string
+	verifyPubKeyPath    string
+	verifyRequireSigned bool
 )
 
 func init() {
 	verifyCmd.Flags().StringVar(&verifySigPath, "signature", "", "Path to a detached ed25519 signature over the canonical manifest bytes")
 	verifyCmd.Flags().StringVar(&verifyPubKeyPath, "pubkey", "", "Path to the ed25519 public key (PEM, OpenSSH, or 32-byte raw) that produced --signature")
+	verifyCmd.Flags().BoolVar(&verifyRequireSigned, "require-signed", false, "Exit non-zero when the archive carries no detached signature (compliance gate)")
 	rootCmd.AddCommand(verifyCmd)
 }

@@ -5,11 +5,30 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/ulikunitz/xz"
+)
+
+// Sentinel errors so cmd/verify.go can render auditor-grade specific stderr
+// strings instead of one collapsed "archive corrupt or truncated". Same
+// exit code (1) for all; the difference is the diagnostic an auditor
+// quotes in their report.
+var (
+	// ErrArchiveCorrupt covers gzip/xz/tar/zip framing or CRC failures —
+	// the bytes are not a well-formed archive.
+	ErrArchiveCorrupt = errors.New("archive corrupt or truncated")
+	// ErrManifestMissing means the archive opened cleanly but the
+	// disco.db or manifest.json entry is absent.
+	ErrManifestMissing = errors.New("manifest entry missing")
+	// ErrManifestFormat means manifest.json was present but did not parse
+	// as JSON / failed schema decode.
+	ErrManifestFormat = errors.New("manifest format invalid")
+	// ErrTrailingBytes flags a tail-tampered archive (`echo x >> snap.tgz`).
+	ErrTrailingBytes = errors.New("trailing bytes after archive end")
 )
 
 // Inner archive entry names. Single-level layout (no parent dir) so the
@@ -162,7 +181,7 @@ func ArchiveContents(path string) (Manifest, string, error) {
 func readZip(path string) (Manifest, string, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
-		return Manifest{}, "", fmt.Errorf("open zip: %w", err)
+		return Manifest{}, "", fmt.Errorf("%w: open zip: %v", ErrArchiveCorrupt, err)
 	}
 	defer func() { _ = zr.Close() }()
 	var (
@@ -176,36 +195,36 @@ func readZip(path string) (Manifest, string, error) {
 		case entryManifest:
 			rc, err := f.Open()
 			if err != nil {
-				return Manifest{}, "", fmt.Errorf("open manifest: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: open manifest: %v", ErrArchiveCorrupt, err)
 			}
 			b, err := io.ReadAll(rc)
 			_ = rc.Close()
 			if err != nil {
-				return Manifest{}, "", fmt.Errorf("read manifest: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: read manifest: %v", ErrArchiveCorrupt, err)
 			}
 			if err := json.Unmarshal(b, &m); err != nil {
-				return Manifest{}, "", fmt.Errorf("decode manifest: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: decode manifest: %v", ErrManifestFormat, err)
 			}
 			sawM = true
 		case entryDB:
 			rc, err := f.Open()
 			if err != nil {
-				return Manifest{}, "", fmt.Errorf("open db: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: open db: %v", ErrArchiveCorrupt, err)
 			}
 			h, err := hashReader(rc)
 			_ = rc.Close()
 			if err != nil {
-				return Manifest{}, "", err
+				return Manifest{}, "", fmt.Errorf("%w: hash db: %v", ErrArchiveCorrupt, err)
 			}
 			dbHash = h
 			sawDB = true
 		}
 	}
 	if !sawM {
-		return Manifest{}, "", fmt.Errorf("archive missing %s", entryManifest)
+		return Manifest{}, "", fmt.Errorf("%w: %s", ErrManifestMissing, entryManifest)
 	}
 	if !sawDB {
-		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
+		return Manifest{}, "", fmt.Errorf("%w: %s", ErrManifestMissing, entryDB)
 	}
 	// archive/zip parses the EOCD, ignoring any data appended after it; we
 	// don't replicate the strict-tail check that readTar does for tar.gz/xz
@@ -278,7 +297,7 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 	if useGzip {
 		gr, err := gzip.NewReader(cf)
 		if err != nil {
-			return Manifest{}, "", fmt.Errorf("gzip open: %w", err)
+			return Manifest{}, "", fmt.Errorf("%w: gzip open: %v", ErrArchiveCorrupt, err)
 		}
 		gr.Multistream(false)
 		defer func() { _ = gr.Close() }()
@@ -286,7 +305,7 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 	} else {
 		xr, err := xz.NewReader(cf)
 		if err != nil {
-			return Manifest{}, "", fmt.Errorf("xz open: %w", err)
+			return Manifest{}, "", fmt.Errorf("%w: xz open: %v", ErrArchiveCorrupt, err)
 		}
 		decompressed = xr
 	}
@@ -303,32 +322,32 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 			break
 		}
 		if err != nil {
-			return Manifest{}, "", fmt.Errorf("tar next: %w", err)
+			return Manifest{}, "", fmt.Errorf("%w: tar next: %v", ErrArchiveCorrupt, err)
 		}
 		switch hdr.Name {
 		case entryManifest:
 			b, err := io.ReadAll(tr)
 			if err != nil {
-				return Manifest{}, "", fmt.Errorf("read manifest: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: read manifest: %v", ErrArchiveCorrupt, err)
 			}
 			if err := json.Unmarshal(b, &m); err != nil {
-				return Manifest{}, "", fmt.Errorf("decode manifest: %w", err)
+				return Manifest{}, "", fmt.Errorf("%w: decode manifest: %v", ErrManifestFormat, err)
 			}
 			sawM = true
 		case entryDB:
 			h, err := hashReader(tr)
 			if err != nil {
-				return Manifest{}, "", err
+				return Manifest{}, "", fmt.Errorf("%w: hash db: %v", ErrArchiveCorrupt, err)
 			}
 			dbHash = h
 			sawDB = true
 		}
 	}
 	if !sawM {
-		return Manifest{}, "", fmt.Errorf("archive missing %s", entryManifest)
+		return Manifest{}, "", fmt.Errorf("%w: %s", ErrManifestMissing, entryManifest)
 	}
 	if !sawDB {
-		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
+		return Manifest{}, "", fmt.Errorf("%w: %s", ErrManifestMissing, entryDB)
 	}
 	// Strict tail check for tar.gz only. The xz library
 	// (github.com/ulikunitz/xz) doesn't pull index+footer through the
@@ -338,9 +357,9 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 	// (`echo extra >> snap.tgz`) and the recommended evidence container.
 	if useGzip {
 		if extra, err := cf.tail(); err != nil {
-			return Manifest{}, "", err
+			return Manifest{}, "", fmt.Errorf("%w: %v", ErrArchiveCorrupt, err)
 		} else if extra > 0 {
-			return Manifest{}, "", fmt.Errorf("verify failed: %d trailing byte(s) after archive end", extra)
+			return Manifest{}, "", fmt.Errorf("%w: %d byte(s)", ErrTrailingBytes, extra)
 		}
 	}
 	return m, dbHash, nil
