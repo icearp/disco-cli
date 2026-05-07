@@ -86,6 +86,86 @@ disco verify   evidence-2026-05-06.tar.xz
 
 Azure scans every accessible subscription, GCP fans out across accessible projects. Override via config. Resource types are lowercase `cloud:service:kind`: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`.
 
+## Use cases
+
+The CLI is shaped around a handful of recurring jobs. Each block is one tested invocation; chain with `jq` / `awk` / your own scripts as needed.
+
+### Portfolio rollup ("what do we own?")
+
+One-page count of the estate by provider, account, region, and resource type, with an as-of timestamp from the most recent scan. Output is also available as JSON or CSV for slide builders.
+
+```bash
+disco summary
+disco summary -o json | jq '.by_account, .by_provider'
+```
+
+### Tag-hygiene scorecard for cost-allocation
+
+Coverage rate per tag key — the precondition for chargeback / showback. Zero-coverage keys still appear so dashboards see the absent-tag signal. Tag KEYS shaped like AWS access-key IDs are flagged `[suspicious:aws-access-key-id]` so credential paste-into-tag mistakes don't render as legitimate scorecard rows.
+
+```bash
+disco tag-coverage owner cost-center environment --case-insensitive
+disco tag-coverage --type aws:ec2:instance -o json | jq '.[] | select(.coverage<0.95)'
+```
+
+### CI policy gate (SARIF → GitHub code-scanning)
+
+OPA Rego evaluation against the local resource DB; SARIF 2.1.0 output drops straight into GitHub / GitLab / Sonar code-scanning ingest. `--exit-nonzero` fails the pipeline; `partialFingerprints` keeps repeat findings de-duped across runs. BYO Rego via `--rules ./policies/`; bundled `aws-waf` is a 5-rule sample pack.
+
+```bash
+disco check --packs aws-waf --severity high --exit-nonzero -o sarif > findings.sarif
+disco check --rules ./policies --tag waf_pillar=security -o table
+```
+
+### Blast radius from a compromised IAM principal
+
+BFS reachability from a seed. Partial-ID lookup means short IDs pasted from a ticket / CloudTrail line resolve cleanly. IAM principals receive edges rather than emit them, so `graph blast` auto-expands to `--direction both` for them.
+
+```bash
+disco graph blast 8895a0bd                       # short ID from a ticket
+disco graph blast my-role --provider aws --type aws:iam:role --depth 4 -o dot | dot -Tpng > blast.png
+```
+
+### Drift detection between scans
+
+Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-role discovered|verified|any` picks which scan-FK column the filter targets — `discovered` for "what's new this run", `verified` for "what this run re-verified."
+
+```bash
+disco scans
+disco list --scan-id latest --scan-role discovered
+disco list --since 2026-04-01 -o json | jq 'length'
+```
+
+### Evidence package handoff (read-only snapshot + signed verify)
+
+`disco snapshot` freezes the DB into a single archive (`.zip`, `.tar.gz`/`.tgz`, `.tar.xz`/`.txz`) with a manifest carrying the inner-DB SHA-256, generated-at timestamp, and scan IDs. `--db-readonly` guarantees the source DB is not mutated. `--signing-payload` emits the canonical manifest bytes for an external signer (`openssl pkeyutl -sign`, `minisign`, `ssh-keygen -Y sign`, cosign). The receiver's `disco verify --signature --pubkey` validates the detached ed25519 signature.
+
+```bash
+# Producer
+disco --db-readonly snapshot /tmp/audit-2026-q2.tar.gz --signing-payload /tmp/audit.payload
+openssl pkeyutl -sign -inkey priv.pem -rawin -in /tmp/audit.payload -out /tmp/audit.sig
+
+# Auditor
+disco verify /tmp/audit-2026-q2.tar.gz --signature /tmp/audit.sig --pubkey ed25519.pem
+```
+
+### Coverage drift gating in CI
+
+`coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl` — the candidate sweep targets for closing graph gaps.
+
+```bash
+disco coverage --check-strict --provider aws
+disco coverage --resolvers --only-unannotated --provider aws -o json | jq '.[].resolver'
+```
+
+### Find dangling resources mid-incident
+
+`graph complete --orphans-only` keeps only nodes with zero in/out edges in the returned set — surfaces unattached EBS volumes, key-pairs no instance uses, IAM principals with no group/policy attachments.
+
+```bash
+disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type, .name, .native_id] | @tsv'
+```
+
 ## Configuration
 
 Config lives at `$XDG_CONFIG_HOME/disco/config.yaml` (Viper format). On Linux that's `~/.config/disco/config.yaml`; macOS and Windows use the platform app-data dir. Any key can be overridden with a `DISCO_`-prefixed env var. The DB defaults to `$XDG_DATA_HOME/disco/disco.db` (`~/.local/share/disco/disco.db` on Linux); override with `--db` or `$DISCO_DB`.
