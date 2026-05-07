@@ -81,9 +81,9 @@ func Execute() {
 		if errors.Is(err, store.ErrNoPath) {
 			os.Exit(1)
 		}
-		// `tag-coverage --min-coverage` and `check --exit-nonzero` already
-		// rendered their report; the sentinel only carries the exit-code
-		// gate. Suppress Cobra's duplicate stderr print for both.
+		// `tag-coverage --min-coverage` and `check` (default findings-gate)
+		// already rendered their report; the sentinel only carries the
+		// exit-code gate. Suppress Cobra's duplicate stderr print for both.
 		if errors.Is(err, errTagCoverageBelow) || errors.Is(err, errFindingsReported) {
 			os.Exit(1)
 		}

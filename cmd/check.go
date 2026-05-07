@@ -20,7 +20,7 @@ var (
 	checkPacks          []string
 	checkSeverity       string
 	checkOutputFmt      string
-	checkExitNonZero    bool
+	checkExitZero       bool
 	checkTagFilters     []string
 	checkIncludeManaged bool
 )
@@ -84,17 +84,23 @@ BYO rules adding soc2 / iso27001 / pci_dss / nist_800_53 get the
 matching taxonomy automatically. Taxon IDs are the unique tag values,
 sorted for byte-stable output.
 
+Exit codes: any reported finding gates the exit code at 1 by default,
+so 'disco check' plugs into CI without an extra flag. Pass --exit-zero
+to render findings without gating (inventory-only runs that should not
+fail the pipeline). Empty findings always exit 0; --severity / --tag
+filters that drop every finding likewise yield exit 0.
+
 Examples:
   disco check --packs aws-waf
   disco check --packs aws-waf --severity high
   disco check --rules ./policies --packs aws-waf -o sarif > findings.sarif
-  disco check --rules ./policies --exit-nonzero`,
+  disco check --rules ./policies --exit-zero            # render but never gate`,
 	RunE: func(cmd *cobra.Command, _ []string) (rerr error) {
 		defer func() {
-			// Skip the stdout JSON envelope on the --exit-nonzero gate
-			// signal — the findings array IS the payload, the exit code
-			// IS the gate. Trailing `{"error":"N finding(s)"}` after the
-			// array would break strict consumers (json.load, jq -e). F7.
+			// Skip the stdout JSON envelope on the findings-gate sentinel
+			// — the findings array IS the payload, the exit code IS the
+			// gate. Trailing `{"error":"N finding(s)"}` after the array
+			// would break strict consumers (json.load, jq -e). F7.
 			if errors.Is(rerr, errFindingsReported) {
 				return
 			}
@@ -221,10 +227,11 @@ Examples:
 			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, sarif)", checkOutputFmt)
 		}
 
-		if checkExitNonZero && len(findings) > 0 {
-			// Print the count to stderr (verbose-only) so CI logs still see
-			// the gate fired; sentinel error suppresses the duplicate
-			// stdout JSON envelope above.
+		if !checkExitZero && len(findings) > 0 {
+			// Default behaviour: any finding reported gates the exit code.
+			// Print the count to stderr so CI logs still see the gate
+			// fired; sentinel error suppresses the duplicate stdout JSON
+			// envelope above. Pass --exit-zero to override (inventory mode).
 			fmt.Fprintf(os.Stderr, "%d finding(s)\n", len(findings))
 			return errFindingsReported
 		}
@@ -232,10 +239,10 @@ Examples:
 	},
 }
 
-// errFindingsReported is a sentinel returned when --exit-nonzero trips on
-// non-empty findings. Execute() maps it to exit 1; the deferred
-// maybeStructuredError check skips its JSON envelope so json/jsonl stdout
-// stays a single parseable document.
+// errFindingsReported is a sentinel returned when findings are reported
+// and --exit-zero is not set (the default gate). Execute() maps it to
+// exit 1; the deferred maybeStructuredError check skips its JSON envelope
+// so json/jsonl stdout stays a single parseable document.
 var errFindingsReported = errors.New("findings reported")
 
 // severityRank orders the four conventional levels for `--severity` cutoff.
@@ -308,7 +315,7 @@ func init() {
 	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled OSS packs (available: aws-waf)")
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, sarif")
-	checkCmd.Flags().BoolVar(&checkExitNonZero, "exit-nonzero", false, "Exit 1 if any finding reported")
+	checkCmd.Flags().BoolVar(&checkExitZero, "exit-zero", false, "Force exit 0 even when findings are reported (inventory mode; CI override)")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
 	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
 	rootCmd.AddCommand(checkCmd)

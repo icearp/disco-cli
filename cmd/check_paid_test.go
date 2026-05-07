@@ -20,7 +20,7 @@ func TestCheckCmd_Persist(t *testing.T) {
 
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "-o", "json"})
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func TestCheckCmd_PersistRejectsReadOnly(t *testing.T) {
 
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "-o", "json"})
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "read-only") {

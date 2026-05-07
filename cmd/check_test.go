@@ -38,7 +38,7 @@ func resetCheckFlags() {
 	checkPacks = nil
 	checkSeverity = ""
 	checkOutputFmt = "table"
-	checkExitNonZero = false
+	checkExitZero = false
 	checkTagFilters = nil
 	checkIncludeManaged = false
 }
@@ -76,7 +76,7 @@ func TestCheckCmd_JSON(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -92,20 +92,41 @@ func TestCheckCmd_JSON(t *testing.T) {
 	}
 }
 
-// TestCheckCmd_ExitNonZero asserts --exit-nonzero surfaces a non-nil error
-// when findings exist (cobra renders that as exit status 1).
-func TestCheckCmd_ExitNonZero(t *testing.T) {
+// TestCheckCmd_DefaultGatesOnFindings asserts the default behaviour:
+// any reported finding produces a non-nil error (cobra renders exit 1).
+// Pre-flip this required --exit-nonzero; post-flip it is the default.
+func TestCheckCmd_DefaultGatesOnFindings(t *testing.T) {
 	seedCheckDB(t)
 	resetCheckFlags()
 	dir := writePolicy(t)
 
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-nonzero", "-o", "json"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "finding") {
 		t.Errorf("want findings error, got %v", err)
+	}
+}
+
+// TestCheckCmd_ExitZeroOverride asserts --exit-zero suppresses the gate:
+// findings still print to stdout, but the command exits 0.
+func TestCheckCmd_ExitZeroOverride(t *testing.T) {
+	seedCheckDB(t)
+	resetCheckFlags()
+	dir := writePolicy(t)
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("--exit-zero on findings: want nil err, got %v", err)
+	}
+	if !strings.Contains(out, "ebs-unencrypted") {
+		t.Errorf("--exit-zero must still emit findings to stdout; got %q", out)
 	}
 }
 
@@ -118,7 +139,7 @@ func TestCheckCmd_SARIF(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "sarif"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "sarif"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -183,7 +204,7 @@ func TestCheckCmd_SARIF_Empty(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "sarif"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "sarif"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -229,7 +250,7 @@ func TestCheckCmd_EvaluatesPastDefaultLimit(t *testing.T) {
 	dir := writePolicy(t)
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -267,7 +288,7 @@ func TestCheckCmd_DefaultsCustomerOnly(t *testing.T) {
 	dir := writePolicy(t)
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "-o", "json"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -284,7 +305,7 @@ func TestCheckCmd_DefaultsCustomerOnly(t *testing.T) {
 	resetCheckFlags()
 	out, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--rules", dir, "--include-managed", "-o", "json"})
+		cmd.SetArgs([]string{"check", "--rules", dir, "--include-managed", "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -323,7 +344,7 @@ func TestCheckCmd_PacksAWSWAF(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "-o", "json"})
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -372,7 +393,7 @@ func TestCheckCmd_PacksPlusRules(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--rules", dir, "-o", "json"})
+		cmd.SetArgs([]string{"check", "--packs", "aws-waf", "--rules", dir, "--exit-zero", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {

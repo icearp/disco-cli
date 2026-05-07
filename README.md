@@ -110,11 +110,12 @@ disco tag-coverage --type aws:ec2:instance -o json | jq '.[] | select(.coverage<
 
 ### CI policy gate (SARIF → GitHub code-scanning)
 
-OPA Rego evaluation against the local resource DB; SARIF 2.1.0 output drops straight into GitHub / GitLab / Sonar code-scanning ingest. `--exit-nonzero` fails the pipeline; `partialFingerprints` keeps repeat findings de-duped across runs. BYO Rego via `--rules ./policies/`; bundled `aws-waf` is a 5-rule sample pack.
+OPA Rego evaluation against the local resource DB; SARIF 2.1.0 output drops straight into GitHub / GitLab / Sonar code-scanning ingest. Any reported finding gates the exit code at 1 by default — wiring `disco check` straight into a CI step needs no extra flag. `--exit-zero` opts out for inventory-only runs that should publish findings without breaking the pipeline. `partialFingerprints` keeps repeat findings de-duped across runs. BYO Rego via `--rules ./policies/`; bundled `aws-waf` is a 5-rule sample pack.
 
 ```bash
-disco check --packs aws-waf --severity high --exit-nonzero -o sarif > findings.sarif
+disco check --packs aws-waf --severity high -o sarif > findings.sarif
 disco check --rules ./policies --tag waf_pillar=security -o table
+disco check --packs aws-waf --exit-zero -o sarif > inventory.sarif   # render only
 ```
 
 ### Blast radius from a compromised IAM principal
