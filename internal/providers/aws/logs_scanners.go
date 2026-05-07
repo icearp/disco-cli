@@ -94,22 +94,51 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 		inserted += i
 	}
 
-	// Phase 2: per-log-group scanners — fan out across all log groups with a
-	// bounded semaphore to limit concurrent API calls.
-	phase2 := []subFn{
+	// Phase 2: per-log-group enrichments. The three sub-scanners hit
+	// independent CloudWatch Logs APIs (DescribeLogStreams,
+	// DescribeSubscriptionFilters, GetTransformer), each with its own per-log-
+	// group 5 TPS bucket — so they overlap cleanly. Run them concurrently and
+	// share one ListResources load of the region's log-group set across all
+	// three (loadLogGroupsForRegion is otherwise called three times for the
+	// same rows).
+	groups, err := loadLogGroupsForRegion(acct, region, st)
+	if err != nil {
+		return total, inserted, fmt.Errorf("load log groups for phase 2: %w", err)
+	}
+	if len(groups) == 0 {
+		return total, inserted, nil
+	}
+
+	type phase2Fn func(context.Context, cwlogsAPI, *account, string, []store.Resource, *store.Store, string) (int, int, error)
+	phase2 := []phase2Fn{
 		scanLogsLogStreams,
 		scanLogsSubscriptionFilters,
 		scanLogsTransformers,
 	}
+	var (
+		t2, n2 atomic.Int64
+		errMu  sync.Mutex
+		errs   []error
+		wg     sync.WaitGroup
+	)
 	for _, fn := range phase2 {
-		t, i, e := fn(ctx, client, acct, region, st, scanID)
-		if e != nil {
-			return total, inserted, e
-		}
-		total += t
-		inserted += i
+		wg.Go(func() {
+			tt, nn, e := fn(ctx, client, acct, region, groups, st, scanID)
+			t2.Add(int64(tt))
+			n2.Add(int64(nn))
+			if e != nil {
+				errMu.Lock()
+				errs = append(errs, e)
+				errMu.Unlock()
+			}
+		})
 	}
-
+	wg.Wait()
+	total += int(t2.Load())
+	inserted += int(n2.Load())
+	if len(errs) > 0 {
+		return total, inserted, errors.Join(errs...)
+	}
 	return total, inserted, nil
 }
 
@@ -681,21 +710,22 @@ func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]st
 
 // --- Phase 2 scanners ---
 
-// scanLogsLogStreams fetches log streams for every log group in the region,
-// running up to 20 log groups concurrently. Hierarchy closure is recorded
-// so each stream points back to its log group.
-func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	groups, err := loadLogGroupsForRegion(acct, region, st)
-	if err != nil {
-		return 0, 0, fmt.Errorf("load log groups for streams: %w", err)
-	}
+// scanLogsLogStreams fetches log streams for every log group in the region.
+// Hierarchy closure is recorded so each stream points back to its log group.
+//
+// Concurrency uses fanoutMed (10): DescribeLogStreams' 5 TPS limit is
+// per-log-group, so concurrent calls to N distinct groups consume N
+// independent buckets. Within one group the paginator is sequential, so
+// per-group TPS stays ≤ 1. Account-wide pressure is absorbed by the SDK's
+// adaptive retry (aws_config.go).
+func scanLogsLogStreams(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(groups) == 0 {
 		return 0, 0, nil
 	}
 
 	var t, n atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(fanoutLow)
+	sem := semaphore.NewWeighted(fanoutMed)
 
 	for _, grp := range groups {
 		g.Go(func() error {
@@ -769,20 +799,17 @@ func scanLogStreamsForGroup(ctx context.Context, client cwlogsAPI, acct *account
 	return
 }
 
-// scanLogsSubscriptionFilters fetches subscription filters for every log group,
-// running up to 20 log groups concurrently.
-func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	groups, err := loadLogGroupsForRegion(acct, region, st)
-	if err != nil {
-		return 0, 0, fmt.Errorf("load log groups for subscription filters: %w", err)
-	}
+// scanLogsSubscriptionFilters fetches subscription filters for every log
+// group. Concurrency: fanoutMed — DescribeSubscriptionFilters' 5 TPS limit
+// is per-log-group; same rationale as scanLogsLogStreams above.
+func scanLogsSubscriptionFilters(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(groups) == 0 {
 		return 0, 0, nil
 	}
 
 	var t, n atomic.Int64
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(fanoutLow)
+	sem := semaphore.NewWeighted(fanoutMed)
 
 	for _, grp := range groups {
 		g.Go(func() error {
@@ -856,14 +883,11 @@ func scanSubscriptionFiltersForGroup(ctx context.Context, client cwlogsAPI, acct
 	return
 }
 
-// scanLogsTransformers fetches log transformers for every log group, running up
-// to 20 log groups concurrently. Each log group has at most one transformer.
-// Groups without a transformer return ResourceNotFoundException, which is skipped.
-func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	groups, err := loadLogGroupsForRegion(acct, region, st)
-	if err != nil {
-		return 0, 0, fmt.Errorf("load log groups for transformers: %w", err)
-	}
+// scanLogsTransformers fetches log transformers for every log group. Each
+// log group has at most one transformer; groups without one return
+// ResourceNotFoundException, which is skipped. Concurrency: fanoutMed —
+// GetTransformer is per-log-group like the other phase-2 APIs.
+func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(groups) == 0 {
 		return 0, 0, nil
 	}
@@ -875,7 +899,7 @@ func scanLogsTransformers(ctx context.Context, client cwlogsAPI, acct *account, 
 		pairs [][2]string
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	sem := semaphore.NewWeighted(fanoutLow)
+	sem := semaphore.NewWeighted(fanoutMed)
 
 	for _, grp := range groups {
 		g.Go(func() error {

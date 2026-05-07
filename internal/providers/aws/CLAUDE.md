@@ -104,6 +104,14 @@ Policy `Resource` walkers (e.g. `classifyPolicyResource` in `iam_resolvers.go`) 
 
 AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is the safe ceiling for any per-resource fan-out (`GetPolicyVersion`, `Get*Policy`, etc.). Bumping to `fanoutHigh` (20) trips `ThrottlingException`, SDK retries with exp backoff, multi-minute hangs across the ~1500-policy AWS-managed catalogue. The proper speedup is `GetAccountAuthorizationDetails` consolidation (single paginated call), not concurrency tuning.
 
+## CloudWatch Logs phase-2 fan-out
+
+`scanLogs` in `logs_scanners.go` runs in two phases. Phase 1 is the independent surface (log groups, account policies, deliveries, metric filters, etc.) executed sequentially. Phase 2 is per-log-group enrichment — `DescribeLogStreams`, `DescribeSubscriptionFilters`, `GetTransformer`. The three phase-2 sub-scanners are launched **concurrently** via `sync.WaitGroup`; they hit independent CloudWatch Logs APIs whose 5 TPS quotas are documented as **per log group** (https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/cloudwatch_limits_cwl.html), so concurrent calls to N distinct groups consume N independent buckets. Within one group the SDK paginator is sequential, so per-group TPS stays ≤ 1.
+
+Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`. Account-wide pressure is absorbed by adaptive retry (`aws_config.go` `RetryModeAdaptive` + `RetryMaxAttempts(10)`); `ThrottlingException` is dispatch-level transient (see "ThrottlingException is dispatch-level transient" above). The phase-2 dispatcher loads the region's log-group set ONCE (`loadLogGroupsForRegion`) and passes the slice into each sub-scanner — three duplicate `ListResources` queries removed.
+
+Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propagating; one failed sibling does not cancel the others (matches `aws.go::scanRegion` "Errors never abort scan"). For users who don't need log-stream inventory, two existing escape hatches stand: `disco scan aws --services aws:ec2,aws:s3,...` (omit `aws:logs`) skips the service entirely; `disco list --exclude-types aws:logs:log-stream` mutes streams from queries while keeping them in the DB (`cmd/CLAUDE.md`).
+
 ## IAM scan uses GetAccountAuthorizationDetails (single paginated call)
 
 `scanIAMAuthDetails` (`iam_scanners.go`) consolidates users + roles + groups + managed policies (Local + AWS scope, including each policy's default version `Document`) + every principal's inline policies into one paginated `iam:GetAccountAuthorizationDetails` (GAAD) call with `MaxItems=1000` + a `Filter` listing all five entity types.

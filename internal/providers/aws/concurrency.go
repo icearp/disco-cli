@@ -8,10 +8,15 @@ package aws
 // Values were tuned to balance throughput vs. AWS API throttling:
 //   - fanoutHigh: chosen by APIs with generous TPS budgets (IAM Get* calls,
 //     S3 per-bucket config fetches).
-//   - fanoutMed: APIs with stricter throttles (S3 Control account-scope ops,
-//     IAM AccessKeyLastUsed lookups in the resolver phase).
-//   - fanoutLow: very slow or expensive APIs where parallelism has to stay
-//     near-serial (CloudWatch Logs phase-2 enrichment).
+//   - fanoutMed: APIs with stricter account-scoped throttles (S3 Control
+//     account-scope ops, IAM AccessKeyLastUsed lookups), and per-parent
+//     APIs whose TPS limit is per-parent rather than account-wide so N
+//     concurrent parents consume N independent buckets (CloudWatch Logs
+//     phase-2 — DescribeLogStreams / DescribeSubscriptionFilters /
+//     GetTransformer are each 5 TPS *per log group*).
+//   - fanoutLow: cardinality-unbounded per-parent fan-outs where bursty
+//     parallelism risks DB-write or memory blow-up (Glue partition pages —
+//     `glue_partitions_scanners.go`).
 const (
 	fanoutHigh = 20
 	fanoutMed  = 10
