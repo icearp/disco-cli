@@ -35,6 +35,34 @@ Plain `go build` works too if you skip the Makefile, but the version stamp falls
 CGO_ENABLED=0 go build -o disco .
 ```
 
+## Commands
+
+```
+disco
+├── scan
+│   ├── aws                   per-account, --regions, --profile, --skip-globals
+│   ├── azure                 per-subscription via DefaultAzureCredential
+│   └── gcp                   per-project fan-out across reachable projects
+├── list                      filter by --type, --provider, --region, --since
+├── graph
+│   ├── blast <id>            reachability from a seed
+│   ├── path <A> <B>          shortest path between two resources
+│   └── complete              full graph (every resource + edges)
+├── check                     OPA Rego policy eval; --packs, --rules, --output sarif
+├── coverage                  scanner-declared types vs cloud registry; --check-strict
+├── summary                   portfolio rollup
+├── tag-coverage              per-tag coverage rate
+├── scans
+│   └── show <id>             detail for one recorded scan run
+├── snapshot <out>            freeze DB into single-file archive (.zip|.tar.gz|.tar.xz)
+├── verify <archive>          verify snapshot manifest + inner-DB SHA-256
+├── config
+│   └── init                  write a boilerplate config.yaml
+└── completion                shell completion script (bash|zsh|fish|powershell)
+```
+
+Every command takes `--db` / `--config` / `-v`. `--db-readonly` opens the DB read-only and rejects any write path (scan, snapshot to a write-locked DB, etc.).
+
 ## Quickstart
 
 ```bash
