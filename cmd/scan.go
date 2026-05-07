@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -319,6 +320,7 @@ func evaluateIfOlderThan(db *store.Store, names []string, d time.Duration) (bool
 		t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt)
 		if perr != nil {
 			// Unparseable timestamp — be safe and run rather than skip.
+			_, _ = fmt.Fprintf(os.Stderr, "--if-older-than: cannot parse scan %s started_at %q: %v (running scan)\n", sc.ID, sc.StartedAt, perr)
 			return false, "", nil
 		}
 		if t.Before(threshold) {

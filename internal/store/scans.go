@@ -202,7 +202,7 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 // already covered the same provider scope.
 func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
 	var sc Scan
-	q := `SELECT * FROM scans WHERE status IN ('complete','partial')`
+	q := `SELECT * FROM scans WHERE status IN ('completed','partial')`
 	args := []any{}
 	if provider != "" {
 		q += ` AND providers LIKE ?`
