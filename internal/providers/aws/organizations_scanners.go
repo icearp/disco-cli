@@ -47,27 +47,73 @@ type organizationsAPI interface {
 func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := organizations.NewFromConfig(acct.cfg)
 
-	// The organization itself. A failure here implies we're not in the payer
-	// account (or lack permission) — skip the whole service cleanly.
+	org, t, i, ferr := scanOrgRoot(ctx, client, acct, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil || org == nil {
+		return total, inserted, ferr
+	}
+	// Member account: org row persisted; management-only phases skipped.
+	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
+		return total, inserted, nil
+	}
+	orgID := store.ResourceID("aws", acct.ID, TypeOrganization, sv(org.Arn))
+	closurePairs := [][2]string{{orgID, orgID}}
+
+	rootIDs, ouARNByNativeID, t, i, ferr := scanOrgRoots(ctx, client, acct, st, scanID, orgID, &closurePairs)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanOrgOUTree(ctx, client, acct, st, scanID, rootIDs, ouARNByNativeID, &closurePairs)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanOrgAccounts(ctx, client, acct, st, scanID, ouARNByNativeID, &closurePairs)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanOrgSCPs(ctx, client, acct, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	if err := st.RecordHierarchyBatch(closurePairs); err != nil {
+		return total, inserted, fmt.Errorf("org hierarchy closure: %w", err)
+	}
+	t, i, ferr = scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID)
+	total += t
+	inserted += i
+	return total, inserted, ferr
+}
+
+// scanOrgRoot describes the organization itself, upserts the org resource,
+// and returns the organization SDK struct so the caller can route on
+// MasterAccountId. Returns (nil, ...) if the account isn't part of an org
+// or the call surfaces a service-disabled / access-denied skip.
+func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string) (*types.Organization, int, int, error) {
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
 		// Standalone account — never joined an Organization. Default state,
 		// not a fault. Surface "(service disabled)" with no warning.
 		if isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
-			return 0, 0, markServiceDisabled(err)
+			return nil, 0, 0, markServiceDisabled(err)
 		}
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
+			return nil, 0, 0, skipIfAccessDenied(st, "organizations:DescribeOrganization", acct.ID, "", err)
 		}
-		return 0, 0, fmt.Errorf("organizations:DescribeOrganization: %w", err)
+		return nil, 0, 0, fmt.Errorf("organizations:DescribeOrganization: %w", err)
 	}
 	org := descOrg.Organization
 	if org == nil {
-		return 0, 0, nil
+		return nil, 0, 0, nil
 	}
-	// Upsert the organization row first — DescribeOrganization succeeds from
-	// any member account, so every successful scan can persist this row even
-	// when the member-account short-circuit below trips.
 	orgRes := &store.Resource{
 		Provider:       "aws",
 		AccountID:      acct.ID,
@@ -78,100 +124,79 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 		AttributesJSON: mustJSON(org),
 		DiscoveredBy:   scanID,
 	}
-	orgID := store.ResourceID("aws", acct.ID, TypeOrganization, orgRes.NativeID)
 	n, err := st.UpsertResources([]*store.Resource{orgRes})
 	if err != nil {
-		return 0, 0, fmt.Errorf("upsert organization: %w", err)
+		return nil, 0, 0, fmt.Errorf("upsert organization: %w", err)
 	}
-	total++
-	inserted += n
-	// Org write/list APIs (ListRoots, ListAccounts, ListPolicies,
-	// ListOrganizationalUnitsForParent) reject calls from member accounts
-	// with an opaque AccessDeniedException. DescribeOrganization succeeds
-	// from any member, exposing MasterAccountId — short-circuit cleanly
-	// when we are not the management account. The org row above is kept;
-	// return nil (not errServiceDisabled) so the per-service progress line
-	// reports the inserted org row without a misleading "(service disabled)"
-	// suffix — the service successfully produced its member-account view.
-	if mgmt := sv(org.MasterAccountId); mgmt != "" && mgmt != acct.ID {
-		return total, inserted, nil
-	}
+	return org, 1, n, nil
+}
 
-	// Closure pairs collected across the whole scan. Self-entry for org root.
-	closurePairs := [][2]string{{orgID, orgID}}
-
-	// Roots — the top-level containers under the organization.
+// scanOrgRoots upserts the org's top-level Root containers, returning the
+// list of native ids + an ARN-by-id map populated for the roots only.
+// Subsequent phases extend the map with deeper OUs.
+func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID, orgID string, closurePairs *[][2]string) ([]string, map[string]string, int, int, error) {
 	var rootIDs []string
-	rootsPager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
-	for rootsPager.HasMorePages() {
-		page, err := rootsPager.NextPage(ctx)
+	ouARNByNativeID := map[string]string{}
+	var total, inserted int
+	pager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "organizations:ListRoots", acct.ID, "", err)
+				return rootIDs, ouARNByNativeID, total, inserted, skipIfAccessDenied(st, "organizations:ListRoots", acct.ID, "", err)
 			}
-			return total, inserted, fmt.Errorf("organizations:ListRoots: %w", err)
+			return rootIDs, ouARNByNativeID, total, inserted, fmt.Errorf("organizations:ListRoots: %w", err)
 		}
 		var batch []*store.Resource
 		for _, root := range page.Roots {
 			arn := sv(root.Arn)
 			id := sv(root.Id)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeOrganizationsOU,
-				NativeID:       arn,
-				Name:           root.Name,
-				AttributesJSON: mustJSON(root),
-				DiscoveredBy:   scanID,
-				// Org root (Id "r-xxxx") is the AWS-default container created
-				// when the org is created.
-				ManagedByProvider: true,
-			}
-			batch = append(batch, r)
+			batch = append(batch, &store.Resource{
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              TypeOrganizationsOU,
+				NativeID:          arn,
+				Name:              root.Name,
+				AttributesJSON:    mustJSON(root),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: true, // r-xxxx is AWS-default container.
+			})
 			rid := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, arn)
 			rootIDs = append(rootIDs, id)
-			closurePairs = append(closurePairs, [2]string{rid, orgID})
+			ouARNByNativeID[id] = arn
+			*closurePairs = append(*closurePairs, [2]string{rid, orgID})
 		}
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert roots: %w", err)
+				return rootIDs, ouARNByNativeID, total, inserted, fmt.Errorf("upsert roots: %w", err)
 			}
 			total += len(batch)
 			inserted += n
 		}
 	}
+	return rootIDs, ouARNByNativeID, total, inserted, nil
+}
 
-	// OU tree — walk recursively below each root. Map OU native id → ARN so the
-	// accounts loop below can resolve an account's parent (which is identified
-	// only by native id in ListParents).
-	ouARNByNativeID := map[string]string{}
-	rootsPager2 := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
-	for rootsPager2.HasMorePages() {
-		page, err := rootsPager2.NextPage(ctx)
-		if err != nil {
-			return total, inserted, fmt.Errorf("organizations:ListRoots (refetch): %w", err)
-		}
-		for _, root := range page.Roots {
-			ouARNByNativeID[sv(root.Id)] = sv(root.Arn)
-		}
-	}
-
+func scanOrgOUTree(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string, rootIDs []string, ouARNByNativeID map[string]string, closurePairs *[][2]string) (int, int, error) {
+	var total, inserted int
 	for _, rootNativeID := range rootIDs {
-		ouTotal, ouInserted, ouErr := walkOUs(ctx, client, acct, scanID, st, rootNativeID, ouARNByNativeID[rootNativeID], ouARNByNativeID, &closurePairs)
-		if ouErr != nil {
-			return total, inserted, ouErr
+		ouTotal, ouInserted, err := walkOUs(ctx, client, acct, scanID, st, rootNativeID, ouARNByNativeID[rootNativeID], ouARNByNativeID, closurePairs)
+		if err != nil {
+			return total, inserted, err
 		}
 		total += ouTotal
 		inserted += ouInserted
 	}
+	return total, inserted, nil
+}
 
-	// Accounts — each has one or more parents (root or OU). Use ListParents per
-	// account to resolve the immediate containing OU.
-	accountsPager := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{})
-	for accountsPager.HasMorePages() {
-		page, err := accountsPager.NextPage(ctx)
+func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string, ouARNByNativeID map[string]string, closurePairs *[][2]string) (int, int, error) {
+	var total, inserted int
+	pager := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{})
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				return total, inserted, skipIfAccessDenied(st, "organizations:ListAccounts", acct.ID, "", err)
@@ -188,10 +213,10 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 			if parentARN != "" {
 				pid := store.ResourceID("aws", acct.ID, TypeOrganizationsOU, parentARN)
 				accID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, arn)
-				closurePairs = append(closurePairs, [2]string{accID, pid})
+				*closurePairs = append(*closurePairs, [2]string{accID, pid})
 			}
 			status := string(a.Status)
-			r := &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -202,8 +227,7 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 				CreatedAt:      tp(a.JoinedTimestamp),
 				AttributesJSON: mustJSON(a),
 				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
+			})
 		}
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
@@ -214,74 +238,62 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 			inserted += n
 		}
 	}
+	return total, inserted, nil
+}
 
-	// SCPs — policies, no parent in the hierarchy. Resolver fills in targets.
-	// Phase 1: list summaries; Phase 2: per-policy DescribePolicy fan-out to
-	// fetch the policy document Content (not present in ListPolicies output).
-	// Storing Content lets rule-engine evaluate "does any SCP deny X?" without
-	// a second pass.
+// scanOrgSCPs lists SCP summaries, fans out DescribePolicy to fetch each
+// policy's Content, and upserts the rows. SCPs have no hierarchy parent —
+// resolver wires SCP → root/OU/account targets.
+func scanOrgSCPs(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string) (int, int, error) {
 	var summaries []types.PolicySummary
-	policyPager := organizations.NewListPoliciesPaginator(client, &organizations.ListPoliciesInput{
+	pager := organizations.NewListPoliciesPaginator(client, &organizations.ListPoliciesInput{
 		Filter: types.PolicyTypeServiceControlPolicy,
 	})
-	for policyPager.HasMorePages() {
-		page, err := policyPager.NextPage(ctx)
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "organizations:ListPolicies", acct.ID, "", err)
+				return 0, 0, skipIfAccessDenied(st, "organizations:ListPolicies", acct.ID, "", err)
 			}
-			return total, inserted, fmt.Errorf("organizations:ListPolicies: %w", err)
+			return 0, 0, fmt.Errorf("organizations:ListPolicies: %w", err)
 		}
 		summaries = append(summaries, page.Policies...)
 	}
-	if len(summaries) > 0 {
-		policies, derr := describeSCPs(ctx, client, summaries, acct, st)
-		if derr != nil {
-			return total, inserted, derr
-		}
-		var batch []*store.Resource
-		for _, p := range policies {
-			if p == nil || p.PolicySummary == nil {
-				continue
-			}
-			arn := sv(p.PolicySummary.Arn)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeOrganizationsSCP,
-				NativeID:       arn,
-				Name:           p.PolicySummary.Name,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
-				// p-FullAWSAccess is the AWS-default SCP attached to every
-				// root/OU/account on org creation.
-				ManagedByProvider: sv(p.PolicySummary.Id) == "p-FullAWSAccess",
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert SCPs: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
+	if len(summaries) == 0 {
+		return 0, 0, nil
 	}
-
-	// Build the closure table now that every resource is in place.
-	if err := st.RecordHierarchyBatch(closurePairs); err != nil {
-		return total, inserted, fmt.Errorf("org hierarchy closure: %w", err)
+	policies, err := describeSCPs(ctx, client, summaries, acct, st)
+	if err != nil {
+		return 0, 0, err
 	}
-
-	// Phase 5: organization resource policy (per-org singleton).
-	t, i, ferr := scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	var batch []*store.Resource
+	for _, p := range policies {
+		if p == nil || p.PolicySummary == nil {
+			continue
+		}
+		arn := sv(p.PolicySummary.Arn)
+		batch = append(batch, &store.Resource{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeOrganizationsSCP,
+			NativeID:       arn,
+			Name:           p.PolicySummary.Name,
+			AttributesJSON: mustJSON(p),
+			DiscoveredBy:   scanID,
+			// p-FullAWSAccess is the AWS-default SCP attached to every
+			// root/OU/account on org creation.
+			ManagedByProvider: sv(p.PolicySummary.Id) == "p-FullAWSAccess",
+		})
 	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	if len(batch) == 0 {
+		return 0, 0, nil
+	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert SCPs: %w", err)
+	}
+	return len(batch), n, nil
 }
 
 // scanOrganizationsResourcePolicy captures the organization-level resource
