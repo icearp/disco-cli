@@ -20,34 +20,38 @@ var (
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot <output-file>",
 	Short: "Freeze the local DB into a single-file evidence package",
-	Long: `Writes <output-file> — a single archive (` + "`zip`" + `, ` + "`tar.gz`" + `/` + "`tgz`" + `,
-or ` + "`tar.xz`" + `/` + "`txz`" + `) containing disco.db (atomic copy via SQLite VACUUM
-INTO) plus manifest.json (tool_version, db_sha256, generated_at, scan_ids).
-Pair with 'disco verify <output-file>' on the receiving end.
-
-Format is inferred from the file extension. Unknown extensions error.
+	Long: `Writes <output-file> — a single archive (zip, tar.gz/tgz, or
+tar.xz/txz, format inferred from extension) containing disco.db (atomic
+copy via SQLite VACUUM INTO) plus manifest.json (tool_version,
+db_sha256, generated_at, scan_ids). Pair with 'disco verify
+<output-file>' on the receiving end.
 
 Refuses to overwrite an existing file unless --force. Writes via a
-temporary sibling file and atomically renames so a failed snapshot
-leaves no partial archive at the output path.
+temporary sibling file and atomically renames, so a failed snapshot
+leaves no partial archive at the output path. --db-readonly is allowed
+(the source DB is opened read-only). Output is silent on stdout; a
+single-line summary lands on stderr.
 
---db-readonly is allowed (the source DB is opened read-only; the output
-file is its own write target). Output is silent on stdout; a single-line
-summary lands on stderr.
+Examples:
+  disco snapshot /tmp/audit-2026-q2.tar.xz
+  disco snapshot /tmp/audit-2026-q2.zip --force
+  disco --db-readonly snapshot /tmp/handoff.tgz
+
+## Signing
 
 Pass --signing-payload <file> to write the canonical (RFC 8785-style
-JCS) bytes of the manifest alongside the archive. Sign with any tool
-that produces a raw 64-byte ed25519 signature (` + "`minisign`" + `,
-` + "`cosign sign-blob`" + `, ` + "`openssl pkeyutl -sign -rawin`" + `) and ship the detached
-signature plus an ed25519 public key to the receiver. They run
-` + "`disco verify --signature <sig> --pubkey <key>`" + `.
+JCS) bytes of the manifest alongside the archive. Sign that payload
+externally with any tool that produces a raw 64-byte ed25519 signature
+(minisign, cosign sign-blob, openssl pkeyutl -sign -rawin) and ship the
+detached signature plus an ed25519 public key to the receiver, who runs
+'disco verify --signature <sig> --pubkey <key>'.
 
-The pubkey may be PEM (` + "`openssl pkey -pubout`" + `), an OpenSSH ` + "`.pub`" + ` line
-(` + "`ssh-keygen -t ed25519`" + `), or a raw 32-byte file. NOTE:
-` + "`ssh-keygen -Y sign`" + ` produces an SSHSIG-armored envelope, NOT a raw
-ed25519 signature, so its output is incompatible with --signature. Use
-openssl/cosign/minisign for the signing step even when reusing your
-SSH ed25519 key as the verifier identity.
+The pubkey may be PEM (openssl pkey -pubout), an OpenSSH .pub line
+(ssh-keygen -t ed25519), or a raw 32-byte file. NOTE: ssh-keygen -Y
+sign produces an SSHSIG-armored envelope, NOT a raw ed25519 signature,
+so its output is incompatible with --signature. Use openssl / cosign /
+minisign for the signing step even when reusing an SSH ed25519 key as
+the verifier identity.
 
 Canonical OpenSSL recipe end-to-end:
 
@@ -59,13 +63,10 @@ Canonical OpenSSL recipe end-to-end:
 
 Cosign/Sigstore-witnessed signing (transparency log inclusion) ships in
 a paid follow-up. The OSS plumbing here (canonical payload + ed25519
-detached) is enough to close the unsigned-manifest forgery gap reported
-in focus-group/SUMMARY.md F1.
+detached) closes the unsigned-manifest forgery gap reported in
+focus-group/SUMMARY.md F1.
 
-Examples:
-  disco snapshot /tmp/audit-2026-q2.tar.xz
-  disco snapshot /tmp/audit-2026-q2.zip --force
-  disco --db-readonly snapshot /tmp/handoff.tgz
+Signing example:
   disco snapshot /tmp/audit.tgz --signing-payload /tmp/audit.manifest.json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
