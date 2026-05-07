@@ -287,80 +287,102 @@ func (s *Store) GraphPath(fromID, toID string, opts GraphPathOpts) (*GraphResult
 	frontier := []string{fromID}
 
 	for depth := 0; depth < maxDepth && len(frontier) > 0; depth++ {
-		var nextIDs []string
-		next := map[string]struct{}{}
-		for _, id := range frontier {
-			if dir == DirOut || dir == DirBoth {
-				rels, err := s.RelationshipsFrom(id, opts.Kinds...)
-				if err != nil {
-					return nil, err
-				}
-				for _, r := range rels {
-					if _, ok := parent[r.ToID]; ok {
-						continue
-					}
-					parent[r.ToID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
-					next[r.ToID] = struct{}{}
-				}
-			}
-			if dir == DirIn || dir == DirBoth {
-				rels, err := s.RelationshipsTo(id, opts.Kinds...)
-				if err != nil {
-					return nil, err
-				}
-				for _, r := range rels {
-					if _, ok := parent[r.FromID]; ok {
-						continue
-					}
-					parent[r.FromID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
-					next[r.FromID] = struct{}{}
-				}
-			}
-		}
-		// Apply exclusion + managed-terminal filter against fetched resources
-		// before they propagate to the next frontier. Edges into excluded
-		// targets stay in `parent` only if the target is the destination
-		// (excluded targets cannot win the race to be the dest).
-		if len(next) == 0 {
-			continue
-		}
-		ids := make([]string, 0, len(next))
-		for id := range next {
-			ids = append(ids, id)
-		}
-		sort.Strings(ids)
-		batch, err := fetchResourcesByIDs(s, ids)
+		nextIDs, hit, err := graphPathExpandStep(s, fromID, toID, frontier, parent, dir, opts, *from)
 		if err != nil {
 			return nil, err
 		}
-		byID := make(map[string]Resource, len(batch))
-		for _, r := range batch {
-			byID[r.ID] = r
-		}
-		for _, id := range ids {
-			r, ok := byID[id]
-			if !ok {
-				delete(parent, id)
-				continue
-			}
-			if id == toID {
-				return reconstructPath(s, fromID, toID, parent, *from)
-			}
-			if matchTypeGlob(opts.ExcludeTypes, r.Type) ||
-				(r.Region != nil && slices.Contains(opts.ExcludeRegions, *r.Region)) {
-				delete(parent, id)
-				continue
-			}
-			if !opts.IncludeManaged && r.ManagedByProvider {
-				// Reachable but terminal — keep parent entry so a one-hop
-				// match counts, but do not expand through it.
-				continue
-			}
-			nextIDs = append(nextIDs, id)
+		if hit != nil {
+			return hit, nil
 		}
 		frontier = nextIDs
 	}
 	return nil, ErrNoPath
+}
+
+// graphPathExpandStep performs one BFS layer expansion from `frontier`,
+// records parent-pointers, applies exclusion + managed-terminal filtering,
+// and either returns a successfully reconstructed path (if `toID` is hit)
+// or the next layer's expandable ids.
+func graphPathExpandStep(s *Store, fromID, toID string, frontier []string, parent map[string]bfsEdge, dir string, opts GraphPathOpts, fromRes Resource) ([]string, *GraphResult, error) {
+	next := map[string]struct{}{}
+	for _, id := range frontier {
+		if err := graphPathRecordNeighbors(s, id, dir, opts.Kinds, parent, next); err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(next) == 0 {
+		return nil, nil, nil
+	}
+	ids := make([]string, 0, len(next))
+	for id := range next {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	batch, err := fetchResourcesByIDs(s, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	byID := make(map[string]Resource, len(batch))
+	for _, r := range batch {
+		byID[r.ID] = r
+	}
+	var nextIDs []string
+	for _, id := range ids {
+		r, ok := byID[id]
+		if !ok {
+			delete(parent, id)
+			continue
+		}
+		if id == toID {
+			hit, err := reconstructPath(s, fromID, toID, parent, fromRes)
+			return nil, hit, err
+		}
+		if matchTypeGlob(opts.ExcludeTypes, r.Type) ||
+			(r.Region != nil && slices.Contains(opts.ExcludeRegions, *r.Region)) {
+			delete(parent, id)
+			continue
+		}
+		if !opts.IncludeManaged && r.ManagedByProvider {
+			// Reachable but terminal — keep parent entry so a one-hop match
+			// counts, but do not expand through it.
+			continue
+		}
+		nextIDs = append(nextIDs, id)
+	}
+	return nextIDs, nil, nil
+}
+
+// graphPathRecordNeighbors fans `id` out in the requested direction and
+// records each previously-unseen neighbor's parent-pointer into `parent`
+// + adds it to `next` for the upcoming layer.
+func graphPathRecordNeighbors(s *Store, id, dir string, kinds []string, parent map[string]bfsEdge, next map[string]struct{}) error {
+	if dir == DirOut || dir == DirBoth {
+		rels, err := s.RelationshipsFrom(id, kinds...)
+		if err != nil {
+			return err
+		}
+		for _, r := range rels {
+			if _, ok := parent[r.ToID]; ok {
+				continue
+			}
+			parent[r.ToID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
+			next[r.ToID] = struct{}{}
+		}
+	}
+	if dir == DirIn || dir == DirBoth {
+		rels, err := s.RelationshipsTo(id, kinds...)
+		if err != nil {
+			return err
+		}
+		for _, r := range rels {
+			if _, ok := parent[r.FromID]; ok {
+				continue
+			}
+			parent[r.FromID] = bfsEdge{parent: id, kind: r.Kind, eFrom: r.FromID, eTo: r.ToID}
+			next[r.FromID] = struct{}{}
+		}
+	}
+	return nil
 }
 
 // bfsEdge records a parent-pointer entry for GraphPath reconstruction.
