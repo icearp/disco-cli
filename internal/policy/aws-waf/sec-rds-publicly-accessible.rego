@@ -20,10 +20,6 @@ deny contains f if {
 		"tags": {
 			"waf_pillar": "security",
 			"waf_qid": "SEC 5",
-			"soc2": "CC6.6",
-			"iso27001": "A.8.20",
-			"pci_dss": "1.3",
-			"nist_800_53": "SC-7",
 		},
 	}
 }

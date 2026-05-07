@@ -150,9 +150,9 @@ When `--exit-nonzero` trips on non-empty findings, `RunE` returns the package-le
 - `rules[].defaultConfiguration.level` mapped from `severity` via `severityToLevel`
 - `rules[].properties.tags` flattened as `["waf_pillar:security", "soc2:CC6.1", ...]`
 - `results[].partialFingerprints["disco/v1"] = sha256(rule_id+":"+resource_id)[:16]` so GitHub code-scanning de-dupes across runs
-- `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` (`waf_pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output.
+- `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` listed in `taxonomyKeys` (`waf_pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output. Empty keys are skipped, so a rule that emits only `waf_pillar` + `waf_qid` produces a SARIF doc with two taxonomy entries; a BYO rule emitting `soc2` adds a third without code change.
 
-Bundled `aws-waf` rules (F10) now ship `tags: { waf_pillar, waf_qid, soc2?, iso27001?, pci_dss?, nist_800_53? }` so `--tag waf_pillar=security` / `--tag soc2=CC6.1` filtering and SARIF taxonomies work out of the box. New rules in any pack should follow the same shape; sec-/cost-/rel-/ops- file-prefix conveys the pillar but the `tags.waf_pillar` value is what the engine and SARIF read.
+Bundled `aws-waf` rules (F10) ship a deliberately minimal `tags: { waf_pillar, waf_qid }` — the OSS pack is the wiring sample, not a curated framework-mapped pack. The `soc2` / `iso27001` / `pci_dss` / `nist_800_53` keys are kept reserved in `taxonomyKeys` so paid framework packs (CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001) and BYO Rego authors can populate them and get SARIF taxonomies + `--tag soc2=CC6.1` filtering for free. Don't fold control-catalogue mappings into the OSS rules — that's the paid pack's job.
 
 The unprefixed `pillar` key is intentionally reserved for a future cross-framework grouping (e.g. NIST CSF Identify/Protect/Detect/Respond/Recover, CIS controls categories) — using it for AWS WAF pillars only would collide. Frame-specific keys (`waf_pillar`, future `csf_function`, `cis_category`) are the convention.
 
