@@ -49,6 +49,27 @@ func memDBNameIndex(acct *account, st *store.Store, rtype string) (map[string]st
 	return idx, nil
 }
 
+// memDBClusterAttrs mirrors the cluster fields the resolver walks.
+type memDBClusterAttrs struct {
+	KmsKeyID               *string `json:"KmsKeyId"`
+	ACLName                *string `json:"ACLName"`
+	SubnetGroupName        *string `json:"SubnetGroupName"`
+	ParameterGroupName     *string `json:"ParameterGroupName"`
+	MultiRegionClusterName *string `json:"MultiRegionClusterName"`
+	SnsTopicArn            *string `json:"SnsTopicArn"`
+	SecurityGroups         []struct {
+		SecurityGroupID *string `json:"SecurityGroupId"`
+	} `json:"SecurityGroups"`
+}
+
+// memDBClusterTargetSets bundles the FK-safe id sets + KMS index for the
+// cluster resolver helpers.
+type memDBClusterTargetSets struct {
+	kmsIdx                       *kmsResolveIndex
+	aclIdx, sgIdx, pgIdx, mrcIdx map[string]string
+	ec2SGSet, snsSet             map[string]bool
+}
+
 // resolveMemoryDBClusterRefs walks each cluster's KmsKeyID, ACLName,
 // SubnetGroupName, ParameterGroupName, MultiRegionClusterName, SecurityGroups[],
 // and SnsTopicArn — every cross-resource ref the DescribeClusters response
@@ -63,106 +84,127 @@ func resolveMemoryDBClusterRefs(acct *account, st *store.Store) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	kmsIdx, err := loadKMSResolveIndex(acct, st)
-	if err != nil {
-		return err
-	}
-	aclIdx, err := memDBNameIndex(acct, st, TypeMemoryDBACL)
-	if err != nil {
-		return err
-	}
-	sgIdx, err := memDBNameIndex(acct, st, TypeMemoryDBSubnetGroup)
-	if err != nil {
-		return err
-	}
-	pgIdx, err := memDBNameIndex(acct, st, TypeMemoryDBParameterGroup)
-	if err != nil {
-		return err
-	}
-	mrcIdx, err := memDBNameIndex(acct, st, TypeMemoryDBMultiRegionCluster)
-	if err != nil {
-		return err
-	}
-	ec2SGSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
-	if err != nil {
-		return err
-	}
-	snsSet, err := scannedIDSet(acct, st, TypeSNSTopic)
+	sets, err := loadMemDBClusterTargetSets(acct, st)
 	if err != nil {
 		return err
 	}
 	for _, r := range rows {
-		var attrs struct {
-			KmsKeyID               *string `json:"KmsKeyId"`
-			ACLName                *string `json:"ACLName"`
-			SubnetGroupName        *string `json:"SubnetGroupName"`
-			ParameterGroupName     *string `json:"ParameterGroupName"`
-			MultiRegionClusterName *string `json:"MultiRegionClusterName"`
-			SnsTopicArn            *string `json:"SnsTopicArn"`
-			SecurityGroups         []struct {
-				SecurityGroupID *string `json:"SecurityGroupId"`
-			} `json:"SecurityGroups"`
-		}
+		var attrs memDBClusterAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		emit := func(tgtID, kind string) error {
-			if tgtID == "" {
-				return nil
-			}
-			if err := st.UpsertRelationship(r.ID, tgtID, kind, "directed", nil); err != nil {
-				return fmt.Errorf("upsert memorydb cluster→%s: %w", kind, err)
-			}
-			return nil
+		if err := emitMemDBKMSEdge(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
-		if ref := sv(attrs.KmsKeyID); ref != "" {
-			if id, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID); ok {
-				if err := emit(id, store.RelUses); err != nil {
-					return err
-				}
-			}
+		if err := emitMemDBNameEdges(st, r, region, attrs, sets); err != nil {
+			return err
 		}
-		if name := sv(attrs.ACLName); name != "" {
-			if err := emit(aclIdx[region+"|"+name], store.RelUses); err != nil {
-				return err
-			}
+		if err := emitMemDBSNSEdge(st, acct, r, attrs, sets); err != nil {
+			return err
 		}
-		if name := sv(attrs.SubnetGroupName); name != "" {
-			if err := emit(sgIdx[region+"|"+name], store.RelAttachedTo); err != nil {
-				return err
-			}
+		if err := emitMemDBSGEdges(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
-		if name := sv(attrs.ParameterGroupName); name != "" {
-			if err := emit(pgIdx[region+"|"+name], store.RelUses); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+func loadMemDBClusterTargetSets(acct *account, st *store.Store) (memDBClusterTargetSets, error) {
+	var sets memDBClusterTargetSets
+	var err error
+	if sets.kmsIdx, err = loadKMSResolveIndex(acct, st); err != nil {
+		return sets, err
+	}
+	if sets.aclIdx, err = memDBNameIndex(acct, st, TypeMemoryDBACL); err != nil {
+		return sets, err
+	}
+	if sets.sgIdx, err = memDBNameIndex(acct, st, TypeMemoryDBSubnetGroup); err != nil {
+		return sets, err
+	}
+	if sets.pgIdx, err = memDBNameIndex(acct, st, TypeMemoryDBParameterGroup); err != nil {
+		return sets, err
+	}
+	if sets.mrcIdx, err = memDBNameIndex(acct, st, TypeMemoryDBMultiRegionCluster); err != nil {
+		return sets, err
+	}
+	if sets.ec2SGSet, err = scannedIDSet(acct, st, TypeEC2SecurityGroup); err != nil {
+		return sets, err
+	}
+	if sets.snsSet, err = scannedIDSet(acct, st, TypeSNSTopic); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+// emitMemDBClusterEdge upserts srcID → tgtID when tgtID is non-empty.
+func emitMemDBClusterEdge(st *store.Store, srcID, tgtID, kind string) error {
+	if tgtID == "" {
+		return nil
+	}
+	if err := st.UpsertRelationship(srcID, tgtID, kind, "directed", nil); err != nil {
+		return fmt.Errorf("upsert memorydb cluster→%s: %w", kind, err)
+	}
+	return nil
+}
+
+func emitMemDBKMSEdge(st *store.Store, acct *account, r store.Resource, region string, attrs memDBClusterAttrs, sets memDBClusterTargetSets) error {
+	ref := sv(attrs.KmsKeyID)
+	if ref == "" {
+		return nil
+	}
+	id, ok := sets.kmsIdx.resolveKMSKeyID(ref, region, acct.ID)
+	if !ok {
+		return nil
+	}
+	return emitMemDBClusterEdge(st, r.ID, id, store.RelUses)
+}
+
+func emitMemDBNameEdges(st *store.Store, r store.Resource, region string, attrs memDBClusterAttrs, sets memDBClusterTargetSets) error {
+	for _, e := range []struct {
+		name string
+		idx  map[string]string
+		kind string
+	}{
+		{sv(attrs.ACLName), sets.aclIdx, store.RelUses},
+		{sv(attrs.SubnetGroupName), sets.sgIdx, store.RelAttachedTo},
+		{sv(attrs.ParameterGroupName), sets.pgIdx, store.RelUses},
+		{sv(attrs.MultiRegionClusterName), sets.mrcIdx, store.RelAttachedTo},
+	} {
+		if e.name == "" {
+			continue
 		}
-		if name := sv(attrs.MultiRegionClusterName); name != "" {
-			if err := emit(mrcIdx[region+"|"+name], store.RelAttachedTo); err != nil {
-				return err
-			}
+		if err := emitMemDBClusterEdge(st, r.ID, e.idx[region+"|"+e.name], e.kind); err != nil {
+			return err
 		}
-		if topic := sv(attrs.SnsTopicArn); topic != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topic)
-			if snsSet[tgtID] {
-				if err := emit(tgtID, store.RelUses); err != nil {
-					return err
-				}
-			}
+	}
+	return nil
+}
+
+func emitMemDBSNSEdge(st *store.Store, acct *account, r store.Resource, attrs memDBClusterAttrs, sets memDBClusterTargetSets) error {
+	topic := sv(attrs.SnsTopicArn)
+	if topic == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeSNSTopic, topic)
+	if !sets.snsSet[tgtID] {
+		return nil
+	}
+	return emitMemDBClusterEdge(st, r.ID, tgtID, store.RelUses)
+}
+
+func emitMemDBSGEdges(st *store.Store, acct *account, r store.Resource, region string, attrs memDBClusterAttrs, sets memDBClusterTargetSets) error {
+	for _, sg := range attrs.SecurityGroups {
+		id := sv(sg.SecurityGroupID)
+		if id == "" {
+			continue
 		}
-		for _, sg := range attrs.SecurityGroups {
-			id := sv(sg.SecurityGroupID)
-			if id == "" {
-				continue
-			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
-			if !ec2SGSet[tgtID] {
-				continue
-			}
-			if err := emit(tgtID, store.RelUses); err != nil {
-				return err
-			}
+		tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", id))
+		if !sets.ec2SGSet[tgtID] {
+			continue
+		}
+		if err := emitMemDBClusterEdge(st, r.ID, tgtID, store.RelUses); err != nil {
+			return err
 		}
 	}
 	return nil
