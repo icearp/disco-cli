@@ -19,6 +19,8 @@ var (
 	graphType           string
 	graphAccount        string
 	graphDepth          int
+	graphPathDepth      int
+	graphBlastDepth     int
 	graphKinds          []string
 	graphDirection      string
 	graphOutputFmt      string
@@ -134,16 +136,8 @@ within the configured constraints.`,
 			return fmt.Errorf("resolve %s: %w", args[1], err)
 		}
 
-		// `graph` parent passes --depth=2 by default which is too tight for
-		// path queries; the spec says default 8 unless the user explicitly
-		// overrode the flag.
-		depth := graphDepth
-		if !cmd.Flags().Changed("depth") && !cmd.Parent().PersistentFlags().Changed("depth") {
-			depth = 8
-		}
-
 		g, err := db.GraphPath(from.ID, to.ID, store.GraphPathOpts{
-			MaxDepth:       depth,
+			MaxDepth:       graphPathDepth,
 			Kinds:          graphKinds,
 			Direction:      graphDirection,
 			IncludeManaged: graphIncludeManaged,
@@ -204,15 +198,10 @@ Caps via --max-nodes / --max-edges report truncation to stderr.`,
 				store.RelCrossProjectIAM,
 			}
 		}
-		depth := graphDepth
-		if !cmd.Flags().Changed("depth") && !cmd.Parent().PersistentFlags().Changed("depth") {
-			depth = 3
-		}
-
 		dirSet := cmd.Parent().PersistentFlags().Changed("direction")
 		kindsSet := cmd.Parent().PersistentFlags().Changed("kinds")
 		opts := store.GraphWalkOpts{
-			MaxDepth:       depth,
+			MaxDepth:       graphBlastDepth,
 			Kinds:          kinds,
 			Direction:      store.DirOut,
 			IncludeManaged: graphIncludeManaged,
@@ -631,8 +620,8 @@ func init() {
 	graphCmd.PersistentFlags().StringVar(&graphProvider, "provider", "", "Disambiguate native ID by provider")
 	graphCmd.PersistentFlags().StringVar(&graphType, "type", "", "Disambiguate native ID by resource type")
 	graphCmd.PersistentFlags().StringVar(&graphAccount, "account", "", "Disambiguate native ID by account/subscription/project")
-	graphCmd.PersistentFlags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only; defaults: explore=2, path=8, blast=3)")
-	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all; blast: all except 'contains')")
+	graphCmd.Flags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only)")
+	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all kinds)")
 	graphCmd.PersistentFlags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
 	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, json, dot, mermaid")
 	graphCmd.PersistentFlags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
@@ -644,6 +633,8 @@ func init() {
 	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
 	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", ")+" (mono = byte-stable legacy output)")
 	graphCmd.PersistentFlags().StringVar(&graphRankdir, "rankdir", "LR", "DOT layout direction: LR, RL, TB, BT (RL inverts horizontally — handy when edges flow child→parent)")
+	graphPathCmd.Flags().IntVar(&graphPathDepth, "depth", 8, "Maximum BFS traversal depth (0 = seed only)")
+	graphBlastCmd.Flags().IntVar(&graphBlastDepth, "depth", 3, "Maximum BFS traversal depth (0 = seed only)")
 	graphCompleteCmd.Flags().BoolVar(&graphOrphansOnly, "orphans-only", false,
 		"Keep only resources with zero in/out edges — surfaces dangling volumes, key-pairs, IAM principals, etc.")
 	graphCmd.AddCommand(graphPathCmd, graphBlastCmd, graphCompleteCmd)

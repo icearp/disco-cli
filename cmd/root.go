@@ -106,9 +106,9 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		fmt.Sprintf("config file (default: %s)", filepath.Join(configDir(), "config.yaml")))
+		fmt.Sprintf("config file (default: %s)", tildify(filepath.Join(configDir(), "config.yaml"))))
 	rootCmd.PersistentFlags().String("db", "",
-		fmt.Sprintf("database path (default: %s)", filepath.Join(dataDir(), "disco.db")))
+		fmt.Sprintf("database path (default: %s)", tildify(filepath.Join(dataDir(), "disco.db"))))
 	// Register -v as --verbose BEFORE cobra lazily binds it to --version
 	// (InitDefaultVersionFlag skips -v when the shorthand is already taken).
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
@@ -133,6 +133,23 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil && verbose {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+// tildify replaces a leading $HOME with "~" so help-text default values
+// don't leak the build/run host's home directory. Falls through unchanged
+// when $HOME is unresolvable or the path doesn't sit under it.
+func tildify(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(p, home+string(filepath.Separator)); ok {
+		return "~" + string(filepath.Separator) + rest
+	}
+	return p
 }
 
 // defaultDBPath returns the configured or default path for the disco database.

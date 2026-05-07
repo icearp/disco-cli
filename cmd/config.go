@@ -49,6 +49,19 @@ azure:
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage disco configuration",
+	Long: `Manage disco configuration.
+
+Resolution order (highest precedence first):
+  1. DISCO_* environment variables (e.g. DISCO_DB)
+  2. --config <path> on the command line
+  3. ${XDG_CONFIG_HOME}/disco/config.yaml (Linux: ~/.config/disco/config.yaml;
+     macOS/Windows: platform app-data dir resolved via github.com/adrg/xdg)
+
+Credentials are never stored in this file. Each provider uses its native
+auth chain (AWS shared config, gcloud ADC, Azure DefaultAzureCredential).
+
+Subcommands:
+  init   Generate a boilerplate config file at the default location.`,
 }
 
 var configInitForce bool
@@ -56,7 +69,21 @@ var configInitForce bool
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Generate a boilerplate config file at the default location",
-	RunE:  runConfigInit,
+	Long: `Writes a starter config.yaml under the resolved config directory
+(${XDG_CONFIG_HOME}/disco/config.yaml on Linux). The file enumerates
+optional aws / gcp / azure sections; each is opt-in — disco auto-detects
+accounts, projects, and subscriptions from ambient credentials when a
+section is omitted.
+
+Refuses to overwrite an existing file unless --force. Refuses to write at
+all when --db-readonly is set (the global flag scopes the DB but disco
+treats config writes as part of the same trust boundary).
+
+Examples:
+  disco config init
+  disco config init --force
+  disco --config /etc/disco/config.yaml config init`,
+	RunE: runConfigInit,
 }
 
 func init() {

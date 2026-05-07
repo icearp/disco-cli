@@ -96,6 +96,11 @@ Examples:
 		if len(checkRulePaths) == 0 && len(checkPacks) == 0 {
 			return fmt.Errorf("--rules or --packs is required (e.g. --packs aws-waf)")
 		}
+		switch checkSeverity {
+		case "", "low", "medium", "high", "critical":
+		default:
+			return fmt.Errorf("--severity must be one of low|medium|high|critical (got %q)", checkSeverity)
+		}
 
 		ctx := cmd.Context()
 

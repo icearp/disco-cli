@@ -23,6 +23,13 @@ provenance. Anyone who can rewrite both halves can fabricate an "OK"
 archive. Pair with --signature and --pubkey to verify a detached ed25519
 signature over the canonical manifest bytes for true tamper-evidence.
 
+Exit codes:
+  0  archive verifies (db_sha256 match; signature valid when --signature
+     and --pubkey supplied; archive unsigned and --require-signed unset).
+  1  any failure: archive corrupt or truncated, manifest missing or
+     malformed, db_sha256 mismatch, signature mismatch, pubkey mismatch,
+     unsupported format, or --require-signed set against an unsigned archive.
+
 Examples:
   disco verify /tmp/audit-2026-q2.tar.xz
   disco verify /tmp/audit.tgz --signature /tmp/audit.sig --pubkey /tmp/k.pub`,

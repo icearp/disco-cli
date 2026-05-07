@@ -74,7 +74,9 @@ var listCmd = &cobra.Command{
 Examples:
   disco list
   disco list --provider aws --type aws:ec2:instance
-  disco list --provider gcp --region us-central1 --status running
+  disco list --discovered-since 2026-01-01 -o jsonl | jq -s 'length'
+  disco list --created-before 2025-01-01 -t aws:iam:user --include-managed -o json
+  disco list --scan-id latest --scan-as discovered -o csv > q.csv
   disco list --tag-key env --tag-value production -o json`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(listOutputFmt, rerr) }()

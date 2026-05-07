@@ -342,6 +342,7 @@ func init() {
 		subcmd := &cobra.Command{
 			Use:   s.Name(),
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
+			Long:  scanProviderLong(s.Name()),
 		}
 		// Register optional flags only when the provider implements the matching
 		// capability interface — keeps --help honest (no flags listed that would
@@ -400,6 +401,58 @@ func init() {
 // serviceFilterExample returns a representative pair of service prefixes
 // for the given provider, used in --services flag help. Falls back to a
 // generic placeholder for unknown providers.
+// scanProviderLong returns the per-provider Long description shown by
+// `disco scan <provider> --help`. Centralised so the top of every help
+// page documents the same ground rules: how scoping works, what flag is
+// safe to omit, and the canonical one-liner example. Unknown providers
+// fall through to a generic blurb so adding a new scanner package never
+// breaks the help.
+func scanProviderLong(provider string) string {
+	switch provider {
+	case "aws":
+		return `Scan AWS resources across one or more regions.
+
+Account scope comes from the ambient AWS identity (env vars, instance
+profile, ~/.aws/config) or, if config.yaml lists explicit accounts, the
+declared role-chain per entry. Use --profile to pick a named profile and
+--regions to override the configured region list. --skip-globals omits
+account-wide services (IAM, Route53, CloudFront, etc.) when running a
+per-region audit.
+
+Examples:
+  disco scan aws
+  disco scan aws --regions us-west-2,eu-west-1
+  disco scan aws --services aws:ec2,aws:s3 --profile prod
+  disco scan aws --skip-globals --regions us-east-1`
+	case "azure":
+		return `Scan Azure resources across reachable subscriptions.
+
+Subscription scope comes from DefaultAzureCredential (az login, managed
+identity, env vars) or the explicit 'subscriptions:' list in config.yaml.
+There is no --regions / --profile flag — Azure scopes per
+subscription/resource group, configured statically. --services narrows
+the scanner set when iterating on one provider.
+
+Examples:
+  disco scan azure
+  disco scan azure --services azure:compute,azure:network`
+	case "gcp":
+		return `Scan GCP resources across reachable projects.
+
+Project scope comes from Application Default Credentials (gcloud auth
+application-default login) or the explicit 'projects:' list in
+config.yaml. There is no --regions / --profile flag — GCP fans out per
+project against each service's default scope. --services narrows the
+scanner set when iterating on one provider.
+
+Examples:
+  disco scan gcp
+  disco scan gcp --services gcp:compute,gcp:storage`
+	default:
+		return fmt.Sprintf("Scan %s resources.", provider)
+	}
+}
+
 func serviceFilterExample(provider string) string {
 	switch provider {
 	case "aws":

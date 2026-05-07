@@ -57,7 +57,34 @@ Examples:
 var scansShowCmd = &cobra.Command{
 	Use:   "show <id|latest>",
 	Short: "Show full detail for one scan",
-	Args:  cobra.ExactArgs(1),
+	Long: `Print the full record for one scan: lifecycle timestamps, providers
+included, scope (per-provider account/region/project filters captured at
+scan time), arbitrary meta, the resource_count the scan touched, and the
+disco binary version that ran it.
+
+Accepts a full 32-hex scan ID, an 8–31 char hex prefix (matches the short
+form 'disco scans' prints), or 'latest' (most-recent scan whose
+resource_count > 0; falls back to the most-recent scan with a stderr note
+when none qualify).
+
+JSON envelope shape:
+  {
+    "id":             "<32-hex>",
+    "started_at":     "<RFC3339>",
+    "finished_at":    "<RFC3339 or null>",
+    "status":         "running|completed|partial|failed",
+    "providers":      ["aws", ...],
+    "scope":          {<per-provider filter object>},
+    "error":          "<string or null>",
+    "resource_count": <int or null>,
+    "meta":           {<arbitrary scan meta>}
+  }
+
+Examples:
+  disco scans show latest
+  disco scans show 29cdb173
+  disco scans show latest -o json | jq '{id, status, resource_count}'`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(scansOutputFmt, rerr) }()
 

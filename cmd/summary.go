@@ -40,11 +40,14 @@ denominator across all three sections; the same flag works on
 Output formats: table (default), json, csv. JSON envelope shape:
 
   {
-    "as_of":       "<RFC3339 timestamp from latest scan or empty>",
-    "total":       <int>,
-    "by_provider": [{"provider": "aws", "count": 934}],
-    "by_region":   [{"region": "us-east-2", "count": 894}],
-    "by_type":     [{"type": "aws:logs:log-stream", "count": 855}]
+    "as_of":              "<RFC3339 timestamp from latest scan or empty>",
+    "total":              <int>,
+    "managed_included":   <bool — echoes --include-managed>,
+    "by_provider":        [{"provider": "aws", "count": 934}],
+    "by_account":         [{"account_id": "123…", "account_name": "prod", "count": 600}],
+    "by_region":          [{"region": "us-east-2", "count": 894}],
+    "by_type":            [{"type": "aws:logs:log-stream", "count": 855}],
+    "type_buckets_total": <int — distinct types pre --top-types truncation>
   }
 
 CSV is long-form: dimension,value,count (one row per bucket).
