@@ -75,23 +75,47 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 // scanCognitoAll holds the testable scan body — accepts both narrow ifaces
 // so unit tests can swap in stubs without touching production wiring.
 func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Phase 1: list user pool IDs.
+	poolIDs, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
+	if ferr != nil {
+		return 0, 0, ferr
+	}
+	t, i, ferr := scanCognitoUserPoolsAndClients(ctx, idpClient, acct, region, st, scanID, poolIDs)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	idPoolIDs, t, i, ferr := scanCognitoIdentityPools(ctx, idClient, acct, region, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
+	total += t
+	inserted += i
+	return total, inserted, ferr
+}
+
+func listCognitoUserPoolIDs(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store) ([]string, error) {
 	var poolIDs []string
-	upPager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})
-	for upPager.HasMorePages() {
-		out, err := upPager.NextPage(ctx)
+	pager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
+				return nil, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("cognito-idp:ListUserPools: %w", err)
+			return nil, fmt.Errorf("cognito-idp:ListUserPools: %w", err)
 		}
 		for _, p := range out.UserPools {
 			poolIDs = append(poolIDs, sv(p.Id))
 		}
 	}
+	return poolIDs, nil
+}
 
-	// Phase 2: describe user pools + list/describe app clients (concurrent per pool).
+func scanCognitoUserPoolsAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (int, int, error) {
 	var (
 		mu          sync.Mutex
 		poolBatch   []*store.Resource
@@ -101,140 +125,148 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 	g, gctx := errgroup.WithContext(ctx)
 	for _, poolID := range poolIDs {
 		g.Go(func() error {
-			poolOut, err := idpClient.DescribeUserPool(gctx, &cognitoidp.DescribeUserPoolInput{UserPoolId: &poolID})
-			if err != nil {
-				if isAccessDenied(err) {
-					return nil
-				}
-				return fmt.Errorf("cognito-idp:DescribeUserPool %s: %w", poolID, err)
-			}
-			poolARN := sv(poolOut.UserPool.Arn)
-			if poolARN == "" {
-				poolARN = fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
-			}
-			pr := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCognitoUserPool,
-				NativeID:       poolARN,
-				Name:           poolOut.UserPool.Name,
-				Region:         &region,
-				AttributesJSON: mustJSON(poolOut.UserPool),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			poolBatch = append(poolBatch, pr)
-			mu.Unlock()
-
-			// List app clients for this pool.
-			cPager := cognitoidp.NewListUserPoolClientsPaginator(idpClient, &cognitoidp.ListUserPoolClientsInput{
-				UserPoolId: &poolID,
-				MaxResults: aws.Int32(60),
-			})
-			for cPager.HasMorePages() {
-				cOut, err := cPager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						break
-					}
-					return fmt.Errorf("cognito-idp:ListUserPoolClients pool=%s: %w", poolID, err)
-				}
-				for _, c := range cOut.UserPoolClients {
-					clientID := sv(c.ClientId)
-					descOut, err := idpClient.DescribeUserPoolClient(gctx, &cognitoidp.DescribeUserPoolClientInput{
-						UserPoolId: &poolID,
-						ClientId:   &clientID,
-					})
-					if err != nil {
-						continue
-					}
-					arn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", region, acct.ID, poolID, clientID)
-					cr := &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeCognitoAppClient,
-						NativeID:       arn,
-						Name:           descOut.UserPoolClient.ClientName,
-						Region:         &region,
-						AttributesJSON: mustJSON(descOut.UserPoolClient),
-						DiscoveredBy:   scanID,
-					}
-					mu.Lock()
-					clientBatch = append(clientBatch, cr)
-					mu.Unlock()
-
-					// Managed Login Branding lookup. NoSuchManagedLoginBranding when
-					// the app client has no branding configured — silent skip.
-					mlbOut, mlbErr := idpClient.DescribeManagedLoginBrandingByClient(gctx, &cognitoidp.DescribeManagedLoginBrandingByClientInput{
-						UserPoolId: &poolID,
-						ClientId:   &clientID,
-					})
-					if mlbErr != nil {
-						continue
-					}
-					if mlbOut.ManagedLoginBranding == nil {
-						continue
-					}
-					mlbID := sv(mlbOut.ManagedLoginBranding.ManagedLoginBrandingId)
-					if mlbID == "" {
-						continue
-					}
-					mlbArn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/branding/%s", region, acct.ID, poolID, mlbID)
-					mlbLabel := mlbID
-					mu.Lock()
-					mlbBatch = append(mlbBatch, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeCognitoManagedLoginBranding, NativeID: mlbArn,
-						Name: &mlbLabel, Region: &region,
-						AttributesJSON: mustJSON(mlbOut.ManagedLoginBranding), DiscoveredBy: scanID,
-					})
-					mu.Unlock()
-				}
-			}
-			return nil
+			return collectCognitoPoolAndClients(gctx, idpClient, acct, region, scanID, poolID, &mu, &poolBatch, &clientBatch, &mlbBatch)
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return 0, 0, err
 	}
-	if len(poolBatch) > 0 {
-		n, err := st.UpsertResources(poolBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Cognito user pools: %w", err)
+	var total, inserted int
+	for _, kb := range []struct {
+		label string
+		batch []*store.Resource
+	}{
+		{"Cognito user pools", poolBatch},
+		{"Cognito app clients", clientBatch},
+		{"Cognito managed-login-branding", mlbBatch},
+	} {
+		if len(kb.batch) == 0 {
+			continue
 		}
-		total += len(poolBatch)
+		n, err := st.UpsertResources(kb.batch)
+		if err != nil {
+			return total, inserted, fmt.Errorf("upsert %s: %w", kb.label, err)
+		}
+		total += len(kb.batch)
 		inserted += n
 	}
-	if len(clientBatch) > 0 {
-		n, err := st.UpsertResources(clientBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Cognito app clients: %w", err)
-		}
-		total += len(clientBatch)
-		inserted += n
-	}
-	if len(mlbBatch) > 0 {
-		n, err := st.UpsertResources(mlbBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Cognito managed-login-branding: %w", err)
-		}
-		total += len(mlbBatch)
-		inserted += n
-	}
+	return total, inserted, nil
+}
 
-	// Phase 3: identity pools.
-	var idBatch []*store.Resource
+func collectCognitoPoolAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, mu *sync.Mutex, poolBatch, clientBatch, mlbBatch *[]*store.Resource) error {
+	poolOut, err := idpClient.DescribeUserPool(ctx, &cognitoidp.DescribeUserPoolInput{UserPoolId: &poolID})
+	if err != nil {
+		if isAccessDenied(err) {
+			return nil
+		}
+		return fmt.Errorf("cognito-idp:DescribeUserPool %s: %w", poolID, err)
+	}
+	poolARN := sv(poolOut.UserPool.Arn)
+	if poolARN == "" {
+		poolARN = fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
+	}
+	pr := &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeCognitoUserPool,
+		NativeID:       poolARN,
+		Name:           poolOut.UserPool.Name,
+		Region:         &region,
+		AttributesJSON: mustJSON(poolOut.UserPool),
+		DiscoveredBy:   scanID,
+	}
+	mu.Lock()
+	*poolBatch = append(*poolBatch, pr)
+	mu.Unlock()
+	return collectCognitoAppClients(ctx, idpClient, acct, region, scanID, poolID, mu, clientBatch, mlbBatch)
+}
+
+func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, mu *sync.Mutex, clientBatch, mlbBatch *[]*store.Resource) error {
+	cPager := cognitoidp.NewListUserPoolClientsPaginator(idpClient, &cognitoidp.ListUserPoolClientsInput{
+		UserPoolId: &poolID,
+		MaxResults: aws.Int32(60),
+	})
+	for cPager.HasMorePages() {
+		cOut, err := cPager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return nil
+			}
+			return fmt.Errorf("cognito-idp:ListUserPoolClients pool=%s: %w", poolID, err)
+		}
+		for _, c := range cOut.UserPoolClients {
+			clientID := sv(c.ClientId)
+			descOut, err := idpClient.DescribeUserPoolClient(ctx, &cognitoidp.DescribeUserPoolClientInput{
+				UserPoolId: &poolID,
+				ClientId:   &clientID,
+			})
+			if err != nil {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", region, acct.ID, poolID, clientID)
+			cr := &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeCognitoAppClient,
+				NativeID:       arn,
+				Name:           descOut.UserPoolClient.ClientName,
+				Region:         &region,
+				AttributesJSON: mustJSON(descOut.UserPoolClient),
+				DiscoveredBy:   scanID,
+			}
+			mu.Lock()
+			*clientBatch = append(*clientBatch, cr)
+			mu.Unlock()
+			collectCognitoManagedLoginBranding(ctx, idpClient, acct, region, scanID, poolID, clientID, mu, mlbBatch)
+		}
+	}
+	return nil
+}
+
+// collectCognitoManagedLoginBranding fetches the per-app-client branding
+// row, silently skipping NoSuchManagedLoginBranding (default state when
+// the client has no branding configured).
+func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID, clientID string, mu *sync.Mutex, mlbBatch *[]*store.Resource) {
+	mlbOut, mlbErr := idpClient.DescribeManagedLoginBrandingByClient(ctx, &cognitoidp.DescribeManagedLoginBrandingByClientInput{
+		UserPoolId: &poolID,
+		ClientId:   &clientID,
+	})
+	if mlbErr != nil || mlbOut.ManagedLoginBranding == nil {
+		return
+	}
+	mlbID := sv(mlbOut.ManagedLoginBranding.ManagedLoginBrandingId)
+	if mlbID == "" {
+		return
+	}
+	mlbArn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/branding/%s", region, acct.ID, poolID, mlbID)
+	mlbLabel := mlbID
+	mu.Lock()
+	*mlbBatch = append(*mlbBatch, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeCognitoManagedLoginBranding, NativeID: mlbArn,
+		Name: &mlbLabel, Region: &region,
+		AttributesJSON: mustJSON(mlbOut.ManagedLoginBranding), DiscoveredBy: scanID,
+	})
+	mu.Unlock()
+}
+
+func scanCognitoIdentityPools(ctx context.Context, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	type idPoolAttrs struct {
+		Pool  any               `json:"Pool"`
+		Roles map[string]string `json:"Roles"`
+	}
+	var batch []*store.Resource
 	var idPoolIDs []string
-	ipPager := cognitoidentity.NewListIdentityPoolsPaginator(idClient, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60)})
-	for ipPager.HasMorePages() {
-		out, err := ipPager.NextPage(ctx)
+	pager := cognitoidentity.NewListIdentityPoolsPaginator(idClient, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60)})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				break
 			}
-			return 0, 0, fmt.Errorf("cognito-identity:ListIdentityPools: %w", err)
+			return nil, 0, 0, fmt.Errorf("cognito-identity:ListIdentityPools: %w", err)
 		}
 		for _, p := range out.IdentityPools {
 			ipID := sv(p.IdentityPoolId)
@@ -243,18 +275,12 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 			if err != nil {
 				continue
 			}
-			// Pair pool description with role mappings for the resolver.
 			var roles map[string]string
 			if rOut, rErr := idClient.GetIdentityPoolRoles(ctx, &cognitoidentity.GetIdentityPoolRolesInput{IdentityPoolId: &ipID}); rErr == nil {
 				roles = rOut.Roles
 			}
-			type idPoolAttrs struct {
-				Pool  any               `json:"Pool"`
-				Roles map[string]string `json:"Roles"`
-			}
-			attrs := idPoolAttrs{Pool: descOut, Roles: roles}
 			arn := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
-			r := &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -262,29 +288,17 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 				NativeID:       arn,
 				Name:           descOut.IdentityPoolName,
 				Region:         &region,
-				AttributesJSON: mustJSON(attrs),
+				AttributesJSON: mustJSON(idPoolAttrs{Pool: descOut, Roles: roles}),
 				DiscoveredBy:   scanID,
-			}
-			idBatch = append(idBatch, r)
+			})
 		}
 	}
-	if len(idBatch) > 0 {
-		n, err := st.UpsertResources(idBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert Cognito identity pools: %w", err)
-		}
-		total += len(idBatch)
-		inserted += n
+	if len(batch) == 0 {
+		return idPoolIDs, 0, 0, nil
 	}
-
-	{
-		t, i, err := scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
-		if err != nil {
-			return total, inserted, err
-		}
-		total += t
-		inserted += i
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return idPoolIDs, 0, 0, fmt.Errorf("upsert Cognito identity pools: %w", err)
 	}
-
-	return total, inserted, nil
+	return idPoolIDs, len(batch), n, nil
 }
