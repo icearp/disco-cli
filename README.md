@@ -128,11 +128,11 @@ disco graph blast my-role --provider aws --type aws:iam:role --depth 4 -o dot | 
 
 ### Drift detection between scans
 
-Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-role discovered|verified|any` picks which scan-FK column the filter targets — `discovered` for "what's new this run", `verified` for "what this run re-verified."
+Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the most-recent scan that touched rows. `--scan-as discovered|verified|any` picks which scan-FK column the filter targets — `discovered` for "what's new this run", `verified` for "what this run re-verified."
 
 ```bash
 disco scans
-disco list --scan-id latest --scan-role discovered
+disco list --scan-id latest --scan-as discovered
 disco list --since 2026-04-01 -o json | jq 'length'
 ```
 

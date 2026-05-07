@@ -89,12 +89,12 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `datetime('now')` has 1s resolution — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
 
-## `--scan-role discovered|verified|any` reconciles `scans.ResourceCount` ↔ `list --scan-id`
+## `--scan-as discovered|verified|any` reconciles `scans.ResourceCount` ↔ `list --scan-id`
 
 `scans.resource_count` counts every row a scan touched (insert OR re-verify). `list --scan-id <id>` previously filtered on `discovered_by` only, so a scan that re-verified pre-existing rows reported `RESOURCES: 2045` in `scans` but yielded 0 from `list --scan-id`. F3 fix:
 
-- `ResourceFilter.ScanRole` selects which scan-FK column matches: `discovered` → `discovered_by = ?`, `verified` → `verified_by = ?`, `any` (default, empty) → either column matches.
-- `list --scan-role <role>` exposes the choice. Default `any` matches the persona expectation that the named scan returns rows it touched.
+- `ResourceFilter.ScanAs` selects which scan-FK column matches: `discovered` → `discovered_by = ?`, `verified` → `verified_by = ?`, `any` (default, empty) → either column matches.
+- `list --scan-as <value>` exposes the choice. Default `any` matches the persona expectation that the named scan returns rows it touched. Flag name was originally `--scan-role`; renamed to `--scan-as` to avoid IAM-role cognitive collision and read naturally inline (`--scan-id latest --scan-as discovered`).
 - `list --id <resource-id>` is a primary-key short-circuit on `ResourceFilter.ID` (`WHERE id = ?`); pairs with the F12 partial-ID lookup planned for WS7.
 
 ## seedTestDB ships with 2 baseline rows

@@ -54,7 +54,7 @@ var (
 	listTagKey         string
 	listTagValue       string
 	listScanID         string
-	listScanRole       string
+	listScanAs         string
 	listID             string
 	listSince          = singleSetString{flag: "since"}
 	listOutputFmt      string
@@ -99,10 +99,10 @@ Examples:
 			regions = []string{listRegion}
 		}
 
-		switch listScanRole {
+		switch listScanAs {
 		case "", "any", "discovered", "verified":
 		default:
-			return fmt.Errorf("--scan-role must be discovered|verified|any (got %q)", listScanRole)
+			return fmt.Errorf("--scan-as must be discovered|verified|any (got %q)", listScanAs)
 		}
 		f := store.ResourceFilter{
 			Provider:       listProvider,
@@ -113,7 +113,7 @@ Examples:
 			TagKey:         listTagKey,
 			TagValue:       listTagValue,
 			DiscoveredBy:   scanID,
-			ScanRole:       listScanRole,
+			ScanAs:         listScanAs,
 			ID:             listID,
 			Since:          since,
 			Limit:          listLimit,
@@ -196,8 +196,8 @@ func init() {
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
-	listCmd.Flags().StringVar(&listScanRole, "scan-role", "any",
-		"Which scan-FK column --scan-id matches: discovered|verified|any (default: any)")
+	listCmd.Flags().StringVar(&listScanAs, "scan-as", "any",
+		"Treat --scan-id as the row's discoverer | verifier | any (default: any)")
 	listCmd.Flags().StringVar(&listID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
 	listCmd.Flags().Var(&listSince, "since", "Show rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")

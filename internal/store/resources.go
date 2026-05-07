@@ -183,15 +183,16 @@ type ResourceFilter struct {
 	Regions      []string
 	Status       string
 	DiscoveredBy string
-	// ScanRole picks which scan-FK column DiscoveredBy filters on:
+	// ScanAs picks which scan-FK column DiscoveredBy filters on:
 	//   "discovered" — `discovered_by = ?` (the scan that first inserted)
 	//   "verified"   — `verified_by = ?`   (the scan that last re-verified)
 	//   "" or "any"  — either column matches
 	// Default ("any") matches the persona expectation that
 	// `--scan-id <id>` returns rows the named scan touched, period — fix
 	// for the F3 silent-zero-row drift workflow. Ignored when DiscoveredBy
-	// is empty.
-	ScanRole string
+	// is empty. Field name mirrors the CLI flag `--scan-as` (renamed from
+	// `--scan-role` to avoid IAM-role cognitive collision).
+	ScanAs string
 	// Since filters rows whose discovered_at >= this RFC3339 timestamp.
 	// Stored timestamps sort lexicographically the same as chronologically,
 	// so plain string comparison suffices.
@@ -231,7 +232,7 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 		q = q.Where(sq.Eq{"status": f.Status})
 	}
 	if f.DiscoveredBy != "" {
-		switch f.ScanRole {
+		switch f.ScanAs {
 		case "discovered":
 			q = q.Where(sq.Eq{"discovered_by": f.DiscoveredBy})
 		case "verified":
