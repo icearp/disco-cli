@@ -115,17 +115,25 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return nil
 	}
 
+	// Collect names for the scan record / dry-run report.
+	names := make([]string, len(scanners))
+	for i, s := range scanners {
+		names[i] = s.Name()
+	}
+
+	// --dry-run resolves --if-older-than + provider selection without opening
+	// SDK clients or touching cloud APIs. Cron authors validate scheduling
+	// logic in CI without burning live API quota.
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	if dryRun {
+		return runScanDryRun(cmd, names)
+	}
+
 	db, err := store.Open(defaultDBPath())
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer func() { _ = db.Close() }()
-
-	// Collect names for the scan record.
-	names := make([]string, len(scanners))
-	for i, s := range scanners {
-		names[i] = s.Name()
-	}
 
 	// --if-older-than gates the scan on recency: if the latest complete
 	// (or partial) scan covering each requested provider is younger than the
@@ -304,6 +312,44 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	return nil
 }
 
+// runScanDryRun prints "would scan" / "would skip" decisions per provider
+// without opening SDK clients or hitting cloud APIs. Reads the local DB
+// read-only to evaluate --if-older-than against latest complete scans.
+// Always exits 0 — pipeline operators are expected to read stdout to make
+// scheduling decisions, not the exit code.
+func runScanDryRun(cmd *cobra.Command, names []string) error {
+	d, _ := cmd.Flags().GetDuration("if-older-than")
+	db, err := store.OpenReadOnly(defaultDBPath())
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+	for _, name := range names {
+		decision := "would scan"
+		detail := "no recency gate"
+		if d > 0 {
+			detail = fmt.Sprintf("threshold %s", d)
+			sc, sErr := db.LatestCompleteScan(name)
+			switch {
+			case sErr != nil:
+				detail = fmt.Sprintf("threshold %s, no prior complete scan", d)
+			default:
+				if t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt); perr == nil {
+					age := time.Since(t).Round(time.Second)
+					if t.After(time.Now().UTC().Add(-d)) {
+						decision = "would skip"
+						detail = fmt.Sprintf("latest=%s ago < %s", age, d)
+					} else {
+						detail = fmt.Sprintf("latest=%s ago >= %s", age, d)
+					}
+				}
+			}
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s: %s (%s)\n", decision, name, detail)
+	}
+	return nil
+}
+
 // evaluateIfOlderThan returns (skip, message, error). skip=true means the
 // freshest qualifying scan for every requested provider is younger than d
 // — so the caller should print message and exit 0. Any provider missing a
@@ -360,6 +406,8 @@ func init() {
 	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
 	scanCmd.PersistentFlags().Duration("if-older-than", 0,
 		"skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
+	scanCmd.PersistentFlags().Bool("dry-run", false,
+		"resolve provider selection + --if-older-than and print 'would scan / would skip' decisions; no SDK clients constructed, no cloud APIs called")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,
