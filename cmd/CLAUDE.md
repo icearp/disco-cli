@@ -87,6 +87,20 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 When a producer writes a single output file consumed downstream by a verifier (e.g. `disco snapshot` → `disco verify`), write to `<path>.tmp` first and `os.Rename` to the final name only on full success. A producer crash mid-write leaves no file at `<path>` — receivers never see partial output. Cleanup the tmp on failure via `defer os.Remove`. Precedent: `internal/snapshot.WriteArchive`.
 
+## `disco verify` says `OK (unsigned …)` by default
+
+`verify`'s success line is `OK (unsigned — manifest not authenticated): ...` for archives without a detached signature, `OK (signed — manifest authenticated via ed25519): ...` when both `--signature` and `--pubkey` are supplied and validate. The wording change deliberately rules out the bare-`OK` interpretation that would mislead a CI step into treating internal-consistency as provenance. `verify` also emits `WARN: tool_version=dev — ...` on stderr when the manifest's `tool_version=="dev"`.
+
+Friendly-error wrapping lives in `friendlyArchiveErr(err)` (cmd/verify.go): collapses raw xz/gzip decoder messages into `verify failed: archive corrupt or truncated`. The original is preserved when `--verbose`. Format-detection errors are intentionally returned BEFORE the friendly wrap so unsupported extensions surface clearly.
+
+## `disco snapshot --signing-payload <file>` is the OSS signing primitive
+
+`internal/snapshot.CanonicalManifestBytes(m)` returns deterministic JCS-style bytes (`json.Marshal(m)` — struct field declaration order, no whitespace). Sign externally (`openssl pkeyutl -sign -inkey priv.pem -rawin -in payload -out sig`, `minisign`, `ssh-keygen -Y sign`, cosign blob-attest) and ship the detached signature alongside the archive. `disco verify --signature <sig> --pubkey <key>` re-derives the canonical bytes from the embedded `manifest.json` and validates with `crypto/ed25519` — stdlib only, no x/crypto dep.
+
+`LoadEd25519PublicKey` accepts PEM-wrapped PKIX SubjectPublicKeyInfo (the format `openssl pkey -pubout` produces) or a raw 32-byte binary key. OpenSSH `ssh-ed25519 AAAAC3...` text is intentionally out of scope — convert with `ssh-keygen -e -m PKCS8` first.
+
+Cosign/Sigstore-witnessed signing (Rekor inclusion proofs) stays a paid follow-up; the OSS plumbing is enough to close the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.
+
 ## `disco snapshot <output-file>` writes a single archive
 
 Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.db_sha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir. Signed-manifest layer (cosign/Sigstore) is a deferred paid follow-up.

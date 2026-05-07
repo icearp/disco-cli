@@ -12,7 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var snapshotForce bool
+var (
+	snapshotForce          bool
+	snapshotSigningPayload string
+)
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot <output-file>",
@@ -32,13 +35,23 @@ leaves no partial archive at the output path.
 file is its own write target). Output is silent on stdout; a single-line
 summary lands on stderr.
 
-Note: this build emits unsigned archives. Signed manifests
-(cosign/Sigstore) ship in a paid follow-up.
+Pass --signing-payload <file> to write the canonical (RFC 8785-style
+JCS) bytes of the manifest alongside the archive. Sign the file with
+any external tool (` + "`minisign -Sm <file>`" + `, ` + "`ssh-keygen -Y sign -n disco -f key`" + `,
+` + "`cosign sign-blob`" + `, ` + "`openssl pkeyutl -sign`" + `) and ship the detached signature
+plus an ed25519 public key to the receiver. They run
+` + "`disco verify --signature <sig> --pubkey <key>`" + `.
+
+Cosign/Sigstore-witnessed signing (transparency log inclusion) ships in
+a paid follow-up. The OSS plumbing here (canonical payload + ed25519
+detached) is enough to close the unsigned-manifest forgery gap reported
+in focus-group/SUMMARY.md F1.
 
 Examples:
   disco snapshot /tmp/audit-2026-q2.tar.xz
   disco snapshot /tmp/audit-2026-q2.zip --force
-  disco --db-readonly snapshot /tmp/handoff.tgz`,
+  disco --db-readonly snapshot /tmp/handoff.tgz
+  disco snapshot /tmp/audit.tgz --signing-payload /tmp/audit.manifest.json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		out := args[0]
@@ -95,6 +108,16 @@ Examples:
 			return err
 		}
 
+		if snapshotSigningPayload != "" {
+			payload, err := snapshot.CanonicalManifestBytes(m)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(snapshotSigningPayload, payload, 0o600); err != nil {
+				return fmt.Errorf("write signing payload: %w", err)
+			}
+		}
+
 		abs, _ := filepath.Abs(out)
 		fmt.Fprintf(os.Stderr, "Wrote snapshot to %s (sha256=%s, scans=%d, format=%s)\n", abs, short(hash), len(ids), format)
 		return nil
@@ -103,5 +126,7 @@ Examples:
 
 func init() {
 	snapshotCmd.Flags().BoolVar(&snapshotForce, "force", false, "Overwrite the output file if it already exists")
+	snapshotCmd.Flags().StringVar(&snapshotSigningPayload, "signing-payload", "",
+		"Write the canonical manifest bytes to this path so an external tool can produce a detached ed25519 signature")
 	rootCmd.AddCommand(snapshotCmd)
 }

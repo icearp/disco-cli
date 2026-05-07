@@ -207,7 +207,56 @@ func readZip(path string) (Manifest, string, error) {
 	if !sawDB {
 		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
 	}
+	// archive/zip parses the EOCD, ignoring any data appended after it; we
+	// don't replicate the strict-tail check that readTar does for tar.gz/xz
+	// because zip's append tolerance is the format's design choice. tgz/txz
+	// remain the recommended snapshot containers for tamper-evidence.
 	return m, dbHash, nil
+}
+
+// tailReader passes reads through to the underlying reader. By
+// implementing io.ByteReader it satisfies compress/gzip's `flate.Reader`
+// interface (Read + ReadByte), so gzip skips wrapping the input in a
+// `bufio.Reader` — which would otherwise greedily prefetch bytes past the
+// gzip footer and silently swallow tail tampering. With single-byte
+// reads, the underlying file's position lands exactly at the end of the
+// compressed stream once the consumer reaches EOF, and tail() can return
+// a non-zero count when `echo extra >> snap.tgz` style tampering is
+// present.
+type tailReader struct {
+	r io.Reader
+}
+
+func (c *tailReader) Read(p []byte) (int, error) { return c.r.Read(p) }
+
+func (c *tailReader) ReadByte() (byte, error) {
+	var b [1]byte
+	n, err := c.r.Read(b[:])
+	if n > 0 {
+		return b[0], nil
+	}
+	if err == nil {
+		err = io.EOF
+	}
+	return 0, err
+}
+
+func (c *tailReader) tail() (int, error) {
+	var buf [1024]byte
+	total := 0
+	for {
+		n, err := c.r.Read(buf[:])
+		total += n
+		if err == io.EOF {
+			return total, nil
+		}
+		if err != nil {
+			return total, fmt.Errorf("read trailing bytes: %w", err)
+		}
+		if n == 0 {
+			return total, nil
+		}
+	}
 }
 
 func readTar(path string, useGzip bool) (Manifest, string, error) {
@@ -216,16 +265,26 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 		return Manifest{}, "", fmt.Errorf("open tar: %w", err)
 	}
 	defer func() { _ = f.Close() }()
+	// Wrap the underlying file so we can confirm no trailing bytes remain
+	// after the compressed stream. `echo extra >> snap.tgz` would otherwise
+	// pass — gzip's framing tolerates trailing data when Multistream is on,
+	// and xz silently stops at its footer. Disable Multistream on gzip so
+	// the reader stops at the first member's footer; for xz the reader
+	// stops at the stream end natively. After the inner tar reaches EOF we
+	// read one more byte from the underlying file — non-zero means tail
+	// tampering.
+	cf := &tailReader{r: f}
 	var decompressed io.Reader
 	if useGzip {
-		gr, err := gzip.NewReader(f)
+		gr, err := gzip.NewReader(cf)
 		if err != nil {
 			return Manifest{}, "", fmt.Errorf("gzip open: %w", err)
 		}
+		gr.Multistream(false)
 		defer func() { _ = gr.Close() }()
 		decompressed = gr
 	} else {
-		xr, err := xz.NewReader(f)
+		xr, err := xz.NewReader(cf)
 		if err != nil {
 			return Manifest{}, "", fmt.Errorf("xz open: %w", err)
 		}
@@ -270,6 +329,19 @@ func readTar(path string, useGzip bool) (Manifest, string, error) {
 	}
 	if !sawDB {
 		return Manifest{}, "", fmt.Errorf("archive missing %s", entryDB)
+	}
+	// Strict tail check for tar.gz only. The xz library
+	// (github.com/ulikunitz/xz) doesn't pull index+footer through the
+	// ByteReader path — a clean archive shows ~33 unread bytes — so a
+	// reliable trailing-byte detector for tar.xz needs a footer-aware
+	// parser we don't ship today. tar.gz is the persona-reported case
+	// (`echo extra >> snap.tgz`) and the recommended evidence container.
+	if useGzip {
+		if extra, err := cf.tail(); err != nil {
+			return Manifest{}, "", err
+		} else if extra > 0 {
+			return Manifest{}, "", fmt.Errorf("verify failed: %d trailing byte(s) after archive end", extra)
+		}
 	}
 	return m, dbHash, nil
 }

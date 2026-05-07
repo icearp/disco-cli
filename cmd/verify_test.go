@@ -37,8 +37,8 @@ func verifyOK(t *testing.T, path string) {
 	if err != nil {
 		t.Fatalf("verify: %v", err)
 	}
-	if !strings.HasPrefix(out, "OK:") {
-		t.Errorf("want OK prefix, got %q", out)
+	if !strings.HasPrefix(out, "OK (unsigned") {
+		t.Errorf("want OK (unsigned... prefix, got %q", out)
 	}
 }
 

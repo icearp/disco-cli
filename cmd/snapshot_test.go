@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/internal/snapshot"
 )
 
-func resetSnapshotFlags() { snapshotForce = false }
+func resetSnapshotFlags() {
+	snapshotForce = false
+	snapshotSigningPayload = ""
+	verifySigPath = ""
+	verifyPubKeyPath = ""
+}
 
 func runSnapshot(t *testing.T, ext string) string {
 	t.Helper()
