@@ -22,6 +22,7 @@ var (
 	summaryOutputFmt        string
 	summaryTopTypes         int
 	summaryIncludeManaged   bool
+	summarySkipGlobals      bool
 	summaryRequireResources bool
 	summaryMinResources     uint64
 )
@@ -87,6 +88,7 @@ Examples:
 			DiscoveredBy:    scanID,
 			DiscoveredSince: discoveredSince,
 			IncludeManaged:  summaryIncludeManaged,
+			SkipGlobals:     summarySkipGlobals,
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
@@ -337,6 +339,7 @@ func init() {
 	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
+	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
 	summaryCmd.Flags().BoolVar(&summaryRequireResources, "require-resources", false, "Exit non-zero when 0 resources match (fail-closed gate against an empty / unscanned DB)")
 	summaryCmd.Flags().Uint64Var(&summaryMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources match (overrides --require-resources when both set)")
 	rootCmd.AddCommand(summaryCmd)

@@ -64,6 +64,14 @@ SQL files in `migrations/` embedded at compile time via `//go:embed`. Names must
 
 Paid-only migrations use the `_paid.sql` suffix (e.g. `004_findings_paid.sql`). `scripts/oss-sync.sh` and `scripts/oss-cherry-pick.sh` strip them by name pattern — the OSS-mirror repo never sees the file, so `//go:embed migrations/*.sql` matches only OSS-resident migrations there. Upstream OSS dev-builds (no `-tags paid`) DO embed and apply paid SQL files because the files are physically present in the dev tree; that's intentional dev-only behaviour. Production OSS guarantee is the published mirror, not the upstream tree.
 
+## `region = "global"` is the canonical non-regional sentinel
+
+Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope, plus resolver-side cross-tenant synthetic stubs (`aws:iam:foreign-account`, foreign-subscription, foreign-project) — carry `region = "global"`, not NULL. Scanners typically don't set it on the Resource literal; each provider's `Scan()` calls `Store.PromoteNilRegionToGlobal(provider, scanID)` after phase 2 to fill in NULL → "global" in one SQL UPDATE. Cleaner than threading a sentinel pointer through every Resource construction site (~50 across global scanners + resolver stubs).
+
+`ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--skip-globals` on `disco list` / `summary` / `tag-coverage`). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
+
+`disco list --regions global` is the canonical "show me every global resource" query.
+
 ## UpsertResources ON CONFLICT scope
 
 ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`, `managed_by_provider`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch. Adding a new mutable column = three edits: INSERT col list, VALUES placeholder, ON CONFLICT SET.

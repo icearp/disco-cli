@@ -110,7 +110,18 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 			return nil
 		})
 	}
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	// Promote nil-region rows from this scan to the "global" sentinel — covers
+	// tenant-scope (Entra ID) and any sub-scoped resources that didn't set
+	// location. Mirrors the AWS / GCP global-region promotion.
+	if err := st.PromoteNilRegionToGlobal("azure", scanID); err != nil {
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: "promote-global-region", Scope: "", Message: err.Error(),
+		})
+	}
+	return nil
 }
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2

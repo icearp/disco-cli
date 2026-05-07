@@ -96,6 +96,14 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		}
 	}
 	st.ReportResolveComplete("gcp", int(counter.Load()))
+	// Promote nil-region rows from this scan to the "global" sentinel — covers
+	// org/folder-scope services and resolver-side synthetic stubs (foreign-
+	// project, IAM-policy synth resources). Mirrors AWS / Azure.
+	if err := st.PromoteNilRegionToGlobal("gcp", scanID); err != nil {
+		st.ReportError(store.ScanError{
+			Provider: "gcp", Service: "promote-global-region", Scope: "", Message: err.Error(),
+		})
+	}
 	return nil
 }
 

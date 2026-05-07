@@ -102,6 +102,17 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	for i := range accounts {
 		scanAccount(ctx, &accounts[i], s.serviceFilter, s.skipGlobals, st, scanID)
 	}
+	// Promote nil-region rows from this scan to the "global" sentinel.
+	// Covers global-service scanners (IAM / Route53 / CloudFront / etc. that
+	// don't set Region on their resource literals) and resolver-side
+	// synthetic stubs (cross-account foreign-account, etc.). One SQL UPDATE
+	// per scan keeps every scanner / resolver site free of per-row Region
+	// boilerplate.
+	if err := st.PromoteNilRegionToGlobal("aws", scanID); err != nil {
+		st.ReportError(store.ScanError{
+			Provider: "aws", Service: "promote-global-region", Scope: "", Message: err.Error(),
+		})
+	}
 	return nil
 }
 

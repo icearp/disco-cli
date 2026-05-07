@@ -30,6 +30,7 @@ var (
 	tagCovDiscoveredSince  = singleSetString{flag: "discovered-since"}
 	tagCovOutputFmt        string
 	tagCovIncludeManaged   bool
+	tagCovSkipGlobals      bool
 	tagCovCaseInsensitive  bool
 	tagCovMinCoverage      float64
 	tagCovMinCovSet        bool
@@ -99,6 +100,7 @@ Examples:
 			DiscoveredBy:    scanID,
 			DiscoveredSince: discoveredSince,
 			IncludeManaged:  tagCovIncludeManaged,
+			SkipGlobals:     tagCovSkipGlobals,
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
@@ -248,6 +250,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
+	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
 	tagCoverageCmd.Flags().Float64Var(&tagCovMinCoverage, "min-coverage", 0,
 		"Coverage threshold in [0,1]; if any reported key falls below, exit non-zero (use --exit-zero to override)")
