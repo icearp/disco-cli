@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
@@ -21,8 +22,44 @@ var (
 )
 
 // Version is set at build time via -ldflags "-X codeberg.org/icearp/disco/cmd.Version=<tag>".
-// Defaults to "dev" for local builds.
-var Version = "dev"
+// Defaults to "dev" for local builds, but when produced by `go build .` from
+// inside a git checkout we substitute the VCS revision via build-info so the
+// stamp propagated to snapshot manifests + SARIF tool.driver.version is at
+// least traceable. Falls through to the literal "dev" only when no VCS info
+// is available (e.g. `go test`, `go install` from a tarball).
+var Version = resolveVersion()
+
+func resolveVersion() string {
+	const fallback = "dev"
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fallback
+	}
+	var rev, modified string
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			rev = s.Value
+		case "vcs.modified":
+			modified = s.Value
+		}
+	}
+	if rev != "" {
+		if len(rev) > 12 {
+			rev = rev[:12]
+		}
+		if modified == "true" {
+			return rev + "+dirty"
+		}
+		return rev
+	}
+	// `go install codeberg.org/...@<tag>` from a versioned module records
+	// the tag here; useful when no VCS info is embedded.
+	if v := bi.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+	return fallback
+}
 
 var rootCmd = &cobra.Command{
 	Use:           "disco",

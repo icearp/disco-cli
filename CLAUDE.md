@@ -37,7 +37,7 @@ golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 gofmt -w .
 ```
 
-Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag. Plain `go build .` falls back to `dev`. SARIF `tool.driver.version` and `disco --version` both read `cmd.Version` — keep them aligned.
+Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty` via `-X cmd.Version` ldflag (canonical release path). Plain `go build .` from a git checkout now falls back to `runtime/debug.ReadBuildInfo()` — uses `vcs.revision[:12]` plus `+dirty` when the worktree has uncommitted changes. Falls through to the literal `dev` only when neither ldflag nor build-info is available (e.g. `go test`, `go install` from a tarball without VCS info). SARIF `tool.driver.version`, snapshot `manifest.tool_version`, and `disco --version` all read `cmd.Version` — single source of truth.
 
 ## Architecture
 
