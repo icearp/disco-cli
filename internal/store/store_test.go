@@ -160,6 +160,66 @@ func TestListResources_Since(t *testing.T) {
 	}
 }
 
+// TestListResources_CreatedBeforeAfter asserts the CreatedBefore /
+// CreatedAfter clauses filter on the resource's intrinsic created_at
+// column (NOT discovered_at). Rows with NULL created_at are excluded
+// from both filters — matches the documented contract.
+func TestListResources_CreatedBeforeAfter(t *testing.T) {
+	st := openTestStore(t)
+	old := "2024-06-01T00:00:00Z"
+	mid := "2025-06-01T00:00:00Z"
+	rOld := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:volume",
+		NativeID: "vol-old", AttributesJSON: "{}", CreatedAt: &old,
+		DiscoveredBy: testScanID,
+	}
+	rMid := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:volume",
+		NativeID: "vol-mid", AttributesJSON: "{}", CreatedAt: &mid,
+		DiscoveredBy: testScanID,
+	}
+	rNoTS := &Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:volume",
+		NativeID: "vol-no-ts", AttributesJSON: "{}",
+		DiscoveredBy: testScanID,
+	}
+	if _, err := st.UpsertResources([]*Resource{rOld, rMid, rNoTS}); err != nil {
+		t.Fatalf("UpsertResources: %v", err)
+	}
+
+	before, err := st.ListResources(ResourceFilter{
+		CreatedBefore: "2025-01-01T00:00:00Z", Limit: 100,
+	})
+	if err != nil {
+		t.Fatalf("CreatedBefore: %v", err)
+	}
+	if len(before) != 1 || before[0].NativeID != "vol-old" {
+		t.Errorf("CreatedBefore: got %v, want only vol-old", before)
+	}
+
+	after, err := st.ListResources(ResourceFilter{
+		CreatedAfter: "2025-01-01T00:00:00Z", Limit: 100,
+	})
+	if err != nil {
+		t.Fatalf("CreatedAfter: %v", err)
+	}
+	if len(after) != 1 || after[0].NativeID != "vol-mid" {
+		t.Errorf("CreatedAfter: got %v, want only vol-mid", after)
+	}
+
+	// Closed-interval [old, mid] returns both timestamped rows; vol-no-ts
+	// stays excluded because NULL < anything is unknown in SQL.
+	closed, err := st.ListResources(ResourceFilter{
+		CreatedAfter: "2024-01-01T00:00:00Z", CreatedBefore: "2026-01-01T00:00:00Z", Limit: 100,
+	})
+	if err != nil {
+		t.Fatalf("closed interval: %v", err)
+	}
+	if len(closed) != 2 {
+		t.Errorf("closed interval: got %d rows, want 2", len(closed))
+	}
+}
+
 // TestListScans_Providers asserts ListScans unmarshals ProvidersJSON into
 // the Providers slice for every returned row — auditor-facing rendering
 // reads the slice directly without a follow-up GetScan call.

@@ -321,6 +321,10 @@ func resetListFlags() {
 	listTagValue = ""
 	listScanID = ""
 	listSince.reset()
+	listUntil.reset()
+	listOlderThan.reset()
+	listCreatedBefore.reset()
+	listCreatedAfter.reset()
 	listOutputFmt = ""
 	listLimit = 0
 	listIncludeManaged = false

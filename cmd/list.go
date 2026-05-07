@@ -59,6 +59,8 @@ var (
 	listSince          = singleSetString{flag: "since"}
 	listUntil          = singleSetString{flag: "until"}
 	listOlderThan      = singleSetString{flag: "older-than"}
+	listCreatedBefore  = singleSetString{flag: "created-before"}
+	listCreatedAfter   = singleSetString{flag: "created-after"}
 	listOutputFmt      string
 	listLimit          uint64
 	listIncludeManaged bool
@@ -99,6 +101,14 @@ Examples:
 		if err != nil {
 			return err
 		}
+		createdBefore, err := parseTimeFlag("--created-before", listCreatedBefore.val)
+		if err != nil {
+			return err
+		}
+		createdAfter, err := parseTimeFlag("--created-after", listCreatedAfter.val)
+		if err != nil {
+			return err
+		}
 
 		var types []string
 		if listType != "" {
@@ -128,6 +138,8 @@ Examples:
 			Since:          since,
 			Until:          until,
 			OlderThan:      olderThan,
+			CreatedBefore:  createdBefore,
+			CreatedAfter:   createdAfter,
 			Limit:          listLimit,
 			IncludeManaged: listIncludeManaged,
 		}
@@ -213,7 +225,9 @@ func init() {
 	listCmd.Flags().StringVar(&listID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
 	listCmd.Flags().Var(&listSince, "since", "Show rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	listCmd.Flags().Var(&listUntil, "until", "Show rows first-seen on or before this timestamp (closes the --since interval)")
-	listCmd.Flags().Var(&listOlderThan, "older-than", "Show rows first-seen strictly before this timestamp (hygiene queries: stale access keys, etc.)")
+	listCmd.Flags().Var(&listOlderThan, "older-than", "Show rows first-seen by disco strictly before this timestamp (use --created-before for resource intrinsic age)")
+	listCmd.Flags().Var(&listCreatedBefore, "created-before", "Show rows whose intrinsic CreateDate is strictly before this timestamp (RFC3339 or YYYY-MM-DD; rows with no CreateDate are excluded)")
+	listCmd.Flags().Var(&listCreatedAfter, "created-after", "Show rows whose intrinsic CreateDate is on or after this timestamp (closes the --created-before interval)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")

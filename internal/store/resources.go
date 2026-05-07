@@ -203,10 +203,21 @@ type ResourceFilter struct {
 	// OlderThan filters rows whose discovered_at < this RFC3339 timestamp
 	// (strict). Independent of Since/Until — used for "stale" hygiene queries.
 	OlderThan string
-	TagKey    string
-	TagValue  string
-	Limit     uint64
-	Offset    uint64
+	// CreatedBefore filters rows whose created_at < this RFC3339 timestamp.
+	// Anchored on the resource's intrinsic CreateDate (lifted from the SDK
+	// at scan time), NOT discovered_at — F3 fix for stale-resource queries
+	// that previously matched on first-seen-by-disco. Rows with NULL
+	// created_at are excluded from the result set; not every scanner lifts
+	// the SDK timestamp yet (audit ongoing — see F4 EBS volume precedent).
+	CreatedBefore string
+	// CreatedAfter filters rows whose created_at >= this RFC3339 timestamp.
+	// Pairs with CreatedBefore for closed-interval queries on intrinsic age.
+	// Same NULL caveat as CreatedBefore.
+	CreatedAfter string
+	TagKey       string
+	TagValue     string
+	Limit        uint64
+	Offset       uint64
 	// ID, when set, restricts the result to a single row by primary key.
 	// Mirrors a `WHERE id = ?` short-circuit.
 	ID string
@@ -261,6 +272,12 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	if f.OlderThan != "" {
 		q = q.Where(sq.Lt{"discovered_at": f.OlderThan})
+	}
+	if f.CreatedBefore != "" {
+		q = q.Where(sq.Lt{"created_at": f.CreatedBefore})
+	}
+	if f.CreatedAfter != "" {
+		q = q.Where(sq.GtOrEq{"created_at": f.CreatedAfter})
 	}
 	switch {
 	case f.TagKey != "" && f.TagValue != "":
