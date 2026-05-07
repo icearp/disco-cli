@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"sort"
 	"strings"
@@ -53,10 +54,33 @@ func maybeStructuredError(format string, err error) {
 func openDB() (*store.Store, error) {
 	path := defaultDBPath()
 	st, err := store.OpenReadOnly(path)
-	if err != nil && os.IsNotExist(errors.Unwrap(err)) {
-		return nil, fmt.Errorf("%w (no scans recorded yet — run `disco scan <provider>` first)", err)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("%w (no scans recorded yet — run `disco scan <provider>` first)", err)
+		}
+		return nil, err
 	}
-	return st, err
+	// Stale-schema gate: store.OpenReadOnly intentionally skips migrate (a RW
+	// op). After a binary upgrade that introduces a migration, the on-disk
+	// schema can lag the reader's expectations. Probe schema_migrations and
+	// reject with a clear hint before queries surface as cryptic SQLite
+	// "no such column" / "no such table" errors. See cmd/CLAUDE.md for the
+	// trust-boundary rationale of read-only-by-default.
+	target, terr := store.TargetSchemaVersion()
+	if terr != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("probe target schema: %w", terr)
+	}
+	current, cerr := st.CurrentSchemaVersion()
+	if cerr != nil {
+		_ = st.Close()
+		return nil, fmt.Errorf("probe current schema: %w", cerr)
+	}
+	if current < target {
+		_ = st.Close()
+		return nil, fmt.Errorf("disco: on-disk schema is at migration %d, binary expects %d; run `disco scan` to upgrade", current, target)
+	}
+	return st, nil
 }
 
 // openWriteDB opens the local DB writable. Reserved for commands whose

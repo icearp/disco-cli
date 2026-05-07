@@ -122,3 +122,56 @@ func parseMigrationVersion(name string) (int, error) {
 	}
 	return v, nil
 }
+
+// TargetSchemaVersion returns the highest migration version embedded in the
+// binary — the schema state a fully-migrated DB will land at after Open()
+// applies any pending migrations. Used by read-only callers (cmd/helpers.go's
+// openDB) to detect a stale on-disk schema and reject with a clear hint.
+func TargetSchemaVersion() (int, error) {
+	entries, err := migrationFS.ReadDir("migrations")
+	if err != nil {
+		return 0, fmt.Errorf("read migrations dir: %w", err)
+	}
+	max := 0
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		v, err := parseMigrationVersion(e.Name())
+		if err != nil {
+			return 0, err
+		}
+		if v > max {
+			max = v
+		}
+	}
+	return max, nil
+}
+
+// CurrentSchemaVersion reads the highest applied migration from the on-disk
+// schema_migrations table. Returns 0 when the table is missing or empty (a
+// fresh-but-empty DB or a pre-migration-tracking checkout). Read-only callers
+// pair this with TargetSchemaVersion to detect stale schemas and reject
+// before issuing queries that would surface as cryptic SQLite errors.
+func (s *Store) CurrentSchemaVersion() (int, error) {
+	// Existence probe: schema_migrations is created by migrate() so an
+	// uninitialised DB lacks the table. Treat that as version 0 rather than
+	// erroring — caller decides whether 0 vs target counts as stale.
+	var name string
+	err := s.db.QueryRow(
+		"SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+	).Scan(&name)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("probe schema_migrations: %w", err)
+	}
+	var max int
+	if err := s.db.QueryRow(
+		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+	).Scan(&max); err != nil {
+		return 0, fmt.Errorf("query current schema version: %w", err)
+	}
+	return max, nil
+}

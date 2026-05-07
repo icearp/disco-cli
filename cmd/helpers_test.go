@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestParseSince_RFC3339(t *testing.T) {
@@ -95,5 +98,38 @@ func TestParseSince_NonUTCNormalisesToUTC(t *testing.T) {
 	}
 	if out != "2026-04-01T10:00:00Z" {
 		t.Errorf("got %q, want UTC normalization to 2026-04-01T10:00:00Z", out)
+	}
+}
+
+func TestOpenDB_MissingFile_HintsScan(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "no-such.db")
+	viper.Set("db", missing)
+	t.Cleanup(func() { viper.Set("db", "") })
+
+	_, err := openDB()
+	if err == nil {
+		t.Fatalf("expected error opening missing DB, got nil")
+	}
+	if !strings.Contains(err.Error(), "disco scan") {
+		t.Errorf("missing-DB error should hint `disco scan`, got %q", err)
+	}
+}
+
+func TestOpenDB_StaleSchema_HintsScan(t *testing.T) {
+	st := seedTestDB(t)
+	// Roll back schema_migrations one step so the on-disk schema looks
+	// stale relative to the embedded migration set.
+	if _, err := st.DB().Exec("DELETE FROM schema_migrations WHERE version = (SELECT MAX(version) FROM schema_migrations)"); err != nil {
+		t.Fatalf("roll back schema_migrations: %v", err)
+	}
+	_ = st.Close()
+
+	_, err := openDB()
+	if err == nil {
+		t.Fatalf("expected stale-schema error, got nil")
+	}
+	if !strings.Contains(err.Error(), "schema") || !strings.Contains(err.Error(), "disco scan") {
+		t.Errorf("stale-schema error should mention 'schema' and 'disco scan', got %q", err)
 	}
 }
