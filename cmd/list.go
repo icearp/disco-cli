@@ -63,6 +63,8 @@ var (
 	listOutputFmt        string
 	listLimit            uint64
 	listIncludeManaged   bool
+	listRequireResources bool
+	listMinResources     uint64
 )
 
 var listCmd = &cobra.Command{
@@ -169,6 +171,10 @@ Examples:
 			resources = []store.Resource{}
 		}
 
+		if err := gateResourceCount(len(resources), listRequireResources, listMinResources); err != nil {
+			return err
+		}
+
 		// When `--scan-as discovered` against a specific scan returns no rows,
 		// the most common cause is the customer-only filter dropping a
 		// managed resource the scan touched. Surface a stderr nudge so the
@@ -240,5 +246,7 @@ func init() {
 	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
 	listCmd.Flags().Uint64Var(&listLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
 	listCmd.Flags().BoolVar(&listIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
+	listCmd.Flags().BoolVar(&listRequireResources, "require-resources", false, "Exit non-zero when 0 rows are returned (fail-closed gate against an empty / unscanned DB)")
+	listCmd.Flags().Uint64Var(&listMinResources, "min-resources", 0, "Exit non-zero when fewer than N rows are returned (overrides --require-resources when both set)")
 	rootCmd.AddCommand(listCmd)
 }

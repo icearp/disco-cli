@@ -87,6 +87,13 @@ func Execute() {
 		if errors.Is(err, errTagCoverageBelow) || errors.Is(err, errFindingsReported) {
 			os.Exit(1)
 		}
+		// --require-resources / --min-resources gate (Phase 3.9). Print the
+		// wrapped error to stderr so operators see "have N, want >= M" but
+		// pipelines that already parsed stdout get an unambiguous exit 1.
+		if errors.Is(err, errResourcesBelowMin) {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		// `coverage --check-strict` distinguishes transient registry-fetch
 		// failure (exit 2) from genuine drift (exit 1) so CI pipelines can
 		// retry-with-backoff vs. file-a-ticket.

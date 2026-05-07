@@ -22,18 +22,20 @@ import (
 var errTagCoverageBelow = errors.New("tag coverage below threshold")
 
 var (
-	tagCovProvider        string
-	tagCovType            string
-	tagCovExcludeTypes    []string
-	tagCovRegion          string
-	tagCovScanID          string
-	tagCovDiscoveredSince = singleSetString{flag: "discovered-since"}
-	tagCovOutputFmt       string
-	tagCovIncludeManaged  bool
-	tagCovCaseInsensitive bool
-	tagCovMinCoverage     float64
-	tagCovMinCovSet       bool
-	tagCovExitZero        bool
+	tagCovProvider         string
+	tagCovType             string
+	tagCovExcludeTypes     []string
+	tagCovRegion           string
+	tagCovScanID           string
+	tagCovDiscoveredSince  = singleSetString{flag: "discovered-since"}
+	tagCovOutputFmt        string
+	tagCovIncludeManaged   bool
+	tagCovCaseInsensitive  bool
+	tagCovMinCoverage      float64
+	tagCovMinCovSet        bool
+	tagCovExitZero         bool
+	tagCovRequireResources bool
+	tagCovMinResources     uint64
 )
 
 var tagCoverageCmd = &cobra.Command{
@@ -100,6 +102,9 @@ Examples:
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
+		}
+		if err := gateResourceCount(len(rows), tagCovRequireResources, tagCovMinResources); err != nil {
+			return err
 		}
 
 		report := buildTagReport(rows, args, tagCovCaseInsensitive)
@@ -248,5 +253,7 @@ func init() {
 		"Coverage threshold in [0,1]; if any reported key falls below, exit non-zero (use --exit-zero to override)")
 	tagCoverageCmd.Flags().BoolVar(&tagCovExitZero, "exit-zero", false,
 		"Force exit 0 even when --min-coverage is breached (still renders the report)")
+	tagCoverageCmd.Flags().BoolVar(&tagCovRequireResources, "require-resources", false, "Exit non-zero when 0 resources match (fail-closed gate against an empty / unscanned DB)")
+	tagCoverageCmd.Flags().Uint64Var(&tagCovMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources match (overrides --require-resources when both set)")
 	rootCmd.AddCommand(tagCoverageCmd)
 }

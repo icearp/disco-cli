@@ -16,13 +16,15 @@ import (
 )
 
 var (
-	checkRulePaths      []string
-	checkPacks          []string
-	checkSeverity       string
-	checkOutputFmt      string
-	checkExitZero       bool
-	checkTagFilters     []string
-	checkIncludeManaged bool
+	checkRulePaths        []string
+	checkPacks            []string
+	checkSeverity         string
+	checkOutputFmt        string
+	checkExitZero         bool
+	checkTagFilters       []string
+	checkIncludeManaged   bool
+	checkRequireResources bool
+	checkMinResources     uint64
 )
 
 // persistCheckHook is set by the paid build via cmd/check_paid.go init().
@@ -157,6 +159,9 @@ Examples:
 		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{IncludeManaged: checkIncludeManaged})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
+		}
+		if err := gateResourceCount(len(resources), checkRequireResources, checkMinResources); err != nil {
+			return err
 		}
 
 		if checkIncludeManaged {
@@ -323,5 +328,7 @@ func init() {
 	checkCmd.Flags().BoolVar(&checkExitZero, "exit-zero", false, "Force exit 0 even when findings are reported (inventory mode; CI override)")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
 	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
+	checkCmd.Flags().BoolVar(&checkRequireResources, "require-resources", false, "Exit non-zero when 0 resources are evaluated (fail-closed gate against an empty / unscanned DB)")
+	checkCmd.Flags().Uint64Var(&checkMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources are evaluated (overrides --require-resources when both set)")
 	rootCmd.AddCommand(checkCmd)
 }
