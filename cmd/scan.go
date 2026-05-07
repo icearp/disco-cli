@@ -193,6 +193,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		}
 	}
 
+	scopeWidth := scopeColumnWidth(scanners)
+
 	// Print a status line each time a provider completes scanning one service.
 	// scope = the per-call dimension that would otherwise produce duplicate
 	// lines in multi-region / multi-account scans (AWS region or "global",
@@ -216,12 +218,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		case errCount > 0:
 			suffix = "  (with errors)"
 		}
-		scopeCol := ""
-		if scope != "" {
-			scopeCol = " " + scope
-		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s%s  (%d total, %d new)%s\n",
-			time.Since(start).Round(time.Second), nameWidth, service, scopeCol, total, inserted, suffix)
+		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  %-*s  (%d total, %d new)%s\n",
+			time.Since(start).Round(time.Second), nameWidth, service, scopeWidth, scope, total, inserted, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
@@ -322,6 +320,31 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
 		count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// scopeColumnWidth returns the padding width for the per-line scope column in
+// scan progress output, computed as the worst-case scope shape across the
+// enabled providers: AWS region name or "global" (≤16, ap-southeast-7 +
+// slack), Azure subscription UUID (36), GCP project ID (≤30 per GCP naming
+// rules). Tenant/org/global slot into the same column with trailing padding,
+// keeping the (N total, N new) counts at a fixed column.
+func scopeColumnWidth(scanners []providers.Scanner) int {
+	width := 0
+	for _, s := range scanners {
+		w := 0
+		switch s.Name() {
+		case "aws":
+			w = 16
+		case "azure":
+			w = 36
+		case "gcp":
+			w = 30
+		}
+		if w > width {
+			width = w
+		}
+	}
+	return width
 }
 
 // buildScanScope captures the resolved per-provider scope (regions, profile,
