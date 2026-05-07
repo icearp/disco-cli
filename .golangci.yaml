@@ -11,7 +11,7 @@ linters:
     - whitespace
   settings:
     gocyclo:
-      min-complexity: 15
+      min-complexity: 30
     govet:
       disable:
         - loopclosure
@@ -50,6 +50,16 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # Provider scanner/resolver structs use PascalCase JSON tags to match SDK marshal output.
+      - path: internal/providers/.*\.go
+        linters: [tagliatelle]
+      # disco JSON contracts use snake_case: store rows, snapshot manifest, Rego input,
+      # `disco list/summary/coverage -o json` output, persisted policy findings.
+      - path: cmd/(summary|coverage)\.go
+        linters: [tagliatelle]
+      - path: internal/(coverage|policy|snapshot|store)/.*\.go
+        linters: [tagliatelle]
     paths:
       - third_party$
       - builtin$

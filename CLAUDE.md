@@ -134,9 +134,9 @@ Repo surfaces `slicescontains`, `stringscut`, `rangeint` diagnostics. Prefer `sl
 
 Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `wg.Go(func() { ... })` instead.
 
-### Don't enable `tagliatelle`
+### `tagliatelle` is path-scoped
 
-Conflicts with two project conventions: AWS resolver structs deliberately use PascalCase JSON tags to match SDK marshal output (see `internal/providers/aws/CLAUDE.md`), and the `disco check` Rego input contract uses snake_case (`cmd/CLAUDE.md`). Enabling produces hundreds of false-positives that, if "fixed", silently break unmarshalling.
+Enabled globally with the camelCase rule, but excluded under `linters.exclusions.rules` for two convention zones where camelCase JSON would silently break unmarshalling: AWS resolver structs (`internal/providers/aws/*_resolvers.go`) use PascalCase to match SDK marshal output (see `internal/providers/aws/CLAUDE.md`); the `disco check` Rego input contract (`cmd/summary.go`, `cmd/coverage.go`, `internal/coverage/`, `internal/policy/`) uses snake_case (`cmd/CLAUDE.md`). New resolver files / Rego-contract files must fall under one of those path patterns, or add a new exclusion rule — otherwise the linter will demand camelCase that breaks the wire format.
 
 ### Bulk `revive` var-naming sweeps
 
