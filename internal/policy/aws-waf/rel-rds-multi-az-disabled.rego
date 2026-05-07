@@ -17,5 +17,12 @@ deny contains f if {
 		"message": sprintf("RDS instance %q is single-AZ (no automated failover)", [input.name]),
 		"remediation": "Enable Multi-AZ; the next maintenance window provisions a standby in a second AZ.",
 		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_planning_for_recovery_disaster_recovery.html",
+		"tags": {
+			"pillar": "reliability",
+			"waf_qid": "REL 13",
+			"soc2": "A1.2",
+			"iso27001": "A.8.14",
+			"nist_800_53": "CP-9",
+		},
 	}
 }

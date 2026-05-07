@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,12 +14,13 @@ import (
 )
 
 var (
-	checkRulePaths   []string
-	checkPacks       []string
-	checkSeverity    string
-	checkOutputFmt   string
-	checkExitNonZero bool
-	checkTagFilters  []string
+	checkRulePaths      []string
+	checkPacks          []string
+	checkSeverity       string
+	checkOutputFmt      string
+	checkExitNonZero    bool
+	checkTagFilters     []string
+	checkIncludeManaged bool
 )
 
 // persistCheckHook is set by the paid build via cmd/check_paid.go init().
@@ -79,7 +81,16 @@ Examples:
   disco check --rules ./policies --packs aws-waf -o sarif > findings.sarif
   disco check --rules ./policies --exit-nonzero`,
 	RunE: func(cmd *cobra.Command, _ []string) (rerr error) {
-		defer func() { maybeStructuredError(checkOutputFmt, rerr) }()
+		defer func() {
+			// Skip the stdout JSON envelope on the --exit-nonzero gate
+			// signal — the findings array IS the payload, the exit code
+			// IS the gate. Trailing `{"error":"N finding(s)"}` after the
+			// array would break strict consumers (json.load, jq -e). F7.
+			if errors.Is(rerr, errFindingsReported) {
+				return
+			}
+			maybeStructuredError(checkOutputFmt, rerr)
+		}()
 		if len(checkRulePaths) == 0 && len(checkPacks) == 0 {
 			return fmt.Errorf("--rules or --packs is required (e.g. --packs aws-waf)")
 		}
@@ -118,7 +129,7 @@ Examples:
 			return err
 		}
 
-		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{IncludeManaged: true})
+		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{IncludeManaged: checkIncludeManaged})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
 		}
@@ -170,11 +181,21 @@ Examples:
 		}
 
 		if checkExitNonZero && len(findings) > 0 {
-			return fmt.Errorf("%d finding(s)", len(findings))
+			// Print the count to stderr (verbose-only) so CI logs still see
+			// the gate fired; sentinel error suppresses the duplicate
+			// stdout JSON envelope above.
+			fmt.Fprintf(os.Stderr, "%d finding(s)\n", len(findings))
+			return errFindingsReported
 		}
 		return nil
 	},
 }
+
+// errFindingsReported is a sentinel returned when --exit-nonzero trips on
+// non-empty findings. Execute() maps it to exit 1; the deferred
+// maybeStructuredError check skips its JSON envelope so json/jsonl stdout
+// stays a single parseable document.
+var errFindingsReported = errors.New("findings reported")
 
 // severityRank orders the four conventional levels for `--severity` cutoff.
 // Findings whose severity rank is below the cutoff are dropped.
@@ -248,5 +269,6 @@ func init() {
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, sarif")
 	checkCmd.Flags().BoolVar(&checkExitNonZero, "exit-nonzero", false, "Exit 1 if any finding reported")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
+	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
 	rootCmd.AddCommand(checkCmd)
 }

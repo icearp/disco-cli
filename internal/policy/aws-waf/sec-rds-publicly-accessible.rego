@@ -17,5 +17,13 @@ deny contains f if {
 		"message": sprintf("RDS instance %q is publicly accessible", [input.name]),
 		"remediation": "Set PubliclyAccessible=false; reach the database through a bastion or VPN.",
 		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
+		"tags": {
+			"pillar": "security",
+			"waf_qid": "SEC 5",
+			"soc2": "CC6.6",
+			"iso27001": "A.8.20",
+			"pci_dss": "1.3",
+			"nist_800_53": "SC-7",
+		},
 	}
 }

@@ -131,6 +131,25 @@ Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — ext
 
 When a paid feature must augment an OSS command's RunE (e.g. `--persist` writing to a paid-only DB table on `disco check`), declare a nillable hook variable in the OSS file: `var persistCheckHook func(...) error`. OSS RunE checks `if hook != nil { hook(...) }`. The paid file `<cmd>_paid.go` `init()` registers any new flags AND assigns the hook implementation including `license.Require()`, condition checks, and DB writes. OSS users see no flag, no hook, no `internal/license` dep. Verify with `go list -deps . | grep license` (must be empty for OSS, non-empty for paid). Precedent: `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid).
 
+## `disco check` defaults to customer-managed (F24); --include-managed opts in
+
+`check` previously evaluated every row in the DB (including AWS-managed IAM policies, Azure built-in role definitions, GCP foreign-project stubs) — every BYO Rego author had to defensively `not input.managed_by_provider` or get noisy findings against resources they cannot remediate. Now `check` mirrors `list` / `summary`: customer-only by default, opt in via `--include-managed`. The flag is wired straight onto `ResourceFilter.IncludeManaged`.
+
+## `--exit-nonzero` returns the `errFindingsReported` sentinel
+
+When `--exit-nonzero` trips on non-empty findings, `RunE` returns the package-level `errFindingsReported` sentinel; the deferred `maybeStructuredError` wrapper checks `errors.Is` and skips emitting `{"error":"N finding(s)"}` to stdout. The findings array IS the payload, the exit code IS the gate. Closes F7 — strict consumers (`json.load`, `jq -e`, `go json.Decoder`) parse the stdout in one pass. Stderr keeps the human-readable `N finding(s)` count line.
+
+## SARIF rule polish: descriptions, defaultConfiguration, partialFingerprints, taxonomies
+
+`cmd/check_sarif.go` (F11) now populates:
+- `rules[].shortDescription` / `fullDescription` (mirror the message; richer text can land if the engine ever surfaces a separate longer-form field)
+- `rules[].defaultConfiguration.level` mapped from `severity` via `severityToLevel`
+- `rules[].properties.tags` flattened as `["pillar:security", "soc2:CC6.1", ...]`
+- `results[].partialFingerprints["disco/v1"] = sha256(rule_id+":"+resource_id)[:16]` so GitHub code-scanning de-dupes across runs
+- `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` (`pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output.
+
+Bundled `aws-waf` rules (F10) now ship `tags: { pillar, waf_qid, soc2?, iso27001?, pci_dss?, nist_800_53? }` so `--tag pillar=security` / `--tag soc2=CC6.1` filtering and SARIF taxonomies work out of the box. New rules in any pack should follow the same shape; sec-/cost-/rel-/ops- file-prefix conveys the pillar but the `tags.pillar` value is what the engine and SARIF read.
+
 ## Rego authors must check scanner wrapping for attrs path
 
 Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "Status": ...}`; ELBv2 LB: `{"lb": ..., "type": ...}`; EventBridge rule: `{"rule": ..., "Targets": [...]}`; Lambda function: SDK type embedded with `Code` sibling). Rego rules reading these resources must match the wrapped path: `input.attributes.Trail.IsMultiRegionTrail`, not `input.attributes.IsMultiRegionTrail`. The wrapping is documented in `internal/providers/aws/CLAUDE.md` — grep for the resource type before authoring a rule. Wrong path silently matches nothing.

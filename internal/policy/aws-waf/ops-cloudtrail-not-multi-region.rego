@@ -20,5 +20,13 @@ deny contains f if {
 		"message": sprintf("CloudTrail %q is single-region; API calls in other regions are not logged", [input.name]),
 		"remediation": "Reconfigure as a multi-region trail or add per-region trails covering the full footprint.",
 		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_observability_understand_workload_health.html",
+		"tags": {
+			"pillar": "operations",
+			"waf_qid": "OPS 8",
+			"soc2": "CC7.2",
+			"iso27001": "A.8.15",
+			"pci_dss": "10.2",
+			"nist_800_53": "AU-2",
+		},
 	}
 }

@@ -40,6 +40,7 @@ func resetCheckFlags() {
 	checkOutputFmt = "table"
 	checkExitNonZero = false
 	checkTagFilters = nil
+	checkIncludeManaged = false
 }
 
 // writePolicy drops a v1 Rego module that flags unencrypted EBS volumes
@@ -243,9 +244,10 @@ func TestCheckCmd_EvaluatesPastDefaultLimit(t *testing.T) {
 	}
 }
 
-// TestCheckCmd_EvaluatesManagedResources guards against IncludeManaged=false
-// hiding provider-managed rows from policy evaluation.
-func TestCheckCmd_EvaluatesManagedResources(t *testing.T) {
+// TestCheckCmd_DefaultsCustomerOnly confirms the F24 fix: `disco check` with
+// no flags evaluates customer-managed rows only. Provider-managed rows are
+// out of scope until --include-managed is passed.
+func TestCheckCmd_DefaultsCustomerOnly(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -275,8 +277,24 @@ func TestCheckCmd_EvaluatesManagedResources(t *testing.T) {
 	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
 		t.Fatalf("not JSON: %v\n%s", jerr, out)
 	}
+	if len(fs) != 1 {
+		t.Fatalf("want 1 finding (customer only) by default, got %d: %+v", len(fs), fs)
+	}
+
+	resetCheckFlags()
+	out, err = captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"check", "--rules", dir, "--include-managed", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("check --include-managed: %v", err)
+	}
+	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, out)
+	}
 	if len(fs) != 2 {
-		t.Errorf("want 2 findings (customer + managed), got %d: %+v", len(fs), fs)
+		t.Errorf("want 2 findings (customer + managed) with --include-managed, got %d", len(fs))
 	}
 }
 
