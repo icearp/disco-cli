@@ -122,10 +122,13 @@ func severityToLevel(s string) string {
 
 // sarifEvidence carries the per-emit chain-of-custody pointers stamped
 // into SARIF so a consumer reading only the doc can bind findings back to
-// the source DB and the scan runs that populated it.
+// the source DB and the scan runs that populated it. RulesSHA256 binds
+// the resolved rule set (--rules tree + --packs modules, deterministically
+// hashed) so an attestation can prove which policy produced which finding.
 type sarifEvidence struct {
-	DBSHA256 string
-	ScanIDs  []string
+	DBSHA256    string
+	RulesSHA256 string
+	ScanIDs     []string
 }
 
 // renderCheckSARIF writes findings as a SARIF v2.1.0 document. Empty input
@@ -140,6 +143,9 @@ func renderCheckSARIF(findings []policy.Finding, w io.Writer, evidence sarifEvid
 	driverProps := map[string]any{}
 	if evidence.DBSHA256 != "" {
 		driverProps["disco_db_sha256"] = evidence.DBSHA256
+	}
+	if evidence.RulesSHA256 != "" {
+		driverProps["rules_sha256"] = evidence.RulesSHA256
 	}
 	invocations := []sarifInvocation{{ExecutionSuccessful: true}}
 	if len(evidence.ScanIDs) > 0 {

@@ -188,6 +188,9 @@ Examples:
 			if h, herr := snapshot.HashFile(defaultDBPath()); herr == nil {
 				ev.DBSHA256 = h
 			}
+			if h, herr := policy.RulesSHA256(checkRulePaths, modules); herr == nil {
+				ev.RulesSHA256 = h
+			}
 			if scans, sErr := db.ListScans(); sErr == nil {
 				ev.ScanIDs = make([]string, 0, len(scans))
 				for _, s := range scans {
