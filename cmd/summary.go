@@ -95,7 +95,7 @@ Examples:
 			asOf = store.ToRFC3339(scans[0].StartedAt)
 		}
 
-		report := buildSummary(rows, asOf, summaryTopTypes)
+		report := buildSummary(rows, asOf, summaryTopTypes, summaryIncludeManaged)
 		return renderSummary(report, summaryOutputFmt)
 	},
 }
@@ -126,10 +126,14 @@ type accountBucket struct {
 
 // summaryReport is the JSON envelope. TypeBucketsTotal preserves the
 // pre-truncation distinct-type count so the table renderer can show
-// "top N of M" without recomputing.
+// "top N of M" without recomputing. ManagedIncluded echoes the
+// --include-managed flag value so consumers can disambiguate the three
+// "correct" totals (customer-only / customer+managed) without inspecting
+// the invocation (F5 fix).
 type summaryReport struct {
 	AsOf             string           `json:"as_of"`
 	Total            int              `json:"total"`
+	ManagedIncluded  bool             `json:"managed_included"`
 	ByProvider       []providerBucket `json:"by_provider"`
 	ByAccount        []accountBucket  `json:"by_account"`
 	ByRegion         []regionBucket   `json:"by_region"`
@@ -137,7 +141,7 @@ type summaryReport struct {
 	TypeBucketsTotal int              `json:"type_buckets_total"`
 }
 
-func buildSummary(rows []store.Resource, asOf string, topTypes int) summaryReport {
+func buildSummary(rows []store.Resource, asOf string, topTypes int, managedIncluded bool) summaryReport {
 	provCounts := map[string]int{}
 	regionCounts := map[string]int{}
 	typeCounts := map[string]int{}
@@ -209,6 +213,7 @@ func buildSummary(rows []store.Resource, asOf string, topTypes int) summaryRepor
 	return summaryReport{
 		AsOf:             asOf,
 		Total:            len(rows),
+		ManagedIncluded:  managedIncluded,
 		ByProvider:       provs,
 		ByAccount:        accts,
 		ByRegion:         regs,
@@ -255,7 +260,11 @@ func renderSummary(rep summaryReport, format string) error {
 		}
 		return nil
 	case "table", "":
-		header := fmt.Sprintf("Disco summary — %d resources", rep.Total)
+		scope := "customer-managed only"
+		if rep.ManagedIncluded {
+			scope = "incl. provider-managed"
+		}
+		header := fmt.Sprintf("Disco summary — %d resources (%s)", rep.Total, scope)
 		if rep.AsOf != "" {
 			header += ", as of " + rep.AsOf
 		}
