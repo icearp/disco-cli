@@ -43,7 +43,7 @@ disco
 │   ├── aws                   per-account, --regions, --profile, --skip-globals
 │   ├── azure                 per-subscription via DefaultAzureCredential
 │   └── gcp                   per-project fan-out across reachable projects
-├── list                      filter by --type, --provider, --region, --since
+├── list                      filter by --type, --provider, --region, --discovered-since
 ├── graph
 │   ├── blast <id>            reachability from a seed
 │   ├── path <A> <B>          shortest path between two resources
@@ -133,7 +133,7 @@ Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the 
 ```bash
 disco scans
 disco list --scan-id latest --scan-as discovered
-disco list --since 2026-04-01 -o json | jq 'length'
+disco list --discovered-since 2026-04-01 -o json | jq 'length'
 ```
 
 ### Evidence package handoff (read-only snapshot + signed verify)

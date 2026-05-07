@@ -320,11 +320,10 @@ func resetListFlags() {
 	listTagKey = ""
 	listTagValue = ""
 	listScanID = ""
-	listSince.reset()
-	listUntil.reset()
-	listOlderThan.reset()
+	listDiscoveredSince.reset()
+	listDiscoveredBefore.reset()
+	listCreatedSince.reset()
 	listCreatedBefore.reset()
-	listCreatedAfter.reset()
 	listOutputFmt = ""
 	listLimit = 0
 	listIncludeManaged = false
@@ -665,7 +664,7 @@ func TestListCmd_Since(t *testing.T) {
 	resetListFlags()
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--since", "2026-04-01", "--type", "aws:ec2:vpc", "-o", "json"})
+		cmd.SetArgs([]string{"list", "--discovered-since", "2026-04-01", "--type", "aws:ec2:vpc", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
@@ -683,7 +682,7 @@ func TestListCmd_Since(t *testing.T) {
 	resetListFlags()
 	_, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--since", "7d"})
+		cmd.SetArgs([]string{"list", "--discovered-since", "7d"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "RFC3339") {
@@ -694,7 +693,7 @@ func TestListCmd_Since(t *testing.T) {
 	resetListFlags()
 	_, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--since", "2026-04-01", "--since", "2026-05-01"})
+		cmd.SetArgs([]string{"list", "--discovered-since", "2026-04-01", "--discovered-since", "2026-05-01"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "more than once") {

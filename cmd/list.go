@@ -46,24 +46,23 @@ func resourceRow(r *store.Resource) []string {
 }
 
 var (
-	listProvider       string
-	listType           string
-	listExcludeTypes   []string
-	listRegion         string
-	listStatus         string
-	listTagKey         string
-	listTagValue       string
-	listScanID         string
-	listScanAs         string
-	listID             string
-	listSince          = singleSetString{flag: "since"}
-	listUntil          = singleSetString{flag: "until"}
-	listOlderThan      = singleSetString{flag: "older-than"}
-	listCreatedBefore  = singleSetString{flag: "created-before"}
-	listCreatedAfter   = singleSetString{flag: "created-after"}
-	listOutputFmt      string
-	listLimit          uint64
-	listIncludeManaged bool
+	listProvider         string
+	listType             string
+	listExcludeTypes     []string
+	listRegion           string
+	listStatus           string
+	listTagKey           string
+	listTagValue         string
+	listScanID           string
+	listScanAs           string
+	listID               string
+	listDiscoveredSince  = singleSetString{flag: "discovered-since"}
+	listDiscoveredBefore = singleSetString{flag: "discovered-before"}
+	listCreatedSince     = singleSetString{flag: "created-since"}
+	listCreatedBefore    = singleSetString{flag: "created-before"}
+	listOutputFmt        string
+	listLimit            uint64
+	listIncludeManaged   bool
 )
 
 var listCmd = &cobra.Command{
@@ -89,23 +88,19 @@ Examples:
 		if err != nil {
 			return err
 		}
-		since, err := parseSince(listSince.val)
+		discoveredSince, err := parseTimeFlag("--discovered-since", listDiscoveredSince.val)
 		if err != nil {
 			return err
 		}
-		until, err := parseTimeFlag("--until", listUntil.val)
+		discoveredBefore, err := parseTimeFlag("--discovered-before", listDiscoveredBefore.val)
 		if err != nil {
 			return err
 		}
-		olderThan, err := parseTimeFlag("--older-than", listOlderThan.val)
+		createdSince, err := parseTimeFlag("--created-since", listCreatedSince.val)
 		if err != nil {
 			return err
 		}
 		createdBefore, err := parseTimeFlag("--created-before", listCreatedBefore.val)
-		if err != nil {
-			return err
-		}
-		createdAfter, err := parseTimeFlag("--created-after", listCreatedAfter.val)
 		if err != nil {
 			return err
 		}
@@ -125,23 +120,22 @@ Examples:
 			return fmt.Errorf("--scan-as must be discovered|verified|any (got %q)", listScanAs)
 		}
 		f := store.ResourceFilter{
-			Provider:       listProvider,
-			Types:          types,
-			ExcludeTypes:   listExcludeTypes,
-			Regions:        regions,
-			Status:         listStatus,
-			TagKey:         listTagKey,
-			TagValue:       listTagValue,
-			DiscoveredBy:   scanID,
-			ScanAs:         listScanAs,
-			ID:             listID,
-			Since:          since,
-			Until:          until,
-			OlderThan:      olderThan,
-			CreatedBefore:  createdBefore,
-			CreatedAfter:   createdAfter,
-			Limit:          listLimit,
-			IncludeManaged: listIncludeManaged,
+			Provider:         listProvider,
+			Types:            types,
+			ExcludeTypes:     listExcludeTypes,
+			Regions:          regions,
+			Status:           listStatus,
+			TagKey:           listTagKey,
+			TagValue:         listTagValue,
+			DiscoveredBy:     scanID,
+			ScanAs:           listScanAs,
+			ID:               listID,
+			DiscoveredSince:  discoveredSince,
+			DiscoveredBefore: discoveredBefore,
+			CreatedSince:     createdSince,
+			CreatedBefore:    createdBefore,
+			Limit:            listLimit,
+			IncludeManaged:   listIncludeManaged,
 		}
 
 		// Initialise to a non-nil empty slice so `-o json` on a zero-row
@@ -223,11 +217,10 @@ func init() {
 	listCmd.Flags().StringVar(&listScanAs, "scan-as", "any",
 		"Treat --scan-id as the row's discovered | verified | any (default: any)")
 	listCmd.Flags().StringVar(&listID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
-	listCmd.Flags().Var(&listSince, "since", "Show rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	listCmd.Flags().Var(&listUntil, "until", "Show rows first-seen on or before this timestamp (closes the --since interval)")
-	listCmd.Flags().Var(&listOlderThan, "older-than", "Show rows first-seen by disco strictly before this timestamp (use --created-before for resource intrinsic age)")
-	listCmd.Flags().Var(&listCreatedBefore, "created-before", "Show rows whose intrinsic CreateDate is strictly before this timestamp (RFC3339 or YYYY-MM-DD; rows with no CreateDate are excluded)")
-	listCmd.Flags().Var(&listCreatedAfter, "created-after", "Show rows whose intrinsic CreateDate is on or after this timestamp (closes the --created-before interval)")
+	listCmd.Flags().Var(&listDiscoveredSince, "discovered-since", "Show rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	listCmd.Flags().Var(&listDiscoveredBefore, "discovered-before", "Show rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
+	listCmd.Flags().Var(&listCreatedSince, "created-since", "Show rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
+	listCmd.Flags().Var(&listCreatedBefore, "created-before", "Show rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
 	listCmd.Flags().StringVarP(&listRegion, "region", "r", "", "Filter by region")
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")

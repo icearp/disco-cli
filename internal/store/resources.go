@@ -193,27 +193,25 @@ type ResourceFilter struct {
 	// is empty. Field name mirrors the CLI flag `--scan-as` (renamed from
 	// `--scan-role` to avoid IAM-role cognitive collision).
 	ScanAs string
-	// Since filters rows whose discovered_at >= this RFC3339 timestamp.
-	// Stored timestamps sort lexicographically the same as chronologically,
-	// so plain string comparison suffices.
-	Since string
-	// Until filters rows whose discovered_at <= this RFC3339 timestamp
-	// (inclusive upper bound). Pairs with Since for closed-interval queries.
-	Until string
-	// OlderThan filters rows whose discovered_at < this RFC3339 timestamp
-	// (strict). Independent of Since/Until — used for "stale" hygiene queries.
-	OlderThan string
+	// DiscoveredSince filters rows whose discovered_at >= this RFC3339
+	// timestamp. Stored timestamps sort lexicographically the same as
+	// chronologically, so plain string comparison suffices. Pairs with
+	// DiscoveredBefore for half-open `[since, before)` interval queries.
+	DiscoveredSince string
+	// DiscoveredBefore filters rows whose discovered_at < this RFC3339
+	// timestamp (strict). Used for "stale" hygiene queries and as the
+	// upper half of a half-open closed interval with DiscoveredSince.
+	DiscoveredBefore string
 	// CreatedBefore filters rows whose created_at < this RFC3339 timestamp.
 	// Anchored on the resource's intrinsic CreateDate (lifted from the SDK
-	// at scan time), NOT discovered_at — F3 fix for stale-resource queries
-	// that previously matched on first-seen-by-disco. Rows with NULL
-	// created_at are excluded from the result set; not every scanner lifts
-	// the SDK timestamp yet (audit ongoing — see F4 EBS volume precedent).
+	// at scan time), NOT discovered_at. Rows with NULL created_at are
+	// excluded from the result set; not every scanner lifts the SDK
+	// timestamp yet (see EBS volume precedent in commit 8e61c52).
 	CreatedBefore string
-	// CreatedAfter filters rows whose created_at >= this RFC3339 timestamp.
-	// Pairs with CreatedBefore for closed-interval queries on intrinsic age.
-	// Same NULL caveat as CreatedBefore.
-	CreatedAfter string
+	// CreatedSince filters rows whose created_at >= this RFC3339 timestamp.
+	// Pairs with CreatedBefore for half-open closed-interval queries on
+	// intrinsic age. Same NULL caveat as CreatedBefore.
+	CreatedSince string
 	TagKey       string
 	TagValue     string
 	Limit        uint64
@@ -264,20 +262,17 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	if f.ID != "" {
 		q = q.Where(sq.Eq{"id": f.ID})
 	}
-	if f.Since != "" {
-		q = q.Where(sq.GtOrEq{"discovered_at": f.Since})
+	if f.DiscoveredSince != "" {
+		q = q.Where(sq.GtOrEq{"discovered_at": f.DiscoveredSince})
 	}
-	if f.Until != "" {
-		q = q.Where(sq.LtOrEq{"discovered_at": f.Until})
+	if f.DiscoveredBefore != "" {
+		q = q.Where(sq.Lt{"discovered_at": f.DiscoveredBefore})
 	}
-	if f.OlderThan != "" {
-		q = q.Where(sq.Lt{"discovered_at": f.OlderThan})
+	if f.CreatedSince != "" {
+		q = q.Where(sq.GtOrEq{"created_at": f.CreatedSince})
 	}
 	if f.CreatedBefore != "" {
 		q = q.Where(sq.Lt{"created_at": f.CreatedBefore})
-	}
-	if f.CreatedAfter != "" {
-		q = q.Where(sq.GtOrEq{"created_at": f.CreatedAfter})
 	}
 	switch {
 	case f.TagKey != "" && f.TagValue != "":

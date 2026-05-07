@@ -28,7 +28,7 @@ var (
 	tagCovExcludeTypes    []string
 	tagCovRegion          string
 	tagCovScanID          string
-	tagCovSince           = singleSetString{flag: "since"}
+	tagCovDiscoveredSince = singleSetString{flag: "discovered-since"}
 	tagCovOutputFmt       string
 	tagCovIncludeManaged  bool
 	tagCovCaseInsensitive bool
@@ -92,18 +92,18 @@ Examples:
 		if err != nil {
 			return err
 		}
-		since, err := parseSince(tagCovSince.val)
+		discoveredSince, err := parseTimeFlag("--discovered-since", tagCovDiscoveredSince.val)
 		if err != nil {
 			return err
 		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
-			Provider:       tagCovProvider,
-			Types:          types,
-			ExcludeTypes:   tagCovExcludeTypes,
-			Regions:        regions,
-			DiscoveredBy:   scanID,
-			Since:          since,
-			IncludeManaged: tagCovIncludeManaged,
+			Provider:        tagCovProvider,
+			Types:           types,
+			ExcludeTypes:    tagCovExcludeTypes,
+			Regions:         regions,
+			DiscoveredBy:    scanID,
+			DiscoveredSince: discoveredSince,
+			IncludeManaged:  tagCovIncludeManaged,
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
@@ -266,7 +266,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovType, "type", "t", "", "Filter by resource type")
 	tagCoverageCmd.Flags().StringSliceVar(&tagCovExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from the denominator")
 	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
-	tagCoverageCmd.Flags().Var(&tagCovSince, "since", "Restrict to rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	tagCoverageCmd.Flags().Var(&tagCovDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

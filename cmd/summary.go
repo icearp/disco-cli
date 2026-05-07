@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	summaryProvider       string
-	summaryRegion         string
-	summaryExcludeTypes   []string
-	summaryScanID         string
-	summarySince          = singleSetString{flag: "since"}
-	summaryOutputFmt      string
-	summaryTopTypes       int
-	summaryIncludeManaged bool
+	summaryProvider        string
+	summaryRegion          string
+	summaryExcludeTypes    []string
+	summaryScanID          string
+	summaryDiscoveredSince = singleSetString{flag: "discovered-since"}
+	summaryOutputFmt       string
+	summaryTopTypes        int
+	summaryIncludeManaged  bool
 )
 
 var summaryCmd = &cobra.Command{
@@ -67,7 +67,7 @@ Examples:
 		if err != nil {
 			return err
 		}
-		since, err := parseSince(summarySince.val)
+		discoveredSince, err := parseTimeFlag("--discovered-since", summaryDiscoveredSince.val)
 		if err != nil {
 			return err
 		}
@@ -76,12 +76,12 @@ Examples:
 			regions = []string{summaryRegion}
 		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
-			Provider:       summaryProvider,
-			ExcludeTypes:   summaryExcludeTypes,
-			Regions:        regions,
-			DiscoveredBy:   scanID,
-			Since:          since,
-			IncludeManaged: summaryIncludeManaged,
+			Provider:        summaryProvider,
+			ExcludeTypes:    summaryExcludeTypes,
+			Regions:         regions,
+			DiscoveredBy:    scanID,
+			DiscoveredSince: discoveredSince,
+			IncludeManaged:  summaryIncludeManaged,
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
@@ -325,7 +325,7 @@ func init() {
 	summaryCmd.Flags().StringVarP(&summaryRegion, "region", "r", "", "Filter by region")
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
-	summaryCmd.Flags().Var(&summarySince, "since", "Restrict to rows first-seen on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	summaryCmd.Flags().Var(&summaryDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, json, csv")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

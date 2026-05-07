@@ -166,13 +166,23 @@ Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "St
 
 ## Set `Args: cobra.NoArgs` on flag-only subcommands
 
-Cobra's default Args validator silently accepts arbitrary positional tokens. `disco list --since 2025-05-01 12:01:01` parses `--since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`list`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.
+Cobra's default Args validator silently accepts arbitrary positional tokens. `disco list --discovered-since 2025-05-01 12:01:01` parses `--discovered-since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`list`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.
 
-## `--since` accepts RFC3339 or bare date, pinned to `discovered_at`
+## Time filters: `{discovered, created} × {since, before}` — half-open `[since, before)`
 
-`list`, `summary`, `tag-coverage` accept `--since <RFC3339|YYYY-MM-DD>` via `parseSince` (`cmd/helpers.go`). Bare date auto-extends to `T00:00:00Z`; non-UTC zones normalise to UTC. Plumbed onto `ResourceFilter.Since` → SQL `discovered_at >= ?`. RFC3339 sorts lexicographically the same as chronologically so plain string compare works. Pinned to `discovered_at` (immutable first-seen), NOT `verified_at` — re-scans don't re-stamp it. Means `--scan-id latest --since X` legitimately returns 0 when the latest scan only re-verified pre-existing rows.
+`list`, `summary`, `tag-coverage` accept the column-anchored time-filter pair `--<col>-since` / `--<col>-before`:
 
-Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on second `Set()` so `--since A --since B` rejects rather than last-wins-silently. Test reset helpers must call `<flag>.reset()` on the value, not `<flag> = ""` (compile error: untyped string into struct).
+- `--discovered-since <ts>` → `ResourceFilter.DiscoveredSince` → SQL `discovered_at >= ?`. Inclusive lower bound on first-seen-by-disco.
+- `--discovered-before <ts>` → `ResourceFilter.DiscoveredBefore` → SQL `discovered_at < ?`. Strict upper bound; pairs with `--discovered-since` for half-open `[since, before)` intervals; also serves as the standalone "stale" hygiene query.
+- `--created-since` / `--created-before` mirror the pair on the resource's intrinsic `created_at` column (lifted from the SDK at scan time). Rows with NULL `created_at` are excluded from both filters because `NULL < X` is unknown in SQL — not every scanner lifts the SDK timestamp yet (see EBS volume precedent in commit 8e61c52).
+
+`paid` `disco findings list` carries an analogous `--run-since` flag that filters check-run `started_at` (different table, different anchor — not a `ResourceFilter` field).
+
+All take `<RFC3339|YYYY-MM-DD>` via `parseTimeFlag` (`cmd/helpers.go`). Bare date auto-extends to `T00:00:00Z`; non-UTC zones normalise to UTC. Discovered-axis filters are pinned to `discovered_at` (immutable first-seen), NOT `verified_at` — re-scans don't re-stamp it. Means `--scan-id latest --discovered-since X` legitimately returns 0 when the latest scan only re-verified pre-existing rows.
+
+Backed by `singleSetString` (`cmd/helpers.go`) — pflag.Value that errors on second `Set()` so repeated `--discovered-since A --discovered-since B` rejects rather than last-wins-silently. Test reset helpers must call `<flag>.reset()` on the value, not `<flag> = ""` (compile error: untyped string into struct).
+
+New column-anchored time filters follow the same `{*-since, *-before}` shape — `{since, until}` is no longer used (the inclusive `<= X` upper bound collapses to half-open `[since, before)` at any practical granularity).
 
 ## `tag-coverage` flags suspicious-shape keys + folds case
 

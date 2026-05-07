@@ -158,9 +158,10 @@ func resolveScanIDPrefix(db *store.Store, prefix string) (string, error) {
 
 // singleSetString is a pflag.Value that rejects being set more than once.
 // Cobra's default StringVar last-wins-silently on `--flag A --flag B`; this
-// type errors instead so timestamp-shaped flags (--since today) can't be
-// silently overridden in scripted invocations. Reset to "" before each test
-// run via the existing reset helpers.
+// type errors instead so timestamp-shaped flags (--discovered-since,
+// --created-before, etc.) can't be silently overridden in scripted
+// invocations. Reset to "" before each test run via the existing reset
+// helpers.
 type singleSetString struct {
 	val string
 	set bool
@@ -183,15 +184,11 @@ func (s *singleSetString) Set(v string) error {
 // across runs without re-registering the cobra flag.
 func (s *singleSetString) reset() { s.val, s.set = "", false }
 
-// parseSince normalises a user-supplied --since value into the RFC3339 UTC
-// shape ListResources stores discovered_at in. Accepts full RFC3339 or bare
-// YYYY-MM-DD (auto-extended to T00:00:00Z UTC). Empty input passes through
-// as a no-op so callers can blindly forward the flag.
-func parseSince(raw string) (string, error) {
-	return parseTimeFlag("--since", raw)
-}
-
-// parseTimeFlag is the shared parser for --since / --until / --older-than.
+// parseTimeFlag is the shared parser for every time-shaped flag in the
+// CLI (--discovered-since, --discovered-before, --created-since,
+// --created-before, --run-since). Accepts full RFC3339 or bare YYYY-MM-DD
+// (auto-extended to T00:00:00Z UTC). Empty input passes through as a
+// no-op so callers can blindly forward the flag value.
 // flag is the user-facing name used in error messages.
 func parseTimeFlag(flag, raw string) (string, error) {
 	if raw == "" {

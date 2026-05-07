@@ -149,22 +149,22 @@ func TestListResources_Since(t *testing.T) {
 	}
 
 	results, err := st.ListResources(ResourceFilter{
-		Since: "2026-04-01T00:00:00Z",
-		Limit: 100,
+		DiscoveredSince: "2026-04-01T00:00:00Z",
+		Limit:           100,
 	})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
 	if len(results) != 1 || results[0].NativeID != "i-new" {
-		t.Errorf("--since filter: got %+v, want only i-new", results)
+		t.Errorf("DiscoveredSince filter: got %+v, want only i-new", results)
 	}
 }
 
-// TestListResources_CreatedBeforeAfter asserts the CreatedBefore /
-// CreatedAfter clauses filter on the resource's intrinsic created_at
+// TestListResources_CreatedSinceBefore asserts the CreatedSince /
+// CreatedBefore clauses filter on the resource's intrinsic created_at
 // column (NOT discovered_at). Rows with NULL created_at are excluded
 // from both filters — matches the documented contract.
-func TestListResources_CreatedBeforeAfter(t *testing.T) {
+func TestListResources_CreatedSinceBefore(t *testing.T) {
 	st := openTestStore(t)
 	old := "2024-06-01T00:00:00Z"
 	mid := "2025-06-01T00:00:00Z"
@@ -198,19 +198,19 @@ func TestListResources_CreatedBeforeAfter(t *testing.T) {
 	}
 
 	after, err := st.ListResources(ResourceFilter{
-		CreatedAfter: "2025-01-01T00:00:00Z", Limit: 100,
+		CreatedSince: "2025-01-01T00:00:00Z", Limit: 100,
 	})
 	if err != nil {
-		t.Fatalf("CreatedAfter: %v", err)
+		t.Fatalf("CreatedSince: %v", err)
 	}
 	if len(after) != 1 || after[0].NativeID != "vol-mid" {
-		t.Errorf("CreatedAfter: got %v, want only vol-mid", after)
+		t.Errorf("CreatedSince: got %v, want only vol-mid", after)
 	}
 
-	// Closed-interval [old, mid] returns both timestamped rows; vol-no-ts
+	// Half-open [since, before) returns both timestamped rows; vol-no-ts
 	// stays excluded because NULL < anything is unknown in SQL.
 	closed, err := st.ListResources(ResourceFilter{
-		CreatedAfter: "2024-01-01T00:00:00Z", CreatedBefore: "2026-01-01T00:00:00Z", Limit: 100,
+		CreatedSince: "2024-01-01T00:00:00Z", CreatedBefore: "2026-01-01T00:00:00Z", Limit: 100,
 	})
 	if err != nil {
 		t.Fatalf("closed interval: %v", err)

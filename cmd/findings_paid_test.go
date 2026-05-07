@@ -14,7 +14,7 @@ import (
 func resetFindingsFlags() {
 	findingsOutputFmt = ""
 	findingsCheckRunID = ""
-	findingsSince.reset()
+	findingsRunSince.reset()
 	findingsSeverity = ""
 	findingsCategory = ""
 	findingsType = ""

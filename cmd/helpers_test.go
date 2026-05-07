@@ -6,9 +6,9 @@ import (
 )
 
 func TestParseSince_RFC3339(t *testing.T) {
-	out, err := parseSince("2026-04-01T00:00:00Z")
+	out, err := parseTimeFlag("--discovered-since", "2026-04-01T00:00:00Z")
 	if err != nil {
-		t.Fatalf("parseSince: %v", err)
+		t.Fatalf("parseTimeFlag: %v", err)
 	}
 	if out != "2026-04-01T00:00:00Z" {
 		t.Errorf("got %q, want round-trip", out)
@@ -16,9 +16,9 @@ func TestParseSince_RFC3339(t *testing.T) {
 }
 
 func TestParseSince_BareDate(t *testing.T) {
-	out, err := parseSince("2026-04-01")
+	out, err := parseTimeFlag("--discovered-since", "2026-04-01")
 	if err != nil {
-		t.Fatalf("parseSince: %v", err)
+		t.Fatalf("parseTimeFlag: %v", err)
 	}
 	if out != "2026-04-01T00:00:00Z" {
 		t.Errorf("got %q, want bare-date auto-extend", out)
@@ -26,7 +26,7 @@ func TestParseSince_BareDate(t *testing.T) {
 }
 
 func TestParseSince_Empty(t *testing.T) {
-	out, err := parseSince("")
+	out, err := parseTimeFlag("--discovered-since", "")
 	if err != nil {
 		t.Errorf("parseSince empty: %v", err)
 	}
@@ -37,9 +37,9 @@ func TestParseSince_Empty(t *testing.T) {
 
 func TestParseSince_Invalid(t *testing.T) {
 	for _, in := range []string{"7d", "last week", "April 1", "2026/04/01"} {
-		_, err := parseSince(in)
+		_, err := parseTimeFlag("--discovered-since", in)
 		if err == nil || !strings.Contains(err.Error(), "must be RFC3339") {
-			t.Errorf("parseSince(%q): want error mentioning RFC3339, got %v", in, err)
+			t.Errorf("parseTimeFlag(%q): want error mentioning RFC3339, got %v", in, err)
 		}
 	}
 }
@@ -89,9 +89,9 @@ func TestResolveScanIDPrefix_Lookup(t *testing.T) {
 }
 
 func TestParseSince_NonUTCNormalisesToUTC(t *testing.T) {
-	out, err := parseSince("2026-04-01T05:00:00-05:00")
+	out, err := parseTimeFlag("--discovered-since", "2026-04-01T05:00:00-05:00")
 	if err != nil {
-		t.Fatalf("parseSince: %v", err)
+		t.Fatalf("parseTimeFlag: %v", err)
 	}
 	if out != "2026-04-01T10:00:00Z" {
 		t.Errorf("got %q, want UTC normalization to 2026-04-01T10:00:00Z", out)

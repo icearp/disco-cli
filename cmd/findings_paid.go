@@ -20,7 +20,7 @@ import (
 var (
 	findingsOutputFmt  string
 	findingsCheckRunID string
-	findingsSince      = singleSetString{flag: "since"}
+	findingsRunSince   = singleSetString{flag: "run-since"}
 	findingsSeverity   string
 	findingsCategory   string
 	findingsType       string
@@ -72,7 +72,7 @@ var findingsListCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		since, err := parseSince(findingsSince.val)
+		since, err := parseTimeFlag("--run-since", findingsRunSince.val)
 		if err != nil {
 			return err
 		}
@@ -118,10 +118,10 @@ var findingsRunsCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("list check_runs: %w", err)
 		}
-		// --since reuses singleSetString + parseSince; filter in-Go since
-		// ListCheckRuns has no SQL filter shape for it.
-		if findingsSince.val != "" {
-			cutoff, perr := parseSince(findingsSince.val)
+		// --run-since reuses singleSetString + parseTimeFlag; filter in-Go
+		// because ListCheckRuns has no SQL filter shape for it.
+		if findingsRunSince.val != "" {
+			cutoff, perr := parseTimeFlag("--run-since", findingsRunSince.val)
 			if perr != nil {
 				return perr
 			}
@@ -320,14 +320,14 @@ func init() {
 	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv, sarif (sarif on list only)")
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
-	findingsListCmd.Flags().Var(&findingsSince, "since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low, medium, high, critical)")
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVar(&findingsType, "type", "", "Filter by resource type")
 	findingsListCmd.Flags().StringVar(&findingsProvider, "provider", "", "Filter by provider (aws, azure, gcp)")
 	findingsListCmd.Flags().StringVar(&findingsFindingID, "finding-id", "", "Filter by Rego rule id (e.g. waf-sec-ebs-encryption-at-rest)")
 
-	findingsRunsCmd.Flags().Var(&findingsSince, "since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	findingsRunsCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 
 	findingsCmd.AddCommand(findingsListCmd)
 	findingsCmd.AddCommand(findingsRunsCmd)
