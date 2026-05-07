@@ -148,11 +148,13 @@ When `--exit-nonzero` trips on non-empty findings, `RunE` returns the package-le
 `cmd/check_sarif.go` (F11) now populates:
 - `rules[].shortDescription` / `fullDescription` (mirror the message; richer text can land if the engine ever surfaces a separate longer-form field)
 - `rules[].defaultConfiguration.level` mapped from `severity` via `severityToLevel`
-- `rules[].properties.tags` flattened as `["pillar:security", "soc2:CC6.1", ...]`
+- `rules[].properties.tags` flattened as `["waf_pillar:security", "soc2:CC6.1", ...]`
 - `results[].partialFingerprints["disco/v1"] = sha256(rule_id+":"+resource_id)[:16]` so GitHub code-scanning de-dupes across runs
-- `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` (`pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output.
+- `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` (`waf_pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output.
 
-Bundled `aws-waf` rules (F10) now ship `tags: { pillar, waf_qid, soc2?, iso27001?, pci_dss?, nist_800_53? }` so `--tag pillar=security` / `--tag soc2=CC6.1` filtering and SARIF taxonomies work out of the box. New rules in any pack should follow the same shape; sec-/cost-/rel-/ops- file-prefix conveys the pillar but the `tags.pillar` value is what the engine and SARIF read.
+Bundled `aws-waf` rules (F10) now ship `tags: { waf_pillar, waf_qid, soc2?, iso27001?, pci_dss?, nist_800_53? }` so `--tag waf_pillar=security` / `--tag soc2=CC6.1` filtering and SARIF taxonomies work out of the box. New rules in any pack should follow the same shape; sec-/cost-/rel-/ops- file-prefix conveys the pillar but the `tags.waf_pillar` value is what the engine and SARIF read.
+
+The unprefixed `pillar` key is intentionally reserved for a future cross-framework grouping (e.g. NIST CSF Identify/Protect/Detect/Respond/Recover, CIS controls categories) — using it for AWS WAF pillars only would collide. Frame-specific keys (`waf_pillar`, future `csf_function`, `cis_category`) are the convention.
 
 ## Rego authors must check scanner wrapping for attrs path
 

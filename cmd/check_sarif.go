@@ -140,7 +140,7 @@ func renderCheckSARIF(findings []policy.Finding, w io.Writer) error {
 // taxonomyKeys lists the rule-tag keys that surface as SARIF taxonomies
 // when present on any loaded rule. Order is the rendering order in the
 // taxonomies[] block.
-var taxonomyKeys = []string{"pillar", "soc2", "iso27001", "pci_dss", "nist_800_53", "waf_qid"}
+var taxonomyKeys = []string{"waf_pillar", "soc2", "iso27001", "pci_dss", "nist_800_53", "waf_qid"}
 
 // buildSARIFTaxonomies walks findings, harvests `tags.<key>` values for
 // the well-known framework tag-keys, and emits one taxonomy per non-empty

@@ -18,7 +18,7 @@ deny contains f if {
 		"remediation": "Set PubliclyAccessible=false; reach the database through a bastion or VPN.",
 		"ref_url": "https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/sec_network_protection_layered.html",
 		"tags": {
-			"pillar": "security",
+			"waf_pillar": "security",
 			"waf_qid": "SEC 5",
 			"soc2": "CC6.6",
 			"iso27001": "A.8.20",
