@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -15,7 +14,7 @@ import (
 // on opt-in surfaces like ListStateTemplates that account base IoTFleetWise
 // access does not unlock.
 func isIoTFleetWiseFeatureNotAuthorized(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "not authorized to use this feature")
+	return isAccessDeniedWithMessage(err, "not authorized to use this feature")
 }
 
 func init() {

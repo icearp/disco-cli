@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -20,7 +19,7 @@ import (
 // (precedent: isCacheSecurityGroupsNotPermitted in elasticache_scanners.go,
 // per aws/CLAUDE.md "Smithy API-error-code predicates").
 func isMacieNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "Macie is not enabled")
+	return isAccessDeniedWithMessage(err, "Macie is not enabled")
 }
 
 func init() {

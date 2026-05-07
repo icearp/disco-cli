@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -103,7 +102,7 @@ func scanObsOrgTelemetryRules(ctx context.Context, client obsAdminAPI, acct *acc
 				return 0, 0, nil
 			}
 			// Telemetry evaluation not enabled at org level — feature gate, not error.
-			if isAPIErrorCode(err, "ValidationException") && strings.Contains(err.Error(), "Telemetry evaluation is not enabled") {
+			if isAPIErrorWithMessage(err, "ValidationException", "Telemetry evaluation is not enabled") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -138,7 +137,7 @@ func scanObsTelemetryRules(ctx context.Context, client obsAdminAPI, acct *accoun
 			}
 			// "Telemetry evaluation is not enabled" via ValidationException =
 			// observabilityadmin not opted-in for this account.
-			if isAPIErrorCode(err, "ValidationException") && strings.Contains(err.Error(), "Telemetry evaluation is not enabled") {
+			if isAPIErrorWithMessage(err, "ValidationException", "Telemetry evaluation is not enabled") {
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("observabilityadmin:ListTelemetryRules: %w", err)

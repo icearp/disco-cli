@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -14,7 +13,7 @@ import (
 // state from a real IAM denial — both surface as AccessDeniedException.
 // Precedent: isMacieNotEnabled (per aws/CLAUDE.md "Macie variant").
 func isVoiceIDNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "New customer access is no longer available")
+	return isAccessDeniedWithMessage(err, "New customer access is no longer available")
 }
 
 func init() {

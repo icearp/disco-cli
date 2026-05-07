@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -63,7 +62,7 @@ func scanCBFleets(ctx context.Context, client codeBuildAPI, acct *account, regio
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			// Op not deployed in this region.
-			if isAPIErrorCode(err, "InvalidInputException") && strings.Contains(err.Error(), "Unknown operation") {
+			if isAPIErrorWithMessage(err, "InvalidInputException", "Unknown operation") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

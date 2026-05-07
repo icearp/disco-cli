@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -13,7 +12,7 @@ import (
 // isBudgetsLinkedAccount disambiguates the "linked account, ask payer to
 // enable budgets" state from a real IAM denial.
 func isBudgetsLinkedAccount(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "linked account")
+	return isAccessDeniedWithMessage(err, "linked account")
 }
 
 func init() {

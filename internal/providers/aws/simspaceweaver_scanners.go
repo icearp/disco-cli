@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -13,7 +12,7 @@ import (
 // isSimSpaceWeaverNotEnabled disambiguates the not-allowlisted state from a
 // real IAM denial — both surface as AccessDeniedException.
 func isSimSpaceWeaverNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "not allowlisted")
+	return isAccessDeniedWithMessage(err, "not allowlisted")
 }
 
 func init() {

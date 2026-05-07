@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
@@ -13,7 +12,7 @@ import (
 // enabled" feature-gate state on Inspector v2 sub-phases (CIS scans, code
 // security) from a real IAM denial.
 func isInspector2FeatureNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "Invoking account is not enabled")
+	return isAccessDeniedWithMessage(err, "Invoking account is not enabled")
 }
 
 // scanInspector2Extended discovers Inspector v2 CIS scan configurations,

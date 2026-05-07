@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -14,7 +13,7 @@ import (
 // not-subscribed state from a real IAM denial. Oracle Database@AWS requires
 // a Marketplace subscription before any list op succeeds.
 func isOdbNotOnboarded(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "isn't onboarded to the service")
+	return isAccessDeniedWithMessage(err, "isn't onboarded to the service")
 }
 
 func init() {

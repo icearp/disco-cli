@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -15,7 +14,7 @@ import (
 // AWSServiceRoleForAWSLicenseManagerRole; missing it surfaces as
 // AccessDeniedException with the same "Service role not found" message.
 func isLicenseManagerNotSetUp(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "Service role not found")
+	return isAccessDeniedWithMessage(err, "Service role not found")
 }
 
 func init() {

@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -53,7 +52,7 @@ func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI
 		out, err := client.ListDocumentClassifiers(ctx, &comprehend.ListDocumentClassifiersInput{NextToken: nextToken})
 		if err != nil {
 			// Per-region feature gap shape Comprehend uses.
-			if isAPIErrorCode(err, "InvalidRequestException") && strings.Contains(err.Error(), "UNSUPPORTED_OPERATION") {
+			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
@@ -90,7 +89,7 @@ func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *ac
 		out, err := client.ListFlywheels(ctx, &comprehend.ListFlywheelsInput{NextToken: nextToken})
 		if err != nil {
 			// Per-region feature gap shape Comprehend uses.
-			if isAPIErrorCode(err, "InvalidRequestException") && strings.Contains(err.Error(), "UNSUPPORTED_OPERATION") {
+			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

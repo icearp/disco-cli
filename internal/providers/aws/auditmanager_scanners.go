@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -21,7 +20,7 @@ import (
 // isMacieNotEnabled (per aws/CLAUDE.md "Macie variant — code+message
 // disambiguation").
 func isAuditManagerNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "complete AWS Audit Manager setup")
+	return isAccessDeniedWithMessage(err, "complete AWS Audit Manager setup")
 }
 
 func init() {

@@ -78,7 +78,9 @@ One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *.
 
 ## Smithy API-error-code predicates
 
-`isAPIErrorCode(err, codes ...string) bool` in `aws.go` = single choke point (wraps `errors.As` + `smithy.APIError.ErrorCode()` + `slices.Contains`). Use inline for one-off checks. Wrap in named helper only when reused 3+ times (precedent: `isAccessDenied` wraps 6 codes, 146 callers). Predicates needing code + message-substring match (e.g. `isCacheSecurityGroupsNotPermitted`) stay one-off — outside helper's shape.
+`isAPIErrorCode(err, codes ...string) bool` in `aws.go` = single choke point (wraps `errors.As` + `smithy.APIError.ErrorCode()` + `slices.Contains`). Use inline for one-off checks. Wrap in named helper only when reused 3+ times (precedent: `isAccessDenied` wraps 6 codes via `accessDeniedCodes`, 146 callers).
+
+Predicates needing **code + message-substring** match use `isAPIErrorWithMessage(err, code, needle)` (single code) or `isAccessDeniedWithMessage(err, needle)` (any of the six access-denied codes). Both read `ae.ErrorMessage()` directly via `errors.As(&smithy.APIError)`, never `err.Error()` — the match is decoupled from the Smithy `"api error CODE: MSG"` wrapper format and the outer SDK `"operation error <Op>: ..."` wrapping. Use these for AWS exception codes reused across semantically-distinct cases (`AccessDeniedException` for closed-to-customers vs real IAM deny; `ValidationException` for per-region feature gap vs malformed input). Do NOT add new sites that match against `err.Error()` substrings — every site in this package routes through one of these two helpers.
 
 ## `skipIfAccessDenied` always returns nil
 
@@ -253,7 +255,7 @@ Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, tr
 
 ## Smithy GenericAPIError string shape
 
-`(&smithy.GenericAPIError{Code:"AccessDenied",Message:"denied"}).Error()` = `"api error AccessDenied: denied"`. Tests asserting on `err.Error()` or `ScanWarning.Message` must include the `api error ` prefix.
+`(&smithy.GenericAPIError{Code:"AccessDenied",Message:"denied"}).Error()` = `"api error AccessDenied: denied"`. Production code paths in this package no longer match against `err.Error()` (every code+message predicate routes through `isAPIErrorWithMessage` / `isAccessDeniedWithMessage`, both reading `ae.ErrorMessage()` directly). Only `ScanWarning.Message` still surfaces the wrapped form via `skipIfAccessDenied` — tests asserting on `ScanWarning.Message` must include the `api error ` prefix (precedent: `TestSkipIfAccessDenied_RecordsWarningReturnsNil`).
 
 ## SDK middleware test stubs — placement
 

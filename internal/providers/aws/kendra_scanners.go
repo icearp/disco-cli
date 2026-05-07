@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -15,8 +14,7 @@ import (
 // NotAuthorizedException with the canned "Your account is not authorized
 // to make this call." body — distinct from per-action IAM denials.
 func isKendraClosedToAccount(err error) bool {
-	return isAPIErrorCode(err, "NotAuthorizedException") &&
-		strings.Contains(err.Error(), "not authorized to make this call")
+	return isAPIErrorWithMessage(err, "NotAuthorizedException", "not authorized to make this call")
 }
 
 func init() {

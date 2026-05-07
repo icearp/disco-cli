@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -18,8 +17,7 @@ import (
 // us-east-1 / eu-west-1 but rejects in us-west-2). Distinct from a
 // real validation error, which carries a different message body.
 func isIoTSiteWiseFeatureUnsupported(err error) bool {
-	return isAPIErrorCode(err, "InvalidRequestException") &&
-		strings.Contains(err.Error(), "Feature not supported")
+	return isAPIErrorWithMessage(err, "InvalidRequestException", "Feature not supported")
 }
 
 func init() {

@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -13,7 +12,7 @@ import (
 // isFMSNotEnabled disambiguates the "no default admin" not-onboarded state
 // from a real IAM denial.
 func isFMSNotEnabled(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "No default admin could be found")
+	return isAccessDeniedWithMessage(err, "No default admin could be found")
 }
 
 // isFMSAdminOnlyDenial matches the AccessDeniedException AWS returns when
@@ -21,8 +20,7 @@ func isFMSNotEnabled(err error) bool {
 // ListResourceSets). Distinct from isFMSNotEnabled — admin exists, just
 // elsewhere in the org. Member accounts hit this every scan; silent-skip.
 func isFMSAdminOnlyDenial(err error) bool {
-	return isAccessDenied(err) &&
-		strings.Contains(err.Error(), "only available to AWS Firewall Manager Administrators")
+	return isAccessDeniedWithMessage(err, "only available to AWS Firewall Manager Administrators")
 }
 
 func init() {

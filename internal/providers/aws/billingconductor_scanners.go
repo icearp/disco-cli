@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -14,7 +13,7 @@ import (
 // isBillingConductorPayerOnly disambiguates the "Only payer account is
 // authorized" state from a real IAM denial.
 func isBillingConductorPayerOnly(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "Only payer account is authorized")
+	return isAccessDeniedWithMessage(err, "Only payer account is authorized")
 }
 
 // AWS Billing Conductor is a global service — endpoints resolve only via

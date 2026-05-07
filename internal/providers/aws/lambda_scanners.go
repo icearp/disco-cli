@@ -409,7 +409,7 @@ func scanLambdaCapacityProviders(ctx context.Context, client lambdaAPI, acct *ac
 			// Per-region feature gap: gateway-level "Unable to determine
 			// service/operation name to be authorized" means the op is not
 			// recognised by the regional endpoint. Silent-skip.
-			if isAccessDenied(err) && strings.Contains(err.Error(), "Unable to determine service/operation name") {
+			if isAccessDeniedWithMessage(err, "Unable to determine service/operation name") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

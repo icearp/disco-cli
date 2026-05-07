@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -15,12 +14,8 @@ import (
 // BCM Pricing Calculator + Cost Explorer scanners since both gate on the
 // same account-level Cost Explorer enablement.
 func isCostExplorerNotEnabled(err error) bool {
-	if !isAccessDenied(err) {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "not enabled for cost explorer") ||
-		strings.Contains(msg, "doesn't have access to cost category")
+	return isAccessDeniedWithMessage(err, "not enabled for cost explorer") ||
+		isAccessDeniedWithMessage(err, "doesn't have access to cost category")
 }
 
 // isMigrationRequiredIAMDeny matches the canned AccessDeniedException AWS
@@ -30,8 +25,7 @@ func isCostExplorerNotEnabled(err error) bool {
 // the policies in your account to use the new IAM actions." Pre-migration
 // is environment policy, not a misconfig of this scanner — silent-skip.
 func isMigrationRequiredIAMDeny(err error) bool {
-	return isAccessDenied(err) &&
-		strings.Contains(err.Error(), "Migrate the policies in your account to use the new IAM actions")
+	return isAccessDeniedWithMessage(err, "Migrate the policies in your account to use the new IAM actions")
 }
 
 func init() {

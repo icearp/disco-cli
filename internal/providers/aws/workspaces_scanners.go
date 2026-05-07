@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -128,7 +127,7 @@ func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *acco
 			// from a real IAM denial which carries the
 			// "is not authorized to perform: <action>" SDK-formatted body.
 			// Silent-skip on the canned shape; warn on real denials.
-			if isAccessDenied(err) && strings.Contains(err.Error(), "workspaces-access-control.html") {
+			if isAccessDeniedWithMessage(err, "workspaces-access-control.html") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

@@ -160,7 +160,7 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 			// this API operation" — distinct from the per-action IAM-deny
 			// "User: arn:... is not authorized to perform: <action>" form.
 			// AR Policies is gated to limited regions/accounts.
-			if isAccessDenied(perr) && strings.Contains(perr.Error(), "not authorized to invoke this API operation") {
+			if isAccessDeniedWithMessage(perr, "not authorized to invoke this API operation") {
 				return nil, 0, 0, nil
 			}
 			if isSCPExplicitDeny(perr) {
@@ -260,9 +260,8 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 			// to perform the requested operation." Real IAM denials surface
 			// as AccessDeniedException with an action-identifying body and
 			// route through skipIfAccessDenied below.
-			if isAPIErrorCode(perr, "ValidationException") &&
-				(strings.Contains(perr.Error(), "operation is not recognized") ||
-					strings.Contains(perr.Error(), "don't have the permissions to perform the requested operation")) {
+			if isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized") ||
+				isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation") {
 				return 0, 0, nil
 			}
 			if isSCPExplicitDeny(perr) {

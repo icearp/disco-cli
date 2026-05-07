@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -16,7 +15,7 @@ import (
 // Timestream for LiveAnalytics customers can access the service"
 // closed-to-new-customers state from a real IAM denial.
 func isTimestreamLiveAnalyticsClosed(err error) bool {
-	return isAccessDenied(err) && strings.Contains(err.Error(), "existing Timestream for LiveAnalytics customers")
+	return isAccessDeniedWithMessage(err, "existing Timestream for LiveAnalytics customers")
 }
 
 func init() {

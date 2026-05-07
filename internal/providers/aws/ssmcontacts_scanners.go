@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -138,7 +137,7 @@ func scanSCRotations(ctx context.Context, client ssmContactsAPI, acct *account, 
 			}
 			// "Account not found" via ValidationException = SSM Contacts not
 			// activated in this account/region. Skip rather than error.
-			if isAPIErrorCode(err, "ValidationException") && strings.Contains(err.Error(), "Account not found") {
+			if isAPIErrorWithMessage(err, "ValidationException", "Account not found") {
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("ssmcontacts:ListRotations: %w", err)

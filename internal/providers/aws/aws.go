@@ -376,9 +376,47 @@ func isAPIErrorCode(err error, codes ...string) bool {
 // are expected when the scanning role lacks access to a specific service or
 // region and should be logged then skipped rather than aborting the scan.
 func isAccessDenied(err error) bool {
-	return isAPIErrorCode(err,
-		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
-		"AccessDeniedException", "NotAuthorized", "ForbiddenException")
+	return isAPIErrorCode(err, accessDeniedCodes...)
+}
+
+// accessDeniedCodes lists every Smithy error code AWS uses for permission
+// denials. Shared by isAccessDenied and isAccessDeniedWithMessage so the two
+// helpers stay in sync — adding a new code in one site updates both.
+var accessDeniedCodes = []string{
+	"AccessDenied", "UnauthorizedOperation", "AuthFailure",
+	"AccessDeniedException", "NotAuthorized", "ForbiddenException",
+}
+
+// isAPIErrorWithMessage reports whether err is a Smithy APIError whose
+// ErrorCode equals code and whose ErrorMessage contains needle. Use for
+// AWS exception codes reused across semantically-distinct cases
+// (AccessDeniedException for closed-to-customers vs real IAM deny;
+// ValidationException for per-region feature gap vs malformed input) —
+// the message body is the only signal that disambiguates them.
+//
+// Reads ae.ErrorMessage() directly rather than err.Error(), so the match
+// is decoupled from the Smithy "api error CODE: MSG" wrapper format and
+// from outer SDK "operation error <Op>: ..." wrapping.
+func isAPIErrorWithMessage(err error, code, needle string) bool {
+	var ae smithy.APIError
+	if !errors.As(err, &ae) {
+		return false
+	}
+	return ae.ErrorCode() == code && strings.Contains(ae.ErrorMessage(), needle)
+}
+
+// isAccessDeniedWithMessage is the message-disambiguated form of
+// isAccessDenied. Returns true when err is any of the access-denied codes
+// AND ae.ErrorMessage() contains needle. Used to separate closed-to-customers
+// / not-enabled-here / per-region-feature-gap denials from real IAM denies
+// that share the same error code.
+func isAccessDeniedWithMessage(err error, needle string) bool {
+	for _, c := range accessDeniedCodes {
+		if isAPIErrorWithMessage(err, c, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // errServiceDisabled is a sentinel returned by per-service scanners when they
@@ -406,8 +444,7 @@ func markServiceDisabled(err error) error {
 // so these denials silent-skip rather than warn. Applies to any service —
 // SCPs can target any AWS action.
 func isSCPExplicitDeny(err error) bool {
-	return isAccessDenied(err) &&
-		strings.Contains(err.Error(), "explicit deny in a service control policy")
+	return isAccessDeniedWithMessage(err, "explicit deny in a service control policy")
 }
 
 // isClosedToNewCustomers reports whether err is an AWS account-level

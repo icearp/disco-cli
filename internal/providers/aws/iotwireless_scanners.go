@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
@@ -238,7 +237,7 @@ func scanIWPartnerAccounts(ctx context.Context, client iotWirelessAPI, acct *acc
 			// Per-region feature gap: "You are not authorized to call this API
 			// in this region <r>" — Sidewalk partner accounts is gated to a
 			// subset of regions. Distinct from canonical IAM-deny shape.
-			if isAccessDenied(err) && strings.Contains(err.Error(), "not authorized to call this API in this region") {
+			if isAccessDeniedWithMessage(err, "not authorized to call this API in this region") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {

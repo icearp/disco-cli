@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
@@ -16,8 +15,7 @@ import (
 // Code+message disambiguates from real validation errors that share the
 // BadRequestException code.
 func isGuardDutyMemberRestricted(err error) bool {
-	return isAPIErrorCode(err, "BadRequestException") &&
-		strings.Contains(err.Error(), "member accounts cannot manage")
+	return isAPIErrorWithMessage(err, "BadRequestException", "member accounts cannot manage")
 }
 
 // guardDutyExtAPI lists ops used by extended GuardDuty phases. Threat / Trusted

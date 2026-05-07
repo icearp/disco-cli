@@ -45,6 +45,41 @@ func TestIsAccessDenied(t *testing.T) {
 	}
 }
 
+func TestIsAPIErrorWithMessage(t *testing.T) {
+	if !isAPIErrorWithMessage(apiErr("ValidationException", "Feature not supported yet"), "ValidationException", "Feature not supported") {
+		t.Error("expected code+needle match")
+	}
+	if isAPIErrorWithMessage(apiErr("ValidationException", "other body"), "ValidationException", "Feature not supported") {
+		t.Error("needle mismatch must not match")
+	}
+	if isAPIErrorWithMessage(apiErr("AccessDeniedException", "Feature not supported"), "ValidationException", "Feature not supported") {
+		t.Error("code mismatch must not match")
+	}
+	if isAPIErrorWithMessage(errors.New("plain error"), "ValidationException", "x") {
+		t.Error("plain error must not match")
+	}
+	if isAPIErrorWithMessage(nil, "ValidationException", "x") {
+		t.Error("nil must not match")
+	}
+}
+
+func TestIsAccessDeniedWithMessage(t *testing.T) {
+	for _, c := range accessDeniedCodes {
+		if !isAccessDeniedWithMessage(apiErr(c, "Macie is not enabled"), "Macie is not enabled") {
+			t.Errorf("%s + needle should match", c)
+		}
+	}
+	if isAccessDeniedWithMessage(apiErr("AccessDeniedException", "user is not authorized"), "Macie is not enabled") {
+		t.Error("needle mismatch must not match")
+	}
+	if isAccessDeniedWithMessage(apiErr("ValidationException", "Macie is not enabled"), "Macie is not enabled") {
+		t.Error("non-access-denied code must not match")
+	}
+	if isAccessDeniedWithMessage(nil, "x") {
+		t.Error("nil must not match")
+	}
+}
+
 func TestIsAuditManagerNotEnabled(t *testing.T) {
 	yes := apiErr("AccessDeniedException", "Please complete AWS Audit Manager setup from the home page")
 	if !isAuditManagerNotEnabled(yes) {
