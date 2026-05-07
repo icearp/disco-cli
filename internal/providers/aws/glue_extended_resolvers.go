@@ -57,6 +57,15 @@ func init() {
 	)
 }
 
+// glueTriggerAttrs mirrors the trigger fields the resolver walks.
+type glueTriggerAttrs struct {
+	WorkflowName *string `json:"WorkflowName"`
+	Actions      []struct {
+		JobName     *string `json:"JobName"`
+		CrawlerName *string `json:"CrawlerName"`
+	} `json:"Actions"`
+}
+
 // resolveGlueTriggerWorkflow links a trigger to its workflow (WorkflowName)
 // and to the jobs / crawlers fired by its Actions[].
 func resolveGlueTriggerWorkflow(acct *account, st *store.Store) error {
@@ -64,11 +73,8 @@ func resolveGlueTriggerWorkflow(acct *account, st *store.Store) error {
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueTrigger},
 		Limit: util.AllResources,
 	})
-	if err != nil {
+	if err != nil || len(rows) == 0 {
 		return err
-	}
-	if len(rows) == 0 {
-		return nil
 	}
 	wfSet, err := scannedIDSet(acct, st, TypeGlueWorkflow)
 	if err != nil {
@@ -83,46 +89,73 @@ func resolveGlueTriggerWorkflow(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		var attrs struct {
-			WorkflowName *string `json:"WorkflowName"`
-			Actions      []struct {
-				JobName     *string `json:"JobName"`
-				CrawlerName *string `json:"CrawlerName"`
-			} `json:"Actions"`
-		}
+		var attrs glueTriggerAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if name := sv(attrs.WorkflowName); name != "" {
-			arn := glueResourceARN(region, acct.ID, "workflow", name)
-			tgtID := store.ResourceID("aws", acct.ID, TypeGlueWorkflow, arn)
-			if wfSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert glue-trigger→workflow: %w", err)
-				}
-			}
+		if err := emitGlueTriggerWorkflowEdge(st, acct, r, region, attrs, wfSet); err != nil {
+			return err
 		}
-		for _, a := range attrs.Actions {
-			if name := sv(a.JobName); name != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeGlueJob, glueResourceARN(region, acct.ID, "job", name))
-				if jobSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert glue-trigger→job: %w", err)
-					}
-				}
-			}
-			if name := sv(a.CrawlerName); name != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeGlueCrawler, glueResourceARN(region, acct.ID, "crawler", name))
-				if crawlerSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert glue-trigger→crawler: %w", err)
-					}
-				}
-			}
+		if err := emitGlueTriggerActionEdges(st, acct, r, region, attrs, jobSet, crawlerSet); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func emitGlueTriggerWorkflowEdge(st *store.Store, acct *account, r store.Resource, region string, attrs glueTriggerAttrs, wfSet map[string]bool) error {
+	name := sv(attrs.WorkflowName)
+	if name == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeGlueWorkflow, glueResourceARN(region, acct.ID, "workflow", name))
+	if !wfSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-trigger→workflow: %w", err)
+	}
+	return nil
+}
+
+func emitGlueTriggerActionEdges(st *store.Store, acct *account, r store.Resource, region string, attrs glueTriggerAttrs, jobSet, crawlerSet map[string]bool) error {
+	for _, a := range attrs.Actions {
+		if err := emitGlueTriggerActionEdge(st, acct, r, region, sv(a.JobName), TypeGlueJob, "job", jobSet); err != nil {
+			return err
+		}
+		if err := emitGlueTriggerActionEdge(st, acct, r, region, sv(a.CrawlerName), TypeGlueCrawler, "crawler", crawlerSet); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func emitGlueTriggerActionEdge(st *store.Store, acct *account, r store.Resource, region, name, rtype, arnKind string, set map[string]bool) error {
+	if name == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, rtype, glueResourceARN(region, acct.ID, arnKind, name))
+	if !set[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-trigger→%s: %w", arnKind, err)
+	}
+	return nil
+}
+
+// glueDevEndpointAttrs mirrors the dev-endpoint fields the resolver walks.
+type glueDevEndpointAttrs struct {
+	RoleArn               *string  `json:"RoleArn"`
+	SubnetID              *string  `json:"SubnetId"`
+	SecurityGroupIDs      []string `json:"SecurityGroupIds"`
+	SecurityConfiguration *string  `json:"SecurityConfiguration"`
+}
+
+// glueDevEndpointTargetSets bundles FK-safe id sets for the dev-endpoint resolver.
+type glueDevEndpointTargetSets struct {
+	roleSet, subnetSet, sgSet, scSet map[string]bool
 }
 
 // resolveGlueDevEndpointRefs walks each dev-endpoint's RoleArn, SubnetID,
@@ -132,77 +165,121 @@ func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDevEndpoint},
 		Limit: util.AllResources,
 	})
-	if err != nil {
+	if err != nil || len(rows) == 0 {
 		return err
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
-	if err != nil {
-		return err
-	}
-	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
-	if err != nil {
-		return err
-	}
-	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
-	if err != nil {
-		return err
-	}
-	scSet, err := scannedIDSet(acct, st, TypeGlueSecurityConfiguration)
+	sets, err := loadGlueDevEndpointTargetSets(acct, st)
 	if err != nil {
 		return err
 	}
 	for _, r := range rows {
-		var attrs struct {
-			RoleArn               *string  `json:"RoleArn"`
-			SubnetID              *string  `json:"SubnetId"`
-			SecurityGroupIDs      []string `json:"SecurityGroupIds"`
-			SecurityConfiguration *string  `json:"SecurityConfiguration"`
-		}
+		var attrs glueDevEndpointAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if arn := glueRoleARN(acct.ID, sv(attrs.RoleArn)); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
-			if roleSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
-					return fmt.Errorf("upsert glue-dev-endpoint→role: %w", err)
-				}
-			}
+		if err := emitGlueDevEndpointRoleEdge(st, acct, r, attrs, sets); err != nil {
+			return err
 		}
-		if id := sv(attrs.SubnetID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
-			if subnetSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert glue-dev-endpoint→subnet: %w", err)
-				}
-			}
+		if err := emitGlueDevEndpointSubnetEdge(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
-		for _, sg := range attrs.SecurityGroupIDs {
-			if sg == "" {
-				continue
-			}
-			tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
-			if !sgSet[tgtID] {
-				continue
-			}
-			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert glue-dev-endpoint→sg: %w", err)
-			}
+		if err := emitGlueDevEndpointSGEdges(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
-		if name := sv(attrs.SecurityConfiguration); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeGlueSecurityConfiguration, glueResourceARN(region, acct.ID, "securityConfiguration", name))
-			if scSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert glue-dev-endpoint→security-config: %w", err)
-				}
-			}
+		if err := emitGlueDevEndpointSecConfigEdge(st, acct, r, region, attrs, sets); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func loadGlueDevEndpointTargetSets(acct *account, st *store.Store) (glueDevEndpointTargetSets, error) {
+	var sets glueDevEndpointTargetSets
+	var err error
+	if sets.roleSet, err = scannedIDSet(acct, st, TypeIAMRole); err != nil {
+		return sets, err
+	}
+	if sets.subnetSet, err = scannedIDSet(acct, st, TypeEC2Subnet); err != nil {
+		return sets, err
+	}
+	if sets.sgSet, err = scannedIDSet(acct, st, TypeEC2SecurityGroup); err != nil {
+		return sets, err
+	}
+	if sets.scSet, err = scannedIDSet(acct, st, TypeGlueSecurityConfiguration); err != nil {
+		return sets, err
+	}
+	return sets, nil
+}
+
+func emitGlueDevEndpointRoleEdge(st *store.Store, acct *account, r store.Resource, attrs glueDevEndpointAttrs, sets glueDevEndpointTargetSets) error {
+	arn := glueRoleARN(acct.ID, sv(attrs.RoleArn))
+	if arn == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	if !sets.roleSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-dev-endpoint→role: %w", err)
+	}
+	return nil
+}
+
+func emitGlueDevEndpointSubnetEdge(st *store.Store, acct *account, r store.Resource, region string, attrs glueDevEndpointAttrs, sets glueDevEndpointTargetSets) error {
+	id := sv(attrs.SubnetID)
+	if id == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeEC2Subnet, ec2ARN(region, acct.ID, "subnet", id))
+	if !sets.subnetSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-dev-endpoint→subnet: %w", err)
+	}
+	return nil
+}
+
+func emitGlueDevEndpointSGEdges(st *store.Store, acct *account, r store.Resource, region string, attrs glueDevEndpointAttrs, sets glueDevEndpointTargetSets) error {
+	for _, sg := range attrs.SecurityGroupIDs {
+		if sg == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(region, acct.ID, "security-group", sg))
+		if !sets.sgSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert glue-dev-endpoint→sg: %w", err)
+		}
+	}
+	return nil
+}
+
+func emitGlueDevEndpointSecConfigEdge(st *store.Store, acct *account, r store.Resource, region string, attrs glueDevEndpointAttrs, sets glueDevEndpointTargetSets) error {
+	name := sv(attrs.SecurityConfiguration)
+	if name == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeGlueSecurityConfiguration, glueResourceARN(region, acct.ID, "securityConfiguration", name))
+	if !sets.scSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-dev-endpoint→security-config: %w", err)
+	}
+	return nil
+}
+
+// glueMLTAttrs mirrors the ML-transform fields the resolver walks.
+type glueMLTAttrs struct {
+	Role              *string `json:"Role"`
+	InputRecordTables []struct {
+		DatabaseName *string `json:"DatabaseName"`
+		TableName    *string `json:"TableName"`
+	} `json:"InputRecordTables"`
 }
 
 // resolveGlueMLTransformRefs walks each ML transform's Role +
@@ -212,11 +289,8 @@ func resolveGlueMLTransformRefs(acct *account, st *store.Store) error {
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueMLTransform},
 		Limit: util.AllResources,
 	})
-	if err != nil {
+	if err != nil || len(rows) == 0 {
 		return err
-	}
-	if len(rows) == 0 {
-		return nil
 	}
 	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
 	if err != nil {
@@ -231,45 +305,58 @@ func resolveGlueMLTransformRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range rows {
-		var attrs struct {
-			Role              *string `json:"Role"`
-			InputRecordTables []struct {
-				DatabaseName *string `json:"DatabaseName"`
-				TableName    *string `json:"TableName"`
-			} `json:"InputRecordTables"`
-		}
+		var attrs glueMLTAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
 		region := sv(r.Region)
-		if arn := glueRoleARN(acct.ID, sv(attrs.Role)); arn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
-			if roleSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
-					return fmt.Errorf("upsert glue-mlt→role: %w", err)
-				}
+		if err := emitGlueMLTRoleEdge(st, acct, r, attrs, roleSet); err != nil {
+			return err
+		}
+		if err := emitGlueMLTTableEdges(st, acct, r, region, attrs, dbSet, tblSet); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func emitGlueMLTRoleEdge(st *store.Store, acct *account, r store.Resource, attrs glueMLTAttrs, roleSet map[string]bool) error {
+	arn := glueRoleARN(acct.ID, sv(attrs.Role))
+	if arn == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, arn)
+	if !roleSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelAssumes, "directed", nil); err != nil {
+		return fmt.Errorf("upsert glue-mlt→role: %w", err)
+	}
+	return nil
+}
+
+func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, region string, attrs glueMLTAttrs, dbSet, tblSet map[string]bool) error {
+	for _, t := range attrs.InputRecordTables {
+		db := sv(t.DatabaseName)
+		tbl := sv(t.TableName)
+		if db == "" {
+			continue
+		}
+		dbID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, glueResourceARN(region, acct.ID, "database", db))
+		if dbSet[dbID] {
+			if err := st.UpsertRelationship(r.ID, dbID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert glue-mlt→database: %w", err)
 			}
 		}
-		for _, t := range attrs.InputRecordTables {
-			db := sv(t.DatabaseName)
-			tbl := sv(t.TableName)
-			if db != "" {
-				tgtID := store.ResourceID("aws", acct.ID, TypeGlueDatabase, glueResourceARN(region, acct.ID, "database", db))
-				if dbSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert glue-mlt→database: %w", err)
-					}
-				}
-			}
-			if db != "" && tbl != "" {
-				tblARN := glueResourceARN(region, acct.ID, "table", db+"/"+tbl)
-				tgtID := store.ResourceID("aws", acct.ID, TypeGlueTable, tblARN)
-				if tblSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert glue-mlt→table: %w", err)
-					}
-				}
-			}
+		if tbl == "" {
+			continue
+		}
+		tblID := store.ResourceID("aws", acct.ID, TypeGlueTable, glueResourceARN(region, acct.ID, "table", db+"/"+tbl))
+		if !tblSet[tblID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tblID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert glue-mlt→table: %w", err)
 		}
 	}
 	return nil
@@ -385,6 +472,21 @@ func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 	return nil
 }
 
+// glueSecConfigAttrs mirrors the security-config encryption sub-blocks.
+type glueSecConfigAttrs struct {
+	EncryptionConfiguration *struct {
+		S3Encryption []struct {
+			KmsKeyArn *string `json:"KmsKeyArn"`
+		} `json:"S3Encryption"`
+		CloudWatchEncryption *struct {
+			KmsKeyArn *string `json:"KmsKeyArn"`
+		} `json:"CloudWatchEncryption"`
+		JobBookmarksEncryption *struct {
+			KmsKeyArn *string `json:"KmsKeyArn"`
+		} `json:"JobBookmarksEncryption"`
+	} `json:"EncryptionConfiguration"`
+}
+
 // resolveGlueSecurityConfigKMS walks each SecurityConfiguration's
 // EncryptionConfiguration sub-blocks and emits KMS edges.
 func resolveGlueSecurityConfigKMS(acct *account, st *store.Store) error {
@@ -392,63 +494,55 @@ func resolveGlueSecurityConfigKMS(acct *account, st *store.Store) error {
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueSecurityConfiguration},
 		Limit: util.AllResources,
 	})
-	if err != nil {
+	if err != nil || len(rows) == 0 {
 		return err
-	}
-	if len(rows) == 0 {
-		return nil
 	}
 	kmsIdx, err := loadKMSResolveIndex(acct, st)
 	if err != nil {
 		return err
 	}
 	for _, r := range rows {
-		var attrs struct {
-			EncryptionConfiguration *struct {
-				S3Encryption []struct {
-					KmsKeyArn *string `json:"KmsKeyArn"`
-				} `json:"S3Encryption"`
-				CloudWatchEncryption *struct {
-					KmsKeyArn *string `json:"KmsKeyArn"`
-				} `json:"CloudWatchEncryption"`
-				JobBookmarksEncryption *struct {
-					KmsKeyArn *string `json:"KmsKeyArn"`
-				} `json:"JobBookmarksEncryption"`
-			} `json:"EncryptionConfiguration"`
-		}
-		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+		var attrs glueSecConfigAttrs
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.EncryptionConfiguration == nil {
 			continue
 		}
-		if attrs.EncryptionConfiguration == nil {
-			continue
+		if err := emitGlueSecConfigKMSEdges(st, acct, r, attrs, kmsIdx); err != nil {
+			return err
 		}
-		region := sv(r.Region)
-		seen := map[string]bool{}
-		emit := func(ref string) error {
-			if ref == "" {
-				return nil
-			}
-			id, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID)
-			if !ok || seen[id] {
-				return nil
-			}
-			seen[id] = true
-			return st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil)
+	}
+	return nil
+}
+
+func emitGlueSecConfigKMSEdges(st *store.Store, acct *account, r store.Resource, attrs glueSecConfigAttrs, kmsIdx *kmsResolveIndex) error {
+	region := sv(r.Region)
+	seen := map[string]bool{}
+	emit := func(ref, label string) error {
+		if ref == "" {
+			return nil
 		}
-		for _, s3 := range attrs.EncryptionConfiguration.S3Encryption {
-			if err := emit(sv(s3.KmsKeyArn)); err != nil {
-				return fmt.Errorf("upsert glue-sc→kms (s3): %w", err)
-			}
+		id, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID)
+		if !ok || seen[id] {
+			return nil
 		}
-		if c := attrs.EncryptionConfiguration.CloudWatchEncryption; c != nil {
-			if err := emit(sv(c.KmsKeyArn)); err != nil {
-				return fmt.Errorf("upsert glue-sc→kms (cw): %w", err)
-			}
+		seen[id] = true
+		if err := st.UpsertRelationship(r.ID, id, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert glue-sc→kms (%s): %w", label, err)
 		}
-		if j := attrs.EncryptionConfiguration.JobBookmarksEncryption; j != nil {
-			if err := emit(sv(j.KmsKeyArn)); err != nil {
-				return fmt.Errorf("upsert glue-sc→kms (jb): %w", err)
-			}
+		return nil
+	}
+	for _, s3 := range attrs.EncryptionConfiguration.S3Encryption {
+		if err := emit(sv(s3.KmsKeyArn), "s3"); err != nil {
+			return err
+		}
+	}
+	if c := attrs.EncryptionConfiguration.CloudWatchEncryption; c != nil {
+		if err := emit(sv(c.KmsKeyArn), "cw"); err != nil {
+			return err
+		}
+	}
+	if j := attrs.EncryptionConfiguration.JobBookmarksEncryption; j != nil {
+		if err := emit(sv(j.KmsKeyArn), "jb"); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -516,6 +610,12 @@ func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 	return nil
 }
 
+// glueWorkflowNodeKind dispatches Type discriminator → (rtype, arnKind, set).
+type glueWorkflowNodeKind struct {
+	rtype, arnKind string
+	set            map[string]bool
+}
+
 // resolveGlueWorkflowGraphNodes walks each workflow's Graph.Nodes[] and emits
 // contains → job/trigger/crawler by Type discriminator. The JSON shape is the
 // SDK Workflow struct as marshalled by mustJSON.
@@ -524,11 +624,8 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueWorkflow},
 		Limit: util.AllResources,
 	})
-	if err != nil {
+	if err != nil || len(rows) == 0 {
 		return err
-	}
-	if len(rows) == 0 {
-		return nil
 	}
 	jobSet, err := scannedIDSet(acct, st, TypeGlueJob)
 	if err != nil {
@@ -542,6 +639,11 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	kinds := map[string]glueWorkflowNodeKind{
+		"JOB":     {TypeGlueJob, "job", jobSet},
+		"TRIGGER": {TypeGlueTrigger, "trigger", trigSet},
+		"CRAWLER": {TypeGlueCrawler, "crawler", crawlSet},
+	}
 	var pairs [][2]string
 	for _, r := range rows {
 		var attrs struct {
@@ -552,38 +654,19 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 				} `json:"Nodes"`
 			} `json:"Graph"`
 		}
-		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
-			continue
-		}
-		if attrs.Graph == nil {
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.Graph == nil {
 			continue
 		}
 		region := sv(r.Region)
 		seen := map[string]bool{}
 		for _, n := range attrs.Graph.Nodes {
 			name := sv(n.Name)
-			if name == "" {
+			kind, ok := kinds[sv(n.Type)]
+			if name == "" || !ok {
 				continue
 			}
-			var childID string
-			switch sv(n.Type) {
-			case "JOB":
-				childID = store.ResourceID("aws", acct.ID, TypeGlueJob, glueResourceARN(region, acct.ID, "job", name))
-				if !jobSet[childID] {
-					childID = ""
-				}
-			case "TRIGGER":
-				childID = store.ResourceID("aws", acct.ID, TypeGlueTrigger, glueResourceARN(region, acct.ID, "trigger", name))
-				if !trigSet[childID] {
-					childID = ""
-				}
-			case "CRAWLER":
-				childID = store.ResourceID("aws", acct.ID, TypeGlueCrawler, glueResourceARN(region, acct.ID, "crawler", name))
-				if !crawlSet[childID] {
-					childID = ""
-				}
-			}
-			if childID == "" || seen[childID] {
+			childID := store.ResourceID("aws", acct.ID, kind.rtype, glueResourceARN(region, acct.ID, kind.arnKind, name))
+			if !kind.set[childID] || seen[childID] {
 				continue
 			}
 			seen[childID] = true
