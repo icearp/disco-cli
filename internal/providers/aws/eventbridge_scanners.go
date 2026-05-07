@@ -63,17 +63,41 @@ func scanEventBridge(ctx context.Context, acct *account, region string, st *stor
 
 // scanEventBridgeAll holds the testable scan body.
 func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Phase 1: event buses
-	var busBatch []*store.Resource
+	busNames, t, i, ferr := scanEventBridgeBuses(ctx, client, acct, region, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanEventBridgeRules(ctx, client, acct, region, st, scanID, busNames)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanEventBridgeConnections(ctx, client, acct, region, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanEventBridgeAPIDestinations(ctx, client, acct, region, st, scanID)
+	total += t
+	inserted += i
+	return total, inserted, ferr
+}
+
+func scanEventBridgeBuses(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	var batch []*store.Resource
 	var busNames []string
-	var busToken *string
+	var token *string
 	for {
-		out, err := client.ListEventBuses(ctx, &eventbridge.ListEventBusesInput{NextToken: busToken})
+		out, err := client.ListEventBuses(ctx, &eventbridge.ListEventBusesInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "events:ListEventBuses", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "events:ListEventBuses", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("events:ListEventBuses: %w", err)
+			return nil, 0, 0, fmt.Errorf("events:ListEventBuses: %w", err)
 		}
 		for _, b := range out.EventBuses {
 			arn := sv(b.Arn)
@@ -81,7 +105,7 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 			if dout, derr := client.DescribeEventBus(ctx, &eventbridge.DescribeEventBusInput{Name: b.Name}); derr == nil {
 				attrsJSON = mustJSON(dout)
 			}
-			r := &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -94,110 +118,112 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 				// Name "default" is the AWS-managed default event bus
 				// present in every region.
 				ManagedByProvider: sv(b.Name) == "default",
-			}
-			busBatch = append(busBatch, r)
+			})
 			busNames = append(busNames, sv(b.Name))
 		}
 		if out.NextToken == nil {
 			break
 		}
-		busToken = out.NextToken
+		token = out.NextToken
 	}
-	if len(busBatch) > 0 {
-		n, err := st.UpsertResources(busBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert EventBridge buses: %w", err)
-		}
-		total += len(busBatch)
-		inserted += n
+	if len(batch) == 0 {
+		return busNames, 0, 0, nil
 	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("upsert EventBridge buses: %w", err)
+	}
+	return busNames, len(batch), n, nil
+}
 
-	// Phase 2: rules per event bus (concurrent)
+func scanEventBridgeRules(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string, busNames []string) (int, int, error) {
 	var (
-		mu        sync.Mutex
-		ruleBatch []*store.Resource
+		mu    sync.Mutex
+		batch []*store.Resource
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, busName := range busNames {
 		g.Go(func() error {
-			var ruleToken *string
-			for {
-				rulesOut, err := client.ListRules(gctx, &eventbridge.ListRulesInput{
-					EventBusName: &busName,
-					NextToken:    ruleToken,
-				})
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("events:ListRules bus=%s: %w", busName, err)
-				}
-				for _, rule := range rulesOut.Rules {
-					arn := sv(rule.Arn)
-					status := string(rule.State)
-					// Fetch targets and embed them in attributes for resolver use.
-					type ruleWithTargets struct {
-						Rule    any   `json:"Rule"`
-						Targets []any `json:"Targets"`
-					}
-					var targets []any
-					tOut, tErr := client.ListTargetsByRule(gctx, &eventbridge.ListTargetsByRuleInput{
-						Rule:         rule.Name,
-						EventBusName: &busName,
-					})
-					if tErr == nil {
-						for _, t := range tOut.Targets {
-							targets = append(targets, t)
-						}
-					}
-					attrs := ruleWithTargets{Rule: rule, Targets: targets}
-					r := &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeEventsRule,
-						NativeID:       arn,
-						Name:           rule.Name,
-						Region:         &region,
-						Status:         &status,
-						AttributesJSON: mustJSON(attrs),
-						DiscoveredBy:   scanID,
-					}
-					mu.Lock()
-					ruleBatch = append(ruleBatch, r)
-					mu.Unlock()
-				}
-				if rulesOut.NextToken == nil {
-					break
-				}
-				ruleToken = rulesOut.NextToken
-			}
-			return nil
+			return collectEventBridgeRulesForBus(gctx, client, acct, region, scanID, busName, &mu, &batch)
 		})
 	}
 	if err := g.Wait(); err != nil {
 		return 0, 0, err
 	}
-	if len(ruleBatch) > 0 {
-		n, err := st.UpsertResources(ruleBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert EventBridge rules: %w", err)
-		}
-		total += len(ruleBatch)
-		inserted += n
+	if len(batch) == 0 {
+		return 0, 0, nil
 	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert EventBridge rules: %w", err)
+	}
+	return len(batch), n, nil
+}
 
-	// Phase 3: connections (account+region scope, manual NextToken — no paginator).
-	var connBatch []*store.Resource
-	var connToken *string
+func collectEventBridgeRulesForBus(ctx context.Context, client eventbridgeAPI, acct *account, region, scanID, busName string, mu *sync.Mutex, batch *[]*store.Resource) error {
+	type ruleWithTargets struct {
+		Rule    any   `json:"Rule"`
+		Targets []any `json:"Targets"`
+	}
+	var token *string
 	for {
-		out, err := client.ListConnections(ctx, &eventbridge.ListConnectionsInput{NextToken: connToken})
+		rulesOut, err := client.ListRules(ctx, &eventbridge.ListRulesInput{
+			EventBusName: &busName,
+			NextToken:    token,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return nil
+			}
+			return fmt.Errorf("events:ListRules bus=%s: %w", busName, err)
+		}
+		for _, rule := range rulesOut.Rules {
+			arn := sv(rule.Arn)
+			status := string(rule.State)
+			var targets []any
+			if tOut, tErr := client.ListTargetsByRule(ctx, &eventbridge.ListTargetsByRuleInput{
+				Rule:         rule.Name,
+				EventBusName: &busName,
+			}); tErr == nil {
+				for _, t := range tOut.Targets {
+					targets = append(targets, t)
+				}
+			}
+			attrs := ruleWithTargets{Rule: rule, Targets: targets}
+			r := &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEventsRule,
+				NativeID:       arn,
+				Name:           rule.Name,
+				Region:         &region,
+				Status:         &status,
+				AttributesJSON: mustJSON(attrs),
+				DiscoveredBy:   scanID,
+			}
+			mu.Lock()
+			*batch = append(*batch, r)
+			mu.Unlock()
+		}
+		if rulesOut.NextToken == nil {
+			return nil
+		}
+		token = rulesOut.NextToken
+	}
+}
+
+func scanEventBridgeConnections(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var token *string
+	for {
+		out, err := client.ListConnections(ctx, &eventbridge.ListConnectionsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "events:ListConnections", acct.ID, region, err)
 				break
 			}
-			return total, inserted, fmt.Errorf("events:ListConnections: %w", err)
+			return 0, 0, fmt.Errorf("events:ListConnections: %w", err)
 		}
 		for _, c := range out.Connections {
 			arn := sv(c.ConnectionArn)
@@ -206,7 +232,7 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 			if dout, derr := client.DescribeConnection(ctx, &eventbridge.DescribeConnectionInput{Name: c.Name}); derr == nil {
 				attrsJSON = mustJSON(dout)
 			}
-			connBatch = append(connBatch, &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -222,33 +248,34 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 		if out.NextToken == nil {
 			break
 		}
-		connToken = out.NextToken
+		token = out.NextToken
 	}
-	if len(connBatch) > 0 {
-		n, err := st.UpsertResources(connBatch)
-		if err != nil {
-			return total, inserted, fmt.Errorf("upsert EventBridge connections: %w", err)
-		}
-		total += len(connBatch)
-		inserted += n
+	if len(batch) == 0 {
+		return 0, 0, nil
 	}
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert EventBridge connections: %w", err)
+	}
+	return len(batch), n, nil
+}
 
-	// Phase 4: API destinations (reference connections by ARN).
-	var destBatch []*store.Resource
-	var destToken *string
+func scanEventBridgeAPIDestinations(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var token *string
 	for {
-		out, err := client.ListApiDestinations(ctx, &eventbridge.ListApiDestinationsInput{NextToken: destToken})
+		out, err := client.ListApiDestinations(ctx, &eventbridge.ListApiDestinationsInput{NextToken: token})
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "events:ListApiDestinations", acct.ID, region, err)
 				break
 			}
-			return total, inserted, fmt.Errorf("events:ListApiDestinations: %w", err)
+			return 0, 0, fmt.Errorf("events:ListApiDestinations: %w", err)
 		}
 		for _, d := range out.ApiDestinations {
 			arn := sv(d.ApiDestinationArn)
 			status := string(d.ApiDestinationState)
-			destBatch = append(destBatch, &store.Resource{
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -264,16 +291,14 @@ func scanEventBridgeAll(ctx context.Context, client eventbridgeAPI, acct *accoun
 		if out.NextToken == nil {
 			break
 		}
-		destToken = out.NextToken
+		token = out.NextToken
 	}
-	if len(destBatch) > 0 {
-		n, err := st.UpsertResources(destBatch)
-		if err != nil {
-			return total, inserted, fmt.Errorf("upsert EventBridge api destinations: %w", err)
-		}
-		total += len(destBatch)
-		inserted += n
+	if len(batch) == 0 {
+		return 0, 0, nil
 	}
-
-	return total, inserted, nil
+	n, err := st.UpsertResources(batch)
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert EventBridge api destinations: %w", err)
+	}
+	return len(batch), n, nil
 }
