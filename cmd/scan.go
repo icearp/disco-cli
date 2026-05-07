@@ -82,9 +82,12 @@ Examples:
 // checkpoint table to carry per-service watermarks the paid incremental
 // scanner consumes; the OSS path persists fresh checkpoints from this scan_id
 // without consuming them.
-func startOrResumeScan(db *store.Store, resumeFlag string, providers []string) (string, bool, error) {
+func startOrResumeScan(db *store.Store, resumeFlag string, providers []string, scope map[string]any) (string, bool, error) {
 	if resumeFlag == "" {
-		id, err := db.CreateScan(providers, map[string]any{"providers": providers})
+		if scope == nil {
+			scope = map[string]any{"providers": providers}
+		}
+		id, err := db.CreateScan(providers, scope)
 		if err != nil {
 			return "", false, fmt.Errorf("create scan record: %w", err)
 		}
@@ -157,7 +160,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// the OSS path persists checkpoints and exposes the lookup so users
 	// can swap to the paid feature without re-scanning.
 	resumeFlag, _ := cmd.Flags().GetString("resume")
-	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names)
+	scope := buildScanScope(cmd, names, scanners)
+	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names, scope)
 	if err != nil {
 		return err
 	}
@@ -310,6 +314,57 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
 		count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// buildScanScope captures the resolved per-provider scope (regions, profile,
+// services, skip_globals) into a map suitable for the scans.scope JSON
+// column. Always emits positive defaults (`regions:"all"`, `profile:"default"`)
+// rather than omitting unset flags, so an audit trail can answer "what did
+// the operator actually scan?" without "absence-of-flag-implies-default"
+// guesswork. Only the per-provider subcommand's cmd carries the scoping
+// flags; the multi-provider parent path receives a baseline scope keyed by
+// provider names.
+func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Scanner) map[string]any {
+	scope := map[string]any{"providers": names}
+	if len(scanners) != 1 {
+		return scope
+	}
+	s := scanners[0]
+	provScope := map[string]any{}
+	if _, ok := s.(providers.RegionOverrider); ok {
+		regions, _ := cmd.Flags().GetStringSlice("regions")
+		if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
+			regions = legacy
+		}
+		if len(regions) > 0 {
+			provScope["regions"] = regions
+		} else {
+			provScope["regions"] = "all"
+		}
+	}
+	if _, ok := s.(providers.ProfileOverrider); ok {
+		profile, _ := cmd.Flags().GetString("profile")
+		if profile == "" {
+			profile = "default"
+		}
+		provScope["profile"] = profile
+	}
+	if _, ok := s.(providers.ServiceFilterer); ok {
+		svcs, _ := cmd.Flags().GetStringSlice("services")
+		if len(svcs) > 0 {
+			provScope["services"] = svcs
+		} else {
+			provScope["services"] = "all"
+		}
+	}
+	if _, ok := s.(providers.GlobalsSkipper); ok {
+		skip, _ := cmd.Flags().GetBool("skip-globals")
+		provScope["skip_globals"] = skip
+	}
+	if len(provScope) > 0 {
+		scope[s.Name()] = provScope
+	}
+	return scope
 }
 
 // runScanDryRun prints "would scan" / "would skip" decisions per provider
