@@ -133,3 +133,48 @@ func TestOpenDB_StaleSchema_HintsScan(t *testing.T) {
 		t.Errorf("stale-schema error should mention 'schema' and 'disco scan', got %q", err)
 	}
 }
+
+func TestRenderMarkdownTable(t *testing.T) {
+	var sb strings.Builder
+	headers := []string{"ID", "TYPE", "NAME"}
+	rows := [][]string{
+		{"r-1", "aws:ec2:instance", "web"},
+		{"r-2", "aws:s3:bucket", "logs"},
+	}
+	if err := renderMarkdownTable(&sb, headers, rows); err != nil {
+		t.Fatalf("renderMarkdownTable: %v", err)
+	}
+	want := "| ID | TYPE | NAME |\n" +
+		"| --- | --- | --- |\n" +
+		"| r-1 | aws:ec2:instance | web |\n" +
+		"| r-2 | aws:s3:bucket | logs |\n"
+	if got := sb.String(); got != want {
+		t.Errorf("output mismatch\n  got:\n%s\n  want:\n%s", got, want)
+	}
+}
+
+func TestRenderMarkdownTable_EmptyHeaders(t *testing.T) {
+	var sb strings.Builder
+	if err := renderMarkdownTable(&sb, nil, [][]string{{"x"}}); err != nil {
+		t.Fatalf("renderMarkdownTable: %v", err)
+	}
+	if got := sb.String(); got != "" {
+		t.Errorf("empty headers must produce no output; got %q", got)
+	}
+}
+
+func TestRenderMarkdownTable_ShortRowPadded(t *testing.T) {
+	var sb strings.Builder
+	headers := []string{"A", "B", "C"}
+	rows := [][]string{{"1"}, {"2", "3"}}
+	if err := renderMarkdownTable(&sb, headers, rows); err != nil {
+		t.Fatalf("renderMarkdownTable: %v", err)
+	}
+	got := sb.String()
+	if !strings.Contains(got, "| 1 |  |  |") {
+		t.Errorf("short rows must be padded with empty cells; got\n%s", got)
+	}
+	if !strings.Contains(got, "| 2 | 3 |  |") {
+		t.Errorf("medium rows must be padded; got\n%s", got)
+	}
+}

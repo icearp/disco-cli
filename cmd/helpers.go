@@ -311,3 +311,45 @@ func renderMessages(w io.Writer, label string, rows []messageRow, quiet bool) {
 			provW, r.provider, svcW, r.service, scopeW, r.scope, r.message)
 	}
 }
+
+// renderMarkdownTable writes a GitHub-flavoured markdown table to w. Returns
+// nil when headers is empty. Cells are emitted verbatim — callers are
+// responsible for escaping `|` and stripping newlines from cell values
+// before passing them in (md tables don't support multi-line cells).
+//
+// Output shape:
+//
+//	| H1 | H2 |
+//	| --- | --- |
+//	| a | b |
+//
+// Used by every `disco <cmd> -o markdown` path so the table syntax is
+// byte-stable across renderers.
+func renderMarkdownTable(w io.Writer, headers []string, rows [][]string) error {
+	if len(headers) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(headers, " | ")); err != nil {
+		return err
+	}
+	sep := make([]string, len(headers))
+	for i := range sep {
+		sep[i] = "---"
+	}
+	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(sep, " | ")); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		// Pad short rows with empty cells so the column count matches headers.
+		cells := make([]string, len(headers))
+		for i := range cells {
+			if i < len(row) {
+				cells[i] = row[i]
+			}
+		}
+		if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | ")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
