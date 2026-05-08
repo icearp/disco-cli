@@ -24,13 +24,10 @@ var coverageCmd = &cobra.Command{
 	Short: "Drift detection: services / regions / resolvers (pick a subcommand)",
 	Long: `Drift detection across disco's static capabilities and the cloud's live API.
 
-Subcommands:
-  services   — diff disco scanner emits against the upstream type registry
-               (CloudFormation ListTypes / ARM Providers/List / GCP Discovery)
-  regions    — diff each provider's static RegionNames list against the
-               cloud's live SDK region list
-  resolvers  — list AWS resolvers + their EdgeDecl annotations, or surface
-               the orphan disco types with no resolver source (--missing)`,
+Compares what disco knows how to scan — scanner emits, RegionNames lists,
+resolver EdgeDecls — against each cloud's authoritative source so newly-
+launched resource types, regions, or unannotated resolvers surface before
+they show up as silent gaps in scan output.`,
 	Args: cobra.NoArgs,
 	Run: func(c *cobra.Command, _ []string) {
 		_ = c.Help()
@@ -39,7 +36,7 @@ Subcommands:
 
 var coverageServicesCmd = &cobra.Command{
 	Use:   "services",
-	Short: "Diff disco scanner emits against the upstream type registry",
+	Short: "diff disco scanner emits against the upstream type registry (CloudFormation ListTypes / ARM Providers/List / GCP Discovery)",
 	Long: `Compares disco's registered scanners against the live upstream type
 registry of each cloud provider:
 
@@ -71,7 +68,7 @@ Examples:
 
 var coverageRegionsCmd = &cobra.Command{
 	Use:   "regions",
-	Short: "Diff each provider's static RegionNames list against the cloud's live SDK region list",
+	Short: "diff each provider's static RegionNames list against the cloud's live SDK region list",
 	Long: `Compares each provider's compiled-in RegionNames slice (the disco-side
 opinion of "what could be scanned") against the cloud's authoritative
 SDK region/location list:
@@ -96,7 +93,7 @@ Examples:
 
 var coverageResolversCmd = &cobra.Command{
 	Use:   "resolvers",
-	Short: "List AWS resolvers + EdgeDecl annotations, or surface orphan disco types (--missing)",
+	Short: "list AWS resolvers and their EdgeDecl annotations, or surface orphan disco types with no resolver source (--missing)",
 	Long: `Default mode: list every registered AWS resolver and its declared
 EdgeDecl count. Unannotated resolvers (count=0) surface as sweep
 targets — either deliberate no-ops (sidecar populators, audit-stubs)
