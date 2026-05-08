@@ -1,9 +1,6 @@
 package aws
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
 
 // ARN and synthetic-NativeID builders shared across services. Every helper
 // here is called from at least one resolver/scanner outside its owning
@@ -29,14 +26,14 @@ import (
 
 // ec2ARN builds a standard EC2 ARN: arn:aws:ec2:{region}:{account}:{type}/{id}.
 func ec2ARN(region, accountID, resourceType, id string) string {
-	return fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, id)
+	return "arn:aws:ec2:" + region + ":" + accountID + ":" + resourceType + "/" + id
 }
 
 // rdsARN builds a standard RDS ARN. RDS uses ":" as the resource separator
 // (e.g. arn:aws:rds:us-east-1:123456789012:cluster:my-cluster), unlike EC2
 // which uses "/".
 func rdsARN(region, accountID, resource, id string) string {
-	return fmt.Sprintf("arn:aws:rds:%s:%s:%s:%s", region, accountID, resource, id)
+	return "arn:aws:rds:" + region + ":" + accountID + ":" + resource + ":" + id
 }
 
 // apigatewayARN builds an API Gateway ARN of the form
@@ -51,14 +48,14 @@ func apigatewayARN(region string, path ...string) string {
 // to log-group ARNs in some response shapes; the NativeID is the clean form
 // without that suffix.
 func logGroupNativeIDFromName(accountID, region, name string) string {
-	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s", region, accountID, name)
+	return "arn:aws:logs:" + region + ":" + accountID + ":log-group:" + name
 }
 
 // macieSessionNativeID synthesises an ARN-shaped identifier for the per-region
 // Macie session. The Macie API exposes no session ARN; the synthetic form
 // matches the canonical macie2 ARN shape so rescans dedupe.
 func macieSessionNativeID(accountID, region string) string {
-	return fmt.Sprintf("arn:aws:macie2:%s:%s:session", region, accountID)
+	return "arn:aws:macie2:" + region + ":" + accountID + ":session"
 }
 
 // ssoAssignmentNativeID synthesises a stable identifier for an account
