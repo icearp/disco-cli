@@ -38,16 +38,6 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 	return nil
 }
 
-// vnetIDFromSubnetID extracts the VNet resource ID from a subnet resource ID.
-func vnetIDFromSubnetID(subnetID string) string {
-	lower := strings.ToLower(subnetID)
-	idx := strings.Index(lower, "/subnets/")
-	if idx < 0 {
-		return ""
-	}
-	return subnetID[:idx]
-}
-
 // resolveApplicationGatewayRelationships derives three edge classes per AGW:
 //   - AGW -[attached-to]-> VNet via gatewayIPConfigurations[].properties.subnet.id
 //   - AGW -[uses]-> Public IP via frontendIPConfigurations[].properties.publicIPAddress.id
