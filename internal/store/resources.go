@@ -9,6 +9,8 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+
+	"codeberg.org/icearp/disco/internal/redact"
 )
 
 // hexResourceIDRE matches a full 32-hex-char resource ID (output of ResourceID).
@@ -130,7 +132,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		}
 		r.VerifiedAt = &now
 		r.VerifiedBy = &r.DiscoveredBy
-		r.AttributesJSON = scrubAttributes(r.AttributesJSON)
+		r.AttributesJSON = scrubAttributes(redact.Apply(r.Type, r.AttributesJSON))
 	}
 
 	// Count how many of these IDs already exist in the DB.
