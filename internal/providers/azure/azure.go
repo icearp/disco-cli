@@ -29,11 +29,6 @@ const (
 	maxConcurrentSubscriptions = 10
 	// maxConcurrentServices caps parallel service scanners per subscription.
 	maxConcurrentServices = 10
-	// maxConcurrentFanout caps concurrent child API calls within a single service
-	// (e.g. VM extension calls per VM, gallery image scans per gallery).
-	// 50 keeps us well under Azure ARM rate limits (1200 req/min per subscription)
-	// while cutting the number of sequential fanout rounds compared to 20.
-	maxConcurrentFanout = 50
 	// serviceTimeout is the per-service hard deadline. azure:compute now covers VMSS,
 	// galleries, and hosting fan-outs in addition to core compute types, so this must
 	// be generous enough for large subscriptions.
