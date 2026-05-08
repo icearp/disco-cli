@@ -120,6 +120,14 @@ func renderScans(scans []store.Scan, format string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(scans)
+	case "jsonl":
+		enc := json.NewEncoder(os.Stdout)
+		for _, s := range scans {
+			if err := enc.Encode(s); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()
@@ -135,6 +143,15 @@ func renderScans(scans []store.Scan, format string) error {
 			}
 		}
 		return nil
+	case "markdown", "md":
+		rows := make([][]string, 0, len(scans))
+		for _, s := range scans {
+			rows = append(rows, []string{
+				s.ID, s.StartedAt, ptrOrEmpty(s.FinishedAt), s.Status,
+				strings.Join(s.Providers, ","), intPtrOrEmpty(s.ResourceCount),
+			})
+		}
+		return renderMarkdownTable(os.Stdout, []string{"ID", "Started", "Finished", "Status", "Providers", "Resources"}, rows)
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tSTATUS\tPROVIDERS\tRESOURCES")
@@ -145,7 +162,7 @@ func renderScans(scans []store.Scan, format string) error {
 		}
 		return w.Flush()
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", format)
 	}
 }
 
@@ -154,6 +171,12 @@ func renderScanShow(sc *store.Scan, format string) error {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
+		return enc.Encode(sc)
+	case "jsonl":
+		// Single record as one line. Provided for shape parity with the parent
+		// `disco scans -o jsonl` so consumers can pipe either form through
+		// `jq -c` without branching.
+		enc := json.NewEncoder(os.Stdout)
 		return enc.Encode(sc)
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
@@ -166,6 +189,15 @@ func renderScanShow(sc *store.Scan, format string) error {
 			strings.Join(sc.Providers, ","), intPtrOrEmpty(sc.ResourceCount),
 			sc.ScopeJSON, ptrOrEmpty(sc.Error),
 		})
+	case "markdown", "md":
+		row := []string{
+			sc.ID, sc.StartedAt, ptrOrEmpty(sc.FinishedAt), sc.Status,
+			strings.Join(sc.Providers, ","), intPtrOrEmpty(sc.ResourceCount),
+			sc.ScopeJSON, ptrOrEmpty(sc.Error),
+		}
+		return renderMarkdownTable(os.Stdout,
+			[]string{"ID", "Started", "Finished", "Status", "Providers", "Resources", "Scope", "Error"},
+			[][]string{row})
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintf(w, "ID:\t%s\n", sc.ID)
@@ -193,7 +225,7 @@ func renderScanShow(sc *store.Scan, format string) error {
 		}
 		return nil
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", format)
 	}
 }
 
@@ -212,7 +244,7 @@ func intPtrOrDash(p *int) string {
 }
 
 func init() {
-	scansCmd.PersistentFlags().StringVarP(&scansOutputFmt, "output", "o", "table", "Output format: table, json, csv")
+	scansCmd.PersistentFlags().StringVarP(&scansOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	scansCmd.AddCommand(scansShowCmd)
 	rootCmd.AddCommand(scansCmd)
 }
