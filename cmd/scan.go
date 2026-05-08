@@ -322,26 +322,33 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	return nil
 }
 
-// scopeColumnWidth returns the padding width for the per-line scope column in
-// scan progress output, computed as the worst-case scope shape across the
-// enabled providers: AWS region name or "global" (≤16, ap-southeast-7 +
-// slack), Azure subscription UUID (36), GCP project ID (≤30 per GCP naming
-// rules). Tenant/org/global slot into the same column with trailing padding,
-// keeping the (N total, N new) counts at a fixed column.
+// scopeColumnWidth returns the padding width for the per-line scope column
+// in scan progress output, sized to the worst-case scope shape across the
+// enabled providers. Region scopes come from each provider's static
+// RegionNamer list; non-region scope shapes (Azure subscription UUID, GCP
+// project ID) carry per-provider baselines because they aren't in the
+// region list. "global" / "tenant" / "org" rows slot into the same column
+// with trailing padding, keeping the (N total, N new) counts at a fixed
+// column.
 func scopeColumnWidth(scanners []providers.Scanner) int {
-	width := 0
+	width := len("global")
 	for _, s := range scanners {
-		w := 0
-		switch s.Name() {
-		case "aws":
-			w = 16
-		case "azure":
-			w = 36
-		case "gcp":
-			w = 30
+		if rn, ok := s.(providers.RegionNamer); ok {
+			for _, r := range rn.RegionNames() {
+				if len(r) > width {
+					width = len(r)
+				}
+			}
 		}
-		if w > width {
-			width = w
+		switch s.Name() {
+		case "azure":
+			if 36 > width {
+				width = 36
+			}
+		case "gcp":
+			if 30 > width {
+				width = 30
+			}
 		}
 	}
 	return width

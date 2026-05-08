@@ -40,6 +40,18 @@ type RegionOverrider interface {
 	SetRegionOverride(regions []string)
 }
 
+// RegionNamer surfaces every region/location the provider's static
+// capability list covers — AWS partitions (us-east-1, ...), Azure ARM
+// locations (eastus, ...), GCP compute regions (us-central1, ...). The
+// list is the disco-side opinion of "what could be scanned"; providers
+// scan a subset based on config / creds at runtime. Static — refresh by
+// editing the per-provider list when a new cloud region launches.
+// cmd/scan.go uses this to compute the scope column width for aligned
+// progress output.
+type RegionNamer interface {
+	RegionNames() []string
+}
+
 // ProfileOverrider is an optional interface for providers that support
 // selecting a named credential profile via the --profile CLI flag.
 type ProfileOverrider interface {
