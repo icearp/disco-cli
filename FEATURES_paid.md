@@ -63,23 +63,17 @@ Consumed by:
 - `disco serve` (L3) for scan persistence on Fargate workers.
 - `disco-saas` Go app for direct read access against the same RDS Proxy + tenant pinning contract.
 
-## `disco serve` — scan-trigger HTTP API (L3)
+## Scan worker deploy — ECS RunTask command override (supersedes L3 `disco serve`)
 
-`cmd/serve_paid.go` + `internal/serve/*` implement the one-shot Fargate-per-scan API. Two routes:
+`disco serve` (HTTP API for triggering scans) shipped briefly and was removed 2026-05-08. In the locked-in deploy shape — Lambda → ECS RunTask → fresh Fargate container per scan, env-injected `DISCO_PG_DSN` + `DISCO_TENANT_ID`, container exits when scan completes, SaaS reads `scans` table for status — the HTTP layer was solving problems that the architecture doesn't have:
 
-- `GET /v1/healthz` — liveness, no auth.
-- `POST /v1/scans` — submit a scan; returns 202 + `scan_id`. Runs the scan in a background goroutine, persists to PG, then closes a `Done` channel that the cmd-level main loop reads to trigger graceful shutdown + process exit.
+- Single caller (Lambda) makes a typed API redundant.
+- Scope known at task-create time eliminates the "send scope after container starts" step where a misroute could happen, removing the attack vector that JWT defended.
+- Container is single-use; no multi-request reuse means no need for an HTTP listener.
+- Async semantics already provided by Fargate task lifecycle + scans-table polling.
 
-Lifecycle: container is one-shot. A second POST while the first scan is in-flight returns 409 `scan_in_progress`. After the scan completes the process exits 0 — ECS RunTask launches a fresh task per scan.
+Replaced with: Lambda invokes `ecs:RunTask` with `containerOverrides.command = ["scan", "<provider>", "--regions", ...]`. Container `ENTRYPOINT` is `/disco`. Scan runs via the existing CLI (`cmd/scan.go` + `internal/scanrun`) and writes to PG via the same `*store.Store` the SaaS reads from.
 
-Auth: HS256 JWT. Token MUST carry a `tenant` claim equal to the server's pinned `DISCO_TENANT_ID` env (mismatched tenant → 403 `tenant_mismatch`). Defence in depth against Lambda misroute (token issued for tenant A delivered to a container started for tenant B).
+PG dialing on the scan path is gated by env: when `DISCO_PG_DSN` + `DISCO_TENANT_ID` are set, paid `cmd/helpers_paid.go` reassigns the `openWriteDBHook` so write commands (`disco scan`, `disco check --persist`) land in PG with the tenant-pinned RLS contract. Empty env falls back to local SQLite for dev.
 
-Body scrubbing: scan request bodies that carry credential or server-pinned config keys (`credentials`, `access_key`, `secret_key`, `service_account_json`, `client_secret`, `password`, `api_key`, `bearer_token`, `dsn`, `pg_dsn`, `database_url`, `tenant_id`) are rejected 400 `credentials_in_body_forbidden`. Recursive walker matches case-insensitive at any depth.
-
-Stdlib `net/http` with Go 1.22+ pattern-matched ServeMux — no chi, no router lib, no oapi-codegen. Tiny route count (2) made hand-rolling cheaper than codegen tooling.
-
-Scan orchestration shared with `disco scan` CLI via `internal/scanrun.Allocate` + `Execute` (untagged package). Single source of truth for provider resolution + parallel fan-out + scan row lifecycle.
-
-Spec at `internal/serve/openapi.yaml` is documentation-only — not driven through codegen.
-
-OSS dep graph: pgx, golang-jwt, dockertest are paid-only — verified by build-tag scoping. Every file in `internal/serve/*` carries `//go:build paid`; the entire dir is excluded from `oss-sync.sh` by name pattern.
+Net result: ~700 LOC removed (server, JWT middleware, runner, cred-scrub, JSON envelope, all serve tests). pgx + dockertest stay paid-only via the existing `internal/store/postgres_paid.go` path. SaaS is unaffected — it always read from PG directly, never via `disco serve`.

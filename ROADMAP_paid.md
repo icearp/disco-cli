@@ -35,14 +35,12 @@ N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `0
 - See `FEATURES_paid.md` § Postgres backend.
 - Decision diff vs original plan: rejected the `ReadBackend`/`WriteBackend` interface split — single struct + driver branch is simpler and the SaaS app imports `internal/store` directly (no abstraction needed). Hand-rolled migration runner instead of golang-migrate per CLAUDE.md rule 7 (minimize deps).
 
-### L3. API server mode — SHIPPED 2026-05-08 (scoped down)
-- `disco serve` — minimal scan-trigger HTTP API for one-shot Fargate workers. Two routes only: `POST /v1/scans`, `GET /v1/healthz`. JWT-gated; tenant pinned at startup; body scrubbed for forbidden keys.
-- See `FEATURES_paid.md` § `disco serve`.
-- Decision diff vs original plan:
-  - **Read API rejected.** SaaS imports `internal/store` directly and reads PG with its own pool. No need to proxy reads through HTTP.
-  - **Write-via-API rejected.** Scan results go to PG directly via the disco binary running in the container. The API is just the trigger.
-  - **gRPC deferred.** REST is enough for the single internal consumer; gRPC adds buf workflow for no current benefit.
-  - **OpenAPI/codegen deferred.** Spec kept as documentation; tiny 2-route surface didn't justify oapi-codegen tooling.
+### L3. API server mode — REMOVED 2026-05-08
+- `disco serve` shipped 2026-05-08 as a 2-route HTTP API (`POST /v1/scans`, `GET /v1/healthz`) and was removed the same day after architecture review. In the Fargate-per-scan deploy shape (Lambda → ECS RunTask → one-shot container), every problem the HTTP layer solved was already solved by the architecture itself: scope is known at RunTask time (no misroute attack vector), container is single-use (no multi-request listener needed), Lambda is the only caller (no need for a typed API surface).
+- Replaced with: Lambda invokes `ecs:RunTask` with `containerOverrides.command = ["scan", ...]`. Container `ENTRYPOINT` is `/disco`. Existing CLI surface drives the scan; existing `*store.Store` PG path persists results.
+- See `FEATURES_paid.md` § Scan worker deploy.
+- Net deletion: ~700 LOC (`cmd/serve_paid.go`, `internal/serve/*`).
+- Future API surface (read endpoints, MCP, GraphQL) would be a fresh design driven by an actual external consumer, not a continuation of the v1 serve attempt.
 
 ### L4. Web UI (paid feature, separate repo)
 - Graph visualizer + rule results. Consumes L3 API.
