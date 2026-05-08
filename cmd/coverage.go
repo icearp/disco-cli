@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -122,7 +124,7 @@ Examples:
 func init() {
 	// Parent owns --output (PersistentFlags) so every subcommand inherits the
 	// same set of formats with one declaration.
-	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, json")
+	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 
 	// services subcommand flags.
 	coverageServicesCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws|azure|gcp); empty = all registered")
@@ -183,9 +185,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		return fmt.Errorf("--filter must be one of all|covered|uncovered|synthetic|upstream-missing; got %q", filter)
 	}
 	switch outputFmt {
-	case "markdown", "table", "json":
+	case "markdown", "md", "table", "json", "jsonl", "csv":
 	default:
-		return fmt.Errorf("--output must be one of markdown|table|json; got %q", outputFmt)
+		return fmt.Errorf("--output must be one of table|markdown|csv|json|jsonl; got %q", outputFmt)
 	}
 
 	covProviders, err := resolveCoverageProviders(provNames)
@@ -224,7 +226,28 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		if err := coverage.RenderJSON(w, matrices); err != nil {
 			return err
 		}
-	case "markdown":
+	case "jsonl":
+		enc := json.NewEncoder(w)
+		for _, m := range matrices {
+			for _, r := range m.Rows {
+				if err := enc.Encode(r); err != nil {
+					return err
+				}
+			}
+		}
+	case "csv":
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"provider", "service", "disco_type", "upstream_key", "bucket"})
+		for _, m := range matrices {
+			for _, r := range m.Rows {
+				_ = cw.Write([]string{r.Provider, r.Service, r.DiscoType, r.UpstreamKey, string(r.Bucket)})
+			}
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
+	case "markdown", "md":
 		if err := coverage.RenderMarkdown(w, matrices); err != nil {
 			return err
 		}
@@ -257,9 +280,9 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
 	switch outputFmt {
-	case "table", "markdown", "json":
+	case "table", "markdown", "md", "json", "jsonl", "csv":
 	default:
-		return fmt.Errorf("--output must be one of table|markdown|json; got %q", outputFmt)
+		return fmt.Errorf("--output must be one of table|markdown|csv|json|jsonl; got %q", outputFmt)
 	}
 
 	covProviders, err := resolveCoverageProviders(provNames)
@@ -329,7 +352,24 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 		if err := enc.Encode(rows); err != nil {
 			return err
 		}
-	case "markdown":
+	case "jsonl":
+		enc := json.NewEncoder(w)
+		for _, r := range rows {
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+	case "csv":
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"provider", "region", "status"})
+		for _, r := range rows {
+			_ = cw.Write([]string{r.Provider, r.Region, r.Status})
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
+	case "markdown", "md":
 		if err := coverage.RenderRegionsMarkdown(w, rows); err != nil {
 			return err
 		}
@@ -405,11 +445,30 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 		if err := enc.Encode(rows); err != nil {
 			return err
 		}
-	case "markdown":
-		_, _ = fmt.Fprintln(w, "| Provider | Resolver | Edges | Services |")
-		_, _ = fmt.Fprintln(w, "|---|---|---|---|")
+	case "jsonl":
+		enc := json.NewEncoder(w)
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "| %s | %s | %d | %s |\n", r.Provider, r.Resolver, r.Edges, strings.Join(r.Services, ","))
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+	case "csv":
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"provider", "resolver", "edges", "services"})
+		for _, r := range rows {
+			_ = cw.Write([]string{r.Provider, r.Resolver, strconv.Itoa(r.Edges), strings.Join(r.Services, ",")})
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
+	case "markdown", "md":
+		mdRows := make([][]string, 0, len(rows))
+		for _, r := range rows {
+			mdRows = append(mdRows, []string{r.Provider, r.Resolver, strconv.Itoa(r.Edges), strings.Join(r.Services, ",")})
+		}
+		if err := renderMarkdownTable(w, []string{"Provider", "Resolver", "Edges", "Services"}, mdRows); err != nil {
+			return err
 		}
 	default:
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
@@ -474,11 +533,30 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 		if err := enc.Encode(rows); err != nil {
 			return err
 		}
-	case "markdown":
-		_, _ = fmt.Fprintln(w, "| Provider | Disco Type | Service |")
-		_, _ = fmt.Fprintln(w, "|---|---|---|")
+	case "jsonl":
+		enc := json.NewEncoder(w)
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "| %s | %s | %s |\n", r.Provider, r.DiscoType, r.Service)
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+	case "csv":
+		cw := csv.NewWriter(w)
+		_ = cw.Write([]string{"provider", "disco_type", "service"})
+		for _, r := range rows {
+			_ = cw.Write([]string{r.Provider, r.DiscoType, r.Service})
+		}
+		cw.Flush()
+		if err := cw.Error(); err != nil {
+			return err
+		}
+	case "markdown", "md":
+		mdRows := make([][]string, 0, len(rows))
+		for _, r := range rows {
+			mdRows = append(mdRows, []string{r.Provider, r.DiscoType, r.Service})
+		}
+		if err := renderMarkdownTable(w, []string{"Provider", "Disco Type", "Service"}, mdRows); err != nil {
+			return err
 		}
 	default:
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
