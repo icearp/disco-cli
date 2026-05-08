@@ -24,9 +24,9 @@ deny contains f if {
 	}
 }
 `
-	eng, err := NewEngineFromModules(context.Background(), map[string]string{"ebs.rego": src})
+	eng, err := NewEngine(context.Background(), nil, map[string]string{"ebs.rego": src})
 	if err != nil {
-		t.Fatalf("NewEngineFromModules: %v", err)
+		t.Fatalf("NewEngine: %v", err)
 	}
 
 	resources := []store.Resource{
