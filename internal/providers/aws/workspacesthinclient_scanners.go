@@ -14,7 +14,7 @@ func init() {
 		name: "aws:workspaces-thin-client",
 		fn:   scanWorkSpacesThinClient,
 		emits: []coverage.TypeDecl{
-			{Service: "workspaces-thin-client", DiscoType: TypeWorkSpacesThinClientEnvironment},
+			{Service: "workspaces-thin-client", DiscoType: TypeWorkSpacesThinClientEnvironment, Leaf: true},
 		},
 	})
 }

@@ -15,25 +15,25 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPC},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPC, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Subnet},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InternetGateway},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EgressOnlyIGW},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EgressOnlyIGW, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NatGateway},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2RouteTable},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterface},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInterfacePermission},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkACL},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2EIP},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2DHCPOptions},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2DHCPOptions, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CarrierGateway},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointService},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointService, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointServicePermissions},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEndpointConnectionNotification},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCPeeringConnection},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessOptions},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessExclusion},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessOptions, Leaf: true},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCBlockPublicAccessExclusion, Leaf: true},
 	)
 }
 

@@ -15,13 +15,13 @@ func init() {
 		global: true,
 		fn:     scanRoute53GlobalResolver,
 		emits: []coverage.TypeDecl{
-			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessSource},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessToken},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRDNSView},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallDomainList},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallRule},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRGlobalResolver},
-			{Service: "route53globalresolver", DiscoType: TypeR53GRHostedZoneAssociation},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessSource, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRAccessToken, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRDNSView, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallDomainList, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRFirewallRule, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRGlobalResolver, Leaf: true},
+			{Service: "route53globalresolver", DiscoType: TypeR53GRHostedZoneAssociation, Leaf: true},
 		},
 	})
 }

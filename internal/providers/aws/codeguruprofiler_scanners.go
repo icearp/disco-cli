@@ -14,7 +14,7 @@ func init() {
 		name: "aws:code-guru-profiler",
 		fn:   scanCodeGuruProfiler,
 		emits: []coverage.TypeDecl{
-			{Service: "code-guru-profiler", DiscoType: TypeCodeGuruProfilerProfilingGroup},
+			{Service: "code-guru-profiler", DiscoType: TypeCodeGuruProfilerProfilingGroup, Leaf: true},
 		},
 	})
 }

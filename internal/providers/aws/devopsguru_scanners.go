@@ -15,9 +15,9 @@ func init() {
 		name: "aws:devops-guru",
 		fn:   scanDevOpsGuru,
 		emits: []coverage.TypeDecl{
-			{Service: "devops-guru", DiscoType: TypeDevOpsGuruNotificationChannel},
-			{Service: "devops-guru", DiscoType: TypeDevOpsGuruResourceCollection},
-			{Service: "devops-guru", DiscoType: TypeDevOpsGuruLogAnomalyDetectionIntegration},
+			{Service: "devops-guru", DiscoType: TypeDevOpsGuruNotificationChannel, Leaf: true},
+			{Service: "devops-guru", DiscoType: TypeDevOpsGuruResourceCollection, Leaf: true},
+			{Service: "devops-guru", DiscoType: TypeDevOpsGuruLogAnomalyDetectionIntegration, Leaf: true},
 		},
 	})
 }

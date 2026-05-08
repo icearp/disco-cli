@@ -11,7 +11,7 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CustomerGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CustomerGateway, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNGateway},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConnection},
 	)

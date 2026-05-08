@@ -15,9 +15,9 @@ func init() {
 		global: true,
 		fn:     scanCostExplorer,
 		emits: []coverage.TypeDecl{
-			{Service: "ce", DiscoType: TypeCEAnomalyMonitor},
-			{Service: "ce", DiscoType: TypeCEAnomalySubscription},
-			{Service: "ce", DiscoType: TypeCECostCategory},
+			{Service: "ce", DiscoType: TypeCEAnomalyMonitor, Leaf: true},
+			{Service: "ce", DiscoType: TypeCEAnomalySubscription, Leaf: true},
+			{Service: "ce", DiscoType: TypeCECostCategory, Leaf: true},
 		},
 	})
 }

@@ -17,7 +17,7 @@ func init() {
 		name: "aws:ecs",
 		fn:   scanECS,
 		emits: []coverage.TypeDecl{
-			{Service: "ecs", DiscoType: TypeECSCluster},
+			{Service: "ecs", DiscoType: TypeECSCluster, Leaf: true},
 			{Service: "ecs", DiscoType: TypeECSService},
 			{Service: "ecs", DiscoType: TypeECSTaskDefinition},
 			{Service: "ecs", DiscoType: TypeECSCapacityProvider},

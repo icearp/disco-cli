@@ -14,7 +14,7 @@ func init() {
 		name: "aws:appmesh",
 		fn:   scanAppMesh,
 		emits: []coverage.TypeDecl{
-			{Service: "appmesh", DiscoType: TypeAppMeshMesh},
+			{Service: "appmesh", DiscoType: TypeAppMeshMesh, Leaf: true},
 			{Service: "appmesh", DiscoType: TypeAppMeshGatewayRoute},
 			{Service: "appmesh", DiscoType: TypeAppMeshRoute},
 			{Service: "appmesh", DiscoType: TypeAppMeshVirtualGateway},

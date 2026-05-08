@@ -17,7 +17,7 @@ func init() {
 		name: "aws:detective",
 		fn:   scanDetective,
 		emits: []coverage.TypeDecl{
-			{Service: "detective", DiscoType: TypeDetectiveGraph},
+			{Service: "detective", DiscoType: TypeDetectiveGraph, Leaf: true},
 			{Service: "detective", DiscoType: TypeDetectiveMember, Synthetic: true},
 			{Service: "detective", DiscoType: TypeDetectiveOrganizationAdmin},
 		},

@@ -14,8 +14,8 @@ func init() {
 		name: "aws:ivs-chat",
 		fn:   scanIVSChat,
 		emits: []coverage.TypeDecl{
-			{Service: "ivs-chat", DiscoType: TypeIVSChatRoom},
-			{Service: "ivs-chat", DiscoType: TypeIVSChatLoggingConfiguration},
+			{Service: "ivs-chat", DiscoType: TypeIVSChatRoom, Leaf: true},
+			{Service: "ivs-chat", DiscoType: TypeIVSChatLoggingConfiguration, Leaf: true},
 		},
 	})
 }

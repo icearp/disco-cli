@@ -14,7 +14,7 @@ func init() {
 		name: "aws:dlm",
 		fn:   scanDLM,
 		emits: []coverage.TypeDecl{
-			{Service: "dlm", DiscoType: TypeDLMLifecyclePolicy},
+			{Service: "dlm", DiscoType: TypeDLMLifecyclePolicy, Leaf: true},
 		},
 	})
 }

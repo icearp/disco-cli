@@ -14,7 +14,7 @@ func init() {
 		name: "aws:codestar-notifications",
 		fn:   scanCodeStarNotifications,
 		emits: []coverage.TypeDecl{
-			{Service: "codestar-notifications", DiscoType: TypeCodeStarNotificationsNotificationRule},
+			{Service: "codestar-notifications", DiscoType: TypeCodeStarNotificationsNotificationRule, Leaf: true},
 		},
 	})
 }

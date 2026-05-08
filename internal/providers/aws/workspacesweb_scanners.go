@@ -21,7 +21,7 @@ func init() {
 			{Service: "workspaces-web", DiscoType: TypeWSWNetworkSettings},
 			{Service: "workspaces-web", DiscoType: TypeWSWPortal},
 			{Service: "workspaces-web", DiscoType: TypeWSWSessionLogger},
-			{Service: "workspaces-web", DiscoType: TypeWSWTrustStore},
+			{Service: "workspaces-web", DiscoType: TypeWSWTrustStore, Leaf: true},
 			{Service: "workspaces-web", DiscoType: TypeWSWUserAccessLoggingSettings},
 			{Service: "workspaces-web", DiscoType: TypeWSWUserSettings},
 		},

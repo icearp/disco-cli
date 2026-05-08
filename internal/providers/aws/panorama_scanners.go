@@ -14,8 +14,8 @@ func init() {
 		name: "aws:panorama",
 		fn:   scanPanorama,
 		emits: []coverage.TypeDecl{
-			{Service: "panorama", DiscoType: TypePanoramaApplicationInstance},
-			{Service: "panorama", DiscoType: TypePanoramaPackage},
+			{Service: "panorama", DiscoType: TypePanoramaApplicationInstance, Leaf: true},
+			{Service: "panorama", DiscoType: TypePanoramaPackage, Leaf: true},
 		},
 	})
 }

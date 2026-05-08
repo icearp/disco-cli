@@ -14,9 +14,9 @@ func init() {
 		name: "aws:resource-explorer-2",
 		fn:   scanResourceExplorer2,
 		emits: []coverage.TypeDecl{
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2Index},
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2View},
-			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2DefaultViewAssociation},
+			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2Index, Leaf: true},
+			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2View, Leaf: true},
+			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2DefaultViewAssociation, Leaf: true},
 		},
 	})
 }

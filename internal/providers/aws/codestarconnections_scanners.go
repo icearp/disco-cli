@@ -15,7 +15,7 @@ func init() {
 		name: "aws:codestar-connections",
 		fn:   scanCodeStarConnections,
 		emits: []coverage.TypeDecl{
-			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsConnection},
+			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsConnection, Leaf: true},
 			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsRepositoryLink},
 			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsSyncConfiguration},
 		},

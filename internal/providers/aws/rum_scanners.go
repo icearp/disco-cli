@@ -14,7 +14,7 @@ func init() {
 		name: "aws:rum",
 		fn:   scanRUM,
 		emits: []coverage.TypeDecl{
-			{Service: "rum", DiscoType: TypeRUMAppMonitor},
+			{Service: "rum", DiscoType: TypeRUMAppMonitor, Leaf: true},
 		},
 	})
 }

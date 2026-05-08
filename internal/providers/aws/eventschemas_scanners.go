@@ -14,10 +14,10 @@ func init() {
 		name: "aws:event-schemas",
 		fn:   scanEventSchemas,
 		emits: []coverage.TypeDecl{
-			{Service: "event-schemas", DiscoType: TypeEventSchemasDiscoverer},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistry},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistryPolicy},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasSchema},
+			{Service: "event-schemas", DiscoType: TypeEventSchemasDiscoverer, Leaf: true},
+			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistry, Leaf: true},
+			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistryPolicy, Leaf: true},
+			{Service: "event-schemas", DiscoType: TypeEventSchemasSchema, Leaf: true},
 		},
 	})
 }

@@ -16,7 +16,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereCRL},
 			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereProfile},
-			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereTrustAnchor},
+			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereTrustAnchor, Leaf: true},
 		},
 	})
 }

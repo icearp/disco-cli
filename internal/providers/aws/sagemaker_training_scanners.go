@@ -15,8 +15,8 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerNotebookInstance},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerNotebookInstanceLifecycleConfig},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerCodeRepository},
+		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerNotebookInstanceLifecycleConfig, Leaf: true},
+		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerCodeRepository, Leaf: true},
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerProcessingJob},
 	)
 }

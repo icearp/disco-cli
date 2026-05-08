@@ -14,7 +14,7 @@ func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCrawler},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueConnection},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueClassifier},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueClassifier, Leaf: true},
 	)
 }
 

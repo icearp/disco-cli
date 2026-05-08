@@ -15,16 +15,16 @@ func init() {
 		fn:   scanGameLift,
 		emits: []coverage.TypeDecl{
 			{Service: "gamelift", DiscoType: TypeGameLiftAlias},
-			{Service: "gamelift", DiscoType: TypeGameLiftBuild},
+			{Service: "gamelift", DiscoType: TypeGameLiftBuild, Leaf: true},
 			{Service: "gamelift", DiscoType: TypeGameLiftContainerFleet},
-			{Service: "gamelift", DiscoType: TypeGameLiftContainerGroupDefinition},
+			{Service: "gamelift", DiscoType: TypeGameLiftContainerGroupDefinition, Leaf: true},
 			{Service: "gamelift", DiscoType: TypeGameLiftFleet},
 			{Service: "gamelift", DiscoType: TypeGameLiftGameServerGroup},
 			{Service: "gamelift", DiscoType: TypeGameLiftGameSessionQueue},
-			{Service: "gamelift", DiscoType: TypeGameLiftLocation},
+			{Service: "gamelift", DiscoType: TypeGameLiftLocation, Leaf: true},
 			{Service: "gamelift", DiscoType: TypeGameLiftMatchmakingConfiguration},
-			{Service: "gamelift", DiscoType: TypeGameLiftMatchmakingRuleSet},
-			{Service: "gamelift", DiscoType: TypeGameLiftScript},
+			{Service: "gamelift", DiscoType: TypeGameLiftMatchmakingRuleSet, Leaf: true},
+			{Service: "gamelift", DiscoType: TypeGameLiftScript, Leaf: true},
 		},
 	})
 }

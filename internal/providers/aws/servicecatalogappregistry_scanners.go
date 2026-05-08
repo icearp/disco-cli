@@ -14,8 +14,8 @@ func init() {
 		name: "aws:service-catalog-app-registry",
 		fn:   scanServiceCatalogAppRegistry,
 		emits: []coverage.TypeDecl{
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARApplication},
-			{Service: "service-catalog-app-registry", DiscoType: TypeSCARAttributeGroup},
+			{Service: "service-catalog-app-registry", DiscoType: TypeSCARApplication, Leaf: true},
+			{Service: "service-catalog-app-registry", DiscoType: TypeSCARAttributeGroup, Leaf: true},
 			{Service: "service-catalog-app-registry", DiscoType: TypeSCARAttributeGroupAssociation},
 			{Service: "service-catalog-app-registry", DiscoType: TypeSCARResourceAssociation},
 		},

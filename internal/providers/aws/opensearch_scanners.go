@@ -18,7 +18,7 @@ func init() {
 		fn:   scanOpenSearch,
 		emits: []coverage.TypeDecl{
 			{Service: "opensearchservice", DiscoType: TypeOpenSearchDomain},
-			{Service: "opensearchservice", DiscoType: TypeOpenSearchApplication},
+			{Service: "opensearchservice", DiscoType: TypeOpenSearchApplication, Leaf: true},
 		},
 	})
 }

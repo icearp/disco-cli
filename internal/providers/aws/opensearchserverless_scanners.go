@@ -15,12 +15,12 @@ func init() {
 		name: "aws:opensearchserverless",
 		fn:   scanOpenSearchServerless,
 		emits: []coverage.TypeDecl{
-			{Service: "opensearchserverless", DiscoType: TypeOSSAccessPolicy},
+			{Service: "opensearchserverless", DiscoType: TypeOSSAccessPolicy, Leaf: true},
 			{Service: "opensearchserverless", DiscoType: TypeOSSCollection},
-			{Service: "opensearchserverless", DiscoType: TypeOSSCollectionGroup},
-			{Service: "opensearchserverless", DiscoType: TypeOSSLifecyclePolicy},
-			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityConfig},
-			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityPolicy},
+			{Service: "opensearchserverless", DiscoType: TypeOSSCollectionGroup, Leaf: true},
+			{Service: "opensearchserverless", DiscoType: TypeOSSLifecyclePolicy, Leaf: true},
+			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityConfig, Leaf: true},
+			{Service: "opensearchserverless", DiscoType: TypeOSSSecurityPolicy, Leaf: true},
 			{Service: "opensearchserverless", DiscoType: TypeOSSVpcEndpoint},
 		},
 	})

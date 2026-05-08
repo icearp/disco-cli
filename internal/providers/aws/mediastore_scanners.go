@@ -14,7 +14,7 @@ func init() {
 		name: "aws:media-store",
 		fn:   scanMediaStore,
 		emits: []coverage.TypeDecl{
-			{Service: "media-store", DiscoType: TypeMediaStoreContainer},
+			{Service: "media-store", DiscoType: TypeMediaStoreContainer, Leaf: true},
 		},
 	})
 }

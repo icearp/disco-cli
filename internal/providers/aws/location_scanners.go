@@ -16,9 +16,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "location", DiscoType: TypeLocationAPIKey},
 			{Service: "location", DiscoType: TypeLocationGeofenceCollection},
-			{Service: "location", DiscoType: TypeLocationMap},
-			{Service: "location", DiscoType: TypeLocationPlaceIndex},
-			{Service: "location", DiscoType: TypeLocationRouteCalculator},
+			{Service: "location", DiscoType: TypeLocationMap, Leaf: true},
+			{Service: "location", DiscoType: TypeLocationPlaceIndex, Leaf: true},
+			{Service: "location", DiscoType: TypeLocationRouteCalculator, Leaf: true},
 			{Service: "location", DiscoType: TypeLocationTracker},
 			{Service: "location", DiscoType: TypeLocationTrackerConsumer},
 		},

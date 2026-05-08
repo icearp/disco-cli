@@ -12,7 +12,7 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerCluster},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerWorkteam},
+		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerWorkteam, Leaf: true},
 	)
 }
 

@@ -30,11 +30,11 @@ func init() {
 			// Macie session is a per-(account,region) singleton config that
 			// CloudFormation does model as AWS::Macie::Session (per-region
 			// enablement); synth NativeID since the API exposes no ARN.
-			{Service: "macie", DiscoType: TypeMacieSession},
+			{Service: "macie", DiscoType: TypeMacieSession, Leaf: true},
 			{Service: "macie", DiscoType: TypeMacieClassificationJob},
 			{Service: "macie", DiscoType: TypeMacieAllowList},
-			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier},
-			{Service: "macie", DiscoType: TypeMacieFindingsFilter},
+			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier, Leaf: true},
+			{Service: "macie", DiscoType: TypeMacieFindingsFilter, Leaf: true},
 		},
 	})
 }

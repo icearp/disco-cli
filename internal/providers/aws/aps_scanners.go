@@ -16,9 +16,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "aps", DiscoType: TypeAPSWorkspace},
 			{Service: "aps", DiscoType: TypeAPSScraper},
-			{Service: "aps", DiscoType: TypeAPSAnomalyDetector},
-			{Service: "aps", DiscoType: TypeAPSRuleGroupsNamespace},
-			{Service: "aps", DiscoType: TypeAPSResourcePolicy},
+			{Service: "aps", DiscoType: TypeAPSAnomalyDetector, Leaf: true},
+			{Service: "aps", DiscoType: TypeAPSRuleGroupsNamespace, Leaf: true},
+			{Service: "aps", DiscoType: TypeAPSResourcePolicy, Leaf: true},
 		},
 	})
 }

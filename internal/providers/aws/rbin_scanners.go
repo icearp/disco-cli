@@ -15,7 +15,7 @@ func init() {
 		name: "aws:rbin",
 		fn:   scanRbin,
 		emits: []coverage.TypeDecl{
-			{Service: "rbin", DiscoType: TypeRbinRule},
+			{Service: "rbin", DiscoType: TypeRbinRule, Leaf: true},
 		},
 	})
 }

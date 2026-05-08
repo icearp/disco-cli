@@ -20,7 +20,7 @@ func init() {
 			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerCertificate},
 			{Service: "elasticloadbalancing", DiscoType: TypeELBv2ListenerRule},
 			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TargetGroup},
-			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStore},
+			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStore, Leaf: true},
 			{Service: "elasticloadbalancing", DiscoType: TypeELBv2TrustStoreRevocation},
 		},
 	})

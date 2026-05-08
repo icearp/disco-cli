@@ -15,9 +15,9 @@ func init() {
 		name: "aws:cleanrooms-ml",
 		fn:   scanCleanRoomsML,
 		emits: []coverage.TypeDecl{
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithm},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation},
-			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLTrainingDataset},
+			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithm, Leaf: true},
+			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, Leaf: true},
+			{Service: "cleanrooms-ml", DiscoType: TypeCleanRoomsMLTrainingDataset, Leaf: true},
 		},
 	})
 }

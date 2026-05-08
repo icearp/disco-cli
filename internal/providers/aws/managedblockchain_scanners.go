@@ -14,9 +14,9 @@ func init() {
 		name: "aws:managed-blockchain",
 		fn:   scanManagedBlockchain,
 		emits: []coverage.TypeDecl{
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainAccessor},
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainMember},
-			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNode},
+			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainAccessor, Leaf: true},
+			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainMember, Leaf: true},
+			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNode, Leaf: true},
 		},
 	})
 }

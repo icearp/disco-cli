@@ -14,7 +14,7 @@ func init() {
 		name: "aws:mediapackagev2",
 		fn:   scanMediaPackageV2,
 		emits: []coverage.TypeDecl{
-			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2ChannelGroup},
+			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2ChannelGroup, Leaf: true},
 			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2Channel},
 			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2ChannelPolicy},
 			{Service: "mediapackagev2", DiscoType: TypeMediaPackageV2OriginEndpoint},

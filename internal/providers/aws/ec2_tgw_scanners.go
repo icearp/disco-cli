@@ -14,7 +14,7 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGateway},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGateway, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayAttachment},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnect},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayConnectPeer},

@@ -17,9 +17,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "ssm", DiscoType: TypeSSMDocument},
 			{Service: "ssm", DiscoType: TypeSSMParameter},
-			{Service: "ssm", DiscoType: TypeSSMPatchBaseline},
+			{Service: "ssm", DiscoType: TypeSSMPatchBaseline, Leaf: true},
 			{Service: "ssm", DiscoType: TypeSSMAssociation},
-			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindow},
+			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindow, Leaf: true},
 			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTarget},
 			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTask},
 			{Service: "ssm", DiscoType: TypeSSMResourceDataSync},

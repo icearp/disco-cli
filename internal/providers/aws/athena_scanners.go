@@ -19,7 +19,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "athena", DiscoType: TypeAthenaWorkgroup},
 			{Service: "athena", DiscoType: TypeAthenaDataCatalog},
-			{Service: "athena", DiscoType: TypeAthenaCapacityReservation},
+			{Service: "athena", DiscoType: TypeAthenaCapacityReservation, Leaf: true},
 		},
 	})
 }

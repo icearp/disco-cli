@@ -24,19 +24,11 @@ type coverageProvider struct{}
 
 func (coverageProvider) Name() string { return "aws" }
 
-// Emits returns CollectEmits() with the central leaf-type registry
-// (leafTypes in coverage_leaves.go) applied as a post-mark. Centralizing
-// the leaf list keeps it diffable in one place rather than scattering
-// `Leaf: true` flags across every scanner's emits decl.
-func (coverageProvider) Emits() []coverage.TypeDecl {
-	out := CollectEmits()
-	for i := range out {
-		if leafTypes[out[i].DiscoType] {
-			out[i].Leaf = true
-		}
-	}
-	return out
-}
+// Emits returns CollectEmits() verbatim — the Leaf flag on each TypeDecl
+// is set at registration time alongside the scanner's emits decl. Locality
+// keeps the decision next to the SDK-shape author who knows whether the
+// type carries outbound refs.
+func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
 // Aliases overrides algorithmic disco-type → CFN-key mapping for cases
 // where the disco service segment doesn't equal the CFN service segment.

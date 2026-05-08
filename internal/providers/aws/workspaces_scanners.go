@@ -14,9 +14,9 @@ func init() {
 		name: "aws:work-spaces",
 		fn:   scanWorkSpaces,
 		emits: []coverage.TypeDecl{
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspace},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesConnectionAlias},
-			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspacesPool},
+			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspace, Leaf: true},
+			{Service: "work-spaces", DiscoType: TypeWorkSpacesConnectionAlias, Leaf: true},
+			{Service: "work-spaces", DiscoType: TypeWorkSpacesWorkspacesPool, Leaf: true},
 		},
 	})
 }

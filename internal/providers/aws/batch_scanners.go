@@ -17,9 +17,9 @@ func init() {
 			{Service: "batch", DiscoType: TypeBatchComputeEnvironment},
 			{Service: "batch", DiscoType: TypeBatchJobQueue},
 			{Service: "batch", DiscoType: TypeBatchJobDefinition},
-			{Service: "batch", DiscoType: TypeBatchSchedulingPolicy},
-			{Service: "batch", DiscoType: TypeBatchConsumableResource},
-			{Service: "batch", DiscoType: TypeBatchServiceEnvironment},
+			{Service: "batch", DiscoType: TypeBatchSchedulingPolicy, Leaf: true},
+			{Service: "batch", DiscoType: TypeBatchConsumableResource, Leaf: true},
+			{Service: "batch", DiscoType: TypeBatchServiceEnvironment, Leaf: true},
 			{Service: "batch", DiscoType: TypeBatchQuotaShare},
 		},
 	})

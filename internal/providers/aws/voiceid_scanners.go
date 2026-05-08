@@ -21,7 +21,7 @@ func init() {
 		name: "aws:voice-id",
 		fn:   scanVoiceID,
 		emits: []coverage.TypeDecl{
-			{Service: "voice-id", DiscoType: TypeVoiceIDDomain},
+			{Service: "voice-id", DiscoType: TypeVoiceIDDomain, Leaf: true},
 		},
 	})
 }

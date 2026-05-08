@@ -16,7 +16,7 @@ func init() {
 		fn:   scanDAX,
 		emits: []coverage.TypeDecl{
 			{Service: "dax", DiscoType: TypeDAXCluster},
-			{Service: "dax", DiscoType: TypeDAXParameterGroup},
+			{Service: "dax", DiscoType: TypeDAXParameterGroup, Leaf: true},
 			{Service: "dax", DiscoType: TypeDAXSubnetGroup},
 		},
 	})

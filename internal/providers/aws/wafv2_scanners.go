@@ -18,10 +18,10 @@ func init() {
 		fn:   scanWAFv2,
 		emits: []coverage.TypeDecl{
 			{Service: "wafv2", DiscoType: TypeWAFv2WebACL},
-			{Service: "wafv2", DiscoType: TypeWAFv2RuleGroup},
-			{Service: "wafv2", DiscoType: TypeWAFv2IPSet},
+			{Service: "wafv2", DiscoType: TypeWAFv2RuleGroup, Leaf: true},
+			{Service: "wafv2", DiscoType: TypeWAFv2IPSet, Leaf: true},
 			{Service: "wafv2", DiscoType: TypeWAFv2LoggingConfiguration},
-			{Service: "wafv2", DiscoType: TypeWAFv2RegexPatternSet},
+			{Service: "wafv2", DiscoType: TypeWAFv2RegexPatternSet, Leaf: true},
 			{Service: "wafv2", DiscoType: TypeWAFv2WebACLAssociation},
 		},
 	})

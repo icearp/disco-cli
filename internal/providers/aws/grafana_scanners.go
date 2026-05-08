@@ -14,7 +14,7 @@ func init() {
 		name: "aws:grafana",
 		fn:   scanGrafana,
 		emits: []coverage.TypeDecl{
-			{Service: "grafana", DiscoType: TypeGrafanaWorkspace},
+			{Service: "grafana", DiscoType: TypeGrafanaWorkspace, Leaf: true},
 		},
 	})
 }

@@ -14,7 +14,7 @@ func init() {
 		name: "aws:qbusiness",
 		fn:   scanQBusiness,
 		emits: []coverage.TypeDecl{
-			{Service: "qbusiness", DiscoType: TypeQBusinessApplication},
+			{Service: "qbusiness", DiscoType: TypeQBusinessApplication, Leaf: true},
 			{Service: "qbusiness", DiscoType: TypeQBusinessDataAccessor},
 			{Service: "qbusiness", DiscoType: TypeQBusinessDataSource},
 			{Service: "qbusiness", DiscoType: TypeQBusinessIndex},

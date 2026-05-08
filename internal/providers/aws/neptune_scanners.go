@@ -15,11 +15,11 @@ func init() {
 		fn:   scanNeptune,
 		emits: []coverage.TypeDecl{
 			{Service: "neptune", DiscoType: TypeNeptuneCluster},
-			{Service: "neptune", DiscoType: TypeNeptuneInstance},
-			{Service: "neptune", DiscoType: TypeNeptuneDBClusterParameterGroup},
-			{Service: "neptune", DiscoType: TypeNeptuneDBParameterGroup},
-			{Service: "neptune", DiscoType: TypeNeptuneDBSubnetGroup},
-			{Service: "neptune", DiscoType: TypeNeptuneEventSubscription},
+			{Service: "neptune", DiscoType: TypeNeptuneInstance, Leaf: true},
+			{Service: "neptune", DiscoType: TypeNeptuneDBClusterParameterGroup, Leaf: true},
+			{Service: "neptune", DiscoType: TypeNeptuneDBParameterGroup, Leaf: true},
+			{Service: "neptune", DiscoType: TypeNeptuneDBSubnetGroup, Leaf: true},
+			{Service: "neptune", DiscoType: TypeNeptuneEventSubscription, Leaf: true},
 		},
 	})
 }

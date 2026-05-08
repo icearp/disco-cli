@@ -14,7 +14,7 @@ func init() {
 		name: "aws:iottwinmaker",
 		fn:   scanIoTTwinMaker,
 		emits: []coverage.TypeDecl{
-			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerWorkspace},
+			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerWorkspace, Leaf: true},
 			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerComponentType},
 			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerEntity},
 			{Service: "iottwinmaker", DiscoType: TypeIoTTwinMakerScene},

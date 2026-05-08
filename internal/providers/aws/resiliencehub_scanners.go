@@ -14,8 +14,8 @@ func init() {
 		name: "aws:resilience-hub",
 		fn:   scanResilienceHub,
 		emits: []coverage.TypeDecl{
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubApp},
-			{Service: "resilience-hub", DiscoType: TypeResilienceHubResiliencyPolicy},
+			{Service: "resilience-hub", DiscoType: TypeResilienceHubApp, Leaf: true},
+			{Service: "resilience-hub", DiscoType: TypeResilienceHubResiliencyPolicy, Leaf: true},
 		},
 	})
 }

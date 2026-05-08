@@ -12,14 +12,14 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCatalog},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCustomEntityType},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueCustomEntityType, Leaf: true},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueDataCatalogEncryptionSettings},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueDataQualityRuleset},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIdentityCenterConfiguration},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIntegration},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIntegrationResourceProperty},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueIntegrationResourceProperty, Leaf: true},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSecurityConfiguration},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueUsageProfile},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueUsageProfile, Leaf: true},
 	)
 }
 

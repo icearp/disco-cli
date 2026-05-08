@@ -14,8 +14,8 @@ func init() {
 		name: "aws:synthetics",
 		fn:   scanSynthetics,
 		emits: []coverage.TypeDecl{
-			{Service: "synthetics", DiscoType: TypeSyntheticsCanary},
-			{Service: "synthetics", DiscoType: TypeSyntheticsGroup},
+			{Service: "synthetics", DiscoType: TypeSyntheticsCanary, Leaf: true},
+			{Service: "synthetics", DiscoType: TypeSyntheticsGroup, Leaf: true},
 		},
 	})
 }

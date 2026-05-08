@@ -31,9 +31,9 @@ func init() {
 		name: "aws:security-lake",
 		fn:   scanSecurityLake,
 		emits: []coverage.TypeDecl{
-			{Service: "security-lake", DiscoType: TypeSecurityLakeDataLake},
-			{Service: "security-lake", DiscoType: TypeSecurityLakeSubscriber},
-			{Service: "security-lake", DiscoType: TypeSecurityLakeAwsLogSource},
+			{Service: "security-lake", DiscoType: TypeSecurityLakeDataLake, Leaf: true},
+			{Service: "security-lake", DiscoType: TypeSecurityLakeSubscriber, Leaf: true},
+			{Service: "security-lake", DiscoType: TypeSecurityLakeAwsLogSource, Leaf: true},
 		},
 	})
 }

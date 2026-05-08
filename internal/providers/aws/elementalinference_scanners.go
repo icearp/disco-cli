@@ -14,7 +14,7 @@ func init() {
 		name: "aws:elemental-inference",
 		fn:   scanElementalInference,
 		emits: []coverage.TypeDecl{
-			{Service: "elemental-inference", DiscoType: TypeElementalInferenceFeed},
+			{Service: "elemental-inference", DiscoType: TypeElementalInferenceFeed, Leaf: true},
 		},
 	})
 }

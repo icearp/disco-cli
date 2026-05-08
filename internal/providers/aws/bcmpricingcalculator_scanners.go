@@ -33,7 +33,7 @@ func init() {
 		name: "aws:bcmpricingcalculator",
 		fn:   scanBcmPricingCalculator,
 		emits: []coverage.TypeDecl{
-			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillScenario},
+			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillScenario, Leaf: true},
 		},
 	})
 }

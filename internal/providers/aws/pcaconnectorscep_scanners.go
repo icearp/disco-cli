@@ -14,8 +14,8 @@ func init() {
 		name: "aws:pca-connector-scep",
 		fn:   scanPCAConnectorSCEP,
 		emits: []coverage.TypeDecl{
-			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPConnector},
-			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPChallenge},
+			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPConnector, Leaf: true},
+			{Service: "pca-connector-scep", DiscoType: TypePCAConnectorSCEPChallenge, Leaf: true},
 		},
 	})
 }

@@ -18,7 +18,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "amplify", DiscoType: TypeAmplifyApp},
 			{Service: "amplify", DiscoType: TypeAmplifyBranch},
-			{Service: "amplify", DiscoType: TypeAmplifyDomain},
+			{Service: "amplify", DiscoType: TypeAmplifyDomain, Leaf: true},
 		},
 	})
 }

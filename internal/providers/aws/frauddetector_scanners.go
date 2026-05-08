@@ -15,12 +15,12 @@ func init() {
 		fn:   scanFraudDetector,
 		emits: []coverage.TypeDecl{
 			{Service: "frauddetector", DiscoType: TypeFraudDetectorDetector},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorEntityType},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorEntityType, Leaf: true},
 			{Service: "frauddetector", DiscoType: TypeFraudDetectorEventType},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorLabel},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorList},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorOutcome},
-			{Service: "frauddetector", DiscoType: TypeFraudDetectorVariable},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorLabel, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorList, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorOutcome, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorVariable, Leaf: true},
 		},
 	})
 }

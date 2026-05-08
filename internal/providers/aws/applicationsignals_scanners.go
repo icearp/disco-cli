@@ -15,8 +15,8 @@ func init() {
 		name: "aws:applicationsignals",
 		fn:   scanApplicationSignals,
 		emits: []coverage.TypeDecl{
-			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsSLO},
-			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsGroupingConfiguration},
+			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsSLO, Leaf: true},
+			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsGroupingConfiguration, Leaf: true},
 		},
 	})
 }

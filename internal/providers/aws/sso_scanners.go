@@ -21,7 +21,7 @@ func init() {
 		fn:   scanSSOAdmin,
 		emits: []coverage.TypeDecl{
 			{Service: "sso", DiscoType: TypeSSOInstance},
-			{Service: "sso", DiscoType: TypeSSOPermissionSet},
+			{Service: "sso", DiscoType: TypeSSOPermissionSet, Leaf: true},
 			// SSO assignments + Identity Store users/groups have AWS API
 			// surfaces but no AWS-issued ARN; disco synthesizes NativeIDs.
 			// CFN does have AWS::SSO::Assignment / AWS::IdentityStore::Group,
@@ -30,8 +30,8 @@ func init() {
 			{Service: "sso", DiscoType: TypeSSOApplication},
 			{Service: "sso", DiscoType: TypeSSOApplicationAssignment},
 			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
-			{Service: "identitystore", DiscoType: TypeIdentityStoreUser},
-			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup},
+			{Service: "identitystore", DiscoType: TypeIdentityStoreUser, Leaf: true},
+			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup, Leaf: true},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreGroupMembership},
 		},
 	})

@@ -14,7 +14,7 @@ func init() {
 		name: "aws:pinpoint",
 		fn:   scanPinpoint,
 		emits: []coverage.TypeDecl{
-			{Service: "pinpoint", DiscoType: TypePinpointApp},
+			{Service: "pinpoint", DiscoType: TypePinpointApp, Leaf: true},
 			{Service: "pinpoint", DiscoType: TypePinpointApplicationSettings},
 			{Service: "pinpoint", DiscoType: TypePinpointEventStream},
 			{Service: "pinpoint", DiscoType: TypePinpointCampaign},
@@ -29,10 +29,10 @@ func init() {
 			{Service: "pinpoint", DiscoType: TypePinpointGCMChannel},
 			{Service: "pinpoint", DiscoType: TypePinpointSMSChannel},
 			{Service: "pinpoint", DiscoType: TypePinpointVoiceChannel},
-			{Service: "pinpoint", DiscoType: TypePinpointEmailTemplate},
-			{Service: "pinpoint", DiscoType: TypePinpointInAppTemplate},
-			{Service: "pinpoint", DiscoType: TypePinpointPushTemplate},
-			{Service: "pinpoint", DiscoType: TypePinpointSmsTemplate},
+			{Service: "pinpoint", DiscoType: TypePinpointEmailTemplate, Leaf: true},
+			{Service: "pinpoint", DiscoType: TypePinpointInAppTemplate, Leaf: true},
+			{Service: "pinpoint", DiscoType: TypePinpointPushTemplate, Leaf: true},
+			{Service: "pinpoint", DiscoType: TypePinpointSmsTemplate, Leaf: true},
 		},
 	})
 }

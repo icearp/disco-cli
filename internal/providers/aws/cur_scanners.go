@@ -15,7 +15,7 @@ func init() {
 		global: true,
 		fn:     scanCUR,
 		emits: []coverage.TypeDecl{
-			{Service: "cur", DiscoType: TypeCURReportDefinition},
+			{Service: "cur", DiscoType: TypeCURReportDefinition, Leaf: true},
 		},
 	})
 }

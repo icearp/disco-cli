@@ -14,8 +14,8 @@ func init() {
 		name: "aws:m2",
 		fn:   scanM2,
 		emits: []coverage.TypeDecl{
-			{Service: "m2", DiscoType: TypeM2Application},
-			{Service: "m2", DiscoType: TypeM2Environment},
+			{Service: "m2", DiscoType: TypeM2Application, Leaf: true},
+			{Service: "m2", DiscoType: TypeM2Environment, Leaf: true},
 			{Service: "m2", DiscoType: TypeM2Deployment},
 		},
 	})

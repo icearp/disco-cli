@@ -17,7 +17,7 @@ func init() {
 		name: "aws:interconnect",
 		fn:   scanInterconnect,
 		emits: []coverage.TypeDecl{
-			{Service: "interconnect", DiscoType: TypeInterconnectConnection},
+			{Service: "interconnect", DiscoType: TypeInterconnectConnection, Leaf: true},
 		},
 	})
 }

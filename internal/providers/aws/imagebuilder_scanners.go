@@ -15,14 +15,14 @@ func init() {
 		name: "aws:imagebuilder",
 		fn:   scanImageBuilder,
 		emits: []coverage.TypeDecl{
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderComponent},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderContainerRecipe},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderDistributionConfiguration},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderComponent, Leaf: true},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderContainerRecipe, Leaf: true},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderDistributionConfiguration, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderImagePipeline},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderImageRecipe},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderImageRecipe, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderInfrastructureConfig},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderLifecyclePolicy},
-			{Service: "imagebuilder", DiscoType: TypeImageBuilderWorkflow},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderWorkflow, Leaf: true},
 		},
 	})
 }

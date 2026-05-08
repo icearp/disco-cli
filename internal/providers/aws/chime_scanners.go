@@ -14,7 +14,7 @@ func init() {
 		name: "aws:chime",
 		fn:   scanChime,
 		emits: []coverage.TypeDecl{
-			{Service: "chime", DiscoType: TypeChimeAppInstance},
+			{Service: "chime", DiscoType: TypeChimeAppInstance, Leaf: true},
 		},
 	})
 }

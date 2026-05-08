@@ -30,12 +30,12 @@ func init() {
 			return scanRoute53(ctx, acct, st, scanID)
 		},
 		emits: []coverage.TypeDecl{
-			{Service: "route53", DiscoType: TypeRoute53HostedZone},
+			{Service: "route53", DiscoType: TypeRoute53HostedZone, Leaf: true},
 			{Service: "route53", DiscoType: TypeRoute53RecordSet},
-			{Service: "route53", DiscoType: TypeRoute53HealthCheck},
+			{Service: "route53", DiscoType: TypeRoute53HealthCheck, Leaf: true},
 			{Service: "route53", DiscoType: TypeRoute53DNSSEC},
 			{Service: "route53", DiscoType: TypeRoute53KeySigningKey},
-			{Service: "route53", DiscoType: TypeRoute53CIDRCollection},
+			{Service: "route53", DiscoType: TypeRoute53CIDRCollection, Leaf: true},
 		},
 	})
 }

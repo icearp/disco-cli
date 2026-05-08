@@ -17,10 +17,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "memorydb", DiscoType: TypeMemoryDBACL},
 			{Service: "memorydb", DiscoType: TypeMemoryDBCluster},
-			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionCluster},
-			{Service: "memorydb", DiscoType: TypeMemoryDBParameterGroup},
+			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionCluster, Leaf: true},
+			{Service: "memorydb", DiscoType: TypeMemoryDBParameterGroup, Leaf: true},
 			{Service: "memorydb", DiscoType: TypeMemoryDBSubnetGroup},
-			{Service: "memorydb", DiscoType: TypeMemoryDBUser},
+			{Service: "memorydb", DiscoType: TypeMemoryDBUser, Leaf: true},
 		},
 	})
 }

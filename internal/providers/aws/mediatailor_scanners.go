@@ -14,11 +14,11 @@ func init() {
 		name: "aws:mediatailor",
 		fn:   scanMediaTailor,
 		emits: []coverage.TypeDecl{
-			{Service: "mediatailor", DiscoType: TypeMediaTailorChannel},
+			{Service: "mediatailor", DiscoType: TypeMediaTailorChannel, Leaf: true},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorChannelPolicy},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorLiveSource},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorPlaybackConfiguration},
-			{Service: "mediatailor", DiscoType: TypeMediaTailorSourceLocation},
+			{Service: "mediatailor", DiscoType: TypeMediaTailorPlaybackConfiguration, Leaf: true},
+			{Service: "mediatailor", DiscoType: TypeMediaTailorSourceLocation, Leaf: true},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorVodSource},
 		},
 	})

@@ -19,8 +19,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "apprunner", DiscoType: TypeAppRunnerService},
 			{Service: "apprunner", DiscoType: TypeAppRunnerVPCConnector},
-			{Service: "apprunner", DiscoType: TypeAppRunnerAutoScalingConfiguration},
-			{Service: "apprunner", DiscoType: TypeAppRunnerObservabilityConfiguration},
+			{Service: "apprunner", DiscoType: TypeAppRunnerAutoScalingConfiguration, Leaf: true},
+			{Service: "apprunner", DiscoType: TypeAppRunnerObservabilityConfiguration, Leaf: true},
 			{Service: "apprunner", DiscoType: TypeAppRunnerVpcIngressConnection},
 		},
 	})

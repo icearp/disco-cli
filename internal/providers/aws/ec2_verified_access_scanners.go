@@ -10,7 +10,7 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessTrustProvider},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessTrustProvider, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessInstance},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessGroup},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VerifiedAccessEndpoint},

@@ -14,8 +14,8 @@ func init() {
 		name: "aws:appintegrations",
 		fn:   scanAppIntegrations,
 		emits: []coverage.TypeDecl{
-			{Service: "appintegrations", DiscoType: TypeAppIntegrationsApplication},
-			{Service: "appintegrations", DiscoType: TypeAppIntegrationsDataIntegration},
+			{Service: "appintegrations", DiscoType: TypeAppIntegrationsApplication, Leaf: true},
+			{Service: "appintegrations", DiscoType: TypeAppIntegrationsDataIntegration, Leaf: true},
 			{Service: "appintegrations", DiscoType: TypeAppIntegrationsEventIntegration},
 		},
 	})

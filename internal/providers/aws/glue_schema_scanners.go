@@ -12,10 +12,10 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueRegistry},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueRegistry, Leaf: true},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchema},
 		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchemaVersion},
-		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchemaVersionMetadata},
+		coverage.TypeDecl{Service: "glue", DiscoType: TypeGlueSchemaVersionMetadata, Leaf: true},
 	)
 }
 

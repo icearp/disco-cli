@@ -15,8 +15,8 @@ func init() {
 		fn:   scanCleanRooms,
 		emits: []coverage.TypeDecl{
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsAnalysisTemplate},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsCollaboration},
-			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTable},
+			{Service: "cleanrooms", DiscoType: TypeCleanRoomsCollaboration, Leaf: true},
+			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTable, Leaf: true},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTableAssociation},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDMappingTable},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDNamespaceAssociation},

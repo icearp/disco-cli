@@ -21,10 +21,10 @@ func init() {
 			{Service: "elasticache", DiscoType: TypeElastiCacheReplicationGroup},
 			{Service: "elasticache", DiscoType: TypeElastiCacheGlobalReplicationGroup},
 			{Service: "elasticache", DiscoType: TypeElastiCacheServerlessCache},
-			{Service: "elasticache", DiscoType: TypeElastiCacheParameterGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheSecurityGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheParameterGroup, Leaf: true},
+			{Service: "elasticache", DiscoType: TypeElastiCacheSecurityGroup, Leaf: true},
 			{Service: "elasticache", DiscoType: TypeElastiCacheSubnetGroup},
-			{Service: "elasticache", DiscoType: TypeElastiCacheUser},
+			{Service: "elasticache", DiscoType: TypeElastiCacheUser, Leaf: true},
 			{Service: "elasticache", DiscoType: TypeElastiCacheUserGroup},
 		},
 	})

@@ -15,7 +15,7 @@ func init() {
 		global: true,
 		fn:     scanInvoicing,
 		emits: []coverage.TypeDecl{
-			{Service: "invoicing", DiscoType: TypeInvoicingInvoiceUnit},
+			{Service: "invoicing", DiscoType: TypeInvoicingInvoiceUnit, Leaf: true},
 		},
 	})
 }

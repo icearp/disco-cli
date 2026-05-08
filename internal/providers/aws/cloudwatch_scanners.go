@@ -20,12 +20,12 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarm},
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchCompositeAlarm},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarmMuteRule},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchAnomalyDetector},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchDashboard},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchInsightRule},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchAlarmMuteRule, Leaf: true},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchAnomalyDetector, Leaf: true},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchDashboard, Leaf: true},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchInsightRule, Leaf: true},
 			{Service: "cloudwatch", DiscoType: TypeCloudWatchMetricStream},
-			{Service: "cloudwatch", DiscoType: TypeCloudWatchOTelEnrichment},
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchOTelEnrichment, Leaf: true},
 		},
 	})
 }

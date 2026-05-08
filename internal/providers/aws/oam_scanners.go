@@ -14,8 +14,8 @@ func init() {
 		name: "aws:oam",
 		fn:   scanOAM,
 		emits: []coverage.TypeDecl{
-			{Service: "oam", DiscoType: TypeOAMLink},
-			{Service: "oam", DiscoType: TypeOAMSink},
+			{Service: "oam", DiscoType: TypeOAMLink, Leaf: true},
+			{Service: "oam", DiscoType: TypeOAMSink, Leaf: true},
 		},
 	})
 }

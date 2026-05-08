@@ -17,9 +17,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "notifications", DiscoType: TypeNotificationsChannelAssociation},
 			{Service: "notifications", DiscoType: TypeNotificationsEventRule},
-			{Service: "notifications", DiscoType: TypeNotificationsManagedNotificationAdditionalChannelAssoc},
-			{Service: "notifications", DiscoType: TypeNotificationsNotificationConfiguration},
-			{Service: "notifications", DiscoType: TypeNotificationsNotificationHub},
+			{Service: "notifications", DiscoType: TypeNotificationsManagedNotificationAdditionalChannelAssoc, Leaf: true},
+			{Service: "notifications", DiscoType: TypeNotificationsNotificationConfiguration, Leaf: true},
+			{Service: "notifications", DiscoType: TypeNotificationsNotificationHub, Leaf: true},
 			{Service: "notifications", DiscoType: TypeNotificationsOrganizationalUnitAssociation},
 		},
 	})

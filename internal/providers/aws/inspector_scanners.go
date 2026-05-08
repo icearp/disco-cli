@@ -14,11 +14,11 @@ func init() {
 		name: "aws:inspector2",
 		fn:   scanInspector2,
 		emits: []coverage.TypeDecl{
-			{Service: "inspectorv2", DiscoType: TypeInspector2Filter},
+			{Service: "inspectorv2", DiscoType: TypeInspector2Filter, Leaf: true},
 			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Synthetic: true},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CisScanConfiguration},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityIntegration},
-			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityScanConfiguration},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CisScanConfiguration, Leaf: true},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityIntegration, Leaf: true},
+			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityScanConfiguration, Leaf: true},
 		},
 	})
 }

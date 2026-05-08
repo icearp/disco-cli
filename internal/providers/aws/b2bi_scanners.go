@@ -17,7 +17,7 @@ func init() {
 			{Service: "b2bi", DiscoType: TypeB2BICapability},
 			{Service: "b2bi", DiscoType: TypeB2BIPartnership},
 			{Service: "b2bi", DiscoType: TypeB2BIProfile},
-			{Service: "b2bi", DiscoType: TypeB2BITransformer},
+			{Service: "b2bi", DiscoType: TypeB2BITransformer, Leaf: true},
 		},
 	})
 }

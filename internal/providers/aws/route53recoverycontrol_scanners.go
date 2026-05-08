@@ -15,10 +15,10 @@ func init() {
 		global: true,
 		fn:     scanR53RecoveryControl,
 		emits: []coverage.TypeDecl{
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCCluster},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCControlPanel},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCRoutingControl},
-			{Service: "route53-recovery-control", DiscoType: TypeR53RCSafetyRule},
+			{Service: "route53-recovery-control", DiscoType: TypeR53RCCluster, Leaf: true},
+			{Service: "route53-recovery-control", DiscoType: TypeR53RCControlPanel, Leaf: true},
+			{Service: "route53-recovery-control", DiscoType: TypeR53RCRoutingControl, Leaf: true},
+			{Service: "route53-recovery-control", DiscoType: TypeR53RCSafetyRule, Leaf: true},
 		},
 	})
 }

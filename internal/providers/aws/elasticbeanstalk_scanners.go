@@ -15,7 +15,7 @@ func init() {
 		fn:   scanElasticBeanstalk,
 		emits: []coverage.TypeDecl{
 			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplication},
-			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkEnvironment},
+			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkEnvironment, Leaf: true},
 		},
 	})
 }

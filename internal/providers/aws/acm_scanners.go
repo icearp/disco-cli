@@ -15,7 +15,7 @@ func init() {
 		fn:   scanACM,
 		emits: []coverage.TypeDecl{
 			{Service: "acm", DiscoType: TypeACMCertificate},
-			{Service: "acm", DiscoType: TypeACMAccount},
+			{Service: "acm", DiscoType: TypeACMAccount, Leaf: true},
 		},
 	})
 }

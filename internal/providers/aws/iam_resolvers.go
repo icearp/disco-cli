@@ -152,7 +152,7 @@ func init() {
 	// is out of scan scope (R5). Pure disco bookkeeping — no upstream
 	// CloudFormation resource type.
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignAccount, Synthetic: true},
+		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignAccount, Synthetic: true, Leaf: true},
 	)
 }
 

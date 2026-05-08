@@ -14,7 +14,7 @@ func init() {
 		name: "aws:kendra-ranking",
 		fn:   scanKendraRanking,
 		emits: []coverage.TypeDecl{
-			{Service: "kendra-ranking", DiscoType: TypeKendraRankingExecutionPlan},
+			{Service: "kendra-ranking", DiscoType: TypeKendraRankingExecutionPlan, Leaf: true},
 		},
 	})
 }

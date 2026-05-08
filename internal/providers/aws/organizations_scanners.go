@@ -19,10 +19,10 @@ func init() {
 		fn:     scanOrganizations,
 		emits: []coverage.TypeDecl{
 			{Service: "organizations", DiscoType: TypeOrganization},
-			{Service: "organizations", DiscoType: TypeOrganizationsAccount},
-			{Service: "organizations", DiscoType: TypeOrganizationsOU},
+			{Service: "organizations", DiscoType: TypeOrganizationsAccount, Leaf: true},
+			{Service: "organizations", DiscoType: TypeOrganizationsOU, Leaf: true},
 			{Service: "organizations", DiscoType: TypeOrganizationsSCP},
-			{Service: "organizations", DiscoType: TypeOrganizationsResourcePolicy},
+			{Service: "organizations", DiscoType: TypeOrganizationsResourcePolicy, Leaf: true},
 		},
 	})
 }

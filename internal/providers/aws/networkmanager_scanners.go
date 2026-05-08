@@ -16,7 +16,7 @@ func init() {
 		global: true,
 		fn:     scanNetworkManager,
 		emits: []coverage.TypeDecl{
-			{Service: "networkmanager", DiscoType: TypeNetworkManagerGlobalNetwork},
+			{Service: "networkmanager", DiscoType: TypeNetworkManagerGlobalNetwork, Leaf: true},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerCoreNetwork},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerSite},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerDevice},

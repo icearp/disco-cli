@@ -14,9 +14,9 @@ func init() {
 		name: "aws:dms",
 		fn:   scanDMS,
 		emits: []coverage.TypeDecl{
-			{Service: "dms", DiscoType: TypeDMSCertificate},
+			{Service: "dms", DiscoType: TypeDMSCertificate, Leaf: true},
 			{Service: "dms", DiscoType: TypeDMSDataMigration},
-			{Service: "dms", DiscoType: TypeDMSDataProvider},
+			{Service: "dms", DiscoType: TypeDMSDataProvider, Leaf: true},
 			{Service: "dms", DiscoType: TypeDMSEndpoint},
 			{Service: "dms", DiscoType: TypeDMSEventSubscription},
 			{Service: "dms", DiscoType: TypeDMSInstanceProfile},

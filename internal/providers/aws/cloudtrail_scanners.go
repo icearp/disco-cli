@@ -18,7 +18,7 @@ func init() {
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailTrail},
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailEventDataStore},
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailChannel},
-			{Service: "cloudtrail", DiscoType: TypeCloudTrailDashboard},
+			{Service: "cloudtrail", DiscoType: TypeCloudTrailDashboard, Leaf: true},
 			{Service: "cloudtrail", DiscoType: TypeCloudTrailResourcePolicy},
 		},
 	})

@@ -11,10 +11,10 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2FlowLog},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PrefixList},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PrefixList, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsPath},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAnalysis},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScope},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScope, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkInsightsAccessScopeAnalysis},
 	)
 }

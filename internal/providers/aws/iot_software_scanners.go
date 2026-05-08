@@ -14,8 +14,8 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackage},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackageVersion},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackage, Leaf: true},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSoftwarePackageVersion, Leaf: true},
 	)
 }
 

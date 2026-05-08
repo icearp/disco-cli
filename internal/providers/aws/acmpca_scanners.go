@@ -17,7 +17,7 @@ func init() {
 		fn:   scanACMPCA,
 		emits: []coverage.TypeDecl{
 			{Service: "acmpca", DiscoType: TypeACMPrivateCA},
-			{Service: "acmpca", DiscoType: TypeACMPCAPermission},
+			{Service: "acmpca", DiscoType: TypeACMPCAPermission, Leaf: true},
 		},
 	})
 }

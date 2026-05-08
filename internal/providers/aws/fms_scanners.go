@@ -29,9 +29,9 @@ func init() {
 		global: true,
 		fn:     scanFMS,
 		emits: []coverage.TypeDecl{
-			{Service: "fms", DiscoType: TypeFMSNotificationChannel},
-			{Service: "fms", DiscoType: TypeFMSPolicy},
-			{Service: "fms", DiscoType: TypeFMSResourceSet},
+			{Service: "fms", DiscoType: TypeFMSNotificationChannel, Leaf: true},
+			{Service: "fms", DiscoType: TypeFMSPolicy, Leaf: true},
+			{Service: "fms", DiscoType: TypeFMSResourceSet, Leaf: true},
 		},
 	})
 }

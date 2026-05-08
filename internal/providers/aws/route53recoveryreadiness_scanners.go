@@ -15,10 +15,10 @@ func init() {
 		global: true,
 		fn:     scanR53RecoveryReadiness,
 		emits: []coverage.TypeDecl{
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRCell},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRReadinessCheck},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRRecoveryGroup},
-			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRResourceSet},
+			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRCell, Leaf: true},
+			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRReadinessCheck, Leaf: true},
+			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRRecoveryGroup, Leaf: true},
+			{Service: "route53-recovery-readiness", DiscoType: TypeR53RRResourceSet, Leaf: true},
 		},
 	})
 }

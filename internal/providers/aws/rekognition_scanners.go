@@ -14,9 +14,9 @@ func init() {
 		name: "aws:rekognition",
 		fn:   scanRekognition,
 		emits: []coverage.TypeDecl{
-			{Service: "rekognition", DiscoType: TypeRekognitionCollection},
-			{Service: "rekognition", DiscoType: TypeRekognitionProject},
-			{Service: "rekognition", DiscoType: TypeRekognitionStreamProcessor},
+			{Service: "rekognition", DiscoType: TypeRekognitionCollection, Leaf: true},
+			{Service: "rekognition", DiscoType: TypeRekognitionProject, Leaf: true},
+			{Service: "rekognition", DiscoType: TypeRekognitionStreamProcessor, Leaf: true},
 		},
 	})
 }

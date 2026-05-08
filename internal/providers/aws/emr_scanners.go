@@ -17,7 +17,7 @@ func init() {
 			{Service: "emr", DiscoType: TypeEMRCluster},
 			{Service: "emr", DiscoType: TypeEMRInstanceFleet},
 			{Service: "emr", DiscoType: TypeEMRInstanceGroup},
-			{Service: "emr", DiscoType: TypeEMRSecurityConfig},
+			{Service: "emr", DiscoType: TypeEMRSecurityConfig, Leaf: true},
 			{Service: "emr", DiscoType: TypeEMRStep},
 			{Service: "emr", DiscoType: TypeEMRStudio},
 			{Service: "emr", DiscoType: TypeEMRStudioSessionMapping},

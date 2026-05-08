@@ -14,7 +14,7 @@ func init() {
 		name: "aws:payment-cryptography",
 		fn:   scanPaymentCryptography,
 		emits: []coverage.TypeDecl{
-			{Service: "payment-cryptography", DiscoType: TypePaymentCryptographyKey},
+			{Service: "payment-cryptography", DiscoType: TypePaymentCryptographyKey, Leaf: true},
 			{Service: "payment-cryptography", DiscoType: TypePaymentCryptographyAlias},
 		},
 	})

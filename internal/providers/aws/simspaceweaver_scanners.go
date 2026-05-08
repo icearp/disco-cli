@@ -20,7 +20,7 @@ func init() {
 		name: "aws:sim-space-weaver",
 		fn:   scanSimSpaceWeaver,
 		emits: []coverage.TypeDecl{
-			{Service: "sim-space-weaver", DiscoType: TypeSimSpaceWeaverSimulation},
+			{Service: "sim-space-weaver", DiscoType: TypeSimSpaceWeaverSimulation, Leaf: true},
 		},
 	})
 }

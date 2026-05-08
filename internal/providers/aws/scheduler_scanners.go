@@ -15,7 +15,7 @@ func init() {
 		fn:   scanScheduler,
 		emits: []coverage.TypeDecl{
 			{Service: "scheduler", DiscoType: TypeSchedulerSchedule},
-			{Service: "scheduler", DiscoType: TypeSchedulerScheduleGroup},
+			{Service: "scheduler", DiscoType: TypeSchedulerScheduleGroup, Leaf: true},
 		},
 	})
 }

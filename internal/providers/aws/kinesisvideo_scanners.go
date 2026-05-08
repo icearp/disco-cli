@@ -14,8 +14,8 @@ func init() {
 		name: "aws:kinesis-video",
 		fn:   scanKinesisVideo,
 		emits: []coverage.TypeDecl{
-			{Service: "kinesis-video", DiscoType: TypeKinesisVideoStream},
-			{Service: "kinesis-video", DiscoType: TypeKinesisVideoSignalingChannel},
+			{Service: "kinesis-video", DiscoType: TypeKinesisVideoStream, Leaf: true},
+			{Service: "kinesis-video", DiscoType: TypeKinesisVideoSignalingChannel, Leaf: true},
 		},
 	})
 }

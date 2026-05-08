@@ -14,9 +14,9 @@ func init() {
 		name: "aws:xray",
 		fn:   scanXRay,
 		emits: []coverage.TypeDecl{
-			{Service: "xray", DiscoType: TypeXRayGroup},
-			{Service: "xray", DiscoType: TypeXRayResourcePolicy},
-			{Service: "xray", DiscoType: TypeXRaySamplingRule},
+			{Service: "xray", DiscoType: TypeXRayGroup, Leaf: true},
+			{Service: "xray", DiscoType: TypeXRayResourcePolicy, Leaf: true},
+			{Service: "xray", DiscoType: TypeXRaySamplingRule, Leaf: true},
 		},
 	})
 }

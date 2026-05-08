@@ -15,10 +15,10 @@ func init() {
 		name: "aws:s3outposts",
 		fn:   scanS3Outposts,
 		emits: []coverage.TypeDecl{
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsEndpoint},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucket},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsAccessPoint},
-			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucketPolicy},
+			{Service: "s3outposts", DiscoType: TypeS3OutpostsEndpoint, Leaf: true},
+			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucket, Leaf: true},
+			{Service: "s3outposts", DiscoType: TypeS3OutpostsAccessPoint, Leaf: true},
+			{Service: "s3outposts", DiscoType: TypeS3OutpostsBucketPolicy, Leaf: true},
 		},
 	})
 }

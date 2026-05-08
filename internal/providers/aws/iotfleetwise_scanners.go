@@ -26,7 +26,7 @@ func init() {
 			{Service: "iotfleetwise", DiscoType: TypeIoTFWDecoderManifest},
 			{Service: "iotfleetwise", DiscoType: TypeIoTFWFleet},
 			{Service: "iotfleetwise", DiscoType: TypeIoTFWModelManifest},
-			{Service: "iotfleetwise", DiscoType: TypeIoTFWSignalCatalog},
+			{Service: "iotfleetwise", DiscoType: TypeIoTFWSignalCatalog, Leaf: true},
 			{Service: "iotfleetwise", DiscoType: TypeIoTFWStateTemplate},
 			{Service: "iotfleetwise", DiscoType: TypeIoTFWVehicle},
 		},

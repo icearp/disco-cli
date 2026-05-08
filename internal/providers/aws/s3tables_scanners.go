@@ -15,11 +15,11 @@ func init() {
 		name: "aws:s3tables",
 		fn:   scanS3Tables,
 		emits: []coverage.TypeDecl{
-			{Service: "s3tables", DiscoType: TypeS3TablesTableBucket},
-			{Service: "s3tables", DiscoType: TypeS3TablesNamespace},
-			{Service: "s3tables", DiscoType: TypeS3TablesTable},
-			{Service: "s3tables", DiscoType: TypeS3TablesTableBucketPolicy},
-			{Service: "s3tables", DiscoType: TypeS3TablesTablePolicy},
+			{Service: "s3tables", DiscoType: TypeS3TablesTableBucket, Leaf: true},
+			{Service: "s3tables", DiscoType: TypeS3TablesNamespace, Leaf: true},
+			{Service: "s3tables", DiscoType: TypeS3TablesTable, Leaf: true},
+			{Service: "s3tables", DiscoType: TypeS3TablesTableBucketPolicy, Leaf: true},
+			{Service: "s3tables", DiscoType: TypeS3TablesTablePolicy, Leaf: true},
 		},
 	})
 }

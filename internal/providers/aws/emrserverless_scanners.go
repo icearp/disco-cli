@@ -14,7 +14,7 @@ func init() {
 		name: "aws:emr-serverless",
 		fn:   scanEMRServerless,
 		emits: []coverage.TypeDecl{
-			{Service: "emr-serverless", DiscoType: TypeEMRServerlessApplication},
+			{Service: "emr-serverless", DiscoType: TypeEMRServerlessApplication, Leaf: true},
 		},
 	})
 }

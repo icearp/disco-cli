@@ -15,9 +15,9 @@ func init() {
 		name: "aws:s3express",
 		fn:   scanS3Express,
 		emits: []coverage.TypeDecl{
-			{Service: "s3express", DiscoType: TypeS3ExpressDirectoryBucket},
-			{Service: "s3express", DiscoType: TypeS3ExpressAccessPoint},
-			{Service: "s3express", DiscoType: TypeS3ExpressBucketPolicy},
+			{Service: "s3express", DiscoType: TypeS3ExpressDirectoryBucket, Leaf: true},
+			{Service: "s3express", DiscoType: TypeS3ExpressAccessPoint, Leaf: true},
+			{Service: "s3express", DiscoType: TypeS3ExpressBucketPolicy, Leaf: true},
 		},
 	})
 }

@@ -14,7 +14,7 @@ func init() {
 		name: "aws:resource-groups",
 		fn:   scanResourceGroups,
 		emits: []coverage.TypeDecl{
-			{Service: "resource-groups", DiscoType: TypeResourceGroupsGroup},
+			{Service: "resource-groups", DiscoType: TypeResourceGroupsGroup, Leaf: true},
 			{Service: "resource-groups", DiscoType: TypeResourceGroupsTagSyncTask},
 		},
 	})

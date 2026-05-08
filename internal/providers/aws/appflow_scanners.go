@@ -15,7 +15,7 @@ func init() {
 		fn:   scanAppFlow,
 		emits: []coverage.TypeDecl{
 			{Service: "appflow", DiscoType: TypeAppFlowFlow},
-			{Service: "appflow", DiscoType: TypeAppFlowConnector},
+			{Service: "appflow", DiscoType: TypeAppFlowConnector, Leaf: true},
 			{Service: "appflow", DiscoType: TypeAppFlowConnectorProfile},
 		},
 	})

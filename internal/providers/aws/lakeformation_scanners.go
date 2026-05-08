@@ -15,10 +15,10 @@ func init() {
 		fn:   scanLakeFormation,
 		emits: []coverage.TypeDecl{
 			{Service: "lakeformation", DiscoType: TypeLakeFormationResource},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationDataCellsFilter},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationDataLakeSettings},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationPrincipalPermissions},
-			{Service: "lakeformation", DiscoType: TypeLakeFormationTag},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationDataCellsFilter, Leaf: true},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationDataLakeSettings, Leaf: true},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationPrincipalPermissions, Leaf: true},
+			{Service: "lakeformation", DiscoType: TypeLakeFormationTag, Leaf: true},
 		},
 	})
 }

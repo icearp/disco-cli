@@ -14,9 +14,9 @@ func init() {
 		name: "aws:ground-station",
 		fn:   scanGroundStation,
 		emits: []coverage.TypeDecl{
-			{Service: "ground-station", DiscoType: TypeGroundStationConfig},
-			{Service: "ground-station", DiscoType: TypeGroundStationDataflowEndpointGroup},
-			{Service: "ground-station", DiscoType: TypeGroundStationMissionProfile},
+			{Service: "ground-station", DiscoType: TypeGroundStationConfig, Leaf: true},
+			{Service: "ground-station", DiscoType: TypeGroundStationDataflowEndpointGroup, Leaf: true},
+			{Service: "ground-station", DiscoType: TypeGroundStationMissionProfile, Leaf: true},
 		},
 	})
 }

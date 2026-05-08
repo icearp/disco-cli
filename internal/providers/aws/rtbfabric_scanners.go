@@ -14,9 +14,9 @@ func init() {
 		name: "aws:rtbfabric",
 		fn:   scanRTBFabric,
 		emits: []coverage.TypeDecl{
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricRequesterGateway},
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricResponderGateway},
-			{Service: "rtbfabric", DiscoType: TypeRTBFabricLink},
+			{Service: "rtbfabric", DiscoType: TypeRTBFabricRequesterGateway, Leaf: true},
+			{Service: "rtbfabric", DiscoType: TypeRTBFabricResponderGateway, Leaf: true},
+			{Service: "rtbfabric", DiscoType: TypeRTBFabricLink, Leaf: true},
 		},
 	})
 }

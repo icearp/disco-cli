@@ -14,12 +14,12 @@ func init() {
 		name: "aws:observabilityadmin",
 		fn:   scanObservabilityAdmin,
 		emits: []coverage.TypeDecl{
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationCentralizationRule},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationTelemetryRule},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminS3TableIntegration},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryEnrichment},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryPipelines},
-			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryRule},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationCentralizationRule, Leaf: true},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminOrganizationTelemetryRule, Leaf: true},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminS3TableIntegration, Leaf: true},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryEnrichment, Leaf: true},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryPipelines, Leaf: true},
+			{Service: "observabilityadmin", DiscoType: TypeObservabilityAdminTelemetryRule, Leaf: true},
 		},
 	})
 }

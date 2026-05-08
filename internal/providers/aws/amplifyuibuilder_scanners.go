@@ -15,9 +15,9 @@ func init() {
 		name: "aws:amplify-ui-builder",
 		fn:   scanAmplifyUIBuilder,
 		emits: []coverage.TypeDecl{
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderComponent},
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderForm},
-			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderTheme},
+			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderComponent, Leaf: true},
+			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderForm, Leaf: true},
+			{Service: "amplify-ui-builder", DiscoType: TypeAmplifyUIBuilderTheme, Leaf: true},
 		},
 	})
 }

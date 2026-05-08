@@ -15,13 +15,13 @@ func init() {
 		fn:   scanTransfer,
 		emits: []coverage.TypeDecl{
 			{Service: "transfer", DiscoType: TypeTransferAgreement},
-			{Service: "transfer", DiscoType: TypeTransferCertificate},
-			{Service: "transfer", DiscoType: TypeTransferConnector},
-			{Service: "transfer", DiscoType: TypeTransferProfile},
+			{Service: "transfer", DiscoType: TypeTransferCertificate, Leaf: true},
+			{Service: "transfer", DiscoType: TypeTransferConnector, Leaf: true},
+			{Service: "transfer", DiscoType: TypeTransferProfile, Leaf: true},
 			{Service: "transfer", DiscoType: TypeTransferServer},
 			{Service: "transfer", DiscoType: TypeTransferUser},
-			{Service: "transfer", DiscoType: TypeTransferWebApp},
-			{Service: "transfer", DiscoType: TypeTransferWorkflow},
+			{Service: "transfer", DiscoType: TypeTransferWebApp, Leaf: true},
+			{Service: "transfer", DiscoType: TypeTransferWorkflow, Leaf: true},
 		},
 	})
 }

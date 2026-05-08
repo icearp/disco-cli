@@ -16,7 +16,7 @@ func init() {
 		fn:   scanCodePipeline,
 		emits: []coverage.TypeDecl{
 			{Service: "codepipeline", DiscoType: TypeCodePipelinePipeline},
-			{Service: "codepipeline", DiscoType: TypeCodePipelineCustomActionType},
+			{Service: "codepipeline", DiscoType: TypeCodePipelineCustomActionType, Leaf: true},
 			{Service: "codepipeline", DiscoType: TypeCodePipelineWebhook},
 		},
 	})

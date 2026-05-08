@@ -15,7 +15,7 @@ func init() {
 		name: "aws:application-autoscaling",
 		fn:   scanApplicationAutoScaling,
 		emits: []coverage.TypeDecl{
-			{Service: "application-autoscaling", DiscoType: TypeApplicationAutoScalingScalableTarget},
+			{Service: "application-autoscaling", DiscoType: TypeApplicationAutoScalingScalableTarget, Leaf: true},
 			{Service: "application-autoscaling", DiscoType: TypeApplicationAutoScalingScalingPolicy},
 		},
 	})

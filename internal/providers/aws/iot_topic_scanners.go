@@ -12,7 +12,7 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTTopicRule},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTTopicRuleDestination},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTTopicRuleDestination, Leaf: true},
 	)
 }
 

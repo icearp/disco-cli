@@ -15,11 +15,11 @@ func init() {
 		fn:   scanDocDB,
 		emits: []coverage.TypeDecl{
 			{Service: "docdb", DiscoType: TypeDocDBCluster},
-			{Service: "docdb", DiscoType: TypeDocDBInstance},
-			{Service: "docdb", DiscoType: TypeDocDBDBClusterParameterGroup},
-			{Service: "docdb", DiscoType: TypeDocDBDBSubnetGroup},
-			{Service: "docdb", DiscoType: TypeDocDBEventSubscription},
-			{Service: "docdb", DiscoType: TypeDocDBGlobalCluster},
+			{Service: "docdb", DiscoType: TypeDocDBInstance, Leaf: true},
+			{Service: "docdb", DiscoType: TypeDocDBDBClusterParameterGroup, Leaf: true},
+			{Service: "docdb", DiscoType: TypeDocDBDBSubnetGroup, Leaf: true},
+			{Service: "docdb", DiscoType: TypeDocDBEventSubscription, Leaf: true},
+			{Service: "docdb", DiscoType: TypeDocDBGlobalCluster, Leaf: true},
 		},
 	})
 }

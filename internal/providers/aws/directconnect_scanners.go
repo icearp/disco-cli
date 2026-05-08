@@ -15,9 +15,9 @@ func init() {
 		fn:   scanDirectConnect,
 		emits: []coverage.TypeDecl{
 			{Service: "directconnect", DiscoType: TypeDirectConnectConnection},
-			{Service: "directconnect", DiscoType: TypeDirectConnectDirectConnectGateway},
+			{Service: "directconnect", DiscoType: TypeDirectConnectDirectConnectGateway, Leaf: true},
 			{Service: "directconnect", DiscoType: TypeDirectConnectDirectConnectGatewayAssociation},
-			{Service: "directconnect", DiscoType: TypeDirectConnectLag},
+			{Service: "directconnect", DiscoType: TypeDirectConnectLag, Leaf: true},
 			{Service: "directconnect", DiscoType: TypeDirectConnectPrivateVirtualInterface},
 			{Service: "directconnect", DiscoType: TypeDirectConnectPublicVirtualInterface},
 			{Service: "directconnect", DiscoType: TypeDirectConnectTransitVirtualInterface},

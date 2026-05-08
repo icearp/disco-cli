@@ -19,8 +19,8 @@ func init() {
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerUserProfile},
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerSpace},
 		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerApp},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAppImageConfig},
-		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerStudioLifecycleConfig},
+		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerAppImageConfig, Leaf: true},
+		coverage.TypeDecl{Service: "sagemaker", DiscoType: TypeSageMakerStudioLifecycleConfig, Leaf: true},
 	)
 }
 

@@ -14,7 +14,7 @@ func init() {
 		name: "aws:pcs",
 		fn:   scanPCS,
 		emits: []coverage.TypeDecl{
-			{Service: "pcs", DiscoType: TypePCSCluster},
+			{Service: "pcs", DiscoType: TypePCSCluster, Leaf: true},
 			{Service: "pcs", DiscoType: TypePCSComputeNodeGroup},
 			{Service: "pcs", DiscoType: TypePCSQueue},
 		},

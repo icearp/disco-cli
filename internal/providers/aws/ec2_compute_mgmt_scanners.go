@@ -15,17 +15,17 @@ func init() {
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroup},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SecurityGroupVPCAssociation},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Volume},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2KeyPair},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2KeyPair, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LaunchTemplate},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PlacementGroup},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PlacementGroup, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Image},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Host},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Host, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SpotFleet},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Fleet},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservation},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityReservationFleet},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2InstanceConnectEndpoint},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SnapshotBlockPublicAccess},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SnapshotBlockPublicAccess, Leaf: true},
 	)
 }
 

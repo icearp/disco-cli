@@ -19,11 +19,11 @@ func init() {
 			{Service: "backup", DiscoType: TypeBackupLogicallyAirGappedVault},
 			{Service: "backup", DiscoType: TypeBackupPlan},
 			{Service: "backup", DiscoType: TypeBackupSelection},
-			{Service: "backup", DiscoType: TypeBackupFramework},
-			{Service: "backup", DiscoType: TypeBackupReportPlan},
-			{Service: "backup", DiscoType: TypeBackupRestoreTestingPlan},
-			{Service: "backup", DiscoType: TypeBackupRestoreTestingSelection},
-			{Service: "backup", DiscoType: TypeBackupTieringConfiguration},
+			{Service: "backup", DiscoType: TypeBackupFramework, Leaf: true},
+			{Service: "backup", DiscoType: TypeBackupReportPlan, Leaf: true},
+			{Service: "backup", DiscoType: TypeBackupRestoreTestingPlan, Leaf: true},
+			{Service: "backup", DiscoType: TypeBackupRestoreTestingSelection, Leaf: true},
+			{Service: "backup", DiscoType: TypeBackupTieringConfiguration, Leaf: true},
 		},
 	})
 }

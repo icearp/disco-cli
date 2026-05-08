@@ -17,7 +17,7 @@ func init() {
 		fn:   scanEFS,
 		emits: []coverage.TypeDecl{
 			{Service: "efs", DiscoType: TypeEFSFileSystem},
-			{Service: "efs", DiscoType: TypeEFSAccessPoint},
+			{Service: "efs", DiscoType: TypeEFSAccessPoint, Leaf: true},
 			{Service: "efs", DiscoType: TypeEFSMountTarget},
 		},
 	})

@@ -16,9 +16,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADConnector},
 			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADDirectoryRegistration},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADServicePrincipalName},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplate},
-			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplateGroupACE},
+			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADServicePrincipalName, Leaf: true},
+			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplate, Leaf: true},
+			{Service: "pca-connector-ad", DiscoType: TypePCAConnectorADTemplateGroupACE, Leaf: true},
 		},
 	})
 }

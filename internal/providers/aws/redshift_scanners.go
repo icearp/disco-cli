@@ -16,12 +16,12 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "redshift", DiscoType: TypeRedshiftCluster},
 			{Service: "redshift", DiscoType: TypeRedshiftSubnetGroup},
-			{Service: "redshift", DiscoType: TypeRedshiftClusterParameterGroup},
-			{Service: "redshift", DiscoType: TypeRedshiftEndpointAccess},
-			{Service: "redshift", DiscoType: TypeRedshiftEndpointAuthorization},
-			{Service: "redshift", DiscoType: TypeRedshiftEventSubscription},
+			{Service: "redshift", DiscoType: TypeRedshiftClusterParameterGroup, Leaf: true},
+			{Service: "redshift", DiscoType: TypeRedshiftEndpointAccess, Leaf: true},
+			{Service: "redshift", DiscoType: TypeRedshiftEndpointAuthorization, Leaf: true},
+			{Service: "redshift", DiscoType: TypeRedshiftEventSubscription, Leaf: true},
 			{Service: "redshift", DiscoType: TypeRedshiftIntegration},
-			{Service: "redshift", DiscoType: TypeRedshiftScheduledAction},
+			{Service: "redshift", DiscoType: TypeRedshiftScheduledAction, Leaf: true},
 		},
 	})
 }

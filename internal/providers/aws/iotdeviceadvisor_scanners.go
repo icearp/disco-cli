@@ -14,7 +14,7 @@ func init() {
 		name: "aws:iot-core-device-advisor",
 		fn:   scanIoTDeviceAdvisor,
 		emits: []coverage.TypeDecl{
-			{Service: "iot-core-device-advisor", DiscoType: TypeIoTDeviceAdvisorSuiteDefinition},
+			{Service: "iot-core-device-advisor", DiscoType: TypeIoTDeviceAdvisorSuiteDefinition, Leaf: true},
 		},
 	})
 }

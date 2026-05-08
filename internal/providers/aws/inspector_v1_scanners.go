@@ -16,7 +16,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "inspector", DiscoType: TypeInspectorAssessmentTarget},
 			{Service: "inspector", DiscoType: TypeInspectorAssessmentTemplate},
-			{Service: "inspector", DiscoType: TypeInspectorResourceGroup},
+			{Service: "inspector", DiscoType: TypeInspectorResourceGroup, Leaf: true},
 		},
 	})
 }

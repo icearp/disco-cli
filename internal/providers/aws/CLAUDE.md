@@ -369,11 +369,11 @@ Verify the predicate against a real account if the SDK doc is ambiguous — obse
 
 ## Adding a resolver for a previously-leaf type
 
-`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a type listed in `leafTypes` (`coverage_leaves.go`) appears as an `EdgeDecl.Source`. Drop the leaf entry in the same commit as the new resolver — the test is the only signal, no build error.
+`TestLeafTypesNotResolverSources` (`coverage_leaves_test.go`) fails when a `coverage.TypeDecl` flagged `Leaf: true` (set inline on the scanner's `emits` decl) appears as an `EdgeDecl.Source`. Drop the `Leaf: true` flag in the same commit as the new resolver — the test is the only signal, no build error. Leaf flags live next to each `registerService` / `registerExtraEmits` site since the central `coverage_leaves.go` map was retired.
 
 ## Re-verify leaf-flag comments before trusting them
 
-`coverage_leaves.go` entries often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (`internal/providers/aws/redact.go`); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read `internal/providers/aws/redact.go` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
+Per-emit-decl `Leaf: true` flags often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (`internal/providers/aws/redact.go`); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read `internal/providers/aws/redact.go` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
 
 ## Parent-row "leaf" ≠ no edges
 

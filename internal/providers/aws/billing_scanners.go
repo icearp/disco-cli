@@ -22,7 +22,7 @@ func init() {
 			return scanBillingViews(ctx, client, acct, st, scanID)
 		},
 		emits: []coverage.TypeDecl{
-			{Service: "billing", DiscoType: TypeBillingView},
+			{Service: "billing", DiscoType: TypeBillingView, Leaf: true},
 		},
 	})
 }

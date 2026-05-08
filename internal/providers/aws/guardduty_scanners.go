@@ -14,11 +14,11 @@ func init() {
 		name: "aws:guardduty",
 		fn:   scanGuardDuty,
 		emits: []coverage.TypeDecl{
-			{Service: "guardduty", DiscoType: TypeGuardDutyDetector},
+			{Service: "guardduty", DiscoType: TypeGuardDutyDetector, Leaf: true},
 			{Service: "guardduty", DiscoType: TypeGuardDutyFilter},
 			{Service: "guardduty", DiscoType: TypeGuardDutyIPSet},
 			{Service: "guardduty", DiscoType: TypeGuardDutyMember},
-			{Service: "guardduty", DiscoType: TypeGuardDutyMalwareProtectionPlan},
+			{Service: "guardduty", DiscoType: TypeGuardDutyMalwareProtectionPlan, Leaf: true},
 			{Service: "guardduty", DiscoType: TypeGuardDutyPublishingDestination},
 			{Service: "guardduty", DiscoType: TypeGuardDutyThreatEntitySet},
 			{Service: "guardduty", DiscoType: TypeGuardDutyThreatIntelSet},

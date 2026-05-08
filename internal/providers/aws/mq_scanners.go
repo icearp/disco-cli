@@ -16,7 +16,7 @@ func init() {
 		fn:   scanMQ,
 		emits: []coverage.TypeDecl{
 			{Service: "mq", DiscoType: TypeMQBroker},
-			{Service: "mq", DiscoType: TypeMQConfiguration},
+			{Service: "mq", DiscoType: TypeMQConfiguration, Leaf: true},
 			{Service: "mq", DiscoType: TypeMQConfigurationAssociation},
 		},
 	})

@@ -17,7 +17,7 @@ func init() {
 			{Service: "code-build", DiscoType: TypeCodeBuildFleet},
 			{Service: "code-build", DiscoType: TypeCodeBuildProject},
 			{Service: "code-build", DiscoType: TypeCodeBuildReportGroup},
-			{Service: "code-build", DiscoType: TypeCodeBuildSourceCredential},
+			{Service: "code-build", DiscoType: TypeCodeBuildSourceCredential, Leaf: true},
 		},
 	})
 }

@@ -16,8 +16,8 @@ func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThing},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingGroup},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingType},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTBillingGroup},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingType, Leaf: true},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTBillingGroup, Leaf: true},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTThingPrincipalAttachment},
 	)
 }

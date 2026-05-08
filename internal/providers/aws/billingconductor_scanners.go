@@ -29,10 +29,10 @@ func init() {
 			return scanBillingConductor(ctx, client, acct, st, scanID)
 		},
 		emits: []coverage.TypeDecl{
-			{Service: "billingconductor", DiscoType: TypeBillingConductorBillingGroup},
+			{Service: "billingconductor", DiscoType: TypeBillingConductorBillingGroup, Leaf: true},
 			{Service: "billingconductor", DiscoType: TypeBillingConductorCustomLineItem},
-			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingPlan},
-			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingRule},
+			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingPlan, Leaf: true},
+			{Service: "billingconductor", DiscoType: TypeBillingConductorPricingRule, Leaf: true},
 		},
 	})
 }

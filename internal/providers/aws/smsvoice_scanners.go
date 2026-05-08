@@ -14,12 +14,12 @@ func init() {
 		name: "aws:sms-voice",
 		fn:   scanSMSVoice,
 		emits: []coverage.TypeDecl{
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceConfigurationSet},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceOptOutList},
-			{Service: "sms-voice", DiscoType: TypeSMSVoicePhoneNumber},
-			{Service: "sms-voice", DiscoType: TypeSMSVoicePool},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceProtectConfiguration},
-			{Service: "sms-voice", DiscoType: TypeSMSVoiceSenderID},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceConfigurationSet, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceOptOutList, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoicePhoneNumber, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoicePool, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceProtectConfiguration, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceSenderID, Leaf: true},
 		},
 	})
 }

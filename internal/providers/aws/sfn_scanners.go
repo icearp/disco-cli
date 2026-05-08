@@ -17,7 +17,7 @@ func init() {
 		fn:   scanSFN,
 		emits: []coverage.TypeDecl{
 			{Service: "stepfunctions", DiscoType: TypeSFNStateMachine},
-			{Service: "stepfunctions", DiscoType: TypeSFNActivity},
+			{Service: "stepfunctions", DiscoType: TypeSFNActivity, Leaf: true},
 			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineAlias},
 			{Service: "stepfunctions", DiscoType: TypeSFNStateMachineVersion},
 		},

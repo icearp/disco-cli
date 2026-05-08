@@ -14,10 +14,10 @@ func init() {
 		name: "aws:entityresolution",
 		fn:   scanEntityResolution,
 		emits: []coverage.TypeDecl{
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDMappingWorkflow},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDNamespace},
+			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDMappingWorkflow, Leaf: true},
+			{Service: "entityresolution", DiscoType: TypeEntityResolutionIDNamespace, Leaf: true},
 			{Service: "entityresolution", DiscoType: TypeEntityResolutionMatchingWorkflow},
-			{Service: "entityresolution", DiscoType: TypeEntityResolutionSchemaMapping},
+			{Service: "entityresolution", DiscoType: TypeEntityResolutionSchemaMapping, Leaf: true},
 			{Service: "entityresolution", DiscoType: TypeEntityResolutionPolicyStatement},
 		},
 	})

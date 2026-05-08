@@ -14,7 +14,7 @@ func init() {
 		name: "aws:accessanalyzer",
 		fn:   scanAccessAnalyzer,
 		emits: []coverage.TypeDecl{
-			{Service: "accessanalyzer", DiscoType: TypeAccessAnalyzerAnalyzer},
+			{Service: "accessanalyzer", DiscoType: TypeAccessAnalyzerAnalyzer, Leaf: true},
 		},
 	})
 }

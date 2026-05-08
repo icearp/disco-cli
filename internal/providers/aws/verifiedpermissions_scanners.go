@@ -14,7 +14,7 @@ func init() {
 		name: "aws:verifiedpermissions",
 		fn:   scanVerifiedPermissions,
 		emits: []coverage.TypeDecl{
-			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyStore},
+			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyStore, Leaf: true},
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicy},
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyTemplate},
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsIdentitySource},

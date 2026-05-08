@@ -14,9 +14,9 @@ func init() {
 		name: "aws:dev-ops-agent",
 		fn:   scanDevOpsAgent,
 		emits: []coverage.TypeDecl{
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAgentSpace},
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAssociation},
-			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentService},
+			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAgentSpace, Leaf: true},
+			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentAssociation, Leaf: true},
+			{Service: "dev-ops-agent", DiscoType: TypeDevOpsAgentService, Leaf: true},
 		},
 	})
 }

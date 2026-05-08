@@ -14,7 +14,7 @@ func init() {
 		name: "aws:braket",
 		fn:   scanBraket,
 		emits: []coverage.TypeDecl{
-			{Service: "braket", DiscoType: TypeBraketSpendingLimit},
+			{Service: "braket", DiscoType: TypeBraketSpendingLimit, Leaf: true},
 		},
 	})
 }

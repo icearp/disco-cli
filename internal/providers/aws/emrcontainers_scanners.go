@@ -16,7 +16,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "emr-containers", DiscoType: TypeEMRContainersVirtualCluster},
 			{Service: "emr-containers", DiscoType: TypeEMRContainersEndpoint},
-			{Service: "emr-containers", DiscoType: TypeEMRContainersSecurityConfig},
+			{Service: "emr-containers", DiscoType: TypeEMRContainersSecurityConfig, Leaf: true},
 		},
 	})
 }

@@ -20,7 +20,7 @@ func init() {
 			{Service: "appsync", DiscoType: TypeAppSyncAPIKey},
 			{Service: "appsync", DiscoType: TypeAppSyncChannelNamespace},
 			{Service: "appsync", DiscoType: TypeAppSyncDataSource},
-			{Service: "appsync", DiscoType: TypeAppSyncDomainName},
+			{Service: "appsync", DiscoType: TypeAppSyncDomainName, Leaf: true},
 			{Service: "appsync", DiscoType: TypeAppSyncDomainNameAPIAssociation},
 			{Service: "appsync", DiscoType: TypeAppSyncFunctionConfiguration},
 			{Service: "appsync", DiscoType: TypeAppSyncGraphQLApi},

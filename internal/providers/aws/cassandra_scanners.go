@@ -18,9 +18,9 @@ func init() {
 		name: "aws:cassandra",
 		fn:   scanCassandra,
 		emits: []coverage.TypeDecl{
-			{Service: "cassandra", DiscoType: TypeCassandraKeyspace},
+			{Service: "cassandra", DiscoType: TypeCassandraKeyspace, Leaf: true},
 			{Service: "cassandra", DiscoType: TypeCassandraTable},
-			{Service: "cassandra", DiscoType: TypeCassandraType},
+			{Service: "cassandra", DiscoType: TypeCassandraType, Leaf: true},
 		},
 	})
 }

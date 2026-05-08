@@ -15,8 +15,8 @@ func init() {
 		name: "aws:ssm-contacts",
 		fn:   scanSSMContacts,
 		emits: []coverage.TypeDecl{
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsContact},
-			{Service: "ssm-contacts", DiscoType: TypeSSMContactsPlan},
+			{Service: "ssm-contacts", DiscoType: TypeSSMContactsContact, Leaf: true},
+			{Service: "ssm-contacts", DiscoType: TypeSSMContactsPlan, Leaf: true},
 			{Service: "ssm-contacts", DiscoType: TypeSSMContactsContactChannel},
 			{Service: "ssm-contacts", DiscoType: TypeSSMContactsRotation},
 		},

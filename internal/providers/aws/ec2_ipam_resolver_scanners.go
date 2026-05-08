@@ -10,7 +10,7 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPrefixListResolver},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPrefixListResolver, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPrefixListResolverTarget},
 	)
 }

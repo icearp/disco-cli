@@ -15,7 +15,7 @@ func init() {
 		global: true,
 		fn:     scanGlobalAccelerator,
 		emits: []coverage.TypeDecl{
-			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorAccelerator},
+			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorAccelerator, Leaf: true},
 			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorCrossAccountAttachment},
 			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorListener},
 			{Service: "global-accelerator", DiscoType: TypeGlobalAcceleratorEndpointGroup},

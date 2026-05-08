@@ -11,11 +11,11 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityManagerDataExport},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkPerformanceMetricSubscription},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2CapacityManagerDataExport, Leaf: true},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2NetworkPerformanceMetricSubscription, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TransitGatewayMeteringPolicy},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEncryptionControl},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConcentrator},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPCEncryptionControl, Leaf: true},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2VPNConcentrator, Leaf: true},
 	)
 }
 

@@ -27,7 +27,7 @@ func init() {
 			{Service: "appstream", DiscoType: TypeAppStreamStack},
 			{Service: "appstream", DiscoType: TypeAppStreamStackFleetAssociation},
 			{Service: "appstream", DiscoType: TypeAppStreamStackUserAssociation},
-			{Service: "appstream", DiscoType: TypeAppStreamUser},
+			{Service: "appstream", DiscoType: TypeAppStreamUser, Leaf: true},
 		},
 	})
 }

@@ -15,11 +15,11 @@ func init() {
 		name: "aws:mediapackage",
 		fn:   scanMediaPackage,
 		emits: []coverage.TypeDecl{
-			{Service: "mediapackage", DiscoType: TypeMediaPackageChannel},
+			{Service: "mediapackage", DiscoType: TypeMediaPackageChannel, Leaf: true},
 			{Service: "mediapackage", DiscoType: TypeMediaPackageOriginEndpoint},
 			{Service: "mediapackage", DiscoType: TypeMediaPackageAsset},
 			{Service: "mediapackage", DiscoType: TypeMediaPackagePackagingConfiguration},
-			{Service: "mediapackage", DiscoType: TypeMediaPackagePackagingGroup},
+			{Service: "mediapackage", DiscoType: TypeMediaPackagePackagingGroup, Leaf: true},
 		},
 	})
 }

@@ -19,7 +19,7 @@ func init() {
 			{Service: "fsx", DiscoType: TypeFSxSnapshot},
 			{Service: "fsx", DiscoType: TypeFSxStorageVirtualMachine},
 			{Service: "fsx", DiscoType: TypeFSxVolume},
-			{Service: "fsx", DiscoType: TypeFSxS3AccessPointAttachment},
+			{Service: "fsx", DiscoType: TypeFSxS3AccessPointAttachment, Leaf: true},
 		},
 	})
 }

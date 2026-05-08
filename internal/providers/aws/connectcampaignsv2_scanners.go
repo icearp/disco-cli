@@ -14,7 +14,7 @@ func init() {
 		name: "aws:connect-campaigns-v2",
 		fn:   scanConnectCampaignsV2,
 		emits: []coverage.TypeDecl{
-			{Service: "connect-campaigns-v2", DiscoType: TypeConnectCampaignsV2Campaign},
+			{Service: "connect-campaigns-v2", DiscoType: TypeConnectCampaignsV2Campaign, Leaf: true},
 		},
 	})
 }

@@ -21,8 +21,8 @@ func init() {
 		global: true,
 		fn:     scanBudgets,
 		emits: []coverage.TypeDecl{
-			{Service: "budgets", DiscoType: TypeBudgetsBudget},
-			{Service: "budgets", DiscoType: TypeBudgetsBudgetsAction},
+			{Service: "budgets", DiscoType: TypeBudgetsBudget, Leaf: true},
+			{Service: "budgets", DiscoType: TypeBudgetsBudgetsAction, Leaf: true},
 		},
 	})
 }

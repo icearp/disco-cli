@@ -19,8 +19,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "shield", DiscoType: TypeShieldProtection},
 			{Service: "shield", DiscoType: TypeShieldProtectionGroup},
-			{Service: "shield", DiscoType: TypeShieldDRTAccess},
-			{Service: "shield", DiscoType: TypeShieldProactiveEngagement},
+			{Service: "shield", DiscoType: TypeShieldDRTAccess, Leaf: true},
+			{Service: "shield", DiscoType: TypeShieldProactiveEngagement, Leaf: true},
 		},
 	})
 }

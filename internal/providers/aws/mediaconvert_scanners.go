@@ -15,9 +15,9 @@ func init() {
 		name: "aws:media-convert",
 		fn:   scanMediaConvert,
 		emits: []coverage.TypeDecl{
-			{Service: "media-convert", DiscoType: TypeMediaConvertJobTemplate},
-			{Service: "media-convert", DiscoType: TypeMediaConvertPreset},
-			{Service: "media-convert", DiscoType: TypeMediaConvertQueue},
+			{Service: "media-convert", DiscoType: TypeMediaConvertJobTemplate, Leaf: true},
+			{Service: "media-convert", DiscoType: TypeMediaConvertPreset, Leaf: true},
+			{Service: "media-convert", DiscoType: TypeMediaConvertQueue, Leaf: true},
 		},
 	})
 }

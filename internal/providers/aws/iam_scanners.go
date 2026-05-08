@@ -32,12 +32,12 @@ func init() {
 			{Service: "iam", DiscoType: TypeIAMRolePolicy},
 			{Service: "iam", DiscoType: TypeIAMUserPolicy},
 			{Service: "iam", DiscoType: TypeIAMGroupPolicy},
-			{Service: "iam", DiscoType: TypeIAMAccessKey},
-			{Service: "iam", DiscoType: TypeIAMInstanceProfile},
-			{Service: "iam", DiscoType: TypeIAMOIDCProvider},
-			{Service: "iam", DiscoType: TypeIAMSAMLProvider},
-			{Service: "iam", DiscoType: TypeIAMServerCertificate},
-			{Service: "iam", DiscoType: TypeIAMVirtualMFADevice},
+			{Service: "iam", DiscoType: TypeIAMAccessKey, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMInstanceProfile, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMOIDCProvider, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMSAMLProvider, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMServerCertificate, Leaf: true},
+			{Service: "iam", DiscoType: TypeIAMVirtualMFADevice, Leaf: true},
 		},
 	})
 }

@@ -16,8 +16,8 @@ func init() {
 		name: "aws:ram",
 		fn:   scanRAM,
 		emits: []coverage.TypeDecl{
-			{Service: "ram", DiscoType: TypeRAMResourceShare},
-			{Service: "ram", DiscoType: TypeRAMPermission},
+			{Service: "ram", DiscoType: TypeRAMResourceShare, Leaf: true},
+			{Service: "ram", DiscoType: TypeRAMPermission, Leaf: true},
 		},
 	})
 }

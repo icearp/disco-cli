@@ -23,7 +23,7 @@ func init() {
 		global: true,
 		fn:     scanLicenseManager,
 		emits: []coverage.TypeDecl{
-			{Service: "license-manager", DiscoType: TypeLicenseManagerLicense},
+			{Service: "license-manager", DiscoType: TypeLicenseManagerLicense, Leaf: true},
 			{Service: "license-manager", DiscoType: TypeLicenseManagerGrant},
 		},
 	})

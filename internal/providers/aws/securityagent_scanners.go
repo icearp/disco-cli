@@ -14,10 +14,10 @@ func init() {
 		name: "aws:security-agent",
 		fn:   scanSecurityAgent,
 		emits: []coverage.TypeDecl{
-			{Service: "security-agent", DiscoType: TypeSecurityAgentAgentSpace},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentApplication},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentPentest},
-			{Service: "security-agent", DiscoType: TypeSecurityAgentTargetDomain},
+			{Service: "security-agent", DiscoType: TypeSecurityAgentAgentSpace, Leaf: true},
+			{Service: "security-agent", DiscoType: TypeSecurityAgentApplication, Leaf: true},
+			{Service: "security-agent", DiscoType: TypeSecurityAgentPentest, Leaf: true},
+			{Service: "security-agent", DiscoType: TypeSecurityAgentTargetDomain, Leaf: true},
 		},
 	})
 }

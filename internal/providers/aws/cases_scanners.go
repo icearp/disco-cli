@@ -14,7 +14,7 @@ func init() {
 		name: "aws:cases",
 		fn:   scanCases,
 		emits: []coverage.TypeDecl{
-			{Service: "cases", DiscoType: TypeCasesDomain},
+			{Service: "cases", DiscoType: TypeCasesDomain, Leaf: true},
 			{Service: "cases", DiscoType: TypeCasesCaseRule},
 			{Service: "cases", DiscoType: TypeCasesField},
 			{Service: "cases", DiscoType: TypeCasesLayout},

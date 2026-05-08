@@ -15,9 +15,9 @@ func init() {
 		name: "aws:codedeploy",
 		fn:   scanCodeDeploy,
 		emits: []coverage.TypeDecl{
-			{Service: "codedeploy", DiscoType: TypeCodeDeployApplication},
+			{Service: "codedeploy", DiscoType: TypeCodeDeployApplication, Leaf: true},
 			{Service: "codedeploy", DiscoType: TypeCodeDeployDeploymentGroup},
-			{Service: "codedeploy", DiscoType: TypeCodeDeployDeploymentConfig},
+			{Service: "codedeploy", DiscoType: TypeCodeDeployDeploymentConfig, Leaf: true},
 		},
 	})
 }

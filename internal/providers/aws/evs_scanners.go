@@ -14,7 +14,7 @@ func init() {
 		name: "aws:evs",
 		fn:   scanEVS,
 		emits: []coverage.TypeDecl{
-			{Service: "evs", DiscoType: TypeEVSEnvironment},
+			{Service: "evs", DiscoType: TypeEVSEnvironment, Leaf: true},
 		},
 	})
 }

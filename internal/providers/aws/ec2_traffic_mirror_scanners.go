@@ -12,7 +12,7 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorTarget},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilter},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilter, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorFilterRule},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2TrafficMirrorSession},
 	)

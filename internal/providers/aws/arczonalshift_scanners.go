@@ -14,7 +14,7 @@ func init() {
 		name: "aws:arc-zonal-shift",
 		fn:   scanARCZonalShift,
 		emits: []coverage.TypeDecl{
-			{Service: "arc-zonal-shift", DiscoType: TypeARCZonalShiftObserverStatus},
+			{Service: "arc-zonal-shift", DiscoType: TypeARCZonalShiftObserverStatus, Leaf: true},
 			{Service: "arc-zonal-shift", DiscoType: TypeARCZonalShiftConfiguration},
 		},
 	})

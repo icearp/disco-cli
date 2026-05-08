@@ -14,7 +14,7 @@ func init() {
 		name: "aws:launch-wizard",
 		fn:   scanLaunchWizard,
 		emits: []coverage.TypeDecl{
-			{Service: "launch-wizard", DiscoType: TypeLaunchWizardDeployment},
+			{Service: "launch-wizard", DiscoType: TypeLaunchWizardDeployment, Leaf: true},
 		},
 	})
 }

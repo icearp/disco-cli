@@ -14,10 +14,10 @@ func init() {
 		name: "aws:personalize",
 		fn:   scanPersonalize,
 		emits: []coverage.TypeDecl{
-			{Service: "personalize", DiscoType: TypePersonalizeDataset},
-			{Service: "personalize", DiscoType: TypePersonalizeDatasetGroup},
-			{Service: "personalize", DiscoType: TypePersonalizeSchema},
-			{Service: "personalize", DiscoType: TypePersonalizeSolution},
+			{Service: "personalize", DiscoType: TypePersonalizeDataset, Leaf: true},
+			{Service: "personalize", DiscoType: TypePersonalizeDatasetGroup, Leaf: true},
+			{Service: "personalize", DiscoType: TypePersonalizeSchema, Leaf: true},
+			{Service: "personalize", DiscoType: TypePersonalizeSolution, Leaf: true},
 		},
 	})
 }

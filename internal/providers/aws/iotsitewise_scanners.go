@@ -29,7 +29,7 @@ func init() {
 			{Service: "iotsitewise", DiscoType: TypeIoTSWAsset},
 			{Service: "iotsitewise", DiscoType: TypeIoTSWAssetModel},
 			{Service: "iotsitewise", DiscoType: TypeIoTSWComputationModel},
-			{Service: "iotsitewise", DiscoType: TypeIoTSWDashboard},
+			{Service: "iotsitewise", DiscoType: TypeIoTSWDashboard, Leaf: true},
 			{Service: "iotsitewise", DiscoType: TypeIoTSWDataset},
 			{Service: "iotsitewise", DiscoType: TypeIoTSWGateway},
 			{Service: "iotsitewise", DiscoType: TypeIoTSWPortal},

@@ -12,11 +12,11 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTAccountAuditConfiguration},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTScheduledAudit},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTScheduledAudit, Leaf: true},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTMitigationAction},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTSecurityProfile},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCustomMetric},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTDimension},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCustomMetric, Leaf: true},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTDimension, Leaf: true},
 	)
 }
 

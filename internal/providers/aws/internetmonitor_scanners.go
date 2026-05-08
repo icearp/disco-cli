@@ -14,7 +14,7 @@ func init() {
 		name: "aws:internet-monitor",
 		fn:   scanInternetMonitor,
 		emits: []coverage.TypeDecl{
-			{Service: "internet-monitor", DiscoType: TypeInternetMonitorMonitor},
+			{Service: "internet-monitor", DiscoType: TypeInternetMonitorMonitor, Leaf: true},
 		},
 	})
 }

@@ -14,7 +14,7 @@ func init() {
 		name: "aws:systems-manager-sap",
 		fn:   scanSSMSAP,
 		emits: []coverage.TypeDecl{
-			{Service: "systems-manager-sap", DiscoType: TypeSSMSAPApplication},
+			{Service: "systems-manager-sap", DiscoType: TypeSSMSAPApplication, Leaf: true},
 		},
 	})
 }

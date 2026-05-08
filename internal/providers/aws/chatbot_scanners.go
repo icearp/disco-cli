@@ -15,9 +15,9 @@ func init() {
 		global: true,
 		fn:     scanChatbot,
 		emits: []coverage.TypeDecl{
-			{Service: "chatbot", DiscoType: TypeChatbotCustomAction},
-			{Service: "chatbot", DiscoType: TypeChatbotSlackChannelConfiguration},
-			{Service: "chatbot", DiscoType: TypeChatbotMicrosoftTeamsChannelConfiguration},
+			{Service: "chatbot", DiscoType: TypeChatbotCustomAction, Leaf: true},
+			{Service: "chatbot", DiscoType: TypeChatbotSlackChannelConfiguration, Leaf: true},
+			{Service: "chatbot", DiscoType: TypeChatbotMicrosoftTeamsChannelConfiguration, Leaf: true},
 		},
 	})
 }

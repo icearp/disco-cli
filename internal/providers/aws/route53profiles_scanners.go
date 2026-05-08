@@ -14,9 +14,9 @@ func init() {
 		name: "aws:route53-profiles",
 		fn:   scanRoute53Profiles,
 		emits: []coverage.TypeDecl{
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfile},
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileAssociation},
-			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileResourceAssociation},
+			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfile, Leaf: true},
+			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileAssociation, Leaf: true},
+			{Service: "route53-profiles", DiscoType: TypeRoute53ProfilesProfileResourceAssociation, Leaf: true},
 		},
 	})
 }

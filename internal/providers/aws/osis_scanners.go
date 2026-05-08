@@ -14,7 +14,7 @@ func init() {
 		name: "aws:osis",
 		fn:   scanOSIS,
 		emits: []coverage.TypeDecl{
-			{Service: "osis", DiscoType: TypeOSISPipeline},
+			{Service: "osis", DiscoType: TypeOSISPipeline, Leaf: true},
 		},
 	})
 }

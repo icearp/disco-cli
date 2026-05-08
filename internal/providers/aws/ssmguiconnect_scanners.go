@@ -14,7 +14,7 @@ func init() {
 		name: "aws:ssm-gui-connect",
 		fn:   scanSSMGuiConnect,
 		emits: []coverage.TypeDecl{
-			{Service: "ssm-gui-connect", DiscoType: TypeSSMGuiConnectPreferences},
+			{Service: "ssm-gui-connect", DiscoType: TypeSSMGuiConnectPreferences, Leaf: true},
 		},
 	})
 }

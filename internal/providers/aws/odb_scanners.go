@@ -21,11 +21,11 @@ func init() {
 		name: "aws:odb",
 		fn:   scanODB,
 		emits: []coverage.TypeDecl{
-			{Service: "odb", DiscoType: TypeODBCloudAutonomousVMCluster},
-			{Service: "odb", DiscoType: TypeODBCloudExadataInfrastructure},
-			{Service: "odb", DiscoType: TypeODBCloudVMCluster},
-			{Service: "odb", DiscoType: TypeODBOdbNetwork},
-			{Service: "odb", DiscoType: TypeODBOdbPeeringConnection},
+			{Service: "odb", DiscoType: TypeODBCloudAutonomousVMCluster, Leaf: true},
+			{Service: "odb", DiscoType: TypeODBCloudExadataInfrastructure, Leaf: true},
+			{Service: "odb", DiscoType: TypeODBCloudVMCluster, Leaf: true},
+			{Service: "odb", DiscoType: TypeODBOdbNetwork, Leaf: true},
+			{Service: "odb", DiscoType: TypeODBOdbPeeringConnection, Leaf: true},
 		},
 	})
 }

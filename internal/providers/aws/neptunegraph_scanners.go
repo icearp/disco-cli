@@ -14,7 +14,7 @@ func init() {
 		name: "aws:neptune-graph",
 		fn:   scanNeptuneGraph,
 		emits: []coverage.TypeDecl{
-			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphGraph},
+			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphGraph, Leaf: true},
 			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphGraphSnapshot},
 			{Service: "neptune-graph", DiscoType: TypeNeptuneGraphPrivateGraphEndpoint},
 		},

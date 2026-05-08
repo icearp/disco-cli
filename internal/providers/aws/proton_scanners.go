@@ -15,9 +15,9 @@ func init() {
 		name: "aws:proton",
 		fn:   scanProton,
 		emits: []coverage.TypeDecl{
-			{Service: "proton", DiscoType: TypeProtonEnvironmentAccountConnection},
-			{Service: "proton", DiscoType: TypeProtonEnvironmentTemplate},
-			{Service: "proton", DiscoType: TypeProtonServiceTemplate},
+			{Service: "proton", DiscoType: TypeProtonEnvironmentAccountConnection, Leaf: true},
+			{Service: "proton", DiscoType: TypeProtonEnvironmentTemplate, Leaf: true},
+			{Service: "proton", DiscoType: TypeProtonServiceTemplate, Leaf: true},
 		},
 	})
 }

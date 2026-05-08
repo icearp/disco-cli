@@ -14,7 +14,7 @@ func init() {
 		name: "aws:nova-act",
 		fn:   scanNovaAct,
 		emits: []coverage.TypeDecl{
-			{Service: "nova-act", DiscoType: TypeNovaActWorkflowDefinition},
+			{Service: "nova-act", DiscoType: TypeNovaActWorkflowDefinition, Leaf: true},
 		},
 	})
 }

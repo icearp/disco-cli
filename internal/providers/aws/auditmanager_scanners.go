@@ -29,8 +29,8 @@ func init() {
 		fn:   scanAuditManager,
 		emits: []coverage.TypeDecl{
 			{Service: "auditmanager", DiscoType: TypeAuditManagerAssessment},
-			{Service: "auditmanager", DiscoType: TypeAuditManagerControl},
-			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework},
+			{Service: "auditmanager", DiscoType: TypeAuditManagerControl, Leaf: true},
+			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework, Leaf: true},
 		},
 	})
 }

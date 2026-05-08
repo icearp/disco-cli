@@ -14,7 +14,7 @@ func init() {
 		name: "aws:greengrass-v2",
 		fn:   scanGreengrassV2,
 		emits: []coverage.TypeDecl{
-			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2ComponentVersion},
+			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2ComponentVersion, Leaf: true},
 			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2Deployment},
 		},
 	})

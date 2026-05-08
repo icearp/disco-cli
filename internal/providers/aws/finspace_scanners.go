@@ -14,7 +14,7 @@ func init() {
 		name: "aws:fin-space",
 		fn:   scanFinSpace,
 		emits: []coverage.TypeDecl{
-			{Service: "fin-space", DiscoType: TypeFinSpaceEnvironment},
+			{Service: "fin-space", DiscoType: TypeFinSpaceEnvironment, Leaf: true},
 		},
 	})
 }

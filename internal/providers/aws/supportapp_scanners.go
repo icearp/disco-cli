@@ -15,9 +15,9 @@ func init() {
 		global: true,
 		fn:     scanSupportApp,
 		emits: []coverage.TypeDecl{
-			{Service: "support-app", DiscoType: TypeSupportAppAccountAlias},
-			{Service: "support-app", DiscoType: TypeSupportAppSlackChannelConfiguration},
-			{Service: "support-app", DiscoType: TypeSupportAppSlackWorkspaceConfiguration},
+			{Service: "support-app", DiscoType: TypeSupportAppAccountAlias, Leaf: true},
+			{Service: "support-app", DiscoType: TypeSupportAppSlackChannelConfiguration, Leaf: true},
+			{Service: "support-app", DiscoType: TypeSupportAppSlackWorkspaceConfiguration, Leaf: true},
 		},
 	})
 }

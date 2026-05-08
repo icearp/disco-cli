@@ -15,7 +15,7 @@ func init() {
 		name: "aws:servicediscovery",
 		fn:   scanServiceDiscovery,
 		emits: []coverage.TypeDecl{
-			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryHTTPNamespace},
+			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryHTTPNamespace, Leaf: true},
 			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPrivateDNSNamespace},
 			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryPublicDNSNamespace},
 			{Service: "servicediscovery", DiscoType: TypeServiceDiscoveryService},

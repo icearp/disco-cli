@@ -14,7 +14,7 @@ func init() {
 		name: "aws:signer",
 		fn:   scanSigner,
 		emits: []coverage.TypeDecl{
-			{Service: "signer", DiscoType: TypeSignerSigningProfile},
+			{Service: "signer", DiscoType: TypeSignerSigningProfile, Leaf: true},
 			{Service: "signer", DiscoType: TypeSignerProfilePermission},
 		},
 	})

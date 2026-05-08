@@ -14,7 +14,7 @@ func init() {
 		name: "aws:mwaa-serverless",
 		fn:   scanMWAAServerless,
 		emits: []coverage.TypeDecl{
-			{Service: "mwaa-serverless", DiscoType: TypeMWAAServerlessWorkflow},
+			{Service: "mwaa-serverless", DiscoType: TypeMWAAServerlessWorkflow, Leaf: true},
 		},
 	})
 }

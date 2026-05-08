@@ -15,7 +15,7 @@ func init() {
 		global: true,
 		fn:     scanNotificationsContacts,
 		emits: []coverage.TypeDecl{
-			{Service: "notifications-contacts", DiscoType: TypeNotificationsContactsEmailContact},
+			{Service: "notifications-contacts", DiscoType: TypeNotificationsContactsEmailContact, Leaf: true},
 		},
 	})
 }

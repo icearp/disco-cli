@@ -17,14 +17,14 @@ func init() {
 		fn:   scanECR,
 		emits: []coverage.TypeDecl{
 			{Service: "ecr", DiscoType: TypeECRRepository},
-			{Service: "ecr", DiscoType: TypeECRPublicRepository},
-			{Service: "ecr", DiscoType: TypeECRPullThroughCacheRule},
-			{Service: "ecr", DiscoType: TypeECRPullTimeUpdateExclusion},
-			{Service: "ecr", DiscoType: TypeECRRegistryPolicy},
-			{Service: "ecr", DiscoType: TypeECRRegistryScanningConfig},
+			{Service: "ecr", DiscoType: TypeECRPublicRepository, Leaf: true},
+			{Service: "ecr", DiscoType: TypeECRPullThroughCacheRule, Leaf: true},
+			{Service: "ecr", DiscoType: TypeECRPullTimeUpdateExclusion, Leaf: true},
+			{Service: "ecr", DiscoType: TypeECRRegistryPolicy, Leaf: true},
+			{Service: "ecr", DiscoType: TypeECRRegistryScanningConfig, Leaf: true},
 			{Service: "ecr", DiscoType: TypeECRReplicationConfiguration},
-			{Service: "ecr", DiscoType: TypeECRRepositoryCreationTemplate},
-			{Service: "ecr", DiscoType: TypeECRSigningConfiguration},
+			{Service: "ecr", DiscoType: TypeECRRepositoryCreationTemplate, Leaf: true},
+			{Service: "ecr", DiscoType: TypeECRSigningConfiguration, Leaf: true},
 		},
 	})
 }

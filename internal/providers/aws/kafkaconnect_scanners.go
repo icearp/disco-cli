@@ -15,8 +15,8 @@ func init() {
 		fn:   scanKafkaConnect,
 		emits: []coverage.TypeDecl{
 			{Service: "kafka-connect", DiscoType: TypeKafkaConnectConnector},
-			{Service: "kafka-connect", DiscoType: TypeKafkaConnectCustomPlugin},
-			{Service: "kafka-connect", DiscoType: TypeKafkaConnectWorkerConfiguration},
+			{Service: "kafka-connect", DiscoType: TypeKafkaConnectCustomPlugin, Leaf: true},
+			{Service: "kafka-connect", DiscoType: TypeKafkaConnectWorkerConfiguration, Leaf: true},
 		},
 	})
 }

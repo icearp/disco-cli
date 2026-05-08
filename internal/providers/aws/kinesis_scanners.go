@@ -18,7 +18,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "kinesis", DiscoType: TypeKinesisStream},
 			{Service: "kinesis", DiscoType: TypeKinesisStreamConsumer},
-			{Service: "kinesis", DiscoType: TypeKinesisResourcePolicy},
+			{Service: "kinesis", DiscoType: TypeKinesisResourcePolicy, Leaf: true},
 		},
 	})
 }

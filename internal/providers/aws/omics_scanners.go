@@ -15,12 +15,12 @@ func init() {
 		fn:   scanOmics,
 		emits: []coverage.TypeDecl{
 			{Service: "omics", DiscoType: TypeOmicsAnnotationStore},
-			{Service: "omics", DiscoType: TypeOmicsConfiguration},
+			{Service: "omics", DiscoType: TypeOmicsConfiguration, Leaf: true},
 			{Service: "omics", DiscoType: TypeOmicsReferenceStore},
-			{Service: "omics", DiscoType: TypeOmicsRunGroup},
+			{Service: "omics", DiscoType: TypeOmicsRunGroup, Leaf: true},
 			{Service: "omics", DiscoType: TypeOmicsSequenceStore},
 			{Service: "omics", DiscoType: TypeOmicsVariantStore},
-			{Service: "omics", DiscoType: TypeOmicsWorkflow},
+			{Service: "omics", DiscoType: TypeOmicsWorkflow, Leaf: true},
 			{Service: "omics", DiscoType: TypeOmicsWorkflowVersion},
 		},
 	})

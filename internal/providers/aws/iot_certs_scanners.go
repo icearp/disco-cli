@@ -16,9 +16,9 @@ import (
 func init() {
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCertificate},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCACertificate},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCertificateProvider},
-		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTPolicy},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCACertificate, Leaf: true},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTCertificateProvider, Leaf: true},
+		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTPolicy, Leaf: true},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTPolicyPrincipalAttachment},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTRoleAlias},
 		coverage.TypeDecl{Service: "iot", DiscoType: TypeIoTAuthorizer},

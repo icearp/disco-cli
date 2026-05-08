@@ -14,8 +14,8 @@ func init() {
 		name: "aws:mpa",
 		fn:   scanMPA,
 		emits: []coverage.TypeDecl{
-			{Service: "mpa", DiscoType: TypeMPAApprovalTeam},
-			{Service: "mpa", DiscoType: TypeMPAIdentitySource},
+			{Service: "mpa", DiscoType: TypeMPAApprovalTeam, Leaf: true},
+			{Service: "mpa", DiscoType: TypeMPAIdentitySource, Leaf: true},
 		},
 	})
 }

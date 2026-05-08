@@ -13,12 +13,12 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAM},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAM, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMScope},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPool},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMPoolCIDR},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMAllocation},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMResourceDiscovery},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMResourceDiscovery, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2IPAMResourceDiscoveryAssociation},
 	)
 }

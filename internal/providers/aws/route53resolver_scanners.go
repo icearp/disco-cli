@@ -15,10 +15,10 @@ func init() {
 		name: "aws:route53resolver",
 		fn:   scanRoute53Resolver,
 		emits: []coverage.TypeDecl{
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallDomainList},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallRuleGroup},
+			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallDomainList, Leaf: true},
+			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallRuleGroup, Leaf: true},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallRuleGroupAssociation},
-			{Service: "route53resolver", DiscoType: TypeRoute53ResolverOutpostResolver},
+			{Service: "route53resolver", DiscoType: TypeRoute53ResolverOutpostResolver, Leaf: true},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverConfig},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverDNSSECConfig},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverEndpoint},

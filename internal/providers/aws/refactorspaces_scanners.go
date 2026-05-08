@@ -14,7 +14,7 @@ func init() {
 		name: "aws:refactor-spaces",
 		fn:   scanRefactorSpaces,
 		emits: []coverage.TypeDecl{
-			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesEnvironment},
+			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesEnvironment, Leaf: true},
 			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesApplication},
 			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesService},
 			{Service: "refactor-spaces", DiscoType: TypeRefactorSpacesRoute},

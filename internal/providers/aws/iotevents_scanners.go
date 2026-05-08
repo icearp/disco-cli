@@ -14,9 +14,9 @@ func init() {
 		name: "aws:iot-events",
 		fn:   scanIoTEvents,
 		emits: []coverage.TypeDecl{
-			{Service: "iot-events", DiscoType: TypeIoTEventsAlarmModel},
-			{Service: "iot-events", DiscoType: TypeIoTEventsDetectorModel},
-			{Service: "iot-events", DiscoType: TypeIoTEventsInput},
+			{Service: "iot-events", DiscoType: TypeIoTEventsAlarmModel, Leaf: true},
+			{Service: "iot-events", DiscoType: TypeIoTEventsDetectorModel, Leaf: true},
+			{Service: "iot-events", DiscoType: TypeIoTEventsInput, Leaf: true},
 		},
 	})
 }

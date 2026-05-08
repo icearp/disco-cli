@@ -14,9 +14,9 @@ func init() {
 		name: "aws:s3vectors",
 		fn:   scanS3Vectors,
 		emits: []coverage.TypeDecl{
-			{Service: "s3vectors", DiscoType: TypeS3VectorsVectorBucket},
-			{Service: "s3vectors", DiscoType: TypeS3VectorsIndex},
-			{Service: "s3vectors", DiscoType: TypeS3VectorsVectorBucketPolicy},
+			{Service: "s3vectors", DiscoType: TypeS3VectorsVectorBucket, Leaf: true},
+			{Service: "s3vectors", DiscoType: TypeS3VectorsIndex, Leaf: true},
+			{Service: "s3vectors", DiscoType: TypeS3VectorsVectorBucketPolicy, Leaf: true},
 		},
 	})
 }

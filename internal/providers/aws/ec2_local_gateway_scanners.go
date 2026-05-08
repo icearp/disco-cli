@@ -13,10 +13,10 @@ import (
 
 func init() {
 	registerExtraEmits(
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTable},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTable, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRoute},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayVirtualInterface},
-		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayVirtualInterfaceGroup},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayVirtualInterfaceGroup, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTableVPCAssociation},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LocalGatewayRouteTableVIGAssociation},
 	)

@@ -17,7 +17,7 @@ func init() {
 			{Service: "msk", DiscoType: TypeMSKCluster},
 			{Service: "msk", DiscoType: TypeMSKBatchScramSecret},
 			{Service: "msk", DiscoType: TypeMSKClusterPolicy},
-			{Service: "msk", DiscoType: TypeMSKConfiguration},
+			{Service: "msk", DiscoType: TypeMSKConfiguration, Leaf: true},
 			{Service: "msk", DiscoType: TypeMSKReplicator},
 			{Service: "msk", DiscoType: TypeMSKVpcConnection},
 		},

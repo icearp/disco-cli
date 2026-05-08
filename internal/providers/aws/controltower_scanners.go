@@ -19,9 +19,9 @@ func init() {
 		name: "aws:controltower",
 		fn:   scanControlTower,
 		emits: []coverage.TypeDecl{
-			{Service: "controltower", DiscoType: TypeControlTowerLandingZone},
+			{Service: "controltower", DiscoType: TypeControlTowerLandingZone, Leaf: true},
 			{Service: "controltower", DiscoType: TypeControlTowerEnabledBaseline},
-			{Service: "controltower", DiscoType: TypeControlTowerEnabledControl},
+			{Service: "controltower", DiscoType: TypeControlTowerEnabledControl, Leaf: true},
 		},
 	})
 }
