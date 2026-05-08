@@ -31,8 +31,8 @@ serviceEntry — disco knows what each scanner upserts, not a static slice
 that may have drifted.
 
 Output formats:
-  - markdown (default; suitable for README inclusion)
-  - table    (tabwriter-aligned plain text)
+  - table    (default; tabwriter-aligned plain text)
+  - markdown (suitable for README inclusion)
   - json     (structured matrix slice for tooling)
 
 JSON envelope shape (one entry per provider, rows sorted by service then
@@ -77,7 +77,7 @@ func init() {
 	coverageCmd.Flags().String("region", "us-east-1", "AWS region for the CloudFormation API call (--provider aws only)")
 	coverageCmd.Flags().String("profile", "", "AWS profile name (--provider aws only)")
 	coverageCmd.Flags().String("subscription", "", "Azure subscription ID (--provider azure only); empty = autodetect")
-	coverageCmd.Flags().StringP("output", "o", "markdown", "Output format: markdown, table, json")
+	coverageCmd.Flags().StringP("output", "o", "table", "Output format: table, markdown, json")
 	coverageCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
 	coverageCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
@@ -180,12 +180,12 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 		if err := coverage.RenderJSON(w, matrices); err != nil {
 			return err
 		}
-	case "table":
-		if err := coverage.RenderTable(w, matrices); err != nil {
+	case "markdown":
+		if err := coverage.RenderMarkdown(w, matrices); err != nil {
 			return err
 		}
 	default:
-		if err := coverage.RenderMarkdown(w, matrices); err != nil {
+		if err := coverage.RenderTable(w, matrices); err != nil {
 			return err
 		}
 	}
