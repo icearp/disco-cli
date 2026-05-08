@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/internal/providers"
 	awsprov "codeberg.org/icearp/disco/internal/providers/aws"
 	"github.com/spf13/cobra"
 )
@@ -84,6 +85,7 @@ func init() {
 	coverageCmd.Flags().Bool("resolvers", false, "Resolver coverage mode (--provider aws): list every registered resolver and its declared EdgeDecl count; unannotated resolvers (count=0) surface as sweep targets")
 	coverageCmd.Flags().Bool("only-unannotated", false, "With --resolvers, omit resolvers that already declare ≥1 EdgeDecl")
 	coverageCmd.Flags().Bool("missing-resolvers", false, "Missing-resolver mode (--provider aws): list every emitted disco type that never appears as EdgeDecl.Source — the candidate gap inventory")
+	coverageCmd.Flags().Bool("regions", false, "Region coverage mode: diff each provider's static RegionNames list against the cloud's live SDK region list (covered|stale|missing). --check-strict exits 1 on any non-covered row")
 	rootCmd.AddCommand(coverageCmd)
 }
 
@@ -101,7 +103,19 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	resolversMode, _ := cmd.Flags().GetBool("resolvers")
 	onlyUnannotated, _ := cmd.Flags().GetBool("only-unannotated")
 	missingMode, _ := cmd.Flags().GetBool("missing-resolvers")
+	regionsMode, _ := cmd.Flags().GetBool("regions")
 
+	switch {
+	case regionsMode && (resolversMode || missingMode):
+		return fmt.Errorf("--regions is mutually exclusive with --resolvers and --missing-resolvers")
+	case resolversMode && missingMode:
+		return fmt.Errorf("--resolvers and --missing-resolvers are mutually exclusive")
+	}
+
+	if regionsMode {
+		opts := coverage.FetchOptions{Region: region, Profile: profile, Subscription: subscription}
+		return runRegionsCoverage(cmd, provName, outputFmt, opts, timeout, checkStrict)
+	}
 	if resolversMode {
 		return runResolverCoverage(cmd.OutOrStdout(), provName, onlyUnannotated, outputFmt)
 	}
@@ -182,6 +196,91 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 				if r.Bucket == coverage.BucketUpstreamMissing {
 					return fmt.Errorf("upstream-missing rows present (--check-strict); refresh alias map or scanner emits decl")
 				}
+			}
+		}
+	}
+	return nil
+}
+
+// runRegionsCoverage diffs each provider's static RegionNames list against
+// the cloud's live SDK region list. Output goes to cmd's stdout in the
+// requested format. checkStrict exits non-zero on any non-"covered" row.
+func runRegionsCoverage(cmd *cobra.Command, provName, outputFmt string, opts coverage.FetchOptions, timeout time.Duration, checkStrict bool) error {
+	switch outputFmt {
+	case "table", "markdown", "json":
+	default:
+		return fmt.Errorf("--output must be one of table|markdown|json; got %q", outputFmt)
+	}
+
+	covProviders := coverage.All()
+	if provName != "" {
+		p, ok := coverage.Get(provName)
+		if !ok {
+			return fmt.Errorf("provider %q has no coverage support; registered: %v", provName, coverage.Names())
+		}
+		covProviders = []coverage.Provider{p}
+	}
+
+	var rows []coverage.RegionRow
+	var fetchFailures []string
+	for _, p := range covProviders {
+		rl, ok := p.(coverage.RegionLister)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "  %s: no RegionLister support; skipping\n", p.Name())
+			continue
+		}
+		scanner, ok := providers.Get(p.Name())
+		if !ok {
+			fmt.Fprintf(os.Stderr, "  %s: scanner not registered; skipping\n", p.Name())
+			continue
+		}
+		rn, ok := scanner.(providers.RegionNamer)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "  %s: scanner is not RegionNamer; skipping\n", p.Name())
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "Fetching %s region list...\n", p.Name())
+		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
+		live, err := rl.FetchRegions(fetchCtx, opts)
+		cancel()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v\n", p.Name(), err)
+			fetchFailures = append(fetchFailures, p.Name())
+			continue
+		}
+		diff := coverage.DiffRegions(rn.RegionNames(), live)
+		for i := range diff {
+			diff[i].Provider = p.Name()
+		}
+		rows = append(rows, diff...)
+	}
+
+	if checkStrict && len(fetchFailures) > 0 {
+		return fmt.Errorf("%w: %s; retry or scope --provider", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+	}
+
+	w := cmd.OutOrStdout()
+	switch outputFmt {
+	case "json":
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(rows); err != nil {
+			return err
+		}
+	case "markdown":
+		if err := coverage.RenderRegionsMarkdown(w, rows); err != nil {
+			return err
+		}
+	default:
+		if err := coverage.RenderRegionsTable(w, rows); err != nil {
+			return err
+		}
+	}
+
+	if checkStrict {
+		for _, r := range rows {
+			if r.Status != coverage.RegionCovered {
+				return fmt.Errorf("region drift present (--check-strict): %s/%s = %s", r.Provider, r.Region, r.Status)
 			}
 		}
 	}

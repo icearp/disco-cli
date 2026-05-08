@@ -377,3 +377,20 @@ func pascalCase(s string) string {
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
 }
+
+// FetchRegions calls compute.Regions.List for the first accessible project
+// and returns the region-name list. Reuses gcpRegions(ctx, *project) so the
+// scanner-side and coverage-side fetch paths share the same shape (incl.
+// silent-skip on permission denied / API not enabled, which yields an empty
+// slice — DiffRegions will then mark every static entry as "stale", a clear
+// signal that the caller needs broader creds).
+func (coverageProvider) FetchRegions(ctx context.Context, _ coverage.FetchOptions) ([]string, error) {
+	projects, err := loadProjects(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load projects: %w", err)
+	}
+	if len(projects) == 0 {
+		return nil, fmt.Errorf("no accessible GCP projects; coverage --regions needs at least one")
+	}
+	return gcpRegions(ctx, &projects[0])
+}

@@ -104,6 +104,41 @@ func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) (
 	return out, nil
 }
 
+// FetchRegions calls armsubscription.SubscriptionsClient.NewListLocationsPager
+// and returns the authoritative ARM location-name list for the supplied (or
+// auto-detected) subscription.
+func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, fmt.Errorf("azure credential: %w", err)
+	}
+	subID := opts.Subscription
+	if subID == "" {
+		subID, err = detectFirstSubscriptionForCoverage(ctx, cred)
+		if err != nil {
+			return nil, fmt.Errorf("detect subscription: %w", err)
+		}
+	}
+	client, err := armsubscription.NewSubscriptionsClient(cred, nil)
+	if err != nil {
+		return nil, err
+	}
+	pager := client.NewListLocationsPager(subID, nil)
+	var out []string
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("armsubscription:ListLocations: %w", err)
+		}
+		for _, loc := range page.Value {
+			if loc.Name != nil {
+				out = append(out, *loc.Name)
+			}
+		}
+	}
+	return out, nil
+}
+
 // detectFirstSubscriptionForCoverage returns the ID of the first accessible
 // subscription. Lifted from cmd/types_azure.go (which gets deleted).
 func detectFirstSubscriptionForCoverage(ctx context.Context, cred *azidentity.DefaultAzureCredential) (string, error) {

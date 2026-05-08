@@ -56,6 +56,34 @@ type Provider interface {
 	AlgorithmicKey(discoType string) string // fallback when no alias entry exists
 }
 
+// RegionLister is implemented by Provider impls that can fetch the cloud's
+// authoritative region/location list via SDK. Optional — providers without
+// an SDK list endpoint don't implement it. Drives `disco coverage --regions`.
+type RegionLister interface {
+	FetchRegions(ctx context.Context, opts FetchOptions) ([]string, error)
+}
+
+// RegionRow categorises a single region across the static-vs-live diff.
+// Status values:
+//   - "covered" — region appears in both disco's static RegionNames list
+//     and the cloud's live API response.
+//   - "stale"   — disco lists it but the live API doesn't return it
+//     (region retired or typo in the static list).
+//   - "missing" — live API returns it but disco's static list lacks it
+//     (refresh internal/providers/<p>/regions.go).
+type RegionRow struct {
+	Provider string `json:"provider"`
+	Region   string `json:"region"`
+	Status   string `json:"status"`
+}
+
+// Region status string constants.
+const (
+	RegionCovered = "covered"
+	RegionStale   = "stale"
+	RegionMissing = "missing"
+)
+
 // Bucket classifies a single matrix row.
 type Bucket string
 

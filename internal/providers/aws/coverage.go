@@ -9,6 +9,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 func init() { coverage.Register(&coverageProvider{}) }
@@ -697,4 +699,43 @@ func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) (
 		}
 	}
 	return out, nil
+}
+
+// FetchRegions calls ec2:DescribeRegions(AllRegions=true) and returns the
+// authoritative AWS region-name list, filtered to commercial-partition
+// regions the caller can opt into. Excludes regions the account hasn't
+// opted into (Status != "opt-in-not-required" && != "opted-in") so they
+// don't masquerade as missing in `disco coverage --regions`.
+func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
+	region := opts.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+	cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
+	if opts.Profile != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(opts.Profile))
+	}
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("load aws config: %w", err)
+	}
+	client := ec2.NewFromConfig(cfg)
+	allRegions := true
+	out, err := client.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
+		AllRegions: &allRegions,
+		Filters: []ec2types.Filter{{
+			Name:   sp("opt-in-status"),
+			Values: []string{"opt-in-not-required", "opted-in"},
+		}},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("ec2:DescribeRegions: %w", err)
+	}
+	regions := make([]string, 0, len(out.Regions))
+	for _, r := range out.Regions {
+		if r.RegionName != nil {
+			regions = append(regions, *r.RegionName)
+		}
+	}
+	return regions, nil
 }
