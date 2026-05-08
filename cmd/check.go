@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -214,6 +215,14 @@ Examples:
 					return err
 				}
 			}
+		case "csv":
+			if err := renderCheckCSV(findings); err != nil {
+				return err
+			}
+		case "markdown", "md":
+			if err := renderCheckMarkdown(findings); err != nil {
+				return err
+			}
 		case "sarif":
 			ev := sarifEvidence{TotalResourcesEvaluated: len(resources)}
 			if h, herr := snapshot.HashFile(defaultDBPath()); herr == nil {
@@ -237,7 +246,7 @@ Examples:
 				return err
 			}
 		default:
-			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, sarif)", checkOutputFmt)
+			return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl, sarif)", checkOutputFmt)
 		}
 
 		if !checkExitZero && len(findings) > 0 {
@@ -323,11 +332,47 @@ func dashIfEmpty(s string) string {
 	return s
 }
 
+// renderCheckCSV writes findings as CSV with positional-stable columns.
+// Mirror of renderCheckTable's column set, minus the visual short() of the
+// resource ID — CSV consumers typically want the full ID for joining.
+func renderCheckCSV(findings []policy.Finding) error {
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+	if err := w.Write([]string{"severity", "rule", "resource_id", "type", "name", "region", "message"}); err != nil {
+		return err
+	}
+	for _, f := range findings {
+		if err := w.Write([]string{f.Severity, f.ID, f.ResourceID, f.Type, f.Name, f.Region, f.Message}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// renderCheckMarkdown writes findings as a GitHub-flavoured md table.
+// Counts the finding total in a `# ` header so consumers see the scale
+// before they scroll.
+func renderCheckMarkdown(findings []policy.Finding) error {
+	_, _ = fmt.Fprintf(os.Stdout, "# Findings: %d\n\n", len(findings))
+	if len(findings) == 0 {
+		return nil
+	}
+	rows := make([][]string, 0, len(findings))
+	for _, f := range findings {
+		rows = append(rows, []string{
+			f.Severity, f.ID, short(f.ResourceID), f.Type,
+			dashIfEmpty(f.Name), dashIfEmpty(f.Region), f.Message,
+		})
+	}
+	return renderMarkdownTable(os.Stdout,
+		[]string{"Severity", "Rule", "Resource", "Type", "Name", "Region", "Message"}, rows)
+}
+
 func init() {
 	checkCmd.Flags().StringSliceVar(&checkRulePaths, "rules", nil, "Rego policy file or directory (repeatable; directories walked for *.rego)")
 	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled OSS packs (available: aws-waf)")
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
-	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, sarif")
+	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif")
 	checkCmd.Flags().BoolVar(&checkExitZero, "exit-zero", false, "Force exit 0 even when findings are reported (inventory mode; CI override)")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
 	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
