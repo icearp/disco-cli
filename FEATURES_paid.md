@@ -77,3 +77,53 @@ Replaced with: Lambda invokes `ecs:RunTask` with `containerOverrides.command = [
 PG dialing on the scan path is gated by env: when `DISCO_PG_DSN` + `DISCO_TENANT_ID` are set, paid `cmd/helpers_paid.go` reassigns the `openWriteDBHook` so write commands (`disco scan`, `disco check --persist`) land in PG with the tenant-pinned RLS contract. Empty env falls back to local SQLite for dev.
 
 Net result: ~700 LOC removed (server, JWT middleware, runner, cred-scrub, JSON envelope, all serve tests). pgx + dockertest stay paid-only via the existing `internal/store/postgres_paid.go` path. SaaS is unaffected — it always read from PG directly, never via `disco serve`.
+
+### Lambda → ECS RunTask invocation contract
+
+Container task definition pins `ENTRYPOINT = ["/disco"]`. Lambda assembles a RunTask call shaped like:
+
+```
+ecs:RunTask {
+  cluster:        "disco-scan",
+  taskDefinition: "disco-scan-worker",
+  launchType:     "FARGATE",
+  networkConfiguration: { /* private subnets, no public IP */ },
+  overrides: {
+    containerOverrides: [{
+      name:    "disco",
+      command: ["scan", "aws", "--regions", "us-east-1,us-west-2"],
+      environment: [
+        { name: "DISCO_PG_DSN",    value: "<RDS-Proxy-DSN-from-Secrets-Manager>" },
+        { name: "DISCO_TENANT_ID", value: "<UUID for the requesting SaaS tenant>" },
+      ],
+    }],
+  },
+}
+```
+
+Required env on the task:
+- `DISCO_PG_DSN` — RDS Proxy DSN; tenant pool lives behind it.
+- `DISCO_TENANT_ID` — UUID. Pinned for this container's lifetime; baked into `app.tenant_id` GUC by `OpenPostgres` AfterConnect.
+
+Optional env:
+- AWS creds via task IAM role (preferred over static keys).
+- Azure: workload identity / DefaultAzureCredential.
+- GCP: ADC via Workload Identity Federation.
+
+Command shape mirrors the CLI exactly — the same flags `disco scan aws --regions ...` accepts on a developer's laptop. No special-case `--from-env` flag, no JSON shim.
+
+Lifecycle:
+1. RunTask returns immediately with `taskArn`.
+2. Container starts, dials PG, runs the scan, persists to `scans` + `resources` + `relationships` rows under the pinned tenant, exits 0 on success or non-zero on failure.
+3. SaaS polls the `scans` row keyed by the new task's `scan_id`. The scan_id can either be (a) generated server-side by the scan command and surfaced via container stdout / a sidecar (deferred), or (b) discovered by SaaS via `SELECT id FROM scans WHERE tenant_id = ? AND started_at > <RunTask-time> ORDER BY started_at DESC LIMIT 1`. Path (b) suffices for v1 since one container = one scan = one new row.
+4. ECS task transitions STOPPED. SaaS sees the `scans.status` change to `completed` / `failed` / `partial`.
+
+Observability:
+- Per-scan stdout/stderr → CloudWatch Logs via the `awslogs` driver on the task definition.
+- ECS task lifecycle events → EventBridge → SaaS audit trail (optional).
+- The `scans` table is the canonical state. CloudWatch is for human debugging.
+
+IAM scoping:
+- Lambda role needs `ecs:RunTask` on the task definition + `iam:PassRole` on the task execution role + the task role.
+- Task role needs read on Secrets Manager for the PG DSN secret + cloud-provider read perms for the scan target.
+- No JWT secret to provision anywhere.
