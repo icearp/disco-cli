@@ -269,6 +269,59 @@ func renderSummary(rep summaryReport, format string) error {
 			}
 		}
 		return nil
+	case "markdown", "md":
+		scope := "customer-managed only"
+		if rep.ManagedIncluded {
+			scope = "incl. provider-managed"
+		}
+		header := fmt.Sprintf("# Disco summary — %d resources (%s)", rep.Total, scope)
+		if rep.AsOf != "" {
+			header += ", as of " + rep.AsOf
+		}
+		_, _ = fmt.Fprintln(os.Stdout, header)
+		_, _ = fmt.Fprintln(os.Stdout)
+
+		printMDSection := func(title string, rows [][]string, headers []string) {
+			if len(rows) == 0 {
+				return
+			}
+			_, _ = fmt.Fprintf(os.Stdout, "## %s\n\n", title)
+			_ = renderMarkdownTable(os.Stdout, headers, rows)
+			_, _ = fmt.Fprintln(os.Stdout)
+		}
+
+		provRows := make([][]string, 0, len(rep.ByProvider))
+		for _, b := range rep.ByProvider {
+			provRows = append(provRows, []string{b.Provider, strconv.Itoa(b.Count)})
+		}
+		printMDSection("BY PROVIDER", provRows, []string{"Provider", "Count"})
+
+		acctRows := make([][]string, 0, len(rep.ByAccount))
+		for _, b := range rep.ByAccount {
+			label := b.AccountID
+			if b.AccountName != "" {
+				label = b.AccountID + " (" + b.AccountName + ")"
+			}
+			acctRows = append(acctRows, []string{label, strconv.Itoa(b.Count)})
+		}
+		printMDSection("BY ACCOUNT", acctRows, []string{"Account", "Count"})
+
+		regRows := make([][]string, 0, len(rep.ByRegion))
+		for _, b := range rep.ByRegion {
+			regRows = append(regRows, []string{b.Region, strconv.Itoa(b.Count)})
+		}
+		printMDSection("BY REGION", regRows, []string{"Region", "Count"})
+
+		typeTitle := "BY TYPE"
+		if rep.TypeBucketsTotal > len(rep.ByType) {
+			typeTitle = fmt.Sprintf("BY TYPE (top %d of %d)", len(rep.ByType), rep.TypeBucketsTotal)
+		}
+		typeRows := make([][]string, 0, len(rep.ByType))
+		for _, b := range rep.ByType {
+			typeRows = append(typeRows, []string{b.Type, strconv.Itoa(b.Count)})
+		}
+		printMDSection(typeTitle, typeRows, []string{"Type", "Count"})
+		return nil
 	case "table", "":
 		scope := "customer-managed only"
 		if rep.ManagedIncluded {
@@ -326,7 +379,7 @@ func renderSummary(rep summaryReport, format string) error {
 		printSection(typeTitle, typeRows)
 		return nil
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json)", format)
 	}
 }
 
@@ -336,7 +389,7 @@ func init() {
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	summaryCmd.Flags().Var(&summaryDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, json, csv")
+	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
 	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
