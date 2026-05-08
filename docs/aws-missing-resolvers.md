@@ -21,12 +21,12 @@ Two gap signals live here:
 go run ./cmd/aws-resolver-audit --db ~/.local/share/disco/disco.db --top 100
 
 # 3. Orphan types (types with no outbound edges):
-disco coverage --missing-resolvers --provider aws
+disco coverage resolvers --missing --providers aws
 ```
 
 Audit tool source: `cmd/aws-resolver-audit/main.go`. Output is TSV; pipe to
 `column -t -s$'\t'` for human reading. The orphan list at the bottom of this
-file is the captured snapshot of `disco coverage --missing-resolvers`; refresh
+file is the captured snapshot of `disco coverage resolvers --missing`; refresh
 it after each resolver-shipping commit so future PRs diff against it.
 
 ## Validation workflow
@@ -116,7 +116,7 @@ catalog, IoT-* family).
 
 ## Orphan types (no outbound resolver edges)
 
-Captured snapshot from `disco coverage --missing-resolvers --provider aws`.
+Captured snapshot from `disco coverage resolvers --missing --providers aws`.
 Tab-separated so the regenerate command can overwrite the block in place
 (replace everything between the fence markers below).
 

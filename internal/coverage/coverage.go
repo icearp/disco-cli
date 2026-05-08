@@ -37,10 +37,15 @@ type UpstreamType struct {
 }
 
 // FetchOptions carry per-invocation knobs from the cmd. Each provider reads
-// only the fields it cares about — AWS uses Region/Profile, Azure uses
+// only the fields it cares about — AWS uses Regions/Profile, Azure uses
 // Subscription, GCP ignores all three.
+//
+// Regions is a slice so multi-region sweeps can union upstream type lists
+// across regions in one call. Empty slice = provider-default (AWS falls back
+// to "us-east-1" for CloudFormation ListTypes; Azure ARM types are
+// subscription-scoped so a no-op; GCP Discovery is region-agnostic).
 type FetchOptions struct {
-	Region       string
+	Regions      []string
 	Profile      string
 	Subscription string
 }

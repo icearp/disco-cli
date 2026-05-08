@@ -15,7 +15,13 @@ Cobra command layer.
 
 ## `disco coverage`
 
-Source-of-truth coverage cmd (ROADMAP G5). Wired for AWS, Azure, and GCP. Reads scanner-declared `emits []coverage.TypeDecl` (NOT `KnownTypes()`, which has been deleted) and matches against live upstream registries (CFN ListTypes / ARM Providers/List / GCP Discovery API). Add new coverage-related flags in `cmd/coverage.go`. Provider-side glue lives at `internal/providers/<p>/coverage.go`.
+Drift-detection cmd, split into three subcommands. Bare `disco coverage` prints help. Add new coverage-related flags on the matching subcommand in `cmd/coverage.go`. Provider-side glue lives at `internal/providers/<p>/coverage.go`. Parent owns `--output` (PersistentFlags), default `table`, inherited by every subcommand.
+
+- `disco coverage services` — per-service type matrix. Reads scanner-declared `emits []coverage.TypeDecl` and matches against live upstream registries (CFN ListTypes / ARM Providers/List / GCP Discovery). Buckets: covered / uncovered / synthetic / upstream-missing. `--check-strict` exits 1 on any upstream-missing row, 2 on transient registry-fetch failure (the distinct exit code lets CI branch). `--regions us-east-1,us-west-2` triggers per-region CFN calls + unions the upstream slice (catches per-region launch drift).
+- `disco coverage regions` — diff each provider's static `RegionNames` slice against the cloud's live SDK region list. `--regions <r1,r2>` post-filters the diff to those regions; full live list still fetched. `--check-strict` exits 1 on any non-covered row.
+- `disco coverage resolvers` — AWS-only. Default mode lists every registered resolver with its EdgeDecl count + service segments touched; `--only-unannotated` omits annotated resolvers. `--missing` flips to the orphan-type inventory (emitted disco types never appearing as `EdgeDecl.Source`). `--services ec2,s3` filters to resolvers (or orphan types) touching named services.
+
+Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (StringSlice; semantics differ per subcommand — see above), `--services` (StringSlice; cross-cutting filter on services + resolvers subcommands). Tests must call `resetCoverageFlags(t)` before each `cmd.Execute()` because pflag StringSlice values accumulate across consecutive runs.
 
 ## Resume
 

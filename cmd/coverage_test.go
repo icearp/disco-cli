@@ -20,6 +20,25 @@ type fakeCoverageProvider struct {
 	fetchErr error
 }
 
+// resetCoverageFlags clears StringSlice flags on every coverage subcommand
+// before each test. pflag's StringSlice values accumulate across consecutive
+// Execute() calls in the same process, so providers/regions/services would
+// otherwise carry stale entries from a prior test invocation.
+func resetCoverageFlags(t *testing.T) {
+	t.Helper()
+	for _, sub := range coverageCmd.Commands() {
+		for _, f := range []string{"providers", "regions", "services"} {
+			if fl := sub.Flags().Lookup(f); fl != nil {
+				_ = fl.Value.Set("")
+				fl.Changed = false
+				if sv, ok := fl.Value.(interface{ Replace([]string) error }); ok {
+					_ = sv.Replace(nil)
+				}
+			}
+		}
+	}
+}
+
 func (f *fakeCoverageProvider) Name() string { return f.name }
 func (f *fakeCoverageProvider) Fetch(_ context.Context, _ coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	return f.upstream, f.fetchErr
@@ -39,9 +58,10 @@ func TestCoverage_StrictCannotAssessOnFetchFailure(t *testing.T) {
 		fetchErr: errors.New("throttled"),
 	})
 
+	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "--provider", name, "--check-strict", "--timeout", "1s"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--check-strict", "--timeout", "1s"})
 		return cmd.Execute()
 	})
 	if err == nil {
@@ -65,9 +85,10 @@ func TestCoverage_StrictDriftStillFires(t *testing.T) {
 		upstream: nil, // empty but no fetchErr → real "drift": disco emits without upstream
 	})
 
+	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "--provider", name, "--check-strict", "--timeout", "1s"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--check-strict", "--timeout", "1s"})
 		return cmd.Execute()
 	})
 	if err == nil {
@@ -88,9 +109,10 @@ func TestCoverage_NonStrictTolerantOnFetchFailure(t *testing.T) {
 		fetchErr: errors.New("throttled"),
 	})
 
+	resetCoverageFlags(t)
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"coverage", "--provider", name, "--timeout", "1s", "--check-strict=false"})
+		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--timeout", "1s", "--check-strict=false"})
 		return cmd.Execute()
 	})
 	if err != nil {

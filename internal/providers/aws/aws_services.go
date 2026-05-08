@@ -126,25 +126,49 @@ func CollectResolverEdges() []EdgeDecl {
 }
 
 // ResolverInfo summarises one registered resolver for coverage tooling:
-// the unqualified function name and the count of declared EdgeDecls.
-// EdgeCount==0 marks an unannotated resolver — either a deliberate no-op
-// (sidecar populator, audit-stub) or a sweep target that hasn't been
-// annotated yet. The two cases are indistinguishable at this layer; cmd-side
-// tooling surfaces the list and the human triages.
+// the unqualified function name, count of declared EdgeDecls, and the
+// distinct disco service segments touched by those edges (Source-side and
+// Target-side combined). EdgeCount==0 marks an unannotated resolver —
+// either a deliberate no-op (sidecar populator, audit-stub) or a sweep
+// target that hasn't been annotated yet. cmd-side tooling consumes
+// Services for the `disco coverage resolvers --services` filter.
 type ResolverInfo struct {
 	Name      string
 	EdgeCount int
+	Services  []string
 }
 
 // ListResolvers returns one ResolverInfo per registered resolver in
-// registration order. Used by `disco coverage --resolvers` to discover
+// registration order. Used by `disco coverage resolvers` to discover
 // unannotated registrations.
 func ListResolvers() []ResolverInfo {
 	out := make([]ResolverInfo, 0, len(registeredResolvers))
 	for _, r := range registeredResolvers {
-		out = append(out, ResolverInfo{Name: r.name, EdgeCount: len(r.emits)})
+		seen := map[string]struct{}{}
+		var svcs []string
+		for _, e := range r.emits {
+			for _, t := range []string{e.Source, e.Target} {
+				if s := serviceSegment(t); s != "" {
+					if _, dup := seen[s]; !dup {
+						seen[s] = struct{}{}
+						svcs = append(svcs, s)
+					}
+				}
+			}
+		}
+		out = append(out, ResolverInfo{Name: r.name, EdgeCount: len(r.emits), Services: svcs})
 	}
 	return out
+}
+
+// serviceSegment returns the middle segment of a disco type ("aws:ec2:instance"
+// -> "ec2"). Returns "" for malformed inputs.
+func serviceSegment(discoType string) string {
+	parts := strings.SplitN(discoType, ":", 3)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[1]
 }
 
 // resolverName returns the unqualified function name from runtime reflection,

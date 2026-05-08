@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -16,9 +17,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// coverageCmd is the parent of the three drift-detection subcommands.
+// Bare `disco coverage` prints help.
 var coverageCmd = &cobra.Command{
 	Use:   "coverage",
-	Short: "Print disco vs upstream cloud-provider type coverage matrix",
+	Short: "Drift detection: services / regions / resolvers (pick a subcommand)",
+	Long: `Drift detection across disco's static capabilities and the cloud's live API.
+
+Subcommands:
+  services   — diff disco scanner emits against the upstream type registry
+               (CloudFormation ListTypes / ARM Providers/List / GCP Discovery)
+  regions    — diff each provider's static RegionNames list against the
+               cloud's live SDK region list
+  resolvers  — list AWS resolvers + their EdgeDecl annotations, or surface
+               the orphan disco types with no resolver source (--missing)`,
+	Args: cobra.NoArgs,
+	Run: func(c *cobra.Command, _ []string) {
+		_ = c.Help()
+	},
+}
+
+var coverageServicesCmd = &cobra.Command{
+	Use:   "services",
+	Short: "Diff disco scanner emits against the upstream type registry",
 	Long: `Compares disco's registered scanners against the live upstream type
 registry of each cloud provider:
 
@@ -30,32 +51,6 @@ Coverage truth source is the per-scanner emits []TypeDecl declared on each
 serviceEntry — disco knows what each scanner upserts, not a static slice
 that may have drifted.
 
-Output formats:
-  - table    (default; tabwriter-aligned plain text)
-  - markdown (suitable for README inclusion)
-  - json     (structured matrix slice for tooling)
-
-JSON envelope shape (one entry per provider, rows sorted by service then
-disco_type):
-  [
-    {
-      "provider": "aws",
-      "rows": [
-        {
-          "provider":     "aws",
-          "service":      "ec2",
-          "disco_type":   "aws:ec2:instance",     // omitted for uncovered
-          "upstream_key": "AWS::EC2::Instance",   // omitted for synthetic
-          "bucket":       "covered|uncovered|synthetic|upstream-missing"
-        }, ...
-      ]
-    }, ...
-  ]
-
---resolvers and --missing-resolvers are AWS-only and emit a flat array
-of {resolver, edges} / {disco_type, service} rows respectively.
-Passing them with --provider azure|gcp surfaces a clear error.
-
 Bucket model:
   - covered          disco scanner + upstream registry entry both present.
   - uncovered        upstream registry entry has no disco scanner.
@@ -64,64 +59,125 @@ Bucket model:
                      — drift signal. Surface via --check-strict for CI gating.
 
 Examples:
-  disco coverage
-  disco coverage --provider gcp
-  disco coverage --provider aws --filter uncovered
-  disco coverage -o json | jq '.[].rows[] | select(.bucket=="upstream-missing")'
-  disco coverage --check-strict`,
-	RunE: runCoverage,
+  disco coverage services
+  disco coverage services --providers gcp
+  disco coverage services --providers aws --filter uncovered
+  disco coverage services --providers aws --regions us-east-1,us-west-2
+  disco coverage services -o json | jq '.[].rows[] | select(.bucket=="upstream-missing")'
+  disco coverage services --check-strict`,
+	Args: cobra.NoArgs,
+	RunE: runCoverageServices,
+}
+
+var coverageRegionsCmd = &cobra.Command{
+	Use:   "regions",
+	Short: "Diff each provider's static RegionNames list against the cloud's live SDK region list",
+	Long: `Compares each provider's compiled-in RegionNames slice (the disco-side
+opinion of "what could be scanned") against the cloud's authoritative
+SDK region/location list:
+
+  - AWS:    ec2:DescribeRegions (filtered to opt-in-not-required + opted-in)
+  - Azure:  armsubscription.Subscriptions.ListLocations(subscriptionId)
+  - GCP:    compute.Regions.List(projectId)
+
+Status values:
+  covered  region appears in both static list and live API
+  stale    static list has it but live API doesn't (region retired or typo)
+  missing  live API has it but static list doesn't — refresh
+           internal/providers/<p>/regions.go
+
+Examples:
+  disco coverage regions
+  disco coverage regions --providers aws --check-strict
+  disco coverage regions --providers azure --regions eu-central-2`,
+	Args: cobra.NoArgs,
+	RunE: runCoverageRegions,
+}
+
+var coverageResolversCmd = &cobra.Command{
+	Use:   "resolvers",
+	Short: "List AWS resolvers + EdgeDecl annotations, or surface orphan disco types (--missing)",
+	Long: `Default mode: list every registered AWS resolver and its declared
+EdgeDecl count. Unannotated resolvers (count=0) surface as sweep
+targets — either deliberate no-ops (sidecar populators, audit-stubs)
+or drift signal that hasn't been triaged.
+
+--missing flips the output to the orphan-type inventory: every emitted
+disco type that never appears as the Source of a declared EdgeDecl.
+Candidate gap list for new resolvers.
+
+--services filters to resolvers (or orphan types) whose service segment
+matches one of the named services.
+
+AWS-only today; --providers must be unset or "aws".
+
+Examples:
+  disco coverage resolvers
+  disco coverage resolvers --only-unannotated
+  disco coverage resolvers --missing
+  disco coverage resolvers --services ec2,s3
+  disco coverage resolvers --missing --services ec2 -o json`,
+	Args: cobra.NoArgs,
+	RunE: runCoverageResolvers,
 }
 
 func init() {
-	coverageCmd.Flags().String("provider", "", "Limit to one provider (aws|azure|gcp); default = all registered")
-	coverageCmd.Flags().String("region", "us-east-1", "AWS region for the CloudFormation API call (--provider aws only)")
-	coverageCmd.Flags().String("profile", "", "AWS profile name (--provider aws only)")
-	coverageCmd.Flags().String("subscription", "", "Azure subscription ID (--provider azure only); empty = autodetect")
-	coverageCmd.Flags().StringP("output", "o", "table", "Output format: table, markdown, json")
-	coverageCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
-	coverageCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
-	coverageCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
-	coverageCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")
-	coverageCmd.Flags().Bool("resolvers", false, "Resolver coverage mode (--provider aws): list every registered resolver and its declared EdgeDecl count; unannotated resolvers (count=0) surface as sweep targets")
-	coverageCmd.Flags().Bool("only-unannotated", false, "With --resolvers, omit resolvers that already declare ≥1 EdgeDecl")
-	coverageCmd.Flags().Bool("missing-resolvers", false, "Missing-resolver mode (--provider aws): list every emitted disco type that never appears as EdgeDecl.Source — the candidate gap inventory")
-	coverageCmd.Flags().Bool("regions", false, "Region coverage mode: diff each provider's static RegionNames list against the cloud's live SDK region list (covered|stale|missing). --check-strict exits 1 on any non-covered row")
+	// Parent owns --output (PersistentFlags) so every subcommand inherits the
+	// same set of formats with one declaration.
+	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, json")
+
+	// services subcommand flags.
+	coverageServicesCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws|azure|gcp); empty = all registered")
+	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
+	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
+	coverageServicesCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
+	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
+	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
+	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
+	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")
+
+	// regions subcommand flags.
+	coverageRegionsCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws|azure|gcp); empty = all registered")
+	coverageRegionsCmd.Flags().StringSlice("regions", nil, "Filter diff output to listed regions; empty = no filter")
+	coverageRegionsCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
+	coverageRegionsCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
+	coverageRegionsCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
+	coverageRegionsCmd.Flags().Bool("check-strict", false, "Exit 1 on any non-covered row (drift)")
+
+	// resolvers subcommand flags.
+	coverageResolversCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws only today); empty = aws")
+	coverageResolversCmd.Flags().StringSlice("services", nil, "Filter to resolvers (or orphan types) touching the listed services")
+	coverageResolversCmd.Flags().Bool("only-unannotated", false, "List mode only: omit resolvers that already declare ≥1 EdgeDecl")
+	coverageResolversCmd.Flags().Bool("missing", false, "Switch to orphan-type mode: emit disco types never appearing as EdgeDecl.Source")
+
+	coverageCmd.AddCommand(coverageServicesCmd, coverageRegionsCmd, coverageResolversCmd)
 	rootCmd.AddCommand(coverageCmd)
 }
 
-func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
-	provName, _ := cmd.Flags().GetString("provider")
-	region, _ := cmd.Flags().GetString("region")
+// errCoverageRegistryUnreachable signals --check-strict cannot assess drift
+// because at least one provider's upstream registry fetch failed. Mapped to
+// exit 2 in Execute() (vs exit 1 for genuine drift) so CI consumers can
+// distinguish transient registry failures from real drift signal.
+var errCoverageRegistryUnreachable = errors.New("cannot assess --check-strict: upstream registry unreachable for")
+
+// outputFormat resolves the --output flag (parent persistent flag) on the
+// invoking subcommand.
+func outputFormat(cmd *cobra.Command) string {
+	v, _ := cmd.Flags().GetString("output")
+	return v
+}
+
+func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
+	provNames, _ := cmd.Flags().GetStringSlice("providers")
+	regions, _ := cmd.Flags().GetStringSlice("regions")
 	profile, _ := cmd.Flags().GetString("profile")
 	subscription, _ := cmd.Flags().GetString("subscription")
-	outputFmt, _ := cmd.Flags().GetString("output")
+	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 	filter, _ := cmd.Flags().GetString("filter")
 	services, _ := cmd.Flags().GetStringSlice("services")
 	timeout, _ := cmd.Flags().GetDuration("timeout")
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
-	resolversMode, _ := cmd.Flags().GetBool("resolvers")
-	onlyUnannotated, _ := cmd.Flags().GetBool("only-unannotated")
-	missingMode, _ := cmd.Flags().GetBool("missing-resolvers")
-	regionsMode, _ := cmd.Flags().GetBool("regions")
-
-	switch {
-	case regionsMode && (resolversMode || missingMode):
-		return fmt.Errorf("--regions is mutually exclusive with --resolvers and --missing-resolvers")
-	case resolversMode && missingMode:
-		return fmt.Errorf("--resolvers and --missing-resolvers are mutually exclusive")
-	}
-
-	if regionsMode {
-		opts := coverage.FetchOptions{Region: region, Profile: profile, Subscription: subscription}
-		return runRegionsCoverage(cmd, provName, outputFmt, opts, timeout, checkStrict)
-	}
-	if resolversMode {
-		return runResolverCoverage(cmd.OutOrStdout(), provName, onlyUnannotated, outputFmt)
-	}
-	if missingMode {
-		return runMissingResolvers(cmd.OutOrStdout(), provName, outputFmt)
-	}
 
 	switch filter {
 	case "all", "covered", "uncovered", "synthetic", "upstream-missing":
@@ -134,23 +190,19 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 		return fmt.Errorf("--output must be one of markdown|table|json; got %q", outputFmt)
 	}
 
-	providers := coverage.All()
-	if provName != "" {
-		p, ok := coverage.Get(provName)
-		if !ok {
-			return fmt.Errorf("provider %q has no coverage support; registered: %v", provName, coverage.Names())
-		}
-		providers = []coverage.Provider{p}
+	covProviders, err := resolveCoverageProviders(provNames)
+	if err != nil {
+		return err
 	}
-	if len(providers) == 0 {
+	if len(covProviders) == 0 {
 		return fmt.Errorf("no coverage providers registered")
 	}
 
-	opts := coverage.FetchOptions{Region: region, Profile: profile, Subscription: subscription}
+	opts := coverage.FetchOptions{Regions: regions, Profile: profile, Subscription: subscription}
 
 	var matrices []coverage.Matrix
 	var fetchFailures []string
-	for _, p := range providers {
+	for _, p := range covProviders {
 		fmt.Fprintf(os.Stderr, "Fetching %s upstream registry...\n", p.Name())
 		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		upstream, err := p.Fetch(fetchCtx, opts)
@@ -164,14 +216,8 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 		matrices = append(matrices, m)
 	}
 
-	// Fetch-failure short-circuit under --check-strict. With an empty upstream
-	// registry, every disco emit collapses into "upstream-missing", which would
-	// render thousands of phantom drift rows. Refuse to emit the matrix at all
-	// when we cannot assess; the operator should retry or scope --provider.
-	// Distinct exit code (errCoverageRegistryUnreachable → exit 2) so CI
-	// pipelines branch on transient throttle vs. genuine drift (exit 1).
 	if checkStrict && len(fetchFailures) > 0 {
-		return fmt.Errorf("%w: %s; retry or scope --provider", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+		return fmt.Errorf("%w: %s; retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
 	}
 
 	w := cmd.OutOrStdout()
@@ -202,24 +248,28 @@ func runCoverage(cmd *cobra.Command, _ []string) (rerr error) {
 	return nil
 }
 
-// runRegionsCoverage diffs each provider's static RegionNames list against
-// the cloud's live SDK region list. Output goes to cmd's stdout in the
-// requested format. checkStrict exits non-zero on any non-"covered" row.
-func runRegionsCoverage(cmd *cobra.Command, provName, outputFmt string, opts coverage.FetchOptions, timeout time.Duration, checkStrict bool) error {
+func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
+	provNames, _ := cmd.Flags().GetStringSlice("providers")
+	regionFilter, _ := cmd.Flags().GetStringSlice("regions")
+	profile, _ := cmd.Flags().GetString("profile")
+	subscription, _ := cmd.Flags().GetString("subscription")
+	timeout, _ := cmd.Flags().GetDuration("timeout")
+	checkStrict, _ := cmd.Flags().GetBool("check-strict")
+	outputFmt := outputFormat(cmd)
+	defer func() { maybeStructuredError(outputFmt, rerr) }()
+
 	switch outputFmt {
 	case "table", "markdown", "json":
 	default:
 		return fmt.Errorf("--output must be one of table|markdown|json; got %q", outputFmt)
 	}
 
-	covProviders := coverage.All()
-	if provName != "" {
-		p, ok := coverage.Get(provName)
-		if !ok {
-			return fmt.Errorf("provider %q has no coverage support; registered: %v", provName, coverage.Names())
-		}
-		covProviders = []coverage.Provider{p}
+	covProviders, err := resolveCoverageProviders(provNames)
+	if err != nil {
+		return err
 	}
+
+	opts := coverage.FetchOptions{Profile: profile, Subscription: subscription}
 
 	var rows []coverage.RegionRow
 	var fetchFailures []string
@@ -256,7 +306,21 @@ func runRegionsCoverage(cmd *cobra.Command, provName, outputFmt string, opts cov
 	}
 
 	if checkStrict && len(fetchFailures) > 0 {
-		return fmt.Errorf("%w: %s; retry or scope --provider", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+		return fmt.Errorf("%w: %s; retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+	}
+
+	if len(regionFilter) > 0 {
+		allow := map[string]struct{}{}
+		for _, r := range regionFilter {
+			allow[r] = struct{}{}
+		}
+		filtered := rows[:0]
+		for _, r := range rows {
+			if _, ok := allow[r.Region]; ok {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
 	}
 
 	w := cmd.OutOrStdout()
@@ -287,38 +351,53 @@ func runRegionsCoverage(cmd *cobra.Command, provName, outputFmt string, opts cov
 	return nil
 }
 
-// errCoverageRegistryUnreachable signals --check-strict cannot assess drift
-// because at least one provider's upstream registry fetch failed. Mapped to
-// exit 2 in Execute() (vs exit 1 for genuine drift) so CI consumers can
-// distinguish transient registry failures from real drift signal.
-var errCoverageRegistryUnreachable = errors.New("cannot assess --check-strict: upstream registry unreachable for")
+func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
+	provNames, _ := cmd.Flags().GetStringSlice("providers")
+	services, _ := cmd.Flags().GetStringSlice("services")
+	onlyUnannotated, _ := cmd.Flags().GetBool("only-unannotated")
+	missing, _ := cmd.Flags().GetBool("missing")
+	outputFmt := outputFormat(cmd)
+	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
-// runResolverCoverage prints per-resolver EdgeDecl counts. Surfaces resolvers
-// with zero declared edges so sweepers can find unannotated registrations.
-// AWS-only today; cross-provider extension would lift `ListResolvers` into
-// the coverage.Provider interface and switch on provider here.
-func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool, outputFmt string) error {
-	if provName != "" && provName != "aws" {
-		return fmt.Errorf("--resolvers currently supports --provider aws (got %q)", provName)
+	for _, p := range provNames {
+		if p != "aws" {
+			return fmt.Errorf("coverage resolvers currently supports --providers aws (got %q)", p)
+		}
 	}
+
+	w := cmd.OutOrStdout()
+	if missing {
+		return runResolversMissing(w, services, outputFmt)
+	}
+	return runResolversList(w, services, onlyUnannotated, outputFmt)
+}
+
+// runResolversList prints per-resolver EdgeDecl counts, optionally filtered
+// to resolvers that touch one of the named services.
+func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outputFmt string) error {
+	allowed := lowerSet(services)
 	infos := awsprov.ListResolvers()
 	type row struct {
-		Resolver string `json:"resolver"`
-		Edges    int    `json:"edges"`
+		Resolver string   `json:"resolver"`
+		Edges    int      `json:"edges"`
+		Services []string `json:"services,omitempty"`
 	}
 	rows := make([]row, 0, len(infos))
 	annotated, unannotated := 0, 0
 	for _, r := range infos {
+		if len(allowed) > 0 && !anyServiceMatch(r.Services, allowed) {
+			continue
+		}
 		if r.EdgeCount == 0 {
 			unannotated++
-			rows = append(rows, row{Resolver: r.Name, Edges: 0})
+			rows = append(rows, row{Resolver: r.Name, Edges: 0, Services: r.Services})
 			continue
 		}
 		annotated++
 		if onlyUnannotated {
 			continue
 		}
-		rows = append(rows, row{Resolver: r.Name, Edges: r.EdgeCount})
+		rows = append(rows, row{Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 	}
 	if outputFmt == "json" {
 		enc := json.NewEncoder(w)
@@ -327,23 +406,20 @@ func runResolverCoverage(w stdoutWriter, provName string, onlyUnannotated bool, 
 			return err
 		}
 	} else {
-		_, _ = fmt.Fprintln(w, "RESOLVER\tEDGES")
+		_, _ = fmt.Fprintln(w, "RESOLVER\tEDGES\tSERVICES")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "%s\t%d\n", r.Resolver, r.Edges)
+			_, _ = fmt.Fprintf(w, "%s\t%d\t%s\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
 		}
 	}
 	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", len(infos), annotated, unannotated)
 	return nil
 }
 
-// runMissingResolvers prints every emitted AWS disco type that never appears
-// as the Source of a declared EdgeDecl. These are the candidate resolver
-// gaps — types whose scanned rows produce zero outbound edges. Output is
-// sorted by service prefix then disco type so reruns diff cleanly.
-func runMissingResolvers(w stdoutWriter, provName, outputFmt string) error {
-	if provName != "" && provName != "aws" {
-		return fmt.Errorf("--missing-resolvers currently supports --provider aws (got %q)", provName)
-	}
+// runResolversMissing prints orphan AWS disco types — those never appearing
+// as the Source of any EdgeDecl. Optionally filtered to types whose service
+// segment matches one of the named services.
+func runResolversMissing(w io.Writer, services []string, outputFmt string) error {
+	allowed := lowerSet(services)
 	prov, ok := coverage.Get("aws")
 	if !ok {
 		return fmt.Errorf("aws coverage provider not registered")
@@ -351,7 +427,6 @@ func runMissingResolvers(w stdoutWriter, provName, outputFmt string) error {
 	emitted := make(map[string]struct{})
 	for _, decl := range prov.Emits() {
 		if decl.Leaf {
-			// Intentional no-edge type — excluded from gap inventory.
 			continue
 		}
 		emitted[decl.DiscoType] = struct{}{}
@@ -375,12 +450,9 @@ func runMissingResolvers(w stdoutWriter, provName, outputFmt string) error {
 	}
 	rows := make([]row, 0, len(orphans))
 	for _, t := range orphans {
-		svc := ""
-		if i := strings.Index(t, ":"); i >= 0 {
-			rest := t[i+1:]
-			if j := strings.Index(rest, ":"); j >= 0 {
-				svc = rest[:j]
-			}
+		svc := discoServiceSegment(t)
+		if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
+			continue
 		}
 		rows = append(rows, row{DiscoType: t, Service: svc})
 	}
@@ -394,15 +466,54 @@ func runMissingResolvers(w stdoutWriter, provName, outputFmt string) error {
 	for _, r := range rows {
 		_, _ = fmt.Fprintf(w, "%s\t%s\n", r.DiscoType, r.Service)
 	}
-	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(orphans), len(emitted))
+	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(rows), len(emitted))
 	return nil
 }
 
-// stdoutWriter is the minimal io.Writer surface runResolverCoverage needs;
-// declared as an alias of cobra's `cmd.OutOrStdout()` return type. Keeps
-// the signature decoupled from any specific writer concrete type.
-type stdoutWriter interface {
-	Write(p []byte) (int, error)
+// resolveCoverageProviders maps the --providers slice to the coverage.Provider
+// list. Empty slice = all registered. Unknown name = error listing the
+// registered set.
+func resolveCoverageProviders(names []string) ([]coverage.Provider, error) {
+	if len(names) == 0 {
+		return coverage.All(), nil
+	}
+	out := make([]coverage.Provider, 0, len(names))
+	for _, n := range names {
+		p, ok := coverage.Get(n)
+		if !ok {
+			return nil, fmt.Errorf("provider %q has no coverage support; registered: %v", n, coverage.Names())
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+func discoServiceSegment(t string) string {
+	parts := strings.SplitN(t, ":", 3)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[1]
+}
+
+func lowerSet(in []string) map[string]bool {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(in))
+	for _, s := range in {
+		out[strings.ToLower(s)] = true
+	}
+	return out
+}
+
+func anyServiceMatch(svcs []string, allowed map[string]bool) bool {
+	for _, s := range svcs {
+		if allowed[strings.ToLower(s)] {
+			return true
+		}
+	}
+	return false
 }
 
 // filterRows applies --filter and --services to a row slice.

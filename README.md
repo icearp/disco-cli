@@ -16,7 +16,7 @@ Those services are convenient but incomplete. `disco` calls each cloud's per-ser
 
 Scans take minutes; queries are sub-second against a few-thousand-resource DB. Cloud APIs only get hit at scan time, so `list` / `graph` / `check` work the same on a plane as on the office network.
 
-JSON, JSONL, CSV, SARIF, DOT, and Mermaid output are available for the queryable verbs. `list -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), which makes them safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff. `disco coverage --check-strict` flags new cloud resource types disco doesn't yet scan.
+JSON, JSONL, CSV, SARIF, DOT, and Mermaid output are available for the queryable verbs. `list -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), which makes them safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff. `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
 
 ## Install
 
@@ -74,7 +74,7 @@ disco scan gcp    --services gcp:compute,gcp:storage
 # Query
 disco list  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
-disco coverage --provider aws
+disco coverage services --providers aws
 
 # Policy check; --rules accepts a custom Rego directory
 disco check --packs aws-waf --output sarif > findings.sarif
@@ -155,8 +155,8 @@ disco verify /tmp/audit-2026-q2.tar.gz --signature /tmp/audit.sig --pubkey ed255
 `coverage --check-strict` exits non-zero whenever the scanner-declared type list disagrees with the live cloud-provider registry (CloudFormation `ListTypes` / Azure ARM `Providers/List` / GCP Discovery API). Pair with `--resolvers --only-unannotated` to surface resolvers with zero declared `EdgeDecl` — the candidate sweep targets for closing graph gaps.
 
 ```bash
-disco coverage --check-strict --provider aws
-disco coverage --resolvers --only-unannotated --provider aws -o json | jq '.[].resolver'
+disco coverage services --check-strict --providers aws
+disco coverage resolvers --only-unannotated --providers aws -o json | jq '.[].resolver'
 ```
 
 ### Find dangling resources mid-incident
@@ -184,13 +184,13 @@ Per-subdirectory `CLAUDE.md` files document local conventions; `CODE_STRUCTURE.m
 
 ## Coverage
 
-All three clouds are covered broadly. `disco coverage --provider <aws|azure|gcp>` prints the scanner-declared list from the running binary.
+All three clouds are covered broadly. `disco coverage services --providers <aws|azure|gcp>` prints the scanner-declared list from the running binary.
 
 - **AWS**: EC2, IAM, S3, Lambda, RDS, EKS, ECS, KMS, Route53, ELBv2, CloudFront, CloudFormation, GuardDuty, Detective, Inspector v2, Macie, Backup, CloudTrail, Identity Center, Organizations, EventBridge, Step Functions, Secrets Manager, DynamoDB, SNS, SQS, EFS, WAFv2, ACM, Cognito, Kinesis, Firehose, Glue, Athena, App Runner, AppSync, MQ, AppFlow, Application Auto Scaling, AccessAnalyzer, Managed Prometheus, plus more.
-- **Azure**: compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID, and more. Run `disco coverage --provider azure` for the live list.
+- **Azure**: compute (VMs/VMSS/disks), networking (vNet, NSG, AGW, Front Door, ER, vWAN, VPN, Traffic Manager, Private Endpoints, DNS), storage, Key Vault, SQL, App Service, AKS, Container Apps, ACR, Cosmos, Redis, EventHub, ServiceBus, Logic Apps, Synapse, APIM, Policy, RBAC, Log Analytics, ManagedIdentity, ResourceGroups, Subscriptions/MgmtGroups, Entra ID, and more. Run `disco coverage services --providers azure` for the live list.
 - **GCP**: Compute, Storage, IAM (incl. service accounts + key bindings), Cloud DNS, KMS, Pub/Sub, BigQuery, Bigtable, Firestore, Spanner, Cloud Functions Gen2, Cloud Run (services + jobs), Batch, Composer, Artifact Registry, Cert Manager, Cloud Build, Cloud Armor, Load Balancing, Logging sinks, Monitoring alert policies, Secret Manager, Binary Authorization, VPC Service Controls, project/folder/org hierarchy.
 
-`disco coverage --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `FEATURES.md` lists shipped capabilities; `ROADMAP.md` tracks planned work.
+`disco coverage services --filter uncovered` shows what each cloud's registry exposes that disco does not yet scan. `FEATURES.md` lists shipped capabilities; `ROADMAP.md` tracks planned work.
 
 ## Development
 

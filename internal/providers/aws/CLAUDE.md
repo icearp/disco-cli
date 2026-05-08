@@ -316,15 +316,15 @@ The SDK enum `appstreamtypes.AuthenticationType` exposes USERPOOL, SAML, API. AW
 
 ## Resolver-edge metadata: `EdgeDecl`
 
-`registerResolver(fn, emits ...EdgeDecl)` is variadic — every new resolver MUST list each `(source, target, kind)` triple it upserts. Audit + coverage tooling reads the metadata; resolvers without `emits` are invisible to gap analysis. EdgeDecl shape: `{Source: TypeXxx, Target: TypeYyy, Kind: store.RelXxx}`. Annotate dynamic-dispatch resolvers (e.g. EventBridge target classifier) with one EdgeDecl per yielded type — enumerate the dispatch table. Cross-account stub targets (e.g. `aws:iam:foreign-account`) are valid Target values; the synthetic resource gets upserted before the edge so FK holds. `RecordHierarchyBatch` calls produce `parent → child contains` rows — declare as `EdgeDecl{Parent, Child, store.RelContains}`. Read-only / sidecar-populator resolvers stay `registerResolver(fn)` with no edges and surface in `disco coverage --resolvers --only-unannotated` as intentional no-ops.
+`registerResolver(fn, emits ...EdgeDecl)` is variadic — every new resolver MUST list each `(source, target, kind)` triple it upserts. Audit + coverage tooling reads the metadata; resolvers without `emits` are invisible to gap analysis. EdgeDecl shape: `{Source: TypeXxx, Target: TypeYyy, Kind: store.RelXxx}`. Annotate dynamic-dispatch resolvers (e.g. EventBridge target classifier) with one EdgeDecl per yielded type — enumerate the dispatch table. Cross-account stub targets (e.g. `aws:iam:foreign-account`) are valid Target values; the synthetic resource gets upserted before the edge so FK holds. `RecordHierarchyBatch` calls produce `parent → child contains` rows — declare as `EdgeDecl{Parent, Child, store.RelContains}`. Read-only / sidecar-populator resolvers stay `registerResolver(fn)` with no edges and surface in `disco coverage resolvers --only-unannotated` as intentional no-ops.
 
 Tooling:
-- `disco coverage --resolvers --provider aws [--only-unannotated]` — per-resolver edge counts.
-- `disco coverage --missing-resolvers --provider aws` — emitted disco types with no `EdgeDecl.Source` mention. The candidate gap inventory.
+- `disco coverage resolvers --providers aws [--only-unannotated]` — per-resolver edge counts.
+- `disco coverage resolvers --missing --providers aws` — emitted disco types with no `EdgeDecl.Source` mention. The candidate gap inventory.
 - `go run ./cmd/aws-resolver-audit/ --list-edges` — every declared (src, tgt, kind) triple.
 - `go run ./cmd/aws-resolver-audit/ --db <path>` — diffs declared metadata + DB edges against ARN/ID refs walked from `AttributesJSON`.
 
-Snapshot lives in the orphan-types fenced block of `docs/aws-missing-resolvers.md` — refresh with `disco coverage --missing-resolvers --provider aws` after each resolver-shipping commit and replace the block contents so future PRs diff against it.
+Snapshot lives in the orphan-types fenced block of `docs/aws-missing-resolvers.md` — refresh with `disco coverage resolvers --missing --providers aws` after each resolver-shipping commit and replace the block contents so future PRs diff against it.
 
 ## NativeID parent-extraction = dominant child→parent shape
 

@@ -72,7 +72,7 @@ Viper reads `xdg.ConfigHome/disco/config.yaml`, env prefix `DISCO_`. `--db` flag
 ## Coverage gap docs (`docs/`)
 
 - `docs/aws-missing-services.md` — scanner-layer skip list (CFN types not scanned). Gitignored, per-dev. Read by `scripts/aws-next-service.sh`.
-- `docs/aws-missing-resolvers.md` — resolver-layer gaps: audit workflow + orphan-types TSV (fenced block). Tracked. Refresh via `disco coverage --missing-resolvers --provider aws`.
+- `docs/aws-missing-resolvers.md` — resolver-layer gaps: audit workflow + orphan-types TSV (fenced block). Tracked. Refresh via `disco coverage resolvers --missing --providers aws`.
 
 ## Nested guidance
 

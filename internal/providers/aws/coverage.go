@@ -655,47 +655,54 @@ func (coverageProvider) AlgorithmicKey(discoType string) string {
 // AWS-prefixed type. Third-party (community / Hooks / Modules) types are
 // filtered out — they're not relevant to disco's coverage matrix.
 func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
-	region := opts.Region
-	if region == "" {
-		region = "us-east-1"
+	regions := opts.Regions
+	if len(regions) == 0 {
+		regions = []string{"us-east-1"}
 	}
-	cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
-	if opts.Profile != "" {
-		cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(opts.Profile))
-	}
-	cfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
-	}
-	client := cloudformation.NewFromConfig(cfg)
-
+	seen := map[string]struct{}{}
 	var out []coverage.UpstreamType
-	input := &cloudformation.ListTypesInput{
-		Visibility: cftypes.VisibilityPublic,
-		Type:       cftypes.RegistryTypeResource,
-	}
-	paginator := cloudformation.NewListTypesPaginator(client, input)
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
+	for _, region := range regions {
+		cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
+		if opts.Profile != "" {
+			cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(opts.Profile))
 		}
-		for _, s := range page.TypeSummaries {
-			if s.TypeName == nil {
-				continue
+		cfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("load aws config (%s): %w", region, err)
+		}
+		client := cloudformation.NewFromConfig(cfg)
+
+		input := &cloudformation.ListTypesInput{
+			Visibility: cftypes.VisibilityPublic,
+			Type:       cftypes.RegistryTypeResource,
+		}
+		paginator := cloudformation.NewListTypesPaginator(client, input)
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("cfn ListTypes (%s): %w", region, err)
 			}
-			name := *s.TypeName
-			// Filter to AWS-vendor types only; third-party + Hooks /
-			// Modules carry different prefixes.
-			if !strings.HasPrefix(name, "AWS::") {
-				continue
+			for _, s := range page.TypeSummaries {
+				if s.TypeName == nil {
+					continue
+				}
+				name := *s.TypeName
+				// Filter to AWS-vendor types only; third-party + Hooks /
+				// Modules carry different prefixes.
+				if !strings.HasPrefix(name, "AWS::") {
+					continue
+				}
+				if _, dup := seen[name]; dup {
+					continue
+				}
+				seen[name] = struct{}{}
+				parts := strings.SplitN(name, "::", 3)
+				svc := ""
+				if len(parts) == 3 {
+					svc = parts[1]
+				}
+				out = append(out, coverage.UpstreamType{Key: name, Service: svc})
 			}
-			parts := strings.SplitN(name, "::", 3)
-			svc := ""
-			if len(parts) == 3 {
-				svc = parts[1]
-			}
-			out = append(out, coverage.UpstreamType{Key: name, Service: svc})
 		}
 	}
 	return out, nil
@@ -707,9 +714,9 @@ func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) (
 // opted into (Status != "opt-in-not-required" && != "opted-in") so they
 // don't masquerade as missing in `disco coverage --regions`.
 func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
-	region := opts.Region
-	if region == "" {
-		region = "us-east-1"
+	region := "us-east-1"
+	if len(opts.Regions) > 0 {
+		region = opts.Regions[0]
 	}
 	cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
 	if opts.Profile != "" {
