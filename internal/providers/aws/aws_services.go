@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -173,10 +174,23 @@ func serviceSegment(discoType string) string {
 
 // resolverName returns the unqualified function name from runtime reflection,
 // e.g. "resolveBackupVaults" for codeberg.org/.../aws.resolveBackupVaults.
+//
+// Anonymous closures registered via `registerResolver(func(...) {...})`
+// reflect as `pkg.init.funcN` — the trimmed suffix would be the meaningless
+// `funcN` and would surface in `disco coverage resolvers` and
+// `ScanError.Service`. Panic at init time so the foot-gun is loud.
 func resolverName(fn any) string {
 	full := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	short := full
 	if i := strings.LastIndex(full, "."); i >= 0 {
-		return full[i+1:]
+		short = full[i+1:]
 	}
-	return full
+	if anonResolverNameRE.MatchString(short) {
+		panic("disco: registerResolver requires a named function (got anonymous closure " + full + "); extract to a top-level fn")
+	}
+	return short
 }
+
+// anonResolverNameRE matches the `funcN` suffix that Go's runtime gives an
+// anonymous closure (`pkg.init.func1`, `pkg.someFn.func2`, etc.).
+var anonResolverNameRE = regexp.MustCompile(`^func\d+$`)

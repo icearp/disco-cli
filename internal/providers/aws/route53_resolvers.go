@@ -9,23 +9,27 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
+// resolveRoute53All runs every Route53 sub-resolver in sequence, stopping
+// at the first error.
+func resolveRoute53All(acct *account, st *store.Store) error {
+	if err := resolveRoute53Relationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveRoute53DNSSECRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveRoute53KSKRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveRoute53HealthCheckRelationships(acct, st); err != nil {
+		return err
+	}
+	return resolveRoute53AliasRelationships(acct, st)
+}
+
 func init() {
 	registerResolver(
-		func(acct *account, st *store.Store) error {
-			if err := resolveRoute53Relationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveRoute53DNSSECRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveRoute53KSKRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveRoute53HealthCheckRelationships(acct, st); err != nil {
-				return err
-			}
-			return resolveRoute53AliasRelationships(acct, st)
-		},
+		resolveRoute53All,
 		EdgeDecl{TypeRoute53RecordSet, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53DNSSEC, TypeRoute53HostedZone, store.RelAttachedTo},
 		EdgeDecl{TypeRoute53KeySigningKey, TypeRoute53DNSSEC, store.RelAttachedTo},

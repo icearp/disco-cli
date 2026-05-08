@@ -9,35 +9,41 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
+// resolveAPIGatewayAll runs every API Gateway sub-resolver in sequence,
+// stopping at the first error. Named so it surfaces in `disco coverage
+// resolvers` and `ScanError.Service` rather than the reflected `func1`
+// closure name.
+func resolveAPIGatewayAll(acct *account, st *store.Store) error {
+	if err := resolveAPIGatewayStageRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
+		return err
+	}
+	if err := resolveAPIGatewayV2VpcLinkRelationships(acct, st); err != nil {
+		return err
+	}
+	return resolveAPIGatewayDomainCertRelationships(acct, st)
+}
+
 func init() {
 	registerResolver(
-		func(acct *account, st *store.Store) error {
-			if err := resolveAPIGatewayStageRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayBasePathMappingRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayUsagePlanStages(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayMethodRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayAuthorizerCognito(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayV2AuthorizerCognito(acct, st); err != nil {
-				return err
-			}
-			if err := resolveAPIGatewayV2VpcLinkRelationships(acct, st); err != nil {
-				return err
-			}
-			return resolveAPIGatewayDomainCertRelationships(acct, st)
-		},
+		resolveAPIGatewayAll,
 		// resolveAPIGatewayStageRelationships
 		EdgeDecl{TypeAPIGatewayRestAPI, TypeAPIGatewayStage, store.RelContains},
 		EdgeDecl{TypeAPIGatewayStage, TypeAPIGatewayDeployment, store.RelAttachedTo},

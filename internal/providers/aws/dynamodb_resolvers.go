@@ -8,17 +8,21 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
+// resolveDynamoDBAll runs every DynamoDB sub-resolver in sequence,
+// stopping at the first error.
+func resolveDynamoDBAll(acct *account, st *store.Store) error {
+	if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
+		return err
+	}
+	return resolveDynamoDBGlobalTableRelationships(acct, st)
+}
+
 func init() {
 	registerResolver(
-		func(acct *account, st *store.Store) error {
-			if err := resolveDynamoDBTableRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
-				return err
-			}
-			return resolveDynamoDBGlobalTableRelationships(acct, st)
-		},
+		resolveDynamoDBAll,
 		EdgeDecl{TypeDynamoDBTable, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDynamoDBTable, TypeDynamoDBStream, store.RelContains},
 		EdgeDecl{TypeDynamoDBGlobalTable, TypeDynamoDBTable, store.RelContains},

@@ -10,38 +10,42 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 )
 
+// resolveLambdaAll runs every Lambda sub-resolver in sequence, stopping at
+// the first error.
+func resolveLambdaAll(acct *account, st *store.Store) error {
+	if err := resolveLambdaRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaAliasRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaVersionRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaESMRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaEventInvokeConfigRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaFunctionURLRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaCodeSigningConfigRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaLayerRelationships(acct, st); err != nil {
+		return err
+	}
+	if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
+		return err
+	}
+	return resolveLambdaLayerVersionPermissionRelationships(acct, st)
+}
+
 func init() {
 	registerResolver(
-		func(acct *account, st *store.Store) error {
-			if err := resolveLambdaRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaAliasRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaVersionRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaESMRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaEventInvokeConfigRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaFunctionURLRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaCodeSigningConfigRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaLayerRelationships(acct, st); err != nil {
-				return err
-			}
-			if err := resolveLambdaPermissionRelationships(acct, st); err != nil {
-				return err
-			}
-			return resolveLambdaLayerVersionPermissionRelationships(acct, st)
-		},
+		resolveLambdaAll,
 		EdgeDecl{TypeLambdaFunction, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeLambdaFunction, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLambdaFunction, TypeEC2Subnet, store.RelAttachedTo},
