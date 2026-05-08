@@ -5,10 +5,8 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -251,100 +249,6 @@ func mustJSON(v any) string { return util.MustJSON(v) }
 // and any other rows whose location is "everywhere". Mirrors AWS
 // regionGlobal; see internal/store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = func() *string { s := "global"; return &s }()
-
-// isAccessDenied reports whether err is an Azure 403/401 response error.
-func isAccessDenied(err error) bool {
-	var respErr *azcore.ResponseError
-	if errors.As(err, &respErr) {
-		return respErr.StatusCode == http.StatusForbidden ||
-			respErr.StatusCode == http.StatusUnauthorized
-	}
-	return false
-}
-
-// isFeatureNotAvailable reports whether err is a 400 FeatureDisabledOnSelectedEdition
-// or similar "not supported on this edition/tier" error. These are expected when
-// scanning databases on editions that don't support certain features (e.g.
-// workload groups require Business Critical or Premium; ledger requires certain tiers).
-func isFeatureNotAvailable(err error) bool {
-	var respErr *azcore.ResponseError
-	if errors.As(err, &respErr) {
-		return respErr.StatusCode == http.StatusBadRequest &&
-			(respErr.ErrorCode == "FeatureDisabledOnSelectedEdition" ||
-				respErr.ErrorCode == "FeatureNotSupported" ||
-				respErr.ErrorCode == "UnsupportedEdition")
-	}
-	return false
-}
-
-// skipIfAccessDenied reports a non-fatal skip as a ScanWarning.
-func skipIfAccessDenied(st *store.Store, service, subID string, err error) error {
-	st.ReportWarning(store.ScanWarning{
-		Provider: "azure",
-		Service:  service,
-		Scope:    subID,
-		Message:  formatAzureError(err),
-	})
-	return nil
-}
-
-// formatAzureError narrows an Azure SDK error to a single concise line:
-// `"{statusCode} {errorCode}: {message}"`. Mirrors the GCP `skipIfDenied`
-// shape so end-of-scan warnings/errors render uniformly across providers.
-//
-// `azcore.ResponseError.Error()` dumps the full HTTP request+response
-// (preamble + body) which is multi-KB per warning. We use the SDK's already-
-// parsed `ErrorCode` + `StatusCode` and, when present, the ARM `error.message`
-// field from the response body. Falls back to `err.Error()` when:
-//   - err is not an `*azcore.ResponseError` (e.g. store / JSON / I/O errors)
-//   - response body is missing or unparseable
-//
-// Body read is best-effort: any failure returns the status+code only.
-func formatAzureError(err error) string {
-	if err == nil {
-		return ""
-	}
-	var respErr *azcore.ResponseError
-	if !errors.As(err, &respErr) {
-		return err.Error()
-	}
-	code := respErr.ErrorCode
-	if code == "" && respErr.StatusCode > 0 {
-		code = http.StatusText(respErr.StatusCode)
-	}
-	msg := readARMErrorMessage(respErr)
-	switch {
-	case respErr.StatusCode > 0 && msg != "":
-		return fmt.Sprintf("%d %s: %s", respErr.StatusCode, code, msg)
-	case respErr.StatusCode > 0:
-		return fmt.Sprintf("%d %s", respErr.StatusCode, code)
-	case msg != "":
-		return fmt.Sprintf("%s: %s", code, msg)
-	default:
-		return err.Error()
-	}
-}
-
-// readARMErrorMessage extracts `{"error":{"message":"..."}}` from the SDK's
-// buffered response body. Returns "" on any failure path.
-func readARMErrorMessage(respErr *azcore.ResponseError) string {
-	if respErr == nil || respErr.RawResponse == nil || respErr.RawResponse.Body == nil {
-		return ""
-	}
-	body, err := io.ReadAll(respErr.RawResponse.Body)
-	if err != nil || len(body) == 0 {
-		return ""
-	}
-	var arm struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if json.Unmarshal(body, &arm) != nil {
-		return ""
-	}
-	return arm.Error.Message
-}
 
 func sv(p *string) string     { return util.Sv(p) }
 func tp(t *time.Time) *string { return util.TimeRFC3339(t) }
