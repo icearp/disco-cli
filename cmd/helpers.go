@@ -83,12 +83,34 @@ func openDB() (*store.Store, error) {
 	return st, nil
 }
 
-// openWriteDB opens the local DB writable. Reserved for commands whose
-// RunE genuinely needs to mutate (scan, config init, paid check --persist).
-// The global --db-readonly flag refuses writers up-front; that check lives
-// at the call site (so the error string can name the gate the operator
-// should remove).
+// openWriteDBHook lets the paid build redirect openWriteDB to a remote
+// backend (Postgres) when the right env is present. OSS leaves it nil and
+// always opens local SQLite. Paid build assigns it in cmd/helpers_paid.go's
+// init(); the closure inspects DISCO_PG_DSN + DISCO_TENANT_ID and returns
+// store.OpenPostgres when both are set, nil otherwise (falling through to
+// the local SQLite path for dev).
+var openWriteDBHook func() (*store.Store, error)
+
+// openWriteDB opens a writable Store. Reserved for commands whose RunE
+// genuinely needs to mutate (scan, config init, paid check --persist).
+// The global --db-readonly flag refuses writers up-front; that check
+// lives at the call site (so the error string can name the gate the
+// operator should remove).
+//
+// In paid builds with DISCO_PG_DSN + DISCO_TENANT_ID env set, the hook
+// returns a Postgres-backed Store; otherwise it returns nil and we fall
+// through to the local SQLite path. OSS builds always take the SQLite
+// path because the hook is never assigned.
 func openWriteDB() (*store.Store, error) {
+	if openWriteDBHook != nil {
+		s, err := openWriteDBHook()
+		if err != nil {
+			return nil, err
+		}
+		if s != nil {
+			return s, nil
+		}
+	}
 	return store.Open(defaultDBPath())
 }
 
