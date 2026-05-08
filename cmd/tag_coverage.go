@@ -212,6 +212,14 @@ func renderTagReport(rep []tagCoverage, format string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(rep)
+	case "jsonl":
+		enc := json.NewEncoder(os.Stdout)
+		for _, r := range rep {
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()
@@ -229,6 +237,17 @@ func renderTagReport(rep []tagCoverage, format string) error {
 			}
 		}
 		return nil
+	case "markdown", "md":
+		rows := make([][]string, 0, len(rep))
+		for _, r := range rep {
+			rows = append(rows, []string{
+				r.Tag,
+				strconv.Itoa(r.Tagged),
+				strconv.Itoa(r.Total),
+				fmt.Sprintf("%.1f%%", r.Coverage*100),
+			})
+		}
+		return renderMarkdownTable(os.Stdout, []string{"Tag", "Tagged", "Total", "Coverage"}, rows)
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "TAG\tTAGGED\tTOTAL\tCOVERAGE")
@@ -237,7 +256,7 @@ func renderTagReport(rep []tagCoverage, format string) error {
 		}
 		return w.Flush()
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", format)
 	}
 }
 
@@ -248,7 +267,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	tagCoverageCmd.Flags().Var(&tagCovDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
-	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, json, csv")
+	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
 	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
