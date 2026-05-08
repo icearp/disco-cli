@@ -6,7 +6,6 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -290,8 +289,3 @@ func sp(s string) *string { return &s }
 // `--regions global` and the default `--regions <r>` filter folds these
 // rows in. See internal/store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = sp("global")
-
-// ec2ARN builds a standard EC2 ARN: arn:aws:ec2:{region}:{account}:{type}/{id}
-func ec2ARN(region, accountID, resourceType, id string) string {
-	return fmt.Sprintf("arn:aws:ec2:%s:%s:%s/%s", region, accountID, resourceType, id)
-}
