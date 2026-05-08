@@ -213,6 +213,12 @@ Examples:
 				}
 			}
 			return nil
+		case "markdown", "md":
+			rows := make([][]string, 0, len(resources))
+			for _, r := range resources {
+				rows = append(rows, resourceRow(&r))
+			}
+			return renderMarkdownTable(os.Stdout, listColumns, rows)
 		case "table", "":
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tACCOUNT NAME\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
@@ -223,7 +229,7 @@ Examples:
 			}
 			return w.Flush()
 		default:
-			return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, csv)", listOutputFmt)
+			return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", listOutputFmt)
 		}
 	},
 }
@@ -244,7 +250,7 @@ func init() {
 	listCmd.Flags().StringVar(&listStatus, "status", "", "Filter by status")
 	listCmd.Flags().StringVar(&listTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")
 	listCmd.Flags().StringVar(&listTagValue, "tag-value", "", "Filter by tag value (matches any key when --tag-key is unset)")
-	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv")
+	listCmd.Flags().StringVarP(&listOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	listCmd.Flags().Uint64Var(&listLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
 	listCmd.Flags().BoolVar(&listIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
 	listCmd.Flags().BoolVar(&listSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\" (IAM, Route53, CloudFront, tenant-scope Azure, org-scope GCP). By default --regions filters fold globals in.")

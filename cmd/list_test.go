@@ -174,6 +174,32 @@ func TestListCmd_JSON_SnakeCase(t *testing.T) {
 	}
 }
 
+// TestListCmd_Markdown verifies that --output markdown emits a GitHub-flavoured
+// markdown table with the canonical column order.
+func TestListCmd_Markdown(t *testing.T) {
+	seedTestDB(t)
+	resetListFlags()
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"list", "--output", "markdown"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("list --output markdown: %v", err)
+	}
+
+	if !strings.Contains(out, "| provider | account_id |") {
+		t.Errorf("markdown header row missing; got\n%s", out)
+	}
+	if !strings.Contains(out, "| --- |") {
+		t.Errorf("markdown separator row missing; got\n%s", out)
+	}
+	if !strings.Contains(out, "| aws | ") {
+		t.Errorf("expected at least one aws data row; got\n%s", out)
+	}
+}
+
 // TestListCmd_CSV verifies that --output csv emits the header row plus one
 // row per resource with the canonical column order.
 func TestListCmd_CSV(t *testing.T) {
