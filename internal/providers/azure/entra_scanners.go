@@ -5,20 +5,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	abstractions "github.com/microsoft/kiota-abstractions-go"
-	msgraphsdk "github.com/microsoftgraph/msgraph-sdk-go"
-	msgraphcore "github.com/microsoftgraph/msgraph-sdk-go-core"
-	graphapps "github.com/microsoftgraph/msgraph-sdk-go/applications"
-	graphgroups "github.com/microsoftgraph/msgraph-sdk-go/groups"
-	graphmodels "github.com/microsoftgraph/msgraph-sdk-go/models"
-	graphsps "github.com/microsoftgraph/msgraph-sdk-go/serviceprincipals"
-	graphusers "github.com/microsoftgraph/msgraph-sdk-go/users"
 )
 
 func init() {
@@ -37,12 +33,109 @@ func init() {
 	})
 }
 
-const graphScope = "https://graph.microsoft.com/.default"
+const (
+	graphScope      = "https://graph.microsoft.com/.default"
+	graphDefaultURL = "https://graph.microsoft.com/v1.0"
+	graphPageSize   = 500
+)
+
+// tokenIssuer narrows azcore.TokenCredential to the one method scanEntra
+// uses. Lets tests stub token issuance without standing up a full
+// azidentity credential graph.
+type tokenIssuer interface {
+	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
+}
+
+// graphClient is a tiny REST client for the four Microsoft Graph list
+// endpoints disco scans. Replaces msgraph-sdk-go (kiota-generated, ~9 MB
+// of named symbols + 88 transitive subpkgs) — the curated *Attrs structs
+// already model exactly the JSON shape Graph returns, so the SDK's
+// discriminator-driven model graph was pure overhead.
+type graphClient struct {
+	cred    tokenIssuer
+	http    *http.Client
+	baseURL string
+}
+
+func newGraphClient(cred tokenIssuer) *graphClient {
+	return &graphClient{cred: cred, http: http.DefaultClient, baseURL: graphDefaultURL}
+}
+
+// graphErr surfaces Graph error bodies so reportEntraErr's substring
+// classifier (Authorization_RequestDenied, Insufficient privileges, 401,
+// 403) still matches against raw HTTP responses.
+type graphErr struct {
+	status int
+	body   string
+}
+
+func (e *graphErr) Error() string {
+	return fmt.Sprintf("graph: %d: %s", e.status, e.body)
+}
+
+// graphPage is the Graph collection envelope. Value is the per-call slice
+// of entities; @odata.nextLink carries forward when results are paginated.
+type graphPage[T any] struct {
+	Value    []T    `json:"value"`
+	NextLink string `json:"@odata.nextLink"`
+}
+
+func (g *graphClient) get(ctx context.Context, fullURL string, out any) error {
+	tok, err := g.cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+tok.Token)
+	req.Header.Set("Accept", "application/json")
+	resp, err := g.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return &graphErr{status: resp.StatusCode, body: string(body)}
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// iterateGraph paginates through @odata.nextLink, calling fn for every
+// entity. Returning false from fn stops the iteration. nextLink is
+// absolute when present so we use it verbatim — no rewriting needed.
+func iterateGraph[T any](ctx context.Context, g *graphClient, startURL string, fn func(T) bool) error {
+	cur := startURL
+	for cur != "" {
+		var page graphPage[T]
+		if err := g.get(ctx, cur, &page); err != nil {
+			return err
+		}
+		for _, item := range page.Value {
+			if !fn(item) {
+				return nil
+			}
+		}
+		cur = page.NextLink
+	}
+	return nil
+}
+
+// graphURL builds a Graph list-endpoint URL with $select + $top set so the
+// response carries only the curated attribute fields and pages predictably.
+func (g *graphClient) listURL(path string, fields []string) string {
+	q := url.Values{}
+	q.Set("$select", strings.Join(fields, ","))
+	q.Set("$top", fmt.Sprintf("%d", graphPageSize))
+	return g.baseURL + "/" + path + "?" + q.Encode()
+}
 
 // scanEntra discovers Entra ID (Azure AD) directory objects via Microsoft
 // Graph: users, groups, service principals, and application registrations.
-// Uses the official msgraph-sdk-go (kiota-generated) — typed models with
-// built-in retry, batching, and odata pagination via PageIterator.
+// Uses raw REST against graph.microsoft.com — the curated *Attrs structs
+// below model exactly the JSON keys we ask for via $select.
 //
 // Tenant scope: NativeID is the object's `id` GUID. AccountID is the tenant
 // ID resolved from the JWT `tid` claim of a Graph token. Closure is empty —
@@ -62,21 +155,18 @@ func scanEntra(ctx context.Context, subs []subscription, cred *azidentity.Defaul
 		})
 		return 0, 0, nil
 	}
-	client, gerr := msgraphsdk.NewGraphServiceClientWithCredentials(cred, []string{graphScope})
-	if gerr != nil {
-		return 0, 0, fmt.Errorf("graph client: %w", gerr)
-	}
+	g := newGraphClient(cred)
 
-	t, n := scanEntraUsers(ctx, client, tenantID, st, scanID)
+	t, n := scanEntraUsers(ctx, g, tenantID, st, scanID)
 	total += t
 	inserted += n
-	t, n = scanEntraGroups(ctx, client, tenantID, st, scanID)
+	t, n = scanEntraGroups(ctx, g, tenantID, st, scanID)
 	total += t
 	inserted += n
-	t, n = scanEntraServicePrincipals(ctx, client, tenantID, st, scanID)
+	t, n = scanEntraServicePrincipals(ctx, g, tenantID, st, scanID)
 	total += t
 	inserted += n
-	t, n = scanEntraApplications(ctx, client, tenantID, st, scanID)
+	t, n = scanEntraApplications(ctx, g, tenantID, st, scanID)
 	total += t
 	inserted += n
 	return total, inserted, nil
@@ -84,7 +174,8 @@ func scanEntra(ctx context.Context, subs []subscription, cred *azidentity.Defaul
 
 // userAttrs is the curated subset persisted under attributes for a Graph
 // User. Stable shape so resolvers can index by upn / object id without
-// depending on the full Graph payload. Extend as new resolvers need fields.
+// depending on the full Graph payload. Field tags match Graph JSON keys
+// 1:1 — same struct doubles as the unmarshal target for the REST response.
 type userAttrs struct {
 	ID                string `json:"id"`
 	DisplayName       string `json:"displayName"`
@@ -94,23 +185,8 @@ type userAttrs struct {
 	UserType          string `json:"userType,omitempty"`
 }
 
-func scanEntraUsers(ctx context.Context, client *msgraphsdk.GraphServiceClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
-	cfg := &graphusers.UsersRequestBuilderGetRequestConfiguration{
-		QueryParameters: &graphusers.UsersRequestBuilderGetQueryParameters{
-			Select: []string{"id", "displayName", "userPrincipalName", "mail", "accountEnabled", "userType"},
-		},
-	}
-	resp, err := client.Users().Get(ctx, cfg)
-	if err != nil {
-		reportEntraErr(st, "users", err)
-		return 0, 0
-	}
-	pi, err := msgraphcore.NewPageIterator[graphmodels.Userable](resp, client.GetAdapter(), graphmodels.CreateUserCollectionResponseFromDiscriminatorValue)
-	if err != nil {
-		reportEntraErr(st, "users", err)
-		return 0, 0
-	}
-	pi.SetHeaders(abstractions.NewRequestHeaders())
+func scanEntraUsers(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+	startURL := g.listURL("users", []string{"id", "displayName", "userPrincipalName", "mail", "accountEnabled", "userType"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
@@ -126,32 +202,24 @@ func scanEntraUsers(ctx context.Context, client *msgraphsdk.GraphServiceClient, 
 		inserted += n
 		batch = batch[:0]
 	}
-	if err := pi.Iterate(ctx, func(u graphmodels.Userable) bool {
-		id := strDeref(u.GetId())
-		if id == "" {
+	err := iterateGraph(ctx, g, startURL, func(u userAttrs) bool {
+		if u.ID == "" {
 			return true
 		}
-		name := strDeref(u.GetDisplayName())
-		attrs := userAttrs{
-			ID:                id,
-			DisplayName:       name,
-			UserPrincipalName: strDeref(u.GetUserPrincipalName()),
-			Mail:              strDeref(u.GetMail()),
-			AccountEnabled:    u.GetAccountEnabled(),
-			UserType:          strDeref(u.GetUserType()),
-		}
+		name := u.DisplayName
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
 			Region: regionGlobal,
-			Type:   TypeEntraUser, NativeID: id,
-			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
+			Type:   TypeEntraUser, NativeID: u.ID,
+			Name: &name, AttributesJSON: jsonOrEmpty(u),
 			DiscoveredBy: scanID,
 		})
-		if len(batch) >= 500 {
+		if len(batch) >= graphPageSize {
 			flush()
 		}
 		return true
-	}); err != nil {
+	})
+	if err != nil {
 		reportEntraErr(st, "users", err)
 	}
 	flush()
@@ -167,23 +235,8 @@ type groupAttrs struct {
 	GroupTypes      []string `json:"groupTypes,omitempty"`
 }
 
-func scanEntraGroups(ctx context.Context, client *msgraphsdk.GraphServiceClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
-	cfg := &graphgroups.GroupsRequestBuilderGetRequestConfiguration{
-		QueryParameters: &graphgroups.GroupsRequestBuilderGetQueryParameters{
-			Select: []string{"id", "displayName", "description", "mailEnabled", "securityEnabled", "groupTypes"},
-		},
-	}
-	resp, err := client.Groups().Get(ctx, cfg)
-	if err != nil {
-		reportEntraErr(st, "groups", err)
-		return 0, 0
-	}
-	pi, err := msgraphcore.NewPageIterator[graphmodels.Groupable](resp, client.GetAdapter(), graphmodels.CreateGroupCollectionResponseFromDiscriminatorValue)
-	if err != nil {
-		reportEntraErr(st, "groups", err)
-		return 0, 0
-	}
-	pi.SetHeaders(abstractions.NewRequestHeaders())
+func scanEntraGroups(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+	startURL := g.listURL("groups", []string{"id", "displayName", "description", "mailEnabled", "securityEnabled", "groupTypes"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
@@ -199,32 +252,24 @@ func scanEntraGroups(ctx context.Context, client *msgraphsdk.GraphServiceClient,
 		inserted += n
 		batch = batch[:0]
 	}
-	if err := pi.Iterate(ctx, func(g graphmodels.Groupable) bool {
-		id := strDeref(g.GetId())
-		if id == "" {
+	err := iterateGraph(ctx, g, startURL, func(gr groupAttrs) bool {
+		if gr.ID == "" {
 			return true
 		}
-		name := strDeref(g.GetDisplayName())
-		attrs := groupAttrs{
-			ID:              id,
-			DisplayName:     name,
-			Description:     strDeref(g.GetDescription()),
-			MailEnabled:     g.GetMailEnabled(),
-			SecurityEnabled: g.GetSecurityEnabled(),
-			GroupTypes:      g.GetGroupTypes(),
-		}
+		name := gr.DisplayName
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
 			Region: regionGlobal,
-			Type:   TypeEntraGroup, NativeID: id,
-			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
+			Type:   TypeEntraGroup, NativeID: gr.ID,
+			Name: &name, AttributesJSON: jsonOrEmpty(gr),
 			DiscoveredBy: scanID,
 		})
-		if len(batch) >= 500 {
+		if len(batch) >= graphPageSize {
 			flush()
 		}
 		return true
-	}); err != nil {
+	})
+	if err != nil {
 		reportEntraErr(st, "groups", err)
 	}
 	flush()
@@ -256,23 +301,8 @@ func isMicrosoftFirstPartySP(appOwnerTenantID string) bool {
 	return microsoftFirstPartyTenants[strings.ToLower(appOwnerTenantID)]
 }
 
-func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphServiceClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
-	cfg := &graphsps.ServicePrincipalsRequestBuilderGetRequestConfiguration{
-		QueryParameters: &graphsps.ServicePrincipalsRequestBuilderGetQueryParameters{
-			Select: []string{"id", "appId", "displayName", "servicePrincipalType", "accountEnabled", "appOwnerOrganizationId"},
-		},
-	}
-	resp, err := client.ServicePrincipals().Get(ctx, cfg)
-	if err != nil {
-		reportEntraErr(st, "servicePrincipals", err)
-		return 0, 0
-	}
-	pi, err := msgraphcore.NewPageIterator[graphmodels.ServicePrincipalable](resp, client.GetAdapter(), graphmodels.CreateServicePrincipalCollectionResponseFromDiscriminatorValue)
-	if err != nil {
-		reportEntraErr(st, "servicePrincipals", err)
-		return 0, 0
-	}
-	pi.SetHeaders(abstractions.NewRequestHeaders())
+func scanEntraServicePrincipals(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+	startURL := g.listURL("servicePrincipals", []string{"id", "appId", "displayName", "servicePrincipalType", "accountEnabled", "appOwnerOrganizationId"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
@@ -288,37 +318,25 @@ func scanEntraServicePrincipals(ctx context.Context, client *msgraphsdk.GraphSer
 		inserted += n
 		batch = batch[:0]
 	}
-	if err := pi.Iterate(ctx, func(sp graphmodels.ServicePrincipalable) bool {
-		id := strDeref(sp.GetId())
-		if id == "" {
+	err := iterateGraph(ctx, g, startURL, func(sp spAttrs) bool {
+		if sp.ID == "" {
 			return true
 		}
-		name := strDeref(sp.GetDisplayName())
-		var ownerTenant string
-		if u := sp.GetAppOwnerOrganizationId(); u != nil {
-			ownerTenant = u.String()
-		}
-		attrs := spAttrs{
-			ID:                     id,
-			AppID:                  strDeref(sp.GetAppId()),
-			DisplayName:            name,
-			ServicePrincipalType:   strDeref(sp.GetServicePrincipalType()),
-			AccountEnabled:         sp.GetAccountEnabled(),
-			AppOwnerOrganizationID: ownerTenant,
-		}
+		name := sp.DisplayName
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
 			Region: regionGlobal,
-			Type:   TypeEntraServicePrincipal, NativeID: id,
-			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
+			Type:   TypeEntraServicePrincipal, NativeID: sp.ID,
+			Name: &name, AttributesJSON: jsonOrEmpty(sp),
 			DiscoveredBy:      scanID,
-			ManagedByProvider: isMicrosoftFirstPartySP(ownerTenant),
+			ManagedByProvider: isMicrosoftFirstPartySP(sp.AppOwnerOrganizationID),
 		})
-		if len(batch) >= 500 {
+		if len(batch) >= graphPageSize {
 			flush()
 		}
 		return true
-	}); err != nil {
+	})
+	if err != nil {
 		reportEntraErr(st, "servicePrincipals", err)
 	}
 	flush()
@@ -332,23 +350,8 @@ type appAttrs struct {
 	SignInAudience string `json:"signInAudience,omitempty"`
 }
 
-func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
-	cfg := &graphapps.ApplicationsRequestBuilderGetRequestConfiguration{
-		QueryParameters: &graphapps.ApplicationsRequestBuilderGetQueryParameters{
-			Select: []string{"id", "appId", "displayName", "signInAudience"},
-		},
-	}
-	resp, err := client.Applications().Get(ctx, cfg)
-	if err != nil {
-		reportEntraErr(st, "applications", err)
-		return 0, 0
-	}
-	pi, err := msgraphcore.NewPageIterator[graphmodels.Applicationable](resp, client.GetAdapter(), graphmodels.CreateApplicationCollectionResponseFromDiscriminatorValue)
-	if err != nil {
-		reportEntraErr(st, "applications", err)
-		return 0, 0
-	}
-	pi.SetHeaders(abstractions.NewRequestHeaders())
+func scanEntraApplications(ctx context.Context, g *graphClient, tenantID string, st *store.Store, scanID string) (total, inserted int) {
+	startURL := g.listURL("applications", []string{"id", "appId", "displayName", "signInAudience"})
 	var batch []*store.Resource
 	flush := func() {
 		if len(batch) == 0 {
@@ -364,30 +367,24 @@ func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceC
 		inserted += n
 		batch = batch[:0]
 	}
-	if err := pi.Iterate(ctx, func(a graphmodels.Applicationable) bool {
-		id := strDeref(a.GetId())
-		if id == "" {
+	err := iterateGraph(ctx, g, startURL, func(a appAttrs) bool {
+		if a.ID == "" {
 			return true
 		}
-		name := strDeref(a.GetDisplayName())
-		attrs := appAttrs{
-			ID:             id,
-			AppID:          strDeref(a.GetAppId()),
-			DisplayName:    name,
-			SignInAudience: strDeref(a.GetSignInAudience()),
-		}
+		name := a.DisplayName
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: tenantID,
 			Region: regionGlobal,
-			Type:   TypeEntraApplication, NativeID: id,
-			Name: &name, AttributesJSON: jsonOrEmpty(attrs),
+			Type:   TypeEntraApplication, NativeID: a.ID,
+			Name: &name, AttributesJSON: jsonOrEmpty(a),
 			DiscoveredBy: scanID,
 		})
-		if len(batch) >= 500 {
+		if len(batch) >= graphPageSize {
 			flush()
 		}
 		return true
-	}); err != nil {
+	})
+	if err != nil {
 		reportEntraErr(st, "applications", err)
 	}
 	flush()
@@ -395,25 +392,24 @@ func scanEntraApplications(ctx context.Context, client *msgraphsdk.GraphServiceC
 }
 
 // reportEntraErr classifies a Graph error: missing-permission paths surface
-// as ScanWarning + abort the entity, hard errors surface as ScanError.
-// Kiota wraps API errors as graphmodels/odataerrors.* — the message is the
-// most useful signal for the simple classifier below.
+// as ScanWarning + abort the entity, hard errors surface as ScanError. The
+// substring classifier matches against the raw HTTP body that *graphErr.
+// Error() exposes (Authorization_RequestDenied / Insufficient privileges
+// JSON live there); for transport / parse errors it falls through to the
+// hard-error branch.
 func reportEntraErr(st *store.Store, scope string, err error) {
-	// Classify against the raw error string (SDK error text + JSON body) so
-	// substring matches still hit. Persist the narrowed `formatAzureError`
-	// shape so end-of-scan rendering matches AWS/GCP brevity.
 	raw := err.Error()
-	msg := formatAzureError(err)
 	if strings.Contains(raw, "Authorization_RequestDenied") ||
 		strings.Contains(raw, "Insufficient privileges") ||
-		strings.Contains(raw, "401") || strings.Contains(raw, "403") {
+		strings.Contains(raw, " 401") || strings.Contains(raw, " 403") ||
+		strings.Contains(raw, "graph: 401") || strings.Contains(raw, "graph: 403") {
 		st.ReportWarning(store.ScanWarning{
-			Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: msg,
+			Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: raw,
 		})
 		return
 	}
 	st.ReportError(store.ScanError{
-		Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: msg,
+		Provider: "azure", Service: "azure:microsoft.entra", Scope: scope, Message: raw,
 	})
 }
 
