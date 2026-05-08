@@ -20,8 +20,8 @@ import (
 // file in the package — emits decl, scanner upsert call, resolver edge
 // emit, test fixture, redact rule, etc. all count.
 func TestEveryTypeConstantIsUsed(t *testing.T) {
-	declared := parseTypeConstants(t, "types.go")
-	used := collectIdentRefs(t, ".", "types.go")
+	declared := parseTypeConstants(t, "gcp_types.go")
+	used := collectIdentRefs(t, ".", "gcp_types.go")
 
 	var orphans []string
 	for name, val := range declared {
