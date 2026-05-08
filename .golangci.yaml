@@ -58,7 +58,9 @@ linters:
       # `disco list/summary/coverage -o json` output, persisted policy findings.
       - path: cmd/(summary|coverage)\.go
         linters: [tagliatelle]
-      - path: internal/(coverage|policy|snapshot|store)/.*\.go
+      - path: internal/(coverage|policy|snapshot|store|serve)/.*\.go
+        linters: [tagliatelle]
+      - path: cmd/diff_paid\.go
         linters: [tagliatelle]
       # Test funcs walk fixture branches linearly; gocyclo counts every fixture
       # path as branch complexity. Production logic, not test shape, is what

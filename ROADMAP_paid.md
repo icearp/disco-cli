@@ -30,11 +30,19 @@ N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `0
 
 ## LATER — 6–12mo / v1.0
 
-### L2. Pluggable store backend (paid feature)
-- SQLite → Postgres driver for team-shared DB. `internal/store/` becomes interface + two implementations. Keep SQLite default.
+### L2. Pluggable store backend — SHIPPED 2026-05-08
+- Single `*Store` learns Postgres in addition to SQLite (paid-tagged). pgx via `pgx/v5/stdlib` reuses the existing sqlx code path; dialect bits branch on `s.driver` in `internal/store/dialect.go`. Migrations in `internal/store/migrations/pg/*.sql` mirror the SQLite set plus `005_tenant_id_rls.sql` for per-table RLS. Tenant pinning at process start via pgconn `AfterConnect`. `make check-migrations` guards SQLite ↔ PG column-set parity.
+- See `FEATURES_paid.md` § Postgres backend.
+- Decision diff vs original plan: rejected the `ReadBackend`/`WriteBackend` interface split — single struct + driver branch is simpler and the SaaS app imports `internal/store` directly (no abstraction needed). Hand-rolled migration runner instead of golang-migrate per CLAUDE.md rule 7 (minimize deps).
 
-### L3. API server mode (paid feature)
-- `disco serve` — read-only REST + gRPC over store. Enables dashboards, Slackbots, CI gates.
+### L3. API server mode — SHIPPED 2026-05-08 (scoped down)
+- `disco serve` — minimal scan-trigger HTTP API for one-shot Fargate workers. Two routes only: `POST /v1/scans`, `GET /v1/healthz`. JWT-gated; tenant pinned at startup; body scrubbed for forbidden keys.
+- See `FEATURES_paid.md` § `disco serve`.
+- Decision diff vs original plan:
+  - **Read API rejected.** SaaS imports `internal/store` directly and reads PG with its own pool. No need to proxy reads through HTTP.
+  - **Write-via-API rejected.** Scan results go to PG directly via the disco binary running in the container. The API is just the trigger.
+  - **gRPC deferred.** REST is enough for the single internal consumer; gRPC adds buf workflow for no current benefit.
+  - **OpenAPI/codegen deferred.** Spec kept as documentation; tiny 2-route surface didn't justify oapi-codegen tooling.
 
 ### L4. Web UI (paid feature, separate repo)
 - Graph visualizer + rule results. Consumes L3 API.

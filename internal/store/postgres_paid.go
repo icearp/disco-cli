@@ -9,7 +9,6 @@ package store
 import (
 	"context"
 	"fmt"
-	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -59,19 +58,4 @@ func OpenPostgres(ctx context.Context, dsn, tenantID string) (*Store, error) {
 		return nil, fmt.Errorf("pg migrate: %w", err)
 	}
 	return s, nil
-}
-
-// pgDSNRedacted returns dsn with the password component scrubbed for safe
-// logging. Used by callers that surface "failed to connect" diagnostics.
-func pgDSNRedacted(dsn string) string {
-	u, err := url.Parse(dsn)
-	if err != nil {
-		return "<unparseable>"
-	}
-	if u.User != nil {
-		if _, hasPwd := u.User.Password(); hasPwd {
-			u.User = url.UserPassword(u.User.Username(), "REDACTED")
-		}
-	}
-	return u.String()
 }

@@ -182,7 +182,7 @@ func TestPG_ConcurrentUpsert(t *testing.T) {
 			defer wg.Done()
 			r := &Resource{
 				Provider: "aws", AccountID: "111111111111", Type: "aws:ec2:instance",
-				NativeID: "arn:aws:ec2:us-east-1:111111111111:instance/i-concurrent",
+				NativeID:     "arn:aws:ec2:us-east-1:111111111111:instance/i-concurrent",
 				DiscoveredBy: scanID, AttributesJSON: "{}",
 			}
 			if _, err := s.UpsertResources([]*Resource{r}); err != nil {
@@ -213,17 +213,17 @@ func seedFixtures(t *testing.T, s *Store) {
 	rs := []*Resource{
 		{
 			Provider: "aws", AccountID: "111111111111", Type: "aws:ec2:instance",
-			NativeID: "arn:aws:ec2:us-east-1:111111111111:instance/i-aaa",
+			NativeID:     "arn:aws:ec2:us-east-1:111111111111:instance/i-aaa",
 			DiscoveredBy: pgTestScanID, AttributesJSON: `{"State":"running"}`,
 		},
 		{
 			Provider: "aws", AccountID: "111111111111", Type: "aws:s3:bucket",
-			NativeID: "arn:aws:s3:::test-bucket-1",
+			NativeID:     "arn:aws:s3:::test-bucket-1",
 			DiscoveredBy: pgTestScanID, AttributesJSON: `{"Region":"us-east-1"}`,
 		},
 		{
 			Provider: "aws", AccountID: "111111111111", Type: "aws:iam:role",
-			NativeID: "arn:aws:iam::111111111111:role/foo",
+			NativeID:     "arn:aws:iam::111111111111:role/foo",
 			DiscoveredBy: pgTestScanID, AttributesJSON: `{}`,
 		},
 	}

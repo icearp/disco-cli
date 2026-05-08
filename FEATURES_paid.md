@@ -50,3 +50,36 @@ Both gated behind `license.Require()`.
 - Schema additive — empty in OSS builds since no `--persist` flag is registered.
 
 Future paid follow-ups (`disco findings diff`, retention pruning, drift heatmaps, ticket sync) build atop this same schema. See `ROADMAP_paid.md` focus-group follow-ups for the planned surface.
+
+## Postgres backend (L2)
+
+`internal/store/postgres_paid.go` + `internal/store/migrate_pg_paid.go` + `internal/store/migrations/pg/*.sql`. Single `*Store` type covers both SQLite and Postgres — driver-branched dialect bits in `dialect.go` (json_extract vs `->>`, `?` vs `$N` placeholders, etc). `OpenPostgres(ctx, dsn, tenantID)` opens a tenant-pinned pgx-backed `*sqlx.DB`; pgconn `AfterConnect` runs `set_config('app.tenant_id', $1, false)` on every new connection so RLS sees it without per-query plumbing.
+
+PG migrations 001–004 mirror the SQLite set; `005_tenant_id_rls.sql` layers `tenant_id` columns + per-table RLS policies. Hand-rolled migration runner mirrors `migrate.go:14–111` shape — no golang-migrate dep. `make check-migrations` (`scripts/check-migrations.sh`) guards SQLite ↔ PG column-set parity in CI; PG-only `tenant_id` is allowlisted.
+
+OSS dep graph remains pgx-free: every importer of pgx carries `//go:build paid`. Verified via `go list -deps . | grep -Ei 'pgx|jackc'` (empty) and `go list -tags paid -deps .` (non-empty).
+
+Consumed by:
+- `disco serve` (L3) for scan persistence on Fargate workers.
+- `disco-saas` Go app for direct read access against the same RDS Proxy + tenant pinning contract.
+
+## `disco serve` — scan-trigger HTTP API (L3)
+
+`cmd/serve_paid.go` + `internal/serve/*` implement the one-shot Fargate-per-scan API. Two routes:
+
+- `GET /v1/healthz` — liveness, no auth.
+- `POST /v1/scans` — submit a scan; returns 202 + `scan_id`. Runs the scan in a background goroutine, persists to PG, then closes a `Done` channel that the cmd-level main loop reads to trigger graceful shutdown + process exit.
+
+Lifecycle: container is one-shot. A second POST while the first scan is in-flight returns 409 `scan_in_progress`. After the scan completes the process exits 0 — ECS RunTask launches a fresh task per scan.
+
+Auth: HS256 JWT. Token MUST carry a `tenant` claim equal to the server's pinned `DISCO_TENANT_ID` env (mismatched tenant → 403 `tenant_mismatch`). Defence in depth against Lambda misroute (token issued for tenant A delivered to a container started for tenant B).
+
+Body scrubbing: scan request bodies that carry credential or server-pinned config keys (`credentials`, `access_key`, `secret_key`, `service_account_json`, `client_secret`, `password`, `api_key`, `bearer_token`, `dsn`, `pg_dsn`, `database_url`, `tenant_id`) are rejected 400 `credentials_in_body_forbidden`. Recursive walker matches case-insensitive at any depth.
+
+Stdlib `net/http` with Go 1.22+ pattern-matched ServeMux — no chi, no router lib, no oapi-codegen. Tiny route count (2) made hand-rolling cheaper than codegen tooling.
+
+Scan orchestration shared with `disco scan` CLI via `internal/scanrun.Allocate` + `Execute` (untagged package). Single source of truth for provider resolution + parallel fan-out + scan row lifecycle.
+
+Spec at `internal/serve/openapi.yaml` is documentation-only — not driven through codegen.
+
+OSS dep graph: pgx, golang-jwt, dockertest are paid-only — verified by build-tag scoping. Every file in `internal/serve/*` carries `//go:build paid`; the entire dir is excluded from `oss-sync.sh` by name pattern.

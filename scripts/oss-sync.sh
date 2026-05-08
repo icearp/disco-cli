@@ -29,6 +29,14 @@ NAME_EXCLUDES=(
   '*_paid_test.go'
   '*_paid.md'
   '*_paid.sql'
+  # Postgres backend is paid-tagged; the migration files in this dir
+  # are referenced only from migrate_pg_paid.go which never lands in
+  # OSS. Exclude the whole subtree by glob so the dir doesn't ship.
+  'migrations/pg'
+  'migrations/pg/*'
+  # OpenAPI spec for the paid `disco serve` API.
+  'internal/serve'
+  'internal/serve/*'
   'scripts/oss-sync.sh'
   'scripts/oss-cherry-pick.sh'
   'README.upstream.md'

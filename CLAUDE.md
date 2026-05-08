@@ -33,6 +33,9 @@ CGO_ENABLED=0 go test ./internal/store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
+# Guard SQLite ↔ Postgres migration parity (PG-only `tenant_id` allowlisted)
+make check-migrations
+
 # Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
 gofmt -w .
 ```
@@ -105,6 +108,8 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 
 After adding a heavy dep behind `//go:build paid`, confirm OSS build doesn't pull it: `go list -deps . | grep <module>` should be empty; `go list -tags paid -deps . | grep <module>` should be non-empty. Every importer of the dep must carry the `paid` build tag, otherwise the OSS binary still links it.
 
+`go list -deps` is advisory — it reflects the *module graph*, not what gets linked. Some deps appear in OSS `go list` output via cloud SDK transitives even when no OSS file imports them (e.g. `golang-jwt/jwt` is pulled in by Azure MSAL). Authoritative check is `strings <oss-binary> | grep <module>`: should show nothing for genuinely paid-only deps. `pgx`, `dockertest` qualify; JWT does not.
+
 ### Demoting a paid feature to OSS
 
 Mirror of promotion. Four touches: (1) rename `*_paid.go` **and any `*_paid_test.go` sibling** → drop `_paid` suffix; (2) strip `//go:build paid` line from each; (3) delete the `license.Require()` block at top of `RunE`; (4) `go mod tidy` (flips formerly-paid deps from `// indirect` to direct OSS). Also un-tag any `internal/<pkg>/*.go` + `*_test.go` the command imports. Easy miss: leaving the test file tagged silently drops OSS coverage — `go test ./...` still passes because the tests just don't compile in. Verify both `go test ./...` and `go test -tags paid ./...` green.
@@ -136,7 +141,11 @@ Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `w
 
 ### `tagliatelle` is path-scoped
 
-Enabled globally with the camelCase rule, but excluded under `linters.exclusions.rules` for two convention zones where camelCase JSON would silently break unmarshalling: AWS resolver structs (`internal/providers/aws/*_resolvers.go`) use PascalCase to match SDK marshal output (see `internal/providers/aws/CLAUDE.md`); the `disco check` Rego input contract (`cmd/summary.go`, `cmd/coverage.go`, `internal/coverage/`, `internal/policy/`) uses snake_case (`cmd/CLAUDE.md`). New resolver files / Rego-contract files must fall under one of those path patterns, or add a new exclusion rule — otherwise the linter will demand camelCase that breaks the wire format.
+Enabled globally with the camelCase rule, but excluded under `linters.exclusions.rules` for convention zones where camelCase JSON would silently break unmarshalling. Current zones:
+- PascalCase to match SDK marshal output: `internal/providers/.*\.go`.
+- snake_case for disco wire contracts: `cmd/(summary|coverage)\.go`, `cmd/diff_paid\.go`, `internal/(coverage|policy|snapshot|store|serve)/.*\.go`.
+
+New paid packages emitting snake_case JSON (e.g. future `disco serve` route packages) extend the snake_case path pattern; provider scanners extend the PascalCase one. Otherwise the linter demands camelCase that breaks the wire format.
 
 ### Bulk `revive` var-naming sweeps
 

@@ -39,15 +39,15 @@ type errorBody struct {
 // errorCodes are the ones the server emits. Kept as constants so
 // handler / middleware / tests reference one source.
 const (
-	errCodeUnauthorized      = "unauthorized"
-	errCodeTenantMismatch    = "tenant_mismatch"
-	errCodeBadRequest        = "bad_request"
-	errCodeCredsInBody       = "credentials_in_body_forbidden"
-	errCodeScanInProgress    = "scan_in_progress"
-	errCodeInternal          = "internal_error"
-	errCodeUnknownProvider   = "unknown_provider"
-	errCodeMethodNotAllowed  = "method_not_allowed"
-	errCodeUnsupportedMedia  = "unsupported_media_type"
+	errCodeUnauthorized     = "unauthorized"
+	errCodeTenantMismatch   = "tenant_mismatch"
+	errCodeBadRequest       = "bad_request"
+	errCodeCredsInBody      = "credentials_in_body_forbidden"
+	errCodeScanInProgress   = "scan_in_progress"
+	errCodeInternal         = "internal_error"
+	errCodeUnknownProvider  = "unknown_provider"
+	errCodeMethodNotAllowed = "method_not_allowed"
+	errCodeUnsupportedMedia = "unsupported_media_type"
 )
 
 // rawJSONOK marshals v as the 2xx response body.

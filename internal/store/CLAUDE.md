@@ -117,6 +117,42 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 Seed lookup (`graph blast`, `graph path`, `list --id`) tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. F12 fix for "the CLI's own short-ID prints don't round-trip as input." Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
 
+## Cross-backend SQL: `s.exec`/`s.get`/`s.query`/`s.queryRow`/`s.selectAll`
+
+Wrappers in `dialect.go` proxy `s.db.Exec/Get/Query/QueryRow/Select` with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied). Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
+
+## PG session GUCs accept placeholders only via `set_config(...)`
+
+`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres_paid.go::OpenPostgres` `AfterConnect`. Any future per-conn GUC writes follow the same shape.
+
+## Postgres backend (paid only)
+
+Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, tenantID)` (`postgres_paid.go`, `//go:build paid`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
+
+- `s.placeholder()` — `sq.Question` for SQLite, `sq.Dollar` for Postgres. Squirrel queries use this; raw `?` SQL goes through `s.exec` / `s.get` / `s.selectAll` / `s.queryRow` / `s.query` wrappers that auto-rebind via `db.Rebind`.
+- `s.tagJSONFilter(key)` — emits `json_extract(tags, '$.k')` (SQLite) or `tags ->> 'k'` (Postgres).
+- `s.tagJSONValueExists()` — `json_each(tags)` vs `jsonb_each_text(tags)`.
+
+Other portability rules baked in:
+- `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT (cols) DO NOTHING`. SQLite supports this since 3.24; Postgres requires the explicit conflict target. New writes follow the same shape.
+- `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
+
+### Tenant isolation (Postgres only)
+
+PG migrations 005 add `tenant_id UUID` to every user-data table plus a per-table RLS policy `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns. Inserts pick up `tenant_id` automatically via column DEFAULT — no explicit value in app code.
+
+Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. The disco-saas Fargate-per-scan model is built on this — single tenant per container.
+
+### RDS Proxy session-pinning trade-off
+
+`SET app.tenant_id` at conn open is session-scoped, which RDS Proxy treats as session pinning — that conn stops participating in multiplexing for its lifetime. For one-shot single-tenant containers this is fine (every conn serves the same tenant; pinning is the same as not pinning). If a future deploy shares a Proxy across tenants, swap to `SET LOCAL app.tenant_id` inside a transaction per query.
+
+### Migration parity
+
+`internal/store/migrations/*.sql` (SQLite) and `internal/store/migrations/pg/*.sql` (Postgres) must converge on identical `(table, column)` sets — the **only** allowed PG-only columns are RLS plumbing (`tenant_id`). `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them with that allowlist applied. Add a column on one side, the script fails. CI gates this; reviewers also.
+
+PG migration runner is hand-rolled in `migrate_pg_paid.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
+
 ## Denylist filters via `sq.NotEq`
 
 `squirrel.NotEq{"col": []string{...}}` emits `col NOT IN (?, ?, ...)`. Mirror of `sq.Eq` allowlist; use for any new exclude-X filter on `ResourceFilter` rather than hand-rolled OR-NOT chains. Precedent: `ExcludeTypes` (resources.go).

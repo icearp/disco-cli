@@ -6,7 +6,10 @@ TAGFLAG  := $(if $(TAGS),-tags "$(TAGS)",)
 VERSION  ?= $(shell git describe --tags --always --dirty=+dirty 2>/dev/null || echo dev)
 LDFLAGS  := -X 'codeberg.org/icearp/disco/cmd.Version=$(VERSION)'
 
-.PHONY: all deps fmt lint vet test test-paid build build-paid clean dist oss-sync
+.PHONY: all deps fmt lint vet test test-paid build build-paid check-migrations clean dist oss-sync
+
+check-migrations:
+	./scripts/check-migrations.sh
 
 all: fmt vet test build
 
