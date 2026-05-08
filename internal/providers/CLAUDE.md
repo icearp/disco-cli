@@ -133,3 +133,11 @@ Many AWS/Azure/GCP List ops reject blanket calls — they require a parent ident
 ## List-only summary scanners block resolver work
 
 Some `List*` ops return only `{Arn, Name, Status}` summaries — DataSync `ListLocations` is canonical: full IAM/S3/EFS/FSx refs live on `DescribeLocation*` per subtype. Resolvers can't synthesize edges from data the scanner never fetched. Either skip the resolver with a note in the scanner header, or enrich the scanner via per-row Describe fan-out before adding the resolver. Precedent for the enrichment pattern: `scanStorageLens` in `aws/s3control_scanners.go`.
+
+## Generic-file layout per provider
+
+All three provider packages share the layout `<provider>_<concern>.go` for generic glue: `scanner` (orchestration, dispatcher caps, util wrappers), `registry` (`registerService` + emits aggregator), `config`, `types`, `errors`, `regions`, `redact`, `coverage`, plus per-provider extras `arn` (AWS) / `armid` (Azure), `tags` (AWS, Azure), `concurrency` (AWS, Azure), `scan_helpers` (Azure, GCP), `hierarchy` (GCP). Test files mirror the production file: `<provider>_<concern>_test.go`. Shared test infrastructure collapses into one `<provider>_testhelpers_test.go`. When adding a new generic concern, follow this layout — don't reintroduce the kitchen-sink `<provider>.go` shape that all three packages just got out of.
+
+## Orphan-Type-constant guard
+
+Each `<provider>_types_test.go` runs `TestEveryTypeConstantIsUsed`: AST-walks `<provider>_types.go` for `Type*` const declarations, walks the rest of the package for `ast.Ident` references, errors on any constant declared but referenced nowhere else. Catches retired-service cruft. Adding a `Type*` const must come paired with at least one consumer (scanner emits decl, resolver edge target, sidecar lookup) or the test fails. The test is the only signal — no build error.

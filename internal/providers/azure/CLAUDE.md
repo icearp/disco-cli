@@ -4,12 +4,12 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 ## Discover what's not yet covered
 
-`disco coverage --provider azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscription` to override.
+`disco coverage --provider azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscription` to override.
 
 ## Adding a new type — 3 spots
 
-1. `types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).
-2. `registration_test.go`: append service name to `expectedAzureServices`.
+1. `azure_types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).
+2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
 3. New `<svc>_scanners.go` self-registers via `init() { registerService(serviceEntry{name, fn}) }`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
 
 ## Helpers (reuse before reinventing)
@@ -47,7 +47,7 @@ Tenant-scope identity scanners hit Graph v1.0 (`https://graph.microsoft.com/v1.0
 
 ## API-driven cross-cutting resolvers
 
-Resolvers needing API access (not just DB reads) register via `registerAPIResolver(apiResolverEntry{name, fn})` in `services.go` — fn signature is `func(ctx, sub, cred, st) (edges int, err error)`. Runs after phase-1 services complete and BEFORE the local-only `registeredResolvers`, so `st.ListResources` returns the full resource set. Errors degrade to `ReportError` + `ReportService(errCount=1)` — never propagate. Per-resource fan-out should bound concurrency via `semaphore.NewWeighted(maxConcurrentFanout)`. Precedent: `monitor_resolvers.go` (diagnostic-settings).
+Resolvers needing API access (not just DB reads) register via `registerAPIResolver(apiResolverEntry{name, fn})` in `azure_registry.go` — fn signature is `func(ctx, sub, cred, st) (edges int, err error)`. Runs after phase-1 services complete and BEFORE the local-only `registeredResolvers`, so `st.ListResources` returns the full resource set. Errors degrade to `ReportError` + `ReportService(errCount=1)` — never propagate. Per-resource fan-out should bound concurrency via `semaphore.NewWeighted(maxConcurrentFanout)`. Precedent: `monitor_resolvers.go` (diagnostic-settings).
 
 Cross-cutting resolvers iterate diagnosable resources via an explicit type allowlist (`diagnosableTypes` in `monitor_resolvers.go`) — calling Microsoft.Insights APIs on non-diagnosable types returns 404/400 per call. Extend the allowlist when new scanners land for diagnosable types; consult learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories for the master list.
 
@@ -59,9 +59,9 @@ Cross-cutting resolvers iterate diagnosable resources via an explicit type allow
 
 Every per-sub scanner runs via `scanSubscription`. Tenant-scope services (Entra ID via Microsoft Graph SDK, etc.) register via `registerTenantService(tenantServiceEntry{...})` in `tenant_scanners.go` — fn fires ONCE per scan, before per-sub fan-out, receives `[]subscription` + cred. Dispatch via `runTenantServices` in `azure.go`. **Hybrid pattern** (precedent: `management_scanners.go`): tenant-scoped ARM API (e.g. `armmanagementgroups`, `armsubscription`) can run *inside* `scanSubscription` if you accept per-sub duplication — `ResourceID` hash includes account_id so dedup works locally. Same trick as RBAC built-in role-definitions. AccessDenied tolerated via `skipIfAccessDenied` for callers without tenant-level RBAC.
 
-## Shared helpers live in `azure.go`
+## Generic helpers split by concern
 
-Cross-service helpers (`azPageScan`, `azSimpleScan`, `azTrackedRows`, `azTagsJSON`, `rgFromID`, `nameFromID`, `azPager`, `azClientOptions`) live in `azure.go`. Do not create new top-level files like `helpers.go` or `<concept>_scanner.go` — append to `azure.go`. Per-service code stays in `<svc>_scanners.go` / `<svc>_resolvers.go`.
+Cross-service helpers live one-per-file under the `azure_` prefix: `azure_scan_helpers.go` (`azPageScan`, `azSimpleScan`, `azTrackedRows`, `azPager`, `azRGFanoutScan`, `listSubscriptionRGNames`, `isResourceGroupNotFound`), `azure_armid.go` (`rgFromID`, `rgNameFromID`, `nameFromID`, `truncateAtSegment`, `vnetIDFromSubnetID`), `azure_tags.go` (`azTagsJSON`), `azure_errors.go` (`isAccessDenied`, `isFeatureNotAvailable`, `skipIfAccessDenied`, `formatAzureError`), `azure_concurrency.go` (`maxConcurrentFanout`), `azure_scanner.go` (`Scanner`, `Scan`, `subscription`, `azClientOptions`, `mustJSON`/`sv`/`tp`/`regionGlobal`, function-app sidecar). Per-service code stays in `<svc>_scanners.go` / `<svc>_resolvers.go`. Mirror the AWS / GCP layout when adding a new generic concern.
 
 ## SDK pointer-element types
 

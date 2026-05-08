@@ -4,8 +4,8 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 ## GCP-specific registration quirks
 
-- New `Type*` const lives in `types.go` const block. `KnownTypes()` is gone — coverage truth is `emits []coverage.TypeDecl` on the scanner's `registerService` / `registerOrgService`. Resolver-side synthetic stubs (e.g. `TypeIAMForeignProject`) declare via `registerExtraEmits` in `iampolicy_resolvers.go`. Hierarchy scanners use `registerExtraEmits` in `hierarchy_scanners.go`. `CollectEmits()` in `services.go` unions all sources for the `coverage.Provider` impl in `coverage.go`. Add the disco-type → Discovery-key entry in `coverage.go` `Aliases()` too.
-- `registration_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
+- New `Type*` const lives in `gcp_types.go` const block. `KnownTypes()` is gone — coverage truth is `emits []coverage.TypeDecl` on the scanner's `registerService` / `registerOrgService`. Resolver-side synthetic stubs (e.g. `TypeIAMForeignProject`) declare via `registerExtraEmits` in `iampolicy_resolvers.go`. Hierarchy scanners use `registerExtraEmits` in `gcp_hierarchy.go`. `CollectEmits()` in `gcp_registry.go` unions all sources for the `coverage.Provider` impl in `gcp_coverage.go`. Add the disco-type → Discovery-key entry in `gcp_coverage.go` `Aliases()` too.
+- `gcp_scanner_test.go` carries TWO expectation lists: `expectedGCPServices` (project-scope) and `expectedGCPOrgServices` (org-scope, via `registerOrgService`). New scanner updates whichever list matches its registration call — getting it wrong only fails at test time, not build time.
 
 ## Discover what's not yet covered
 
@@ -17,8 +17,8 @@ Pick scanner shape on first read:
 - **Per-project, no location** (Pub/Sub, BigQuery, Cloud DNS, Cloud Build): `parent = projects/{p}` — one List call, paginated.
 - **Wildcard `locations/-`** (Cloud Functions v2, Cloud Run, Cloud Run Jobs, Batch, Composer, Artifact Registry, Cert Manager): `parent = projects/{p}/locations/-` returns every location in one paginated walk. Prefer when API supports.
 - **Per-location fan-out** (Cloud KMS): `Locations.List` → bounded fan-out via `semaphore.NewWeighted`. Pair with `apiDisabled atomic.Bool` to dedup repeat 403s when API off.
-- **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `services.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp.go`.
-- **Per-region (no wildcard)** (Dataproc clusters, future Spanner regional, AI Platform regional): use `gcpRegionFanoutScan[P,T]` in `gcp.go` — generic helper that enumerates regions via `gcpRegions`, fans out per-region paginated lists bounded by `concurrency`, accumulates a mutex-protected batch, and finally calls `upsertWithProjClosure`. Per-region 403 / API-not-enabled tolerated silently. Caller supplies pagerFn (region → pager), pageItems (page → items), itemToResource (item, region → *store.Resource or nil to skip). Test seam: `gcpRegionFanoutScanIn` takes a pre-resolved region slice (skips `gcpRegions`) so unit tests inject regions directly. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
+- **Org-scoped** (VPC-SC, folder/org IAM policies, folder/org Logging sinks): use `registerOrgService(orgServiceEntry{...})` in `gcp_registry.go`. fn fires ONCE per scan with `[]orgScope` from `scanHierarchy`. Dispatch via `runOrgServices` in `gcp_scanner.go`.
+- **Per-region (no wildcard)** (Dataproc clusters, future Spanner regional, AI Platform regional): use `gcpRegionFanoutScan[P,T]` in `gcp_scan_helpers.go` — generic helper that enumerates regions via `gcpRegions`, fans out per-region paginated lists bounded by `concurrency`, accumulates a mutex-protected batch, and finally calls `upsertWithProjClosure`. Per-region 403 / API-not-enabled tolerated silently. Caller supplies pagerFn (region → pager), pageItems (page → items), itemToResource (item, region → *store.Resource or nil to skip). Test seam: `gcpRegionFanoutScanIn` takes a pre-resolved region slice (skips `gcpRegions`) so unit tests inject regions directly. Dataflow uses its `Projects.Jobs.Aggregated` endpoint instead — no fan-out needed when an aggregated SDK call exists.
 
 ## Org-service scope-kind dispatch
 
@@ -34,7 +34,7 @@ Some GCP services have singleton "policy" per project, no list surface — fetch
 
 ## Service-account email index
 
-Many resolvers FK-check SA email ref (Cloud Functions, Cloud Run, Composer, BinAuth attestor, Cloud Run Jobs, Batch, IAM policy bindings). Use `buildSAEmailIndex(p, st)` in `gcp.go` — returns `map[email]ResourceID` over all in-project `gcp:iam:service-account` resources. Cross-project SA refs implicitly skip (won't match in-project index).
+Many resolvers FK-check SA email ref (Cloud Functions, Cloud Run, Composer, BinAuth attestor, Cloud Run Jobs, Batch, IAM policy bindings). Use `buildSAEmailIndex(p, st)` in `gcp_scan_helpers.go` — returns `map[email]ResourceID` over all in-project `gcp:iam:service-account` resources. Cross-project SA refs implicitly skip (won't match in-project index).
 
 For fields that may store either full resource name `projects/{p}/serviceAccounts/{email}` or bare email (Cloud Build trigger), keep the inline two-map pattern: `saIDByNative` + `saIDByEmail`, check native first, fall back to email. `cloudbuild_resolvers.go` is the canonical site.
 
@@ -44,7 +44,7 @@ Each `<svc>_scanners.go` calls `registerService` from `init()`. Service `fn` run
 
 ## Scopes above project (org / folder)
 
-Per-project service entries can't reach folder/org scopes — need either (a) single-pass scanner running once per scan (sibling to `scanHierarchy`), or (b) synthetic per-project entry filtering to `p.ParentID`. No fan-out helper yet — first follow-up needing it (folder/org IAM policies, org policies, asset inventory at folder scope) should add one to `gcp.go`.
+Per-project service entries can't reach folder/org scopes — need either (a) single-pass scanner running once per scan (sibling to `scanHierarchy`), or (b) synthetic per-project entry filtering to `p.ParentID`. No fan-out helper yet — first follow-up needing it (folder/org IAM policies, org policies, asset inventory at folder scope) should add one to `gcp_scan_helpers.go`.
 
 ## IAM policy resource shape
 
@@ -56,7 +56,7 @@ Member matching: only `serviceAccount:{email}` members FK-safe today. Email pars
 
 When API not enabled, scanners propagate sentinel error; dispatch loop renders `(service disabled)` on per-service progress line — no warning. Mechanism:
 
-- `isAPINotEnabled(err)` (in `gcp.go`) matches three known shapes: 403 message `"has not been used in project"`, 400 message `"has not enabled"` (BigQuery), `googleapi.Error.Errors[].Reason == "accessNotConfigured"`. Extend this predicate (not `isPermissionDenied`) when adding scanners surfacing API-not-enabled differently.
+- `isAPINotEnabled(err)` (in `gcp_errors.go`) matches three known shapes: 403 message `"has not been used in project"`, 400 message `"has not enabled"` (BigQuery), `googleapi.Error.Errors[].Reason == "accessNotConfigured"`. Extend this predicate (not `isPermissionDenied`) when adding scanners surfacing API-not-enabled differently.
 - `skipIfDenied` returns `markServiceDisabled(err)` when `isAPINotEnabled` matches, else records `ScanWarning`, returns nil. Existing call sites (`if isPermissionDenied(err) { return ..., skipIfDenied(...) }`) bubble sentinel up — no per-scanner-file edits needed.
 - `scanProject` detects sentinel via `errors.Is(err, errServiceDisabled)`, calls `st.ReportService(name, 0, 0, 0, true)` so `cmd/scan.go` renders `(service disabled)` suffix. Mirrors AWS pattern (`aws/aws.go` `errServiceDisabled` + `markServiceDisabled`).
 
@@ -68,13 +68,13 @@ Real IAM 403 (rare; caller lacks permission but API enabled) still goes to warni
 
 ## `forEachItem[T]` helper — bounded-concurrency fan-out
 
-`forEachItem[T any](ctx, concurrency, items, fn)` in `gcp.go` runs `fn(gctx, item)` over each item with at most `concurrency` goroutines in flight. First non-nil err aborts siblings. Used by per-location / per-zone / per-SA / per-dataset fan-out (KMS, DNS record-sets, IAM-key, BigQuery). Replaces the `sem := semaphore.NewWeighted(...); g, gctx := errgroup.WithContext(...); for ... { g.Go(... sem.Acquire ... defer sem.Release ...) }; g.Wait()` setup repeated across four scanners.
+`forEachItem[T any](ctx, concurrency, items, fn)` in `gcp_scan_helpers.go` runs `fn(gctx, item)` over each item with at most `concurrency` goroutines in flight. First non-nil err aborts siblings. Used by per-location / per-zone / per-SA / per-dataset fan-out (KMS, DNS record-sets, IAM-key, BigQuery). Replaces the `sem := semaphore.NewWeighted(...); g, gctx := errgroup.WithContext(...); for ... { g.Go(... sem.Acquire ... defer sem.Release ...) }; g.Wait()` setup repeated across four scanners.
 
 Inner pagination + mutex still belong to the caller — `forEachItem` only owns the fan-out skeleton. Caller-owned: `apiDisabled atomic.Bool` short-circuit (KMS), `var mu sync.Mutex` over shared batch slice, per-call err classification.
 
 ## `runPaginated[P]` helper — preferred List driver
 
-`runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
+`runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp_scan_helpers.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
 
 Use it for every paginated phase. Page handler returns `(int, int, error)` — usually after building a `[]*store.Resource` and calling `upsertWithProjClosure`. Replaces ~150 LOC of repeated `err = req.Pages(...) {...}; if err != nil { if isPermissionDenied(err) { return ..., skipIfDenied(...) } return ..., err }` boilerplate.
 

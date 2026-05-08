@@ -251,7 +251,7 @@ When a parent resource references N children that have no independent lifecycle 
 
 ## Helper-test colocation
 
-Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, transient classifier) live in `aws_test.go`, `arn_test.go`, `errors_test.go`, `tags_test.go`. Per-service helper tests (e.g. `apprunnerImageToRepoARN`, `instanceArnFromPermissionSetArn`) live in the matching `<svc>_resolvers_test.go`. Before adding a new helper test, grep `^func Test<Helper>` across `aws/*_test.go` — duplicate `TestX` in same package fails to compile.
+Cross-cutting pure-helper tests (ARN builders, error predicates, tag helpers, transient classifier) live in `aws_arn_test.go`, `aws_errors_test.go`, `aws_tags_test.go`. Per-service helper tests (e.g. `apprunnerImageToRepoARN`, `instanceArnFromPermissionSetArn`) live in the matching `<svc>_resolvers_test.go`. Before adding a new helper test, grep `^func Test<Helper>` across `aws/*_test.go` — duplicate `TestX` in same package fails to compile.
 
 ## Smithy GenericAPIError string shape
 
