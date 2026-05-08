@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"text/template"
@@ -44,7 +46,7 @@ var validRankdirs = map[string]bool{"LR": true, "RL": true, "TB": true, "BT": tr
 
 // graphOutputFormats is the set of values accepted by --output across all
 // graph subcommands. Kept in one place so help text stays in sync.
-var graphOutputFormats = []string{"table", "json", "dot", "mermaid"}
+var graphOutputFormats = []string{"table", "markdown", "csv", "json", "dot", "mermaid"}
 
 var graphCmd = &cobra.Command{
 	Use:   "graph <name|native-id|resource-id>",
@@ -336,6 +338,10 @@ func renderGraph(g *store.GraphResult, blast bool) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(g)
+	case "csv":
+		return renderGraphCSV(g)
+	case "markdown", "md":
+		return renderGraphMarkdown(g)
 	case "dot":
 		if _, ok := themes[graphDotTheme]; !ok {
 			return fmt.Errorf("unknown --dot-theme %q (supported: %s)", graphDotTheme, strings.Join(dotThemeNames(), ", "))
@@ -355,6 +361,75 @@ func renderGraph(g *store.GraphResult, blast bool) error {
 		return fmt.Errorf("unknown --output format %q (supported: %s)",
 			graphOutputFmt, strings.Join(graphOutputFormats, ", "))
 	}
+}
+
+// renderGraphCSV writes a single row-stream over both nodes and edges with
+// a `kind` discriminator column so a graph result fits one CSV file. Mirror
+// the existing `-o json` shape (nodes[] + edges[]) — consumers can split
+// rows by `kind == "node"` vs `"edge"` to recover the two arrays.
+func renderGraphCSV(g *store.GraphResult) error {
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+	if err := w.Write([]string{"kind", "depth", "id", "provider", "type", "name", "region", "from_id", "to_id", "edge_kind"}); err != nil {
+		return err
+	}
+	for _, n := range g.Nodes {
+		r := n.Resource
+		if err := w.Write([]string{
+			"node", strconv.Itoa(n.Depth), r.ID, r.Provider, r.Type,
+			ptrOrEmpty(r.Name), ptrOrEmpty(r.Region), "", "", "",
+		}); err != nil {
+			return err
+		}
+	}
+	for _, e := range g.Edges {
+		if err := w.Write([]string{
+			"edge", "", "", "", "", "", "",
+			e.FromID, e.ToID, e.Kind,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// renderGraphMarkdown writes one md doc with two sub-sections: a NODES
+// table and an EDGES table. Both keyed via the same headers as the CSV
+// shape, minus the `kind` discriminator since each section is homogeneous.
+func renderGraphMarkdown(g *store.GraphResult) error {
+	_, _ = fmt.Fprintf(os.Stdout, "# Graph %s — %d nodes, %d edges\n\n", short(g.SeedID), len(g.Nodes), len(g.Edges))
+
+	if len(g.Nodes) > 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "## NODES")
+		_, _ = fmt.Fprintln(os.Stdout)
+		nodeRows := make([][]string, 0, len(g.Nodes))
+		for _, n := range g.Nodes {
+			r := n.Resource
+			nodeRows = append(nodeRows, []string{
+				strconv.Itoa(n.Depth), short(r.ID), r.Provider, r.Type,
+				ptrOrEmpty(r.Name), ptrOrEmpty(r.Region),
+			})
+		}
+		if err := renderMarkdownTable(os.Stdout,
+			[]string{"Depth", "ID", "Provider", "Type", "Name", "Region"}, nodeRows); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(os.Stdout)
+	}
+
+	if len(g.Edges) > 0 {
+		_, _ = fmt.Fprintln(os.Stdout, "## EDGES")
+		_, _ = fmt.Fprintln(os.Stdout)
+		edgeRows := make([][]string, 0, len(g.Edges))
+		for _, e := range g.Edges {
+			edgeRows = append(edgeRows, []string{short(e.FromID), e.Kind, short(e.ToID)})
+		}
+		if err := renderMarkdownTable(os.Stdout,
+			[]string{"From", "Kind", "To"}, edgeRows); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // renderGraphTable prints a NODES section and an EDGES section, both using
@@ -637,7 +712,7 @@ func init() {
 	graphCmd.Flags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only)")
 	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all kinds)")
 	graphCmd.PersistentFlags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
-	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, json, dot, mermaid")
+	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, dot, mermaid")
 	graphCmd.PersistentFlags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeTypes, "exclude-types", nil, "Drop nodes whose type matches; literal or suffix-glob (e.g. 'aws:iam:*')")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeRegions, "exclude-regions", nil, "Drop nodes whose region matches exactly")
