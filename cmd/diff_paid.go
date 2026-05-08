@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -48,8 +49,16 @@ Examples:
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(d)
-		default:
+		case "jsonl":
+			return renderDiffJSONL(d)
+		case "csv":
+			return renderDiffCSV(d)
+		case "markdown", "md":
+			return renderDiffMarkdown(d)
+		case "table", "":
 			return renderDiffTable(d)
+		default:
+			return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", diffOutputFmt)
 		}
 	},
 }
@@ -80,7 +89,71 @@ func renderDiffTable(d *store.ScanDiff) error {
 	return w.Flush()
 }
 
+// diffRowsCSV flattens added + stale lists into a single column-stable
+// row stream tagged by `change_type` (added | stale). Columns positional
+// per cmd/CLAUDE.md "csv columns are positional-stable" rule.
+func diffRowsCSV(d *store.ScanDiff) [][]string {
+	rows := make([][]string, 0, len(d.Added)+len(d.Stale))
+	for _, r := range d.Added {
+		rows = append(rows, []string{
+			"added", r.Provider, r.AccountID, r.Type, ptrOrEmpty(r.Name), ptrOrEmpty(r.Region),
+		})
+	}
+	for _, r := range d.Stale {
+		rows = append(rows, []string{
+			"stale", r.Provider, r.AccountID, r.Type, ptrOrEmpty(r.Name), ptrOrEmpty(r.Region),
+		})
+	}
+	return rows
+}
+
+// diffCSVHeader returns the canonical header for the diff CSV / Markdown output.
+func diffCSVHeader() []string {
+	return []string{"change_type", "provider", "account_id", "resource_type", "name", "region"}
+}
+
+func renderDiffCSV(d *store.ScanDiff) error {
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+	if err := w.Write(diffCSVHeader()); err != nil {
+		return err
+	}
+	for _, row := range diffRowsCSV(d) {
+		if err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderDiffMarkdown(d *store.ScanDiff) error {
+	headers := []string{"Change", "Provider", "Account", "Type", "Name", "Region"}
+	return renderMarkdownTable(os.Stdout, headers, diffRowsCSV(d))
+}
+
+// renderDiffJSONL emits each added / stale entry as one JSON line tagged
+// with a `change_type` discriminator. Suited to `disco diff … -o jsonl |
+// jq -c '. | select(.change_type=="added")'` drift pipelines.
+func renderDiffJSONL(d *store.ScanDiff) error {
+	enc := json.NewEncoder(os.Stdout)
+	type entry struct {
+		ChangeType string         `json:"change_type"`
+		Resource   store.Resource `json:"resource"`
+	}
+	for _, r := range d.Added {
+		if err := enc.Encode(entry{ChangeType: "added", Resource: r}); err != nil {
+			return err
+		}
+	}
+	for _, r := range d.Stale {
+		if err := enc.Encode(entry{ChangeType: "stale", Resource: r}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func init() {
-	diffCmd.Flags().StringVarP(&diffOutputFmt, "output", "o", "table", "Output format: table, json")
+	diffCmd.Flags().StringVarP(&diffOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	rootCmd.AddCommand(diffCmd)
 }
