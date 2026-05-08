@@ -360,26 +360,6 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 	return total, inserted, nil
 }
 
-// ssoAssignmentNativeID synthesizes a stable identifier for an account
-// assignment. AWS does not issue a canonical ARN for assignments, so the
-// permission-set ARN (which already carries the instance id) is extended
-// with the account, principal type, and principal id. Documented under
-// "Synthetic NativeIDs" in aws/CLAUDE.md.
-func ssoAssignmentNativeID(psArn, accountID, principalType, principalID string) string {
-	return psArn + "/account/" + accountID + "/" + principalType + "/" + principalID
-}
-
-// identityStoreUserNativeID and identityStoreGroupNativeID synthesize
-// ARN-shaped IDs scoped by the instance owner account and identity-store
-// id. Identity Store APIs do not return ARNs.
-func identityStoreUserNativeID(ownerAccountID, identityStoreID, userID string) string {
-	return "arn:aws:identitystore::" + ownerAccountID + ":user/" + identityStoreID + "/" + userID
-}
-
-func identityStoreGroupNativeID(ownerAccountID, identityStoreID, groupID string) string {
-	return "arn:aws:identitystore::" + ownerAccountID + ":group/" + identityStoreID + "/" + groupID
-}
-
 func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, in := range instances {
 		identityStoreID := sv(in.IdentityStoreId)

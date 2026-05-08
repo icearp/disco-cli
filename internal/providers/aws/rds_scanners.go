@@ -56,13 +56,6 @@ type rdsAPI interface {
 	DescribeDBEngineVersions(context.Context, *rds.DescribeDBEngineVersionsInput, ...func(*rds.Options)) (*rds.DescribeDBEngineVersionsOutput, error)
 }
 
-// rdsARN constructs a standard RDS ARN. RDS uses ":" as the resource separator
-// (e.g. arn:aws:rds:us-east-1:123456789012:cluster:my-cluster), unlike EC2
-// which uses "/".
-func rdsARN(region, accountID, resource, id string) string {
-	return fmt.Sprintf("arn:aws:rds:%s:%s:%s:%s", region, accountID, resource, id)
-}
-
 // rdsPager is satisfied by every AWS SDK v2 RDS paginator.
 type rdsPager[P any] interface {
 	HasMorePages() bool

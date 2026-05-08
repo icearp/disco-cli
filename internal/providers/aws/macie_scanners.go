@@ -119,13 +119,6 @@ func scanMacie(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-// macieSessionNativeID synthesises an ARN-shaped identifier for the per-region
-// Macie session. The Macie API exposes no session ARN; the synthetic form
-// matches the canonical macie2 ARN shape so rescans dedupe.
-func macieSessionNativeID(accountID, region string) string {
-	return fmt.Sprintf("arn:aws:macie2:%s:%s:session", region, accountID)
-}
-
 func scanMacieSession(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {
 	out, derr := client.GetMacieSession(ctx, &macie2.GetMacieSessionInput{})
 	if derr != nil {

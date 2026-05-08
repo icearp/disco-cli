@@ -148,13 +148,6 @@ func logGroupARN(arn *string) string {
 	return strings.TrimSuffix(sv(arn), ":*")
 }
 
-// logGroupNativeIDFromName reconstructs the log group ARN (NativeID) from its
-// name. Log group ARNs follow: arn:aws:logs:{region}:{account}:log-group:{name}
-// The SDK appends ":*" to ARNs, which we strip, so NativeID is the clean ARN.
-func logGroupNativeIDFromName(accountID, region, name string) string {
-	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s", region, accountID, name)
-}
-
 // --- Phase 1 scanners ---
 
 // scanLogsLogGroups discovers all CloudWatch Logs log groups in the region.
