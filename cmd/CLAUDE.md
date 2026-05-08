@@ -207,3 +207,7 @@ New column-anchored time filters follow the same `{*-since, *-before}` shape —
 ## DOT `dir=back` requires endpoint swap, not just attribute
 
 Graphviz `dir=back` only re-renders the arrowhead — rank still flows tail→head. To flip layout direction (e.g. force `attached-to` parent left of source under `rankdir=LR`), `renderGraphDot` swaps `FromID`/`ToID` for any edge whose preset carries `dir=back`. Adding `dir=back` to a theme preset alone is a no-op for rank; both pieces are needed.
+
+## Output-format parity: `table | markdown | csv | json` floor
+
+Every reportable subcommand (`list`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`scan`, `snapshot`, `verify`, `config init`) have no `-o` flag — they perform actions, not reports. Help text lists every supported format the command accepts in canonical order then extras.
