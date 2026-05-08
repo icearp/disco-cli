@@ -581,10 +581,10 @@ func fetchResourcesByIDs(s *Store, ids []string) ([]Resource, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	q, args, err := sqlxIn("SELECT * FROM resources WHERE id IN (?)", ids)
+	q, args, err := s.sqlxIn("SELECT * FROM resources WHERE id IN (?)", ids)
 	if err != nil {
 		return nil, err
 	}
 	var out []Resource
-	return out, s.db.Select(&out, q, args...)
+	return out, s.selectAll(&out, q, args...)
 }

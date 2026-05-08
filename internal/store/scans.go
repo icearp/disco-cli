@@ -116,7 +116,7 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 	if err != nil {
 		return "", err
 	}
-	_, err = s.db.Exec(
+	_, err = s.exec(
 		`
 		INSERT INTO scans (id, started_at, status, providers, scope)
 		VALUES (?, datetime('now'), 'running', ?, ?)`,
@@ -130,7 +130,7 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 
 // CompleteScan marks a scan as completed and records the resource count.
 func (s *Store) CompleteScan(id string, resourceCount int) error {
-	_, err := s.db.Exec(
+	_, err := s.exec(
 		`
 		UPDATE scans
 		SET status = 'completed', finished_at = datetime('now'), resource_count = ?
@@ -142,7 +142,7 @@ func (s *Store) CompleteScan(id string, resourceCount int) error {
 
 // FailScan marks a scan as failed with an error message.
 func (s *Store) FailScan(id string, scanErr string) error {
-	_, err := s.db.Exec(
+	_, err := s.exec(
 		`
 		UPDATE scans
 		SET status = 'failed', finished_at = datetime('now'), error = ?
@@ -156,7 +156,7 @@ func (s *Store) FailScan(id string, scanErr string) error {
 // succeeded while others failed. The error message should summarize which
 // providers failed and why.
 func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error {
-	_, err := s.db.Exec(
+	_, err := s.exec(
 		`
 		UPDATE scans
 		SET status = 'partial', finished_at = datetime('now'), resource_count = ?, error = ?
@@ -169,7 +169,7 @@ func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error 
 // GetScan retrieves a scan by ID.
 func (s *Store) GetScan(id string) (*Scan, error) {
 	var sc Scan
-	err := s.db.Get(&sc, "SELECT * FROM scans WHERE id = ?", id)
+	err := s.get(&sc, "SELECT * FROM scans WHERE id = ?", id)
 	if err != nil {
 		return nil, fmt.Errorf("get scan %s: %w", id, err)
 	}
@@ -185,7 +185,7 @@ func (s *Store) GetScan(id string) (*Scan, error) {
 // require manual triage rather than blind resume.
 func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	var sc Scan
-	err := s.db.Get(&sc, `
+	err := s.get(&sc, `
 		SELECT * FROM scans
 		WHERE status IN ('running','partial')
 		ORDER BY started_at DESC
@@ -213,7 +213,7 @@ func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
 		args = append(args, "%\""+provider+"\"%")
 	}
 	q += ` ORDER BY started_at DESC, rowid DESC LIMIT 1`
-	if err := s.db.Get(&sc, q, args...); err != nil {
+	if err := s.get(&sc, q, args...); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal([]byte(sc.ProvidersJSON), &sc.Providers); err != nil {
@@ -230,7 +230,7 @@ func (s *Store) ListScans() ([]Scan, error) {
 	// Tie-break by rowid so two scans created within the same SQLite-second
 	// (datetime('now') has 1s resolution) order deterministically: newer
 	// rowid wins. Required by `disco scans show latest` consumers.
-	if err := s.db.Select(&scans, "SELECT * FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&scans, "SELECT * FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
 		return nil, err
 	}
 	for i := range scans {

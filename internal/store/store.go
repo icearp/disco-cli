@@ -47,8 +47,19 @@ type ScanError struct {
 // silent default; callers (cmd/scan.go) wire the ones they need before
 // kicking off a scan. See internal/providers/CLAUDE.md ("Errors never abort
 // scan") for the wider contract.
+// driver names the underlying database backend. Branched in dialect-specific
+// query construction (json_extract vs ->>, placeholder format, ON CONFLICT
+// semantics). Set by Open* constructors; never mutated.
+type driver string
+
+const (
+	driverSQLite   driver = "sqlite"
+	driverPostgres driver = "postgres"
+)
+
 type Store struct {
 	db                *sqlx.DB
+	driver            driver
 	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
 	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                          // after all resolvers finish
@@ -143,7 +154,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 
-	s := &Store{db: db}
+	s := &Store{db: db, driver: driverSQLite}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -181,7 +192,7 @@ func OpenReadOnly(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, driver: driverSQLite}, nil
 }
 
 // Close closes the underlying database connection.

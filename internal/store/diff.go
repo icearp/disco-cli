@@ -61,11 +61,11 @@ func (s *Store) DiffScans(fromScanID, toScanID string) (*ScanDiff, error) {
 func (s *Store) selectResources(where sq.Sqlizer) ([]Resource, error) {
 	q := sq.Select("*").From("resources").Where(where).
 		OrderBy("provider", "type", "name").
-		PlaceholderFormat(sq.Question)
+		PlaceholderFormat(s.placeholder())
 	query, args, err := q.ToSql()
 	if err != nil {
 		return nil, err
 	}
 	var rs []Resource
-	return rs, s.db.Select(&rs, query, args...)
+	return rs, s.selectAll(&rs, query, args...)
 }

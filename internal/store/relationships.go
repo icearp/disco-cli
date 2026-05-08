@@ -49,7 +49,7 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 		direction = "directed"
 	}
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.db.Exec(
+	_, err := s.exec(
 		`
 		INSERT INTO relationships (from_id, to_id, kind, direction, attributes, discovered_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -83,7 +83,7 @@ func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
 		   AND hc.depth >= 1
 		 WHERE r.kind = 'contains'`
 	var rs []Relationship
-	if err := s.db.Select(&rs, q); err != nil {
+	if err := s.selectAll(&rs, q); err != nil {
 		return nil, fmt.Errorf("reversed contains edges: %w", err)
 	}
 	return rs, nil
@@ -94,7 +94,7 @@ func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
 // RelationshipsFrom / RelationshipsTo so they don't pull the whole table.
 func (s *Store) ListRelationships() ([]Relationship, error) {
 	var rs []Relationship
-	if err := s.db.Select(&rs, "SELECT * FROM relationships ORDER BY from_id, kind, to_id"); err != nil {
+	if err := s.selectAll(&rs, "SELECT * FROM relationships ORDER BY from_id, kind, to_id"); err != nil {
 		return nil, fmt.Errorf("list relationships: %w", err)
 	}
 	return rs, nil
@@ -104,10 +104,10 @@ func (s *Store) ListRelationships() ([]Relationship, error) {
 func (s *Store) RelationshipsFrom(fromID string, kinds ...string) ([]Relationship, error) {
 	if len(kinds) == 0 {
 		var rels []Relationship
-		return rels, s.db.Select(&rels,
+		return rels, s.selectAll(&rels,
 			"SELECT * FROM relationships WHERE from_id = ? ORDER BY kind", fromID)
 	}
-	query, args, err := sqlxIn(
+	query, args, err := s.sqlxIn(
 		"SELECT * FROM relationships WHERE from_id = ? AND kind IN (?) ORDER BY kind",
 		fromID, kinds,
 	)
@@ -115,17 +115,17 @@ func (s *Store) RelationshipsFrom(fromID string, kinds ...string) ([]Relationshi
 		return nil, err
 	}
 	var rels []Relationship
-	return rels, s.db.Select(&rels, query, args...)
+	return rels, s.selectAll(&rels, query, args...)
 }
 
 // RelationshipsTo returns all edges pointing to a resource.
 func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, error) {
 	if len(kinds) == 0 {
 		var rels []Relationship
-		return rels, s.db.Select(&rels,
+		return rels, s.selectAll(&rels,
 			"SELECT * FROM relationships WHERE to_id = ? ORDER BY kind", toID)
 	}
-	query, args, err := sqlxIn(
+	query, args, err := s.sqlxIn(
 		"SELECT * FROM relationships WHERE to_id = ? AND kind IN (?) ORDER BY kind",
 		toID, kinds,
 	)
@@ -133,13 +133,13 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 		return nil, err
 	}
 	var rels []Relationship
-	return rels, s.db.Select(&rels, query, args...)
+	return rels, s.selectAll(&rels, query, args...)
 }
 
 // NeighboursOf returns all resources directly connected to id (in either direction).
 func (s *Store) NeighboursOf(id string) ([]Resource, error) {
 	var results []Resource
-	err := s.db.Select(&results, `
+	err := s.selectAll(&results, `
 		SELECT r.* FROM resources r
 		JOIN relationships rel ON rel.to_id = r.id
 		WHERE rel.from_id = ?
@@ -174,7 +174,7 @@ func (s *Store) RecordHierarchy(childID, parentID string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	missing, err := recordHierarchyTx(tx, childID, parentID)
+	missing, err := s.recordHierarchyTx(tx, childID, parentID)
 	if err != nil {
 		return err
 	}
@@ -196,45 +196,48 @@ func (s *Store) RecordHierarchy(childID, parentID string) error {
 // Returns (missing=true, nil) when the gate fails — caller fires a
 // ScanWarning so operators see the drift without each scanner needing
 // `errors.Is` boilerplate. Real DB errors propagate normally.
-func recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing bool, err error) {
-	if _, err := tx.Exec(`
-		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
-		VALUES (?, ?, 0)`, childID, childID); err != nil {
+func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing bool, err error) {
+	if _, err := tx.Exec(s.rebind(`
+		INSERT INTO hierarchy_closure (ancestor_id, descendant_id, depth)
+		VALUES (?, ?, 0)
+		ON CONFLICT (ancestor_id, descendant_id) DO NOTHING`), childID, childID); err != nil {
 		return false, fmt.Errorf("closure self-entry %s: %w", childID, err)
 	}
-	if _, err := tx.Exec(`
-		INSERT OR IGNORE INTO hierarchy_closure (ancestor_id, descendant_id, depth)
+	if _, err := tx.Exec(s.rebind(`
+		INSERT INTO hierarchy_closure (ancestor_id, descendant_id, depth)
 		SELECT hc.ancestor_id, ?, hc.depth + 1
 		FROM hierarchy_closure hc
-		WHERE hc.descendant_id = ?`, childID, parentID); err != nil {
+		WHERE hc.descendant_id = ?
+		ON CONFLICT (ancestor_id, descendant_id) DO NOTHING`), childID, parentID); err != nil {
 		return false, fmt.Errorf("closure ancestor entries %s: %w", childID, err)
 	}
 	if childID == parentID {
 		return false, nil
 	}
-	parentExists, err := resourceExistsTx(tx, parentID)
+	parentExists, err := s.resourceExistsTx(tx, parentID)
 	if err != nil {
 		return false, fmt.Errorf("check parent %s: %w", parentID, err)
 	}
-	childExists, err := resourceExistsTx(tx, childID)
+	childExists, err := s.resourceExistsTx(tx, childID)
 	if err != nil {
 		return false, fmt.Errorf("check child %s: %w", childID, err)
 	}
 	if !parentExists || !childExists {
 		return true, nil
 	}
-	if _, err := tx.Exec(`
-		INSERT OR IGNORE INTO relationships (from_id, to_id, kind, direction, discovered_at)
-		VALUES (?, ?, 'contains', 'directed', ?)`,
+	if _, err := tx.Exec(s.rebind(`
+		INSERT INTO relationships (from_id, to_id, kind, direction, discovered_at)
+		VALUES (?, ?, 'contains', 'directed', ?)
+		ON CONFLICT (from_id, to_id, kind) DO NOTHING`),
 		parentID, childID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		return false, fmt.Errorf("hierarchy relationship row %s→%s: %w", parentID, childID, err)
 	}
 	return false, nil
 }
 
-func resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
+func (s *Store) resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
 	var n int
-	if err := tx.QueryRow("SELECT 1 FROM resources WHERE id = ? LIMIT 1", id).Scan(&n); err != nil {
+	if err := tx.QueryRow(s.rebind("SELECT 1 FROM resources WHERE id = ? LIMIT 1"), id).Scan(&n); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
@@ -259,7 +262,7 @@ func (s *Store) RecordHierarchyBatch(pairs [][2]string) error {
 	var missingCount int
 	var firstMissingScope string
 	for _, p := range pairs {
-		missing, err := recordHierarchyTx(tx, p[0], p[1])
+		missing, err := s.recordHierarchyTx(tx, p[0], p[1])
 		if err != nil {
 			return err
 		}
@@ -283,11 +286,13 @@ func (s *Store) RecordHierarchyBatch(pairs [][2]string) error {
 	return nil
 }
 
-// sqlxIn expands slice args for IN clauses using sqlx.In and rebinds for SQLite.
-func sqlxIn(query string, args ...any) (string, []any, error) {
+// sqlxIn expands slice args for IN clauses using sqlx.In and rebinds to the
+// active driver's placeholder format (Question for SQLite, Dollar for
+// Postgres). Method on *Store so dialect awareness flows through.
+func (s *Store) sqlxIn(query string, args ...any) (string, []any, error) {
 	q, a, err := sqlx.In(query, args...)
 	if err != nil {
 		return "", nil, err
 	}
-	return sqlx.Rebind(sqlx.QUESTION, q), a, nil
+	return s.db.Rebind(q), a, nil
 }

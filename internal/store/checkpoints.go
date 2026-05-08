@@ -26,7 +26,7 @@ type Checkpoint struct {
 // distinguishes "completed" from "never started". Updates `updated_at` on
 // every call so stale checkpoints can be detected.
 func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken string) error {
-	_, err := s.db.Exec(
+	_, err := s.exec(
 		`
 		INSERT INTO scan_checkpoints (scan_id, provider, service, scope, last_token, updated_at)
 		VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -45,7 +45,7 @@ func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken strin
 // scope) tuple, or ("", false, nil) when no row exists. Resume logic should
 // fall back to a fresh scan when ok=false.
 func (s *Store) GetCheckpoint(scanID, provider, service, scope string) (lastToken string, ok bool, err error) {
-	row := s.db.QueryRow(
+	row := s.queryRow(
 		`
 		SELECT last_token FROM scan_checkpoints
 		WHERE scan_id = ? AND provider = ? AND service = ? AND scope = ?`,
@@ -69,7 +69,7 @@ func (s *Store) GetCheckpoint(scanID, provider, service, scope string) (lastToke
 // summarise pending work, and by paid incremental scanners that pre-fetch
 // all checkpoints in one round-trip.
 func (s *Store) ListCheckpoints(scanID string) ([]Checkpoint, error) {
-	rows, err := s.db.Query(
+	rows, err := s.query(
 		`
 		SELECT scan_id, provider, service, scope, last_token, updated_at
 		FROM scan_checkpoints
@@ -105,7 +105,7 @@ func (s *Store) ListCheckpoints(scanID string) ([]Checkpoint, error) {
 // scan completes so the table stays bounded — abandoned scan rows live until
 // explicit cleanup or the next resume of the same scan_id.
 func (s *Store) DeleteScanCheckpoints(scanID string) error {
-	_, err := s.db.Exec("DELETE FROM scan_checkpoints WHERE scan_id = ?", scanID)
+	_, err := s.exec("DELETE FROM scan_checkpoints WHERE scan_id = ?", scanID)
 	if err != nil {
 		return fmt.Errorf("delete scan checkpoints: %w", err)
 	}

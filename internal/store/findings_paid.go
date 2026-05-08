@@ -121,7 +121,7 @@ func (s *Store) PersistCheckRun(rulesPaths, packs []string, severityFilter strin
 // deterministically (mirrors ListScans).
 func (s *Store) ListCheckRuns() ([]CheckRun, error) {
 	var runs []CheckRun
-	if err := s.db.Select(&runs, "SELECT * FROM check_runs ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&runs, "SELECT * FROM check_runs ORDER BY started_at DESC, rowid DESC"); err != nil {
 		return nil, err
 	}
 	for i := range runs {
@@ -135,7 +135,7 @@ func (s *Store) ListCheckRuns() ([]CheckRun, error) {
 // GetCheckRun retrieves one check_run by ID. Decodes RulesPaths + Packs.
 func (s *Store) GetCheckRun(id string) (*CheckRun, error) {
 	var r CheckRun
-	if err := s.db.Get(&r, "SELECT * FROM check_runs WHERE id = ?", id); err != nil {
+	if err := s.get(&r, "SELECT * FROM check_runs WHERE id = ?", id); err != nil {
 		return nil, fmt.Errorf("get check_run %s: %w", id, err)
 	}
 	if err := decodeRunSlices(&r); err != nil {
@@ -185,12 +185,12 @@ func (s *Store) ListFindings(f FindingFilter) ([]StoredFinding, error) {
 	if f.Limit > 0 {
 		q = q.Limit(f.Limit).Offset(f.Offset)
 	}
-	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	query, args, err := q.PlaceholderFormat(s.placeholder()).ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 	var out []StoredFinding
-	if err := s.db.Select(&out, query, args...); err != nil {
+	if err := s.selectAll(&out, query, args...); err != nil {
 		return nil, fmt.Errorf("list findings: %w", err)
 	}
 	return out, nil
@@ -199,7 +199,7 @@ func (s *Store) ListFindings(f FindingFilter) ([]StoredFinding, error) {
 // DeleteCheckRun removes the run and (via FK CASCADE) every finding
 // row owned by it. Used by future retention-pruning paths.
 func (s *Store) DeleteCheckRun(id string) error {
-	_, err := s.db.Exec("DELETE FROM check_runs WHERE id = ?", id)
+	_, err := s.exec("DELETE FROM check_runs WHERE id = ?", id)
 	return err
 }
 

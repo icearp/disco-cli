@@ -142,9 +142,9 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		ids[i] = r.ID
 	}
 	q, args, _ := sq.Select("COUNT(*)").From("resources").
-		Where(sq.Eq{"id": ids}).PlaceholderFormat(sq.Question).ToSql()
+		Where(sq.Eq{"id": ids}).PlaceholderFormat(s.placeholder()).ToSql()
 	var existing int
-	if err := s.db.Get(&existing, q, args...); err != nil {
+	if err := s.get(&existing, q, args...); err != nil {
 		return 0, fmt.Errorf("count existing resources: %w", err)
 	}
 	inserted = len(resources) - existing
@@ -296,13 +296,14 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	switch {
 	case f.TagKey != "" && f.TagValue != "":
-		q = q.Where("json_extract(tags, ?) = ?", "$."+f.TagKey, f.TagValue)
+		frag, arg := s.tagJSONFilter(f.TagKey)
+		q = q.Where(frag+" = ?", arg, f.TagValue)
 	case f.TagKey != "":
-		q = q.Where("json_extract(tags, ?) IS NOT NULL", "$."+f.TagKey)
+		frag, arg := s.tagJSONFilter(f.TagKey)
+		q = q.Where(frag+" IS NOT NULL", arg)
 	case f.TagValue != "":
 		// Value-only match: any tag whose value matches, regardless of key.
-		// json_each yields one row per tag entry so EXISTS short-circuits.
-		q = q.Where("EXISTS (SELECT 1 FROM json_each(tags) WHERE json_each.value = ?)", f.TagValue)
+		q = q.Where(s.tagJSONValueExists(), f.TagValue)
 	}
 	if !f.IncludeManaged {
 		q = q.Where(sq.Eq{"managed_by_provider": false})
@@ -314,13 +315,13 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	}
 	q = q.Limit(limit).Offset(f.Offset).OrderBy("provider", "type", "name")
 
-	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	query, args, err := q.PlaceholderFormat(s.placeholder()).ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("build query: %w", err)
 	}
 
 	var results []Resource
-	if err := s.db.Select(&results, query, args...); err != nil {
+	if err := s.selectAll(&results, query, args...); err != nil {
 		return nil, fmt.Errorf("list resources: %w", err)
 	}
 	return results, nil
@@ -329,7 +330,7 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 // GetResource retrieves a single resource by ID.
 func (s *Store) GetResource(id string) (*Resource, error) {
 	var r Resource
-	if err := s.db.Get(&r, "SELECT * FROM resources WHERE id = ?", id); err != nil {
+	if err := s.get(&r, "SELECT * FROM resources WHERE id = ?", id); err != nil {
 		return nil, fmt.Errorf("get resource %s: %w", id, err)
 	}
 	return &r, nil
@@ -343,7 +344,7 @@ func (r *Resource) UnmarshalAttributes(v any) error {
 // CountResourcesByScan returns the number of resources recorded under a scan ID.
 func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 	var n int
-	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE discovered_by = ?", scanID)
+	err := s.get(&n, "SELECT COUNT(*) FROM resources WHERE discovered_by = ?", scanID)
 	return n, err
 }
 
@@ -354,7 +355,7 @@ func (s *Store) CountResourcesByScan(scanID string) (int, error) {
 // denominator as "no resources".
 func (s *Store) CountManaged() (int, error) {
 	var n int
-	err := s.db.Get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider = 1")
+	err := s.get(&n, "SELECT COUNT(*) FROM resources WHERE managed_by_provider = 1")
 	return n, err
 }
 
@@ -453,12 +454,12 @@ func (s *Store) resolveQuery(match sq.Sqlizer, provider, rtype, account string) 
 		q = q.Where(sq.Eq{"account_id": account})
 	}
 	q = q.Limit(50)
-	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	query, args, err := q.PlaceholderFormat(s.placeholder()).ToSql()
 	if err != nil {
 		return nil, err
 	}
 	var rows []Resource
-	if err := s.db.Select(&rows, query, args...); err != nil {
+	if err := s.selectAll(&rows, query, args...); err != nil {
 		return nil, fmt.Errorf("resolve resource: %w", err)
 	}
 	return rows, nil
@@ -515,10 +516,10 @@ func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, er
 		q = q.Where(sq.Eq{"r.status": f.Status})
 	}
 
-	query, args, err := q.PlaceholderFormat(sq.Question).ToSql()
+	query, args, err := q.PlaceholderFormat(s.placeholder()).ToSql()
 	if err != nil {
 		return nil, err
 	}
 	var results []Resource
-	return results, s.db.Select(&results, query, args...)
+	return results, s.selectAll(&results, query, args...)
 }
