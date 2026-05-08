@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: disco serve
+  version: "1.0.0"
+  description: |
+    Scan-trigger HTTP API for the disco-saas Fargate worker. The container
+    is one-shot async: it accepts exactly one POST /v1/scans, runs the scan
+    in the background, persists results to the configured Postgres DSN, and
+    self-terminates when the scan completes (success or failure). SaaS reads
+    scan status by direct SELECT against the scans table — there is no GET
+    status endpoint here.
+
+    Tenant identity is pinned at container startup via DISCO_TENANT_ID env.
+    The bearer JWT MUST carry a `tenant` claim equal to that value or the
+    request is rejected 403 `tenant_mismatch`. The body MUST NOT carry
+    tenant_id, DSN, or cloud credential fields — server uses ambient creds
+    (Fargate task IAM role, env vars, ADC).
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ScanRequest:
+      type: object
+      required: [provider]
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+          enum: [aws, azure, gcp]
+        regions:
+          type: array
+          items: { type: string }
+        accounts:
+          type: array
+          items: { type: string }
+        subscriptions:
+          type: array
+          items: { type: string }
+        projects:
+          type: array
+          items: { type: string }
+        resource_types:
+          type: array
+          items: { type: string }
+    ScanAccepted:
+      type: object
+      required: [scan_id, status]
+      properties:
+        scan_id: { type: string }
+        status:
+          type: string
+          enum: [pending]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:    { type: string }
+            message: { type: string }
+            details:
+              type: object
+              additionalProperties: true
+
+paths:
+  /v1/healthz:
+    get:
+      summary: Liveness probe (no auth)
+      responses:
+        '200':
+          description: ok
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /v1/scans:
+    post:
+      summary: Submit a scan request (async, single-flight per container)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScanRequest' }
+      responses:
+        '202':
+          description: Accepted; scan running in background.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScanAccepted' }
+        '400':
+          description: |
+            credentials_in_body_forbidden — body carried a forbidden key
+            (cred fields, dsn, tenant_id, etc.); server-pinned config cannot
+            be overridden.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Missing, invalid, or expired bearer token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: |
+            tenant_mismatch — JWT `tenant` claim missing or does not match
+            the server's pinned DISCO_TENANT_ID.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: |
+            scan_in_progress — a scan is already running. The container is
+            one-shot; submit to a fresh task.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }

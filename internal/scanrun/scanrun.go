@@ -49,18 +49,20 @@ type Request struct {
 	SkipGlobals bool
 }
 
-// Run resolves scanners, applies per-request scope, opens a scan row, fans
-// out, and finalises. Returns (scanID, err). A nil error means at least one
-// scanner ran cleanly; per-scanner failures are aggregated on the scan row
-// as a partial completion. Returns an error only for hard failures
-// (registry mismatch, store unable to record the scan).
-func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
+// Allocate creates a "pending" scan row and returns its ID without running
+// any scanners. Used by the API handler to surface a scan_id at 202 time
+// before the fan-out begins. The handler then calls Execute(scanID, req)
+// in a background goroutine.
+//
+// The returned scanners + scope are cached in the *Allocation so Execute
+// does not re-resolve providers (which would double-apply overrides).
+func Allocate(st *store.Store, req Request) (*Allocation, error) {
 	scanners, err := resolveScanners(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if len(scanners) == 0 {
-		return "", fmt.Errorf("no providers selected")
+		return nil, fmt.Errorf("no providers selected")
 	}
 	applyOverrides(scanners, req)
 
@@ -77,27 +79,53 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 	}
 	scanID, err := st.CreateScan(names, scope)
 	if err != nil {
-		return "", fmt.Errorf("create scan: %w", err)
+		return nil, fmt.Errorf("create scan: %w", err)
 	}
+	return &Allocation{ScanID: scanID, scanners: scanners}, nil
+}
 
-	warnings, scanErrors := RunScanners(ctx, st, scanID, scanners)
+// Allocation is the handle returned by Allocate; pass it to Execute to
+// actually run the scanners + finalise the scan row.
+type Allocation struct {
+	ScanID   string
+	scanners []providers.Scanner
+}
 
-	count, _ := st.CountResourcesByScan(scanID)
+// Execute runs the scanners attached to a, finalises the scan row, and
+// returns a non-nil error only for store-level failures. Per-scanner
+// errors are persisted as PartialScan; the call returns nil so the
+// caller can exit cleanly.
+func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
+	_, scanErrors := RunScanners(ctx, st, a.ScanID, a.scanners)
+
+	count, _ := st.CountResourcesByScan(a.ScanID)
 	if len(scanErrors) > 0 {
 		msgs := make([]string, len(scanErrors))
 		for i, e := range scanErrors {
 			msgs[i] = fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message)
 		}
-		_ = warnings // future: persist warning count once schema lands
-		if perr := st.PartialScan(scanID, count, strings.Join(msgs, "; ")); perr != nil {
-			return scanID, fmt.Errorf("mark partial: %w", perr)
+		if perr := st.PartialScan(a.ScanID, count, strings.Join(msgs, "; ")); perr != nil {
+			return fmt.Errorf("mark partial: %w", perr)
 		}
-		return scanID, nil
+		return nil
 	}
-	if cerr := st.CompleteScan(scanID, count); cerr != nil {
-		return scanID, fmt.Errorf("complete scan: %w", cerr)
+	if cerr := st.CompleteScan(a.ScanID, count); cerr != nil {
+		return fmt.Errorf("complete scan: %w", cerr)
 	}
-	return scanID, nil
+	return nil
+}
+
+// Run is the synchronous shorthand for Allocate + Execute. CLI uses this;
+// API handler splits to surface scanID at 202 time.
+func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
+	a, err := Allocate(st, req)
+	if err != nil {
+		return "", err
+	}
+	if err := Execute(ctx, st, a); err != nil {
+		return a.ScanID, err
+	}
+	return a.ScanID, nil
 }
 
 // RunScanners is the parallel fan-out core: invokes Scan() on each scanner
