@@ -168,6 +168,13 @@ func renderFindings(fs []policy.Finding, format string) error {
 			}
 		}
 		return nil
+	case "markdown", "md":
+		rows := make([][]string, 0, len(fs))
+		for _, f := range fs {
+			rows = append(rows, []string{f.ID, f.Severity, f.ResourceID, f.Type, f.Name, f.Region, f.Category, f.Message})
+		}
+		return renderMarkdownTable(os.Stdout,
+			[]string{"Finding", "Severity", "Resource", "Type", "Name", "Region", "Category", "Message"}, rows)
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "FINDING\tSEVERITY\tTYPE\tNAME\tMESSAGE")
@@ -176,7 +183,7 @@ func renderFindings(fs []policy.Finding, format string) error {
 		}
 		return w.Flush()
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, jsonl, csv, sarif)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl, sarif)", format)
 	}
 }
 
@@ -186,6 +193,14 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(runs)
+	case "jsonl":
+		enc := json.NewEncoder(os.Stdout)
+		for _, r := range runs {
+			if err := enc.Encode(r); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "csv":
 		w := csv.NewWriter(os.Stdout)
 		defer w.Flush()
@@ -202,6 +217,17 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 			}
 		}
 		return nil
+	case "markdown", "md":
+		rows := make([][]string, 0, len(runs))
+		for _, r := range runs {
+			rows = append(rows, []string{
+				r.ID, r.StartedAt, ptrOrEmpty(r.FinishedAt),
+				strings.Join(r.Packs, ","), strings.Join(r.RulesPaths, ","),
+				ptrOrEmpty(r.SeverityFilter), intPtrOrEmpty(r.ResourceCount), intPtrOrEmpty(r.FindingCount),
+			})
+		}
+		return renderMarkdownTable(os.Stdout,
+			[]string{"ID", "Started", "Finished", "Packs", "Rules", "Severity", "Resources", "Findings"}, rows)
 	case "table", "":
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tPACKS\tRULES\tRESOURCES\tFINDINGS")
@@ -221,7 +247,7 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 		}
 		return w.Flush()
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, json, csv)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", format)
 	}
 }
 
@@ -317,7 +343,7 @@ func intPtrOrDashI(p *int) string {
 }
 
 func init() {
-	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, json, jsonl, csv, sarif (sarif on list only)")
+	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif (sarif on list only)")
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
