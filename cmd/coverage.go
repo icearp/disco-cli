@@ -376,6 +376,7 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 	allowed := lowerSet(services)
 	infos := awsprov.ListResolvers()
 	type row struct {
+		Provider string   `json:"provider"`
 		Resolver string   `json:"resolver"`
 		Edges    int      `json:"edges"`
 		Services []string `json:"services,omitempty"`
@@ -388,14 +389,14 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 		}
 		if r.EdgeCount == 0 {
 			unannotated++
-			rows = append(rows, row{Resolver: r.Name, Edges: 0, Services: r.Services})
+			rows = append(rows, row{Provider: "aws", Resolver: r.Name, Edges: 0, Services: r.Services})
 			continue
 		}
 		annotated++
 		if onlyUnannotated {
 			continue
 		}
-		rows = append(rows, row{Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
+		rows = append(rows, row{Provider: "aws", Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 	}
 	switch outputFmt {
 	case "json":
@@ -405,16 +406,16 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 			return err
 		}
 	case "markdown":
-		_, _ = fmt.Fprintln(w, "| Resolver | Edges | Services |")
-		_, _ = fmt.Fprintln(w, "|---|---|---|")
+		_, _ = fmt.Fprintln(w, "| Provider | Resolver | Edges | Services |")
+		_, _ = fmt.Fprintln(w, "|---|---|---|---|")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "| %s | %d | %s |\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
+			_, _ = fmt.Fprintf(w, "| %s | %s | %d | %s |\n", r.Provider, r.Resolver, r.Edges, strings.Join(r.Services, ","))
 		}
 	default:
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(tw, "RESOLVER\tEDGES\tSERVICES")
+		_, _ = fmt.Fprintln(tw, "PROVIDER\tRESOLVER\tEDGES\tSERVICES")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%d\t%s\n", r.Provider, r.Resolver, r.Edges, strings.Join(r.Services, ","))
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -454,6 +455,7 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 	sort.Strings(orphans)
 
 	type row struct {
+		Provider  string `json:"provider"`
 		DiscoType string `json:"disco_type"`
 		Service   string `json:"service"`
 	}
@@ -463,7 +465,7 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 		if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
 			continue
 		}
-		rows = append(rows, row{DiscoType: t, Service: svc})
+		rows = append(rows, row{Provider: "aws", DiscoType: t, Service: svc})
 	}
 	switch outputFmt {
 	case "json":
@@ -473,16 +475,16 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 			return err
 		}
 	case "markdown":
-		_, _ = fmt.Fprintln(w, "| Disco Type | Service |")
-		_, _ = fmt.Fprintln(w, "|---|---|")
+		_, _ = fmt.Fprintln(w, "| Provider | Disco Type | Service |")
+		_, _ = fmt.Fprintln(w, "|---|---|---|")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "| %s | %s |\n", r.DiscoType, r.Service)
+			_, _ = fmt.Fprintf(w, "| %s | %s | %s |\n", r.Provider, r.DiscoType, r.Service)
 		}
 	default:
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(tw, "DISCO_TYPE\tSERVICE")
+		_, _ = fmt.Fprintln(tw, "PROVIDER\tDISCO_TYPE\tSERVICE")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\n", r.DiscoType, r.Service)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", r.Provider, r.DiscoType, r.Service)
 		}
 		if err := tw.Flush(); err != nil {
 			return err
