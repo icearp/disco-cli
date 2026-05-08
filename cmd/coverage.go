@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -396,16 +397,27 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 		}
 		rows = append(rows, row{Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 	}
-	if outputFmt == "json" {
+	switch outputFmt {
+	case "json":
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(rows); err != nil {
 			return err
 		}
-	} else {
-		_, _ = fmt.Fprintln(w, "RESOLVER\tEDGES\tSERVICES")
+	case "markdown":
+		_, _ = fmt.Fprintln(w, "| Resolver | Edges | Services |")
+		_, _ = fmt.Fprintln(w, "|---|---|---|")
 		for _, r := range rows {
-			_, _ = fmt.Fprintf(w, "%s\t%d\t%s\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
+			_, _ = fmt.Fprintf(w, "| %s | %d | %s |\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
+		}
+	default:
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "RESOLVER\tEDGES\tSERVICES")
+		for _, r := range rows {
+			_, _ = fmt.Fprintf(tw, "%s\t%d\t%s\n", r.Resolver, r.Edges, strings.Join(r.Services, ","))
+		}
+		if err := tw.Flush(); err != nil {
+			return err
 		}
 	}
 	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", len(infos), annotated, unannotated)
@@ -453,15 +465,28 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 		}
 		rows = append(rows, row{DiscoType: t, Service: svc})
 	}
-	if outputFmt == "json" {
+	switch outputFmt {
+	case "json":
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
-		return enc.Encode(rows)
-	}
-
-	_, _ = fmt.Fprintln(w, "disco_type\tservice")
-	for _, r := range rows {
-		_, _ = fmt.Fprintf(w, "%s\t%s\n", r.DiscoType, r.Service)
+		if err := enc.Encode(rows); err != nil {
+			return err
+		}
+	case "markdown":
+		_, _ = fmt.Fprintln(w, "| Disco Type | Service |")
+		_, _ = fmt.Fprintln(w, "|---|---|")
+		for _, r := range rows {
+			_, _ = fmt.Fprintf(w, "| %s | %s |\n", r.DiscoType, r.Service)
+		}
+	default:
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "DISCO_TYPE\tSERVICE")
+		for _, r := range rows {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\n", r.DiscoType, r.Service)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(rows), len(emitted))
 	return nil
