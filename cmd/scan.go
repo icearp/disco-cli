@@ -6,11 +6,11 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
+	"codeberg.org/icearp/disco/internal/scanrun"
 	"codeberg.org/icearp/disco/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -237,49 +237,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 			time.Since(start).Round(time.Second), provider, edges)
 	}
 
-	// Collect non-fatal skip warnings in memory and render grouped at end.
-	var (
-		warnings []store.ScanWarning
-		warnMu   sync.Mutex
-	)
-	db.OnWarn = func(w store.ScanWarning) {
-		warnMu.Lock()
-		warnings = append(warnings, w)
-		warnMu.Unlock()
-	}
-
-	// Collect errors in memory and render grouped at end. Errors do NOT abort
-	// the scan: any provider/service/resolver failure is captured here and
-	// surfaced exactly once after all in-flight work settles.
-	var (
-		scanErrors []store.ScanError
-		errMu      sync.Mutex
-	)
-	db.OnError = func(e store.ScanError) {
-		errMu.Lock()
-		scanErrors = append(scanErrors, e)
-		errMu.Unlock()
-	}
-
-	// Run all providers in parallel. A failure in one provider does not abort
-	// its siblings — security users would rather have a partial inventory from
-	// the providers that succeeded than nothing at all. Providers should never
-	// return an error from Scan() (errors flow through OnError); if one does,
-	// we still capture it as a ScanError and continue.
+	// Fan-out + warning/error capture lives in scanrun so the same code path
+	// drives the API server (cmd/serve_paid.go). RunScanners chains its
+	// callbacks on top of any caller-installed OnWarn/OnError; here neither
+	// is set so RunScanners is the sole capture point.
 	ctx := context.Background()
-	var wg sync.WaitGroup
-	for _, s := range scanners {
-		wg.Go(func() {
-			if err := s.Scan(ctx, db, scanID); err != nil {
-				errMu.Lock()
-				scanErrors = append(scanErrors, store.ScanError{
-					Provider: s.Name(), Service: "scan", Scope: "", Message: err.Error(),
-				})
-				errMu.Unlock()
-			}
-		})
-	}
-	wg.Wait()
+	warnings, scanErrors := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Render grouped warnings + errors blocks before the final summary line.
 	renderWarnings(progressW, warnings, quiet)
