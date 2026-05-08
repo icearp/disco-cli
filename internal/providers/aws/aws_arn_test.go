@@ -2,6 +2,35 @@ package aws
 
 import "testing"
 
+// TestEC2ARN verifies the ARN format used as NativeID for EC2 resources.
+// The NativeID feeds into store.ResourceID, so any format change silently
+// breaks all relationships that reference EC2 resources.
+func TestEC2ARN(t *testing.T) {
+	cases := []struct {
+		region, account, rtype, id, want string
+	}{
+		{
+			"us-east-1", "123456789012", "instance", "i-abc123",
+			"arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+		},
+		{
+			"eu-west-1", "999999999999", "vpc", "vpc-xyz",
+			"arn:aws:ec2:eu-west-1:999999999999:vpc/vpc-xyz",
+		},
+		{
+			"us-west-2", "111111111111", "security-group", "sg-001",
+			"arn:aws:ec2:us-west-2:111111111111:security-group/sg-001",
+		},
+	}
+	for _, tc := range cases {
+		got := ec2ARN(tc.region, tc.account, tc.rtype, tc.id)
+		if got != tc.want {
+			t.Errorf("ec2ARN(%q,%q,%q,%q) = %q, want %q",
+				tc.region, tc.account, tc.rtype, tc.id, got, tc.want)
+		}
+	}
+}
+
 func TestRDSARN(t *testing.T) {
 	got := rdsARN("us-east-1", "123456789012", "db", "mydb")
 	want := "arn:aws:rds:us-east-1:123456789012:db:mydb"
