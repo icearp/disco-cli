@@ -373,7 +373,7 @@ Verify the predicate against a real account if the SDK doc is ambiguous — obse
 
 ## Re-verify leaf-flag comments before trusting them
 
-`coverage_leaves.go` entries often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: sanitize.go's shape-bounded ARN allowlist (`isAWSARN` in `internal/store/sanitize.go`) was added after `appflow:connector-profile` was flagged blocked, leaving the entry's claim stale until commit `abd36e2`. Before adding a sidecar workaround for what a comment says is "blocked", grep `internal/store/sanitize.go` for recent `isAWSARN` / `keyVaultDNSSuffixes` extensions and try the direct path first. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
+`coverage_leaves.go` entries often carry an inline reason ("refs blocked by sanitize", "refs need Describe enrichment", "no SDK list op"). These rot: redaction is now per-type and per-path (`internal/providers/aws/redact.go`); ARN-bearing fields like `CredentialsArn` / `SecretArn` / `TokenSourceArn` / `AuthorizationHeaderArn` are preserved by *omission* (no rule targets them). Before adding a sidecar workaround for what a comment says is "blocked", read `internal/providers/aws/redact.go` and confirm the field actually has a rule on it; if not, the resolver can read it directly. Same applies to "no Describe op" claims — SDK additions land between scanner-write and leaf-comment time.
 
 ## Parent-row "leaf" ≠ no edges
 

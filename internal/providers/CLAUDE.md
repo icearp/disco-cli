@@ -55,6 +55,14 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 2. Call `providers.Register(&MyScanner{})` in package `init()`
 3. Add `_ "codeberg.org/icearp/disco/internal/providers/<name>"` to `cmd/providers.go`
 
+## Declaring redaction rules
+
+Per-provider `redact.go` (e.g. `internal/providers/aws/redact.go`) declares per-type rules in an `init()` block: `redact.Register(redact.TypeRules{Type: TypeFoo, Attributes: []redact.Rule{{Path: "Bar.Baz", Mode: redact.RedactScalar}}})`. Path syntax: dotted literals; `*` map-key wildcard; `[*]` array wildcard. Modes: `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant).
+
+Adding a new resource type whose SDK response carries credentials, tokens, init-script payload, plaintext env vars, or connection strings: register a rule alongside `registerService`. Rules are NOT inferred — without one, the field ships unredacted. Pointer-shape fields (ARNs, KeyVault reference URIs) are preserved by **omission** — don't add a rule then add a shape-allowlist escape; just don't add the rule.
+
+Per-provider `redact_test.go` constructs sample SDK responses via `json.Marshal` of real SDK types and asserts the sensitive field comes back `[REDACTED]`. SDK field renames break the test on `go mod tidy` — cheap drift catch.
+
 ## Provider file naming
 
 Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS scanners + resolvers self-register via `registerService` / `registerResolver` (see `aws_services.go`) called from each file's `init()` — no manual wire-up in `aws.go`.
