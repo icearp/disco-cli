@@ -1,7 +1,7 @@
 -- Single Postgres migration. Greenfield install applies this one file.
 --
 -- Schema and column semantics match the SQLite version (../001_initial.sql)
--- one-for-one; only types and a handful of dialect-specific bits differ:
+-- one-for-one. Only types and a handful of dialect-specific bits differ:
 --   * INTEGER PRIMARY KEY AUTOINCREMENT  -> BIGINT GENERATED ALWAYS AS IDENTITY
 --   * tags TEXT (JSON string)            -> tags JSONB (jsonb_each_text + ->> work)
 --   * managed_by_provider INTEGER 0/1    -> managed_by_provider BOOLEAN
@@ -11,7 +11,7 @@
 -- the `app.tenant_id` GUC. The GUC is pinned at connection time by
 -- OpenPostgres (postgres_paid.go) via AfterConnect, so RLS sees the value
 -- on every query without per-statement plumbing. NEW rows pick up the GUC by
--- DEFAULT; INSERTs from app code never need to spell tenant_id explicitly.
+-- DEFAULT. INSERTs from app code never need to spell tenant_id explicitly.
 --
 -- Paid tables (check_runs, findings) live in 002_findings_paid.sql plus
 -- their own RLS layer.
