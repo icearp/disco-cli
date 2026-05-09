@@ -28,3 +28,21 @@ func TestChainAssumeRoles_BuildsCache(t *testing.T) {
 		t.Fatal("expected non-nil cache for two-hop chain")
 	}
 }
+
+// TestSetRoleOverride_PinsScannerState verifies the capability interface
+// stores both fields and is read back unchanged by SetRoleOverride.
+func TestSetRoleOverride_PinsScannerState(t *testing.T) {
+	s := &Scanner{}
+	s.SetRoleOverride("arn:aws:iam::111111111111:role/Disco", "ext-id-123")
+	if s.roleARN != "arn:aws:iam::111111111111:role/Disco" {
+		t.Errorf("roleARN = %q", s.roleARN)
+	}
+	if s.externalID != "ext-id-123" {
+		t.Errorf("externalID = %q", s.externalID)
+	}
+	// Empty roleARN clears.
+	s.SetRoleOverride("", "")
+	if s.roleARN != "" || s.externalID != "" {
+		t.Errorf("SetRoleOverride should have cleared, got %q / %q", s.roleARN, s.externalID)
+	}
+}

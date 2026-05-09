@@ -58,6 +58,16 @@ type ProfileOverrider interface {
 	SetProfile(profile string)
 }
 
+// RoleOverrider is an optional interface for providers that support
+// overriding the assume-role identity via CLI flags. Used by the SaaS
+// scan-trigger Lambda to pin the worker to the connected_account's
+// principal + external-id pair without writing a config file. Empty
+// roleARN restores the default credential chain; non-empty externalID
+// is included in the AssumeRole call only when roleARN is also set.
+type RoleOverrider interface {
+	SetRoleOverride(roleARN, externalID string)
+}
+
 // GlobalsSkipper is an optional interface for providers that support
 // suppressing global / cross-region service scans via --skip-globals.
 // Globals are services whose endpoints live in a single region but whose

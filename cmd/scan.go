@@ -350,6 +350,13 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 		}
 		provScope["profile"] = profile
 	}
+	if _, ok := s.(providers.RoleOverrider); ok {
+		// Record only the ARN — external_id is treated like a credential
+		// and never lands in the audit-trail JSON.
+		if roleARN, _ := cmd.Flags().GetString("role-arn"); roleARN != "" {
+			provScope["role_arn"] = roleARN
+		}
+	}
 	if _, ok := s.(providers.ServiceFilterer); ok {
 		svcs, _ := cmd.Flags().GetStringSlice("services")
 		if len(svcs) > 0 {
@@ -502,6 +509,12 @@ func init() {
 			subcmd.Flags().String("profile", "",
 				"named credential profile (e.g. a profile defined in ~/.aws/config)")
 		}
+		if _, ok := s.(providers.RoleOverrider); ok {
+			subcmd.Flags().String("role-arn", "",
+				"AssumeRole target — pins the scan to a single account reached by assuming this role; bypasses the config file's accounts: section")
+			subcmd.Flags().String("external-id", "",
+				"STS ExternalId for --role-arn (only honoured when --role-arn is also set)")
+		}
 		if _, ok := s.(providers.GlobalsSkipper); ok {
 			subcmd.Flags().Bool("skip-globals", false,
 				"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
@@ -524,6 +537,13 @@ func init() {
 			if po, ok := s.(providers.ProfileOverrider); ok {
 				if profile, _ := cmd.Flags().GetString("profile"); profile != "" {
 					po.SetProfile(profile)
+				}
+			}
+			if ro, ok := s.(providers.RoleOverrider); ok {
+				roleARN, _ := cmd.Flags().GetString("role-arn")
+				externalID, _ := cmd.Flags().GetString("external-id")
+				if roleARN != "" {
+					ro.SetRoleOverride(roleARN, externalID)
 				}
 			}
 			if gs, ok := s.(providers.GlobalsSkipper); ok {

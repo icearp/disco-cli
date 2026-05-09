@@ -40,6 +40,8 @@ type Scanner struct {
 	regionOverride []string // non-nil overrides all per-account and default regions
 	profile        string   // "" = default AWS credential chain
 	skipGlobals    bool     // when true, services registered as global are not invoked
+	roleARN        string   // "" = use config-file accounts; non-empty pins single-account scan via assume-role
+	externalID     string   // included in AssumeRole only when roleARN is also set
 }
 
 // Name implements providers.Scanner.
@@ -62,6 +64,19 @@ func (s *Scanner) SetSkipGlobals(skip bool) { s.skipGlobals = skip }
 // An empty string uses the default credential chain.
 func (s *Scanner) SetProfile(profile string) { s.profile = profile }
 
+// SetRoleOverride pins the scan to a single account reached by AssumeRole
+// against roleARN with an optional STS external_id. Bypasses the config
+// file's accounts: section — the SaaS scan-trigger Lambda uses this to
+// drive a per-tenant scan against a connected_accounts row without
+// writing config to disk in the worker container.
+//
+// Empty roleARN clears the override (restores config-driven account list).
+// externalID is honoured only when roleARN is also set.
+func (s *Scanner) SetRoleOverride(roleARN, externalID string) {
+	s.roleARN = roleARN
+	s.externalID = externalID
+}
+
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
 	svcs := filteredServices(s.serviceFilter)
@@ -76,7 +91,7 @@ func (s *Scanner) ServiceNames() []string {
 // Errors are reported via st.ReportError and never abort the scan: a failure
 // in one service / resolver / account does not stop the others.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride)
+	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride, s.roleARN, s.externalID)
 	if err != nil {
 		st.ReportError(store.ScanError{
 			Provider: "aws", Service: "load-accounts", Scope: "", Message: err.Error(),

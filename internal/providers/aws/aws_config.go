@@ -34,7 +34,13 @@ type accountCfg struct {
 // When no accounts are configured, the current account is detected via STS.
 // profile selects a named entry from ~/.aws/config ("" = default chain).
 // regionOverride, when non-empty, replaces all per-account and default regions.
-func loadAccounts(ctx context.Context, profile string, regionOverride []string) ([]account, error) {
+//
+// When roleARNOverride is non-empty, the config-file accounts: section is
+// ignored entirely: a single synthetic account is built that assumes
+// roleARNOverride (with externalIDOverride passed as the STS ExternalId
+// when non-empty). The SaaS scan-trigger Lambda uses this to drive
+// per-tenant scans without writing config to disk in the worker container.
+func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride string) ([]account, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("aws", &cfg); err != nil {
 		return nil, fmt.Errorf("parse aws config: %w", err)
@@ -60,6 +66,38 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string) 
 	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("load aws sdk config: %w", err)
+	}
+
+	// CLI/Lambda override pins a single AssumeRole-driven account; ignore
+	// config-file accounts entirely. Build the synthetic accountCfg here so
+	// the loop below handles role chain + region + override uniformly.
+	if roleARNOverride != "" {
+		stsClient := sts.NewFromConfig(baseCfg)
+		acctCfg := baseCfg
+		acctCfg.Credentials = sdkaws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(
+			stsClient, roleARNOverride,
+			func(o *stscreds.AssumeRoleOptions) {
+				if externalIDOverride != "" {
+					o.ExternalID = &externalIDOverride
+				}
+			},
+		))
+		// Resolve the assumed-role caller account for the synthetic ID; on
+		// error we still proceed with an empty ID rather than failing the
+		// scan, since the override path is meant to short-circuit STS pre-checks.
+		var acctID string
+		if identity, err := sts.NewFromConfig(acctCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
+			acctID = sv(identity.Account)
+		}
+		regions := cfg.DefaultRegions
+		if len(regionOverride) > 0 {
+			regions = regionOverride
+		}
+		return []account{{
+			ID:      acctID,
+			Regions: regions,
+			cfg:     acctCfg,
+		}}, nil
 	}
 
 	// Auto-detect the current account when none are configured.
