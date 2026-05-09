@@ -83,18 +83,29 @@ func (s *Store) migrate() error {
 	return nil
 }
 
-// splitStatements splits a SQL script into individual statements on semicolons.
-// This is necessary because Go's database/sql Exec executes only the first
-// statement in a multi-statement string; the rest are silently ignored.
-// Blank and comment-only chunks are skipped.
+// splitStatements splits a SQL script into individual statements on
+// semicolons. Necessary because Go's database/sql Exec executes only the
+// first statement in a multi-statement string; the rest are silently
+// ignored. Blank and comment-only chunks are skipped.
+//
+// Dollar-quoted strings ($$ ... $$ or $tag$ ... $tag$) are treated as
+// opaque, so semicolons inside plpgsql function bodies don't split the
+// statement. Line comments (-- ...) are also tracked so a `;` inside a
+// comment doesn't fragment the surrounding DDL.
 func splitStatements(script string) []string {
-	var stmts []string
-	for _, raw := range strings.Split(script, ";") {
-		stmt := strings.TrimSpace(raw)
+	var (
+		stmts   []string
+		buf     strings.Builder
+		inDQ    bool   // inside a $tag$ ... $tag$ block
+		dqTag   string // the active tag (including the wrapping $$s), e.g. "$fn$"
+		inLnCmt bool   // inside a -- ... \n comment
+	)
+	flush := func() {
+		stmt := strings.TrimSpace(buf.String())
+		buf.Reset()
 		if stmt == "" {
-			continue
+			return
 		}
-		// Skip pure-comment chunks (lines all starting with --)
 		allComment := true
 		for _, line := range strings.Split(stmt, "\n") {
 			trimmed := strings.TrimSpace(line)
@@ -107,6 +118,56 @@ func splitStatements(script string) []string {
 			stmts = append(stmts, stmt)
 		}
 	}
+	for i := 0; i < len(script); i++ {
+		c := script[i]
+		if inLnCmt {
+			buf.WriteByte(c)
+			if c == '\n' {
+				inLnCmt = false
+			}
+			continue
+		}
+		if inDQ {
+			buf.WriteByte(c)
+			if c == '$' && i+len(dqTag)-1 < len(script) && script[i:i+len(dqTag)] == dqTag {
+				// Closing tag — emit the rest of it and exit the block.
+				buf.WriteString(dqTag[1:])
+				i += len(dqTag) - 1
+				inDQ = false
+				dqTag = ""
+			}
+			continue
+		}
+		// Top-level scanning.
+		if c == '-' && i+1 < len(script) && script[i+1] == '-' {
+			inLnCmt = true
+			buf.WriteByte(c)
+			continue
+		}
+		if c == '$' {
+			// Look for an opening $tag$ where tag is empty or [A-Za-z0-9_]+.
+			j := i + 1
+			for j < len(script) && (script[j] == '_' ||
+				(script[j] >= 'A' && script[j] <= 'Z') ||
+				(script[j] >= 'a' && script[j] <= 'z') ||
+				(script[j] >= '0' && script[j] <= '9')) {
+				j++
+			}
+			if j < len(script) && script[j] == '$' {
+				dqTag = script[i : j+1]
+				inDQ = true
+				buf.WriteString(dqTag)
+				i = j
+				continue
+			}
+		}
+		if c == ';' {
+			flush()
+			continue
+		}
+		buf.WriteByte(c)
+	}
+	flush()
 	return stmts
 }
 
