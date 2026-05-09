@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 func TestApigatewayV2APIARNFromChild(t *testing.T) {

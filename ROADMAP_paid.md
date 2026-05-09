@@ -31,9 +31,9 @@ N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `0
 ## LATER — 6–12mo / v1.0
 
 ### L2. Pluggable store backend — SHIPPED 2026-05-08
-- Single `*Store` learns Postgres in addition to SQLite (paid-tagged). pgx via `pgx/v5/stdlib` reuses the existing sqlx code path; dialect bits branch on `s.driver` in `internal/store/dialect.go`. Migrations in `internal/store/migrations/pg/*.sql` mirror the SQLite set plus `005_tenant_id_rls.sql` for per-table RLS. Tenant pinning at process start via pgconn `AfterConnect`. `make check-migrations` guards SQLite ↔ PG column-set parity.
+- Single `*Store` learns Postgres in addition to SQLite (paid-tagged). pgx via `pgx/v5/stdlib` reuses the existing sqlx code path; dialect bits branch on `s.driver` in `store/dialect.go`. Migrations in `store/migrations/pg/*.sql` mirror the SQLite set plus `005_tenant_id_rls.sql` for per-table RLS. Tenant pinning at process start via pgconn `AfterConnect`. `make check-migrations` guards SQLite ↔ PG column-set parity.
 - See `FEATURES_paid.md` § Postgres backend.
-- Decision diff vs original plan: rejected the `ReadBackend`/`WriteBackend` interface split — single struct + driver branch is simpler and the SaaS app imports `internal/store` directly (no abstraction needed). Hand-rolled migration runner instead of golang-migrate per CLAUDE.md rule 7 (minimize deps).
+- Decision diff vs original plan: rejected the `ReadBackend`/`WriteBackend` interface split — single struct + driver branch is simpler and the SaaS app imports `store` directly (no abstraction needed). Hand-rolled migration runner instead of golang-migrate per CLAUDE.md rule 7 (minimize deps).
 
 ### L3. API server mode — REMOVED 2026-05-08
 - `disco serve` shipped 2026-05-08 as a 2-route HTTP API (`POST /v1/scans`, `GET /v1/healthz`) and was removed the same day after architecture review. In the Fargate-per-scan deploy shape (Lambda → ECS RunTask → one-shot container), every problem the HTTP layer solved was already solved by the architecture itself: scope is known at RunTask time (no misroute attack vector), container is single-use (no multi-request listener needed), Lambda is the only caller (no need for a typed API surface).

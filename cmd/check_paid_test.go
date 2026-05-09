@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // TestCheckCmd_Persist round-trips one --persist invocation: seed an

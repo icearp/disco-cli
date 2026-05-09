@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 )

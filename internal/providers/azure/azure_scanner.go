@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -238,7 +238,7 @@ func mustJSON(v any) string { return util.MustJSON(v) }
 // regionGlobal is the canonical Region pointer for non-regional Azure
 // resources (tenant-scope Entra ID users / groups / SPs / app regs / roles)
 // and any other rows whose location is "everywhere". Mirrors AWS
-// regionGlobal; see internal/store/CLAUDE.md "region = \"global\" sentinel".
+// regionGlobal; see store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = func() *string { s := "global"; return &s }()
 
 func sv(p *string) string     { return util.Sv(p) }

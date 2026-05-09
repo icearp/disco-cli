@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // TestResolveAPIGatewayMethodRelationships_Lambda verifies that a method with

@@ -174,11 +174,11 @@ Config lives at `$XDG_CONFIG_HOME/disco/config.yaml` (Viper format). On Linux th
 ## How it works
 
 ```
-cmd/<subcommand>.go  →  internal/providers/<aws|azure|gcp>/  →  internal/store/  →  sqlite
+cmd/<subcommand>.go  →  internal/providers/<aws|azure|gcp>/  →  store/  →  sqlite
                               (scanners then resolvers)         (sqlx + squirrel)
 ```
 
-Scanners register via `init()` and write rows into `resources`, one file per service. Resolvers run after, read those rows, and emit edges into `relationships` and `hierarchy_closure`. Edges pointing at unscanned targets skip silently rather than failing the scan, so a partial scan still produces a usable graph. Secrets are scrubbed at the store boundary in `internal/store/sanitize.go`.
+Scanners register via `init()` and write rows into `resources`, one file per service. Resolvers run after, read those rows, and emit edges into `relationships` and `hierarchy_closure`. Edges pointing at unscanned targets skip silently rather than failing the scan, so a partial scan still produces a usable graph. Secrets are scrubbed at the store boundary in `store/sanitize.go`.
 
 Per-subdirectory `CLAUDE.md` files document local conventions; `CODE_STRUCTURE.md` is the higher-level map.
 

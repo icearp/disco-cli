@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // nmRegion is the home region NetworkManager scanner uses (us-west-2 per the

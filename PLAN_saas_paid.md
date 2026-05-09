@@ -53,7 +53,7 @@ From `CLAUDE.md`:
 ## File layout (disco-upstream)
 
 ```
-internal/store/
+store/
   postgres_paid.go              (NEW) pgx-backed *Store impl; OpenPostgres + OpenPostgresInSchema
   postgres_paid_test.go         (NEW) integration tests, gated on DISCO_PG_TEST_DSN
   migrate_pg_paid.go            (NEW) hand-rolled migration runner over pgx
@@ -84,7 +84,7 @@ make oss-sync --dry-run | grep -Ei 'postgres|paid|pgx|tenant'    # empty
 
 ### Step 1.2 — Migrations
 
-Translate the existing SQLite migrations file-for-file into `internal/store/migrations/pg/`:
+Translate the existing SQLite migrations file-for-file into `store/migrations/pg/`:
 
 | SQLite | Postgres |
 |---|---|
@@ -146,7 +146,7 @@ Validate `schemaName` against `^tenant_[0-9a-f]{32}$` at the boundary via a smal
 
 ### Step 1.5 — Dialect seam for WrapTx
 
-Today `*Store` wraps `*sqlx.DB` directly. The dialect helpers in `internal/store/dialect.go` (`s.exec` / `s.get` / `s.query` / `s.queryRow` / `s.selectAll`) are the natural seam.
+Today `*Store` wraps `*sqlx.DB` directly. The dialect helpers in `store/dialect.go` (`s.exec` / `s.get` / `s.query` / `s.queryRow` / `s.selectAll`) are the natural seam.
 
 Refactor: `*Store` holds an `sqlx.ExtContext` instead of `*sqlx.DB`. Both `*sqlx.DB` and `*sqlx.Tx` satisfy the interface. Existing constructors (`Open`, `OpenPostgres`, `OpenPostgresInSchema`) populate it with the pool. New constructor:
 
@@ -162,7 +162,7 @@ func WrapTx(tx *sqlx.Tx) *Store
 Grep before refactor:
 
 ```
-rg -n 'st\.db|s\.db' internal/store/
+rg -n 'st\.db|s\.db' store/
 ```
 
 Each direct `s.db.` access becomes `s.q.` (or `s.ext.`) where the field is `sqlx.ExtContext`. Most read code already routes through dialect helpers — confirm and extend.
@@ -183,7 +183,7 @@ Each call site becomes either:
 - a per-backend helper (e.g. `s.dialect.JSONExtract(col, path)` returning the right SQL fragment), or
 - moved into a query that already branches on dialect.
 
-Document the mapping in `internal/store/CLAUDE.md` once stable.
+Document the mapping in `store/CLAUDE.md` once stable.
 
 ### Step 1.7 — Tests (`postgres_paid_test.go`)
 
@@ -244,7 +244,7 @@ psql -h localhost -U postgres -d disco_saas_dev \
 ### Step 2.5 — Update roadmap/features
 Move L2 from "LATER" to shipped in `ROADMAP_paid.md`. Strike L3 (`disco serve`) entirely or mark "deferred indefinitely — superseded by SaaS direct-import design". Add `FEATURES_paid.md` entry for the PG backend + schema-per-tenant constructor.
 
-### Step 2.6 — Update `internal/store/CLAUDE.md`
+### Step 2.6 — Update `store/CLAUDE.md`
 Append:
 - The PG backend exists and is dialect-aware via `*Store`'s ExtContext.
 - Where SQLite-isms (`json_extract`, `INSERT OR IGNORE`) are translated.
@@ -258,7 +258,7 @@ Append:
 
 The SaaS repo (`disco-saas/`) consumes:
 
-1. `internal/store` directly as a Go module dep. Local-dev `replace` directive in SaaS `go.mod`:
+1. `store` directly as a Go module dep. Local-dev `replace` directive in SaaS `go.mod`:
    ```
    replace disco/upstream => ../disco-upstream
    ```
@@ -297,9 +297,9 @@ The SaaS repo (`disco-saas/`) consumes:
 
 ## Done criteria
 
-- [ ] `OpenPostgres` and `OpenPostgresInSchema` ship in `internal/store/postgres_paid.go`, with godoc + boundary validation.
+- [ ] `OpenPostgres` and `OpenPostgresInSchema` ship in `store/postgres_paid.go`, with godoc + boundary validation.
 - [ ] Migration runner does `CREATE SCHEMA IF NOT EXISTS`; per-schema `schema_migrations` bookkeeping verified by integration test.
-- [ ] `internal/store/migrations/pg/*.sql` mirrors the SQLite set, plus tenant-scoping + RLS policies in `005_tenant_id_rls_paid.sql`.
+- [ ] `store/migrations/pg/*.sql` mirrors the SQLite set, plus tenant-scoping + RLS policies in `005_tenant_id_rls_paid.sql`.
 - [ ] `store.WrapTx(*sqlx.Tx) *Store` exists; all read methods work tx-bound. `*Store` holds an `sqlx.ExtContext`.
 - [ ] Paid integration test exercises full per-tenant provision + tx-bound read flow.
 - [ ] `go test ./...` and `go test -tags paid ./...` both green.

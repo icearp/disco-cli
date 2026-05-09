@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"

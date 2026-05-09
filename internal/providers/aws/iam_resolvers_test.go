@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // --- resolveInstanceProfileRoles ---

@@ -1,6 +1,6 @@
 // Package store is the SQLite persistence layer (modernc.org/sqlite,
 // CGO-free) for resources, relationships, hierarchy closure, and scan
-// lifecycle. See internal/store/CLAUDE.md for table shape and edge
+// lifecycle. See store/CLAUDE.md for table shape and edge
 // kinds.
 package store
 

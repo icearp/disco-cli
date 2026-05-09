@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -287,5 +287,5 @@ func sp(s string) *string { return &s }
 // cross-account synthetic stubs). Global scanners and stub-emitting
 // resolvers set Resource.Region = regionGlobal so callers can query
 // `--regions global` and the default `--regions <r>` filter folds these
-// rows in. See internal/store/CLAUDE.md "region = \"global\" sentinel".
+// rows in. See store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = sp("global")

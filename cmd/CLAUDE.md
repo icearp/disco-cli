@@ -139,7 +139,13 @@ Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — ext
 
 ## Hook-var indirection for paid features on OSS commands
 
-When a paid feature must augment an OSS command's RunE (e.g. `--persist` writing to a paid-only DB table on `disco check`), declare a nillable hook variable in the OSS file: `var persistCheckHook func(...) error`. OSS RunE checks `if hook != nil { hook(...) }`. The paid file `<cmd>_paid.go` `init()` registers any new flags AND assigns the hook implementation including `license.Require()`, condition checks, and DB writes. OSS users see no flag, no hook, no `internal/license` dep. Verify with `go list -deps . | grep license` (must be empty for OSS, non-empty for paid). Precedent: `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid).
+When a paid feature must augment an OSS command's RunE (e.g. `--persist` writing to a paid-only DB table on `disco check`), declare a nillable hook variable in the OSS file: `var persistCheckHook func(...) error`. OSS RunE checks `if hook != nil { hook(...) }`. The paid file `<cmd>_paid.go` `init()` registers any new flags AND assigns the hook implementation including `license.Require()`, condition checks, and DB writes. OSS users see no flag, no hook, no `internal/license` dep. Verify with `go list -deps . | grep license` (must be empty for OSS, non-empty for paid).
+
+Precedents:
+- `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid) — wires `--persist` write to paid findings tables.
+- `openWriteDBHook` (cmd/helpers.go OSS, cmd/helpers_paid.go paid) — redirects `openWriteDB()` to `store.OpenPostgres` when `DISCO_PG_DSN` + `DISCO_TENANT_ID` env are set on a paid build.
+
+New paid features that need to override OSS write-path behavior follow the same shape — pick a hook name, declare nillable in the OSS file, assign in `cmd/<area>_paid.go::init()`.
 
 ## `disco check` defaults to customer-managed (F24); --include-managed opts in
 

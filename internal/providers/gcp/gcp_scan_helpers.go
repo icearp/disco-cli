@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"

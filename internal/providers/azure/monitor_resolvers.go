@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"

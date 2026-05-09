@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 

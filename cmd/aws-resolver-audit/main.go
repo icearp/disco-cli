@@ -21,7 +21,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	awsprov "codeberg.org/icearp/disco/internal/providers/aws"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 func main() {

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // structuredErrorEmitted is set to true after maybeStructuredError writes
@@ -117,7 +117,7 @@ func openWriteDB() (*store.Store, error) {
 // loadAllResourcesPaged paginates ListResources and returns every row
 // matching base. Callers set IncludeManaged + filter fields on base; this
 // helper overrides Limit + Offset to walk the full table. Mirrors the
-// store.GraphAll idiom (internal/store/graph.go:451).
+// store.GraphAll idiom (store/graph.go:451).
 func loadAllResourcesPaged(db *store.Store, base store.ResourceFilter) ([]store.Resource, error) {
 	const pageSize = uint64(5000)
 	var all []store.Resource
@@ -293,7 +293,7 @@ func short(id string) string {
 
 // messageRow is the shared shape used by renderMessages to print scan
 // errors and warnings as a single column-aligned block. ScanError and
-// ScanWarning live in internal/store and have identical fields; flattening
+// ScanWarning live in store and have identical fields; flattening
 // to messageRow lets one renderer serve both.
 type messageRow struct {
 	provider, service, scope, message string

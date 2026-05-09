@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 )
 

@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // Request describes a scan to launch. The shape mirrors the JSON body the

@@ -14,8 +14,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SQLITE_DIR="$REPO_ROOT/internal/store/migrations"
-PG_DIR="$REPO_ROOT/internal/store/migrations/pg"
+SQLITE_DIR="$REPO_ROOT/store/migrations"
+PG_DIR="$REPO_ROOT/store/migrations/pg"
 
 if [[ ! -d "$PG_DIR" ]]; then
   echo "no PG migrations dir at $PG_DIR" >&2

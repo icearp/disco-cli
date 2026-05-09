@@ -97,7 +97,7 @@ Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers
 
 ## Testing
 
-Test files exist for: `internal/store/`, `internal/util/`, all three provider packages.
+Test files exist for: `store/`, `internal/util/`, all three provider packages.
 
 ### Writing tests for new services
 

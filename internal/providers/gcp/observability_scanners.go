@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/logging/v2"
 	"google.golang.org/api/monitoring/v3"
 )

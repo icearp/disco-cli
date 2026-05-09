@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	smithy "github.com/aws/smithy-go"
 )
 

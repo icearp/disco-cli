@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 

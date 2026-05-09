@@ -11,7 +11,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/providers"
 	"codeberg.org/icearp/disco/internal/scanrun"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
 )
 

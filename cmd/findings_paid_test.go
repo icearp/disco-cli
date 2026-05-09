@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/policy"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 func resetFindingsFlags() {

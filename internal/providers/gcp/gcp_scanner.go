@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -167,7 +167,7 @@ func mustJSON(v any) string { return util.MustJSON(v) }
 // regionGlobal is the canonical Region pointer for non-regional GCP
 // resources (org/folder-scope services, IAM policy synth resources,
 // foreign-project stubs). Mirrors AWS / Azure regionGlobal; see
-// internal/store/CLAUDE.md "region = \"global\" sentinel".
+// store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = func() *string { s := "global"; return &s }()
 
 // strp returns a pointer to s, or nil if s is empty.

@@ -20,8 +20,8 @@ Companion plan for the SaaS app itself: `~/.claude/plans/ask-me-each-question-da
 ## Scope
 
 ### In scope
-1. Refactor `internal/store` to expose a backend-agnostic interface for the **read path** (resources, relationships, graph traversal, scans, findings) used by `cmd/list`, `cmd/graph`, `cmd/scans`, `cmd/check`, `cmd/findings_paid.go`.
-2. Add Postgres backend implementation in `internal/store/postgres_paid.go` plus paid-only migrations (`migrations/*_paid.sql` Postgres-flavored variants).
+1. Refactor `store` to expose a backend-agnostic interface for the **read path** (resources, relationships, graph traversal, scans, findings) used by `cmd/list`, `cmd/graph`, `cmd/scans`, `cmd/check`, `cmd/findings_paid.go`.
+2. Add Postgres backend implementation in `store/postgres_paid.go` plus paid-only migrations (`migrations/*_paid.sql` Postgres-flavored variants).
 3. Add `disco serve` subcommand (`cmd/serve_paid.go`) — read-only HTTP + gRPC.
 4. Add a typed Go client for the HTTP API (`internal/serve/client_paid.go`) that the SaaS imports.
 5. License gate every paid command entrypoint via existing `license.Require()`.
@@ -38,11 +38,11 @@ Companion plan for the SaaS app itself: `~/.claude/plans/ask-me-each-question-da
 
 ## Why an interface, not just a second `Open(driver=...)`
 
-Today `internal/store/store.go` is a concrete struct holding `*sqlx.DB`. Most call sites either invoke methods directly on `*store.Store` or pass it around. Pure-driver-swap (using `sqlx` for both backends) is tempting but breaks on:
+Today `store/store.go` is a concrete struct holding `*sqlx.DB`. Most call sites either invoke methods directly on `*store.Store` or pass it around. Pure-driver-swap (using `sqlx` for both backends) is tempting but breaks on:
 
 - modernc/sqlite-specific quirks already baked in: `INSERT OR IGNORE` semantics, `json_extract()`, `splitStatements` migration runner. Postgres needs `ON CONFLICT DO NOTHING`, `jsonb`, native `pgx` migrations.
 - File-perm chmod and `:memory:` handling are SQLite-only; must no-op on PG.
-- The closure table + relationship-FK pattern documented in `internal/store/CLAUDE.md` ("modernc/sqlite FK + INSERT OR IGNORE asymmetry") differs on PG — PG enforces FKs identically for both `INSERT ... ON CONFLICT DO NOTHING` and a plain insert, so the explicit `EXISTS` pre-check stops being necessary on PG (but stays harmless).
+- The closure table + relationship-FK pattern documented in `store/CLAUDE.md` ("modernc/sqlite FK + INSERT OR IGNORE asymmetry") differs on PG — PG enforces FKs identically for both `INSERT ... ON CONFLICT DO NOTHING` and a plain insert, so the explicit `EXISTS` pre-check stops being necessary on PG (but stays harmless).
 
 Cleanest split: introduce a **read-path** interface used by `disco serve` and OSS read-only commands, and let scans keep calling the concrete SQLite struct. Avoids touching every write site.
 
@@ -51,7 +51,7 @@ Cleanest split: introduce a **read-path** interface used by `disco serve` and OS
 ## File layout (disco-upstream)
 
 ```
-internal/store/
+store/
   backend_paid.go               (NEW) ReadBackend interface — methods needed by L3 + read CLI
   postgres_paid.go              (NEW) ReadBackend impl over pgx; opens via DISCO_PG_DSN
   postgres_paid_test.go         (NEW) integration tests, gated on env var
@@ -111,7 +111,7 @@ Catalogue the method set. Expected core verbs (cross-check against actual code):
 - `FindingRuns(ctx) ([]*FindingRun, error)` (paid)
 - `FindingsList(ctx, FindingsFilter) ([]*Finding, error)` (paid)
 
-### Step 1.2 — Define `internal/store/backend_paid.go`
+### Step 1.2 — Define `store/backend_paid.go`
 
 ```go
 //go:build paid
@@ -173,7 +173,7 @@ Translate the existing SQLite migrations to Postgres equivalents:
 
 - `INTEGER PRIMARY KEY` → `BIGSERIAL` or `BIGINT GENERATED ALWAYS AS IDENTITY`.
 - `TEXT` 32-char IDs → `CHAR(32)` or `TEXT` (TEXT is fine; PG indexes both efficiently).
-- `json_extract(col, '$.path')` → `col->'path'` / `col->>'path'`. Document the mapping in `internal/store/CLAUDE.md` once impl is stable.
+- `json_extract(col, '$.path')` → `col->'path'` / `col->>'path'`. Document the mapping in `store/CLAUDE.md` once impl is stable.
 - `INSERT OR IGNORE` → `INSERT ... ON CONFLICT DO NOTHING`.
 - Foreign keys identical syntax.
 - `PRAGMA foreign_keys = ON` → no-op (PG enforces by default).
@@ -181,11 +181,11 @@ Translate the existing SQLite migrations to Postgres equivalents:
 
 Migration runner: existing SQLite runner (`migrate.go`, semicolon-split) can be reused if migration SQL is single-statement-per-line clean. Safer to use `golang-migrate/migrate` v4 with the file source over pgx — but adds a dep. Recommended: hand-roll a parallel runner in `postgres_paid.go` using `pgx`'s built-in batch — keeps deps minimal (CLAUDE.md rule 7). 200 LOC.
 
-Migrations live in `internal/store/migrations/pg/*.sql`, embedded via `//go:embed migrations/pg/*.sql`.
+Migrations live in `store/migrations/pg/*.sql`, embedded via `//go:embed migrations/pg/*.sql`.
 
 ### Step 2.3 — Implement `ReadBackend` over pgx
 - Use `squirrel` with `sq.StatementBuilder.PlaceholderFormat(sq.Dollar)` for PG-style `$1` params. The existing SQLite code uses `?` — keep the same query construction with a per-backend placeholder builder.
-- Walk-style queries (`GraphWalk` BFS) — current impl in `internal/store/graph.go` is in-memory after a single edge fetch; reuse the algorithm verbatim once the edge fetch is portable.
+- Walk-style queries (`GraphWalk` BFS) — current impl in `store/graph.go` is in-memory after a single edge fetch; reuse the algorithm verbatim once the edge fetch is portable.
 - Closure-table descendant query — port directly; SQL is standard.
 
 ### Step 2.4 — Open / DSN
@@ -204,7 +204,7 @@ DSN from `DISCO_PG_DSN` env or `--pg-dsn` flag on `disco serve`.
 
 ### Step 2.5 — Tests
 - Local Postgres via `dockertest` (preferred, ephemeral) **OR** require `DISCO_PG_TEST_DSN` env in CI; skip otherwise. Pick the lower-dep option; dockertest pulls a lot.
-- Recommendation: gate on `DISCO_PG_TEST_DSN` env, run a `services: postgres` block in CI. Avoids dockertest dep in module graph. `go test -tags paid -run TestPG ./internal/store/...`.
+- Recommendation: gate on `DISCO_PG_TEST_DSN` env, run a `services: postgres` block in CI. Avoids dockertest dep in module graph. `go test -tags paid -run TestPG ./store/...`.
 - Tests must verify RLS: connect as the `app_user` role, set `app.tenant_id`, INSERT for tenant A, SET to tenant B, SELECT returns zero rows.
 
 ---
@@ -302,7 +302,7 @@ func (c *Client) GraphBlast(ctx context.Context, id string, opts BlastOpts) (*st
 // ...one per route
 ```
 
-Returns shapes from `internal/store` directly so SaaS deserializes into the same Go types disco-upstream defines. Do not re-define `Resource` / `Relationship` shapes in the SaaS repo.
+Returns shapes from `store` directly so SaaS deserializes into the same Go types disco-upstream defines. Do not re-define `Resource` / `Relationship` shapes in the SaaS repo.
 
 ### Step 3.5 — gRPC (defer, optional)
 Skip gRPC for v1 unless trivial. The SaaS doesn't need it; REST is sufficient. Note in `ROADMAP_paid.md` as a follow-up.
@@ -384,7 +384,7 @@ The SaaS repo (`disco-saas/`) consumes:
 
 5. **License footprint** — `disco serve` running with no license (OSS user accidentally building with `-tags paid`) must refuse to start. `license.Require()` in `RunE` covers this; double-check `license_paid.go` does real validation (not the OSS stub).
 
-6. **CLAUDE.md updates** — once L2 lands, append a section to `internal/store/CLAUDE.md` documenting:
+6. **CLAUDE.md updates** — once L2 lands, append a section to `store/CLAUDE.md` documenting:
    - The `ReadBackend` interface.
    - Where SQLite-isms (`json_extract`, `INSERT OR IGNORE`) are translated.
    - The `app.tenant_id` RLS contract (paid only).
@@ -398,7 +398,7 @@ The SaaS repo (`disco-saas/`) consumes:
 
 - [ ] `ReadBackend` interface defined; `*Store` satisfies it.
 - [ ] `pgx`-backed `PGBackend` implements `ReadBackend`; round-trips data identical to SQLite for a curated dataset.
-- [ ] `internal/store/migrations/pg/*.sql` mirrors the SQLite migration set, plus tenant-scoping + RLS policies.
+- [ ] `store/migrations/pg/*.sql` mirrors the SQLite migration set, plus tenant-scoping + RLS policies.
 - [ ] `disco serve` (`cmd/serve_paid.go`) starts, auth-gates, serves all listed routes against either backend.
 - [ ] `internal/serve.Client` typed Go client passes round-trip tests.
 - [ ] `go test ./...` and `go test -tags paid ./...` both green.

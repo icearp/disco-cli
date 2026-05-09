@@ -10,7 +10,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

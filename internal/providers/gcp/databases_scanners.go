@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/bigtableadmin/v2"
 	"google.golang.org/api/firestore/v1"
 	"google.golang.org/api/spanner/v1"

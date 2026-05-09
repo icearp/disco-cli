@@ -27,7 +27,7 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -o dist/disco-windows-amd64.ex
 CGO_ENABLED=0 go test ./...
 
 # Run a single test
-CGO_ENABLED=0 go test ./internal/store/... -run TestFoo -v
+CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 
 # Vet and lint
 go vet ./...
@@ -53,7 +53,7 @@ Storage: `modernc.org/sqlite` — pure-Go SQLite transpile. Cross-platform singl
 ### Data flow
 
 ```
-cmd/scan.go  →  internal/providers/<provider>/  →  internal/store/
+cmd/scan.go  →  internal/providers/<provider>/  →  store/
 ```
 
 ### Per-service API mandate
@@ -82,7 +82,7 @@ Viper reads `xdg.ConfigHome/disco/config.yaml`, env prefix `DISCO_`. `--db` flag
 Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 
 - `cmd/CLAUDE.md` — CLI subcommand details, parallel scan orchestration, blank imports
-- `internal/store/CLAUDE.md` — schema, edge kinds, scrubbing/redaction, ResourceID, migrations, UpsertResources scope, DB perms
+- `store/CLAUDE.md` — schema, edge kinds, scrubbing/redaction, ResourceID, migrations, UpsertResources scope, DB perms
 - `internal/providers/CLAUDE.md` — registry, Scanner iface, add-provider steps, file naming, sidecar pattern, embed-child-data, registration tests, resolver test pattern
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
@@ -107,6 +107,8 @@ Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make 
 ### Verifying paid-only deps don't leak
 
 After adding a heavy dep behind `//go:build paid`, confirm OSS build doesn't pull it: `go list -deps . | grep <module>` should be empty; `go list -tags paid -deps . | grep <module>` should be non-empty. Every importer of the dep must carry the `paid` build tag, otherwise the OSS binary still links it.
+
+`go mod tidy` does not accept `-tags` — it scans every build constraint by default, so a single tidy run keeps both OSS and paid deps in `go.mod`. The indirect/direct categorization may shift as files move between tag sets, but the dep set is correct after one run.
 
 `go list -deps` is advisory — it reflects the *module graph*, not what gets linked. Some deps appear in OSS `go list` output via cloud SDK transitives even when no OSS file imports them (e.g. `golang-jwt/jwt` is pulled in by Azure MSAL). Authoritative check is `strings <oss-binary> | grep <module>`: should show nothing for genuinely paid-only deps. `pgx`, `dockertest` qualify; JWT does not.
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // serviceEntry describes a scannable AWS service.

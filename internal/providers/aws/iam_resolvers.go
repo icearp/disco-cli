@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"golang.org/x/sync/errgroup"

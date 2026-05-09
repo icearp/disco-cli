@@ -1,6 +1,6 @@
 package aws
 
-import "codeberg.org/icearp/disco/internal/store"
+import "codeberg.org/icearp/disco/store"
 
 func init() {
 	registerResolver(resolveBraketSpendingLimits)

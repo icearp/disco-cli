@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	sesv1 "github.com/aws/aws-sdk-go-v2/service/ses"
 )
 

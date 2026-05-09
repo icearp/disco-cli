@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // expectedGCPServices is the authoritative list of service names that must be

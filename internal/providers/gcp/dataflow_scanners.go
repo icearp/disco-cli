@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	dataflow "google.golang.org/api/dataflow/v1b3"
 )
 

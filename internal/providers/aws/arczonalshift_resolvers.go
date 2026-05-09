@@ -3,7 +3,7 @@ package aws
 import (
 	"encoding/json"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 )
 

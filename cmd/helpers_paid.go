@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 )
 
 // init reassigns openWriteDBHook (declared in cmd/helpers.go OSS file) to

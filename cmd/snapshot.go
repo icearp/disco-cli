@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/snapshot"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
 )
 

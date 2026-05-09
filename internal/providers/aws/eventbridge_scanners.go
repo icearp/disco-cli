@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"golang.org/x/sync/errgroup"
 )

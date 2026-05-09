@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"text/tabwriter"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
 )
 

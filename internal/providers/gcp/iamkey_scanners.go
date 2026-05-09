@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"google.golang.org/api/iam/v1"
 )
 

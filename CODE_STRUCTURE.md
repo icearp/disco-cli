@@ -1,11 +1,11 @@
 # disco code structure
 
-Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural conventions live in path-scoped `CLAUDE.md` files (cmd/, internal/store/, internal/providers/, internal/providers/aws/) — this doc routes you to them.
+Architectural map. Build commands + CGO rule live in `CLAUDE.md`. Behavioural conventions live in path-scoped `CLAUDE.md` files (cmd/, store/, internal/providers/, internal/providers/aws/) — this doc routes you to them.
 
 ## Top-level flow
 
 ```
-cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlite ($XDG_DATA_HOME/disco/disco.db)
+cmd/           →  internal/providers/<name>/  →  store/  →  sqlite ($XDG_DATA_HOME/disco/disco.db)
  (cobra CLI)      (scanners + resolvers)         (sqlx + squirrel)
                             ↓                            ↑
                    cmd/graph, cmd/list, cmd/diff  ───────┘
@@ -13,10 +13,10 @@ cmd/           →  internal/providers/<name>/  →  internal/store/  →  sqlit
 
 - **`cmd/`** — cobra subcommands. `cmd/providers.go` blank-imports provider packages so `init()` registration runs. CLI-flag + lifecycle detail: `cmd/CLAUDE.md`.
 - **`internal/providers/<name>/`** — AWS / Azure / GCP scanners. Two-phase: resources, then relationships. Conventions: `internal/providers/CLAUDE.md`. AWS specifics: `internal/providers/aws/CLAUDE.md`.
-- **`internal/store/`** — sqlite layer (`modernc.org/sqlite` CGO-free, `sqlx`, `squirrel`). Tables (`resources`, `relationships`, `hierarchy_closure`, `scans`), edge kinds, scrubbing, IDs, migrations: `internal/store/CLAUDE.md`.
+- **`store/`** — sqlite layer (`modernc.org/sqlite` CGO-free, `sqlx`, `squirrel`). Tables (`resources`, `relationships`, `hierarchy_closure`, `scans`), edge kinds, scrubbing, IDs, migrations: `store/CLAUDE.md`.
 - **`internal/util/`** — `MustJSON`, `Sv`, `TimeRFC3339`, `AllResources`.
 
-Edge kinds + relationship semantics: `internal/store/CLAUDE.md` "Edge kinds".
+Edge kinds + relationship semantics: `store/CLAUDE.md` "Edge kinds".
 
 CLI subcommand surface (`scan`, `list`, `diff`, `graph`, `check`, `coverage`) + flags: `cmd/CLAUDE.md`. `check` ships in OSS (engine + BYO `--rules`); curated compliance packs are paid.
 
@@ -74,7 +74,7 @@ Store hook methods called by orchestrator:
 
 Every `*store.Resource`: `Provider`, `AccountID`, `Type` (e.g. `"aws:ec2:instance"`), `NativeID` (ARN preferred), `Name`, `Region`, `Status`, `TagsJSON` (`*string`, nilable), `AttributesJSON` (full SDK struct marshalled), `DiscoveredBy = scanID`. Leave `ID` empty — `UpsertResources` fills it via `ResourceID(provider, accountID, type, nativeID)`.
 
-ON CONFLICT update scope and FK constraints: `internal/store/CLAUDE.md` "UpsertResources ON CONFLICT scope".
+ON CONFLICT update scope and FK constraints: `store/CLAUDE.md` "UpsertResources ON CONFLICT scope".
 
 ### Paginated batching
 
@@ -102,7 +102,7 @@ st.UpsertResources(batch)
 
 Templates: `eks_scanners.go`, `kms_scanners.go`. Concurrency tiers (`fanoutHigh`, `fanoutMed`, `fanoutLow`) live in `aws/concurrency.go` — see `internal/providers/aws/CLAUDE.md`.
 
-Closure-table population pattern (`RecordHierarchyBatch`): `internal/store/CLAUDE.md`.
+Closure-table population pattern (`RecordHierarchyBatch`): `store/CLAUDE.md`.
 
 ## Shared helpers (aws package — `aws.go`)
 
@@ -140,7 +140,7 @@ aws:
 
 ## Decision: no change
 
-`ResourceID` in `internal/store/resources.go` uses `sha256.Sum256`, takes first 16 bytes, encodes as 32 hex chars.
+`ResourceID` in `store/resources.go` uses `sha256.Sum256`, takes first 16 bytes, encodes as 32 hex chars.
 
 ### Collision odds at 128 bits
 

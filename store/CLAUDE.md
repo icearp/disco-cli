@@ -1,4 +1,4 @@
-# CLAUDE.md — `internal/store/`
+# CLAUDE.md — `store/`
 
 SQLite persistence layer (`modernc.org/sqlite`, CGO-free). Tables, edges, scrubbing, IDs, migrations.
 
@@ -101,7 +101,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 ## No `internal/policy` import in store package
 
-`internal/store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).
+`store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).
 
 ## `Scan.StartedAt` format = SQLite datetime, not RFC3339 (in storage)
 
@@ -149,7 +149,7 @@ Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool'
 
 ### Migration parity
 
-`internal/store/migrations/*.sql` (SQLite) and `internal/store/migrations/pg/*.sql` (Postgres) must converge on identical `(table, column)` sets — the **only** allowed PG-only columns are RLS plumbing (`tenant_id`). `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them with that allowlist applied. Add a column on one side, the script fails. CI gates this; reviewers also.
+`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on identical `(table, column)` sets — the **only** allowed PG-only columns are RLS plumbing (`tenant_id`). `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them with that allowlist applied. Add a column on one side, the script fails. CI gates this; reviewers also.
 
 PG migration runner is hand-rolled in `migrate_pg_paid.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 

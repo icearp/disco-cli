@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/store"
+	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
 )
 
@@ -43,7 +43,7 @@ func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 //   - AGW -[uses]-> Public IP via frontendIPConfigurations[].properties.publicIPAddress.id
 //   - AGW -[uses]-> Key Vault via sslCertificates[].properties.keyVaultSecretId
 //     (Key Vault reference URI — pointer, not material). Reference URIs now
-//     pass the sanitizer allowlist (`internal/store/sanitize.go::isReferenceURI`).
+//     pass the sanitizer allowlist (`store/sanitize.go::isReferenceURI`).
 //
 // Backend pool members (FQDN/IP addresses, NIC refs) deferred — AGW backends
 // are usually FQDNs which don't map cleanly to ARM IDs. Identity → MSI edges

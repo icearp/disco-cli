@@ -43,7 +43,7 @@ Both gated behind `license.Require()`.
 
 ## Findings persistence schema
 
-`internal/store/findings_paid.go` + `internal/store/migrations/004_findings_paid.sql` define the storage layer:
+`store/findings_paid.go` + `store/migrations/004_findings_paid.sql` define the storage layer:
 
 - Tables: `check_runs`, `findings` (FK CASCADE).
 - Indices on `(run_id, severity)` and `(resource_id)` for the common query shapes.
@@ -53,7 +53,7 @@ Future paid follow-ups (`disco findings diff`, retention pruning, drift heatmaps
 
 ## Postgres backend (L2)
 
-`internal/store/postgres_paid.go` + `internal/store/migrate_pg_paid.go` + `internal/store/migrations/pg/*.sql`. Single `*Store` type covers both SQLite and Postgres — driver-branched dialect bits in `dialect.go` (json_extract vs `->>`, `?` vs `$N` placeholders, etc). `OpenPostgres(ctx, dsn, tenantID)` opens a tenant-pinned pgx-backed `*sqlx.DB`; pgconn `AfterConnect` runs `set_config('app.tenant_id', $1, false)` on every new connection so RLS sees it without per-query plumbing.
+`store/postgres_paid.go` + `store/migrate_pg_paid.go` + `store/migrations/pg/*.sql`. Single `*Store` type covers both SQLite and Postgres — driver-branched dialect bits in `dialect.go` (json_extract vs `->>`, `?` vs `$N` placeholders, etc). `OpenPostgres(ctx, dsn, tenantID)` opens a tenant-pinned pgx-backed `*sqlx.DB`; pgconn `AfterConnect` runs `set_config('app.tenant_id', $1, false)` on every new connection so RLS sees it without per-query plumbing.
 
 PG migrations 001–004 mirror the SQLite set; `005_tenant_id_rls.sql` layers `tenant_id` columns + per-table RLS policies. Hand-rolled migration runner mirrors `migrate.go:14–111` shape — no golang-migrate dep. `make check-migrations` (`scripts/check-migrations.sh`) guards SQLite ↔ PG column-set parity in CI; PG-only `tenant_id` is allowlisted.
 
@@ -76,7 +76,7 @@ Replaced with: Lambda invokes `ecs:RunTask` with `containerOverrides.command = [
 
 PG dialing on the scan path is gated by env: when `DISCO_PG_DSN` + `DISCO_TENANT_ID` are set, paid `cmd/helpers_paid.go` reassigns the `openWriteDBHook` so write commands (`disco scan`, `disco check --persist`) land in PG with the tenant-pinned RLS contract. Empty env falls back to local SQLite for dev.
 
-Net result: ~700 LOC removed (server, JWT middleware, runner, cred-scrub, JSON envelope, all serve tests). pgx + dockertest stay paid-only via the existing `internal/store/postgres_paid.go` path. SaaS is unaffected — it always read from PG directly, never via `disco serve`.
+Net result: ~700 LOC removed (server, JWT middleware, runner, cred-scrub, JSON envelope, all serve tests). pgx + dockertest stay paid-only via the existing `store/postgres_paid.go` path. SaaS is unaffected — it always read from PG directly, never via `disco serve`.
 
 ### Lambda → ECS RunTask invocation contract
 
