@@ -58,7 +58,8 @@ const (
 )
 
 type Store struct {
-	db                *sqlx.DB
+	db                *sqlx.DB    // pool. nil iff this Store was produced by WrapTx.
+	tx                *sqlx.Tx    // non-nil iff produced by WrapTx; caller owns lifecycle.
 	driver            driver
 	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
 	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run
@@ -195,15 +196,44 @@ func OpenReadOnly(path string) (*Store, error) {
 	return &Store{db: db, driver: driverSQLite}, nil
 }
 
-// Close closes the underlying database connection.
+// Close closes the underlying database connection. No-op for tx-bound Stores
+// produced by WrapTx — the caller owns the transaction lifecycle.
 func (s *Store) Close() error {
+	if s.db == nil {
+		return nil
+	}
 	return s.db.Close()
 }
 
 // DB returns the underlying sqlx.DB for use in packages that need direct access.
+// Returns nil for tx-bound Stores produced by WrapTx.
 func (s *Store) DB() *sqlx.DB {
 	return s.db
 }
+
+// WrapTx returns a *Store that runs queries against tx instead of a connection
+// pool. The returned store does NOT own the transaction — caller must Commit
+// or Rollback. Close() is a no-op.
+//
+// Intended for read-only use from the SaaS request path, where the caller has
+// already issued `SET LOCAL search_path = tenant_<hex>, public` and
+// `SET LOCAL app.tenant_id = '<uuid>'` on the tx. Write methods that call
+// s.db.Begin* directly (UpsertResources, UpsertRelationships, etc.) will panic
+// on a nil pool — that is intentional; do not invoke them on this code path.
+//
+// drv must match the dialect of the tx's driver: store.DriverPostgres for a
+// pgx-backed tx, store.DriverSQLite for SQLite.
+func WrapTx(tx *sqlx.Tx, drv Driver) *Store {
+	return &Store{tx: tx, driver: driver(drv)}
+}
+
+// Driver names a supported backend for WrapTx.
+type Driver string
+
+const (
+	DriverSQLite   Driver = Driver(driverSQLite)
+	DriverPostgres Driver = Driver(driverPostgres)
+)
 
 // applyPragmas sets per-connection SQLite tuning. readOnly skips writer-only
 // pragmas (journal_mode=WAL, synchronous) — opening a RO DB and trying to

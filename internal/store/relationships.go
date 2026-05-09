@@ -294,5 +294,5 @@ func (s *Store) sqlxIn(query string, args ...any) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return s.db.Rebind(q), a, nil
+	return s.rebind(q), a, nil
 }

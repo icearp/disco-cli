@@ -9,6 +9,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,37 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 )
+
+// schemaNameRE constrains per-tenant schemas to the SaaS provisioner's naming
+// scheme: `tenant_` plus 32 lowercase hex chars. Identifiers cannot be bound
+// as parameters, so this regex is the only injection guard before quoting.
+var schemaNameRE = regexp.MustCompile(`^tenant_[0-9a-f]{32}$`)
+
+// validateSchemaName rejects any schema name outside the tenant_<32hex>
+// pattern. Defence-in-depth alongside caller validation in the SaaS repo.
+func validateSchemaName(name string) error {
+	if !schemaNameRE.MatchString(name) {
+		return fmt.Errorf("invalid schema name %q: must match ^tenant_[0-9a-f]{32}$", name)
+	}
+	return nil
+}
+
+// pgQuoteIdent quotes a Postgres identifier by doubling embedded quotes and
+// wrapping in `"..."`. Used after validateSchemaName for DDL that cannot bind
+// the schema name as a parameter (CREATE SCHEMA, SET search_path).
+func pgQuoteIdent(name string) string {
+	out := make([]byte, 0, len(name)+2)
+	out = append(out, '"')
+	for i := 0; i < len(name); i++ {
+		if name[i] == '"' {
+			out = append(out, '"', '"')
+			continue
+		}
+		out = append(out, name[i])
+	}
+	out = append(out, '"')
+	return string(out)
+}
 
 // OpenPostgres opens a Postgres-backed Store at dsn, pinned to tenantID.
 // tenantID must parse as a UUID; the value is set as `app.tenant_id` GUC
@@ -26,6 +58,33 @@ import (
 // path supports; dialect differences are handled inside dialect.go,
 // rebind helpers, and the migration runner.
 func OpenPostgres(ctx context.Context, dsn, tenantID string) (*Store, error) {
+	return openPG(ctx, dsn, tenantID, "")
+}
+
+// OpenPostgresInSchema opens a Postgres-backed Store whose connections have
+// search_path pinned to schemaName, then "public". The schema is created if
+// it does not exist. Migrations run within that schema, including a
+// schema-local `schema_migrations` bookkeeping table — each per-tenant schema
+// tracks its own migration version, so a rolling DDL fan-out is possible
+// when upstream ships a new column.
+//
+// schemaName must match ^tenant_[0-9a-f]{32}$. tenantID is set as the
+// `app.tenant_id` GUC on every connection (same as OpenPostgres).
+//
+// Use case: SaaS provisioner creating a per-tenant schema. The pool only
+// needs to live long enough to migrate; close it after.
+func OpenPostgresInSchema(ctx context.Context, dsn, schemaName, tenantID string) (*Store, error) {
+	if err := validateSchemaName(schemaName); err != nil {
+		return nil, err
+	}
+	return openPG(ctx, dsn, tenantID, schemaName)
+}
+
+// openPG is the shared implementation behind OpenPostgres and
+// OpenPostgresInSchema. schemaName == "" means "use the connection default
+// search_path"; non-empty pins search_path = <schema>, public after creating
+// the schema if missing.
+func openPG(ctx context.Context, dsn, tenantID, schemaName string) (*Store, error) {
 	if _, err := uuid.Parse(tenantID); err != nil {
 		return nil, fmt.Errorf("tenant_id must be a UUID: %w", err)
 	}
@@ -33,29 +92,73 @@ func OpenPostgres(ctx context.Context, dsn, tenantID string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse pg dsn: %w", err)
 	}
+
+	// Schema must exist before any AfterConnect-bearing conn runs, because
+	// AfterConnect issues `SET search_path = <schema>, public` and would fail
+	// against a non-existent schema. Use a one-shot pgx conn (no AfterConnect)
+	// to CREATE SCHEMA, then close it and open the real pool.
+	if schemaName != "" {
+		if err := bootstrapSchema(ctx, cfg, schemaName); err != nil {
+			return nil, err
+		}
+	}
+
 	// Custom GUCs (`app.tenant_id`) cannot be set via RuntimeParams — PG
 	// rejects unknown startup params. AfterConnect runs once per physical
 	// connection, before any handle is returned to database/sql, so the
-	// session-scoped GUC is sticky for every subsequent query through that
-	// conn. tenantID is UUID-validated above, so inlining is safe — PgConn
-	// has no parameterised Exec on the simple-query path.
-	cfg.AfterConnect = func(ctx context.Context, c *pgconn.PgConn) error {
-		mrr := c.Exec(ctx, "SELECT set_config('app.tenant_id', '"+tenantID+"', false)")
-		if _, err := mrr.ReadAll(); err != nil {
-			return fmt.Errorf("set tenant_id GUC: %w", err)
-		}
-		return nil
-	}
+	// session-scoped GUC and search_path are sticky for every subsequent
+	// query through that conn. tenantID is UUID-validated above and
+	// schemaName is regex-validated, so inlining is safe — PgConn has no
+	// parameterised Exec on the simple-query path.
+	cfg.AfterConnect = afterConnect(tenantID, schemaName)
+
 	std := stdlib.OpenDB(*cfg)
 	db := sqlx.NewDb(std, "pgx")
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping pg: %w", err)
 	}
+
 	s := &Store{db: db, driver: driverPostgres}
 	if err := s.migratePG(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("pg migrate: %w", err)
 	}
 	return s, nil
+}
+
+// bootstrapSchema opens a one-shot pgx conn, CREATE SCHEMA IF NOT EXISTS,
+// closes. Must run BEFORE cfg.AfterConnect is assigned — otherwise the conn
+// would itself try to SET search_path against the missing schema.
+func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string) error {
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("bootstrap conn: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgQuoteIdent(schemaName)); err != nil {
+		return fmt.Errorf("create schema %q: %w", schemaName, err)
+	}
+	return nil
+}
+
+// afterConnect builds the per-physical-conn setup hook. Pins search_path
+// (when schemaName is non-empty) and sets the app.tenant_id GUC. Order
+// matters: search_path first so the GUC SELECT runs in the intended schema
+// scope (set_config is schema-agnostic but consistency aids debugging).
+func afterConnect(tenantID, schemaName string) func(ctx context.Context, c *pgconn.PgConn) error {
+	return func(ctx context.Context, c *pgconn.PgConn) error {
+		if schemaName != "" {
+			sql := "SET search_path = " + pgQuoteIdent(schemaName) + ", public"
+			mrr := c.Exec(ctx, sql)
+			if _, err := mrr.ReadAll(); err != nil {
+				return fmt.Errorf("set search_path: %w", err)
+			}
+		}
+		mrr := c.Exec(ctx, "SELECT set_config('app.tenant_id', '"+tenantID+"', false)")
+		if _, err := mrr.ReadAll(); err != nil {
+			return fmt.Errorf("set tenant_id GUC: %w", err)
+		}
+		return nil
+	}
 }

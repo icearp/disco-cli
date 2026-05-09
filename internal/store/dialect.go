@@ -6,6 +6,28 @@ import (
 	sq "github.com/Masterminds/squirrel"
 )
 
+// sqlxExt is the read+write surface satisfied by both *sqlx.DB and *sqlx.Tx.
+// Used by the dialect helpers below so the same Store value can run queries
+// against either a pool or a caller-owned transaction (see WrapTx).
+type sqlxExt interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
+	Get(dest any, query string, args ...any) error
+	Select(dest any, query string, args ...any) error
+	Rebind(query string) string
+}
+
+// ext returns the active query target. For Stores produced by Open / OpenPostgres
+// it is the underlying *sqlx.DB; for Stores produced by WrapTx it is the
+// caller-owned *sqlx.Tx.
+func (s *Store) ext() sqlxExt {
+	if s.tx != nil {
+		return s.tx
+	}
+	return s.db
+}
+
 // placeholder returns the squirrel placeholder format matching the active
 // driver. SQLite uses `?`; Postgres uses `$N`.
 func (s *Store) placeholder() sq.PlaceholderFormat {
@@ -17,35 +39,39 @@ func (s *Store) placeholder() sq.PlaceholderFormat {
 
 // rebind translates a `?`-placeholder query to the driver's native format.
 // For SQLite this is a no-op; for Postgres it rewrites to `$1, $2, ...`.
-// Always pass through s.db.Rebind so future driver additions stay opaque.
 func (s *Store) rebind(q string) string {
-	return s.db.Rebind(q)
+	return s.ext().Rebind(q)
 }
 
-// exec proxies db.Exec with auto-rebind of `?` placeholders.
+// exec proxies Exec with auto-rebind of `?` placeholders.
 func (s *Store) exec(q string, args ...any) (sql.Result, error) {
-	return s.db.Exec(s.db.Rebind(q), args...)
+	e := s.ext()
+	return e.Exec(e.Rebind(q), args...)
 }
 
-// query proxies db.Query with auto-rebind.
+// query proxies Query with auto-rebind.
 func (s *Store) query(q string, args ...any) (*sql.Rows, error) {
-	return s.db.Query(s.db.Rebind(q), args...)
+	e := s.ext()
+	return e.Query(e.Rebind(q), args...)
 }
 
-// queryRow proxies db.QueryRow with auto-rebind.
+// queryRow proxies QueryRow with auto-rebind.
 func (s *Store) queryRow(q string, args ...any) *sql.Row {
-	return s.db.QueryRow(s.db.Rebind(q), args...)
+	e := s.ext()
+	return e.QueryRow(e.Rebind(q), args...)
 }
 
-// get proxies db.Get with auto-rebind.
+// get proxies Get with auto-rebind.
 func (s *Store) get(dest any, q string, args ...any) error {
-	return s.db.Get(dest, s.db.Rebind(q), args...)
+	e := s.ext()
+	return e.Get(dest, e.Rebind(q), args...)
 }
 
-// selectAll proxies db.Select with auto-rebind. (Named selectAll because
+// selectAll proxies Select with auto-rebind. (Named selectAll because
 // `select` is a Go keyword.)
 func (s *Store) selectAll(dest any, q string, args ...any) error {
-	return s.db.Select(dest, s.db.Rebind(q), args...)
+	e := s.ext()
+	return e.Select(dest, e.Rebind(q), args...)
 }
 
 // tagJSONValueExists returns an EXISTS-clause SQL fragment that matches if
