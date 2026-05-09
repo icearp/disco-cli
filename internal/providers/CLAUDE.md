@@ -50,6 +50,8 @@ Scan(ctx context.Context, st *store.Store, scanID string) error
 
 `providers.All()` returns registered scanners sorted by name. `providers.Get(name)` for validation. `providers.Names()` for error messages.
 
+Optional capability interfaces a Scanner may implement: `ServiceFilterer` (`--services`), `RegionOverrider` (`--regions`), `ProfileOverrider` (`--profile`), `GlobalsSkipper` (`--skip-globals`), `RoleOverrider` (`SetRoleOverride(roleARN, externalID)` → `--role-arn`/`--external-id`; pins the scan to one AssumeRole target, ignoring config-file accounts; external-id never lands in `scans.scope` JSON).
+
 **Add new provider** (three steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
 2. Call `providers.Register(&MyScanner{})` in package `init()`
