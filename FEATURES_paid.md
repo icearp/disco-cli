@@ -55,13 +55,31 @@ Future paid follow-ups (`disco findings diff`, retention pruning, drift heatmaps
 
 `store/postgres_paid.go` + `store/migrate_pg_paid.go` + `store/migrations/pg/*.sql`. Single `*Store` type covers both SQLite and Postgres — driver-branched dialect bits in `dialect.go` (json_extract vs `->>`, `?` vs `$N` placeholders, etc). `OpenPostgres(ctx, dsn, tenantID)` opens a tenant-pinned pgx-backed `*sqlx.DB`; pgconn `AfterConnect` runs `set_config('app.tenant_id', $1, false)` on every new connection so RLS sees it without per-query plumbing.
 
-PG migrations 001–004 mirror the SQLite set; `005_tenant_id_rls.sql` layers `tenant_id` columns + per-table RLS policies. Hand-rolled migration runner mirrors `migrate.go:14–111` shape — no golang-migrate dep. `make check-migrations` (`scripts/check-migrations.sh`) guards SQLite ↔ PG column-set parity in CI; PG-only `tenant_id` is allowlisted.
+PG migrations mirror the SQLite set with `tenant_id` UUID columns + per-table RLS policies layered in. Hand-rolled migration runner mirrors `migrate.go:14–111` shape — no golang-migrate dep. `make check-migrations` (`scripts/check-migrations.sh`) guards SQLite ↔ PG column-set parity in CI; PG-only `tenant_id` is allowlisted.
 
 OSS dep graph remains pgx-free: every importer of pgx carries `//go:build paid`. Verified via `go list -deps . | grep -Ei 'pgx|jackc'` (empty) and `go list -tags paid -deps .` (non-empty).
 
+### Schema-per-tenant constructor
+
+`OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` opens a pool with `search_path` pinned to `<schema>, public` and `app.tenant_id` set. CREATEs the schema if missing (one-shot bootstrap conn before the real pool's `AfterConnect` runs `SET search_path`) and runs the full migration set inside it. `schema_migrations` bookkeeping lives in the per-tenant schema, not `public` — each tenant tracks its own migration version.
+
+`validateSchemaName` enforces `^tenant_[0-9a-f]{32}$`; `pgQuoteIdent` doubles embedded quotes. Identifiers can't be parameter-bound — these are the only injection guards.
+
+Used by the SaaS provisioner (`disco-saas/internal/provisioner`) on workspace creation. RLS stays on as a second layer behind schema isolation.
+
+### `WrapTx` — tx-bound `*Store`
+
+`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against a caller-owned tx. Lets the SaaS web request path issue `SET LOCAL search_path` + `SET LOCAL app.tenant_id` inside a tx and reuse upstream read methods unchanged. RDS Proxy keeps multiplexing because every session-state change is `SET LOCAL`. Read-only intended; write methods that call `s.db.Begin*` panic on a nil pool. `Close()` is a no-op.
+
+`*Store` holds both `db *sqlx.DB` and `tx *sqlx.Tx`; `s.ext()` returns whichever is non-nil. Driver tag (`store.DriverPostgres` / `store.DriverSQLite`) is required at construction — placeholder format + JSON-extract dialect depend on it.
+
+### Package location
+
+The package was renamed from `internal/store` to `store` so the disco-saas module (`codeberg.org/icearp/disco-saas`) can import it across module boundaries. Go's internal-package rule blocked the prior layout. No public-API change for in-tree callers other than the import path.
+
 Consumed by:
-- `disco serve` (L3) for scan persistence on Fargate workers.
-- `disco-saas` Go app for direct read access against the same RDS Proxy + tenant pinning contract.
+- Scan-worker Fargate containers (write path; `OpenPostgres`).
+- `disco-saas` Go app (read path; `OpenPostgresInSchema` for provisioning + `WrapTx` for request handlers).
 
 ## Scan worker deploy — ECS RunTask command override (supersedes L3 `disco serve`)
 

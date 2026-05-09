@@ -119,11 +119,11 @@ Seed lookup (`graph blast`, `graph path`, `list --id`) tries exact `native_id`/`
 
 ## Cross-backend SQL: `s.exec`/`s.get`/`s.query`/`s.queryRow`/`s.selectAll`
 
-Wrappers in `dialect.go` proxy `s.db.Exec/Get/Query/QueryRow/Select` with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied). Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
+Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (which returns `*sqlx.DB` or `*sqlx.Tx` — see `WrapTx` below) with auto-`Rebind`. Always use them for raw `?`-placeholder SQL — `s.db.Exec(...)` directly works on SQLite but breaks on Postgres (sqlx Rebind isn't auto-applied), and skips the tx-bound path. Squirrel queries pass `s.placeholder()` to `PlaceholderFormat(...)`. New code adding SQL to the store package follows both patterns.
 
 ## PG session GUCs accept placeholders only via `set_config(...)`
 
-`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres_paid.go::OpenPostgres` `AfterConnect`. Any future per-conn GUC writes follow the same shape.
+`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres_paid.go::afterConnect` for the pool path. Any future per-conn GUC writes follow the same shape. SaaS request-path `SET LOCAL app.tenant_id = $1` works only inside a transaction — different surface, same constraint.
 
 ## Postgres backend (paid only)
 
@@ -139,9 +139,37 @@ Other portability rules baked in:
 
 ### Tenant isolation (Postgres only)
 
-PG migrations 005 add `tenant_id UUID` to every user-data table plus a per-table RLS policy `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns. Inserts pick up `tenant_id` automatically via column DEFAULT — no explicit value in app code.
+PG migration `001_initial.sql` adds `tenant_id UUID` to every user-data table plus a per-table RLS policy `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns. Inserts pick up `tenant_id` automatically via column DEFAULT — no explicit value in app code.
 
 Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. The disco-saas Fargate-per-scan model is built on this — single tenant per container.
+
+### Schema-per-tenant (`OpenPostgresInSchema`)
+
+`OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` opens a pool whose conns have `search_path` pinned to `<schema>, public` and the `app.tenant_id` GUC set. Used by the SaaS provisioner to create + migrate one PG schema per workspace. Layout: schema name `tenant_<32-hex>` (one per workspace), full upstream migration set runs unchanged inside each schema, `schema_migrations` bookkeeping lives in the per-tenant schema (not `public`) so each tenant tracks its own migration version — enables rolling DDL fan-out when upstream ships a new column.
+
+Boundary validation: `validateSchemaName` enforces `^tenant_[0-9a-f]{32}$`, `pgQuoteIdent` doubles embedded quotes. Identifiers can't be parameter-bound — these are the only injection guards before the schema name lands in DDL.
+
+Bootstrap order matters: `CREATE SCHEMA IF NOT EXISTS` runs on a one-shot pgx conn (no `AfterConnect`) BEFORE the real pool is opened, because `AfterConnect`'s `SET search_path = <schema>` would fail against a missing schema. See `bootstrapSchema` in `postgres_paid.go`.
+
+RLS layers on top — even with `search_path` pinned, the `tenant_id` GUC keeps queries scoped if a row leaks cross-schema (defence in depth). Schema isolation is the primary boundary, RLS is the second.
+
+### `WrapTx` — tx-bound `*Store`
+
+`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against the caller-owned tx instead of a pool. `Close()` is a no-op; the caller owns commit/rollback. Used by the SaaS request path:
+
+```
+BEGIN
+SET LOCAL search_path  = tenant_<hex>, public
+SET LOCAL app.tenant_id = '<uuid>'
+SET LOCAL app.workspace_id = '<uuid>'
+st := store.WrapTx(tx, store.DriverPostgres)
+<upstream read methods>
+COMMIT
+```
+
+`SET LOCAL` is reset at COMMIT, so RDS Proxy still multiplexes the underlying conn. Intended for read-only use — write methods that call `s.db.Begin*` directly (`UpsertResources`, `UpsertRelationships`, `RecordHierarchyBatch`, finalise calls) panic on a nil pool. That panic is intentional; the SaaS request path runs reads only, scan workers run a real `OpenPostgres` pool.
+
+`*Store` holds both `db *sqlx.DB` and `tx *sqlx.Tx`. `s.ext()` returns whichever is non-nil; dialect helpers route through it. Driver tag is set by the constructor (`store.DriverPostgres` / `store.DriverSQLite`) — without it, placeholder format and JSON-extract dialect can't be selected.
 
 ### RDS Proxy session-pinning trade-off
 

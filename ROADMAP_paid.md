@@ -31,7 +31,8 @@ N1 PartialScan landed the status flag; OSS-side `scan_checkpoints` (migration `0
 ## LATER — 6–12mo / v1.0
 
 ### L2. Pluggable store backend — SHIPPED 2026-05-08
-- Single `*Store` learns Postgres in addition to SQLite (paid-tagged). pgx via `pgx/v5/stdlib` reuses the existing sqlx code path; dialect bits branch on `s.driver` in `store/dialect.go`. Migrations in `store/migrations/pg/*.sql` mirror the SQLite set plus `005_tenant_id_rls.sql` for per-table RLS. Tenant pinning at process start via pgconn `AfterConnect`. `make check-migrations` guards SQLite ↔ PG column-set parity.
+- Single `*Store` learns Postgres in addition to SQLite (paid-tagged). pgx via `pgx/v5/stdlib` reuses the existing sqlx code path; dialect bits branch on `s.driver` in `store/dialect.go`. Migrations in `store/migrations/pg/*.sql` mirror the SQLite set with `tenant_id` columns + per-table RLS. Tenant pinning at process start via pgconn `AfterConnect`. `make check-migrations` guards SQLite ↔ PG column-set parity.
+- Schema-per-tenant follow-up SHIPPED 2026-05-09: `OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` creates the schema if missing and runs the full migration set inside it (per-schema `schema_migrations` bookkeeping). `WrapTx(tx, drv) *Store` lets the SaaS request path run upstream reads inside a caller-owned tx with `SET LOCAL search_path` + `SET LOCAL app.tenant_id`. Required moving the package out of `internal/` (now `codeberg.org/icearp/disco/store`) so the disco-saas module can import it directly.
 - See `FEATURES_paid.md` § Postgres backend.
 - Decision diff vs original plan: rejected the `ReadBackend`/`WriteBackend` interface split — single struct + driver branch is simpler and the SaaS app imports `store` directly (no abstraction needed). Hand-rolled migration runner instead of golang-migrate per CLAUDE.md rule 7 (minimize deps).
 
