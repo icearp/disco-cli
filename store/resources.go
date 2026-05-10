@@ -48,6 +48,7 @@ type Resource struct {
 	VerifiedAt        *string `db:"verified_at"         json:"verified_at"`
 	VerifiedBy        *string `db:"verified_by"         json:"verified_by"`
 	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider"`
+	TenantID          *string `db:"tenant_id"           json:"-"` // populated on PG (RLS); nil on SQLite
 }
 
 // resourceWire is the on-wire shape: SDK-shape attributes/tags surfaced as
