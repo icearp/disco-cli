@@ -35,6 +35,13 @@ func init() {
 		if _, err := uuid.Parse(tenantID); err != nil {
 			return nil, fmt.Errorf("DISCO_TENANT_ID must be a UUID: %w", err)
 		}
+		// DISCO_PG_SCHEMA pins search_path to the per-tenant schema. Required
+		// in the SaaS deployment where every workspace lives in its own
+		// tenant_<hex> schema; without it the scanner would write to public
+		// and the web app's per-tenant reads would see zero rows.
+		if schema := os.Getenv("DISCO_PG_SCHEMA"); schema != "" {
+			return store.OpenPostgresInSchema(context.Background(), dsn, schema, tenantID)
+		}
 		return store.OpenPostgres(context.Background(), dsn, tenantID)
 	}
 }

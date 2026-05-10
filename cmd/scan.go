@@ -132,7 +132,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return runScanDryRun(cmd, names)
 	}
 
-	db, err := store.Open(defaultDBPath())
+	// openWriteDB prefers the paid hook (Postgres in SaaS deployments
+	// when DISCO_PG_DSN + DISCO_TENANT_ID + DISCO_PG_SCHEMA are set);
+	// falls back to SQLite at defaultDBPath() for OSS / local-dev.
+	db, err := openWriteDB()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

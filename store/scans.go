@@ -119,7 +119,7 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 	_, err = s.exec(
 		`
 		INSERT INTO scans (id, started_at, status, providers, scope)
-		VALUES (?, datetime('now'), 'running', ?, ?)`,
+		VALUES (?, `+s.nowExpr()+`, 'running', ?, ?)`,
 		id, string(provJSON), string(scopeJSON),
 	)
 	if err != nil {
@@ -133,7 +133,7 @@ func (s *Store) CompleteScan(id string, resourceCount int) error {
 	_, err := s.exec(
 		`
 		UPDATE scans
-		SET status = 'completed', finished_at = datetime('now'), resource_count = ?
+		SET status = 'completed', finished_at = `+s.nowExpr()+`, resource_count = ?
 		WHERE id = ?`,
 		resourceCount, id,
 	)
@@ -145,7 +145,7 @@ func (s *Store) FailScan(id string, scanErr string) error {
 	_, err := s.exec(
 		`
 		UPDATE scans
-		SET status = 'failed', finished_at = datetime('now'), error = ?
+		SET status = 'failed', finished_at = `+s.nowExpr()+`, error = ?
 		WHERE id = ?`,
 		scanErr, id,
 	)
@@ -159,7 +159,7 @@ func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error 
 	_, err := s.exec(
 		`
 		UPDATE scans
-		SET status = 'partial', finished_at = datetime('now'), resource_count = ?, error = ?
+		SET status = 'partial', finished_at = `+s.nowExpr()+`, resource_count = ?, error = ?
 		WHERE id = ?`,
 		resourceCount, scanErr, id,
 	)

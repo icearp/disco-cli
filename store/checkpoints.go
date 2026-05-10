@@ -29,7 +29,7 @@ func (s *Store) SaveCheckpoint(scanID, provider, service, scope, lastToken strin
 	_, err := s.exec(
 		`
 		INSERT INTO scan_checkpoints (scan_id, provider, service, scope, last_token, updated_at)
-		VALUES (?, ?, ?, ?, ?, datetime('now'))
+		VALUES (?, ?, ?, ?, ?, `+s.nowExpr()+`)
 		ON CONFLICT (scan_id, provider, service, scope) DO UPDATE
 		SET last_token = excluded.last_token,
 			updated_at = excluded.updated_at`,

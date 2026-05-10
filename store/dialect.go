@@ -74,6 +74,18 @@ func (s *Store) selectAll(dest any, q string, args ...any) error {
 	return e.Select(dest, e.Rebind(q), args...)
 }
 
+// nowExpr returns a driver-appropriate SQL expression for the current
+// UTC time formatted as "YYYY-MM-DD HH:MM:SS". SQLite's datetime('now')
+// already returns that shape; Postgres needs an explicit to_char.
+// Callers embed this expression directly in INSERT/UPDATE statements
+// where SQLite-specific datetime('now') used to live.
+func (s *Store) nowExpr() string {
+	if s.driver == driverPostgres {
+		return "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
+	}
+	return "datetime('now')"
+}
+
 // tagJSONValueExists returns an EXISTS-clause SQL fragment that matches if
 // any tag value equals the bound parameter. SQLite uses json_each(tags);
 // Postgres uses jsonb_each_text(tags). Caller binds one string arg.
