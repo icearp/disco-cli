@@ -18,6 +18,10 @@ type Scan struct {
 	ProvidersJSON string   `db:"providers"`
 	ScopeJSON     string   `db:"scope"`
 	Error         *string  `db:"error"`
+	// ErrorsJSON is the structured per-service failure array, JSON-encoded.
+	// SQLite stores it as TEXT, PG as JSONB; both round-trip through this
+	// string field. Default '[]' so SELECT * never NULL-scans.
+	ErrorsJSON    *string  `db:"errors"`
 	ResourceCount *int     `db:"resource_count"`
 	MetaJSON      *string  `db:"meta"`
 }
@@ -102,12 +106,23 @@ func rfc3339Ptr(p *string) *string {
 }
 
 // CreateScan inserts a new scan record with status "running" and returns its ID.
+// The id is freshly minted (32-hex). Use CreateScanWithID when the caller (e.g.
+// a SaaS orchestrator) needs to assign the id ahead of time so audit-log /
+// resources / scans share a single identifier.
 func (s *Store) CreateScan(providers []string, scope map[string]any) (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate scan id: %w", err)
+	return s.CreateScanWithID("", providers, scope)
+}
+
+// CreateScanWithID inserts a new scan record with the supplied id. An empty
+// id falls back to freshly-minted 32-hex (CreateScan's legacy behaviour).
+func (s *Store) CreateScanWithID(id string, providers []string, scope map[string]any) (string, error) {
+	if id == "" {
+		b := make([]byte, 16)
+		if _, err := rand.Read(b); err != nil {
+			return "", fmt.Errorf("generate scan id: %w", err)
+		}
+		id = hex.EncodeToString(b)
 	}
-	id := hex.EncodeToString(b)
 	provJSON, err := json.Marshal(providers)
 	if err != nil {
 		return "", err
@@ -116,10 +131,20 @@ func (s *Store) CreateScan(providers []string, scope map[string]any) (string, er
 	if err != nil {
 		return "", err
 	}
+	// PG ON CONFLICT DO UPDATE so a SaaS orchestrator that pre-claimed
+	// the row with attribution metadata (principal_arn, account_id,
+	// triggered_by, …) keeps that data while the scanner takes over
+	// status / started_at. SQLite tolerates ON CONFLICT(id) the same way
+	// but uses INSERT-OR-IGNORE semantics on the unchanged columns.
 	_, err = s.exec(
 		`
 		INSERT INTO scans (id, started_at, status, providers, scope)
-		VALUES (?, `+s.nowExpr()+`, 'running', ?, ?)`,
+		VALUES (?, `+s.nowExpr()+`, 'running', ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
+			started_at = EXCLUDED.started_at,
+			status     = 'running',
+			providers  = EXCLUDED.providers,
+			scope      = EXCLUDED.scope`,
 		id, string(provJSON), string(scopeJSON),
 	)
 	if err != nil {
@@ -163,6 +188,50 @@ func (s *Store) PartialScan(id string, resourceCount int, scanErr string) error 
 		WHERE id = ?`,
 		resourceCount, scanErr, id,
 	)
+	return err
+}
+
+// ScanErrorEntry is one structured failure row appended to scans.errors.
+// service / region narrow the failure scope so the UI can group and
+// filter; code mirrors the AWS API error code (or a synthesised
+// "transient" / "auth" / "throttle" for non-AWS providers); message is
+// human-readable but kept terse.
+type ScanErrorEntry struct {
+	Service string `json:"service"`
+	Region  string `json:"region"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// AppendScanError appends one structured entry to scans.errors. PG path
+// uses jsonb_insert; the SQLite fallback (OSS) JSON-encodes the array
+// once and rewrites. Both are concurrency-safe under the existing
+// per-scan write pattern (one scanner mutates one scan).
+func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if s.driver == driverPostgres {
+		_, err = s.exec(
+			`UPDATE scans
+			 SET errors = errors || $1::jsonb
+			 WHERE id = $2`, string(b), id)
+		return err
+	}
+	// SQLite path: read-modify-write. Acceptable for OSS dev usage.
+	var raw string
+	if err := s.get(&raw, `SELECT COALESCE(errors, '[]') FROM scans WHERE id = ?`, id); err != nil {
+		return err
+	}
+	var list []ScanErrorEntry
+	_ = json.Unmarshal([]byte(raw), &list)
+	list = append(list, e)
+	out, err := json.Marshal(list)
+	if err != nil {
+		return err
+	}
+	_, err = s.exec(`UPDATE scans SET errors = ? WHERE id = ?`, string(out), id)
 	return err
 }
 

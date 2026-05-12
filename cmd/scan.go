@@ -87,7 +87,11 @@ func startOrResumeScan(db *store.Store, resumeFlag string, providers []string, s
 		if scope == nil {
 			scope = map[string]any{"providers": providers}
 		}
-		id, err := db.CreateScan(providers, scope)
+		// SaaS-controlled scans set DISCO_SCAN_ID so audit_log, scans and
+		// resources share one identifier (chain-of-custody). Empty falls
+		// back to a freshly-minted 32-hex id.
+		idHint := strings.TrimSpace(os.Getenv("DISCO_SCAN_ID"))
+		id, err := db.CreateScanWithID(idHint, providers, scope)
 		if err != nil {
 			return "", false, fmt.Errorf("create scan record: %w", err)
 		}
@@ -274,6 +278,25 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		if perr := db.PartialScan(scanID, count, errMsg); perr != nil {
 			return fmt.Errorf("mark partial scan: %w", perr)
 		}
+		// Structured per-failure entries land in scans.errors (jsonb)
+		// alongside the legacy concatenated `error` blob, so downstream
+		// SaaS / API consumers can group + filter without parsing
+		// prose. region is parsed best-effort from Scope (shaped
+		// "<account>/<region>" for AWS; bare for Azure/GCP).
+		for _, e := range scanErrors {
+			region := ""
+			if i := strings.LastIndex(e.Scope, "/"); i >= 0 {
+				region = e.Scope[i+1:]
+			}
+			if aerr := db.AppendScanError(scanID, store.ScanErrorEntry{
+				Service: e.Provider + ":" + e.Service,
+				Region:  region,
+				Code:    scanErrorCode(e.Message),
+				Message: e.Message,
+			}); aerr != nil {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "append scan error: %v\n", aerr)
+			}
+		}
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan partial: %d resources (%d new) in %s%s%s\n",
 			count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix, errSuffix)
@@ -286,6 +309,24 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
 		count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// scanErrorCode best-effort extracts an AWS-style error code from the
+// failure message — e.g. "AccessDenied", "Throttling", "UnknownOperation".
+// Returns "Error" when no recognisable token is present so the structured
+// entry's `code` field is never empty.
+func scanErrorCode(msg string) string {
+	for _, candidate := range []string{
+		"AccessDenied", "Throttling", "ThrottlingException",
+		"UnknownOperationException", "UnsupportedOperation",
+		"InvalidParameterValue", "AuthFailure", "RequestTimeout",
+		"InternalError", "ServiceUnavailable",
+	} {
+		if strings.Contains(msg, candidate) {
+			return candidate
+		}
+	}
+	return "Error"
 }
 
 // scopeColumnWidth returns the padding width for the per-line scope column
