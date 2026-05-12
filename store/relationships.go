@@ -27,6 +27,7 @@ type Relationship struct {
 	Direction    string  `db:"direction"`
 	Attributes   *string `db:"attributes"` // JSON
 	DiscoveredAt string  `db:"discovered_at"`
+	TenantID     *string `db:"tenant_id" json:"-"` // populated on PG (RLS); nil on SQLite
 }
 
 // Relationship kind constants.
