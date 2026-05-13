@@ -29,6 +29,38 @@ func TestChainAssumeRoles_BuildsCache(t *testing.T) {
 	}
 }
 
+// TestEmulatorAccountIDOverride pins F28's prod-safety gate: the
+// override only fires when AWS_ENDPOINT_URL is also set. Prod scanners
+// never set AWS_ENDPOINT_URL (the SDK reaches real AWS), so the env is
+// inert outside emulator mode.
+func TestEmulatorAccountIDOverride(t *testing.T) {
+	cases := []struct {
+		name     string
+		endpoint string
+		acctID   string
+		want     string
+	}{
+		{"both unset", "", "", ""},
+		// PROD-SAFETY: AWS_ENDPOINT_URL unset means the override is
+		// ignored even when DISCO_CLOUD_ACCOUNT_ID names a real-looking
+		// account. This is the load-bearing assertion.
+		{"acctID set without endpoint", "", "999999999999", ""},
+		{"endpoint set without acctID", "http://localhost:4566", "", ""},
+		{"both set", "http://localhost:4566", "999999999999", "999999999999"},
+		{"endpoint whitespace only", "   ", "999999999999", ""},
+		{"acctID whitespace only", "http://localhost:4566", "   ", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Setenv("AWS_ENDPOINT_URL", c.endpoint)
+			t.Setenv("DISCO_CLOUD_ACCOUNT_ID", c.acctID)
+			if got := emulatorAccountIDOverride(); got != c.want {
+				t.Errorf("emulatorAccountIDOverride() = %q; want %q", got, c.want)
+			}
+		})
+	}
+}
+
 // TestSetRoleOverride_PinsScannerState verifies the capability interface
 // stores both fields and is read back unchanged by SetRoleOverride.
 func TestSetRoleOverride_PinsScannerState(t *testing.T) {

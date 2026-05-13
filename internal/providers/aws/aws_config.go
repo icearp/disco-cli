@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -10,6 +12,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spf13/viper"
 )
+
+// emulatorAccountIDOverride returns the explicit account_id the caller
+// (typically the disco-saas orchestrator) wants recorded on resources/
+// scans, gated on AWS_ENDPOINT_URL being set. The gate is the AWS SDK's
+// canonical "talking to a non-AWS endpoint" signal — prod scanners
+// never set it, so the override is unreachable in prod. Emulators
+// (Floci, LocalStack) return a sentinel "000000000000" from
+// sts:GetCallerIdentity that would otherwise overwrite the configured
+// connected_accounts row's cloud_account_id on every scan. Returns the
+// empty string when either env is unset or whitespace-only.
+func emulatorAccountIDOverride() string {
+	if strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL")) == "" {
+		return ""
+	}
+	return strings.TrimSpace(os.Getenv("DISCO_CLOUD_ACCOUNT_ID"))
+}
 
 // providerCfg mirrors the aws: section of ~/.disco/config.yaml.
 type providerCfg struct {
@@ -86,7 +104,9 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		// error we still proceed with an empty ID rather than failing the
 		// scan, since the override path is meant to short-circuit STS pre-checks.
 		var acctID string
-		if identity, err := sts.NewFromConfig(acctCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
+		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
+			acctID = envAcctID
+		} else if identity, err := sts.NewFromConfig(acctCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
 			acctID = sv(identity.Account)
 		}
 		regions := cfg.DefaultRegions
@@ -101,13 +121,20 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 	}
 
 	// Auto-detect the current account when none are configured.
+	// Emulator override (F28) short-circuits STS when AWS_ENDPOINT_URL
+	// is set, so disco-saas local-mode scans record the configured
+	// connected_accounts.cloud_account_id instead of Floci's "000000000000".
 	if len(cfg.Accounts) == 0 {
-		stsClient := sts.NewFromConfig(baseCfg)
-		identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			return nil, fmt.Errorf("sts:GetCallerIdentity: %w", err)
+		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
+			cfg.Accounts = []accountCfg{{ID: envAcctID}}
+		} else {
+			stsClient := sts.NewFromConfig(baseCfg)
+			identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+			if err != nil {
+				return nil, fmt.Errorf("sts:GetCallerIdentity: %w", err)
+			}
+			cfg.Accounts = []accountCfg{{ID: sv(identity.Account)}}
 		}
-		cfg.Accounts = []accountCfg{{ID: sv(identity.Account)}}
 	}
 
 	accounts := make([]account, 0, len(cfg.Accounts))

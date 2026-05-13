@@ -145,6 +145,17 @@ Precedents:
 - `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid) — wires `--persist` write to paid findings tables.
 - `openWriteDBHook` (cmd/helpers.go OSS, cmd/helpers_paid.go paid) — redirects `openWriteDB()` to `store.OpenPostgres` when `DISCO_PG_DSN` + `DISCO_TENANT_ID` env are set on a paid build.
 
+## AWS account_id resolution + emulator override
+
+`internal/providers/aws/aws_config.go::loadAccounts` resolves the `account.ID` recorded on `resources.account_id` via three precedences:
+1. Config-file `aws.accounts[].id` (explicit).
+2. `--role-arn` override → `sts:GetCallerIdentity` on the assumed creds.
+3. Auto-detect → `sts:GetCallerIdentity` on the default chain.
+
+`DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (Floci, LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured `connected_accounts.cloud_account_id` on every disco-saas local-mode scan.
+
+The gate function `emulatorAccountIDOverride()` is the single read site; both the `--role-arn` branch and the auto-detect branch call it before STS. `TestEmulatorAccountIDOverride` in `aws_config_test.go` pins the prod-safety assertion (env value ignored when `AWS_ENDPOINT_URL` is unset).
+
 New paid features that need to override OSS write-path behavior follow the same shape — pick a hook name, declare nillable in the OSS file, assign in `cmd/<area>_paid.go::init()`.
 
 ## `disco check` defaults to customer-managed (F24); --include-managed opts in
