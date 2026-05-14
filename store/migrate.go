@@ -46,6 +46,9 @@ func (s *Store) migrate() error {
 		if !strings.HasSuffix(e.Name(), ".sql") {
 			continue
 		}
+		if isPaidMigration(e.Name()) && !paidBuild {
+			continue
+		}
 		version, err := parseMigrationVersion(e.Name())
 		if err != nil {
 			return err
@@ -171,6 +174,14 @@ func splitStatements(script string) []string {
 	return stmts
 }
 
+// isPaidMigration reports whether a migration file is paid-only by
+// suffix convention: any `<n>_*_paid.sql` filename. Paid-only files
+// are skipped in OSS builds (paidBuild = false) so the OSS schema
+// stays free of paid-specific tables/columns.
+func isPaidMigration(name string) bool {
+	return strings.HasSuffix(name, "_paid.sql")
+}
+
 // parseMigrationVersion extracts the leading integer from a filename like "001_initial.sql".
 func parseMigrationVersion(name string) (int, error) {
 	parts := strings.SplitN(name, "_", 2)
@@ -196,6 +207,9 @@ func TargetSchemaVersion() (int, error) {
 	max := 0
 	for _, e := range entries {
 		if !strings.HasSuffix(e.Name(), ".sql") {
+			continue
+		}
+		if isPaidMigration(e.Name()) && !paidBuild {
 			continue
 		}
 		v, err := parseMigrationVersion(e.Name())
