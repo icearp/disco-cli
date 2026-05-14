@@ -208,8 +208,6 @@ func resourceToInput(r *store.Resource) (map[string]any, error) {
 		"created_at":          derefOrEmpty(r.CreatedAt),
 		"discovered_at":       r.DiscoveredAt,
 		"discovered_by":       r.DiscoveredBy,
-		"verified_at":         derefOrEmpty(r.VerifiedAt),
-		"verified_by":         derefOrEmpty(r.VerifiedBy),
 		"managed_by_provider": r.ManagedByProvider,
 	}, nil
 }

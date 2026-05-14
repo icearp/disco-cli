@@ -237,8 +237,13 @@ func (s *Store) recordHierarchyTx(tx *sql.Tx, childID, parentID string) (missing
 }
 
 func (s *Store) resourceExistsTx(tx *sql.Tx, id string) (bool, error) {
+	// Caller-facing id is the deterministic ResourceID hash. Under
+	// paid that's resources.root_id with a current-version filter;
+	// under OSS it's resources.id directly. Hooks resolve the
+	// difference.
+	sqlText := "SELECT 1 FROM resources WHERE " + resourceIDColumn() + " = ?" + currentVersionWhereSQL() + " LIMIT 1"
 	var n int
-	if err := tx.QueryRow(s.rebind("SELECT 1 FROM resources WHERE id = ? LIMIT 1"), id).Scan(&n); err != nil {
+	if err := tx.QueryRow(s.rebind(sqlText), id).Scan(&n); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}

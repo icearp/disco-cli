@@ -20,7 +20,7 @@ var listColumns = []string{
 	"provider", "account_id", "type", "name", "region", "status", "native_id",
 	"id", "account_name", "zone", "managed_by_provider",
 	"tags", "attributes",
-	"created_at", "discovered_at", "discovered_by", "verified_at", "verified_by",
+	"created_at", "discovered_at", "discovered_by",
 }
 
 // resourceRow returns the resource's column values in listColumns order.
@@ -41,7 +41,7 @@ func resourceRow(r *store.Resource) []string {
 		r.Provider, r.AccountID, r.Type, s(r.Name), s(r.Region), s(r.Status), r.NativeID,
 		r.ID, s(r.AccountName), s(r.Zone), strconv.FormatBool(r.ManagedByProvider),
 		tags, r.AttributesJSON,
-		s(r.CreatedAt), r.DiscoveredAt, r.DiscoveredBy, s(r.VerifiedAt), s(r.VerifiedBy),
+		s(r.CreatedAt), r.DiscoveredAt, r.DiscoveredBy,
 	}
 }
 
@@ -54,7 +54,6 @@ var (
 	listTagKey           string
 	listTagValue         string
 	listScanID           string
-	listScanAs           string
 	listID               string
 	listDiscoveredSince  = singleSetString{flag: "discovered-since"}
 	listDiscoveredBefore = singleSetString{flag: "discovered-before"}
@@ -79,7 +78,7 @@ Examples:
   disco list --provider aws --type aws:ec2:instance
   disco list --discovered-since 2026-01-01 -o jsonl | jq -s 'length'
   disco list --created-before 2025-01-01 -t aws:iam:user --include-managed -o json
-  disco list --scan-id latest --scan-as discovered -o csv > q.csv
+  disco list --scan-id latest -o csv > q.csv
   disco list --tag-key env --tag-value production -o json`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(listOutputFmt, rerr) }()
@@ -119,11 +118,6 @@ Examples:
 			regions = []string{listRegion}
 		}
 
-		switch listScanAs {
-		case "", "any", "discovered", "verified":
-		default:
-			return fmt.Errorf("--scan-as must be discovered|verified|any (got %q)", listScanAs)
-		}
 		f := store.ResourceFilter{
 			Provider:         listProvider,
 			Types:            types,
@@ -133,7 +127,6 @@ Examples:
 			TagKey:           listTagKey,
 			TagValue:         listTagValue,
 			DiscoveredBy:     scanID,
-			ScanAs:           listScanAs,
 			ID:               listID,
 			DiscoveredSince:  discoveredSince,
 			DiscoveredBefore: discoveredBefore,
@@ -176,14 +169,14 @@ Examples:
 			return err
 		}
 
-		// When `--scan-as discovered` against a specific scan returns no rows,
-		// the most common cause is the customer-only filter dropping a
-		// managed resource the scan touched. Surface a stderr nudge so the
-		// operator sees the filter as the suspect rather than reading a
-		// disagreement with `scans show` as a bug.
-		if scanID != "" && listScanAs == "discovered" && !listIncludeManaged && len(resources) == 0 {
+		// When --scan-id returns no rows, the most common cause is the
+		// customer-only filter dropping a managed resource the scan
+		// touched. Surface a stderr nudge so the operator sees the
+		// filter as the suspect rather than reading a disagreement
+		// with `scans show` as a bug.
+		if scanID != "" && !listIncludeManaged && len(resources) == 0 {
 			fmt.Fprintf(os.Stderr,
-				"note: --scan-as discovered + customer-only filter returned 0 rows; pass --include-managed to evaluate provider-managed resources the scan touched\n")
+				"note: --scan-id + customer-only filter returned 0 rows; pass --include-managed to evaluate provider-managed resources the scan touched\n")
 		}
 
 		switch listOutputFmt {
@@ -239,8 +232,6 @@ func init() {
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
-	listCmd.Flags().StringVar(&listScanAs, "scan-as", "any",
-		"Treat --scan-id as the row's discovered | verified | any (default: any)")
 	listCmd.Flags().StringVar(&listID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
 	listCmd.Flags().Var(&listDiscoveredSince, "discovered-since", "Show rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	listCmd.Flags().Var(&listDiscoveredBefore, "discovered-before", "Show rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")

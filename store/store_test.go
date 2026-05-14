@@ -359,9 +359,6 @@ func TestUpsertResources_RoundTrip(t *testing.T) {
 	if got.TagsJSON == nil || *got.TagsJSON != *r.TagsJSON {
 		t.Errorf("TagsJSON: got %v, want %v", got.TagsJSON, r.TagsJSON)
 	}
-	if got.VerifiedAt == nil {
-		t.Error("VerifiedAt should be set by UpsertResources, got nil")
-	}
 }
 
 // TestUpsertResources_IDAutoComputed verifies that ID is computed when left empty.

@@ -227,14 +227,14 @@ func TestListCmd_CSV(t *testing.T) {
 	if header[0] != "provider" {
 		t.Errorf("header row[0]: got %q, want provider", header[0])
 	}
-	if len(header) != 18 {
-		t.Errorf("header width: got %d, want 18", len(header))
+	if len(header) != 16 {
+		t.Errorf("header width: got %d, want 16", len(header))
 	}
 	headerIdx := map[string]int{}
 	for i, h := range header {
 		headerIdx[h] = i
 	}
-	for _, must := range []string{"id", "account_name", "zone", "managed_by_provider", "tags", "attributes", "discovered_at", "discovered_by", "verified_at", "verified_by"} {
+	for _, must := range []string{"id", "account_name", "zone", "managed_by_provider", "tags", "attributes", "discovered_at", "discovered_by"} {
 		if _, ok := headerIdx[must]; !ok {
 			t.Errorf("custody column missing: %s", must)
 		}

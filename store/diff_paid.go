@@ -1,3 +1,5 @@
+//go:build paid
+
 package store
 
 import (
@@ -56,10 +58,13 @@ func (s *Store) DiffScans(fromScanID, toScanID string) (*ScanDiff, error) {
 	}, nil
 }
 
-// selectResources runs "SELECT * FROM resources WHERE <where>" ordered by
-// (provider, type, name) for stable output across invocations.
+// selectResources runs a current-version SELECT against `resources`
+// with the given WHERE predicate, projecting `root_id AS id` so the
+// caller-facing Resource.ID stays the deterministic hash. Stable
+// ordering by (provider, type, name) for diff readability.
 func (s *Store) selectResources(where sq.Sqlizer) ([]Resource, error) {
-	q := sq.Select("*").From("resources").Where(where).
+	q := applyCurrentVersionPredicate(sq.Select(resourceSelectColumns()...).From("resources")).
+		Where(where).
 		OrderBy("provider", "type", "name").
 		PlaceholderFormat(s.placeholder())
 	query, args, err := q.ToSql()

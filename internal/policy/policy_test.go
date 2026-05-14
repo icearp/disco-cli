@@ -59,17 +59,15 @@ func TestResourceToInput_FreshnessFields(t *testing.T) {
 	tags := `{"env":"prod","team":"core"}`
 	name, region, zone, status := "web", "us-east-2", "us-east-2a", "running"
 	acctName := "prod-account"
-	created, verified := "2026-01-01T00:00:00Z", "2026-05-06T12:00:00Z"
-	verifiedBy := "scan-2"
+	created := "2026-01-01T00:00:00Z"
 	r := &store.Resource{
 		ID: "abc", Provider: "aws", AccountID: "111", AccountName: &acctName,
 		Type: "aws:iam:access-key", NativeID: "AKIA...",
 		Name: &name, Region: &region, Zone: &zone, Status: &status,
 		AttributesJSON: `{"Active":true}`, TagsJSON: &tags,
 		CreatedAt:    &created,
-		DiscoveredAt: "2026-05-06T11:00:00Z",
-		DiscoveredBy: "scan-1",
-		VerifiedAt:   &verified, VerifiedBy: &verifiedBy,
+		DiscoveredAt:      "2026-05-06T11:00:00Z",
+		DiscoveredBy:      "scan-1",
 		ManagedByProvider: false,
 	}
 	in, err := resourceToInput(r)
@@ -77,15 +75,12 @@ func TestResourceToInput_FreshnessFields(t *testing.T) {
 		t.Fatalf("resourceToInput: %v", err)
 	}
 	for _, k := range []string{
-		"discovered_at", "verified_at", "discovered_by", "verified_by",
+		"discovered_at", "discovered_by",
 		"created_at", "account_name", "zone", "managed_by_provider", "tags",
 	} {
 		if _, ok := in[k]; !ok {
 			t.Errorf("missing key: %s", k)
 		}
-	}
-	if in["verified_at"] != verified {
-		t.Errorf("verified_at: %v", in["verified_at"])
 	}
 	tagsOut, ok := in["tags"].(map[string]any)
 	if !ok || tagsOut["env"] != "prod" {

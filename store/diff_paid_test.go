@@ -1,3 +1,5 @@
+//go:build paid
+
 package store
 
 import (

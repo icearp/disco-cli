@@ -35,10 +35,7 @@ CREATE TABLE IF NOT EXISTS resources (
     created_at          TEXT,
     discovered_at       TEXT NOT NULL,
     discovered_by       TEXT NOT NULL,
-    verified_at         TEXT,
-    verified_by         TEXT,
-    FOREIGN KEY (discovered_by) REFERENCES scans(id),
-    FOREIGN KEY (verified_by)   REFERENCES scans(id)
+    FOREIGN KEY (discovered_by) REFERENCES scans(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_resources_provider  ON resources(provider);
