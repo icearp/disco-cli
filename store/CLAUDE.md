@@ -9,7 +9,7 @@ Six: `resources`, `relationships`, `hierarchy_closure`, `scans`, `scan_checkpoin
 - **`scan_checkpoints`** (migration 002): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. The OSS path persists checkpoints; the paid incremental scanner (Phase 6) consumes them on `disco scan --resume`. `splitStatements` is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
 
 
-- **`resources`**: one row per cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. `verified_at` (RFC3339) + `verified_by` (scan ID FK) auto-set by `UpsertResources` — callers must not set. No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
+- **`resources`**: one row per cloud entity (OSS) or one row per attribute-snapshot of a cloud entity (paid). `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. OSS: PK `id` is the deterministic `ResourceID` hash; one row per natural key. Paid: PK `id` is a per-row UUIDv7, deterministic hash lives in `root_id`, current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see paid versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
 - **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write — duplicate but idempotent under `INSERT OR IGNORE`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
@@ -70,6 +70,49 @@ Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organ
 `ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--skip-globals` on `disco list` / `summary` / `tag-coverage`). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
 
 `disco list --regions global` is the canonical "show me every global resource" query.
+
+## Paid resource versioning (`//go:build paid`)
+
+Resources are immutable per attribute-snapshot. A scan that finds
+**unchanged** attributes + tags advances `verified_at` / `verified_by`
+on the current row. A scan that finds **changed** attributes or tags
+inserts a NEW row with a fresh UUIDv7 id, links it back via
+`previous_version_id`, and marks the old row `superseded_by = new.id`.
+Top-level columns (name / region / zone / status / managed) still
+update in place — they don't trigger a split. Caller-facing identity
+is the deterministic `ResourceID` hash, stored in `root_id` and
+exposed as `Resource.ID` via the `root_id AS id` projection hook
+(`resources_hooks_paid.go`). Per-version row PKs are paid-internal,
+surfaced only on `ResourceVersion.VersionRowID`.
+
+Reads filter to the current row of each chain via
+`applyCurrentVersionPredicate()` (no-op in OSS, `WHERE superseded_by
+IS NULL` in paid). Writes order matters: a version split UPDATEs the
+old row's `superseded_by` BEFORE inserting the new row, so the
+partial unique index `idx_resources_current_by_natural_key` (over
+`(provider, account_id, type, native_id) WHERE superseded_by IS
+NULL`) never sees two current rows simultaneously.
+
+Relationships in paid reference `root_id` (the deterministic hash),
+not per-version row ids. FK to `resources(id)` is dropped in paid
+(SQLite recreates `relationships` + `hierarchy_closure` without the
+FK clause; PG's ALTER TABLE DROP CONSTRAINT in the paid migration).
+`resourceExistsTx` uses `resourceIDColumn()` + `currentVersionWhereSQL()`
+so the hierarchy gating fires correctly under paid.
+
+**Merge-friendliness rule:** `Resource` in `resources.go` is the
+OSS-mergeable baseline. Every paid-only field lives on
+`ResourceVersion` in `resources_paid.go` via embedding —
+`type ResourceVersion struct { Resource; VerifiedAt *string; ... }`.
+Adding an OSS field to `Resource` cascades to `ResourceVersion` for
+free. The merge-invariant test
+(`resources_merge_invariant_test.go`) fails the build if a future
+OSS PR accidentally puts `db:"verified_at"` etc. on `Resource`.
+
+UUIDv7 is generated app-side via `uuid.NewV7()` (`github.com/google/uuid`
+v1.6+). PG 17.7 lacks native `uuidv7()` (PG 18 only); the future
+migration path to `uuid` column type when PG 18 ships is a single
+`ALTER TABLE ... TYPE uuid USING ...::uuid` per column.
 
 ## UpsertResources ON CONFLICT scope
 
