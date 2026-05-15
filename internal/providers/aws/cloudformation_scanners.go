@@ -31,6 +31,7 @@ func init() {
 type cloudformationAPI interface {
 	ListStacks(context.Context, *cloudformation.ListStacksInput, ...func(*cloudformation.Options)) (*cloudformation.ListStacksOutput, error)
 	ListStackResources(context.Context, *cloudformation.ListStackResourcesInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackResourcesOutput, error)
+	DescribeStacks(context.Context, *cloudformation.DescribeStacksInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStacksOutput, error)
 	ListStackSets(context.Context, *cloudformation.ListStackSetsInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackSetsOutput, error)
 	ListStackInstances(context.Context, *cloudformation.ListStackInstancesInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackInstancesOutput, error)
 	DescribeStackSet(context.Context, *cloudformation.DescribeStackSetInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStackSetOutput, error)
@@ -156,6 +157,14 @@ func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acc
 					return fmt.Errorf("cloudformation:ListStackResources %s: %w", sv(s.StackName), derr)
 				}
 			}
+			// StackSummary doesn't carry Tags; DescribeStacks does. Best-
+			// effort — on AccessDenied/ValidationError fall through with
+			// nil tags rather than failing the whole scan.
+			var tags []cfntypes.Tag
+			descOut, descErr := client.DescribeStacks(gctx, &cloudformation.DescribeStacksInput{StackName: s.StackId})
+			if descErr == nil && len(descOut.Stacks) > 0 {
+				tags = descOut.Stacks[0].Tags
+			}
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -164,6 +173,7 @@ func scanCloudFormationStacks(ctx context.Context, client cloudformationAPI, acc
 				NativeID:       sv(s.StackId),
 				Name:           s.StackName,
 				Region:         &region,
+				TagsJSON:       awsTagsJSON(tags),
 				AttributesJSON: mustJSON(stackWithResources{Stack: &s, Resources: resources}),
 				DiscoveredBy:   scanID,
 			}
