@@ -33,10 +33,15 @@ func scanCloud9(ctx context.Context, acct *account, region string, st *store.Sto
 		out, err := client.ListEnvironments(ctx, &cloud9.ListEnvironmentsInput{NextToken: nextToken})
 		if err != nil {
 			// Cloud9 is closed to new customers (2024-07-31). Accounts that
-			// never onboarded receive an empty-message AccessDeniedException;
-			// silent-skip rather than warn. Existing tenants with real IAM
-			// gaps still surface via skipIfAccessDenied below.
-			if isClosedToNewCustomers(err) {
+			// never onboarded surface the closed state two ways: an
+			// empty-message AccessDeniedException, or one with the explicit
+			// body "This account does not have access to the Cloud9 service".
+			// Both are environment state, not a misconfig — silent-skip
+			// rather than warn. Existing tenants with real IAM gaps still
+			// carry an action-identifying message and surface via
+			// skipIfAccessDenied below.
+			if isClosedToNewCustomers(err) ||
+				isAccessDeniedWithMessage(err, "does not have access to the Cloud9 service") {
 				return 0, 0, nil
 			}
 			if isAccessDenied(err) {
