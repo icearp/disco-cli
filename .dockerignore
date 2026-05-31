@@ -1,0 +1,26 @@
+.git
+.git*
+.github
+.gitignore
+
+# build artifacts
+bin/
+*.zip
+*.test
+*.out
+
+# editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# planning + docs
+*.md
+!CLAUDE.md
+ROADMAP.md
+PLAN_*.md
+
+# tests + fixtures
+testdata/
+*_test.go.snap

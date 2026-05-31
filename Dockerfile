@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+#
+# Multi-stage, multi-arch build of the `disco` CLI. Output is a static,
+# non-root, distroless image suitable for ECS Fargate scan workers.
+#
+# Build context is THIS module (the upstream). The disco-saas-side ECS
+# task definition spawns this image and overrides the command at run-
+# task time (e.g. `disco scan aws --regions us-east-2`).
+#
+# Usage:
+#   docker buildx build \
+#     --platform linux/arm64 \
+#     --build-arg TARGETOS=linux --build-arg TARGETARCH=arm64 \
+#     -t disco-saas/scanner:dev .
+
+ARG GO_VERSION=1.25
+ARG ALPINE_VERSION=3.21
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS builder
+WORKDIR /src
+
+RUN apk add --no-cache ca-certificates
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Cross-compile to the target platform. BuildKit injects TARGETOS +
+# TARGETARCH automatically when --platform is set on the build invocation.
+ARG TARGETOS=linux
+ARG TARGETARCH=arm64
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    GOFLAGS="-trimpath -ldflags=-s -ldflags=-w" \
+    go build -tags paid -o /out/disco .
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --from=builder /out/disco /usr/local/bin/disco
+
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/disco"]
+CMD ["--help"]
