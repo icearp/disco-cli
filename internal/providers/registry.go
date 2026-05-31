@@ -68,6 +68,18 @@ type RoleOverrider interface {
 	SetRoleOverride(roleARN, externalID string)
 }
 
+// SubscriptionOverrider is an optional interface for providers that support
+// pinning the scan to an explicit subscription set via the --subscriptions CLI
+// flag. Used by the SaaS scan-trigger to constrain the shared worker identity
+// to one tenant's subscriptions without writing a config file — the Azure
+// analogue of RoleOverrider. A non-nil override pins the scan and disables
+// auto-enumeration (fail-closed): an override that resolves to zero
+// subscriptions is an error, never a fall-through to enumeration. A nil
+// override is never set and preserves the config-then-enumerate default.
+type SubscriptionOverrider interface {
+	SetSubscriptionOverride(subscriptionIDs []string)
+}
+
 // GlobalsSkipper is an optional interface for providers that support
 // suppressing global / cross-region service scans via --skip-globals.
 // Globals are services whose endpoints live in a single region but whose

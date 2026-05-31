@@ -401,6 +401,11 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 			provScope["role_arn"] = roleARN
 		}
 	}
+	if _, ok := s.(providers.SubscriptionOverrider); ok {
+		if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {
+			provScope["subscriptions"] = subs
+		}
+	}
 	if _, ok := s.(providers.ServiceFilterer); ok {
 		svcs, _ := cmd.Flags().GetStringSlice("services")
 		if len(svcs) > 0 {
@@ -559,6 +564,10 @@ func init() {
 			subcmd.Flags().String("external-id", "",
 				"STS ExternalId for --role-arn (only honoured when --role-arn is also set)")
 		}
+		if _, ok := s.(providers.SubscriptionOverrider); ok {
+			subcmd.Flags().StringSlice("subscriptions", nil,
+				"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
+		}
 		if _, ok := s.(providers.GlobalsSkipper); ok {
 			subcmd.Flags().Bool("skip-globals", false,
 				"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
@@ -588,6 +597,11 @@ func init() {
 				externalID, _ := cmd.Flags().GetString("external-id")
 				if roleARN != "" {
 					ro.SetRoleOverride(roleARN, externalID)
+				}
+			}
+			if so, ok := s.(providers.SubscriptionOverrider); ok {
+				if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {
+					so.SetSubscriptionOverride(subs)
 				}
 			}
 			if gs, ok := s.(providers.GlobalsSkipper); ok {
@@ -633,12 +647,16 @@ Examples:
 
 Subscription scope comes from DefaultAzureCredential (az login, managed
 identity, env vars) or the explicit 'subscriptions:' list in config.yaml.
+--subscriptions pins the scan to exactly the listed subscription IDs and
+disables auto-enumeration (fail-closed) — use it to constrain a shared
+credential delegated across multiple tenants to one tenant's subscriptions.
 There is no --regions / --profile flag — Azure scopes per
 subscription/resource group, configured statically. --services narrows
 the scanner set when iterating on one provider.
 
 Examples:
   disco scan azure
+  disco scan azure --subscriptions 00000000-0000-0000-0000-000000000000
   disco scan azure --services azure:compute,azure:network`
 	case "gcp":
 		return `Scan GCP resources across reachable projects.

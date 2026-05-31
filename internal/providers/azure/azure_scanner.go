@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -50,7 +50,8 @@ func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for Azure.
 type Scanner struct {
-	serviceFilter []string // nil = scan all registered services
+	serviceFilter        []string // nil = scan all registered services
+	subscriptionOverride []string // nil = config-then-enumerate; non-nil = pinned, no auto-enumeration
 }
 
 // Name implements providers.Scanner.
@@ -59,6 +60,13 @@ func (s *Scanner) Name() string { return "azure" }
 // SetServiceFilter restricts the scan to the named services (e.g. "azure:compute", "azure:network").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
+
+// SetSubscriptionOverride pins the scan to exactly the given subscription IDs,
+// disabling auto-enumeration (fail-closed). Implements providers.SubscriptionOverrider.
+// A nil slice leaves the default config-then-enumerate behavior intact.
+func (s *Scanner) SetSubscriptionOverride(subscriptionIDs []string) {
+	s.subscriptionOverride = subscriptionIDs
+}
 
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
@@ -73,7 +81,7 @@ func (s *Scanner) ServiceNames() []string {
 // Scan discovers all Azure resources across all configured subscriptions.
 // Subscriptions are scanned in parallel, bounded by maxConcurrentServices.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	subs, cred, err := loadSubscriptions(ctx)
+	subs, cred, err := loadSubscriptions(ctx, s.subscriptionOverride)
 	if err != nil {
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
