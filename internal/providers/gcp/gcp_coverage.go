@@ -385,7 +385,8 @@ func pascalCase(s string) string {
 // slice — DiffRegions will then mark every static entry as "stale", a clear
 // signal that the caller needs broader creds).
 func (coverageProvider) FetchRegions(ctx context.Context, _ coverage.FetchOptions) ([]string, error) {
-	projects, err := loadProjects(ctx)
+	// Coverage tooling uses ambient/config credentials; no per-scan override.
+	projects, err := loadProjects(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("load projects: %w", err)
 	}

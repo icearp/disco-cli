@@ -13,8 +13,17 @@ import (
 
 // providerCfg mirrors the gcp: section of ~/.disco/config.yaml.
 type providerCfg struct {
-	Projects           []projectCfg `mapstructure:"projects"`
-	ServiceAccountFile string       `mapstructure:"service_account_file"`
+	Projects []projectCfg `mapstructure:"projects"`
+	// CredentialConfigFile is a path to a credential-configuration file —
+	// a Workload Identity Federation cred-config (gcloud iam
+	// workload-identity-pools create-cred-config) for keyless auth, or a
+	// traditional service-account key. Both are consumed by
+	// option.WithCredentialsFile, which parses external_account and
+	// service_account JSON natively.
+	CredentialConfigFile string `mapstructure:"credential_config_file"`
+	// ServiceAccountFile is the legacy alias for a service-account key
+	// file. Also accepts a WIF cred-config. Kept for back-compat.
+	ServiceAccountFile string `mapstructure:"service_account_file"`
 }
 
 // projectCfg is one project entry in the config file.
@@ -26,10 +35,15 @@ type projectCfg struct {
 // loadProjects parses the viper config and returns resolved project structs.
 // When no projects are configured, all accessible projects are enumerated via
 // the Cloud Resource Manager API.
-func loadProjects(ctx context.Context) ([]project, error) {
+func loadProjects(ctx context.Context, credentialConfigOverride string) ([]project, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("gcp", &cfg); err != nil {
 		return nil, fmt.Errorf("parse gcp config: %w", err)
+	}
+	// A --credential-config flag pins auth for this scan, overriding the
+	// config file (mirrors the AWS --role-arn override precedent).
+	if credentialConfigOverride != "" {
+		cfg.CredentialConfigFile = credentialConfigOverride
 	}
 
 	opts := clientOptions(ctx, cfg)
@@ -71,6 +85,34 @@ func loadProjects(ctx context.Context) ([]project, error) {
 	return projects, nil
 }
 
+// credentialMode names the credential path clientOptions selects, in
+// precedence order. Kept as a typed string so the selection logic is unit-
+// testable without real credentials or opaque option.ClientOption values.
+type credentialMode string
+
+const (
+	credModeFile    credentialMode = "credential_config_file" // WIF cred-config or SA key file
+	credModeWIFEnv  credentialMode = "wif_env"                // ECS/Fargate programmatic bridge
+	credModeSAFile  credentialMode = "service_account_file"   // legacy SA key file
+	credModeDefault credentialMode = "adc"                    // Application Default Credentials
+)
+
+// selectCredentialMode resolves which credential path to use from the config
+// plus the WIF env contract, in precedence order. Pure + side-effect-free so
+// the precedence is unit-testable.
+func selectCredentialMode(cfg providerCfg, wifAudience, wifServiceAccount string) credentialMode {
+	switch {
+	case cfg.CredentialConfigFile != "":
+		return credModeFile
+	case wifConfigured(wifAudience, wifServiceAccount):
+		return credModeWIFEnv
+	case cfg.ServiceAccountFile != "":
+		return credModeSAFile
+	default:
+		return credModeDefault
+	}
+}
+
 // clientOptions returns google.golang.org/api option.ClientOption values for
 // the configured credential type. Defaults to Application Default Credentials.
 func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
@@ -83,7 +125,31 @@ func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
 		"https://www.googleapis.com/auth/cloud-identity.groups.readonly",
 	}
 
-	if cfg.ServiceAccountFile != "" {
+	wifAud, wifSA := wifEnvCredentials()
+	switch selectCredentialMode(cfg, wifAud, wifSA) {
+	case credModeFile:
+		// WIF cred-config or a plain SA key. option.WithCredentialsFile parses
+		// external_account and service_account JSON natively, so this single
+		// path covers keyless auth on every platform Google's built-in sources
+		// support (CI with OIDC, GCE, GKE, an AWS host with env/IMDS creds).
+		return []option.ClientOption{
+			option.WithCredentialsFile(cfg.CredentialConfigFile), //nolint:staticcheck // user-provided path; SA1019 deprecation does not apply here
+			option.WithScopes(scopes...),
+		}
+	case credModeWIFEnv:
+		// ECS/Fargate keyless bridge: exchange the running task's own AWS
+		// identity for a short-lived token impersonating the read-only service
+		// account — no key, no file. Covers the one case Google's built-in AWS
+		// source can't: a Fargate task role, reachable only via the ECS
+		// container-credentials endpoint.
+		ts, err := wifTokenSource(ctx, wifAud, wifSA, scopes)
+		if err == nil {
+			return []option.ClientOption{option.WithTokenSource(ts), option.WithScopes(scopes...)}
+		}
+		// Fall through to ADC on error so a misconfigured WIF env doesn't
+		// hard-fail a scan that could still authenticate another way.
+	case credModeSAFile:
+		// Legacy service-account key file (also accepts a WIF cred-config).
 		return []option.ClientOption{
 			option.WithCredentialsFile(cfg.ServiceAccountFile), //nolint:staticcheck // user-provided path; SA1019 deprecation does not apply here
 			option.WithScopes(scopes...),

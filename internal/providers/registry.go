@@ -80,6 +80,17 @@ type SubscriptionOverrider interface {
 	SetSubscriptionOverride(subscriptionIDs []string)
 }
 
+// CredentialConfigOverrider is an optional interface for providers that accept
+// an external credential-configuration file via the --credential-config CLI
+// flag, pinning authentication for a single scan. The canonical use is a GCP
+// Workload Identity Federation cred-config (gcloud iam workload-identity-pools
+// create-cred-config) for keyless auth without a downloaded key; a plain
+// service-account key file is also accepted. An empty path restores the
+// config-file / ambient-credential default.
+type CredentialConfigOverrider interface {
+	SetCredentialConfigOverride(path string)
+}
+
 // GlobalsSkipper is an optional interface for providers that support
 // suppressing global / cross-region service scans via --skip-globals.
 // Globals are services whose endpoints live in a single region but whose

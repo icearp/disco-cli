@@ -572,6 +572,10 @@ func init() {
 			subcmd.Flags().Bool("skip-globals", false,
 				"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
 		}
+		if _, ok := s.(providers.CredentialConfigOverrider); ok {
+			subcmd.Flags().String("credential-config", "",
+				"path to a credential-configuration file: a keyless GCP Workload Identity Federation cred-config (from 'gcloud iam workload-identity-pools create-cred-config') or a service-account key; overrides the config file")
+		}
 		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
 			if sf, ok := s.(providers.ServiceFilterer); ok {
 				if svcs, _ := cmd.Flags().GetStringSlice("services"); len(svcs) > 0 {
@@ -607,6 +611,11 @@ func init() {
 			if gs, ok := s.(providers.GlobalsSkipper); ok {
 				if skip, _ := cmd.Flags().GetBool("skip-globals"); skip {
 					gs.SetSkipGlobals(true)
+				}
+			}
+			if cc, ok := s.(providers.CredentialConfigOverrider); ok {
+				if path, _ := cmd.Flags().GetString("credential-config"); path != "" {
+					cc.SetCredentialConfigOverride(path)
 				}
 			}
 			return runScan(cmd, []providers.Scanner{s})
@@ -667,9 +676,18 @@ config.yaml. There is no --regions / --profile flag — GCP fans out per
 project against each service's default scope. --services narrows the
 scanner set when iterating on one provider.
 
+Keyless auth (Workload Identity Federation): pass --credential-config
+(or set gcp.credential_config_file) to a cred-config file from
+'gcloud iam workload-identity-pools create-cred-config' to authenticate
+without downloading a service-account key. On AWS ECS/Fargate, where the
+task-role identity is reachable only via the container-credentials
+endpoint, set DISCO_GCP_WIF_AUDIENCE + DISCO_GCP_WIF_SERVICE_ACCOUNT
+instead.
+
 Examples:
   disco scan gcp
-  disco scan gcp --services gcp:compute,gcp:storage`
+  disco scan gcp --services gcp:compute,gcp:storage
+  disco scan gcp --credential-config ./wif-cred-config.json`
 	default:
 		return fmt.Sprintf("Scan %s resources.", provider)
 	}

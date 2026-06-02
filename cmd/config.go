@@ -35,8 +35,20 @@ gcp:
   # Example:
   # - id: my-project-id
   #   name: "My GCP Project"
-  # Path to a service account JSON file. If omitted, Application Default Credentials are used.
+  # Keyless auth (recommended): path to a Workload Identity Federation
+  # credential-configuration file produced by
+  #   gcloud iam workload-identity-pools create-cred-config
+  # No service-account key is downloaded or stored. Also accepts a plain
+  # service-account key file. Overridable per-scan with --credential-config.
+  credential_config_file: ""
+  # Legacy: path to a service-account key JSON file. If all GCP credential
+  # options are omitted, Application Default Credentials are used.
   service_account_file: ""
+  # ECS / Fargate keyless bridge (env-only, advanced): when disco runs on AWS
+  # ECS/Fargate and its task-role identity is reachable only via the container-
+  # credentials endpoint, set these instead of a cred-config file:
+  #   DISCO_GCP_WIF_AUDIENCE          - the workload-identity provider audience
+  #   DISCO_GCP_WIF_SERVICE_ACCOUNT   - the service-account email to impersonate
 
 azure:
   # Explicit subscription list. If omitted, all accessible subscriptions are enumerated.

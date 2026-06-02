@@ -31,7 +31,8 @@ func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for GCP.
 type Scanner struct {
-	serviceFilter []string // nil = scan all registered services
+	serviceFilter        []string // nil = scan all registered services
+	credentialConfigFile string   // "" = use config file / ambient credentials
 }
 
 // Name implements providers.Scanner.
@@ -40,6 +41,12 @@ func (s *Scanner) Name() string { return "gcp" }
 // SetServiceFilter restricts the scan to the named services (e.g. "gcp:compute", "gcp:gke").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
+
+// SetCredentialConfigOverride pins this scan's GCP authentication to the
+// credential-configuration file at path — a Workload Identity Federation
+// cred-config (keyless) or a service-account key. Overrides the config file's
+// gcp.credential_config_file. Implements providers.CredentialConfigOverrider.
+func (s *Scanner) SetCredentialConfigOverride(path string) { s.credentialConfigFile = path }
 
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
@@ -53,7 +60,7 @@ func (s *Scanner) ServiceNames() []string {
 
 // Scan discovers all GCP resources across all accessible projects.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	projects, err := loadProjects(ctx)
+	projects, err := loadProjects(ctx, s.credentialConfigFile)
 	if err != nil {
 		return fmt.Errorf("gcp: load projects: %w", err)
 	}
