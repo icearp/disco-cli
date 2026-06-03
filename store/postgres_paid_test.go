@@ -97,8 +97,9 @@ func TestPG_RoundTripParity(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
 	tenantID := uuid.NewString()
+	workspaceID := uuid.NewString()
 
-	pgS, err := OpenPostgres(context.Background(), dsn, tenantID)
+	pgS, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantID, workspaceID)
 	if err != nil {
 		t.Fatalf("open pg: %v", err)
 	}
@@ -127,8 +128,10 @@ func TestPG_RLS(t *testing.T) {
 
 	tenantA := uuid.NewString()
 	tenantB := uuid.NewString()
+	workspaceA := uuid.NewString()
+	workspaceB := uuid.NewString()
 
-	a, err := OpenPostgres(context.Background(), dsn, tenantA)
+	a, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantA, workspaceA)
 	if err != nil {
 		t.Fatalf("open A: %v", err)
 	}
@@ -142,7 +145,7 @@ func TestPG_RLS(t *testing.T) {
 	}
 	_ = a.Close()
 
-	b, err := OpenPostgres(context.Background(), dsn, tenantB)
+	b, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantB, workspaceB)
 	if err != nil {
 		t.Fatalf("open B: %v", err)
 	}
@@ -162,8 +165,9 @@ func TestPG_ConcurrentUpsert(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
 	tenantID := uuid.NewString()
+	workspaceID := uuid.NewString()
 
-	s, err := OpenPostgres(context.Background(), dsn, tenantID)
+	s, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantID, workspaceID)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

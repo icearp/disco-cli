@@ -50,6 +50,7 @@ CREATE TABLE relationships (
     direction     TEXT NOT NULL DEFAULT 'directed' CHECK (direction IN ('directed','undirected')),
     attributes    TEXT,
     discovered_at TEXT NOT NULL,
+    workspace_id  TEXT,
     UNIQUE (from_id, to_id, kind)
 );
 CREATE INDEX IF NOT EXISTS idx_rel_from ON relationships(from_id, kind);
@@ -60,6 +61,7 @@ CREATE TABLE hierarchy_closure (
     ancestor_id   TEXT NOT NULL,
     descendant_id TEXT NOT NULL,
     depth         INTEGER NOT NULL,
+    workspace_id  TEXT,
     PRIMARY KEY (ancestor_id, descendant_id)
 );
 CREATE INDEX IF NOT EXISTS idx_closure_descendant ON hierarchy_closure(descendant_id, depth);

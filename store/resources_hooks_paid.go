@@ -36,6 +36,11 @@ func resourceSelectColumns() []string {
 		// tenant_id deliberately omitted: PG-only (RLS) and no Go
 		// consumer reads Resource.TenantID. Including it would break
 		// SQLite paid reads where the column doesn't exist.
+		//
+		// workspace_id likewise omitted: it exists on both dialects
+		// but RLS does the per-workspace filtering, and no Go consumer
+		// reads Resource.WorkspaceID. sqlx tolerates the field staying
+		// nil when the projection omits its column.
 	}
 }
 

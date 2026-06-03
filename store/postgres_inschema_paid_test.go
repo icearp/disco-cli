@@ -55,15 +55,17 @@ func TestPG_OpenPostgresInSchema(t *testing.T) {
 	schemaB := "tenant_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	tenantA := uuid.NewString()
 	tenantB := uuid.NewString()
+	workspaceA := uuid.NewString()
+	workspaceB := uuid.NewString()
 
-	a, err := OpenPostgresInSchema(context.Background(), dsn, schemaA, tenantA)
+	a, err := OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schemaA, tenantA, workspaceA)
 	if err != nil {
 		t.Fatalf("open A: %v", err)
 	}
 	defer func() { _ = a.Close() }()
 	seedFixtures(t, a)
 
-	b, err := OpenPostgresInSchema(context.Background(), dsn, schemaB, tenantB)
+	b, err := OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schemaB, tenantB, workspaceB)
 	if err != nil {
 		t.Fatalf("open B: %v", err)
 	}
@@ -114,8 +116,9 @@ func TestPG_WrapTx(t *testing.T) {
 
 	schema := "tenant_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	tenantID := uuid.NewString()
+	workspaceID := uuid.NewString()
 
-	provisioner, err := OpenPostgresInSchema(context.Background(), dsn, schema, tenantID)
+	provisioner, err := OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schema, tenantID, workspaceID)
 	if err != nil {
 		t.Fatalf("provision: %v", err)
 	}
@@ -142,6 +145,9 @@ func TestPG_WrapTx(t *testing.T) {
 	}
 	if _, err := tx.Exec("SELECT set_config('app.tenant_id', $1, true)", tenantID); err != nil {
 		t.Fatalf("set tenant_id: %v", err)
+	}
+	if _, err := tx.Exec("SELECT set_config('app.workspace_id', $1, true)", workspaceID); err != nil {
+		t.Fatalf("set workspace_id: %v", err)
 	}
 
 	st := WrapTx(tx, DriverPostgres)

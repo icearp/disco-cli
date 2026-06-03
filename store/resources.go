@@ -44,6 +44,7 @@ type Resource struct {
 	DiscoveredBy      string  `db:"discovered_by"       json:"discovered_by"`
 	ManagedByProvider bool    `db:"managed_by_provider" json:"managed_by_provider"`
 	TenantID          *string `db:"tenant_id"           json:"-"` // populated on PG (RLS); nil on SQLite
+	WorkspaceID       *string `db:"workspace_id"        json:"-"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
 
 	// Verification + version-chain metadata live on ResourceVersion in
 	// the paid build (resources_paid.go), not here. The OSS Resource is

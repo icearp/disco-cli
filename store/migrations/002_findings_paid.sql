@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS check_runs (
     packs           TEXT NOT NULL,
     severity_filter TEXT,
     resource_count  INTEGER,
-    finding_count   INTEGER
+    finding_count   INTEGER,
+    workspace_id    TEXT           -- PG mirror: per-workspace RLS discriminator
 );
 
 CREATE INDEX IF NOT EXISTS idx_check_runs_started_at ON check_runs(started_at DESC);
@@ -31,7 +32,8 @@ CREATE TABLE IF NOT EXISTS findings (
     category      TEXT,
     remediation   TEXT,
     ref_url       TEXT,
-    tags          TEXT
+    tags          TEXT,
+    workspace_id  TEXT           -- PG mirror: per-workspace RLS discriminator
 );
 
 CREATE INDEX IF NOT EXISTS idx_findings_check_run_id ON findings(check_run_id);

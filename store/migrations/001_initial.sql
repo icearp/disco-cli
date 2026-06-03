@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS scans (
     scope          TEXT NOT NULL, -- JSON: accounts/orgs/subscriptions scanned
     error          TEXT,
     resource_count INTEGER,
-    meta           TEXT           -- JSON: scanner version, options
+    meta           TEXT,          -- JSON: scanner version, options
+    workspace_id   TEXT           -- PG mirror: per-workspace RLS discriminator (no RLS in SQLite)
 );
 
 CREATE TABLE IF NOT EXISTS resources (
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS resources (
     created_at          TEXT,
     discovered_at       TEXT NOT NULL,
     discovered_by       TEXT NOT NULL,
+    workspace_id        TEXT,               -- PG mirror: per-workspace RLS discriminator
     FOREIGN KEY (discovered_by) REFERENCES scans(id)
 );
 
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS relationships (
     direction     TEXT NOT NULL DEFAULT 'directed' CHECK (direction IN ('directed','undirected')),
     attributes    TEXT,
     discovered_at TEXT NOT NULL,
+    workspace_id  TEXT,               -- PG mirror: per-workspace RLS discriminator
     FOREIGN KEY (from_id) REFERENCES resources(id),
     FOREIGN KEY (to_id)   REFERENCES resources(id),
     UNIQUE (from_id, to_id, kind)
@@ -67,6 +70,7 @@ CREATE TABLE IF NOT EXISTS hierarchy_closure (
     ancestor_id   TEXT NOT NULL,
     descendant_id TEXT NOT NULL,
     depth         INTEGER NOT NULL,
+    workspace_id  TEXT,               -- PG mirror: per-workspace RLS discriminator
     PRIMARY KEY (ancestor_id, descendant_id),
     FOREIGN KEY (ancestor_id)   REFERENCES resources(id),
     FOREIGN KEY (descendant_id) REFERENCES resources(id)
@@ -85,6 +89,7 @@ CREATE TABLE IF NOT EXISTS scan_checkpoints (
     scope      TEXT NOT NULL,
     last_token TEXT,
     updated_at TEXT NOT NULL,
+    workspace_id TEXT,               -- PG mirror: per-workspace RLS discriminator
     PRIMARY KEY (scan_id, provider, service, scope)
 );
 

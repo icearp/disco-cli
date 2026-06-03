@@ -35,11 +35,24 @@ func init() {
 		if _, err := uuid.Parse(tenantID); err != nil {
 			return nil, fmt.Errorf("DISCO_TENANT_ID must be a UUID: %w", err)
 		}
+		// DISCO_WORKSPACE_ID, when set, pins the app.workspace_id GUC so
+		// the scanner's writes carry the per-workspace RLS discriminator
+		// (a single tenant schema now holds many workspaces' rows). Empty
+		// leaves the GUC unset for legacy single-tenant-per-schema callers.
+		workspaceID := os.Getenv("DISCO_WORKSPACE_ID")
+		if workspaceID != "" {
+			if _, err := uuid.Parse(workspaceID); err != nil {
+				return nil, fmt.Errorf("DISCO_WORKSPACE_ID must be a UUID: %w", err)
+			}
+		}
 		// DISCO_PG_SCHEMA pins search_path to the per-tenant schema. Required
 		// in the SaaS deployment where every workspace lives in its own
 		// tenant_<hex> schema; without it the scanner would write to public
 		// and the web app's per-tenant reads would see zero rows.
 		if schema := os.Getenv("DISCO_PG_SCHEMA"); schema != "" {
+			if workspaceID != "" {
+				return store.OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schema, tenantID, workspaceID)
+			}
 			return store.OpenPostgresInSchema(context.Background(), dsn, schema, tenantID)
 		}
 		return store.OpenPostgres(context.Background(), dsn, tenantID)

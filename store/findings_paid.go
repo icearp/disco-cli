@@ -25,6 +25,10 @@ type CheckRun struct {
 	SeverityFilter *string  `db:"severity_filter"`
 	ResourceCount  *int     `db:"resource_count"`
 	FindingCount   *int     `db:"finding_count"`
+	// WorkspaceID is the per-workspace RLS discriminator; carried so
+	// SELECT * round-trips the column. nil when the app.workspace_id GUC
+	// was unset at insert time.
+	WorkspaceID *string `db:"workspace_id"`
 }
 
 // StoredFinding is the on-disk shape of a policy.Finding. Pointer fields
@@ -44,6 +48,7 @@ type StoredFinding struct {
 	Remediation *string `db:"remediation"`
 	RefURL      *string `db:"ref_url"`
 	TagsJSON    *string `db:"tags"`
+	WorkspaceID *string `db:"workspace_id"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
 }
 
 // FindingFilter shapes ListFindings queries. Empty fields skip the clause.

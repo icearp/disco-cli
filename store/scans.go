@@ -24,6 +24,11 @@ type Scan struct {
 	ErrorsJSON    *string  `db:"errors"`
 	ResourceCount *int     `db:"resource_count"`
 	MetaJSON      *string  `db:"meta"`
+	// WorkspaceID is the per-workspace RLS discriminator. Populated on the
+	// SQLite and Postgres paths alike (the column DEFAULTs from the
+	// app.workspace_id GUC on PG); nil only when the GUC was unset at
+	// insert time. Carried so SELECT * round-trips the column.
+	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
 
 // scanWire is the on-the-wire JSON shape for Scan: snake_case keys, parsed

@@ -58,7 +58,16 @@ func pgQuoteIdent(name string) string {
 // path supports; dialect differences are handled inside dialect.go,
 // rebind helpers, and the migration runner.
 func OpenPostgres(ctx context.Context, dsn, tenantID string) (*Store, error) {
-	return openPG(ctx, dsn, tenantID, "")
+	return openPG(ctx, dsn, tenantID, "", "")
+}
+
+// OpenPostgresWithWorkspace opens a Postgres-backed Store like OpenPostgres
+// but also pins the `app.workspace_id` GUC, so writes satisfy the per-workspace
+// RLS predicate and the NOT-NULL workspace_id column default, and reads see the
+// per-workspace USING clause. workspaceID, when non-empty, must parse as a
+// UUID; an empty value leaves the GUC unset (legacy single-tenant callers).
+func OpenPostgresWithWorkspace(ctx context.Context, dsn, tenantID, workspaceID string) (*Store, error) {
+	return openPG(ctx, dsn, tenantID, workspaceID, "")
 }
 
 // OpenPostgresInSchema opens a Postgres-backed Store whose connections have
@@ -77,16 +86,38 @@ func OpenPostgresInSchema(ctx context.Context, dsn, schemaName, tenantID string)
 	if err := validateSchemaName(schemaName); err != nil {
 		return nil, err
 	}
-	return openPG(ctx, dsn, tenantID, schemaName)
+	return openPG(ctx, dsn, tenantID, "", schemaName)
 }
 
-// openPG is the shared implementation behind OpenPostgres and
-// OpenPostgresInSchema. schemaName == "" means "use the connection default
-// search_path"; non-empty pins search_path = <schema>, public after creating
-// the schema if missing.
-func openPG(ctx context.Context, dsn, tenantID, schemaName string) (*Store, error) {
+// OpenPostgresInSchemaWithWorkspace opens a Postgres-backed Store like
+// OpenPostgresInSchema but also pins the `app.workspace_id` GUC so writes
+// satisfy the per-workspace RLS predicate and NOT-NULL workspace_id column
+// default inside a shared per-tenant schema.
+//
+// workspaceID, when non-empty, must parse as a UUID; an empty value leaves
+// the GUC unset (the single-tenant-per-schema legacy callers that don't yet
+// carry a workspace stay working, relying on the schema + app.tenant_id
+// boundary alone). schemaName must match ^tenant_[0-9a-f]{32}$.
+func OpenPostgresInSchemaWithWorkspace(ctx context.Context, dsn, schemaName, tenantID, workspaceID string) (*Store, error) {
+	if err := validateSchemaName(schemaName); err != nil {
+		return nil, err
+	}
+	return openPG(ctx, dsn, tenantID, workspaceID, schemaName)
+}
+
+// openPG is the shared implementation behind OpenPostgres,
+// OpenPostgresInSchema, and OpenPostgresInSchemaWithWorkspace. schemaName == ""
+// means "use the connection default search_path"; non-empty pins search_path =
+// <schema>, public after creating the schema if missing. workspaceID == ""
+// leaves the app.workspace_id GUC unset.
+func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) (*Store, error) {
 	if _, err := uuid.Parse(tenantID); err != nil {
 		return nil, fmt.Errorf("tenant_id must be a UUID: %w", err)
+	}
+	if workspaceID != "" {
+		if _, err := uuid.Parse(workspaceID); err != nil {
+			return nil, fmt.Errorf("workspace_id must be a UUID: %w", err)
+		}
 	}
 	cfg, err := pgx.ParseConfig(dsn)
 	if err != nil {
@@ -107,10 +138,10 @@ func openPG(ctx context.Context, dsn, tenantID, schemaName string) (*Store, erro
 	// rejects unknown startup params. AfterConnect runs once per physical
 	// connection, before any handle is returned to database/sql, so the
 	// session-scoped GUC and search_path are sticky for every subsequent
-	// query through that conn. tenantID is UUID-validated above and
-	// schemaName is regex-validated, so inlining is safe — PgConn has no
-	// parameterised Exec on the simple-query path.
-	cfg.AfterConnect = afterConnect(tenantID, schemaName)
+	// query through that conn. tenantID and workspaceID are UUID-validated
+	// above and schemaName is regex-validated, so inlining is safe — PgConn
+	// has no parameterised Exec on the simple-query path.
+	cfg.AfterConnect = afterConnect(tenantID, workspaceID, schemaName)
 
 	std := stdlib.OpenDB(*cfg)
 	db := sqlx.NewDb(std, "pgx")
@@ -143,10 +174,17 @@ func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string
 }
 
 // afterConnect builds the per-physical-conn setup hook. Pins search_path
-// (when schemaName is non-empty) and sets the app.tenant_id GUC. Order
-// matters: search_path first so the GUC SELECT runs in the intended schema
-// scope (set_config is schema-agnostic but consistency aids debugging).
-func afterConnect(tenantID, schemaName string) func(ctx context.Context, c *pgconn.PgConn) error {
+// (when schemaName is non-empty) and sets the app.tenant_id GUC, plus the
+// app.workspace_id GUC when workspaceID is non-empty. Order matters:
+// search_path first so the GUC SELECTs run in the intended schema scope
+// (set_config is schema-agnostic but consistency aids debugging).
+//
+// app.workspace_id is left unset when workspaceID == "" so single-tenant
+// callers that predate the per-workspace discriminator keep working — the
+// workspace_id column default (current_setting('app.workspace_id')) then
+// raises only on writes, which those callers don't perform against the
+// workspace-isolated tables.
+func afterConnect(tenantID, workspaceID, schemaName string) func(ctx context.Context, c *pgconn.PgConn) error {
 	return func(ctx context.Context, c *pgconn.PgConn) error {
 		if schemaName != "" {
 			sql := "SET search_path = " + pgQuoteIdent(schemaName) + ", public"
@@ -158,6 +196,12 @@ func afterConnect(tenantID, schemaName string) func(ctx context.Context, c *pgco
 		mrr := c.Exec(ctx, "SELECT set_config('app.tenant_id', '"+tenantID+"', false)")
 		if _, err := mrr.ReadAll(); err != nil {
 			return fmt.Errorf("set tenant_id GUC: %w", err)
+		}
+		if workspaceID != "" {
+			mrr := c.Exec(ctx, "SELECT set_config('app.workspace_id', '"+workspaceID+"', false)")
+			if _, err := mrr.ReadAll(); err != nil {
+				return fmt.Errorf("set workspace_id GUC: %w", err)
+			}
 		}
 		return nil
 	}
