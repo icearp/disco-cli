@@ -64,6 +64,9 @@ func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricin
 			if isCostExplorerNotEnabled(perr) {
 				return total, inserted, markServiceDisabled(perr)
 			}
+			if isPayerAccountOnly(perr) {
+				return total, inserted, markServiceDisabled(perr)
+			}
 			if isMigrationRequiredIAMDeny(perr) {
 				return total, inserted, nil
 			}

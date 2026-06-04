@@ -71,6 +71,19 @@ func isAccessDeniedWithMessage(err error, needle string) bool {
 	return false
 }
 
+// isPayerAccountOnly reports whether err is the restriction AWS returns when a
+// payer/management-account-only billing API (BCM Pricing Calculator, BCM Data
+// Exports, Invoicing) is called from an organisation member account. It
+// surfaces as a ValidationException whose body reads "Operation not permitted
+// for member accounts. This API is only allowed for regular or payer accounts."
+// This reflects account topology, not a scanner misconfig, so callers
+// silent-skip via markServiceDisabled. Distinct from isBillingConductorPayerOnly,
+// which matches the AccessDeniedException variant Billing Conductor returns.
+func isPayerAccountOnly(err error) bool {
+	return isAPIErrorWithMessage(err, "ValidationException", "only allowed for regular or payer accounts") ||
+		isAPIErrorWithMessage(err, "ValidationException", "not permitted for member accounts")
+}
+
 // errServiceDisabled is a sentinel returned by per-service scanners when they
 // detect that the AWS service itself is not enabled in the calling account or
 // region (Macie not enabled, Shield Advanced not subscribed, Security Hub
