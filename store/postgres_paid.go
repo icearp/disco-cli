@@ -8,6 +8,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
 
@@ -124,12 +125,20 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 		return nil, fmt.Errorf("parse pg dsn: %w", err)
 	}
 
+	// RDS IAM auth (DISCO_PG_IAM_AUTH): when enabled, beforeConnect mints a
+	// fresh IAM token as the password before every physical dial; nil when
+	// off (DSN used verbatim — password or local trust).
+	beforeConnect, err := iamBeforeConnect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Schema must exist before any AfterConnect-bearing conn runs, because
 	// AfterConnect issues `SET search_path = <schema>, public` and would fail
 	// against a non-existent schema. Use a one-shot pgx conn (no AfterConnect)
 	// to CREATE SCHEMA, then close it and open the real pool.
 	if schemaName != "" {
-		if err := bootstrapSchema(ctx, cfg, schemaName); err != nil {
+		if err := bootstrapSchema(ctx, cfg, schemaName, beforeConnect); err != nil {
 			return nil, err
 		}
 	}
@@ -143,7 +152,14 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 	// has no parameterised Exec on the simple-query path.
 	cfg.AfterConnect = afterConnect(tenantID, workspaceID, schemaName)
 
-	std := stdlib.OpenDB(*cfg)
+	// With IAM auth the pool opens through a connector whose BeforeConnect
+	// mints a fresh token per physical dial; otherwise the plain stdlib pool.
+	var std *sql.DB
+	if beforeConnect != nil {
+		std = sql.OpenDB(stdlib.GetConnector(*cfg, stdlib.OptionBeforeConnect(beforeConnect)))
+	} else {
+		std = stdlib.OpenDB(*cfg)
+	}
 	db := sqlx.NewDb(std, "pgx")
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
@@ -161,8 +177,16 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 // bootstrapSchema opens a one-shot pgx conn, CREATE SCHEMA IF NOT EXISTS,
 // closes. Must run BEFORE cfg.AfterConnect is assigned — otherwise the conn
 // would itself try to SET search_path against the missing schema.
-func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string) error {
-	conn, err := pgx.ConnectConfig(ctx, cfg)
+func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string, beforeConnect func(context.Context, *pgx.ConnConfig) error) error {
+	// Mint the IAM token on a copy so the shared cfg (reused by the pool,
+	// which re-mints per dial) is left untouched. No-op when IAM is off.
+	cc := cfg.Copy()
+	if beforeConnect != nil {
+		if err := beforeConnect(ctx, cc); err != nil {
+			return fmt.Errorf("bootstrap iam before connect: %w", err)
+		}
+	}
+	conn, err := pgx.ConnectConfig(ctx, cc)
 	if err != nil {
 		return fmt.Errorf("bootstrap conn: %w", err)
 	}
