@@ -8,6 +8,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 )
 
+// isNoTaskSets reports whether err is the InvalidParameterException AWS returns
+// from DescribeTaskSets for a service using the default rolling-update (ECS)
+// deployment controller. Only EXTERNAL / CODE_DEPLOY services have task sets;
+// for the rest AWS rejects the call with "TaskSets cannot be empty." A
+// structural fact about the service, not a scanner error — skip it.
+func isNoTaskSets(err error) bool {
+	return isAPIErrorWithMessage(err, "InvalidParameterException", "TaskSets cannot be empty")
+}
+
 type ecsExtAPI interface {
 	DescribeCapacityProviders(context.Context, *ecs.DescribeCapacityProvidersInput, ...func(*ecs.Options)) (*ecs.DescribeCapacityProvidersOutput, error)
 	DescribeClusters(context.Context, *ecs.DescribeClustersInput, ...func(*ecs.Options)) (*ecs.DescribeClustersOutput, error)
@@ -19,8 +28,9 @@ type ecsExtAPI interface {
 //   - CapacityProviders (account-wide, manual NextToken loop)
 //   - ClusterCapacityProviderAssociations (synthesized per cluster from
 //     DescribeClusters response)
-//   - TaskSets (per-(cluster, service); DescribeTaskSets returns empty for
-//     services without an active task set).
+//   - TaskSets (per-(cluster, service); only EXTERNAL / CODE_DEPLOY services
+//     carry task sets — rolling-update (ECS) services reject DescribeTaskSets
+//     with "TaskSets cannot be empty", which is skipped).
 func scanECSExtended(ctx context.Context, client ecsExtAPI, acct *account, region string, st *store.Store, scanID string, clusterARNs []string) (total, inserted int, err error) {
 	t, i, ferr := scanECSCapacityProviders(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
@@ -150,6 +160,9 @@ func scanECSTaskSets(ctx context.Context, client ecsExtAPI, acct *account, regio
 				out, derr := client.DescribeTaskSets(ctx, &ecs.DescribeTaskSetsInput{Cluster: &ca, Service: &sa})
 				if derr != nil {
 					if isAccessDenied(derr) {
+						continue
+					}
+					if isNoTaskSets(derr) {
 						continue
 					}
 					return 0, 0, fmt.Errorf("ecs:DescribeTaskSets: %w", derr)
