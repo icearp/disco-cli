@@ -952,8 +952,6 @@ const (
 	TypeSSMSAPApplication = "aws:systems-manager-sap:application"
 	// SSMGuiConnect (ssmguiconnect_scanners.go)
 	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
-	// SimSpaceWeaver (simspaceweaver_scanners.go)
-	TypeSimSpaceWeaverSimulation = "aws:sim-space-weaver:simulation"
 	// RUM (rum_scanners.go)
 	TypeRUMAppMonitor = "aws:rum:app-monitor"
 	// Rbin (rbin_scanners.go)
@@ -1566,10 +1564,6 @@ const (
 	TypeFMSNotificationChannel = "aws:fms:notification-channel"
 	TypeFMSPolicy              = "aws:fms:policy"
 	TypeFMSResourceSet         = "aws:fms:resource-set"
-	// IoTEvents (iotevents_scanners.go).
-	TypeIoTEventsAlarmModel    = "aws:iot-events:alarm-model"
-	TypeIoTEventsDetectorModel = "aws:iot-events:detector-model"
-	TypeIoTEventsInput         = "aws:iot-events:input"
 	// KafkaConnect (kafkaconnect_scanners.go).
 	TypeKafkaConnectConnector           = "aws:kafka-connect:connector"
 	TypeKafkaConnectCustomPlugin        = "aws:kafka-connect:custom-plugin"

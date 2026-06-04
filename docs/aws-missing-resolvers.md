@@ -308,7 +308,6 @@ aws:sfn:activity	sfn
 aws:shield:drt-access	shield
 aws:shield:proactive-engagement	shield
 aws:signer:signing-profile	signer
-aws:sim-space-weaver:simulation	sim-space-weaver
 aws:sso:permission-set	sso
 aws:synthetics:canary	synthetics
 aws:synthetics:group	synthetics

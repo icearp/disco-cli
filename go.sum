@@ -400,8 +400,6 @@ github.com/aws/aws-sdk-go-v2/service/iot v1.72.8 h1:2RF7aiG3/OYCdPFrYDc6NPJJQiN2
 github.com/aws/aws-sdk-go-v2/service/iot v1.72.8/go.mod h1:9OGjPSOz2OZbObVfBcn110WPW/XZ1k6rSCpky8EvfHQ=
 github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.36.23 h1:T44W74R9qxT6gO/tlq7Pl/D500mMRnhawXpgQYDNtyg=
 github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.36.23/go.mod h1:DL7UXGST0rfuUV8XmEh2hQlZhL8NZzjSg8+6RCpRK9Y=
-github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15 h1:NxDCOf8KihjG2mUgaoEA2G1iRYMadZyX7omcBF+HGk0=
-github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15/go.mod h1:zp6baKuUtng8OPxbxACY/bIUzru0GW6FWLDopb5onJU=
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22 h1:OLOxV1nQLHcFCdvgEoVoAfzm8O0LokNYFWJ2Lrp6Q6M=
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22/go.mod h1:QFjUn8isVhJqTBHnZBXL3xTLrxJSAuJGejRmdshNIu0=
 github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.52.21 h1:WCGgLnCnzm83h/wwACscruerN7aF2I0WfIriWZPSWj8=
@@ -626,8 +624,6 @@ github.com/aws/aws-sdk-go-v2/service/signer v1.32.7 h1:tA+8/NfUKuuKdjth5p0tycTTz
 github.com/aws/aws-sdk-go-v2/service/signer v1.32.7/go.mod h1:GltxkRtgafy6gdpgP0BICa1H5/pBaQDINsyLbGr59Lw=
 github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 h1:QKZH0S178gCmFEgst8hN0mCX1KxLgHBKKY/CLqwP8lg=
 github.com/aws/aws-sdk-go-v2/service/signin v1.0.9/go.mod h1:7yuQJoT+OoH8aqIxw9vwF+8KpvLZ8AWmvmUWHsGQZvI=
-github.com/aws/aws-sdk-go-v2/service/simspaceweaver v1.19.23 h1:GX+NKsW3gkQ8ZVmr7rtM/je/MIFrYGwVgnh3yAZfwzU=
-github.com/aws/aws-sdk-go-v2/service/simspaceweaver v1.19.23/go.mod h1:SRUgiDIW8z8h1vsJSt3uuf0keFo+zmekxLNTkcGd2/k=
 github.com/aws/aws-sdk-go-v2/service/sns v1.39.15 h1:rOWMUrXJPcTXnk75ja6Bxv1P+j83dPhIWjfJ2cujj34=
 github.com/aws/aws-sdk-go-v2/service/sns v1.39.15/go.mod h1:4exx1wZR0pe+WcMbas8OZ2krRrBbW7IUUvLXCCQbjkg=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.42.25 h1:8Bv3TQ1Cob6HLlpUbAnWxeHhAkYScJO9RIHh2WPXaxw=

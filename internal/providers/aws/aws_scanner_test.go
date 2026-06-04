@@ -120,7 +120,6 @@ var expectedAWSServices = []string{
 	"aws:uxc",
 	"aws:systems-manager-sap",
 	"aws:ssm-gui-connect",
-	"aws:sim-space-weaver",
 	"aws:rum",
 	"aws:rbin",
 	"aws:pipes",
@@ -263,7 +262,6 @@ var expectedAWSServices = []string{
 	"aws:kinesis-analytics",
 	"aws:kendra",
 	"aws:kafka-connect",
-	"aws:iot-events",
 	"aws:fms",
 }
 

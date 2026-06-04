@@ -174,7 +174,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/invoicing v1.9.10
 	github.com/aws/aws-sdk-go-v2/service/iot v1.72.8
 	github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.36.23
-	github.com/aws/aws-sdk-go-v2/service/iotevents v1.33.15
 	github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.31.22
 	github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.52.21
 	github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.29.23
@@ -286,7 +285,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.40.11
 	github.com/aws/aws-sdk-go-v2/service/shield v1.34.22
 	github.com/aws/aws-sdk-go-v2/service/signer v1.32.7
-	github.com/aws/aws-sdk-go-v2/service/simspaceweaver v1.19.23
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.15
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.25
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5

@@ -562,8 +562,6 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSSMSAPApplication: "AWS::SystemsManagerSAP::Application",
 		// SSMGuiConnect — disco "ssm-gui-connect" segment vs CFN "SSMGuiConnect".
 		TypeSSMGuiConnectPreferences: "AWS::SSMGuiConnect::Preferences",
-		// SimSpaceWeaver — disco "sim-space-weaver" segment vs CFN "SimSpaceWeaver".
-		TypeSimSpaceWeaverSimulation: "AWS::SimSpaceWeaver::Simulation",
 		// RUM — disco "rum" segment vs CFN "RUM".
 		TypeRUMAppMonitor: "AWS::RUM::AppMonitor",
 		// OSIS — disco "osis" segment vs CFN "OSIS".
