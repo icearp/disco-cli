@@ -79,26 +79,40 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		switch {
 		case errors.Is(lookupErr, sql.ErrNoRows):
 			// First discovery. Fresh root row.
+			//
+			// Scanners upsert concurrently (errgroup goroutines, each on its
+			// own transaction), so a sibling can insert this natural key
+			// between our lookup and this insert. ON CONFLICT DO NOTHING on the
+			// current-by-natural-key partial index turns that race into a no-op
+			// instead of a 23505 that would abort the whole batch tx — the
+			// sibling has already recorded the row, so we skip it (no info lost:
+			// same natural key, same point-in-time scan).
 			if r.DiscoveredAt == "" {
 				r.DiscoveredAt = now
 			}
 			rowID := uuid.Must(uuid.NewV7()).String()
-			if _, err := tx.Exec(tx.Rebind(`
+			res, err := tx.Exec(tx.Rebind(`
 				INSERT INTO resources
 					(id, root_id, provider, account_id, account_name, type, native_id,
 					 name, region, zone, status, tags, attributes,
 					 created_at, discovered_at, discovered_by,
 					 verified_at, verified_by, managed_by_provider)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-				        $14, $15, $16, $17, $18, $19)`),
+				        $14, $15, $16, $17, $18, $19)
+				ON CONFLICT (provider, account_id, type, native_id)
+				    WHERE superseded_by IS NULL
+				DO NOTHING`),
 				rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,
 				r.Name, r.Region, r.Zone, r.Status, r.TagsJSON, r.AttributesJSON,
 				r.CreatedAt, r.DiscoveredAt, r.DiscoveredBy,
 				now, r.DiscoveredBy, r.ManagedByProvider,
-			); err != nil {
+			)
+			if err != nil {
 				return 0, fmt.Errorf("insert resource %s: %w", r.ID, err)
 			}
-			inserted++
+			if n, _ := res.RowsAffected(); n > 0 {
+				inserted++
+			}
 
 		case lookupErr != nil:
 			return 0, fmt.Errorf("lookup current version for %s: %w", r.ID, lookupErr)
