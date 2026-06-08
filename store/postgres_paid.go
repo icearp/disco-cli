@@ -133,10 +133,11 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 		return nil, err
 	}
 
-	// Schema must exist before any AfterConnect-bearing conn runs, because
-	// AfterConnect issues `SET search_path = <schema>, public` and would fail
-	// against a non-existent schema. Use a one-shot pgx conn (no AfterConnect)
-	// to CREATE SCHEMA, then close it and open the real pool.
+	// The schema must exist before any AfterConnect-bearing conn runs (AfterConnect
+	// sets search_path to it). Use a one-shot pgx conn (no AfterConnect) to create
+	// it only when absent, then close it and open the real pool. Creating only when
+	// absent keeps the common path privilege-free: a least-privilege role opening a
+	// schema that has already been provisioned needs no CREATE-on-database right.
 	if schemaName != "" {
 		if err := bootstrapSchema(ctx, cfg, schemaName, beforeConnect); err != nil {
 			return nil, err
@@ -174,9 +175,13 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 	return s, nil
 }
 
-// bootstrapSchema opens a one-shot pgx conn, CREATE SCHEMA IF NOT EXISTS,
-// closes. Must run BEFORE cfg.AfterConnect is assigned — otherwise the conn
-// would itself try to SET search_path against the missing schema.
+// bootstrapSchema opens a one-shot pgx conn and creates schemaName only when it
+// does not already exist, then closes. Must run BEFORE cfg.AfterConnect is
+// assigned — otherwise the conn would itself try to SET search_path against the
+// missing schema. The existence probe (to_regnamespace) is a privilege-free
+// catalog lookup, so a least-privilege role connecting to an already-provisioned
+// schema issues no DDL and needs no CREATE-on-database privilege; only first-time
+// provisioning (by a privileged role) actually runs CREATE SCHEMA.
 func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string, beforeConnect func(context.Context, *pgx.ConnConfig) error) error {
 	// Mint the IAM token on a copy so the shared cfg (reused by the pool,
 	// which re-mints per dial) is left untouched. No-op when IAM is off.
@@ -191,6 +196,13 @@ func bootstrapSchema(ctx context.Context, cfg *pgx.ConnConfig, schemaName string
 		return fmt.Errorf("bootstrap conn: %w", err)
 	}
 	defer func() { _ = conn.Close(ctx) }()
+	var exists bool
+	if err := conn.QueryRow(ctx, "SELECT to_regnamespace($1) IS NOT NULL", schemaName).Scan(&exists); err != nil {
+		return fmt.Errorf("probe schema %q: %w", schemaName, err)
+	}
+	if exists {
+		return nil
+	}
 	if _, err := conn.Exec(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgQuoteIdent(schemaName)); err != nil {
 		return fmt.Errorf("create schema %q: %w", schemaName, err)
 	}
