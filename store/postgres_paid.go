@@ -10,7 +10,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -162,6 +165,7 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 		std = stdlib.OpenDB(*cfg)
 	}
 	db := sqlx.NewDb(std, "pgx")
+	boundPoolFromEnv(db)
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("ping pg: %w", err)
@@ -173,6 +177,31 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 		return nil, fmt.Errorf("pg migrate: %w", err)
 	}
 	return s, nil
+}
+
+// boundPoolFromEnv caps the connection pool when DISCO_PG_MAX_CONNS holds a
+// positive integer; otherwise the pool keeps the database/sql defaults
+// (unbounded open connections, no lifetime), so a standalone CLI is unaffected.
+// A SaaS deployment that runs many scanner tasks against a shared RDS sets it to
+// keep each task's footprint small. MaxIdleConns is held at min(n, 2) and the
+// lifetime/idle-time bounds let idle connections drain back to the server.
+func boundPoolFromEnv(db *sqlx.DB) {
+	v := os.Getenv("DISCO_PG_MAX_CONNS")
+	if v == "" {
+		return
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return
+	}
+	db.SetMaxOpenConns(n)
+	idle := n
+	if idle > 2 {
+		idle = 2
+	}
+	db.SetMaxIdleConns(idle)
+	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 }
 
 // bootstrapSchema opens a one-shot pgx conn and creates schemaName only when it
