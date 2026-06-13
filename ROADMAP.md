@@ -19,7 +19,7 @@ Shipped capabilities live in `FEATURES.md`. This file tracks only partially-impl
 
 ## Focus-group follow-ups
 
-Deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/SUMMARY.md`). All F1–F21 findings shipped (see `FEATURES.md`); the items below are net-new follow-up plans, not unaddressed findings.
+Deferrals from an earlier review-and-remediation cycle (findings F1–F21). All of those findings shipped (see `FEATURES.md`); the items below are net-new follow-up plans, not unaddressed findings.
 
 - **`disco export <output-file>`** — multi-format evidence bundle (snapshot archive + JSON inventory + latest-run SARIF) for one-shot auditor handoff. Composes atop `disco snapshot` + `disco list -o json` + `disco check -o sarif`. Same `.zip|.tar.gz|.tar.xz` extension-driven format detection.
 - **`disco snapshot --extract` / `disco verify --extract <dst>`** — receive-side extract while verifying, for inspection without separate `tar -xf`.
@@ -131,7 +131,7 @@ Portable DB snapshots: export resources + relationships + scans to single JSONL 
 - **Performance** — benchmark harness (`go test -bench`) with fake provider emitting N resources. Target: 10k resources/sec UpsertResources, 100k edges/sec for closure inserts.
 - **Observability** — slog with `scan_id` correlation throughout. Redirect provider SDK logs behind flag.
 - **Docs** — `disco coverage --output markdown > docs/coverage.md` regen via CI workflow (PR auto-refresh) — `disco coverage` already produces README-fit markdown; the workflow piece is the only thing missing.
-- **CI** — coverage budget enforcement per-package. (Per-provider test gates dropped — current CI runs `go test ./...` + `go test -tags paid ./...`; "per-provider gate" had no concrete meaning beyond build tags. Reintroduce only if cred-required live-scan tests added behind a tag.)
+- **CI** — coverage budget enforcement per-package. (Per-provider test gates dropped — CI runs `go test ./...`; a "per-provider gate" had no concrete meaning. Reintroduce only if cred-required live-scan tests are added behind a build tag.)
 - **Release** — goreleaser pipeline (linux/darwin/windows amd64+arm64), signed binaries.
 
 ---

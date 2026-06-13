@@ -202,6 +202,23 @@ go vet ./...
 
 The primary branch is `dev`. Feature branches fork from `dev` and merge back into it.
 
+## Releases
+
+Tagged `v*` pushes trigger the `.forgejo` release workflow, which cross-compiles and
+publishes binaries for linux/darwin/windows on amd64+arm64. Builds are version-stamped
+from the tag. You can always build from source with `make build`.
+
+## Contributing
+
+Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for build, test,
+and branch conventions, and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for community
+expectations. Found a security issue? Please report it privately per
+[`SECURITY.md`](SECURITY.md) rather than opening a public issue.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
 ## Acknowledgements
 
 The vast majority of this codebase was written by Claude (Anthropic) using [Claude Code](https://claude.com/claude-code), under human direction and review. Architecture decisions, scope, and final commits are mine; the line-level work — scanners, resolvers, tests, edge logic, docs — is overwhelmingly Claude-authored. Co-author trailers on commits reflect this.
