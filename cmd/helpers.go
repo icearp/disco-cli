@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"codeberg.org/icearp/disco/store"
 )
 
@@ -91,9 +89,9 @@ func openDB() (*store.Store, error) {
 // --db-readonly flag refuses writers up-front; that check lives at the call
 // site (so the error string can name the gate the operator should remove).
 //
-// When DISCO_PG_DSN + DISCO_TENANT_ID are set, writes go to a Postgres-backed
-// Store (the scan-worker deployment shape); empty env falls through to the
-// local SQLite path for normal CLI and dev use.
+// When DISCO_PG_DSN is set, writes go to a Postgres-backed Store (the
+// scan-worker deployment shape); empty env falls through to the local SQLite
+// path for normal CLI and dev use.
 func openWriteDB() (*store.Store, error) {
 	if s, err := openPostgresFromEnv(); err != nil || s != nil {
 		return s, err
@@ -101,35 +99,16 @@ func openWriteDB() (*store.Store, error) {
 	return store.Open(defaultDBPath())
 }
 
-// openPostgresFromEnv returns a Postgres-backed Store when DISCO_PG_DSN is set,
-// or (nil, nil) when it isn't (so callers fall through to SQLite). DISCO_PG_SCHEMA
-// pins search_path to a per-tenant schema; DISCO_WORKSPACE_ID pins the
-// app.workspace_id GUC so writes carry the per-workspace RLS discriminator.
+// openPostgresFromEnv returns a single-tenant Postgres-backed Store when
+// DISCO_PG_DSN is set, or (nil, nil) when it isn't (so callers fall through to
+// SQLite). Multi-tenant deployments (disco-saas) layer per-tenant schema +
+// RLS GUCs through store.WithAfterConnect on their own side, not here.
 func openPostgresFromEnv() (*store.Store, error) {
 	dsn := os.Getenv("DISCO_PG_DSN")
 	if dsn == "" {
 		return nil, nil
 	}
-	tenantID := os.Getenv("DISCO_TENANT_ID")
-	if tenantID == "" {
-		return nil, errors.New("DISCO_TENANT_ID is required when DISCO_PG_DSN is set")
-	}
-	if _, err := uuid.Parse(tenantID); err != nil {
-		return nil, fmt.Errorf("DISCO_TENANT_ID must be a UUID: %w", err)
-	}
-	workspaceID := os.Getenv("DISCO_WORKSPACE_ID")
-	if workspaceID != "" {
-		if _, err := uuid.Parse(workspaceID); err != nil {
-			return nil, fmt.Errorf("DISCO_WORKSPACE_ID must be a UUID: %w", err)
-		}
-	}
-	if schema := os.Getenv("DISCO_PG_SCHEMA"); schema != "" {
-		if workspaceID != "" {
-			return store.OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schema, tenantID, workspaceID)
-		}
-		return store.OpenPostgresInSchema(context.Background(), dsn, schema, tenantID)
-	}
-	return store.OpenPostgres(context.Background(), dsn, tenantID)
+	return store.OpenPostgres(context.Background(), dsn)
 }
 
 // resolveCheckRunID expands the `latest` shorthand to the most-recent

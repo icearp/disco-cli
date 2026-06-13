@@ -163,11 +163,11 @@ Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (wh
 
 ## PG session GUCs accept placeholders only via `set_config(...)`
 
-`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres.go::afterConnect` for the pool path. Any future per-conn GUC writes follow the same shape. The multi-tenant request-path form `SET LOCAL app.tenant_id = $1` works only inside a transaction — different surface, same constraint.
+`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). This is the shape a `WithAfterConnect` hook (disco-saas, see below) uses for per-conn GUC writes. The request-path form `SET LOCAL app.tenant_id = $1` works only inside a transaction — different surface, same constraint.
 
 ## Postgres backend
 
-Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, tenantID)` (`postgres.go`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
+Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, ...PGOption)` (`postgres.go`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
 
 - `s.placeholder()` — `sq.Question` for SQLite, `sq.Dollar` for Postgres. Squirrel queries use this; raw `?` SQL goes through `s.exec` / `s.get` / `s.selectAll` / `s.queryRow` / `s.query` wrappers that auto-rebind via `db.Rebind`.
 - `s.tagJSONFilter(key)` — emits `json_extract(tags, '$.k')` (SQLite) or `tags ->> 'k'` (Postgres).
@@ -177,27 +177,25 @@ Other portability rules baked in:
 - `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT (cols) DO NOTHING`. SQLite supports this since 3.24; Postgres requires the explicit conflict target. New writes follow the same shape.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
 
-### Tenant isolation (control plane, not OSS schema)
+### Single-tenant OSS backend + `WithAfterConnect` extension point
 
-The OSS PG schema is **single-tenant**: migrations carry no `tenant_id` column and no RLS. Multi-tenancy is the disco-saas control plane's job — it layers `tenant_id`, per-table RLS policies, `FORCE ROW LEVEL SECURITY`, and the per-tenant scan-notify trigger onto these same tables via its **own** migration set (run after disco's embedded migrations).
+The OSS PG backend is **single-tenant**: a plain pool against one schema, migrations carry no `tenant_id` column and no RLS. `OpenPostgres(ctx, dsn)` with no options is what the OSS CLI uses (`cmd/helpers.go`, gated on `DISCO_PG_DSN`).
 
-The Go side still ships the connection plumbing disco-saas consumes as a module: `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns, ready for the RLS policies disco-saas adds. In a standalone OSS process that GUC is set but referenced by nothing.
+Multi-tenancy is the disco-saas control plane's job — it consumes disco as a module and layers `tenant_id`, per-table RLS policies, `FORCE ROW LEVEL SECURITY`, the per-tenant scan-notify trigger, and schema-per-tenant (`CREATE SCHEMA` + `search_path` pinning) via its **own** migration set and connection plumbing. The single seam disco exposes for that is:
 
-Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. A Fargate-per-scan deployment is built on this — single tenant per container.
+```go
+store.OpenPostgres(ctx, dsn, store.WithAfterConnect(func(ctx, c *pgconn.PgConn) error {
+    // SET search_path = tenant_<hex>, public
+    // SELECT set_config('app.tenant_id',    '<uuid>', false)
+    // SELECT set_config('app.workspace_id', '<uuid>', false)
+}))
+```
 
-### Schema-per-tenant (`OpenPostgresInSchema`)
-
-`OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` opens a pool whose conns have `search_path` pinned to `<schema>, public` and the `app.tenant_id` GUC set. Used by a multi-tenant provisioner to create + migrate one PG schema per workspace. Layout: schema name `tenant_<32-hex>` (one per workspace), the full migration set runs unchanged inside each schema, `schema_migrations` bookkeeping lives in the per-tenant schema (not `public`) so each tenant tracks its own migration version — enables rolling DDL fan-out when a new column ships.
-
-Boundary validation: `validateSchemaName` enforces `^tenant_[0-9a-f]{32}$`, `pgQuoteIdent` doubles embedded quotes. Identifiers can't be parameter-bound — these are the only injection guards before the schema name lands in DDL.
-
-Bootstrap order matters: `CREATE SCHEMA IF NOT EXISTS` runs on a one-shot pgx conn (no `AfterConnect`) BEFORE the real pool is opened, because `AfterConnect`'s `SET search_path = <schema>` would fail against a missing schema. See `bootstrapSchema` in `postgres.go`.
-
-RLS layers on top in disco-saas — even with `search_path` pinned, the `tenant_id` GUC keeps queries scoped if a row leaks cross-schema (defence in depth). Schema isolation is the primary boundary, the RLS that disco-saas adds is the second.
+`WithAfterConnect` registers a hook run once per physical connection, before any handle is returned to database/sql, so anything it sets (search_path, session GUCs) is sticky for every query through that conn. It composes with RDS IAM auth, which lives on pgx's separate `BeforeConnect` phase. disco keeps no tenant/schema/quoting logic — schema-name validation, identifier quoting, and `CREATE SCHEMA` bootstrap all live in disco-saas's hook. `TestPG_WithAfterConnect` (`postgres_test.go`) pins that the hook fires.
 
 ### `WrapTx` — tx-bound `*Store`
 
-`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against the caller-owned tx instead of a pool. `Close()` is a no-op; the caller owns commit/rollback. Used by a multi-tenant request path:
+`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against the caller-owned tx instead of a pool. `Close()` is a no-op; the caller owns commit/rollback. Generic primitive — disco-saas's request path uses it after pinning `search_path` + RLS GUCs on the tx:
 
 ```
 BEGIN
@@ -215,7 +213,7 @@ COMMIT
 
 ### RDS Proxy session-pinning trade-off
 
-`SET app.tenant_id` at conn open is session-scoped, which RDS Proxy treats as session pinning — that conn stops participating in multiplexing for its lifetime. For one-shot single-tenant containers this is fine (every conn serves the same tenant; pinning is the same as not pinning). If a future deploy shares a Proxy across tenants, swap to `SET LOCAL app.tenant_id` inside a transaction per query.
+A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_local=false`) at conn open is treated by RDS Proxy as session pinning — that conn stops participating in multiplexing for its lifetime. For one-shot single-tenant containers this is fine (every conn serves the same tenant; pinning is the same as not pinning). A deploy sharing a Proxy across tenants should instead set GUCs as `SET LOCAL` inside a per-query transaction (the `WrapTx` request-path shape above) and skip the AfterConnect hook.
 
 ### Migration parity
 

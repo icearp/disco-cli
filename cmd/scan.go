@@ -136,10 +136,9 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return runScanDryRun(cmd, names)
 	}
 
-	// openWriteDB opens Postgres when DISCO_PG_DSN + DISCO_TENANT_ID are set
-	// (the multi-tenant scan-worker deployment; DISCO_PG_SCHEMA pins the
-	// per-tenant schema); otherwise it falls back to SQLite at
-	// defaultDBPath() for normal CLI / local-dev use.
+	// openWriteDB opens Postgres when DISCO_PG_DSN is set (the scan-worker
+	// deployment); otherwise it falls back to SQLite at defaultDBPath() for
+	// normal CLI / local-dev use.
 	db, err := openWriteDB()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
