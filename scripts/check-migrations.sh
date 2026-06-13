@@ -6,8 +6,10 @@
 # breaks `disco serve` against PG once code references the new column.
 #
 # Approach: extract `(table, column)` pairs from each migration set's
-# CREATE TABLE / ALTER TABLE ADD COLUMN statements, sort, diff. Allow a
-# small ignore list for PG-only columns (currently `tenant_id` for RLS).
+# CREATE TABLE / ALTER TABLE ADD COLUMN statements, sort, diff. The OSS
+# schema is single-tenant, so the two sets must match exactly — the SaaS
+# multi-tenant columns (tenant_id, RLS plumbing) live in disco-saas's own
+# migration set, not here.
 #
 # Exits 0 on parity, 1 on drift, 2 on tooling failure.
 
@@ -82,21 +84,14 @@ extract_columns() {
 cat "$SQLITE_DIR"/*.sql | extract_columns | sort -u > /tmp/disco-cols-sqlite.$$
 cat "$PG_DIR"/*.sql      | extract_columns | sort -u > /tmp/disco-cols-pg.$$
 
-# PG-only columns accepted on ANY table: RLS plumbing, present on every
-# user-data table by design.
-PG_ONLY_ALLOWLIST="tenant_id"
-
-# Drop allowlisted PG-only cols before diff.
-grep -vE " ($PG_ONLY_ALLOWLIST)$" /tmp/disco-cols-pg.$$ > /tmp/disco-cols-pg-stripped.$$ || true
-
 drift=0
-if ! diff -u /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg-stripped.$$ > /tmp/disco-cols-diff.$$; then
-  echo "migration drift detected (sqlite vs pg, after PG-only allowlist):" >&2
+if ! diff -u /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg.$$ > /tmp/disco-cols-diff.$$; then
+  echo "migration drift detected (sqlite vs pg):" >&2
   cat /tmp/disco-cols-diff.$$ >&2
   drift=1
 fi
 
-rm -f /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg.$$ /tmp/disco-cols-pg-stripped.$$ /tmp/disco-cols-diff.$$
+rm -f /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg.$$ /tmp/disco-cols-diff.$$
 
 if [[ $drift -eq 0 ]]; then
   echo "ok — sqlite + pg migrations have matching column sets"

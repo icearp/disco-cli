@@ -177,9 +177,11 @@ Other portability rules baked in:
 - `INSERT OR IGNORE` was replaced with `INSERT ... ON CONFLICT (cols) DO NOTHING`. SQLite supports this since 3.24; Postgres requires the explicit conflict target. New writes follow the same shape.
 - `recordHierarchyTx` and friends accept `*sql.Tx` but pass through `s.rebind(...)` first because tx itself is unaware of the driver.
 
-### Tenant isolation (Postgres only)
+### Tenant isolation (control plane, not OSS schema)
 
-PG migration `001_initial.sql` adds `tenant_id UUID` to every user-data table plus a per-table RLS policy `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns. Inserts pick up `tenant_id` automatically via column DEFAULT — no explicit value in app code.
+The OSS PG schema is **single-tenant**: migrations carry no `tenant_id` column and no RLS. Multi-tenancy is the disco-saas control plane's job — it layers `tenant_id`, per-table RLS policies, `FORCE ROW LEVEL SECURITY`, and the per-tenant scan-notify trigger onto these same tables via its **own** migration set (run after disco's embedded migrations).
+
+The Go side still ships the connection plumbing disco-saas consumes as a module: `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns, ready for the RLS policies disco-saas adds. In a standalone OSS process that GUC is set but referenced by nothing.
 
 Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. A Fargate-per-scan deployment is built on this — single tenant per container.
 
@@ -191,7 +193,7 @@ Boundary validation: `validateSchemaName` enforces `^tenant_[0-9a-f]{32}$`, `pgQ
 
 Bootstrap order matters: `CREATE SCHEMA IF NOT EXISTS` runs on a one-shot pgx conn (no `AfterConnect`) BEFORE the real pool is opened, because `AfterConnect`'s `SET search_path = <schema>` would fail against a missing schema. See `bootstrapSchema` in `postgres.go`.
 
-RLS layers on top — even with `search_path` pinned, the `tenant_id` GUC keeps queries scoped if a row leaks cross-schema (defence in depth). Schema isolation is the primary boundary, RLS is the second.
+RLS layers on top in disco-saas — even with `search_path` pinned, the `tenant_id` GUC keeps queries scoped if a row leaks cross-schema (defence in depth). Schema isolation is the primary boundary, the RLS that disco-saas adds is the second.
 
 ### `WrapTx` — tx-bound `*Store`
 
@@ -217,7 +219,7 @@ COMMIT
 
 ### Migration parity
 
-`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on identical `(table, column)` sets — the **only** allowed PG-only columns are RLS plumbing (`tenant_id`). `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them with that allowlist applied. Add a column on one side, the script fails. CI gates this; reviewers also.
+`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the OSS schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.)
 
 PG migration runner is hand-rolled in `migrate_pg.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 

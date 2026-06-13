@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 )
@@ -70,38 +67,6 @@ func pgTestEnv(t *testing.T) (dsn string, purge func()) {
 	return dsn, purge
 }
 
-// pgAppRole creates a dedicated non-superuser, non-BYPASSRLS login role with
-// full DML on the public schema and returns a DSN authenticating as it. RLS
-// only constrains ordinary roles — the superuser pgTestEnv hands back bypasses
-// row-level security even under FORCE — so any tenant-isolation assertion must
-// run as this role. Call AFTER pgTestEnv's readiness open has migrated public
-// (so GRANT ON ALL TABLES covers the full set). DROP ROLE IF EXISTS first keeps
-// it idempotent within a container reused across pool.Retry attempts.
-func pgAppRole(t *testing.T, adminDSN string) (appDSN string) {
-	t.Helper()
-	cfg, err := pgx.ParseConfig(adminDSN)
-	if err != nil {
-		t.Fatalf("parse admin dsn: %v", err)
-	}
-	db := stdlib.OpenDB(*cfg)
-	defer func() { _ = db.Close() }()
-
-	for _, stmt := range []string{
-		`DROP ROLE IF EXISTS disco_app`,
-		`CREATE ROLE disco_app LOGIN PASSWORD 'disco' NOSUPERUSER NOBYPASSRLS`,
-		`GRANT USAGE, CREATE ON SCHEMA public TO disco_app`,
-		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO disco_app`,
-		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO disco_app`,
-	} {
-		if _, err := db.ExecContext(context.Background(), stmt); err != nil {
-			t.Fatalf("app-role setup %q: %v", stmt, err)
-		}
-	}
-	// pgTestEnv builds the DSN as postgres://disco:disco@host/disco?...; swap
-	// the superuser userinfo for the app role's.
-	return strings.Replace(adminDSN, "disco:disco@", "disco_app:disco@", 1)
-}
-
 func TestPG_OpenAndMigrate(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
@@ -113,13 +78,13 @@ func TestPG_OpenAndMigrate(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	// migrations 001..005 applied.
+	// migrations 001, 002, 005, 006 applied (003/007 were SaaS-only, relocated).
 	got, err := s.CurrentSchemaVersion()
 	if err != nil {
 		t.Fatalf("schema version: %v", err)
 	}
-	if got < 5 {
-		t.Errorf("schema version = %d; want >= 5", got)
+	if got < 6 {
+		t.Errorf("schema version = %d; want >= 6", got)
 	}
 }
 
@@ -152,50 +117,10 @@ func TestPG_RoundTripParity(t *testing.T) {
 	}
 }
 
-// TestPG_RLS confirms that rows written under tenant A are invisible when a
-// new pool is opened under tenant B. RLS is the single most load-bearing
-// security guarantee for a multi-tenant deploy — break this and tenants leak.
-func TestPG_RLS(t *testing.T) {
-	dsn, purge := pgTestEnv(t)
-	defer purge()
-
-	// Migrations (incl. 007 FORCE ROW LEVEL SECURITY) have run under the
-	// superuser in pgTestEnv. Assert isolation as a non-superuser role so RLS
-	// is actually enforced — superusers bypass it even under FORCE.
-	appDSN := pgAppRole(t, dsn)
-
-	tenantA := uuid.NewString()
-	tenantB := uuid.NewString()
-	workspaceA := uuid.NewString()
-	workspaceB := uuid.NewString()
-
-	a, err := OpenPostgresWithWorkspace(context.Background(), appDSN, tenantA, workspaceA)
-	if err != nil {
-		t.Fatalf("open A: %v", err)
-	}
-	seedFixtures(t, a)
-	gotA, err := a.ListResources(ResourceFilter{IncludeManaged: true, Limit: 100})
-	if err != nil {
-		t.Fatalf("list A: %v", err)
-	}
-	if len(gotA) == 0 {
-		t.Fatalf("tenant A wrote rows but list returned 0")
-	}
-	_ = a.Close()
-
-	b, err := OpenPostgresWithWorkspace(context.Background(), appDSN, tenantB, workspaceB)
-	if err != nil {
-		t.Fatalf("open B: %v", err)
-	}
-	defer func() { _ = b.Close() }()
-	gotB, err := b.ListResources(ResourceFilter{IncludeManaged: true, Limit: 100})
-	if err != nil {
-		t.Fatalf("list B: %v", err)
-	}
-	if len(gotB) != 0 {
-		t.Errorf("tenant B saw %d rows from tenant A", len(gotB))
-	}
-}
+// Tenant isolation (RLS) is no longer part of the OSS schema — the disco-saas
+// control plane layers tenant_id + row-level security onto these tables via its
+// own migration set, and the RLS isolation test lives there. The OSS suite
+// still covers schema-per-tenant isolation in TestPG_OpenPostgresInSchema.
 
 // TestPG_ConcurrentUpsert hammers UpsertResources from many goroutines on the
 // same key set; idempotency + FK constraints must hold under concurrency.

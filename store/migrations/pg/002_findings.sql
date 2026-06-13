@@ -1,7 +1,7 @@
 -- Postgres findings migration. Greenfield install applies this file after 001.
 -- check_runs + findings persist `disco check --persist` results so callers can
--- query historical compliance runs. Tables include tenant_id + workspace_id
--- + RLS to keep parity with the two-level isolation policy set in 001.
+-- query historical compliance runs. workspace_id is a plain nullable mirror of
+-- the SQLite column; the disco-saas control plane layers tenant_id + RLS on top.
 
 CREATE TABLE IF NOT EXISTS check_runs (
     id              TEXT PRIMARY KEY,
@@ -12,13 +12,10 @@ CREATE TABLE IF NOT EXISTS check_runs (
     severity_filter TEXT,
     resource_count  INTEGER,
     finding_count   INTEGER,
-    tenant_id       UUID NOT NULL DEFAULT current_setting('app.tenant_id')::uuid,
-    workspace_id    UUID NOT NULL DEFAULT current_setting('app.workspace_id')::uuid
+    workspace_id    UUID
 );
 
 CREATE INDEX IF NOT EXISTS idx_check_runs_started_at ON check_runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_check_runs_tenant     ON check_runs(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_check_runs_workspace  ON check_runs(workspace_id);
 
 CREATE TABLE IF NOT EXISTS findings (
     id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -35,27 +32,9 @@ CREATE TABLE IF NOT EXISTS findings (
     remediation   TEXT,
     ref_url       TEXT,
     tags          TEXT,
-    tenant_id     UUID NOT NULL DEFAULT current_setting('app.tenant_id')::uuid,
-    workspace_id  UUID NOT NULL DEFAULT current_setting('app.workspace_id')::uuid
+    workspace_id  UUID
 );
 
 CREATE INDEX IF NOT EXISTS idx_findings_check_run_id ON findings(check_run_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity     ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_finding_id   ON findings(finding_id);
-CREATE INDEX IF NOT EXISTS idx_findings_tenant       ON findings(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_findings_workspace    ON findings(workspace_id);
-
-ALTER TABLE check_runs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE findings   ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation ON check_runs
-    USING (tenant_id = current_setting('app.tenant_id')::uuid
-        AND workspace_id = current_setting('app.workspace_id')::uuid)
-    WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid
-        AND workspace_id = current_setting('app.workspace_id')::uuid);
-
-CREATE POLICY tenant_isolation ON findings
-    USING (tenant_id = current_setting('app.tenant_id')::uuid
-        AND workspace_id = current_setting('app.workspace_id')::uuid)
-    WITH CHECK (tenant_id = current_setting('app.tenant_id')::uuid
-        AND workspace_id = current_setting('app.workspace_id')::uuid);
