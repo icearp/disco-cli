@@ -23,9 +23,10 @@ type CheckRun struct {
 	SeverityFilter *string  `db:"severity_filter"`
 	ResourceCount  *int     `db:"resource_count"`
 	FindingCount   *int     `db:"finding_count"`
-	// WorkspaceID is the per-workspace RLS discriminator; carried so
-	// SELECT * round-trips the column. nil when the app.workspace_id GUC
-	// was unset at insert time.
+	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
+	// projection (checkRunColumns) like Resource.WorkspaceID — no OSS consumer
+	// reads it and the disco-saas RLS layer filters by workspace — so it stays
+	// nil. Kept as a field so the type still documents the column.
 	WorkspaceID *string `db:"workspace_id"`
 }
 
@@ -46,7 +47,28 @@ type StoredFinding struct {
 	Remediation *string `db:"remediation"`
 	RefURL      *string `db:"ref_url"`
 	TagsJSON    *string `db:"tags"`
-	WorkspaceID *string `db:"workspace_id"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
+	// WorkspaceID: per-workspace RLS discriminator, omitted from the read
+	// projection (findingColumns) like the other shared-table reads; stays nil.
+	WorkspaceID *string `db:"workspace_id"`
+}
+
+// checkRunColumns and findingColumns are the explicit read projections for the
+// check_runs and findings tables. Like scanColumns / resourceSelectColumns they
+// omit the RLS columns (workspace_id, plus the tenant_id disco-saas overlays
+// onto the same tables) so a read ignores rather than collides with control-
+// plane columns. Keep in sync with the CheckRun / StoredFinding db tags.
+const checkRunColumns = "id, started_at, finished_at, rules_paths, packs, " +
+	"severity_filter, resource_count, finding_count"
+
+// findingColumns lists the findings projection, each column qualified by prefix
+// (e.g. "findings." for the join in ListFindings, or "" when unqualified).
+func findingColumns(prefix string) []string {
+	return []string{
+		prefix + "id", prefix + "check_run_id", prefix + "finding_id",
+		prefix + "resource_id", prefix + "severity", prefix + "message",
+		prefix + "provider", prefix + "type", prefix + "name", prefix + "region",
+		prefix + "category", prefix + "remediation", prefix + "ref_url", prefix + "tags",
+	}
 }
 
 // FindingFilter shapes ListFindings queries. Empty fields skip the clause.
@@ -124,7 +146,7 @@ func (s *Store) PersistCheckRun(rulesPaths, packs []string, severityFilter strin
 // deterministically (mirrors ListScans).
 func (s *Store) ListCheckRuns() ([]CheckRun, error) {
 	var runs []CheckRun
-	if err := s.selectAll(&runs, "SELECT * FROM check_runs ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&runs, "SELECT "+checkRunColumns+" FROM check_runs ORDER BY started_at DESC, rowid DESC"); err != nil {
 		return nil, err
 	}
 	for i := range runs {
@@ -138,7 +160,7 @@ func (s *Store) ListCheckRuns() ([]CheckRun, error) {
 // GetCheckRun retrieves one check_run by ID. Decodes RulesPaths + Packs.
 func (s *Store) GetCheckRun(id string) (*CheckRun, error) {
 	var r CheckRun
-	if err := s.get(&r, "SELECT * FROM check_runs WHERE id = ?", id); err != nil {
+	if err := s.get(&r, "SELECT "+checkRunColumns+" FROM check_runs WHERE id = ?", id); err != nil {
 		return nil, fmt.Errorf("get check_run %s: %w", id, err)
 	}
 	if err := decodeRunSlices(&r); err != nil {
@@ -151,7 +173,7 @@ func (s *Store) GetCheckRun(id string) (*CheckRun, error) {
 // rank (critical → low) then finding_id then resource_id for stable
 // reporting.
 func (s *Store) ListFindings(f FindingFilter) ([]StoredFinding, error) {
-	q := sq.Select("findings.*").From("findings")
+	q := sq.Select(findingColumns("findings.")...).From("findings")
 	if f.Since != "" {
 		q = q.Join("check_runs ON check_runs.id = findings.check_run_id").
 			Where(sq.GtOrEq{"check_runs.started_at": f.Since})

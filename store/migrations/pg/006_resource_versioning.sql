@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_verified_by      ON resources(verified_
 -- row PK. Drop the FKs to resources(id) — id is now the per-version UUID
 -- and root_id is non-unique by design. Rely on application-level
 -- invariant for edge target validity (matches OSS tolerance for
--- dangling refs surfaced by Floci-incompat scans).
+-- dangling refs surfaced by emulator-incompatible scans).
 ALTER TABLE relationships     DROP CONSTRAINT IF EXISTS relationships_from_id_fkey;
 ALTER TABLE relationships     DROP CONSTRAINT IF EXISTS relationships_to_id_fkey;
 ALTER TABLE hierarchy_closure DROP CONSTRAINT IF EXISTS hierarchy_closure_ancestor_id_fkey;

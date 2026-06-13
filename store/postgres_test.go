@@ -76,7 +76,7 @@ func TestPG_OpenAndMigrate(t *testing.T) {
 	}
 	defer func() { _ = s.Close() }()
 
-	// migrations 001, 002, 005, 006 applied (003/007 were SaaS-only, relocated).
+	// migrations 001, 002, 005, 006 applied (003 + 004 were SaaS-only, relocated).
 	got, err := s.CurrentSchemaVersion()
 	if err != nil {
 		t.Fatalf("schema version: %v", err)

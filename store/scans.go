@@ -24,12 +24,20 @@ type Scan struct {
 	ErrorsJSON    *string `db:"errors"`
 	ResourceCount *int    `db:"resource_count"`
 	MetaJSON      *string `db:"meta"`
-	// WorkspaceID is the per-workspace RLS discriminator. Populated on the
-	// SQLite and Postgres paths alike (the column DEFAULTs from the
-	// app.workspace_id GUC on PG); nil only when the GUC was unset at
-	// insert time. Carried so SELECT * round-trips the column.
+	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
+	// projection (scanColumns) like Resource.WorkspaceID — no OSS consumer reads
+	// it and the disco-saas RLS layer does the per-workspace filtering — so it
+	// stays nil. Kept as a field so the type still documents the column.
 	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
+
+// scanColumns is the explicit read projection for the scans table. Like
+// resourceSelectColumns it omits the RLS columns (workspace_id, plus the
+// tenant_id that disco-saas overlays onto the same table) so a read never
+// collides with columns the control plane adds — disco is consumed as a module
+// whose tables disco-saas extends. Keep in sync with the Scan struct's db tags.
+const scanColumns = "id, started_at, finished_at, status, providers, scope, " +
+	"error, errors, resource_count, meta"
 
 // scanWire is the on-the-wire JSON shape for Scan: snake_case keys, parsed
 // providers/scope/meta objects, RFC3339 timestamps. The raw `*JSON` SQLite
@@ -243,7 +251,7 @@ func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
 // GetScan retrieves a scan by ID.
 func (s *Store) GetScan(id string) (*Scan, error) {
 	var sc Scan
-	err := s.get(&sc, "SELECT * FROM scans WHERE id = ?", id)
+	err := s.get(&sc, "SELECT "+scanColumns+" FROM scans WHERE id = ?", id)
 	if err != nil {
 		return nil, fmt.Errorf("get scan %s: %w", id, err)
 	}
@@ -260,7 +268,7 @@ func (s *Store) GetScan(id string) (*Scan, error) {
 func (s *Store) LatestIncompleteScan() (*Scan, error) {
 	var sc Scan
 	err := s.get(&sc, `
-		SELECT * FROM scans
+		SELECT `+scanColumns+` FROM scans
 		WHERE status IN ('running','partial')
 		ORDER BY started_at DESC
 		LIMIT 1`)
@@ -280,7 +288,7 @@ func (s *Store) LatestIncompleteScan() (*Scan, error) {
 // already covered the same provider scope.
 func (s *Store) LatestCompleteScan(provider string) (*Scan, error) {
 	var sc Scan
-	q := `SELECT * FROM scans WHERE status IN ('completed','partial')`
+	q := `SELECT ` + scanColumns + ` FROM scans WHERE status IN ('completed','partial')`
 	args := []any{}
 	if provider != "" {
 		q += ` AND providers LIKE ?`
@@ -304,7 +312,7 @@ func (s *Store) ListScans() ([]Scan, error) {
 	// Tie-break by rowid so two scans created within the same SQLite-second
 	// (datetime('now') has 1s resolution) order deterministically: newer
 	// rowid wins. Required by `disco scans show latest` consumers.
-	if err := s.selectAll(&scans, "SELECT * FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
+	if err := s.selectAll(&scans, "SELECT "+scanColumns+" FROM scans ORDER BY started_at DESC, rowid DESC"); err != nil {
 		return nil, err
 	}
 	for i := range scans {

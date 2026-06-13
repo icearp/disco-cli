@@ -27,9 +27,24 @@ type Relationship struct {
 	Direction    string  `db:"direction"`
 	Attributes   *string `db:"attributes"` // JSON
 	DiscoveredAt string  `db:"discovered_at"`
-	TenantID     *string `db:"tenant_id" json:"-"`    // populated on PG (RLS); nil on SQLite
-	WorkspaceID  *string `db:"workspace_id" json:"-"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
+	// WorkspaceID is the per-workspace RLS discriminator. Omitted from the read
+	// projection (relationshipColumns) like Resource.WorkspaceID — no OSS
+	// consumer reads it and the disco-saas RLS layer filters by workspace — so
+	// it stays nil. (No TenantID field: disco OSS has no tenant_id column; the
+	// disco-saas overlay column is simply not selected.)
+	WorkspaceID *string `db:"workspace_id" json:"-"`
 }
+
+// relationshipColumns is the explicit read projection for the relationships
+// table. Like scanColumns / resourceSelectColumns it omits the RLS columns
+// (workspace_id, plus the tenant_id disco-saas overlays onto the same table) so
+// a read ignores rather than collides with control-plane columns. Keep in sync
+// with the Relationship struct's db tags. relationshipColumnsR is the same list
+// qualified for an `r`-aliased relationships table in a join.
+const (
+	relationshipColumns  = "id, from_id, to_id, kind, direction, attributes, discovered_at"
+	relationshipColumnsR = "r.id, r.from_id, r.to_id, r.kind, r.direction, r.attributes, r.discovered_at"
+)
 
 // Relationship kind constants.
 const (
@@ -77,7 +92,7 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 // drift; CI fails on any non-empty return.
 func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
 	const q = `
-		SELECT r.*
+		SELECT ` + relationshipColumnsR + `
 		  FROM relationships r
 		  JOIN hierarchy_closure hc
 		    ON hc.descendant_id = r.from_id
@@ -96,7 +111,7 @@ func (s *Store) ReversedContainsEdges() ([]Relationship, error) {
 // RelationshipsFrom / RelationshipsTo so they don't pull the whole table.
 func (s *Store) ListRelationships() ([]Relationship, error) {
 	var rs []Relationship
-	if err := s.selectAll(&rs, "SELECT * FROM relationships ORDER BY from_id, kind, to_id"); err != nil {
+	if err := s.selectAll(&rs, "SELECT "+relationshipColumns+" FROM relationships ORDER BY from_id, kind, to_id"); err != nil {
 		return nil, fmt.Errorf("list relationships: %w", err)
 	}
 	return rs, nil
@@ -107,10 +122,10 @@ func (s *Store) RelationshipsFrom(fromID string, kinds ...string) ([]Relationshi
 	if len(kinds) == 0 {
 		var rels []Relationship
 		return rels, s.selectAll(&rels,
-			"SELECT * FROM relationships WHERE from_id = ? ORDER BY kind", fromID)
+			"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? ORDER BY kind", fromID)
 	}
 	query, args, err := s.sqlxIn(
-		"SELECT * FROM relationships WHERE from_id = ? AND kind IN (?) ORDER BY kind",
+		"SELECT "+relationshipColumns+" FROM relationships WHERE from_id = ? AND kind IN (?) ORDER BY kind",
 		fromID, kinds,
 	)
 	if err != nil {
@@ -125,10 +140,10 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 	if len(kinds) == 0 {
 		var rels []Relationship
 		return rels, s.selectAll(&rels,
-			"SELECT * FROM relationships WHERE to_id = ? ORDER BY kind", toID)
+			"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? ORDER BY kind", toID)
 	}
 	query, args, err := s.sqlxIn(
-		"SELECT * FROM relationships WHERE to_id = ? AND kind IN (?) ORDER BY kind",
+		"SELECT "+relationshipColumns+" FROM relationships WHERE to_id = ? AND kind IN (?) ORDER BY kind",
 		toID, kinds,
 	)
 	if err != nil {
@@ -136,20 +151,6 @@ func (s *Store) RelationshipsTo(toID string, kinds ...string) ([]Relationship, e
 	}
 	var rels []Relationship
 	return rels, s.selectAll(&rels, query, args...)
-}
-
-// NeighboursOf returns all resources directly connected to id (in either direction).
-func (s *Store) NeighboursOf(id string) ([]Resource, error) {
-	var results []Resource
-	err := s.selectAll(&results, `
-		SELECT r.* FROM resources r
-		JOIN relationships rel ON rel.to_id = r.id
-		WHERE rel.from_id = ?
-		UNION
-		SELECT r.* FROM resources r
-		JOIN relationships rel ON rel.from_id = r.id
-		WHERE rel.to_id = ?`, id, id)
-	return results, err
 }
 
 // RecordHierarchy writes both halves of a parent/child relationship in a
