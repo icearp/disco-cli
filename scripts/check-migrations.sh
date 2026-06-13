@@ -86,26 +86,8 @@ cat "$PG_DIR"/*.sql      | extract_columns | sort -u > /tmp/disco-cols-pg.$$
 # user-data table by design.
 PG_ONLY_ALLOWLIST="tenant_id"
 
-# PG-only (table column) pairs accepted on one specific table. These are
-# scan-attribution columns owned by an external multi-tenant control plane:
-# it INSERTs the scans row carrying them, then the disco scanner takes over —
-# no disco code reads or writes them (see store/scans.go). They are slated to
-# move out of disco's PG migrations and into the control plane's own migration
-# (OSS_MIGRATION_PLAN.md); until then they legitimately exist only in the PG
-# schema. Table-qualified because account_id is ALSO a real shared column on
-# `resources` — a bare column allowlist would wrongly strip that and report a
-# false drift.
-PG_ONLY_PAIRS="scans scanner_version
-scans principal_arn
-scans account_id
-scans regions
-scans services
-scans triggered_by"
-
-# Drop allowlisted PG-only cols before diff: any-table columns first, then the
-# exact table+column pairs.
-grep -vE " ($PG_ONLY_ALLOWLIST)$" /tmp/disco-cols-pg.$$ \
-  | grep -vxF "$PG_ONLY_PAIRS" > /tmp/disco-cols-pg-stripped.$$ || true
+# Drop allowlisted PG-only cols before diff.
+grep -vE " ($PG_ONLY_ALLOWLIST)$" /tmp/disco-cols-pg.$$ > /tmp/disco-cols-pg-stripped.$$ || true
 
 drift=0
 if ! diff -u /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg-stripped.$$ > /tmp/disco-cols-diff.$$; then

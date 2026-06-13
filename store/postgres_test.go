@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 )
@@ -67,6 +70,38 @@ func pgTestEnv(t *testing.T) (dsn string, purge func()) {
 	return dsn, purge
 }
 
+// pgAppRole creates a dedicated non-superuser, non-BYPASSRLS login role with
+// full DML on the public schema and returns a DSN authenticating as it. RLS
+// only constrains ordinary roles — the superuser pgTestEnv hands back bypasses
+// row-level security even under FORCE — so any tenant-isolation assertion must
+// run as this role. Call AFTER pgTestEnv's readiness open has migrated public
+// (so GRANT ON ALL TABLES covers the full set). DROP ROLE IF EXISTS first keeps
+// it idempotent within a container reused across pool.Retry attempts.
+func pgAppRole(t *testing.T, adminDSN string) (appDSN string) {
+	t.Helper()
+	cfg, err := pgx.ParseConfig(adminDSN)
+	if err != nil {
+		t.Fatalf("parse admin dsn: %v", err)
+	}
+	db := stdlib.OpenDB(*cfg)
+	defer func() { _ = db.Close() }()
+
+	for _, stmt := range []string{
+		`DROP ROLE IF EXISTS disco_app`,
+		`CREATE ROLE disco_app LOGIN PASSWORD 'disco' NOSUPERUSER NOBYPASSRLS`,
+		`GRANT USAGE, CREATE ON SCHEMA public TO disco_app`,
+		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO disco_app`,
+		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO disco_app`,
+	} {
+		if _, err := db.ExecContext(context.Background(), stmt); err != nil {
+			t.Fatalf("app-role setup %q: %v", stmt, err)
+		}
+	}
+	// pgTestEnv builds the DSN as postgres://disco:disco@host/disco?...; swap
+	// the superuser userinfo for the app role's.
+	return strings.Replace(adminDSN, "disco:disco@", "disco_app:disco@", 1)
+}
+
 func TestPG_OpenAndMigrate(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()
@@ -121,25 +156,20 @@ func TestPG_RoundTripParity(t *testing.T) {
 // new pool is opened under tenant B. RLS is the single most load-bearing
 // security guarantee for a multi-tenant deploy — break this and tenants leak.
 func TestPG_RLS(t *testing.T) {
-	// TODO(oss-decouple): pre-existing failure, unrelated to the OSS de-tagging.
-	// pgTestEnv connects as the postgres superuser, which bypasses RLS
-	// unconditionally (superusers ignore row-level security regardless of
-	// FORCE), so this test can't actually validate tenant isolation as written.
-	// A real fix needs a dedicated non-superuser, non-BYPASSRLS role, likely
-	// `FORCE ROW LEVEL SECURITY` + `WITH CHECK` insert policies, and a
-	// write-path re-verification. Tracked separately; skip so the suite is
-	// honest rather than silently red.
-	t.Skip("pre-existing: RLS test connects as superuser (bypasses RLS); needs a non-superuser role + FORCE RLS — see TODO")
-
 	dsn, purge := pgTestEnv(t)
 	defer purge()
+
+	// Migrations (incl. 007 FORCE ROW LEVEL SECURITY) have run under the
+	// superuser in pgTestEnv. Assert isolation as a non-superuser role so RLS
+	// is actually enforced — superusers bypass it even under FORCE.
+	appDSN := pgAppRole(t, dsn)
 
 	tenantA := uuid.NewString()
 	tenantB := uuid.NewString()
 	workspaceA := uuid.NewString()
 	workspaceB := uuid.NewString()
 
-	a, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantA, workspaceA)
+	a, err := OpenPostgresWithWorkspace(context.Background(), appDSN, tenantA, workspaceA)
 	if err != nil {
 		t.Fatalf("open A: %v", err)
 	}
@@ -153,7 +183,7 @@ func TestPG_RLS(t *testing.T) {
 	}
 	_ = a.Close()
 
-	b, err := OpenPostgresWithWorkspace(context.Background(), dsn, tenantB, workspaceB)
+	b, err := OpenPostgresWithWorkspace(context.Background(), appDSN, tenantB, workspaceB)
 	if err != nil {
 		t.Fatalf("open B: %v", err)
 	}
