@@ -38,10 +38,10 @@ func compilePath(path string) []segment {
 			p = p[:len(p)-3]
 			trailing++
 		}
-		switch {
-		case p == "*":
+		switch p {
+		case "*":
 			out = append(out, segment{kind: segMapWildcard})
-		case p == "":
+		case "":
 			// All-empty after stripping trailing [*]: pure array-wildcard chain.
 		default:
 			out = append(out, segment{kind: segLiteral, name: p})

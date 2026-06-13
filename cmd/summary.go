@@ -239,148 +239,160 @@ func renderSummary(rep summaryReport, format string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(rep)
 	case "csv":
-		w := csv.NewWriter(os.Stdout)
-		defer w.Flush()
-		if err := w.Write([]string{"dimension", "value", "count"}); err != nil {
-			return err
-		}
-		for _, b := range rep.ByProvider {
-			if err := w.Write([]string{"provider", b.Provider, strconv.Itoa(b.Count)}); err != nil {
-				return err
-			}
-		}
-		for _, b := range rep.ByAccount {
-			label := b.AccountID
-			if b.AccountName != "" {
-				label = b.AccountID + " (" + b.AccountName + ")"
-			}
-			if err := w.Write([]string{"account", label, strconv.Itoa(b.Count)}); err != nil {
-				return err
-			}
-		}
-		for _, b := range rep.ByRegion {
-			if err := w.Write([]string{"region", b.Region, strconv.Itoa(b.Count)}); err != nil {
-				return err
-			}
-		}
-		for _, b := range rep.ByType {
-			if err := w.Write([]string{"type", b.Type, strconv.Itoa(b.Count)}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return renderSummaryCSV(rep)
 	case "markdown", "md":
-		scope := "customer-managed only"
-		if rep.ManagedIncluded {
-			scope = "incl. provider-managed"
-		}
-		header := fmt.Sprintf("# Disco summary — %d resources (%s)", rep.Total, scope)
-		if rep.AsOf != "" {
-			header += ", as of " + rep.AsOf
-		}
-		_, _ = fmt.Fprintln(os.Stdout, header)
-		_, _ = fmt.Fprintln(os.Stdout)
-
-		printMDSection := func(title string, rows [][]string, headers []string) {
-			if len(rows) == 0 {
-				return
-			}
-			_, _ = fmt.Fprintf(os.Stdout, "## %s\n\n", title)
-			_ = renderMarkdownTable(os.Stdout, headers, rows)
-			_, _ = fmt.Fprintln(os.Stdout)
-		}
-
-		provRows := make([][]string, 0, len(rep.ByProvider))
-		for _, b := range rep.ByProvider {
-			provRows = append(provRows, []string{b.Provider, strconv.Itoa(b.Count)})
-		}
-		printMDSection("BY PROVIDER", provRows, []string{"Provider", "Count"})
-
-		acctRows := make([][]string, 0, len(rep.ByAccount))
-		for _, b := range rep.ByAccount {
-			label := b.AccountID
-			if b.AccountName != "" {
-				label = b.AccountID + " (" + b.AccountName + ")"
-			}
-			acctRows = append(acctRows, []string{label, strconv.Itoa(b.Count)})
-		}
-		printMDSection("BY ACCOUNT", acctRows, []string{"Account", "Count"})
-
-		regRows := make([][]string, 0, len(rep.ByRegion))
-		for _, b := range rep.ByRegion {
-			regRows = append(regRows, []string{b.Region, strconv.Itoa(b.Count)})
-		}
-		printMDSection("BY REGION", regRows, []string{"Region", "Count"})
-
-		typeTitle := "BY TYPE"
-		if rep.TypeBucketsTotal > len(rep.ByType) {
-			typeTitle = fmt.Sprintf("BY TYPE (top %d of %d)", len(rep.ByType), rep.TypeBucketsTotal)
-		}
-		typeRows := make([][]string, 0, len(rep.ByType))
-		for _, b := range rep.ByType {
-			typeRows = append(typeRows, []string{b.Type, strconv.Itoa(b.Count)})
-		}
-		printMDSection(typeTitle, typeRows, []string{"Type", "Count"})
-		return nil
+		return renderSummaryMarkdown(rep)
 	case "table", "":
-		scope := "customer-managed only"
-		if rep.ManagedIncluded {
-			scope = "incl. provider-managed"
-		}
-		header := fmt.Sprintf("Disco summary — %d resources (%s)", rep.Total, scope)
-		if rep.AsOf != "" {
-			header += ", as of " + rep.AsOf
-		}
-		_, _ = fmt.Fprintln(os.Stdout, header)
-		_, _ = fmt.Fprintln(os.Stdout)
-
-		printSection := func(title string, rows [][2]string) {
-			_, _ = fmt.Fprintln(os.Stdout, title)
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			for _, r := range rows {
-				_, _ = fmt.Fprintf(w, "  %s\t%s\n", r[0], r[1])
-			}
-			_ = w.Flush()
-			_, _ = fmt.Fprintln(os.Stdout)
-		}
-
-		provRows := make([][2]string, 0, len(rep.ByProvider))
-		for _, b := range rep.ByProvider {
-			provRows = append(provRows, [2]string{b.Provider, strconv.Itoa(b.Count)})
-		}
-		printSection("BY PROVIDER", provRows)
-
-		acctRows := make([][2]string, 0, len(rep.ByAccount))
-		for _, b := range rep.ByAccount {
-			label := b.AccountID
-			if b.AccountName != "" {
-				label = b.AccountID + " (" + b.AccountName + ")"
-			}
-			acctRows = append(acctRows, [2]string{label, strconv.Itoa(b.Count)})
-		}
-		if len(acctRows) > 0 {
-			printSection("BY ACCOUNT", acctRows)
-		}
-
-		regRows := make([][2]string, 0, len(rep.ByRegion))
-		for _, b := range rep.ByRegion {
-			regRows = append(regRows, [2]string{b.Region, strconv.Itoa(b.Count)})
-		}
-		printSection("BY REGION", regRows)
-
-		typeTitle := "BY TYPE"
-		if rep.TypeBucketsTotal > len(rep.ByType) {
-			typeTitle = fmt.Sprintf("BY TYPE (top %d of %d)", len(rep.ByType), rep.TypeBucketsTotal)
-		}
-		typeRows := make([][2]string, 0, len(rep.ByType))
-		for _, b := range rep.ByType {
-			typeRows = append(typeRows, [2]string{b.Type, strconv.Itoa(b.Count)})
-		}
-		printSection(typeTitle, typeRows)
-		return nil
+		return renderSummaryTable(rep)
 	default:
 		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json)", format)
 	}
+}
+
+func renderSummaryCSV(rep summaryReport) error {
+	w := csv.NewWriter(os.Stdout)
+	defer w.Flush()
+	if err := w.Write([]string{"dimension", "value", "count"}); err != nil {
+		return err
+	}
+	for _, b := range rep.ByProvider {
+		if err := w.Write([]string{"provider", b.Provider, strconv.Itoa(b.Count)}); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByAccount {
+		label := b.AccountID
+		if b.AccountName != "" {
+			label = b.AccountID + " (" + b.AccountName + ")"
+		}
+		if err := w.Write([]string{"account", label, strconv.Itoa(b.Count)}); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByRegion {
+		if err := w.Write([]string{"region", b.Region, strconv.Itoa(b.Count)}); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByType {
+		if err := w.Write([]string{"type", b.Type, strconv.Itoa(b.Count)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderSummaryMarkdown(rep summaryReport) error {
+	scope := "customer-managed only"
+	if rep.ManagedIncluded {
+		scope = "incl. provider-managed"
+	}
+	header := fmt.Sprintf("# Disco summary — %d resources (%s)", rep.Total, scope)
+	if rep.AsOf != "" {
+		header += ", as of " + rep.AsOf
+	}
+	_, _ = fmt.Fprintln(os.Stdout, header)
+	_, _ = fmt.Fprintln(os.Stdout)
+
+	printMDSection := func(title string, rows [][]string, headers []string) {
+		if len(rows) == 0 {
+			return
+		}
+		_, _ = fmt.Fprintf(os.Stdout, "## %s\n\n", title)
+		_ = renderMarkdownTable(os.Stdout, headers, rows)
+		_, _ = fmt.Fprintln(os.Stdout)
+	}
+
+	provRows := make([][]string, 0, len(rep.ByProvider))
+	for _, b := range rep.ByProvider {
+		provRows = append(provRows, []string{b.Provider, strconv.Itoa(b.Count)})
+	}
+	printMDSection("BY PROVIDER", provRows, []string{"Provider", "Count"})
+
+	acctRows := make([][]string, 0, len(rep.ByAccount))
+	for _, b := range rep.ByAccount {
+		label := b.AccountID
+		if b.AccountName != "" {
+			label = b.AccountID + " (" + b.AccountName + ")"
+		}
+		acctRows = append(acctRows, []string{label, strconv.Itoa(b.Count)})
+	}
+	printMDSection("BY ACCOUNT", acctRows, []string{"Account", "Count"})
+
+	regRows := make([][]string, 0, len(rep.ByRegion))
+	for _, b := range rep.ByRegion {
+		regRows = append(regRows, []string{b.Region, strconv.Itoa(b.Count)})
+	}
+	printMDSection("BY REGION", regRows, []string{"Region", "Count"})
+
+	typeTitle := "BY TYPE"
+	if rep.TypeBucketsTotal > len(rep.ByType) {
+		typeTitle = fmt.Sprintf("BY TYPE (top %d of %d)", len(rep.ByType), rep.TypeBucketsTotal)
+	}
+	typeRows := make([][]string, 0, len(rep.ByType))
+	for _, b := range rep.ByType {
+		typeRows = append(typeRows, []string{b.Type, strconv.Itoa(b.Count)})
+	}
+	printMDSection(typeTitle, typeRows, []string{"Type", "Count"})
+	return nil
+}
+
+func renderSummaryTable(rep summaryReport) error {
+	scope := "customer-managed only"
+	if rep.ManagedIncluded {
+		scope = "incl. provider-managed"
+	}
+	header := fmt.Sprintf("Disco summary — %d resources (%s)", rep.Total, scope)
+	if rep.AsOf != "" {
+		header += ", as of " + rep.AsOf
+	}
+	_, _ = fmt.Fprintln(os.Stdout, header)
+	_, _ = fmt.Fprintln(os.Stdout)
+
+	printSection := func(title string, rows [][2]string) {
+		_, _ = fmt.Fprintln(os.Stdout, title)
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		for _, r := range rows {
+			_, _ = fmt.Fprintf(w, "  %s\t%s\n", r[0], r[1])
+		}
+		_ = w.Flush()
+		_, _ = fmt.Fprintln(os.Stdout)
+	}
+
+	provRows := make([][2]string, 0, len(rep.ByProvider))
+	for _, b := range rep.ByProvider {
+		provRows = append(provRows, [2]string{b.Provider, strconv.Itoa(b.Count)})
+	}
+	printSection("BY PROVIDER", provRows)
+
+	acctRows := make([][2]string, 0, len(rep.ByAccount))
+	for _, b := range rep.ByAccount {
+		label := b.AccountID
+		if b.AccountName != "" {
+			label = b.AccountID + " (" + b.AccountName + ")"
+		}
+		acctRows = append(acctRows, [2]string{label, strconv.Itoa(b.Count)})
+	}
+	if len(acctRows) > 0 {
+		printSection("BY ACCOUNT", acctRows)
+	}
+
+	regRows := make([][2]string, 0, len(rep.ByRegion))
+	for _, b := range rep.ByRegion {
+		regRows = append(regRows, [2]string{b.Region, strconv.Itoa(b.Count)})
+	}
+	printSection("BY REGION", regRows)
+
+	typeTitle := "BY TYPE"
+	if rep.TypeBucketsTotal > len(rep.ByType) {
+		typeTitle = fmt.Sprintf("BY TYPE (top %d of %d)", len(rep.ByType), rep.TypeBucketsTotal)
+	}
+	typeRows := make([][2]string, 0, len(rep.ByType))
+	for _, b := range rep.ByType {
+		typeRows = append(typeRows, [2]string{b.Type, strconv.Itoa(b.Count)})
+	}
+	printSection(typeTitle, typeRows)
+	return nil
 }
 
 func init() {
