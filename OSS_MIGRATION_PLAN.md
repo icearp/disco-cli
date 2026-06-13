@@ -139,6 +139,15 @@ former paid build.
   public repo like any dep.
 - Verify saas builds + tests green against the published module; verify the
   scan-worker image still satisfies the env-var contract.
+- **Move saas-owned scan-attribution columns out of disco.** `store/migrations/pg/004_scan_metadata.sql`
+  adds `scans.{scanner_version, principal_arn, account_id, regions, services,
+  triggered_by}` — set by the SaaS control plane, never read/written by disco
+  (see `store/scans.go`). They are currently allowlisted as PG-only in
+  `scripts/check-migrations.sh` (see `PG_ONLY_PAIRS`). During decoupling, delete
+  them from disco's pg migration and add an equivalent migration to disco-saas's
+  per-tenant set (`saastenant.Apply`), then drop the allowlist entries so the
+  parity guard tightens back to RLS-only (`tenant_id`). disco-saas read/write
+  code referencing these columns moves with them.
 
 ## Phase 5 — Publish
 

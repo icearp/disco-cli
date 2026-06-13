@@ -31,6 +31,7 @@ extract_columns() {
     { sub(/--.*$/, "") }
     # CREATE TABLE [IF NOT EXISTS] <name> (
     /^[[:space:]]*CREATE[[:space:]]+TABLE/ {
+      altbl=""
       sub(/^[[:space:]]*CREATE[[:space:]]+TABLE([[:space:]]+IF[[:space:]]+NOT[[:space:]]+EXISTS)?[[:space:]]+/, "")
       sub(/[[:space:]]*\(.*$/, "")
       tbl=tolower($0)
@@ -54,22 +55,26 @@ extract_columns() {
       if (col == "" || col ~ /^\(/) next
       print tbl, col
     }
-    # ALTER TABLE <name> ADD COLUMN <col> ...
+    # ALTER TABLE <name> ... — capture the table. ADD COLUMN may be on this
+    # line or a following one: Postgres uses `ALTER TABLE\n  ADD COLUMN ...`
+    # (single statement, several columns, often `IF NOT EXISTS`).
     /^[[:space:]]*ALTER[[:space:]]+TABLE/ {
-      line=$0
-      sub(/^[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]+/, "", line)
-      n=split(line, parts, /[[:space:]]+/)
-      if (n < 4) next
-      atbl=tolower(parts[1])
-      # Look for ADD COLUMN
-      for (i=2; i<n; i++) {
-        if (toupper(parts[i]) == "ADD" && toupper(parts[i+1]) == "COLUMN") {
-          acol=tolower(parts[i+2])
-          gsub(/[",]/, "", acol)
-          print atbl, acol
-          break
-        }
-      }
+      altline=$0
+      sub(/^[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]+/, "", altline)
+      split(altline, ap, /[[:space:]]+/)
+      altbl=tolower(ap[1])
+      gsub(/[",;]/, "", altbl)
+    }
+    # ADD COLUMN [IF NOT EXISTS] <col> — attributed to the most-recent ALTER
+    # TABLE. Fires on its own line (multi-line PG form) or inline (SQLite form).
+    altbl != "" && /ADD[[:space:]]+COLUMN/ {
+      cline=$0
+      sub(/^.*ADD[[:space:]]+COLUMN[[:space:]]+/, "", cline)
+      sub(/^IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+/, "", cline)
+      split(cline, cp, /[[:space:]]+/)
+      acol=tolower(cp[1])
+      gsub(/[",;]/, "", acol)
+      if (acol != "") print altbl, acol
     }
   '
 }
@@ -77,11 +82,30 @@ extract_columns() {
 cat "$SQLITE_DIR"/*.sql | extract_columns | sort -u > /tmp/disco-cols-sqlite.$$
 cat "$PG_DIR"/*.sql      | extract_columns | sort -u > /tmp/disco-cols-pg.$$
 
-# PG-only columns we explicitly accept (tenant_id, RLS-related).
+# PG-only columns accepted on ANY table: RLS plumbing, present on every
+# user-data table by design.
 PG_ONLY_ALLOWLIST="tenant_id"
 
-# Drop allowlisted PG-only cols before diff.
-grep -vE " ($PG_ONLY_ALLOWLIST)$" /tmp/disco-cols-pg.$$ > /tmp/disco-cols-pg-stripped.$$ || true
+# PG-only (table column) pairs accepted on one specific table. These are
+# disco-saas-owned scan-attribution columns: the SaaS control plane INSERTs
+# the scans row carrying them, then the disco scanner takes over — no disco
+# code reads or writes them (see store/scans.go). They are slated to move out
+# of disco's PG migrations and into a disco-saas-owned migration in Phase 4 of
+# the OSS decoupling (OSS_MIGRATION_PLAN.md); until then they legitimately
+# exist only in the PG schema. Table-qualified because account_id is ALSO a
+# real shared column on `resources` — a bare column allowlist would wrongly
+# strip that and report a false drift.
+PG_ONLY_PAIRS="scans scanner_version
+scans principal_arn
+scans account_id
+scans regions
+scans services
+scans triggered_by"
+
+# Drop allowlisted PG-only cols before diff: any-table columns first, then the
+# exact table+column pairs.
+grep -vE " ($PG_ONLY_ALLOWLIST)$" /tmp/disco-cols-pg.$$ \
+  | grep -vxF "$PG_ONLY_PAIRS" > /tmp/disco-cols-pg-stripped.$$ || true
 
 drift=0
 if ! diff -u /tmp/disco-cols-sqlite.$$ /tmp/disco-cols-pg-stripped.$$ > /tmp/disco-cols-diff.$$; then
