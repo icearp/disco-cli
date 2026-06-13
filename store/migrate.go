@@ -217,16 +217,20 @@ func TargetSchemaVersion() (int, error) {
 func (s *Store) CurrentSchemaVersion() (int, error) {
 	// Existence probe: schema_migrations is created by migrate() so an
 	// uninitialised DB lacks the table. Treat that as version 0 rather than
-	// erroring — caller decides whether 0 vs target counts as stale.
-	var name string
-	err := s.db.QueryRow(
-		"SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
-	).Scan(&name)
-	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return 0, nil
-		}
+	// erroring — caller decides whether 0 vs target counts as stale. The
+	// catalog differs per backend: sqlite_master for SQLite, information_schema
+	// (scoped to the current schema, which is the pinned per-tenant schema on
+	// the schema-per-tenant pools) for Postgres.
+	probe := "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'"
+	if s.driver == driverPostgres {
+		probe = "SELECT count(*) FROM information_schema.tables WHERE table_name = 'schema_migrations' AND table_schema = current_schema()"
+	}
+	var n int
+	if err := s.db.QueryRow(probe).Scan(&n); err != nil {
 		return 0, fmt.Errorf("probe schema_migrations: %w", err)
+	}
+	if n == 0 {
+		return 0, nil
 	}
 	var max int
 	if err := s.db.QueryRow(
