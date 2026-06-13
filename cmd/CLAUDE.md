@@ -201,7 +201,7 @@ New column-anchored time filters follow the same `{*-since, *-before}` shape —
 
 ## `summary --by-account` rollup
 
-`summary` adds a `BY ACCOUNT` section (table) and a `by_account: [{account_id, account_name, count}]` JSON field — F21 fix for the CIO portfolio rollup. The CSV `dimension` column carries `account` rows alongside `provider` / `region` / `type`. Account name renders parenthetically when set (`131546573061 (prod)`); empty otherwise. Counts roll up via `acctCounts` in `buildSummary`.
+`summary` adds a `BY ACCOUNT` section (table) and a `by_account: [{account_id, account_name, count}]` JSON field — F21 fix for the CIO portfolio rollup. The CSV `dimension` column carries `account` rows alongside `provider` / `region` / `type`. Account name renders parenthetically when set (`123456789012 (prod)`); empty otherwise. Counts roll up via `acctCounts` in `buildSummary`.
 
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
