@@ -9,8 +9,8 @@
 --     "message":"User: arn:… is not authorized to perform: …"}, …]
 --
 -- Default empty array so existing readers see [] instead of NULL. The
--- legacy `error` column stays — older scans still populate it and the
--- audit chain on the SaaS side already references the row shape.
+-- legacy `error` column stays — older scans still populate it and external
+-- audit consumers already reference the row shape.
 
 ALTER TABLE scans
     ADD COLUMN IF NOT EXISTS errors JSONB NOT NULL DEFAULT '[]'::jsonb;

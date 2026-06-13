@@ -1,6 +1,5 @@
-// Package scanrun wraps the orchestration core of `disco scan` so it can be
-// driven by both the CLI (cmd/scan.go) and the paid HTTP server
-// (cmd/serve_paid.go via internal/serve). It owns:
+// Package scanrun wraps the orchestration core of `disco scan` so the engine
+// is reusable independent of the CLI front end (cmd/scan.go). It owns:
 //
 //   - resolving Scanner instances from the provider registry by name;
 //   - applying per-request scope (regions, services, profile, skip-globals);
@@ -25,10 +24,10 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-// Request describes a scan to launch. The shape mirrors the JSON body the
-// `disco serve` POST /v1/scans handler accepts; the CLI builds an equivalent
-// from cobra flags. Empty slices mean "use the provider's default scope" —
-// e.g. all regions for AWS.
+// Request describes a scan to launch. The CLI builds one from cobra flags;
+// the shape is deliberately serialisable so other drivers can construct it
+// too. Empty slices mean "use the provider's default scope" — e.g. all
+// regions for AWS.
 type Request struct {
 	// Provider names ("aws", "azure", "gcp"). Empty = all registered.
 	Providers []string
@@ -135,8 +134,8 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 // scanners themselves.
 //
 // Captured warnings/errors are returned for the caller to render
-// (cmd/scan.go renders to stderr; the serve handler logs them and lets the
-// scan row's `error` column carry the summary). Existing OnWarn / OnError
+// (cmd/scan.go renders to stderr; the scan row's `error` column also carries
+// the summary for later inspection). Existing OnWarn / OnError
 // callbacks set by the caller still fire — RunScanners installs its own
 // only when none is registered, so wiring stays additive for the CLI.
 func RunScanners(

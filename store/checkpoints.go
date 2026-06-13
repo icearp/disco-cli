@@ -10,8 +10,8 @@ import (
 // Checkpoint is a per-(scan, provider, service, scope) progress marker.
 // Scanners save it after each successfully-upserted page; on resume they read
 // the latest row and pass `LastToken` back to the upstream SDK as a
-// continuation cursor. The token is opaque to the store — the OSS schema is
-// the foundation for the paid incremental-scan feature (ROADMAP_paid G3).
+// continuation cursor. The token is opaque to the store — this schema is the
+// foundation for a future incremental-scan feature (see ROADMAP.md).
 type Checkpoint struct {
 	ScanID    string
 	Provider  string
@@ -66,7 +66,7 @@ func (s *Store) GetCheckpoint(scanID, provider, service, scope string) (lastToke
 
 // ListCheckpoints returns every checkpoint for a scan, ordered by service then
 // scope so callers iterate deterministically. Used by the --resume CLI to
-// summarise pending work, and by paid incremental scanners that pre-fetch
+// summarise pending work, and by a future incremental scanner that pre-fetches
 // all checkpoints in one round-trip.
 func (s *Store) ListCheckpoints(scanID string) ([]Checkpoint, error) {
 	rows, err := s.query(

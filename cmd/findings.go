@@ -277,7 +277,8 @@ func storedFindingToFinding(s store.StoredFinding) policy.Finding {
 }
 
 // findingToStored mirrors storedFindingToFinding for the write path
-// (cmd/check_paid.go's persist hook). Empty-string fields become NULL.
+// (the `disco check --persist` flow in cmd/check.go). Empty-string fields
+// become NULL.
 func findingToStored(f policy.Finding) store.StoredFinding {
 	row := store.StoredFinding{
 		FindingID:  f.ID,

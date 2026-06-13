@@ -33,7 +33,8 @@ CGO_ENABLED=0 go test ./store/... -run TestFoo -v
 go vet ./...
 golangci-lint run --max-issues-per-linter 0 --max-same-issues 0
 
-# Guard SQLite ↔ Postgres migration parity (PG-only `tenant_id` allowlisted)
+# Guard SQLite ↔ Postgres migration parity (PG-only RLS `tenant_id` + the
+# external-control-plane scan-attribution columns are allowlisted)
 make check-migrations
 
 # Format before commit (project gofmt config rewrites init() one-liners; run before each commit to avoid linter drift)
@@ -88,35 +89,13 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
 - `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
 
-## OSS / paid split
+## Bundled features of note
 
-Two build modes: default (OSS) and `-tags paid` (closed-source upstream). `make build` / `make build-paid` / `make test-paid` cover both. CI runs both `go test ./...` and `go test -tags paid ./...` — don't break either.
+Single build, no feature gating — everything ships in this one binary.
 
-- Paid-only files: name `*_paid.go` (or `*_paid_test.go`) **and** first line `//go:build paid`. Both required — `scripts/oss-sync.sh` excludes by name pattern + content scan.
-- OSS stub for paid pkgs: `<pkg>.go` with `//go:build !paid` (e.g. `internal/license/license.go`). Stubs ship to OSS; `_paid.go` siblings do not.
-- Paid commands: first line of `RunE` must be `if err := license.Require(); err != nil { return err }`. Canonical shape: `cmd/diff_paid.go`.
-- Bug fixes / new free features: edit untagged files normally — flow downstream to OSS via next `make oss-sync`.
-- Paid-only docs: name `*_paid.md` — excluded by `scripts/oss-sync.sh` name pattern. Canonical: `ROADMAP_paid.md`. Do not cross-reference from OSS-tracked files.
-- Paid-only migrations: name `*_paid.sql` — excluded by `scripts/oss-sync.sh` + `scripts/oss-cherry-pick.sh`. The OSS-mirror tree never sees the file; mirror builds embed only OSS-resident migrations and the schema stays free of dead paid tables. Upstream OSS dev-builds (no `-tags paid`) DO embed and apply the file — acceptable; the OSS guarantee is the published mirror, not the upstream dev tree.
-- Paid override on OSS commands: prefer var-function reassignment over `//go:build !paid` on the OSS sibling. Untagged OSS file declares `var fn = func(...) {<default>}`; paid file (`//go:build paid`) reassigns `fn` in `init()`. Avoids the `//go:build !paid` proliferation. The `internal/license/license.go` shape (OSS stub + `//go:build paid` real impl) stays the precedent only when the OSS file would otherwise be a no-meaning stub.
-- Rubric for new features: ship in OSS unless ALL of (a) proprietary algorithm or IP worth gating, (b) external service dependency, (c) clear competitive differentiator, (d) richer paid-tier version planned. Trivially-reproducible-via-existing-flags features (`list -o json | jq` equivalents like F13 tag-coverage) always go OSS — gating buys nothing.
-- Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. OSS ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — stay paid. Future `azure-waf` / `gcp-waf` follow the same OSS sample-pack shape.
-- Findings persistence (`disco check --persist`, `disco findings list/runs`) is paid (`//go:build paid`). The migration `004_findings.sql` ships OSS — additive tables stay empty in OSS builds since no `--persist` flag is registered. Drift analytics (`findings diff`, heatmaps, retention, ticket sync) build atop the same schema as paid follow-ups.
-- Evidence snapshots: `disco snapshot <output-file>` + `disco verify <archive>` ship OSS as single-file archives (`.zip`, `.tar.gz`/`.tgz`, `.tar.xz`/`.txz` — format from extension; xz via pure-Go `github.com/ulikunitz/xz`). Manifest at `disco-snapshot/v1` shape (tool_version, db_sha256-of-inner-DB, generated_at, scans[] — each entry carries id/started_at/finished_at/scope). Signed-manifest layer (`disco snapshot --sign`, `disco verify --signature` via cosign/Sigstore) deferred to a paid follow-up — single-file archive aligns with cosign's blob-attest convention.
-
-### Verifying paid-only deps don't leak
-
-After adding a heavy dep behind `//go:build paid`, confirm OSS build doesn't pull it: `go list -deps . | grep <module>` should be empty; `go list -tags paid -deps . | grep <module>` should be non-empty. Every importer of the dep must carry the `paid` build tag, otherwise the OSS binary still links it.
-
-`go mod tidy` does not accept `-tags` — it scans every build constraint by default, so a single tidy run keeps both OSS and paid deps in `go.mod`. The indirect/direct categorization may shift as files move between tag sets, but the dep set is correct after one run.
-
-`go list -deps` is advisory — it reflects the *module graph*, not what gets linked. Some deps appear in OSS `go list` output via cloud SDK transitives even when no OSS file imports them (e.g. `golang-jwt/jwt` is pulled in by Azure MSAL). Authoritative check is `strings <oss-binary> | grep <module>`: should show nothing for genuinely paid-only deps. `pgx`, `dockertest` qualify; JWT does not.
-
-### Demoting a paid feature to OSS
-
-Mirror of promotion. Four touches: (1) rename `*_paid.go` **and any `*_paid_test.go` sibling** → drop `_paid` suffix; (2) strip `//go:build paid` line from each; (3) delete the `license.Require()` block at top of `RunE`; (4) `go mod tidy` (flips formerly-paid deps from `// indirect` to direct OSS). Also un-tag any `internal/<pkg>/*.go` + `*_test.go` the command imports. Easy miss: leaving the test file tagged silently drops OSS coverage — `go test ./...` still passes because the tests just don't compile in. Verify both `go test ./...` and `go test -tags paid ./...` green.
-
-After build-tag edits, gopls may report stale `BrokenImport` diagnostics — trust `go build` / `go test` output, not the LSP.
+- Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. Ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — and future `azure-waf` / `gcp-waf` are not yet bundled.
+- Findings persistence: `disco check --persist` writes a check run + findings to the DB; `disco findings list/runs` query them (migration `002_findings.sql`). The tables stay empty until `--persist` is used. Drift analytics (`findings diff`, heatmaps, retention, ticket sync) can build atop the same schema.
+- Evidence snapshots: `disco snapshot <output-file>` + `disco verify <archive>` produce/verify single-file archives (`.zip`, `.tar.gz`/`.tgz`, `.tar.xz`/`.txz` — format from extension; xz via pure-Go `github.com/ulikunitz/xz`). Manifest at `disco-snapshot/v1` shape (tool_version, db_sha256-of-inner-DB, generated_at, scans[] — each entry carries id/started_at/finished_at/scope). The `disco snapshot --signing-payload` / `disco verify --signature` ed25519 flow closes the unsigned-manifest gap; cosign/Sigstore-witnessed signing is a future follow-up.
 
 ## Go lint conventions
 
@@ -145,9 +124,9 @@ Linter `waitgroup` flags `wg.Add(1); go func() { defer wg.Done(); ... }`. Use `w
 
 Enabled globally with the camelCase rule, but excluded under `linters.exclusions.rules` for convention zones where camelCase JSON would silently break unmarshalling. Current zones:
 - PascalCase to match SDK marshal output: `internal/providers/.*\.go`.
-- snake_case for disco wire contracts: `cmd/(summary|coverage)\.go`, `cmd/diff_paid\.go`, `internal/(coverage|policy|snapshot|store|serve)/.*\.go`.
+- snake_case for disco wire contracts: `cmd/(summary|coverage|diff|findings)\.go`, `(internal/(coverage|policy|snapshot|serve)|store)/.*\.go`.
 
-New paid packages emitting snake_case JSON (e.g. future `disco serve` route packages) extend the snake_case path pattern; provider scanners extend the PascalCase one. Otherwise the linter demands camelCase that breaks the wire format.
+New packages emitting snake_case JSON extend the snake_case path pattern; provider scanners extend the PascalCase one. Otherwise the linter demands camelCase that breaks the wire format.
 
 ### Bulk `revive` var-naming sweeps
 

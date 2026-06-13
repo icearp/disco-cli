@@ -62,10 +62,9 @@ Canonical OpenSSL recipe end-to-end:
   openssl pkeyutl -sign -inkey priv.pem -rawin -in payload -out evidence.sig
   disco verify evidence.tgz --signature evidence.sig --pubkey pub.pem
 
-Cosign/Sigstore-witnessed signing (transparency log inclusion) ships in
-a paid follow-up. The OSS plumbing here (canonical payload + ed25519
-detached) closes the unsigned-manifest forgery gap reported in
-focus-group/SUMMARY.md F1.
+Cosign/Sigstore-witnessed signing (transparency log inclusion) is a future
+follow-up. The plumbing here (canonical payload + ed25519 detached) closes
+the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.
 
 Signing example:
   disco snapshot /tmp/audit.tgz --signing-payload /tmp/audit.manifest.json`,

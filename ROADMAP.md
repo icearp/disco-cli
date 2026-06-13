@@ -13,13 +13,13 @@
 
 Tiers: **Now (1–2 sprints)** → **Next (quarter)** → **Later (6–12mo / v1.0)**.
 
-Shipped capabilities live in `FEATURES.md`. This file tracks only partially-implemented and unimplemented work. Paid items live in `ROADMAP_paid.md` / `FEATURES_paid.md`.
+Shipped capabilities live in `FEATURES.md`. This file tracks only partially-implemented and unimplemented work.
 
 ---
 
 ## Focus-group follow-ups
 
-OSS-eligible deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/SUMMARY.md`). All F1–F21 findings shipped (see `FEATURES.md`); the items below are net-new follow-up plans, not unaddressed findings. Paid-only follow-ups (cosign signing, drift analytics, etc.) live in `ROADMAP_paid.md`.
+Deferrals from the focus-group remediation cycle (F1–F21 in `focus-group/SUMMARY.md`). All F1–F21 findings shipped (see `FEATURES.md`); the items below are net-new follow-up plans, not unaddressed findings.
 
 - **`disco export <output-file>`** — multi-format evidence bundle (snapshot archive + JSON inventory + latest-run SARIF) for one-shot auditor handoff. Composes atop `disco snapshot` + `disco list -o json` + `disco check -o sarif`. Same `.zip|.tar.gz|.tar.xz` extension-driven format detection.
 - **`disco snapshot --extract` / `disco verify --extract <dst>`** — receive-side extract while verifying, for inspection without separate `tar -xf`.
@@ -88,7 +88,7 @@ Landed; see `FEATURES.md`. Edge `source_resolver` tooltip render still pending G
 
 Graph-aware rules + tag/category/remediation propagation landed; see `FEATURES.md`. Outstanding:
 
-- **Severity / compliance profiles** — partial: filtering shipped (`disco check --tag k=v`); first-party CIS / NIST 800-53 / PCI-DSS / Well-Architected packs moved to the paid roadmap (`ROADMAP_paid.md` L7) — OSS engine ships without bundled curated content; users load their own bundles via `--rules`.
+- **Severity / compliance profiles** — partial: filtering shipped (`disco check --tag k=v`); first-party CIS / NIST 800-53 / PCI-DSS / Well-Architected packs are future work, not yet bundled — the engine ships without bundled curated content; users load their own bundles via `--rules`.
 - **Suppression** — `disco check --suppress suppressions.yaml` (by resource ID or rule ID + scope).
 - **Baseline diff** — `disco check --baseline findings.json` reports only new findings since baseline.
 

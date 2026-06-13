@@ -3,15 +3,15 @@
 # Multi-stage, multi-arch build of the `disco` CLI. Output is a static,
 # non-root, distroless image suitable for ECS Fargate scan workers.
 #
-# Build context is THIS module (the upstream). The disco-saas-side ECS
-# task definition spawns this image and overrides the command at run-
-# task time (e.g. `disco scan aws --regions us-east-2`).
+# An external ECS task definition / orchestrator spawns this image and
+# overrides the command at run-task time (e.g. `disco scan aws --regions
+# us-east-2`).
 #
 # Usage:
 #   docker buildx build \
 #     --platform linux/arm64 \
 #     --build-arg TARGETOS=linux --build-arg TARGETARCH=arm64 \
-#     -t disco-saas/scanner:dev .
+#     -t disco/scanner:dev .
 
 ARG GO_VERSION=1.25
 ARG ALPINE_VERSION=3.21
@@ -32,7 +32,7 @@ ARG TARGETOS=linux
 ARG TARGETARCH=arm64
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     GOFLAGS="-trimpath -ldflags=-s -ldflags=-w" \
-    go build -tags paid -o /out/disco .
+    go build -o /out/disco .
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app

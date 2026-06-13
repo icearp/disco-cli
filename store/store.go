@@ -215,8 +215,8 @@ func (s *Store) DB() *sqlx.DB {
 // pool. The returned store does NOT own the transaction — caller must Commit
 // or Rollback. Close() is a no-op.
 //
-// Intended for read-only use from the SaaS request path, where the caller has
-// already issued `SET LOCAL search_path = tenant_<hex>, public` and
+// Intended for read-only use from a multi-tenant request path, where the caller
+// has already issued `SET LOCAL search_path = tenant_<hex>, public` and
 // `SET LOCAL app.tenant_id = '<uuid>'` on the tx. Write methods that call
 // s.db.Begin* directly (UpsertResources, UpsertRelationships, etc.) will panic
 // on a nil pool — that is intentional; do not invoke them on this code path.

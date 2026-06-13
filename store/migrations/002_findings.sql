@@ -1,6 +1,6 @@
--- check_runs + findings persist `disco check` results so paid builds can
--- query historical compliance runs. Tables are additive — OSS builds apply
--- the migration but never write rows (no --persist flag is registered).
+-- check_runs + findings persist `disco check --persist` results so callers
+-- can query historical compliance runs. Tables are populated only when
+-- --persist is passed; otherwise they stay empty.
 -- CASCADE on the FK so future findings-retention pruning removes children
 -- automatically when a check_run is deleted.
 

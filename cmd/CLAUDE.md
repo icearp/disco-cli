@@ -11,7 +11,7 @@ Cobra command layer.
 - `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot|mermaid --dot-theme light|dark|mono` — walks `relationships` + `hierarchy_closure`. DOT styling lives in `cmd/graph_theme.go` — single `dotTheme` struct holds graph/node/edge attribute blocks + `nodePreset` map (primary/secondary/storage/identity/muted/error) + cluster palette. `presetForResource` picks a preset by `Type` second segment (`s3|rds|...`→storage, `iam|sso|...`→identity, `ec2|lambda|...`→primary). `mono` reproduces pre-theme output byte-for-byte for diff-stable piping.
 - `disco graph complete` — dumps every customer resource + every provider-managed resource that shares an edge with one. No seed, no BFS — backed by `store.GraphAll(GraphAllOpts)` which reads `ListResources({IncludeManaged: true})` paginated + `ListRelationships()` and applies the customer-edge inclusion rule in-memory. `--include-managed` keeps orphan managed nodes too. Traversal flags (`--depth`/`--kinds`/`--direction`) ignored.
-- `disco check --rules ./policies --severity high --output sarif` — Runs OPA Rego policies against store. Findings reported → exit 1 by default; `--exit-zero` overrides for inventory-only runs. `--rules` takes `.rego` files or directories (recursive). `--output` ∈ `table|json|jsonl|sarif` (sarif = v2.1.0 for GitHub/GitLab code-scanning, marshalled inline in `cmd/check_sarif.go` — no external SARIF lib). Engine in `internal/policy/` ships in OSS; no first-party policies bundled — bring your own (Conftest AWS, regula, in-house CIS pack). Curated compliance packs (NIST, CIS, PCI-DSS, Well-Architected) are paid add-ons. Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
+- `disco check --rules ./policies --severity high --output sarif` — Runs OPA Rego policies against store. Findings reported → exit 1 by default; `--exit-zero` overrides for inventory-only runs. `--rules` takes `.rego` files or directories (recursive). `--output` ∈ `table|json|jsonl|sarif` (sarif = v2.1.0 for GitHub/GitLab code-scanning, marshalled inline in `cmd/check_sarif.go` — no external SARIF lib). Engine in `internal/policy/` ships with no first-party policies bundled — bring your own (Conftest AWS, regula, in-house CIS pack). Curated compliance packs (NIST, CIS, PCI-DSS, Well-Architected) are future work, not yet bundled. Each policy module must populate `data.disco.deny` (set) with finding objects shaped `{id, severity, message, resource_id?, tags?, category?, remediation?, ref_url?}`. Input shape: `{id, provider, account_id, type, native_id, name, region, status, attributes}` — `attributes` is the decoded `AttributesJSON` (object), not the raw string.
 
 ## `disco coverage`
 
@@ -25,7 +25,7 @@ Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (
 
 ## Resume
 
-`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. The OSS path persists per-(scan, service, scope) checkpoints (`store.SaveCheckpoint`); the paid incremental scanner consumes them on the next `--resume` to skip already-listed pages. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`, behaviour matches pre-Phase-3 — fresh scan_id, no checkpoint reuse.
+`disco scan --resume <scan-id|latest>` reuses a previous scan_id instead of generating a fresh one. `latest` picks the most-recent scan whose status is `running` or `partial`. disco persists per-(scan, service, scope) checkpoints (`store.SaveCheckpoint`); a future incremental scanner can consume them on the next `--resume` to skip already-listed pages. `startOrResumeScan` in `scan.go` owns the dispatch. Without `--resume`, behaviour matches pre-Phase-3 — fresh scan_id, no checkpoint reuse.
 
 ## Parallel scanning
 
@@ -41,10 +41,6 @@ Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (
 
 `scan.go` `init()` builds per-provider subcommands. Register `--services` / `--regions` / `--profile` **only when the scanner implements the matching capability interface** (`providers.ServiceFilterer`, `RegionOverrider`, `ProfileOverrider`). Listing a flag a provider silently ignores misleads users — Cobra has no per-subcommand "hide if unsupported" toggle. New optional flags follow same gate. Real service-prefix examples come from `serviceFilterExample(provider)` — keep entries truthful (e.g. `aws:ec2,aws:s3`, not `aws:compute`).
 
-## Paid commands
-
-Paid subcommands live in `cmd/<name>_paid.go` with `//go:build paid`. `init()` still does `rootCmd.AddCommand(...)` — OSS build simply omits the file so the subcommand is absent. First line of `RunE` must be `if err := license.Require(); err != nil { return err }`. Canonical shape: `cmd/diff_paid.go`.
-
 ## Shared render helpers (`helpers.go`)
 
 `ptrOrDash(*string) string`, `short(id string) string` (8-char ID prefix), `renderMessages(w, label, []messageRow, quiet)` (column-aligned grouped block used by `renderErrors`/`renderWarnings` in `scan.go`). New commands rendering tabular output should reuse these instead of redefining.
@@ -53,7 +49,7 @@ Output styling: per-format theme modules (`cmd/graph_theme.go` for DOT) own all 
 
 ## Shared test helpers (`list_test.go`)
 
-Reused by `graph_test.go`, `check_test.go`, `diff_paid_test.go`:
+Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
 - `seedTestDB(t)` — temp SQLite + scan record + 2 resources; sets `viper.Set("db", path)` so cobra cmds pick it up via `defaultDBPath()`.
 - `captureStdout(t, fn)` — pipes `os.Stdout` for cmds that write directly to it (not via `cmd.OutOrStdout`).
 - `captureStdout` does NOT redirect `os.Stderr`. Stderr writes (population stamps, truncation warnings, banner-under-`--verbose`) bypass test assertions — safe place for telemetry that must not contaminate `-o json|jsonl|sarif` pipelines. If you need to assert on stderr, use `captureStderr` (drained via goroutine to avoid >64KB pipe deadlock).
@@ -61,7 +57,7 @@ Reused by `graph_test.go`, `check_test.go`, `diff_paid_test.go`:
 - Cobra's `InitDefaultVersionFlag` (lazy, called at execute) only claims `-v` when no other flag holds the shorthand. Pre-register a global flag with `-v` in `init()` to repurpose it (precedent: `--verbose` in `cmd/root.go`); `--version` long-form keeps working with no shorthand.
 - JSON/JSONL output paths: wrap RunE as `func(...) (rerr error) { defer func() { maybeStructuredError(<formatVar>, rerr) }(); ... }` so failures emit a `{"error": "msg"}` envelope on stdout (helper in `cmd/helpers.go`). Skip the envelope for sentinel "absence" errors like `ErrNoPath` where empty stdout + exit 1 is documented contract — `graph path` does this with an `errors.Is` guard.
 - `list -o csv` columns are positional-stable: append-only when adding fields to `listColumns` / `resourceRow` in `cmd/list.go`. Pre-existing positions back spreadsheet imports keyed on index; reordering breaks downstream silently.
-- Read commands open the DB via `openDB()` (`cmd/helpers.go`) which always opens read-only — defense-in-depth so a future read-side bug can't silently mutate evidence. Write commands (`scan`, `config init`, paid `check --persist`) call `openWriteDB()` and refuse `dbReadOnly` up-front. The global `--db-readonly` flag is preserved as the writer-refuse override; on read commands it's a no-op (already RO). First-run UX: when the DB file doesn't exist, `openDB()` errors with a "run a scan first" hint inline. Stale-schema gate: `openDB()` probes `schema_migrations` and rejects with a "run `disco scan` to upgrade" hint when the on-disk schema lags the binary's `TargetSchemaVersion()` — RO opens skip migrate by design, so reads must reject pre-flight rather than surface cryptic SQLite errors.
+- Read commands open the DB via `openDB()` (`cmd/helpers.go`) which always opens read-only — defense-in-depth so a future read-side bug can't silently mutate evidence. Write commands (`scan`, `config init`, `check --persist`) call `openWriteDB()` and refuse `dbReadOnly` up-front. The global `--db-readonly` flag is preserved as the writer-refuse override; on read commands it's a no-op (already RO). First-run UX: when the DB file doesn't exist, `openDB()` errors with a "run a scan first" hint inline. Stale-schema gate: `openDB()` probes `schema_migrations` and rejects with a "run `disco scan` to upgrade" hint when the on-disk schema lags the binary's `TargetSchemaVersion()` — RO opens skip migrate by design, so reads must reject pre-flight rather than surface cryptic SQLite errors.
 
 Cobra package-level flag vars (`graph*`, `list*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `listOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
 
@@ -127,23 +123,15 @@ Friendly-error wrapping lives in `friendlyArchiveErr(err)` (cmd/verify.go): coll
 
 `LoadEd25519PublicKey` accepts PEM-wrapped PKIX SubjectPublicKeyInfo (the format `openssl pkey -pubout` produces) or a raw 32-byte binary key. OpenSSH `ssh-ed25519 AAAAC3...` text is intentionally out of scope — convert with `ssh-keygen -e -m PKCS8` first.
 
-Cosign/Sigstore-witnessed signing (Rekor inclusion proofs) stays a paid follow-up; the OSS plumbing is enough to close the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.
+Cosign/Sigstore-witnessed signing (Rekor inclusion proofs) is a future follow-up; the existing plumbing is enough to close the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.
 
 ## `disco snapshot <output-file>` writes a single archive
 
-Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.db_sha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir. Signed-manifest layer (cosign/Sigstore) is a deferred paid follow-up.
+Output is one file — `.zip`, `.tar.gz` (`.tgz`), or `.tar.xz` (`.txz`) — extension drives format. `internal/snapshot.DetectFormat` rejects unknown extensions with a clear error listing supported shapes. `cmd/snapshot.go` opens the source DB via `store.OpenReadOnly`, issues `VACUUM INTO '<out>.db.tmp'` to a sibling temp file, hashes it, packages disco.db + manifest.json into the archive via `snapshot.WriteArchive`, then `os.Rename` for atomicity. `--db-readonly` is allowed (the global flag scopes the source, not the output). `manifest.db_sha256` hashes the inner DB (not the archive) so receivers spot-check the same value across formats. `internal/snapshot` package houses the manifest format (`disco-snapshot/v1`) and the per-format archive readers; `disco verify` decodes via the same package without extracting to a temp dir. Signed-manifest layer (cosign/Sigstore) is a deferred future follow-up.
 
 ## `disco check` opens DB read-only by default
 
-`check` is logically a read; opening writable flips the SQLite WAL header and silently mutates `disco.db`, breaking any subsequent `disco verify` against a snapshot of the same DB. The OSS path uses `openDB()` (which is always RO). Paid `--persist` (cmd/check_paid.go init) sets `checkNeedsWriteHook = func() bool { return checkPersist }`; when that hook returns true, `RunE` calls `openWriteDB()` after refusing `--db-readonly` up-front. Mirrors the `persistCheckHook` indirection — OSS file declares the hook nillable; paid file assigns it without leaking a license dep into OSS builds.
-
-## Hook-var indirection for paid features on OSS commands
-
-When a paid feature must augment an OSS command's RunE (e.g. `--persist` writing to a paid-only DB table on `disco check`), declare a nillable hook variable in the OSS file: `var persistCheckHook func(...) error`. OSS RunE checks `if hook != nil { hook(...) }`. The paid file `<cmd>_paid.go` `init()` registers any new flags AND assigns the hook implementation including `license.Require()`, condition checks, and DB writes. OSS users see no flag, no hook, no `internal/license` dep. Verify with `go list -deps . | grep license` (must be empty for OSS, non-empty for paid).
-
-Precedents:
-- `persistCheckHook` (cmd/check.go OSS, cmd/check_paid.go paid) — wires `--persist` write to paid findings tables.
-- `openWriteDBHook` (cmd/helpers.go OSS, cmd/helpers_paid.go paid) — redirects `openWriteDB()` to `store.OpenPostgres` when `DISCO_PG_DSN` + `DISCO_TENANT_ID` env are set on a paid build.
+`check` is logically a read; opening writable flips the SQLite WAL header and silently mutates `disco.db`, breaking any subsequent `disco verify` against a snapshot of the same DB. So `check` uses `openDB()` (always RO) unless `--persist` is set: `needsWrite := checkPersist` (cmd/check.go) flips the open to `openWriteDB()` after refusing `--db-readonly` up-front, and the persist body writes the run + findings inline.
 
 ## AWS account_id resolution + emulator override
 
@@ -152,11 +140,9 @@ Precedents:
 2. `--role-arn` override → `sts:GetCallerIdentity` on the assumed creds.
 3. Auto-detect → `sts:GetCallerIdentity` on the default chain.
 
-`DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (Floci, LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured `connected_accounts.cloud_account_id` on every disco-saas local-mode scan.
+`DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (e.g. LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured account id on every emulator-backed scan.
 
 The gate function `emulatorAccountIDOverride()` is the single read site; both the `--role-arn` branch and the auto-detect branch call it before STS. `TestEmulatorAccountIDOverride` in `aws_config_test.go` pins the prod-safety assertion (env value ignored when `AWS_ENDPOINT_URL` is unset).
-
-New paid features that need to override OSS write-path behavior follow the same shape — pick a hook name, declare nillable in the OSS file, assign in `cmd/<area>_paid.go::init()`.
 
 ## `disco check` defaults to customer-managed (F24); --include-managed opts in
 
@@ -177,7 +163,7 @@ The default flipped from "opt-in via `--exit-nonzero`" to "opt-out via `--exit-z
 - `results[].partialFingerprints["disco/v1"] = sha256(rule_id+":"+resource_id)[:16]` so GitHub code-scanning de-dupes across runs
 - `runs[0].taxonomies[]` — one taxonomy per non-empty `tags.<key>` listed in `taxonomyKeys` (`waf_pillar`, `soc2`, `iso27001`, `pci_dss`, `nist_800_53`, `waf_qid`); each taxon's ID is the unique tag value, sorted for byte-stable output. Empty keys are skipped, so a rule that emits only `waf_pillar` + `waf_qid` produces a SARIF doc with two taxonomy entries; a BYO rule emitting `soc2` adds a third without code change.
 
-Bundled `aws-waf` rules (F10) ship a deliberately minimal `tags: { waf_pillar, waf_qid }` — the OSS pack is the wiring sample, not a curated framework-mapped pack. The `soc2` / `iso27001` / `pci_dss` / `nist_800_53` keys are kept reserved in `taxonomyKeys` so paid framework packs (CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001) and BYO Rego authors can populate them and get SARIF taxonomies + `--tag soc2=CC6.1` filtering for free. Don't fold control-catalogue mappings into the OSS rules — that's the paid pack's job.
+Bundled `aws-waf` rules (F10) ship a deliberately minimal `tags: { waf_pillar, waf_qid }` — the pack is the wiring sample, not a curated framework-mapped pack. The `soc2` / `iso27001` / `pci_dss` / `nist_800_53` keys are kept reserved in `taxonomyKeys` so future framework packs (CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001) and BYO Rego authors can populate them and get SARIF taxonomies + `--tag soc2=CC6.1` filtering for free. Don't fold control-catalogue mappings into the sample rules — that's a curated pack's job.
 
 The unprefixed `pillar` key is intentionally reserved for a future cross-framework grouping (e.g. NIST CSF Identify/Protect/Detect/Respond/Recover, CIS controls categories) — using it for AWS WAF pillars only would collide. Frame-specific keys (`waf_pillar`, future `csf_function`, `cis_category`) are the convention.
 
@@ -201,7 +187,7 @@ Cobra's default Args validator silently accepts arbitrary positional tokens. `di
 - `--discovered-before <ts>` → `ResourceFilter.DiscoveredBefore` → SQL `discovered_at < ?`. Strict upper bound; pairs with `--discovered-since` for half-open `[since, before)` intervals; also serves as the standalone "stale" hygiene query.
 - `--created-since` / `--created-before` mirror the pair on the resource's intrinsic `created_at` column (lifted from the SDK at scan time). Rows with NULL `created_at` are excluded from both filters because `NULL < X` is unknown in SQL — not every scanner lifts the SDK timestamp yet (see EBS volume precedent in commit 8e61c52).
 
-`paid` `disco findings list` carries an analogous `--run-since` flag that filters check-run `started_at` (different table, different anchor — not a `ResourceFilter` field).
+`disco findings list` carries an analogous `--run-since` flag that filters check-run `started_at` (different table, different anchor — not a `ResourceFilter` field).
 
 All take `<RFC3339|YYYY-MM-DD>` via `parseTimeFlag` (`cmd/helpers.go`). Bare date auto-extends to `T00:00:00Z`; non-UTC zones normalise to UTC. Discovered-axis filters are pinned to `discovered_at` (immutable first-seen), NOT `verified_at` — re-scans don't re-stamp it. Means `--scan-id latest --discovered-since X` legitimately returns 0 when the latest scan only re-verified pre-existing rows.
 

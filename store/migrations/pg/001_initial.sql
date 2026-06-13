@@ -9,7 +9,7 @@
 --
 -- Plus PG-only RLS plumbing: tenant_id + workspace_id columns and per-table
 -- policies keyed on the `app.tenant_id` and `app.workspace_id` GUCs. Both
--- GUCs are pinned at connection time by OpenPostgres (postgres_paid.go) via
+-- GUCs are pinned at connection time by OpenPostgres (postgres.go) via
 -- AfterConnect, so RLS sees the values on every query without per-statement
 -- plumbing. NEW rows pick up both GUCs by DEFAULT. INSERTs from app code
 -- never need to spell tenant_id or workspace_id explicitly.
@@ -19,8 +19,8 @@
 -- walls workspaces off from each other inside a shared tenant schema. Both
 -- predicates appear in every tenant_isolation policy USING + WITH CHECK.
 --
--- Paid tables (check_runs, findings) live in 002_findings_paid.sql plus
--- their own RLS layer.
+-- The check_runs + findings tables live in 002_findings.sql plus their own
+-- RLS layer.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
     version    INTEGER PRIMARY KEY,

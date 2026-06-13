@@ -6,10 +6,10 @@ SQLite persistence layer (`modernc.org/sqlite`, CGO-free). Tables, edges, scrubb
 
 Six: `resources`, `relationships`, `hierarchy_closure`, `scans`, `scan_checkpoints`, plus `schema_migrations` (migration runner bookkeeping; not user-visible).
 
-- **`scan_checkpoints`** (migration 002): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. The OSS path persists checkpoints; the paid incremental scanner (Phase 6) consumes them on `disco scan --resume`. `splitStatements` is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
+- **`scan_checkpoints`** (migration 002): per-(scan, provider, service, scope) opaque continuation tokens. Schema is generic — `last_token` is whatever cursor shape the upstream SDK exposes (AWS NextToken, Azure pager continuation, GCP pageToken). API: `SaveCheckpoint`, `GetCheckpoint`, `ListCheckpoints`, `DeleteScanCheckpoints`. disco persists checkpoints; a future incremental scanner can consume them on `disco scan --resume`. `splitStatements` is dollar-quote (`$$`, `$tag$`) and `--`-comment aware, so plpgsql function bodies and inline `;` in `--` comments are safe inside migrations.
 
 
-- **`resources`**: one row per cloud entity (OSS) or one row per attribute-snapshot of a cloud entity (paid). `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. OSS: PK `id` is the deterministic `ResourceID` hash; one row per natural key. Paid: PK `id` is a per-row UUIDv7, deterministic hash lives in `root_id`, current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see paid versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
+- **`resources`**: one row per attribute-snapshot of a cloud entity. `attributes` (JSON) = full provider API response. `tags` (JSON) denormalized for `json_extract()` queries. PK `id` is a per-row UUIDv7, the deterministic `ResourceID` hash lives in `root_id`, and the current row in a chain has `superseded_by IS NULL`. `UpsertResources` auto-handles version splits (see resource-versioning rule below). No `parent_id` column — hierarchy via `RecordHierarchyBatch(pairs)` only.
 - **`relationships`**: directed edges. `kind`: `contains`, `attached-to`, `uses`, `routes-to`, `peer`, `assumes`, `bounded-by`, `cross-account-trust`, `cross-sub-rbac`, `cross-project-iam`. UNIQUE on `(from_id, to_id, kind)` — multiple kinds may coexist between same pair. Hierarchy `contains` lives in `hierarchy_closure` only (not here), so second edge (e.g. `attached-to`) between already-hierarchical resources conflict-free. `UpsertRelationship(..., attrs *string)` accepts JSON blob for per-edge metadata (e.g. Orgs delegated-services list). **UNIQUE collapses many-to-one refs**: when N distinct source refs (e.g. two trust-policy principals from the same foreign account) all map to the same target, only one row survives. Edge count = distinct (from, to) pairs, not distinct refs — tests asserting counts must account for this.
 - **`hierarchy_closure`**: closure table for O(1) "all descendants of node X", no recursive CTEs. Always populate via `RecordHierarchyBatch(pairs)` (single tx) after upserting resources. The same call ALSO writes a `parent → child contains` row to `relationships` so `GraphWalk` (relationships-only) sees the edge — single source of truth across providers. Closure rows always go down; the relationship row is gated on both endpoints existing in `resources`, with a missing endpoint surfacing as a `ScanWarning` (operators see drift, callers stay simple). Don't add a separate `UpsertRelationship(parent, child, RelContains)` call beside the closure write — duplicate but idempotent under `INSERT OR IGNORE`.
 - **`scans`**: lifecycle record per scan run (created at start, updated on complete/fail).
@@ -59,9 +59,7 @@ Scan IDs: `crypto/rand` + `encoding/hex` (same 32-char hex). No `uuid` dep.
 
 ## Migrations
 
-SQL files in `migrations/` embedded at compile time via `//go:embed`. Names must be `NNN_description.sql` (e.g. `002_add_foo.sql`). Runner splits on semicolons, executes each statement individually — SQLite `database/sql` driver silent ignores everything after first statement in multi-statement `Exec`.
-
-Paid-only migrations use the `_paid.sql` suffix (e.g. `004_findings_paid.sql`). `scripts/oss-sync.sh` and `scripts/oss-cherry-pick.sh` strip them by name pattern — the OSS-mirror repo never sees the file, so `//go:embed migrations/*.sql` matches only OSS-resident migrations there. Upstream OSS dev-builds (no `-tags paid`) DO embed and apply paid SQL files because the files are physically present in the dev tree; that's intentional dev-only behaviour. Production OSS guarantee is the published mirror, not the upstream tree.
+SQL files in `migrations/` (SQLite) and `migrations/pg/` (Postgres) embedded at compile time via `//go:embed`. Names must be `NNN_description.sql` (e.g. `002_add_foo.sql`). Runner splits on semicolons, executes each statement individually — SQLite `database/sql` driver silent ignores everything after first statement in multi-statement `Exec`. All migrations apply unconditionally; keep the two backend sets in column-parity (see `make check-migrations`).
 
 ## `region = "global"` is the canonical non-regional sentinel
 
@@ -71,7 +69,7 @@ Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organ
 
 `disco list --regions global` is the canonical "show me every global resource" query.
 
-## Paid resource versioning (`//go:build paid`)
+## Resource versioning
 
 Resources are immutable per attribute-snapshot. A scan that finds
 **unchanged** attributes + tags advances `verified_at` / `verified_by`
@@ -82,32 +80,31 @@ Top-level columns (name / region / zone / status / managed) still
 update in place — they don't trigger a split. Caller-facing identity
 is the deterministic `ResourceID` hash, stored in `root_id` and
 exposed as `Resource.ID` via the `root_id AS id` projection hook
-(`resources_hooks_paid.go`). Per-version row PKs are paid-internal,
-surfaced only on `ResourceVersion.VersionRowID`.
+(`resources_hooks.go`). Per-version row PKs are internal, surfaced
+only on `ResourceVersion.VersionRowID`.
 
 Reads filter to the current row of each chain via
-`applyCurrentVersionPredicate()` (no-op in OSS, `WHERE superseded_by
-IS NULL` in paid). Writes order matters: a version split UPDATEs the
-old row's `superseded_by` BEFORE inserting the new row, so the
-partial unique index `idx_resources_current_by_natural_key` (over
+`applyCurrentVersionPredicate()` (`WHERE superseded_by IS NULL`).
+Writes order matters: a version split UPDATEs the old row's
+`superseded_by` BEFORE inserting the new row, so the partial unique
+index `idx_resources_current_by_natural_key` (over
 `(provider, account_id, type, native_id) WHERE superseded_by IS
 NULL`) never sees two current rows simultaneously.
 
-Relationships in paid reference `root_id` (the deterministic hash),
-not per-version row ids. FK to `resources(id)` is dropped in paid
-(SQLite recreates `relationships` + `hierarchy_closure` without the
-FK clause; PG's ALTER TABLE DROP CONSTRAINT in the paid migration).
+Relationships reference `root_id` (the deterministic hash), not
+per-version row ids. FK to `resources(id)` is dropped (SQLite
+recreates `relationships` + `hierarchy_closure` without the FK
+clause; PG's ALTER TABLE DROP CONSTRAINT in the 006 migration).
 `resourceExistsTx` uses `resourceIDColumn()` + `currentVersionWhereSQL()`
-so the hierarchy gating fires correctly under paid.
+so the hierarchy gating fires correctly.
 
-**Merge-friendliness rule:** `Resource` in `resources.go` is the
-OSS-mergeable baseline. Every paid-only field lives on
-`ResourceVersion` in `resources_paid.go` via embedding —
+**Type-separation rule:** `Resource` in `resources.go` is the base row
+type. Every versioning-only field lives on `ResourceVersion` in
+`resources_versioning.go` via embedding —
 `type ResourceVersion struct { Resource; VerifiedAt *string; ... }`.
-Adding an OSS field to `Resource` cascades to `ResourceVersion` for
-free. The merge-invariant test
-(`resources_merge_invariant_test.go`) fails the build if a future
-OSS PR accidentally puts `db:"verified_at"` etc. on `Resource`.
+Adding a field to `Resource` cascades to `ResourceVersion` for free.
+The invariant test (`resources_merge_invariant_test.go`) fails the
+build if a PR accidentally puts `db:"verified_at"` etc. on `Resource`.
 
 UUIDv7 is generated app-side via `uuid.NewV7()` (`github.com/google/uuid`
 v1.6+). PG 17.7 lacks native `uuidv7()` (PG 18 only); the future
@@ -144,7 +141,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 ## No `internal/policy` import in store package
 
-`store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings_paid.go`).
+`store` must not import `internal/policy` (or other downstream packages). Doing so creates `cmd → policy → store → policy` cycle. Keep store types bare (string/pointer fields, no `policy.Finding`); conversion between store rows and wire types lives in cmd-side helpers (`storedFindingToFinding`, `findingToStored` in `cmd/findings.go`).
 
 ## `Scan.StartedAt` format = SQLite datetime, not RFC3339 (in storage)
 
@@ -166,11 +163,11 @@ Wrappers in `dialect.go` proxy `Exec/Get/Query/QueryRow/Select` on `s.ext()` (wh
 
 ## PG session GUCs accept placeholders only via `set_config(...)`
 
-`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres_paid.go::afterConnect` for the pool path. Any future per-conn GUC writes follow the same shape. SaaS request-path `SET LOCAL app.tenant_id = $1` works only inside a transaction — different surface, same constraint.
+`SET app.tenant_id = $1` errors at parse time. The parameterised form is `SELECT set_config('<key>', $1, false)` (third arg = is_local; false = session-scoped). Used in `postgres.go::afterConnect` for the pool path. Any future per-conn GUC writes follow the same shape. The multi-tenant request-path form `SET LOCAL app.tenant_id = $1` works only inside a transaction — different surface, same constraint.
 
-## Postgres backend (paid only)
+## Postgres backend
 
-Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, tenantID)` (`postgres_paid.go`, `//go:build paid`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
+Single `*Store` covers both SQLite and Postgres; `OpenPostgres(ctx, dsn, tenantID)` (`postgres.go`) opens a pgx-backed `*sqlx.DB`. The `driver` field selects per-call dialect via three helpers in `dialect.go`:
 
 - `s.placeholder()` — `sq.Question` for SQLite, `sq.Dollar` for Postgres. Squirrel queries use this; raw `?` SQL goes through `s.exec` / `s.get` / `s.selectAll` / `s.queryRow` / `s.query` wrappers that auto-rebind via `db.Rebind`.
 - `s.tagJSONFilter(key)` — emits `json_extract(tags, '$.k')` (SQLite) or `tags ->> 'k'` (Postgres).
@@ -184,21 +181,21 @@ Other portability rules baked in:
 
 PG migration `001_initial.sql` adds `tenant_id UUID` to every user-data table plus a per-table RLS policy `USING (tenant_id = current_setting('app.tenant_id')::uuid)`. `OpenPostgres` runs `SELECT set_config('app.tenant_id', '<uuid>', false)` in pgconn `AfterConnect` so the GUC is sticky for every conn the pool returns. Inserts pick up `tenant_id` automatically via column DEFAULT — no explicit value in app code.
 
-Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. The disco-saas Fargate-per-scan model is built on this — single tenant per container.
+Tenant ID is **pinned at process start**: `OpenPostgres` bakes it into the pool's `AfterConnect`. Switch tenants by re-opening the store, never per-query. A Fargate-per-scan deployment is built on this — single tenant per container.
 
 ### Schema-per-tenant (`OpenPostgresInSchema`)
 
-`OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` opens a pool whose conns have `search_path` pinned to `<schema>, public` and the `app.tenant_id` GUC set. Used by the SaaS provisioner to create + migrate one PG schema per workspace. Layout: schema name `tenant_<32-hex>` (one per workspace), full upstream migration set runs unchanged inside each schema, `schema_migrations` bookkeeping lives in the per-tenant schema (not `public`) so each tenant tracks its own migration version — enables rolling DDL fan-out when upstream ships a new column.
+`OpenPostgresInSchema(ctx, dsn, schemaName, tenantID)` opens a pool whose conns have `search_path` pinned to `<schema>, public` and the `app.tenant_id` GUC set. Used by a multi-tenant provisioner to create + migrate one PG schema per workspace. Layout: schema name `tenant_<32-hex>` (one per workspace), the full migration set runs unchanged inside each schema, `schema_migrations` bookkeeping lives in the per-tenant schema (not `public`) so each tenant tracks its own migration version — enables rolling DDL fan-out when a new column ships.
 
 Boundary validation: `validateSchemaName` enforces `^tenant_[0-9a-f]{32}$`, `pgQuoteIdent` doubles embedded quotes. Identifiers can't be parameter-bound — these are the only injection guards before the schema name lands in DDL.
 
-Bootstrap order matters: `CREATE SCHEMA IF NOT EXISTS` runs on a one-shot pgx conn (no `AfterConnect`) BEFORE the real pool is opened, because `AfterConnect`'s `SET search_path = <schema>` would fail against a missing schema. See `bootstrapSchema` in `postgres_paid.go`.
+Bootstrap order matters: `CREATE SCHEMA IF NOT EXISTS` runs on a one-shot pgx conn (no `AfterConnect`) BEFORE the real pool is opened, because `AfterConnect`'s `SET search_path = <schema>` would fail against a missing schema. See `bootstrapSchema` in `postgres.go`.
 
 RLS layers on top — even with `search_path` pinned, the `tenant_id` GUC keeps queries scoped if a row leaks cross-schema (defence in depth). Schema isolation is the primary boundary, RLS is the second.
 
 ### `WrapTx` — tx-bound `*Store`
 
-`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against the caller-owned tx instead of a pool. `Close()` is a no-op; the caller owns commit/rollback. Used by the SaaS request path:
+`WrapTx(tx *sqlx.Tx, drv Driver) *Store` returns a `*Store` whose dialect helpers run against the caller-owned tx instead of a pool. `Close()` is a no-op; the caller owns commit/rollback. Used by a multi-tenant request path:
 
 ```
 BEGIN
@@ -210,7 +207,7 @@ st := store.WrapTx(tx, store.DriverPostgres)
 COMMIT
 ```
 
-`SET LOCAL` is reset at COMMIT, so RDS Proxy still multiplexes the underlying conn. Intended for read-only use — write methods that call `s.db.Begin*` directly (`UpsertResources`, `UpsertRelationships`, `RecordHierarchyBatch`, finalise calls) panic on a nil pool. That panic is intentional; the SaaS request path runs reads only, scan workers run a real `OpenPostgres` pool.
+`SET LOCAL` is reset at COMMIT, so RDS Proxy still multiplexes the underlying conn. Intended for read-only use — write methods that call `s.db.Begin*` directly (`UpsertResources`, `UpsertRelationships`, `RecordHierarchyBatch`, finalise calls) panic on a nil pool. That panic is intentional; the request path runs reads only, scan workers run a real `OpenPostgres` pool.
 
 `*Store` holds both `db *sqlx.DB` and `tx *sqlx.Tx`. `s.ext()` returns whichever is non-nil; dialect helpers route through it. Driver tag is set by the constructor (`store.DriverPostgres` / `store.DriverSQLite`) — without it, placeholder format and JSON-extract dialect can't be selected.
 
@@ -222,7 +219,7 @@ COMMIT
 
 `store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on identical `(table, column)` sets — the **only** allowed PG-only columns are RLS plumbing (`tenant_id`). `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them with that allowlist applied. Add a column on one side, the script fails. CI gates this; reviewers also.
 
-PG migration runner is hand-rolled in `migrate_pg_paid.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
+PG migration runner is hand-rolled in `migrate_pg.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 
 ## Denylist filters via `sq.NotEq`
 

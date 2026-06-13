@@ -2,7 +2,7 @@
 
 Shipped, in-tree capabilities. Companion to `ROADMAP.md` (forward-looking).
 
-Every entry below is implemented and queryable on a current `dev` build. For in-flight or unimplemented work, see `ROADMAP.md`. For paid surface, see `FEATURES_paid.md` (closed-source, OSS-sync excluded).
+Every entry below is implemented and queryable on a current `dev` build. For in-flight or unimplemented work, see `ROADMAP.md`.
 
 ---
 

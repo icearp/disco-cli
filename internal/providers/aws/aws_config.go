@@ -14,14 +14,14 @@ import (
 )
 
 // emulatorAccountIDOverride returns the explicit account_id the caller
-// (typically the disco-saas orchestrator) wants recorded on resources/
+// (typically an external orchestrator) wants recorded on resources/
 // scans, gated on AWS_ENDPOINT_URL being set. The gate is the AWS SDK's
 // canonical "talking to a non-AWS endpoint" signal — prod scanners
 // never set it, so the override is unreachable in prod. Emulators
-// (Floci, LocalStack) return a sentinel "000000000000" from
+// (e.g. LocalStack) return a sentinel "000000000000" from
 // sts:GetCallerIdentity that would otherwise overwrite the configured
-// connected_accounts row's cloud_account_id on every scan. Returns the
-// empty string when either env is unset or whitespace-only.
+// account id on every scan. Returns the empty string when either env is
+// unset or whitespace-only.
 func emulatorAccountIDOverride() string {
 	if strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL")) == "" {
 		return ""
@@ -56,8 +56,9 @@ type accountCfg struct {
 // When roleARNOverride is non-empty, the config-file accounts: section is
 // ignored entirely: a single synthetic account is built that assumes
 // roleARNOverride (with externalIDOverride passed as the STS ExternalId
-// when non-empty). The SaaS scan-trigger Lambda uses this to drive
-// per-tenant scans without writing config to disk in the worker container.
+// when non-empty). An external orchestrator (e.g. a scan-trigger Lambda)
+// uses this to drive per-tenant scans without writing config to disk in the
+// worker container.
 func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride string) ([]account, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("aws", &cfg); err != nil {
@@ -122,8 +123,8 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 
 	// Auto-detect the current account when none are configured.
 	// Emulator override (F28) short-circuits STS when AWS_ENDPOINT_URL
-	// is set, so disco-saas local-mode scans record the configured
-	// connected_accounts.cloud_account_id instead of Floci's "000000000000".
+	// is set, so emulator-backed scans record the configured account id
+	// instead of the emulator's sentinel "000000000000".
 	if len(cfg.Accounts) == 0 {
 		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
 			cfg.Accounts = []accountCfg{{ID: envAcctID}}

@@ -15,10 +15,10 @@ import (
 //go:embed aws-waf/*.rego
 var packsFS embed.FS
 
-// AvailablePacks returns the names of OSS-bundled packs in stable order.
+// AvailablePacks returns the names of bundled packs in stable order.
 // Each entry maps to a subdirectory of internal/policy/ embedded via
 // packsFS. Curated packs (full WAF, CIS, NIST 800-53, PCI-DSS, ISO 27001)
-// are paid-tier and not enumerated here.
+// are future work, not yet bundled.
 func AvailablePacks() []string {
 	return []string{"aws-waf"}
 }

@@ -52,7 +52,7 @@ The engine ships in OSS. Two ways to feed it rules:
 Both flags compose; both run in one pass against the full population.
 
 Curated full packs (Well-Architected complete, CIS-AWS-Foundations,
-NIST 800-53, PCI-DSS, ISO 27001) are a paid add-on.
+NIST 800-53, PCI-DSS, ISO 27001) are not yet bundled.
 
 Every resource in the local DB (including provider-managed rows such as
 AWS-managed IAM policies and Azure built-in role definitions) is evaluated.

@@ -1,5 +1,5 @@
--- Single OSS migration. Greenfield install applies this one file.
--- Paid tables (check_runs, findings) live in 002_findings_paid.sql.
+-- Base migration. Greenfield install applies this one file.
+-- The check_runs + findings tables live in 002_findings.sql.
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
     version    INTEGER PRIMARY KEY,

@@ -1,7 +1,7 @@
--- Replace SaaS-side polling of scans.finished_at with a per-tenant trigger
+-- Replace external polling of scans.finished_at with a per-tenant trigger
 -- that pg_notifies on every terminal scan transition. Channel is global per
--- database (NOTIFY is not schema-scoped), so a single LISTEN in the SaaS
--- daemon receives events from every tenant schema. Payload carries both
+-- database (NOTIFY is not schema-scoped), so a single LISTEN in the
+-- consuming daemon receives events from every tenant schema. Payload carries both
 -- tenant_id (the schema selector) and workspace_id (the row-level scope) so
 -- the listener routes to the right workspace without a secondary lookup —
 -- a single tenant schema now holds many workspaces' scans.

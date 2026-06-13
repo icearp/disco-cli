@@ -1,5 +1,5 @@
--- Paid Postgres migration. Greenfield install applies this file after 001.
--- check_runs + findings persist `disco check` results so paid builds can
+-- Postgres findings migration. Greenfield install applies this file after 001.
+-- check_runs + findings persist `disco check --persist` results so callers can
 -- query historical compliance runs. Tables include tenant_id + workspace_id
 -- + RLS to keep parity with the two-level isolation policy set in 001.
 

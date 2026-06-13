@@ -1,6 +1,6 @@
 -- 004_scan_metadata.sql: widen tenant `scans` with auditor-required
--- attribution. The SaaS plumbs these values forward through env vars and
--- the scanner persists them at INSERT time alongside existing columns.
+-- attribution. An external control plane plumbs these values forward and
+-- persists them on the pre-claimed scan row alongside the existing columns.
 --
 --   scanner_version — binary build id (so an auditor can correlate a
 --                     scan id back to a specific scanner release)

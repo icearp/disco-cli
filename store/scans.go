@@ -112,8 +112,8 @@ func rfc3339Ptr(p *string) *string {
 
 // CreateScan inserts a new scan record with status "running" and returns its ID.
 // The id is freshly minted (32-hex). Use CreateScanWithID when the caller (e.g.
-// a SaaS orchestrator) needs to assign the id ahead of time so audit-log /
-// resources / scans share a single identifier.
+// an external orchestrator) needs to assign the id ahead of time so its audit
+// trail / resources / scans share a single identifier.
 func (s *Store) CreateScan(providers []string, scope map[string]any) (string, error) {
 	return s.CreateScanWithID("", providers, scope)
 }
@@ -136,7 +136,7 @@ func (s *Store) CreateScanWithID(id string, providers []string, scope map[string
 	if err != nil {
 		return "", err
 	}
-	// PG ON CONFLICT DO UPDATE so a SaaS orchestrator that pre-claimed
+	// PG ON CONFLICT DO UPDATE so an external orchestrator that pre-claimed
 	// the row with attribution metadata (principal_arn, account_id,
 	// triggered_by, …) keeps that data while the scanner takes over
 	// status / started_at. SQLite tolerates ON CONFLICT(id) the same way

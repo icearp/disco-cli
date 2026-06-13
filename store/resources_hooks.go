@@ -2,17 +2,17 @@ package store
 
 import sq "github.com/Masterminds/squirrel"
 
-// resourceSelectColumns lists the SELECT projection for paid reads of
-// the resources table when scanning into *Resource. Aliases
-// `root_id AS id` so Resource.ID carries the deterministic hash (the
-// stable caller-facing identifier), not the per-version UUID stored
-// in the table's actual `id` column. Paid-only columns (verified_at,
-// previous_version_id, etc.) are deliberately omitted — they live on
-// ResourceVersion (resources_paid.go), not Resource.
+// resourceSelectColumns lists the SELECT projection for reads of the
+// resources table when scanning into *Resource. Aliases `root_id AS id`
+// so Resource.ID carries the deterministic hash (the stable caller-facing
+// identifier), not the per-version UUID stored in the table's actual `id`
+// column. Versioning-only columns (verified_at, previous_version_id, etc.)
+// are deliberately omitted — they live on ResourceVersion
+// (resources_versioning.go), not Resource.
 //
-// Merge invariant: this list must stay in lockstep with the OSS
-// Resource struct's `db` tags. Adding a new OSS field to Resource
-// requires appending the matching column name here.
+// Invariant: this list must stay in lockstep with the Resource struct's
+// `db` tags. Adding a new field to Resource requires appending the matching
+// column name here.
 func resourceSelectColumns() []string {
 	return []string{
 		"root_id AS id",

@@ -66,9 +66,9 @@ func (s *Scanner) SetProfile(profile string) { s.profile = profile }
 
 // SetRoleOverride pins the scan to a single account reached by AssumeRole
 // against roleARN with an optional STS external_id. Bypasses the config
-// file's accounts: section — the SaaS scan-trigger Lambda uses this to
-// drive a per-tenant scan against a connected_accounts row without
-// writing config to disk in the worker container.
+// file's accounts: section — an external orchestrator (e.g. a scan-trigger
+// Lambda) uses this to drive a per-tenant scan without writing config to
+// disk in the worker container.
 //
 // Empty roleARN clears the override (restores config-driven account list).
 // externalID is honoured only when roleARN is also set.

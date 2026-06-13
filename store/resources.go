@@ -46,10 +46,10 @@ type Resource struct {
 	TenantID          *string `db:"tenant_id"           json:"-"` // populated on PG (RLS); nil on SQLite
 	WorkspaceID       *string `db:"workspace_id"        json:"-"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
 
-	// Verification + version-chain metadata live on ResourceVersion in
-	// the paid build (resources_paid.go), not here. The OSS Resource is
-	// the merge-friendly baseline: any new OSS field added here
-	// cascades to paid via ResourceVersion's embedded Resource.
+	// Verification + version-chain metadata live on ResourceVersion
+	// (resources_versioning.go), not here. Resource is the base type: any
+	// new field added here cascades to ResourceVersion via its embedded
+	// Resource.
 }
 
 // resourceWire is the on-wire shape: SDK-shape attributes/tags surfaced as
@@ -114,9 +114,7 @@ func ResourceID(provider, accountID, resourceType, nativeID string) string {
 }
 
 // UpsertResource inserts or replaces a single resource. Delegates to
-// UpsertResources, whose implementation is build-tag-split between
-// resources_upsert_oss.go (simple ON CONFLICT) and
-// resources_upsert_paid.go (version-chain logic).
+// UpsertResources, whose version-chain logic lives in resources_upsert.go.
 func (s *Store) UpsertResource(r *Resource) (int, error) {
 	return s.UpsertResources([]*Resource{r})
 }

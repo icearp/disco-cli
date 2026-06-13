@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-// TestResource_NoPaidFields locks the merge-friendliness rule: the
-// shared `Resource` struct stays the OSS baseline. Paid-only state
-// belongs on ResourceVersion (resources_paid.go) via embedding so
-// future OSS additions cascade to paid for free.
+// TestResource_NoVersioningFields locks the type-separation rule: the
+// `Resource` struct stays the base row type. Versioning-only state belongs
+// on ResourceVersion (resources_versioning.go) via embedding so future
+// additions to Resource cascade for free.
 //
-// A future OSS PR that adds a `db:"verified_at"` (or similar paid-only
+// A future PR that adds a `db:"verified_at"` (or similar versioning-only
 // tag) to Resource regresses the split. This test fails the build.
-func TestResource_NoPaidFields(t *testing.T) {
+func TestResource_NoVersioningFields(t *testing.T) {
 	forbidden := map[string]struct{}{
 		"verified_at":         {},
 		"verified_by":         {},
@@ -33,7 +33,7 @@ func TestResource_NoPaidFields(t *testing.T) {
 			col = col[:idx]
 		}
 		if _, bad := forbidden[col]; bad {
-			t.Errorf("Resource.%s (db:%q) is a paid-only field — move to ResourceVersion in resources_paid.go", f.Name, col)
+			t.Errorf("Resource.%s (db:%q) is a versioning-only field — move to ResourceVersion in resources_versioning.go", f.Name, col)
 		}
 	}
 }

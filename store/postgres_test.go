@@ -119,7 +119,7 @@ func TestPG_RoundTripParity(t *testing.T) {
 
 // TestPG_RLS confirms that rows written under tenant A are invisible when a
 // new pool is opened under tenant B. RLS is the single most load-bearing
-// security guarantee for the SaaS deploy — break this and tenants leak.
+// security guarantee for a multi-tenant deploy — break this and tenants leak.
 func TestPG_RLS(t *testing.T) {
 	// TODO(oss-decouple): pre-existing failure, unrelated to the OSS de-tagging.
 	// pgTestEnv connects as the postgres superuser, which bypasses RLS

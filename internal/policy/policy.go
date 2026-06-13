@@ -2,9 +2,9 @@
 // from the local store are handed to a prepared Rego query; the query is
 // expected to bind `data.disco.deny` to a set of finding objects.
 //
-// The engine ships in OSS — bring your own policies (Conftest AWS, regula,
-// in-house bundles) via the `--rules` flag. Curated first-party compliance
-// packs (NIST 800-53, CIS, PCI-DSS, Well-Architected) are a paid add-on.
+// Bring your own policies (Conftest AWS, regula, in-house bundles) via the
+// `--rules` flag. Curated first-party compliance packs (NIST 800-53, CIS,
+// PCI-DSS, Well-Architected) are future work, not yet bundled.
 package policy
 
 import (

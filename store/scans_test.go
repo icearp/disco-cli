@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-// TestCreateScanWithID_HonoursExplicitID ensures the SaaS-supplied
+// TestCreateScanWithID_HonoursExplicitID ensures an externally-supplied
 // DISCO_SCAN_ID (forwarded as the idHint argument) lands on disk as the
-// scan's primary key. Critical: chain-of-custody from audit_log → scans →
+// scan's primary key. Critical: chain-of-custody from an audit trail → scans →
 // resources depends on this single identifier.
 func TestCreateScanWithID_HonoursExplicitID(t *testing.T) {
 	st := openTestStore(t)
-	want := "abcdef0123456789-saas-uuid"
+	want := "abcdef0123456789-explicit-id"
 	got, err := st.CreateScanWithID(want, []string{"aws"}, map[string]any{"providers": []string{"aws"}})
 	if err != nil {
 		t.Fatalf("CreateScanWithID: %v", err)

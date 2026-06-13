@@ -79,17 +79,17 @@ Examples:
 //   - any other value — treated as an explicit scan_id to reuse.
 //
 // Returns (scanID, resuming, err). When resuming, callers should expect the
-// checkpoint table to carry per-service watermarks the paid incremental
-// scanner consumes; the OSS path persists fresh checkpoints from this scan_id
-// without consuming them.
+// checkpoint table to carry per-service watermarks a future incremental
+// scanner can consume; today the scan persists fresh checkpoints from this
+// scan_id without consuming them.
 func startOrResumeScan(db *store.Store, resumeFlag string, providers []string, scope map[string]any) (string, bool, error) {
 	if resumeFlag == "" {
 		if scope == nil {
 			scope = map[string]any{"providers": providers}
 		}
-		// SaaS-controlled scans set DISCO_SCAN_ID so audit_log, scans and
-		// resources share one identifier (chain-of-custody). Empty falls
-		// back to a freshly-minted 32-hex id.
+		// An external orchestrator can set DISCO_SCAN_ID so its audit trail,
+		// scans and resources share one identifier (chain-of-custody). Empty
+		// falls back to a freshly-minted 32-hex id.
 		idHint := strings.TrimSpace(os.Getenv("DISCO_SCAN_ID"))
 		id, err := db.CreateScanWithID(idHint, providers, scope)
 		if err != nil {
@@ -136,9 +136,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return runScanDryRun(cmd, names)
 	}
 
-	// openWriteDB prefers the paid hook (Postgres in SaaS deployments
-	// when DISCO_PG_DSN + DISCO_TENANT_ID + DISCO_PG_SCHEMA are set);
-	// falls back to SQLite at defaultDBPath() for OSS / local-dev.
+	// openWriteDB opens Postgres when DISCO_PG_DSN + DISCO_TENANT_ID are set
+	// (the multi-tenant scan-worker deployment; DISCO_PG_SCHEMA pins the
+	// per-tenant schema); otherwise it falls back to SQLite at
+	// defaultDBPath() for normal CLI / local-dev use.
 	db, err := openWriteDB()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
@@ -162,10 +163,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	}
 
 	// --resume reuses a previously-started scan_id and its checkpoint set.
-	// Without it (default), a fresh scan_id is generated. The actual
-	// per-page resume hook is consumed by the paid incremental scanner;
-	// the OSS path persists checkpoints and exposes the lookup so users
-	// can swap to the paid feature without re-scanning.
+	// Without it (default), a fresh scan_id is generated. Today the scan
+	// persists checkpoints and exposes the lookup; a future incremental
+	// scanner can consume the per-page watermarks to skip already-listed
+	// pages without re-scanning.
 	resumeFlag, _ := cmd.Flags().GetString("resume")
 	scope := buildScanScope(cmd, names, scanners)
 	scanID, resuming, err := startOrResumeScan(db, resumeFlag, names, scope)
@@ -244,10 +245,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 			time.Since(start).Round(time.Second), provider, edges)
 	}
 
-	// Fan-out + warning/error capture lives in scanrun so the same code path
-	// drives the API server (cmd/serve_paid.go). RunScanners chains its
-	// callbacks on top of any caller-installed OnWarn/OnError; here neither
-	// is set so RunScanners is the sole capture point.
+	// Fan-out + warning/error capture lives in scanrun so the engine can be
+	// reused by other drivers. RunScanners chains its callbacks on top of any
+	// caller-installed OnWarn/OnError; here neither is set so RunScanners is
+	// the sole capture point.
 	ctx := context.Background()
 	warnings, scanErrors := scanrun.RunScanners(ctx, db, scanID, scanners)
 
@@ -280,7 +281,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		}
 		// Structured per-failure entries land in scans.errors (jsonb)
 		// alongside the legacy concatenated `error` blob, so downstream
-		// SaaS / API consumers can group + filter without parsing
+		// consumers can group + filter without parsing
 		// prose. region is parsed best-effort from Scope (shaped
 		// "<account>/<region>" for AWS; bare for Azure/GCP).
 		for _, e := range scanErrors {

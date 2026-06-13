@@ -20,13 +20,14 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-// schemaNameRE constrains per-tenant schemas to the SaaS provisioner's naming
-// scheme: `tenant_` plus 32 lowercase hex chars. Identifiers cannot be bound
-// as parameters, so this regex is the only injection guard before quoting.
+// schemaNameRE constrains per-tenant schemas to a multi-tenant provisioner's
+// naming convention: `tenant_` plus 32 lowercase hex chars. Identifiers cannot
+// be bound as parameters, so this regex is the only injection guard before
+// quoting.
 var schemaNameRE = regexp.MustCompile(`^tenant_[0-9a-f]{32}$`)
 
 // validateSchemaName rejects any schema name outside the tenant_<32hex>
-// pattern. Defence-in-depth alongside caller validation in the SaaS repo.
+// pattern. Defence-in-depth alongside caller-side validation.
 func validateSchemaName(name string) error {
 	if !schemaNameRE.MatchString(name) {
 		return fmt.Errorf("invalid schema name %q: must match ^tenant_[0-9a-f]{32}$", name)
@@ -82,8 +83,8 @@ func OpenPostgresWithWorkspace(ctx context.Context, dsn, tenantID, workspaceID s
 // schemaName must match ^tenant_[0-9a-f]{32}$. tenantID is set as the
 // `app.tenant_id` GUC on every connection (same as OpenPostgres).
 //
-// Use case: SaaS provisioner creating a per-tenant schema. The pool only
-// needs to live long enough to migrate; close it after.
+// Use case: a multi-tenant provisioner creating a per-tenant schema. The pool
+// only needs to live long enough to migrate; close it after.
 func OpenPostgresInSchema(ctx context.Context, dsn, schemaName, tenantID string) (*Store, error) {
 	if err := validateSchemaName(schemaName); err != nil {
 		return nil, err
@@ -180,7 +181,7 @@ func openPG(ctx context.Context, dsn, tenantID, workspaceID, schemaName string) 
 // boundPoolFromEnv caps the connection pool when DISCO_PG_MAX_CONNS holds a
 // positive integer; otherwise the pool keeps the database/sql defaults
 // (unbounded open connections, no lifetime), so a standalone CLI is unaffected.
-// A SaaS deployment that runs many scanner tasks against a shared RDS sets it to
+// A deployment that runs many scanner tasks against a shared RDS sets it to
 // keep each task's footprint small. MaxIdleConns is held at min(n, 2) and the
 // lifetime/idle-time bounds let idle connections drain back to the server.
 func boundPoolFromEnv(db *sqlx.DB) {

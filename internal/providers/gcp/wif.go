@@ -27,7 +27,7 @@ import (
 // workload-identity provider, and the service-account email names the
 // read-only account to impersonate. The AWS subject identity that the
 // provider trusts is the running task's own role, retrieved at runtime — no
-// key or token is stored or transferred. The disco-saas orchestrator sets
+// key or token is stored or transferred. An external orchestrator can set
 // these on its scanner task, but any disco run on ECS/Fargate can use them.
 const (
 	envWIFAudience       = "DISCO_GCP_WIF_AUDIENCE"

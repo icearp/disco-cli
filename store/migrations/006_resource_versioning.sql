@@ -1,6 +1,6 @@
--- 006_resource_versioning_paid.sql (paid-only — skipped in OSS builds)
+-- 006_resource_versioning.sql
 --
--- Adds resource versioning to the paid build. Schema becomes:
+-- Adds resource versioning. Schema becomes:
 --   id                   per-version UUIDv7 (TEXT), the row PK.
 --   root_id              deterministic ResourceID hash, shared across the
 --                        chain of versions for a single resource. Reads
@@ -14,9 +14,8 @@
 --                        attributes rescan. Untouched when attributes or
 --                        tags change — that case inserts a new row.
 --
--- Migration policy: DB is recreated when switching builds (no backfill).
--- The defensive UPDATE below covers fresh-greenfield paid installs where
--- the migration runs against an empty resources table; it's a no-op then.
+-- The defensive UPDATE below covers fresh-greenfield installs where the
+-- migration runs against an empty resources table; it's a no-op then.
 
 ALTER TABLE resources ADD COLUMN root_id             TEXT;
 ALTER TABLE resources ADD COLUMN previous_version_id TEXT;
@@ -37,10 +36,9 @@ CREATE INDEX IF NOT EXISTS idx_resources_verified_by      ON resources(verified_
 
 -- Edges reference root_id (the deterministic hash), not the per-version
 -- row PK. The 001_initial.sql FKs to resources(id) become meaningless
--- under paid versioning. SQLite can't ALTER TABLE DROP FOREIGN KEY, so
--- we recreate `relationships` and `hierarchy_closure` without the FKs.
--- Per the plan's "no backfill" policy these tables are empty at
--- migration time.
+-- under versioning. SQLite can't ALTER TABLE DROP FOREIGN KEY, so we
+-- recreate `relationships` and `hierarchy_closure` without the FKs.
+-- These tables are empty at migration time (no backfill).
 DROP TABLE IF EXISTS relationships;
 CREATE TABLE relationships (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,

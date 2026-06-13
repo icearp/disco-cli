@@ -1,7 +1,7 @@
--- 006_resource_versioning_paid.sql (paid-only — skipped in OSS builds)
+-- 006_resource_versioning.sql
 --
--- Postgres mirror of the SQLite paid versioning migration. See
--- ../006_resource_versioning_paid.sql for full semantics.
+-- Postgres mirror of the SQLite resource-versioning migration. See
+-- ../006_resource_versioning.sql for full semantics.
 
 ALTER TABLE resources ADD COLUMN root_id             TEXT;
 ALTER TABLE resources ADD COLUMN previous_version_id TEXT;

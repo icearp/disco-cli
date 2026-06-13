@@ -107,7 +107,7 @@ func TestPG_OpenPostgresInSchema_BoundaryValidation(t *testing.T) {
 }
 
 // TestPG_WrapTx exercises read methods on a tx-bound *Store with SET LOCAL
-// search_path + app.tenant_id — the SaaS request-path pattern.
+// search_path + app.tenant_id — the multi-tenant request-path pattern.
 func TestPG_WrapTx(t *testing.T) {
 	dsn, purge := pgTestEnv(t)
 	defer purge()

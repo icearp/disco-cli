@@ -59,8 +59,8 @@ type ProfileOverrider interface {
 }
 
 // RoleOverrider is an optional interface for providers that support
-// overriding the assume-role identity via CLI flags. Used by the SaaS
-// scan-trigger Lambda to pin the worker to the connected_account's
+// overriding the assume-role identity via CLI flags. Used by an external
+// orchestrator (e.g. a scan-trigger Lambda) to pin the worker to a target
 // principal + external-id pair without writing a config file. Empty
 // roleARN restores the default credential chain; non-empty externalID
 // is included in the AssumeRole call only when roleARN is also set.
@@ -70,8 +70,8 @@ type RoleOverrider interface {
 
 // SubscriptionOverrider is an optional interface for providers that support
 // pinning the scan to an explicit subscription set via the --subscriptions CLI
-// flag. Used by the SaaS scan-trigger to constrain the shared worker identity
-// to one tenant's subscriptions without writing a config file — the Azure
+// flag. Used by an external orchestrator to constrain the shared worker
+// identity to one tenant's subscriptions without writing a config file — the Azure
 // analogue of RoleOverrider. A non-nil override pins the scan and disables
 // auto-enumeration (fail-closed): an override that resolves to zero
 // subscriptions is an error, never a fall-through to enumeration. A nil

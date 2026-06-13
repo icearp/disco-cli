@@ -578,8 +578,8 @@ func matchTypeGlob(patterns []string, t string) bool {
 
 // fetchResourcesByIDs batches an IN-clause SELECT to avoid N GetResource
 // round-trips. Caller-facing ids are deterministic ResourceID hashes;
-// the paid hooks (resources_hooks_paid.go) redirect the WHERE to
-// root_id and append the current-version predicate.
+// the helpers in resources_hooks.go redirect the WHERE to root_id and
+// append the current-version predicate.
 func fetchResourcesByIDs(s *Store, ids []string) ([]Resource, error) {
 	if len(ids) == 0 {
 		return nil, nil
