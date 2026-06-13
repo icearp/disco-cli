@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"golang.org/x/sync/semaphore"

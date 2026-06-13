@@ -27,8 +27,8 @@ type Relationship struct {
 	Direction    string  `db:"direction"`
 	Attributes   *string `db:"attributes"` // JSON
 	DiscoveredAt string  `db:"discovered_at"`
-	TenantID     *string `db:"tenant_id" json:"-"`     // populated on PG (RLS); nil on SQLite
-	WorkspaceID  *string `db:"workspace_id" json:"-"`  // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
+	TenantID     *string `db:"tenant_id" json:"-"`    // populated on PG (RLS); nil on SQLite
+	WorkspaceID  *string `db:"workspace_id" json:"-"` // per-workspace RLS discriminator; nil when the app.workspace_id GUC was unset
 }
 
 // Relationship kind constants.

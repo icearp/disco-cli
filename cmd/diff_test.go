@@ -1,5 +1,3 @@
-//go:build paid
-
 package cmd
 
 import (

@@ -1,5 +1,3 @@
-//go:build paid
-
 package store
 
 import sq "github.com/Masterminds/squirrel"

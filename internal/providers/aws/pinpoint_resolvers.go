@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 )
 
 // All Pinpoint child resources (channels, campaigns, segments, settings,

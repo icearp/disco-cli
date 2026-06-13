@@ -6,7 +6,7 @@ TAGFLAG  := $(if $(TAGS),-tags "$(TAGS)",)
 VERSION  ?= $(shell git describe --tags --always --dirty=+dirty 2>/dev/null || echo dev)
 LDFLAGS  := -X 'codeberg.org/icearp/disco/cmd.Version=$(VERSION)'
 
-.PHONY: all deps fmt lint vet test test-paid build build-paid check-migrations clean dist oss-sync
+.PHONY: all deps fmt lint vet test build check-migrations clean dist
 
 check-migrations:
 	./scripts/check-migrations.sh
@@ -28,17 +28,8 @@ vet:
 test:
 	$(GO) go test $(TAGFLAG) ./...
 
-test-paid:
-	$(MAKE) test TAGS=paid
-
 build:
 	$(GO) go build $(TAGFLAG) -ldflags "$(LDFLAGS)" -o $(BINARY) .
-
-build-paid:
-	$(MAKE) build TAGS=paid
-
-oss-sync:
-	./scripts/oss-sync.sh
 
 dist:
 	$(GO) GOAMD64=v3 GOOS=linux   GOARCH=amd64  go build -ldflags "$(LDFLAGS) -w -s" -trimpath -o $(DIST_DIR)/$(BINARY)-$(VERSION)-linux-amd64 . && upx --best --lzma $(DIST_DIR)/$(BINARY)-$(VERSION)-linux-amd64

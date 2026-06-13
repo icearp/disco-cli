@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 )
 
 // resolveLambdaAll runs every Lambda sub-resolver in sequence, stopping at

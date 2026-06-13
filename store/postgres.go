@@ -1,5 +1,3 @@
-//go:build paid
-
 // Postgres backend for *Store. Single struct, driver-branched dialect bits —
 // the SQLite path is untouched. Pinned to one tenant at open time; every
 // physical conn runs `set_config('app.tenant_id', $1, false)` via the pgx

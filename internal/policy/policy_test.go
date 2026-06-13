@@ -65,7 +65,7 @@ func TestResourceToInput_FreshnessFields(t *testing.T) {
 		Type: "aws:iam:access-key", NativeID: "AKIA...",
 		Name: &name, Region: &region, Zone: &zone, Status: &status,
 		AttributesJSON: `{"Active":true}`, TagsJSON: &tags,
-		CreatedAt:    &created,
+		CreatedAt:         &created,
 		DiscoveredAt:      "2026-05-06T11:00:00Z",
 		DiscoveredBy:      "scan-1",
 		ManagedByProvider: false,

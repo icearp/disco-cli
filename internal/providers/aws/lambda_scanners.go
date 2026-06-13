@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"golang.org/x/sync/errgroup"

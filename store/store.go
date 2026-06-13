@@ -58,8 +58,8 @@ const (
 )
 
 type Store struct {
-	db                *sqlx.DB    // pool. nil iff this Store was produced by WrapTx.
-	tx                *sqlx.Tx    // non-nil iff produced by WrapTx; caller owns lifecycle.
+	db                *sqlx.DB // pool. nil iff this Store was produced by WrapTx.
+	tx                *sqlx.Tx // non-nil iff produced by WrapTx; caller owns lifecycle.
 	driver            driver
 	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
 	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run

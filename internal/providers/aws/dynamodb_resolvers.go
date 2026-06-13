@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 )
 
 // resolveDynamoDBAll runs every DynamoDB sub-resolver in sequence,

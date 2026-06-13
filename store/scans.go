@@ -21,9 +21,9 @@ type Scan struct {
 	// ErrorsJSON is the structured per-service failure array, JSON-encoded.
 	// SQLite stores it as TEXT, PG as JSONB; both round-trip through this
 	// string field. Default '[]' so SELECT * never NULL-scans.
-	ErrorsJSON    *string  `db:"errors"`
-	ResourceCount *int     `db:"resource_count"`
-	MetaJSON      *string  `db:"meta"`
+	ErrorsJSON    *string `db:"errors"`
+	ResourceCount *int    `db:"resource_count"`
+	MetaJSON      *string `db:"meta"`
 	// WorkspaceID is the per-workspace RLS discriminator. Populated on the
 	// SQLite and Postgres paths alike (the column DEFAULTs from the
 	// app.workspace_id GUC on PG); nil only when the GUC was unset at

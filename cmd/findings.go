@@ -1,5 +1,3 @@
-//go:build paid
-
 package cmd
 
 import (
@@ -11,7 +9,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"codeberg.org/icearp/disco/internal/license"
 	"codeberg.org/icearp/disco/internal/policy"
 	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
@@ -40,9 +37,6 @@ Subcommands:
   disco findings runs   recorded check_run history`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := license.Require(); err != nil {
-			return err
-		}
 		// Default behaviour: alias to `findings list`.
 		return findingsListCmd.RunE(cmd, nil)
 	},
@@ -53,9 +47,6 @@ var findingsListCmd = &cobra.Command{
 	Short: "List persisted findings (defaults to the latest check run)",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
-		if err := license.Require(); err != nil {
-			return err
-		}
 		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
 
 		db, err := openDB()
@@ -103,9 +94,6 @@ var findingsRunsCmd = &cobra.Command{
 	Short: "List recorded check runs",
 	Args:  cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
-		if err := license.Require(); err != nil {
-			return err
-		}
 		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
 
 		db, err := openDB()

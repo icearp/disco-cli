@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"codeberg.org/icearp/disco/store"
 )
@@ -83,35 +86,73 @@ func openDB() (*store.Store, error) {
 	return st, nil
 }
 
-// openWriteDBHook lets the paid build redirect openWriteDB to a remote
-// backend (Postgres) when the right env is present. OSS leaves it nil and
-// always opens local SQLite. Paid build assigns it in cmd/helpers_paid.go's
-// init(); the closure inspects DISCO_PG_DSN + DISCO_TENANT_ID and returns
-// store.OpenPostgres when both are set, nil otherwise (falling through to
-// the local SQLite path for dev).
-var openWriteDBHook func() (*store.Store, error)
-
 // openWriteDB opens a writable Store. Reserved for commands whose RunE
-// genuinely needs to mutate (scan, config init, paid check --persist).
-// The global --db-readonly flag refuses writers up-front; that check
-// lives at the call site (so the error string can name the gate the
-// operator should remove).
+// genuinely needs to mutate (scan, config init, check --persist). The global
+// --db-readonly flag refuses writers up-front; that check lives at the call
+// site (so the error string can name the gate the operator should remove).
 //
-// In paid builds with DISCO_PG_DSN + DISCO_TENANT_ID env set, the hook
-// returns a Postgres-backed Store; otherwise it returns nil and we fall
-// through to the local SQLite path. OSS builds always take the SQLite
-// path because the hook is never assigned.
+// When DISCO_PG_DSN + DISCO_TENANT_ID are set, writes go to a Postgres-backed
+// Store (the scan-worker deployment shape); empty env falls through to the
+// local SQLite path for normal CLI and dev use.
 func openWriteDB() (*store.Store, error) {
-	if openWriteDBHook != nil {
-		s, err := openWriteDBHook()
-		if err != nil {
-			return nil, err
-		}
-		if s != nil {
-			return s, nil
-		}
+	if s, err := openPostgresFromEnv(); err != nil || s != nil {
+		return s, err
 	}
 	return store.Open(defaultDBPath())
+}
+
+// openPostgresFromEnv returns a Postgres-backed Store when DISCO_PG_DSN is set,
+// or (nil, nil) when it isn't (so callers fall through to SQLite). DISCO_PG_SCHEMA
+// pins search_path to a per-tenant schema; DISCO_WORKSPACE_ID pins the
+// app.workspace_id GUC so writes carry the per-workspace RLS discriminator.
+func openPostgresFromEnv() (*store.Store, error) {
+	dsn := os.Getenv("DISCO_PG_DSN")
+	if dsn == "" {
+		return nil, nil
+	}
+	tenantID := os.Getenv("DISCO_TENANT_ID")
+	if tenantID == "" {
+		return nil, errors.New("DISCO_TENANT_ID is required when DISCO_PG_DSN is set")
+	}
+	if _, err := uuid.Parse(tenantID); err != nil {
+		return nil, fmt.Errorf("DISCO_TENANT_ID must be a UUID: %w", err)
+	}
+	workspaceID := os.Getenv("DISCO_WORKSPACE_ID")
+	if workspaceID != "" {
+		if _, err := uuid.Parse(workspaceID); err != nil {
+			return nil, fmt.Errorf("DISCO_WORKSPACE_ID must be a UUID: %w", err)
+		}
+	}
+	if schema := os.Getenv("DISCO_PG_SCHEMA"); schema != "" {
+		if workspaceID != "" {
+			return store.OpenPostgresInSchemaWithWorkspace(context.Background(), dsn, schema, tenantID, workspaceID)
+		}
+		return store.OpenPostgresInSchema(context.Background(), dsn, schema, tenantID)
+	}
+	return store.OpenPostgres(context.Background(), dsn, tenantID)
+}
+
+// resolveCheckRunID expands the `latest` shorthand to the most-recent
+// check_run's ID; literal IDs pass through after a presence check. Mirrors
+// resolveScanID. Used by `disco findings list --check-run-id <...>`.
+func resolveCheckRunID(db *store.Store, raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	if raw == "latest" {
+		runs, err := db.ListCheckRuns()
+		if err != nil {
+			return "", fmt.Errorf("list check_runs: %w", err)
+		}
+		if len(runs) == 0 {
+			return "", fmt.Errorf("no check runs recorded; --check-run-id latest has nothing to resolve")
+		}
+		return runs[0].ID, nil
+	}
+	if _, err := db.GetCheckRun(raw); err != nil {
+		return "", fmt.Errorf("check run %q not found", raw)
+	}
+	return raw, nil
 }
 
 // loadAllResourcesPaged paginates ListResources and returns every row

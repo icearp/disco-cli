@@ -56,11 +56,9 @@ linters:
         linters: [tagliatelle]
       # disco JSON contracts use snake_case: store rows, snapshot manifest, Rego input,
       # `disco list/summary/coverage -o json` output, persisted policy findings.
-      - path: cmd/(summary|coverage)\.go
+      - path: cmd/(summary|coverage|diff|findings)\.go
         linters: [tagliatelle]
-      - path: internal/(coverage|policy|snapshot|store|serve)/.*\.go
-        linters: [tagliatelle]
-      - path: cmd/diff_paid\.go
+      - path: (internal/(coverage|policy|snapshot|serve)|store)/.*\.go
         linters: [tagliatelle]
       # Test funcs walk fixture branches linearly; gocyclo counts every fixture
       # path as branch complexity. Production logic, not test shape, is what

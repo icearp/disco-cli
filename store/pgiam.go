@@ -1,5 +1,3 @@
-//go:build paid
-
 // RDS IAM database-authentication support for the Postgres backend. When
 // DISCO_PG_IAM_AUTH is set, the scanner authenticates to Postgres with a
 // short-lived IAM token instead of a password, so no DB password needs to be

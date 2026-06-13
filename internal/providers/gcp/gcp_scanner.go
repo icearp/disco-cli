@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
-	"codeberg.org/icearp/disco/store"
 	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )

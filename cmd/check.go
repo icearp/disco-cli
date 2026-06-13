@@ -26,20 +26,8 @@ var (
 	checkIncludeManaged   bool
 	checkRequireResources bool
 	checkMinResources     uint64
+	checkPersist          bool
 )
-
-// persistCheckHook is set by the paid build via cmd/check_paid.go init().
-// nil in OSS — `disco check` stays ephemeral. Called from the RunE after
-// findings are computed and post-filter-applied; receives the post-filter
-// slice so `findings list` shape matches the same-invocation stdout.
-var persistCheckHook func(db *store.Store, paths, packs []string, severity string, resourceCount int, findings []policy.Finding) error
-
-// checkNeedsWriteHook is set by the paid build to signal that this invocation
-// needs a writable DB (e.g. `--persist`). nil in OSS. When nil or returning
-// false, `check` opens the DB read-only — see WS1 in
-// focus-group/SUMMARY.md for why writable opens flip the SQLite WAL header
-// and break snapshot/verify roundtrips.
-var checkNeedsWriteHook func() bool
 
 var checkCmd = &cobra.Command{
 	Use:   "check",
@@ -127,9 +115,9 @@ Examples:
 
 		// `check` opens the DB read-only by default. A writable open flips the
 		// SQLite WAL header, mutating the file and breaking any subsequent
-		// `disco verify` against a snapshot of it. The paid `--persist` path
-		// signals via checkNeedsWriteHook that it needs to upgrade.
-		needsWrite := checkNeedsWriteHook != nil && checkNeedsWriteHook()
+		// `disco verify` against a snapshot of it. `--persist` needs to write,
+		// so it upgrades to a writable open.
+		needsWrite := checkPersist
 		var (
 			db  *store.Store
 			err error
@@ -195,9 +183,13 @@ Examples:
 			findings = filterByTags(findings, checkTagFilters)
 		}
 
-		if persistCheckHook != nil {
-			if err := persistCheckHook(db, checkRulePaths, checkPacks, checkSeverity, len(resources), findings); err != nil {
-				return err
+		if checkPersist {
+			rows := make([]store.StoredFinding, 0, len(findings))
+			for _, f := range findings {
+				rows = append(rows, findingToStored(f))
+			}
+			if _, err := db.PersistCheckRun(checkRulePaths, checkPacks, checkSeverity, len(resources), rows); err != nil {
+				return fmt.Errorf("persist check run: %w", err)
 			}
 		}
 
@@ -378,5 +370,6 @@ func init() {
 	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
 	checkCmd.Flags().BoolVar(&checkRequireResources, "require-resources", false, "Exit non-zero when 0 resources are evaluated (fail-closed gate against an empty / unscanned DB)")
 	checkCmd.Flags().Uint64Var(&checkMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources are evaluated (overrides --require-resources when both set)")
+	checkCmd.Flags().BoolVar(&checkPersist, "persist", false, "Write the check run and its findings to the local DB; surfaces under `disco findings`")
 	rootCmd.AddCommand(checkCmd)
 }
