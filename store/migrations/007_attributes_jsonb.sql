@@ -1,0 +1,7 @@
+-- No-op on SQLite. The matching PG migration (migrations/pg/007_attributes_jsonb.sql)
+-- promotes resources.attributes and relationships.attributes from TEXT to native
+-- JSONB. SQLite has no JSONB column affinity (the bare token "JSONB" resolves to
+-- NUMERIC affinity, which is wrong for JSON text), so attributes stays TEXT here,
+-- exactly as tags and scans.errors already do. This placeholder exists only to
+-- keep the migration-version ceiling aligned across both dialects
+-- (TestMigrationVersionCeilingsMatch); it applies no DDL.

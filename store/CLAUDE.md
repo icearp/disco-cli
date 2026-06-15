@@ -219,7 +219,7 @@ A `WithAfterConnect` hook that issues session-scoped `SET`/`set_config` (`is_loc
 
 ### Migration parity
 
-`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the OSS schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.)
+`store/migrations/*.sql` (SQLite) and `store/migrations/pg/*.sql` (Postgres) must converge on **identical** `(table, column)` sets — the OSS schema is single-tenant, so there are no allowed PG-only columns. `make check-migrations` (script: `scripts/check-migrations.sh`) extracts column lists from each set and diffs them. Add a column on one side, the script fails. CI gates this; reviewers also. (The SaaS multi-tenant columns — `tenant_id` + RLS plumbing — live in disco-saas's own migration set, not here.) Column **types** may diverge by design where PG has a richer native type: `tags`/`resources.attributes`/`relationships.attributes` are JSONB on PG but TEXT on SQLite, and `scans.errors` likewise — the parity check is column-presence, not type, and the Go fields are `string`/`*string` either way (pgx round-trips JSONB ↔ string).
 
 PG migration runner is hand-rolled in `migrate_pg.go`, mirroring `migrate.go:14–111` shape: same `schema_migrations` bookkeeping, same `splitStatements` semicolon split, same NNN_name.sql convention. Per-migration BEGIN+exec+INSERT+COMMIT means partial failure leaves a clean state.
 

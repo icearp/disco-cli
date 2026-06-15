@@ -4,6 +4,7 @@
 -- one-for-one. Only types and a handful of dialect-specific bits differ:
 --   * INTEGER PRIMARY KEY AUTOINCREMENT  -> BIGINT GENERATED ALWAYS AS IDENTITY
 --   * tags TEXT (JSON string)            -> tags JSONB (jsonb_each_text + ->> work)
+--   * attributes TEXT (JSON string)      -> attributes JSONB since pg/007 (->> works)
 --   * managed_by_provider INTEGER 0/1    -> managed_by_provider BOOLEAN
 --   * No PRAGMA foreign_keys             -> Postgres enforces FKs by default
 --
