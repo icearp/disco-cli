@@ -1,55 +1,12 @@
 package gcp
 
-import "slices"
+import (
+	"slices"
 
-// gcpRegionsList is disco's static list of supported GCP compute regions.
-// Refresh when Google adds a region. Source shape:
-// `gcloud compute regions list --format="value(name)"`.
-var gcpRegionsList = []string{
-	"africa-south1",
-	"asia-east1",
-	"asia-east2",
-	"asia-northeast1",
-	"asia-northeast2",
-	"asia-northeast3",
-	"asia-south1",
-	"asia-south2",
-	"asia-southeast1",
-	"asia-southeast2",
-	"australia-southeast1",
-	"australia-southeast2",
-	"europe-central2",
-	"europe-north1",
-	"europe-north2",
-	"europe-southwest1",
-	"europe-west1",
-	"europe-west2",
-	"europe-west3",
-	"europe-west4",
-	"europe-west6",
-	"europe-west8",
-	"europe-west9",
-	"europe-west10",
-	"europe-west12",
-	"me-central1",
-	"me-central2",
-	"me-west1",
-	"northamerica-northeast1",
-	"northamerica-northeast2",
-	"northamerica-south1",
-	"southamerica-east1",
-	"southamerica-west1",
-	"us-central1",
-	"us-east1",
-	"us-east4",
-	"us-east5",
-	"us-south1",
-	"us-west1",
-	"us-west2",
-	"us-west3",
-	"us-west4",
-}
+	"codeberg.org/icearp/disco/internal/providers/gcp/gcpregions"
+)
 
 // RegionNames implements providers.RegionNamer. Returns a clone so callers
-// can't mutate the package-level list.
-func (s *Scanner) RegionNames() []string { return slices.Clone(gcpRegionsList) }
+// can't mutate the package-level list. The region list itself is the SDK-free
+// source of truth in the gcpregions leaf package.
+func (s *Scanner) RegionNames() []string { return slices.Clone(gcpregions.Regions) }
