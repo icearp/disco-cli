@@ -105,7 +105,14 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // have already been written to the DB.
 func resolveRelationships(_ context.Context, p *project, st *store.Store) error {
 	for _, r := range registeredResolvers {
-		if err := r.fn(p, st); err != nil {
+		// Buffer each resolver's edges and flush in one tx: collapses the
+		// per-edge autocommit serialisation on SQLite's single writer.
+		bs := st.BeginRelBuffer()
+		err := r.fn(p, bs)
+		if ferr := bs.FlushRelBuffer(); ferr != nil && err == nil {
+			err = ferr
+		}
+		if err != nil {
 			return err
 		}
 	}

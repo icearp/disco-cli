@@ -171,7 +171,17 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 	g, _ := errgroup.WithContext(ctx)
 	for _, r := range registeredResolvers {
 		fn := r.fn
-		g.Go(func() error { return fn(sub, st) })
+		g.Go(func() error {
+			// Each resolver gets its own buffered store (independent buffer) so
+			// concurrent resolvers stay isolated; flush collapses the per-edge
+			// autocommit serialisation into one tx per resolver.
+			bs := st.BeginRelBuffer()
+			err := fn(sub, bs)
+			if ferr := bs.FlushRelBuffer(); ferr != nil && err == nil {
+				err = ferr
+			}
+			return err
+		})
 	}
 	return g.Wait()
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -60,21 +61,49 @@ const (
 	RelBoundedBy         = "bounded-by"          // IAM principal → permission-boundary policy (AWS) or analogue
 )
 
+// RelEdge is one relationship to upsert in a batch via UpsertRelationships.
+// Empty Direction defaults to "directed". Mirrors UpsertRelationship's args.
+type RelEdge struct {
+	FromID    string
+	ToID      string
+	Kind      string
+	Direction string
+	Attrs     *string
+}
+
+// relBuffer accumulates edges for a buffered store (see Store.BeginRelBuffer).
+// The mutex guards against a single resolver fanning out concurrent
+// UpsertRelationship calls onto its buffered store.
+type relBuffer struct {
+	mu    sync.Mutex
+	edges []RelEdge
+}
+
+const upsertRelationshipSQL = `
+	INSERT INTO relationships (from_id, to_id, kind, direction, attributes, discovered_at)
+	VALUES (?, ?, ?, ?, ?, ?)
+	ON CONFLICT(from_id, to_id, kind) DO UPDATE SET
+		attributes    = excluded.attributes,
+		discovered_at = excluded.discovered_at`
+
 // UpsertRelationship inserts a relationship, ignoring conflicts (idempotent).
+// On a buffered store (BeginRelBuffer) the edge is accumulated and written later
+// by FlushRelBuffer in a single transaction instead of its own autocommit.
 func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *string) error {
 	if direction == "" {
 		direction = "directed"
 	}
+	if s.relBuf != nil {
+		s.relBuf.mu.Lock()
+		s.relBuf.edges = append(s.relBuf.edges, RelEdge{fromID, toID, kind, direction, attrs})
+		s.relBuf.mu.Unlock()
+		if s.activeCounter != nil {
+			s.activeCounter.Add(1)
+		}
+		return nil
+	}
 	discoveredAt := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.exec(
-		`
-		INSERT INTO relationships (from_id, to_id, kind, direction, attributes, discovered_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(from_id, to_id, kind) DO UPDATE SET
-			attributes    = excluded.attributes,
-			discovered_at = excluded.discovered_at`,
-		fromID, toID, kind, direction, attrs, discoveredAt,
-	)
+	_, err := s.exec(upsertRelationshipSQL, fromID, toID, kind, direction, attrs, discoveredAt)
 	if err != nil {
 		return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", fromID, kind, toID, err)
 	}
@@ -82,6 +111,39 @@ func (s *Store) UpsertRelationship(fromID, toID, kind, direction string, attrs *
 		s.activeCounter.Add(1)
 	}
 	return nil
+}
+
+// UpsertRelationships upserts many relationships in a single transaction with a
+// reused prepared statement — the batch form of UpsertRelationship. Idempotent
+// (same ON CONFLICT). Empty input is a no-op. Callers that buffer via
+// BeginRelBuffer reach this through FlushRelBuffer; it is also callable directly.
+func (s *Store) UpsertRelationships(edges []RelEdge) error {
+	if len(edges) == 0 {
+		return nil
+	}
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	stmt, err := tx.Preparex(tx.Rebind(upsertRelationshipSQL))
+	if err != nil {
+		return fmt.Errorf("prepare upsert relationships: %w", err)
+	}
+	defer func() { _ = stmt.Close() }()
+
+	discoveredAt := time.Now().UTC().Format(time.RFC3339)
+	for _, e := range edges {
+		dir := e.Direction
+		if dir == "" {
+			dir = "directed"
+		}
+		if _, err := stmt.Exec(e.FromID, e.ToID, e.Kind, dir, e.Attrs, discoveredAt); err != nil {
+			return fmt.Errorf("upsert relationship %s -[%s]-> %s: %w", e.FromID, e.Kind, e.ToID, err)
+		}
+	}
+	return tx.Commit()
 }
 
 // ReversedContainsEdges returns `contains` rows where `to_id` is an

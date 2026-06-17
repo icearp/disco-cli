@@ -189,12 +189,25 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 // reported and does not stop the others — partial graph beats no graph.
 func resolveRelationships(_ context.Context, acct *account, st *store.Store) {
 	for _, r := range registeredResolvers {
-		if err := r.fn(acct, st); err != nil {
+		// Buffer each resolver's edges and flush in one tx: collapses the
+		// per-edge autocommit serialisation on SQLite's single writer.
+		bs := st.BeginRelBuffer()
+		if err := r.fn(acct, bs); err != nil {
 			st.ReportError(store.ScanError{
 				Provider: "aws",
 				Service:  "resolve:" + r.name,
 				Scope:    acct.ID,
 				Message:  err.Error(),
+			})
+		}
+		// Flush whatever the resolver emitted before any error — partial graph
+		// beats no graph, matching the pre-buffer autocommit behaviour.
+		if ferr := bs.FlushRelBuffer(); ferr != nil {
+			st.ReportError(store.ScanError{
+				Provider: "aws",
+				Service:  "resolve:" + r.name,
+				Scope:    acct.ID,
+				Message:  ferr.Error(),
 			})
 		}
 	}

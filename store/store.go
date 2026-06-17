@@ -67,6 +67,7 @@ type Store struct {
 	OnWarn            func(ScanWarning)                                                         // skip-worthy error handled (transient, access-denied)
 	OnError           func(ScanError)                                                           // service or resolver failure; never aborts the scan
 	activeCounter     *atomic.Int64                                                             // non-nil only in scoped copies returned by WithRelCounter
+	relBuf            *relBuffer                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
@@ -93,6 +94,37 @@ func (s *Store) WithRelCounter(c *atomic.Int64) *Store {
 	s2 := *s
 	s2.activeCounter = c
 	return &s2
+}
+
+// BeginRelBuffer returns a shallow copy of the Store whose UpsertRelationship
+// calls accumulate into an in-memory buffer instead of each running its own
+// autocommit transaction. Call FlushRelBuffer on the returned store to write
+// every buffered edge in one transaction via UpsertRelationships.
+//
+// Phase-2 resolvers emit ~1k+ edges per scan; on SQLite (MaxOpenConns=1) every
+// autocommit INSERT serialises on the single writer, each paying prepare +
+// WAL-frame + lock overhead. Buffering per resolver collapses that to one tx
+// per resolver. Each call returns an independent buffer, so concurrent
+// resolvers (Azure runs them in an errgroup) each get their own — safe to use
+// one buffered store per resolver goroutine. activeCounter is preserved, so the
+// ReportResolveComplete edge tally is unaffected.
+func (s *Store) BeginRelBuffer() *Store {
+	s2 := *s
+	s2.relBuf = &relBuffer{}
+	return &s2
+}
+
+// FlushRelBuffer writes all edges buffered since BeginRelBuffer in a single
+// transaction and clears the buffer. No-op (nil) on a store without a buffer.
+func (s *Store) FlushRelBuffer() error {
+	if s.relBuf == nil {
+		return nil
+	}
+	s.relBuf.mu.Lock()
+	edges := s.relBuf.edges
+	s.relBuf.edges = nil
+	s.relBuf.mu.Unlock()
+	return s.UpsertRelationships(edges)
 }
 
 // ReportResolveStart fires OnResolveStart (if set).
@@ -218,8 +250,9 @@ func (s *Store) DB() *sqlx.DB {
 // Intended for read-only use from a multi-tenant request path, where the caller
 // has already issued `SET LOCAL search_path = tenant_<hex>, public` and
 // `SET LOCAL app.tenant_id = '<uuid>'` on the tx. Write methods that call
-// s.db.Begin* directly (UpsertResources, UpsertRelationships, etc.) will panic
-// on a nil pool — that is intentional; do not invoke them on this code path.
+// s.db.Begin* directly (UpsertResources, UpsertRelationships, RecordHierarchyBatch,
+// etc.) will panic on a nil pool — that is intentional; do not invoke them on
+// this code path.
 //
 // drv must match the dialect of the tx's driver: store.DriverPostgres for a
 // pgx-backed tx, store.DriverSQLite for SQLite.
