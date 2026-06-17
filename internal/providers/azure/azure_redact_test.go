@@ -17,8 +17,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
@@ -462,4 +464,54 @@ func TestRedact_ScVmmServer_Credentials(t *testing.T) {
 	if cred["password"] != redact.Placeholder {
 		t.Errorf("vmm password not redacted: %v", cred["password"])
 	}
+}
+
+func TestRedact_ManagedNetworkFabric_TerminalServerPassword(t *testing.T) {
+	f := armmanagednetworkfabric.NetworkFabric{Properties: &armmanagednetworkfabric.NetworkFabricProperties{
+		TerminalServerConfiguration: &armmanagednetworkfabric.TerminalServerConfiguration{
+			Username: to.Ptr("nfadmin"), Password: to.Ptr("hunter2"),
+		},
+	}}
+	got := applyAndDecode(t, TypeManagedNetworkFabric, f)
+	ts := got["properties"].(map[string]any)["terminalServerConfiguration"].(map[string]any)
+	if ts["password"] != redact.Placeholder {
+		t.Errorf("terminal server password not redacted: %v", ts["password"])
+	}
+	if ts["username"] != "nfadmin" {
+		t.Errorf("username clobbered: %v", ts["username"])
+	}
+}
+
+func TestRedact_NetworkCloudCluster_RackCredentials(t *testing.T) {
+	mk := func() *armnetworkcloud.RackDefinition {
+		return &armnetworkcloud.RackDefinition{
+			BareMetalMachineConfigurationData: []*armnetworkcloud.BareMetalMachineConfigurationData{
+				{BmcCredentials: &armnetworkcloud.AdministrativeCredentials{Username: to.Ptr("bmc"), Password: to.Ptr("hunter2")}},
+			},
+			StorageApplianceConfigurationData: []*armnetworkcloud.StorageApplianceConfigurationData{
+				{AdminCredentials: &armnetworkcloud.AdministrativeCredentials{Username: to.Ptr("sa"), Password: to.Ptr("hunter3")}},
+			},
+		}
+	}
+	c := armnetworkcloud.Cluster{Properties: &armnetworkcloud.ClusterProperties{
+		AggregatorOrSingleRackDefinition: mk(),
+		ComputeRackDefinitions:           []*armnetworkcloud.RackDefinition{mk()},
+	}}
+	got := applyAndDecode(t, TypeNetworkCloudCluster, c)
+	props := got["properties"].(map[string]any)
+	check := func(rack map[string]any) {
+		bmc := rack["bareMetalMachineConfigurationData"].([]any)[0].(map[string]any)["bmcCredentials"].(map[string]any)
+		if bmc["password"] != redact.Placeholder {
+			t.Errorf("bmc password not redacted: %v", bmc["password"])
+		}
+		if bmc["username"] != "bmc" {
+			t.Errorf("bmc username clobbered: %v", bmc["username"])
+		}
+		sa := rack["storageApplianceConfigurationData"].([]any)[0].(map[string]any)["adminCredentials"].(map[string]any)
+		if sa["password"] != redact.Placeholder {
+			t.Errorf("storage admin password not redacted: %v", sa["password"])
+		}
+	}
+	check(props["aggregatorOrSingleRackDefinition"].(map[string]any))
+	check(props["computeRackDefinitions"].([]any)[0].(map[string]any))
 }

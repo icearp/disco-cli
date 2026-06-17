@@ -135,6 +135,22 @@ func init() {
 		{Type: TypeCustomLocation, Attributes: []redact.Rule{
 			{Path: "properties.authentication.value", Mode: redact.RedactScalar},
 		}},
+		// Wave 4: Managed Network Fabric echoes the terminal-server connection
+		// password on the list response.
+		{Type: TypeManagedNetworkFabric, Attributes: []redact.Rule{
+			{Path: "properties.terminalServerConfiguration.password", Mode: redact.RedactScalar},
+		}},
+		// Operator Nexus clusters carry baseboard-management-controller and
+		// storage-appliance admin passwords in each rack definition (the SDK
+		// permits a plaintext password until the cluster moves to managed
+		// identity). Redact across the single aggregator rack and every compute
+		// rack.
+		{Type: TypeNetworkCloudCluster, Attributes: []redact.Rule{
+			{Path: "properties.aggregatorOrSingleRackDefinition.bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar},
+			{Path: "properties.aggregatorOrSingleRackDefinition.storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar},
+			{Path: "properties.computeRackDefinitions[*].bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar},
+			{Path: "properties.computeRackDefinitions[*].storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

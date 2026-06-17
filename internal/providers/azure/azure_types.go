@@ -57,6 +57,15 @@ const (
 	TypeKubernetesConnectedCluster    = "azure:microsoft.kubernetes:connected-cluster"
 	TypeResourceConnectorAppliance    = "azure:microsoft.resourceconnector:appliance"
 	TypeScVmmServer                   = "azure:microsoft.scvmm:vmm-server"
+	// Networking & telco/edge (Wave 4)
+	TypeEdgeZonesExtendedZone              = "azure:microsoft.edgezones:extended-zone"
+	TypeHybridNetworkFunction              = "azure:microsoft.hybridnetwork:network-function"
+	TypeManagedNetworkFabric               = "azure:microsoft.managednetworkfabric:network-fabric"
+	TypeNetworkCloudCluster                = "azure:microsoft.networkcloud:cluster"
+	TypeNetworkFunctionTrafficCollector    = "azure:microsoft.networkfunction:azure-traffic-collector"
+	TypeOrbitalSpacecraft                  = "azure:microsoft.orbital:spacecraft"
+	TypePeeringPeering                     = "azure:microsoft.peering:peering"
+	TypeServiceNetworkingTrafficController = "azure:microsoft.servicenetworking:traffic-controller"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -400,6 +409,14 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.kubernetes/connectedclusters":                               TypeKubernetesConnectedCluster,
 	"microsoft.resourceconnector/appliances":                               TypeResourceConnectorAppliance,
 	"microsoft.scvmm/vmmservers":                                           TypeScVmmServer,
+	"microsoft.edgezones/extendedzones":                                    TypeEdgeZonesExtendedZone,
+	"microsoft.hybridnetwork/networkfunctions":                             TypeHybridNetworkFunction,
+	"microsoft.managednetworkfabric/networkfabrics":                        TypeManagedNetworkFabric,
+	"microsoft.networkcloud/clusters":                                      TypeNetworkCloudCluster,
+	"microsoft.networkfunction/azuretrafficcollectors":                     TypeNetworkFunctionTrafficCollector,
+	"microsoft.orbital/spacecrafts":                                        TypeOrbitalSpacecraft,
+	"microsoft.peering/peerings":                                           TypePeeringPeering,
+	"microsoft.servicenetworking/trafficcontrollers":                       TypeServiceNetworkingTrafficController,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

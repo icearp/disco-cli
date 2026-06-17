@@ -1,0 +1,37 @@
+package azure
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkfunction/armnetworkfunction"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "azure:networkfunction",
+		fn:   scanNetworkFunction,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.networkfunction", DiscoType: TypeNetworkFunctionTrafficCollector, Leaf: true},
+		},
+	})
+}
+
+// scanNetworkFunction discovers Azure Traffic Collectors.
+func scanNetworkFunction(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	client, err := armnetworkfunction.NewAzureTrafficCollectorsBySubscriptionClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armnetworkfunction:NewAzureTrafficCollectorsBySubscriptionClient: %w", err)
+	}
+	return azSimpleScan(ctx, "armnetworkfunction:AzureTrafficCollectors.List", TypeNetworkFunctionTrafficCollector, sub, st, scanID,
+		client.NewListPager(nil),
+		func(p armnetworkfunction.AzureTrafficCollectorsBySubscriptionClientListResponse) []*armnetworkfunction.AzureTrafficCollector {
+			return p.Value
+		},
+		func(c *armnetworkfunction.AzureTrafficCollector) azTrackedBase {
+			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+		})
+}
