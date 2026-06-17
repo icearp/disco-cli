@@ -6,8 +6,13 @@ import (
 
 	"codeberg.org/icearp/disco/internal/redact"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/avs/armavs"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/botservice/armbotservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
@@ -190,6 +195,123 @@ func TestRedact_StreamAnalyticsJob(t *testing.T) {
 	}
 	if jsa["accountName"] != "sajobsa" {
 		t.Errorf("accountName clobbered: %v", jsa["accountName"])
+	}
+}
+
+// TestRedact_IoTHub asserts the SAS policy primary key and a routing-endpoint
+// connection string are redacted while a sibling (endpoint name) survives.
+func TestRedact_IoTHub(t *testing.T) {
+	hub := armiothub.Description{
+		Properties: &armiothub.Properties{
+			AuthorizationPolicies: []*armiothub.SharedAccessSignatureAuthorizationRule{
+				{KeyName: to.Ptr("iothubowner"), PrimaryKey: to.Ptr("primary-secret"), SecondaryKey: to.Ptr("secondary-secret")},
+			},
+			Routing: &armiothub.RoutingProperties{
+				Endpoints: &armiothub.RoutingEndpoints{
+					EventHubs: []*armiothub.RoutingEventHubProperties{
+						{Name: to.Ptr("eh-out"), ConnectionString: to.Ptr("Endpoint=sb://eh/;SharedAccessKey=secret")},
+					},
+				},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeIoTHub, hub)
+	props := got["properties"].(map[string]any)
+	pol := props["authorizationPolicies"].([]any)[0].(map[string]any)
+	if pol["primaryKey"] != redact.Placeholder || pol["secondaryKey"] != redact.Placeholder {
+		t.Errorf("SAS keys not redacted: %v", pol)
+	}
+	eh := props["routing"].(map[string]any)["endpoints"].(map[string]any)["eventHubs"].([]any)[0].(map[string]any)
+	if eh["connectionString"] != redact.Placeholder {
+		t.Errorf("routing connectionString not redacted: %v", eh["connectionString"])
+	}
+	if eh["name"] != "eh-out" {
+		t.Errorf("endpoint name clobbered: %v", eh["name"])
+	}
+}
+
+// TestRedact_AVSPrivateCloud asserts the NSX-T and vCenter admin passwords are
+// redacted.
+func TestRedact_AVSPrivateCloud(t *testing.T) {
+	pc := armavs.PrivateCloud{
+		Properties: &armavs.PrivateCloudProperties{
+			NsxtPassword:    to.Ptr("nsxt-secret"),
+			VcenterPassword: to.Ptr("vcenter-secret"),
+			IdentitySources: []*armavs.IdentitySource{
+				{Name: to.Ptr("ad"), Password: to.Ptr("ldap-bind-secret")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeAVSPrivateCloud, pc)
+	props := got["properties"].(map[string]any)
+	if props["nsxtPassword"] != redact.Placeholder || props["vcenterPassword"] != redact.Placeholder {
+		t.Errorf("AVS passwords not redacted: %v", props)
+	}
+	idsrc := props["identitySources"].([]any)[0].(map[string]any)
+	if idsrc["password"] != redact.Placeholder {
+		t.Errorf("identity-source bind password not redacted: %v", idsrc["password"])
+	}
+	if idsrc["name"] != "ad" {
+		t.Errorf("identity-source name clobbered: %v", idsrc["name"])
+	}
+}
+
+// TestRedact_DVCHostPool asserts the host-pool registration token is redacted.
+func TestRedact_DVCHostPool(t *testing.T) {
+	hp := armdesktopvirtualization.HostPool{
+		Properties: &armdesktopvirtualization.HostPoolProperties{
+			RegistrationInfo: &armdesktopvirtualization.RegistrationInfo{Token: to.Ptr("join-token-secret")},
+		},
+	}
+	got := applyAndDecode(t, TypeDVCHostPool, hp)
+	ri := got["properties"].(map[string]any)["registrationInfo"].(map[string]any)
+	if ri["token"] != redact.Placeholder {
+		t.Errorf("registration token not redacted: %v", ri["token"])
+	}
+}
+
+// TestRedact_DashboardGrafana asserts the SMTP password is redacted while a
+// sibling (host) survives.
+func TestRedact_DashboardGrafana(t *testing.T) {
+	g := armdashboard.ManagedGrafana{
+		Properties: &armdashboard.ManagedGrafanaProperties{
+			GrafanaConfigurations: &armdashboard.GrafanaConfigurations{
+				SMTP: &armdashboard.SMTP{Host: to.Ptr("smtp:587"), Password: to.Ptr("smtp-secret")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeDashboardGrafana, g)
+	smtp := got["properties"].(map[string]any)["grafanaConfigurations"].(map[string]any)["smtp"].(map[string]any)
+	if smtp["password"] != redact.Placeholder {
+		t.Errorf("SMTP password not redacted: %v", smtp["password"])
+	}
+	if smtp["host"] != "smtp:587" {
+		t.Errorf("SMTP host clobbered: %v", smtp["host"])
+	}
+}
+
+// TestRedact_BotServiceBot asserts the LUIS key, App Insights API key,
+// publishing credentials, and migration token on the bot list response are
+// redacted while a sibling (msaAppId) survives.
+func TestRedact_BotServiceBot(t *testing.T) {
+	bot := armbotservice.Bot{
+		Properties: &armbotservice.BotProperties{
+			MsaAppID:                   to.Ptr("00000000-0000-0000-0000-000000000000"),
+			LuisKey:                    to.Ptr("luis-secret"),
+			DeveloperAppInsightsAPIKey: to.Ptr("appinsights-secret"),
+			PublishingCredentials:      to.Ptr("publish-secret"),
+			MigrationToken:             to.Ptr("migration-secret"),
+		},
+	}
+	got := applyAndDecode(t, TypeBotServiceBot, bot)
+	props := got["properties"].(map[string]any)
+	for _, k := range []string{"luisKey", "developerAppInsightsApiKey", "publishingCredentials", "migrationToken"} {
+		if props[k] != redact.Placeholder {
+			t.Errorf("properties.%s not redacted: %v", k, props[k])
+		}
+	}
+	if props["msaAppId"] != "00000000-0000-0000-0000-000000000000" {
+		t.Errorf("msaAppId clobbered: %v", props["msaAppId"])
 	}
 }
 

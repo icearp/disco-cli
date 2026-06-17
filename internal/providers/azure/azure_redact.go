@@ -67,6 +67,44 @@ func init() {
 		{Type: TypeStreamAnalyticsJob, Attributes: []redact.Rule{
 			{Path: "properties.jobStorageAccount.accountKey", Mode: redact.RedactScalar},
 		}},
+		// IoT Hub routing endpoints + built-in SAS policies expose connection
+		// strings / keys on the standard list response.
+		{Type: TypeIoTHub, Attributes: []redact.Rule{
+			{Path: "properties.authorizationPolicies[*].primaryKey", Mode: redact.RedactScalar},
+			{Path: "properties.authorizationPolicies[*].secondaryKey", Mode: redact.RedactScalar},
+			{Path: "properties.routing.endpoints.eventHubs[*].connectionString", Mode: redact.RedactScalar},
+			{Path: "properties.routing.endpoints.serviceBusQueues[*].connectionString", Mode: redact.RedactScalar},
+			{Path: "properties.routing.endpoints.serviceBusTopics[*].connectionString", Mode: redact.RedactScalar},
+			{Path: "properties.routing.endpoints.storageContainers[*].connectionString", Mode: redact.RedactScalar},
+			{Path: "properties.routing.endpoints.cosmosDBSqlContainers[*].primaryKey", Mode: redact.RedactScalar},
+			{Path: "properties.storageEndpoints.*.connectionString", Mode: redact.RedactScalar},
+		}},
+		// AVD host pool registration token is a join credential on the list response.
+		{Type: TypeDVCHostPool, Attributes: []redact.Rule{
+			{Path: "properties.registrationInfo.token", Mode: redact.RedactScalar},
+		}},
+		// AVS private cloud echoes NSX-T / vCenter admin passwords and AD
+		// identity-source bind passwords.
+		{Type: TypeAVSPrivateCloud, Attributes: []redact.Rule{
+			{Path: "properties.nsxtPassword", Mode: redact.RedactScalar},
+			{Path: "properties.vcenterPassword", Mode: redact.RedactScalar},
+			{Path: "properties.identitySources[*].password", Mode: redact.RedactScalar},
+		}},
+		// Managed Grafana SMTP password ships under grafanaConfigurations.
+		{Type: TypeDashboardGrafana, Attributes: []redact.Rule{
+			{Path: "properties.grafanaConfigurations.smtp.password", Mode: redact.RedactScalar},
+		}},
+		// Bot Service bots carry live LUIS / App Insights keys, publishing
+		// credentials, and a migration token on the bot list response. (The
+		// channel / connection-setting secrets live on separate child clients
+		// disco does not call; appPasswordHint / cmekKeyVaultUrl are KV
+		// reference URIs, preserved by omission.)
+		{Type: TypeBotServiceBot, Attributes: []redact.Rule{
+			{Path: "properties.luisKey", Mode: redact.RedactScalar},
+			{Path: "properties.developerAppInsightsApiKey", Mode: redact.RedactScalar},
+			{Path: "properties.publishingCredentials", Mode: redact.RedactScalar},
+			{Path: "properties.migrationToken", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

@@ -212,6 +212,39 @@ const (
 	TypeStreamAnalyticsJob = "azure:microsoft.streamanalytics:streaming-job"
 	// HDInsight
 	TypeHDInsightCluster = "azure:microsoft.hdinsight:cluster"
+	// IoT Hub
+	TypeIoTHub = "azure:microsoft.devices:iot-hub"
+	// Azure Virtual Desktop
+	TypeDVCHostPool         = "azure:microsoft.desktopvirtualization:host-pool"
+	TypeDVCApplicationGroup = "azure:microsoft.desktopvirtualization:application-group"
+	TypeDVCWorkspace        = "azure:microsoft.desktopvirtualization:workspace"
+	TypeDVCScalingPlan      = "azure:microsoft.desktopvirtualization:scaling-plan"
+	// Service Fabric
+	TypeServiceFabricCluster = "azure:microsoft.servicefabric:cluster"
+	// Healthcare APIs
+	TypeHealthcareAPIsService   = "azure:microsoft.healthcareapis:service"
+	TypeHealthcareAPIsWorkspace = "azure:microsoft.healthcareapis:workspace"
+	// Azure VMware Solution
+	TypeAVSPrivateCloud = "azure:microsoft.avs:private-cloud"
+	// Azure Digital Twins
+	TypeDigitalTwinsInstance = "azure:microsoft.digitaltwins:digital-twins-instance"
+	// Relay
+	TypeRelayNamespace = "azure:microsoft.relay:namespace"
+	// Azure Maps
+	TypeMapsAccount = "azure:microsoft.maps:account"
+	// Communication Services
+	TypeCommunicationService      = "azure:microsoft.communication:communication-service"
+	TypeCommunicationEmailService = "azure:microsoft.communication:email-service"
+	// Storage Sync (Azure File Sync)
+	TypeStorageSyncService = "azure:microsoft.storagesync:storage-sync-service"
+	// Bot Service
+	TypeBotServiceBot = "azure:microsoft.botservice:bot"
+	// Microsoft Purview
+	TypePurviewAccount = "azure:microsoft.purview:account"
+	// Azure Managed Grafana
+	TypeDashboardGrafana = "azure:microsoft.dashboard:grafana"
+	// Azure Chaos Studio
+	TypeChaosExperiment = "azure:microsoft.chaos:experiment"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -383,4 +416,26 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.signalrservice/webpubsub":           TypeWebPubSub,
 	"microsoft.streamanalytics/streamingjobs":      TypeStreamAnalyticsJob,
 	"microsoft.hdinsight/clusters":                 TypeHDInsightCluster,
+	// IoT Hub / AVD / Service Fabric / Healthcare APIs / AVS / Digital Twins /
+	// Relay / Maps / Communication / Storage Sync / Bot Service / Purview /
+	// Managed Grafana / Chaos Studio
+	"microsoft.devices/iothubs":                         TypeIoTHub,
+	"microsoft.desktopvirtualization/hostpools":         TypeDVCHostPool,
+	"microsoft.desktopvirtualization/applicationgroups": TypeDVCApplicationGroup,
+	"microsoft.desktopvirtualization/workspaces":        TypeDVCWorkspace,
+	"microsoft.desktopvirtualization/scalingplans":      TypeDVCScalingPlan,
+	"microsoft.servicefabric/clusters":                  TypeServiceFabricCluster,
+	"microsoft.healthcareapis/services":                 TypeHealthcareAPIsService,
+	"microsoft.healthcareapis/workspaces":               TypeHealthcareAPIsWorkspace,
+	"microsoft.avs/privateclouds":                       TypeAVSPrivateCloud,
+	"microsoft.digitaltwins/digitaltwinsinstances":      TypeDigitalTwinsInstance,
+	"microsoft.relay/namespaces":                        TypeRelayNamespace,
+	"microsoft.maps/accounts":                           TypeMapsAccount,
+	"microsoft.communication/communicationservices":     TypeCommunicationService,
+	"microsoft.communication/emailservices":             TypeCommunicationEmailService,
+	"microsoft.storagesync/storagesyncservices":         TypeStorageSyncService,
+	"microsoft.botservice/botservices":                  TypeBotServiceBot,
+	"microsoft.purview/accounts":                        TypePurviewAccount,
+	"microsoft.dashboard/grafana":                       TypeDashboardGrafana,
+	"microsoft.chaos/experiments":                       TypeChaosExperiment,
 }
