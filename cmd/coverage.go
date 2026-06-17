@@ -414,26 +414,28 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 }
 
 // resolverAuditor finds the first registered coverage provider that exposes
-// resolver auditing (only AWS does today). Returns a clear error when no such
+// resolver auditing (only AWS does today). It returns the provider (for its
+// Name / Emits) alongside the auditor. Returns a clear error when no such
 // provider is compiled into this build (slim build) so `coverage resolvers`
 // degrades gracefully instead of the subcommand being absent.
-func resolverAuditor() (coverage.ResolverAuditor, error) {
+func resolverAuditor() (coverage.Provider, coverage.ResolverAuditor, error) {
 	for _, prov := range coverage.All() {
 		if ra, ok := prov.(coverage.ResolverAuditor); ok {
-			return ra, nil
+			return prov, ra, nil
 		}
 	}
-	return nil, fmt.Errorf("no provider in this build supports resolver coverage")
+	return nil, nil, fmt.Errorf("no provider in this build supports resolver coverage")
 }
 
 // runResolversList prints per-resolver EdgeDecl counts, optionally filtered
 // to resolvers that touch one of the named services.
 func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outputFmt string) error {
 	allowed := lowerSet(services)
-	ra, err := resolverAuditor()
+	prov, ra, err := resolverAuditor()
 	if err != nil {
 		return err
 	}
+	provName := prov.Name()
 	infos := ra.ListResolvers()
 	type row struct {
 		Provider string   `json:"provider"`
@@ -449,14 +451,14 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 		}
 		if r.EdgeCount == 0 {
 			unannotated++
-			rows = append(rows, row{Provider: "aws", Resolver: r.Name, Edges: 0, Services: r.Services})
+			rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: 0, Services: r.Services})
 			continue
 		}
 		annotated++
 		if onlyUnannotated {
 			continue
 		}
-		rows = append(rows, row{Provider: "aws", Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
+		rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 	}
 	switch outputFmt {
 	case "json":
@@ -504,19 +506,16 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 	return nil
 }
 
-// runResolversMissing prints orphan AWS disco types — those never appearing
+// runResolversMissing prints orphan disco types — those never appearing
 // as the Source of any EdgeDecl. Optionally filtered to types whose service
 // segment matches one of the named services.
 func runResolversMissing(w io.Writer, services []string, outputFmt string) error {
 	allowed := lowerSet(services)
-	prov, ok := coverage.Get("aws")
-	if !ok {
-		return fmt.Errorf("resolver coverage requires the aws provider, which is not included in this build")
-	}
-	ra, err := resolverAuditor()
+	prov, ra, err := resolverAuditor()
 	if err != nil {
 		return err
 	}
+	provName := prov.Name()
 	emitted := make(map[string]struct{})
 	for _, decl := range prov.Emits() {
 		if decl.Leaf {
@@ -548,7 +547,7 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 		if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
 			continue
 		}
-		rows = append(rows, row{Provider: "aws", DiscoType: t, Service: svc})
+		rows = append(rows, row{Provider: provName, DiscoType: t, Service: svc})
 	}
 	switch outputFmt {
 	case "json":
