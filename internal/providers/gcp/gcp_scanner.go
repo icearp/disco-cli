@@ -93,30 +93,36 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	var counter atomic.Int64
 	st2 := st.WithRelCounter(&counter)
 	for i := range projects {
-		if err := resolveRelationships(ctx, &projects[i], st2); err != nil {
-			return fmt.Errorf("gcp relationships %s: %w", projects[i].ID, err)
-		}
+		resolveRelationships(ctx, &projects[i], st2)
 	}
 	st.ReportResolveComplete("gcp", int(counter.Load()))
 	return nil
 }
 
 // resolveRelationships is phase 2 for GCP: derive edges between resources that
-// have already been written to the DB.
-func resolveRelationships(_ context.Context, p *project, st *store.Store) error {
-	for _, r := range registeredResolvers {
-		// Buffer each resolver's edges and flush in one tx: collapses the
-		// per-edge autocommit serialisation on SQLite's single writer.
-		bs := st.BeginRelBuffer()
-		err := r.fn(p, bs)
-		if ferr := bs.FlushRelBuffer(); ferr != nil && err == nil {
-			err = ferr
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+// have already been written to the DB. Resolvers run concurrently (bounded by
+// maxConcurrentServices) since they operate on disjoint resource types; a
+// failure in one is reported and does not stop the others — partial graph beats
+// no graph.
+func resolveRelationships(ctx context.Context, p *project, st *store.Store) {
+	_ = forEachItem(ctx, maxConcurrentServices, registeredResolvers,
+		func(_ context.Context, r resolverEntry) error {
+			// Each resolver gets its own buffered store (independent buffer) so
+			// concurrent resolvers stay isolated; flush collapses the per-edge
+			// autocommit serialisation into one tx per resolver.
+			bs := st.BeginRelBuffer()
+			if err := r.fn(p, bs); err != nil {
+				st.ReportError(store.ScanError{
+					Provider: "gcp", Service: "resolve", Scope: p.ID, Message: err.Error(),
+				})
+			}
+			if ferr := bs.FlushRelBuffer(); ferr != nil {
+				st.ReportError(store.ScanError{
+					Provider: "gcp", Service: "resolve", Scope: p.ID, Message: ferr.Error(),
+				})
+			}
+			return nil // resolver errors are reported, never abort siblings
+		})
 }
 
 // scanProject runs all per-project service scanners in parallel, bounded by

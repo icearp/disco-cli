@@ -1,6 +1,7 @@
 package store
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 )
@@ -100,6 +101,61 @@ func TestRelBuffer_DefersThenFlushes(t *testing.T) {
 	}
 	if got, _ := st.ListRelationships(); len(got) != 2 {
 		t.Errorf("after second flush: %d edges, want 2", len(got))
+	}
+}
+
+// TestRelBuffer_ConcurrentResolversPattern reproduces the provider phase-2
+// dispatch under the race detector: N "resolvers" run in parallel, each taking
+// its own buffered store off the shared counter-bound store, emitting edges,
+// reporting an error via OnError, and flushing. Pins that the buffer seam +
+// activeCounter + ReportError path is data-race-free under concurrency (run with
+// `go test -race`). Mirrors what aws/gcp/azure resolveRelationships now do.
+func TestRelBuffer_ConcurrentResolversPattern(t *testing.T) {
+	st := openTestStore(t)
+	const n = 16
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = mkNode(t, st, "i-"+string(rune('A'+i)))
+	}
+
+	var counter atomic.Int64
+	var errMu sync.Mutex
+	var errCount int
+	base := st.WithRelCounter(&counter)
+	// Emulate the scanrun-installed, mutex-guarded OnError closure.
+	base.OnError = func(ScanError) {
+		errMu.Lock()
+		errCount++
+		errMu.Unlock()
+	}
+
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			bs := base.BeginRelBuffer()
+			// Every resolver links node i -> node (i+1)%n.
+			if err := bs.UpsertRelationship(ids[i], ids[(i+1)%n], RelUses, "", nil); err != nil {
+				t.Errorf("buffered upsert: %v", err)
+			}
+			base.ReportError(ScanError{Provider: "test", Service: "resolve"})
+			if err := bs.FlushRelBuffer(); err != nil {
+				t.Errorf("flush: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if counter.Load() != n {
+		t.Errorf("counter = %d, want %d", counter.Load(), n)
+	}
+	if errCount != n {
+		t.Errorf("errCount = %d, want %d", errCount, n)
+	}
+	got, _ := st.ListRelationships()
+	if len(got) != n {
+		t.Errorf("edges = %d, want %d", len(got), n)
 	}
 }
 

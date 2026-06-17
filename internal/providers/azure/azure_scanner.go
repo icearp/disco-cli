@@ -159,31 +159,39 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 
 	st.ReportResolveStart("azure")
 	var counter atomic.Int64
-	err := resolveRelationships(ctx, sub, st.WithRelCounter(&counter))
+	resolveRelationships(ctx, sub, st.WithRelCounter(&counter))
 	st.ReportResolveComplete("azure", int(counter.Load()))
-	return err
+	return nil
 }
 
 // resolveRelationships is phase 2 for Azure: derive edges between resources
-// that have already been written to the DB. Resolvers run in parallel since
-// they operate on disjoint resource types.
-func resolveRelationships(ctx context.Context, sub *subscription, st *store.Store) error {
+// that have already been written to the DB. Resolvers run concurrently
+// (bounded by maxConcurrentResolvers) since they operate on disjoint resource
+// types; a failure in one is reported and does not stop the others — partial
+// graph beats no graph.
+func resolveRelationships(ctx context.Context, sub *subscription, st *store.Store) {
 	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrentResolvers)
 	for _, r := range registeredResolvers {
-		fn := r.fn
 		g.Go(func() error {
 			// Each resolver gets its own buffered store (independent buffer) so
 			// concurrent resolvers stay isolated; flush collapses the per-edge
 			// autocommit serialisation into one tx per resolver.
 			bs := st.BeginRelBuffer()
-			err := fn(sub, bs)
-			if ferr := bs.FlushRelBuffer(); ferr != nil && err == nil {
-				err = ferr
+			if err := r.fn(sub, bs); err != nil {
+				st.ReportError(store.ScanError{
+					Provider: "azure", Service: "resolve", Scope: sub.ID, Message: formatAzureError(err),
+				})
 			}
-			return err
+			if ferr := bs.FlushRelBuffer(); ferr != nil {
+				st.ReportError(store.ScanError{
+					Provider: "azure", Service: "resolve", Scope: sub.ID, Message: formatAzureError(ferr),
+				})
+			}
+			return nil // resolver errors are reported, never abort siblings
 		})
 	}
-	return g.Wait()
+	_ = g.Wait()
 }
 
 // filteredServices returns the services to run. When filter is non-empty, only

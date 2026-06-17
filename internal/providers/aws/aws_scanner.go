@@ -15,6 +15,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -185,32 +186,41 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 // resolveRelationships is phase 2: after all resources are written to the DB,
 // derive relationships from the JSON attributes stored on each resource.
 // Using ResourceID to compute stable IDs means we never need to read back
-// resources just to get their primary keys. A failure in one resolver is
-// reported and does not stop the others — partial graph beats no graph.
-func resolveRelationships(_ context.Context, acct *account, st *store.Store) {
+// resources just to get their primary keys. Resolvers run concurrently
+// (bounded by fanoutMed) since they operate on disjoint resource types; a
+// failure in one resolver is reported and does not stop the others — partial
+// graph beats no graph.
+func resolveRelationships(ctx context.Context, acct *account, st *store.Store) {
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(fanoutMed)
 	for _, r := range registeredResolvers {
-		// Buffer each resolver's edges and flush in one tx: collapses the
-		// per-edge autocommit serialisation on SQLite's single writer.
-		bs := st.BeginRelBuffer()
-		if err := r.fn(acct, bs); err != nil {
-			st.ReportError(store.ScanError{
-				Provider: "aws",
-				Service:  "resolve:" + r.name,
-				Scope:    acct.ID,
-				Message:  err.Error(),
-			})
-		}
-		// Flush whatever the resolver emitted before any error — partial graph
-		// beats no graph, matching the pre-buffer autocommit behaviour.
-		if ferr := bs.FlushRelBuffer(); ferr != nil {
-			st.ReportError(store.ScanError{
-				Provider: "aws",
-				Service:  "resolve:" + r.name,
-				Scope:    acct.ID,
-				Message:  ferr.Error(),
-			})
-		}
+		g.Go(func() error {
+			// Each resolver gets its own buffered store (independent buffer) so
+			// concurrent resolvers stay isolated; flush collapses the per-edge
+			// autocommit serialisation into one tx per resolver.
+			bs := st.BeginRelBuffer()
+			if err := r.fn(acct, bs); err != nil {
+				st.ReportError(store.ScanError{
+					Provider: "aws",
+					Service:  "resolve:" + r.name,
+					Scope:    acct.ID,
+					Message:  err.Error(),
+				})
+			}
+			// Flush whatever the resolver emitted before any error — partial
+			// graph beats no graph, matching the pre-buffer autocommit behaviour.
+			if ferr := bs.FlushRelBuffer(); ferr != nil {
+				st.ReportError(store.ScanError{
+					Provider: "aws",
+					Service:  "resolve:" + r.name,
+					Scope:    acct.ID,
+					Message:  ferr.Error(),
+				})
+			}
+			return nil // resolver errors are reported, never abort siblings
+		})
 	}
+	_ = g.Wait()
 }
 
 // scanRegion runs all regional service scanners in parallel, bounded by

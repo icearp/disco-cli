@@ -15,4 +15,11 @@ const (
 	// per subscription) while cutting sequential fanout rounds compared to
 	// the previous 20.
 	maxConcurrentFanout = 50
+
+	// maxConcurrentResolvers caps how many phase-2 relationship resolvers run
+	// in parallel. Resolvers are read/parse/index-build bound and each may
+	// materialise a ListResources index, so this is far lower than the per-API
+	// fanout cap — 10 matches the AWS (fanoutMed) and GCP (maxConcurrentServices)
+	// resolver dispatch caps for cross-provider parity.
+	maxConcurrentResolvers = 10
 )
