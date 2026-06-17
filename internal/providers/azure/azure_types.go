@@ -126,6 +126,16 @@ const (
 	TypeKeyVaultVault = "azure:microsoft.keyvault:vault"
 	// Storage
 	TypeStorageStorageAccount = "azure:microsoft.storage:storage-account"
+	// Storage & data-plane adjacencies (Wave 1)
+	TypeDataBoxJob                = "azure:microsoft.databox:job"
+	TypeDataBoxEdgeDevice         = "azure:microsoft.databoxedge:device"
+	TypeDataShareAccount          = "azure:microsoft.datashare:account"
+	TypeElasticSan                = "azure:microsoft.elasticsan:elastic-san"
+	TypeFileSharesFileShare       = "azure:microsoft.fileshares:file-share"
+	TypeStorageActionsTask        = "azure:microsoft.storageactions:storage-task"
+	TypeStorageCacheCache         = "azure:microsoft.storagecache:cache"
+	TypeStorageDiscoveryWorkspace = "azure:microsoft.storagediscovery:workspace"
+	TypeStorageMover              = "azure:microsoft.storagemover:storage-mover"
 	// SQL — servers and databases
 	TypeSQLServer   = "azure:microsoft.sql:server"
 	TypeSQLDatabase = "azure:microsoft.sql:database"
@@ -347,6 +357,15 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.containerservice/managedclusters":                           TypeContainerServiceManagedCluster,
 	"microsoft.keyvault/vaults":                                            TypeKeyVaultVault,
 	"microsoft.storage/storageaccounts":                                    TypeStorageStorageAccount,
+	"microsoft.databox/jobs":                                               TypeDataBoxJob,
+	"microsoft.databoxedge/databoxedgedevices":                             TypeDataBoxEdgeDevice,
+	"microsoft.datashare/accounts":                                         TypeDataShareAccount,
+	"microsoft.elasticsan/elasticsans":                                     TypeElasticSan,
+	"microsoft.fileshares/fileshares":                                      TypeFileSharesFileShare,
+	"microsoft.storageactions/storagetasks":                                TypeStorageActionsTask,
+	"microsoft.storagecache/caches":                                        TypeStorageCacheCache,
+	"microsoft.storagediscovery/storagediscoveryworkspaces":                TypeStorageDiscoveryWorkspace,
+	"microsoft.storagemover/storagemovers":                                 TypeStorageMover,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,
