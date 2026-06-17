@@ -61,6 +61,34 @@ func TestGraphWalk_Diamond(t *testing.T) {
 	}
 }
 
+// TestGraphWalk_MaxNodesNoDanglingEdges asserts that when MaxNodes truncates a
+// node, no surviving edge references the dropped node — edges are collected
+// before node admission, so the post-walk filter must drop the orphans.
+func TestGraphWalk_MaxNodesNoDanglingEdges(t *testing.T) {
+	st := openTestStore(t)
+	a, _, _, _ := seedDiamond(t, st)
+
+	g, err := st.GraphWalk(a, GraphWalkOpts{MaxDepth: 5, Direction: DirOut, MaxNodes: 2})
+	if err != nil {
+		t.Fatalf("GraphWalk: %v", err)
+	}
+	if g.TruncatedNodes == 0 {
+		t.Fatalf("expected node truncation with MaxNodes=2, got TruncatedNodes=0")
+	}
+	nodeIDs := make(map[string]struct{}, len(g.Nodes))
+	for _, n := range g.Nodes {
+		nodeIDs[n.Resource.ID] = struct{}{}
+	}
+	for _, e := range g.Edges {
+		if _, ok := nodeIDs[e.FromID]; !ok {
+			t.Errorf("edge %s->%s: FromID not in node set", e.FromID, e.ToID)
+		}
+		if _, ok := nodeIDs[e.ToID]; !ok {
+			t.Errorf("edge %s->%s: ToID not in node set", e.FromID, e.ToID)
+		}
+	}
+}
+
 // TestGraphWalk_DepthZero asserts that depth=0 returns only the seed.
 func TestGraphWalk_DepthZero(t *testing.T) {
 	st := openTestStore(t)

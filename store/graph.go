@@ -164,6 +164,8 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 		frontier = nextFrontier
 	}
 
+	result.Edges = pruneDanglingEdges(result.Edges, visited)
+
 	sort.Slice(result.Nodes, func(i, j int) bool {
 		if result.Nodes[i].Depth != result.Nodes[j].Depth {
 			return result.Nodes[i].Depth < result.Nodes[j].Depth
@@ -181,6 +183,25 @@ func (s *Store) GraphWalk(seedID string, opts GraphWalkOpts) (*GraphResult, erro
 	})
 
 	return result, nil
+}
+
+// pruneDanglingEdges drops edges whose endpoint was never admitted as a node.
+// GraphWalk collects edges before node admission, so a node dropped purely by
+// the MaxNodes cap would otherwise leave an edge referencing an absent ID.
+// admitted holds exactly the nodes added to the result (visited); truncated and
+// excluded nodes never appear. Mirrors GraphAll's included-set edge filter.
+func pruneDanglingEdges(edges []GraphEdge, admitted map[string]int) []GraphEdge {
+	kept := edges[:0]
+	for _, e := range edges {
+		if _, ok := admitted[e.FromID]; !ok {
+			continue
+		}
+		if _, ok := admitted[e.ToID]; !ok {
+			continue
+		}
+		kept = append(kept, e)
+	}
+	return kept
 }
 
 // collectFrontierEdges walks each frontier node in the requested direction(s)
