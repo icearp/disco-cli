@@ -1,0 +1,35 @@
+package azure
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devhub/armdevhub"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "azure:devhub",
+		fn:   scanDevHub,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.devhub", DiscoType: TypeDevHubWorkflow, Leaf: true},
+		},
+	})
+}
+
+// scanDevHub discovers devhub resources.
+func scanDevHub(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	client, err := armdevhub.NewWorkflowClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armdevhub:NewWorkflowClient: %w", err)
+	}
+	return azSimpleScan(ctx, "armdevhub:Workflow.List", TypeDevHubWorkflow, sub, st, scanID,
+		client.NewListPager(nil),
+		func(p armdevhub.WorkflowClientListResponse) []*armdevhub.Workflow { return p.Value },
+		func(r *armdevhub.Workflow) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+}

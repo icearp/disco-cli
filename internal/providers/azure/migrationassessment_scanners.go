@@ -1,0 +1,37 @@
+package azure
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/migrationassessment/armmigrationassessment"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "azure:migrationassessment",
+		fn:   scanMigrationAssessment,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.migrate", DiscoType: TypeMigrateAssessmentProject, Leaf: true},
+		},
+	})
+}
+
+// scanMigrationAssessment discovers migrationassessment resources.
+func scanMigrationAssessment(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	client, err := armmigrationassessment.NewAssessmentProjectsOperationsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armmigrationassessment:NewAssessmentProjectsOperationsClient: %w", err)
+	}
+	return azSimpleScan(ctx, "armmigrationassessment:AssessmentProjects.ListBySubscription", TypeMigrateAssessmentProject, sub, st, scanID,
+		client.NewListBySubscriptionPager(nil),
+		func(p armmigrationassessment.AssessmentProjectsOperationsClientListBySubscriptionResponse) []*armmigrationassessment.AssessmentProject {
+			return p.Value
+		},
+		func(r *armmigrationassessment.AssessmentProject) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+}

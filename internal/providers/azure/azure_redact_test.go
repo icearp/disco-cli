@@ -14,17 +14,20 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/labservices/armlabservices"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redhatopenshift/armredhatopenshift"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sqlvirtualmachine/armsqlvirtualmachine"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
@@ -597,5 +600,53 @@ func TestRedact_EdgeOrderItem_SasKey(t *testing.T) {
 	rs := got["properties"].(map[string]any)["orderItemDetails"].(map[string]any)["reverseShippingDetails"].(map[string]any)
 	if rs["sasKeyForLabel"] != redact.Placeholder {
 		t.Errorf("SAS key not redacted: %v", rs["sasKeyForLabel"])
+	}
+}
+
+func TestRedact_Domain_AuthCode(t *testing.T) {
+	d := armdomainregistration.Domain{Properties: &armdomainregistration.DomainProperties{
+		AuthCode: to.Ptr("epp-secret-code"),
+	}}
+	got := applyAndDecode(t, TypeDomain, d)
+	if got["properties"].(map[string]any)["authCode"] != redact.Placeholder {
+		t.Errorf("authCode not redacted")
+	}
+}
+
+func TestRedact_OpenShiftCluster_Secrets(t *testing.T) {
+	c := armredhatopenshift.OpenShiftCluster{Properties: &armredhatopenshift.OpenShiftClusterProperties{
+		ServicePrincipalProfile: &armredhatopenshift.ServicePrincipalProfile{ClientID: to.Ptr("cid"), ClientSecret: to.Ptr("sp-secret")},
+		ClusterProfile:          &armredhatopenshift.ClusterProfile{PullSecret: to.Ptr("{\"auths\":{}}")},
+	}}
+	got := applyAndDecode(t, TypeOpenShiftCluster, c)
+	p := got["properties"].(map[string]any)
+	if p["servicePrincipalProfile"].(map[string]any)["clientSecret"] != redact.Placeholder {
+		t.Errorf("SP clientSecret not redacted")
+	}
+	if p["servicePrincipalProfile"].(map[string]any)["clientId"] != "cid" {
+		t.Errorf("clientId clobbered")
+	}
+	if p["clusterProfile"].(map[string]any)["pullSecret"] != redact.Placeholder {
+		t.Errorf("pullSecret not redacted")
+	}
+}
+
+func TestRedact_LabServicesLab_Passwords(t *testing.T) {
+	l := armlabservices.Lab{Properties: &armlabservices.LabProperties{
+		VirtualMachineProfile: &armlabservices.VirtualMachineProfile{
+			AdminUser:    &armlabservices.Credentials{Username: to.Ptr("admin"), Password: to.Ptr("hunter2")},
+			NonAdminUser: &armlabservices.Credentials{Username: to.Ptr("student"), Password: to.Ptr("hunter3")},
+		},
+	}}
+	got := applyAndDecode(t, TypeLabServicesLab, l)
+	vm := got["properties"].(map[string]any)["virtualMachineProfile"].(map[string]any)
+	if vm["adminUser"].(map[string]any)["password"] != redact.Placeholder {
+		t.Errorf("admin password not redacted")
+	}
+	if vm["nonAdminUser"].(map[string]any)["password"] != redact.Placeholder {
+		t.Errorf("nonAdmin password not redacted")
+	}
+	if vm["adminUser"].(map[string]any)["username"] != "admin" {
+		t.Errorf("username clobbered")
 	}
 }

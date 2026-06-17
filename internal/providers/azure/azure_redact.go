@@ -180,6 +180,22 @@ func init() {
 		{Type: TypeEdgeOrderItem, Attributes: []redact.Rule{
 			{Path: "properties.orderItemDetails.reverseShippingDetails.sasKeyForLabel", Mode: redact.RedactScalar},
 		}},
+		// Wave 8 write-shape credentials echoed on list responses.
+		// (Public certificate bodies — certificateOrders signedCertificate/csr,
+		// confidentialLedger certBasedSecurityPrincipals[].cert — and public
+		// OIDC client/tenant IDs are preserved by omission, not redacted.)
+		{Type: TypeDomain, Attributes: []redact.Rule{
+			// Domain transfer / EPP authorization code.
+			{Path: "properties.authCode", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeOpenShiftCluster, Attributes: []redact.Rule{
+			{Path: "properties.servicePrincipalProfile.clientSecret", Mode: redact.RedactScalar},
+			{Path: "properties.clusterProfile.pullSecret", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeLabServicesLab, Attributes: []redact.Rule{
+			{Path: "properties.virtualMachineProfile.adminUser.password", Mode: redact.RedactScalar},
+			{Path: "properties.virtualMachineProfile.nonAdminUser.password", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

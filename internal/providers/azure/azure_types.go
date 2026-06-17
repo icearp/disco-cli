@@ -90,6 +90,30 @@ const (
 	TypeOnlineExperimentationWorkspace = "azure:microsoft.onlineexperimentation:workspace"
 	TypePlaywrightAccount              = "azure:microsoft.azureplaywrightservice:account"
 	TypeQuantumWorkspace               = "azure:microsoft.quantum:workspace"
+	// Dev/test, integration, mgmt, security, misc (Wave 8)
+	TypeAPICenterService              = "azure:microsoft.apicenter:service"
+	TypeAttestationProvider           = "azure:microsoft.attestation:attestation-provider"
+	TypeAutomanageConfigProfile       = "azure:microsoft.automanage:configuration-profile"
+	TypeAzureSphereCatalog            = "azure:microsoft.azuresphere:catalog"
+	TypeCertificateOrder              = "azure:microsoft.certificateregistration:certificate-order"
+	TypeConfidentialLedger            = "azure:microsoft.confidentialledger:ledger"
+	TypeDevCenter                     = "azure:microsoft.devcenter:dev-center"
+	TypeDevHubWorkflow                = "azure:microsoft.devhub:workflow"
+	TypeDevTestLab                    = "azure:microsoft.devtestlab:lab"
+	TypeDomain                        = "azure:microsoft.domainregistration:domain"
+	TypeDurableTaskScheduler          = "azure:microsoft.durabletask:scheduler"
+	TypeFabricCapacity                = "azure:microsoft.fabric:capacity"
+	TypeFluidRelayServer              = "azure:microsoft.fluidrelay:server"
+	TypeGraphServicesAccount          = "azure:microsoft.graphservices:account"
+	TypeDedicatedHsm                  = "azure:microsoft.hardwaresecuritymodules:dedicated-hsm"
+	TypeIntegrationSpace              = "azure:microsoft.integrationspaces:space"
+	TypeLabServicesLab                = "azure:microsoft.labservices:lab"
+	TypeMaintenanceConfiguration      = "azure:microsoft.maintenance:maintenance-configuration"
+	TypeMigrateAssessmentProject      = "azure:microsoft.migrate:assessment-project"
+	TypeNotificationHubNamespace      = "azure:microsoft.notificationhubs:namespace"
+	TypePowerPlatformEnterprisePolicy = "azure:microsoft.powerplatform:enterprise-policy"
+	TypeOpenShiftCluster              = "azure:microsoft.redhatopenshift:openshift-cluster"
+	TypeSpringbootSite                = "azure:microsoft.offazurespringboot:springboot-site"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -462,6 +486,29 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.onlineexperimentation/workspaces":                           TypeOnlineExperimentationWorkspace,
 	"microsoft.azureplaywrightservice/accounts":                            TypePlaywrightAccount,
 	"microsoft.quantum/workspaces":                                         TypeQuantumWorkspace,
+	"microsoft.apicenter/services":                                         TypeAPICenterService,
+	"microsoft.attestation/attestationproviders":                           TypeAttestationProvider,
+	"microsoft.automanage/configurationprofiles":                           TypeAutomanageConfigProfile,
+	"microsoft.azuresphere/catalogs":                                       TypeAzureSphereCatalog,
+	"microsoft.certificateregistration/certificateorders":                  TypeCertificateOrder,
+	"microsoft.confidentialledger/ledgers":                                 TypeConfidentialLedger,
+	"microsoft.devcenter/devcenters":                                       TypeDevCenter,
+	"microsoft.devhub/workflows":                                           TypeDevHubWorkflow,
+	"microsoft.devtestlab/labs":                                            TypeDevTestLab,
+	"microsoft.domainregistration/domains":                                 TypeDomain,
+	"microsoft.durabletask/schedulers":                                     TypeDurableTaskScheduler,
+	"microsoft.fabric/capacities":                                          TypeFabricCapacity,
+	"microsoft.fluidrelay/fluidrelayservers":                               TypeFluidRelayServer,
+	"microsoft.graphservices/accounts":                                     TypeGraphServicesAccount,
+	"microsoft.hardwaresecuritymodules/dedicatedhsms":                      TypeDedicatedHsm,
+	"microsoft.integrationspaces/spaces":                                   TypeIntegrationSpace,
+	"microsoft.labservices/labs":                                           TypeLabServicesLab,
+	"microsoft.maintenance/maintenanceconfigurations":                      TypeMaintenanceConfiguration,
+	"microsoft.migrate/assessmentprojects":                                 TypeMigrateAssessmentProject,
+	"microsoft.notificationhubs/namespaces":                                TypeNotificationHubNamespace,
+	"microsoft.powerplatform/enterprisepolicies":                           TypePowerPlatformEnterprisePolicy,
+	"microsoft.redhatopenshift/openshiftclusters":                          TypeOpenShiftCluster,
+	"microsoft.offazurespringboot/springbootsites":                         TypeSpringbootSite,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,
