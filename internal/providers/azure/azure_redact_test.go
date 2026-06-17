@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
@@ -583,5 +584,18 @@ func TestRedact_ComputeFleet_OSProfileSecrets(t *testing.T) {
 	}
 	if os["adminUsername"] != "azureuser" {
 		t.Errorf("adminUsername clobbered: %v", os["adminUsername"])
+	}
+}
+
+func TestRedact_EdgeOrderItem_SasKey(t *testing.T) {
+	o := armedgeorder.OrderItemResource{Properties: &armedgeorder.OrderItemProperties{
+		OrderItemDetails: &armedgeorder.OrderItemDetails{
+			ReverseShippingDetails: &armedgeorder.ReverseShippingDetails{SasKeyForLabel: to.Ptr("sv=2021&sig=secret")},
+		},
+	}}
+	got := applyAndDecode(t, TypeEdgeOrderItem, o)
+	rs := got["properties"].(map[string]any)["orderItemDetails"].(map[string]any)["reverseShippingDetails"].(map[string]any)
+	if rs["sasKeyForLabel"] != redact.Placeholder {
+		t.Errorf("SAS key not redacted: %v", rs["sasKeyForLabel"])
 	}
 }

@@ -76,6 +76,13 @@ const (
 	TypeStandbyVMPool               = "azure:microsoft.standbypool:standby-virtual-machine-pool"
 	TypeStandbyContainerGroupPool   = "azure:microsoft.standbypool:standby-container-group-pool"
 	TypeWorkloadsSAPVirtualInstance = "azure:microsoft.workloads:sap-virtual-instance"
+	// IoT / device / edge-order (Wave 6)
+	TypeDeviceRegistryAsset         = "azure:microsoft.deviceregistry:asset"
+	TypeDeviceUpdateAccount         = "azure:microsoft.deviceupdate:account"
+	TypeEdgeOrderItem               = "azure:microsoft.edgeorder:order-item"
+	TypeIoTCentralApp               = "azure:microsoft.iotcentral:iot-app"
+	TypeIoTFirmwareDefenseWorkspace = "azure:microsoft.iotfirmwaredefense:workspace"
+	TypeIoTOperationsInstance       = "azure:microsoft.iotoperations:instance"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -436,6 +443,12 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.standbypool/standbyvirtualmachinepools":                     TypeStandbyVMPool,
 	"microsoft.standbypool/standbycontainergrouppools":                     TypeStandbyContainerGroupPool,
 	"microsoft.workloads/sapvirtualinstances":                              TypeWorkloadsSAPVirtualInstance,
+	"microsoft.deviceregistry/assets":                                      TypeDeviceRegistryAsset,
+	"microsoft.deviceupdate/accounts":                                      TypeDeviceUpdateAccount,
+	"microsoft.edgeorder/orderitems":                                       TypeEdgeOrderItem,
+	"microsoft.iotcentral/iotapps":                                         TypeIoTCentralApp,
+	"microsoft.iotfirmwaredefense/workspaces":                              TypeIoTFirmwareDefenseWorkspace,
+	"microsoft.iotoperations/instances":                                    TypeIoTOperationsInstance,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

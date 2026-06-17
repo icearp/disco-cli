@@ -175,6 +175,11 @@ func init() {
 			{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.adminPassword", Mode: redact.RedactScalar},
 			{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.customData", Mode: redact.RedactScalar},
 		}},
+		// Wave 6: Edge Order items echo a read-only SAS key for the reverse-
+		// shipment label on the list response.
+		{Type: TypeEdgeOrderItem, Attributes: []redact.Rule{
+			{Path: "properties.orderItemDetails.reverseShippingDetails.sasKeyForLabel", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)
