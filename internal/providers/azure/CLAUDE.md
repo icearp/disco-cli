@@ -23,7 +23,8 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 - `vnetIDFromSubnetID(s)` — strip `/subnets/X` suffix to recover parent VNet ARM ID.
 - `nameFromID(id)` — last `/`-segment of ARM ID. Builds name-keyed indexes (vault-name, registry-name). NOTE: preserves case — lowercase the result when building a lookup key.
 - `vaultNameIndex(sub, st)` — lowercased `vault-name → resource-ID` index of the sub's Key Vaults. Shared by every CMK resolver mapping a key/vault URI back to a vault (cognitiveservices / appconfiguration / recoveryservices / ACR / Cosmos / network). Reuse — do not re-inline the list+loop.
-- `nativeIDIndex(sub, st, rtype)` — lowercased `NativeID → resource-ID` index for one type. Use when a reference field carries a full ARM resource ID (case-insensitive), not a name or URI. Precedent: `batch_resolvers.go` (auto-storage + key-vault refs).
+- `nativeIDIndex(sub, st, rtype)` — lowercased `NativeID → resource-ID` index for one type. Use when a reference field carries a full ARM resource ID (case-insensitive), not a name or URI. Precedent: `batch_resolvers.go` (auto-storage + key-vault refs), `machinelearning_resolvers.go` (storage/keyvault/acr).
+- `upsertVNetAttachment(st, fromID, subnetID, vnetByID)` — resolve a subnet ARM ID to its parent VNet (via `vnetIDFromSubnetID`) and emit `from -[attached-to]-> VNet` when in scope. `vnetByID` is a lowercased VNet `nativeIDIndex`. Shared by resolvers carrying VNet-injection subnet refs (kusto, appplatform, hdinsight). Lives in `kusto_resolvers.go`.
 - `vaultNameFromKeyURI(s)` — parse full Key Vault key URI (`https://v.vault.azure.net/keys/k/v`). Used by ACR / Cosmos / MySQL CMEK.
 - `vaultNameFromVaultURI(s)` — parse vault DNS root (`https://v.vault.azure.net/`). Used by Event Hubs / Service Bus CMEK. **Pick right one per service** — wrong choice silently produces zero edges.
 - `skipIfAccessDenied(st, svc, sub.ID, err)` — log scan warning, continue (returns nil).

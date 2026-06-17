@@ -195,6 +195,23 @@ const (
 	TypeDataProtectionBackupVault = "azure:microsoft.dataprotection:backup-vault"
 	// Batch
 	TypeBatchAccount = "azure:microsoft.batch:batch-account"
+	// Azure Data Explorer (Kusto)
+	TypeKustoCluster = "azure:microsoft.kusto:cluster"
+	// Azure NetApp Files
+	TypeNetAppAccount = "azure:microsoft.netapp:account"
+	// Azure Spring Apps
+	TypeAppPlatformService = "azure:microsoft.appplatform:spring"
+	// Azure Machine Learning
+	TypeMachineLearningWorkspace = "azure:microsoft.machinelearningservices:workspace"
+	// Automation
+	TypeAutomationAccount = "azure:microsoft.automation:automation-account"
+	// SignalR / Web PubSub
+	TypeSignalR   = "azure:microsoft.signalrservice:signalr"
+	TypeWebPubSub = "azure:microsoft.signalrservice:web-pub-sub"
+	// Stream Analytics
+	TypeStreamAnalyticsJob = "azure:microsoft.streamanalytics:streaming-job"
+	// HDInsight
+	TypeHDInsightCluster = "azure:microsoft.hdinsight:cluster"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -356,4 +373,14 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.recoveryservices/vaults":              TypeRecoveryServicesVault,
 	"microsoft.dataprotection/backupvaults":          TypeDataProtectionBackupVault,
 	"microsoft.batch/batchaccounts":                  TypeBatchAccount,
+	// Kusto / NetApp / Spring Apps / ML / Automation / SignalR / Web PubSub / Stream Analytics / HDInsight
+	"microsoft.kusto/clusters":                     TypeKustoCluster,
+	"microsoft.netapp/netappaccounts":              TypeNetAppAccount,
+	"microsoft.appplatform/spring":                 TypeAppPlatformService,
+	"microsoft.machinelearningservices/workspaces": TypeMachineLearningWorkspace,
+	"microsoft.automation/automationaccounts":      TypeAutomationAccount,
+	"microsoft.signalrservice/signalr":             TypeSignalR,
+	"microsoft.signalrservice/webpubsub":           TypeWebPubSub,
+	"microsoft.streamanalytics/streamingjobs":      TypeStreamAnalyticsJob,
+	"microsoft.hdinsight/clusters":                 TypeHDInsightCluster,
 }

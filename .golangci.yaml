@@ -10,6 +10,11 @@ linters:
     - unconvert
     - whitespace
   settings:
+    misspell:
+      # HDInsight is an Azure product name (SDK import path + type names);
+      # misspell otherwise "corrects" it to "hindsight".
+      ignore-rules:
+        - hdinsight
     gocyclo:
       min-complexity: 30
     govet:

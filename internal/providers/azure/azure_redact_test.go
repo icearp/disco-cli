@@ -7,6 +7,9 @@ import (
 	"codeberg.org/icearp/disco/internal/redact"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
 
 func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {
@@ -104,6 +107,89 @@ func TestRedact_CognitiveServicesAccount(t *testing.T) {
 		if api[k] != redact.Placeholder {
 			t.Errorf("apiProperties.%s not redacted: %v", k, api[k])
 		}
+	}
+}
+
+// TestRedact_NetAppAccount asserts the Active Directory bind password shipped
+// on the NetApp Accounts list response is redacted while a sibling field
+// (smbServerName) survives.
+func TestRedact_NetAppAccount(t *testing.T) {
+	acct := armnetapp.Account{
+		Properties: &armnetapp.AccountProperties{
+			ActiveDirectories: []*armnetapp.ActiveDirectory{
+				{Password: to.Ptr("ad-bind-secret"), SmbServerName: to.Ptr("SMBSRV")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeNetAppAccount, acct)
+	ad := got["properties"].(map[string]any)["activeDirectories"].([]any)[0].(map[string]any)
+	if ad["password"] != redact.Placeholder {
+		t.Errorf("AD password not redacted: %v", ad["password"])
+	}
+	if ad["smbServerName"] != "SMBSRV" {
+		t.Errorf("smbServerName clobbered: %v", ad["smbServerName"])
+	}
+}
+
+// TestRedact_HDInsightCluster asserts the Linux OS profile password (per role)
+// and the AD domain-join password are redacted, while a sibling (username)
+// survives.
+func TestRedact_HDInsightCluster(t *testing.T) {
+	cluster := armhdinsight.Cluster{
+		Properties: &armhdinsight.ClusterGetProperties{
+			ComputeProfile: &armhdinsight.ComputeProfile{
+				Roles: []*armhdinsight.Role{
+					{OSProfile: &armhdinsight.OsProfile{
+						LinuxOperatingSystemProfile: &armhdinsight.LinuxOperatingSystemProfile{
+							Username: to.Ptr("sshuser"),
+							Password: to.Ptr("node-secret"),
+						},
+					}},
+				},
+			},
+			SecurityProfile: &armhdinsight.SecurityProfile{
+				DomainUsername:     to.Ptr("dom\\admin"),
+				DomainUserPassword: to.Ptr("domain-secret"),
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeHDInsightCluster, cluster)
+	props := got["properties"].(map[string]any)
+	role := props["computeProfile"].(map[string]any)["roles"].([]any)[0].(map[string]any)
+	los := role["osProfile"].(map[string]any)["linuxOperatingSystemProfile"].(map[string]any)
+	if los["password"] != redact.Placeholder {
+		t.Errorf("linux password not redacted: %v", los["password"])
+	}
+	if los["username"] != "sshuser" {
+		t.Errorf("username clobbered: %v", los["username"])
+	}
+	sec := props["securityProfile"].(map[string]any)
+	if sec["domainUserPassword"] != redact.Placeholder {
+		t.Errorf("domainUserPassword not redacted: %v", sec["domainUserPassword"])
+	}
+	if sec["domainUsername"] != "dom\\admin" {
+		t.Errorf("domainUsername clobbered: %v", sec["domainUsername"])
+	}
+}
+
+// TestRedact_StreamAnalyticsJob asserts the job storage account key shipped on
+// the streaming-job list response is redacted while the account name survives.
+func TestRedact_StreamAnalyticsJob(t *testing.T) {
+	job := armstreamanalytics.StreamingJob{
+		Properties: &armstreamanalytics.StreamingJobProperties{
+			JobStorageAccount: &armstreamanalytics.JobStorageAccount{
+				AccountName: to.Ptr("sajobsa"),
+				AccountKey:  to.Ptr("storage-key-secret"),
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeStreamAnalyticsJob, job)
+	jsa := got["properties"].(map[string]any)["jobStorageAccount"].(map[string]any)
+	if jsa["accountKey"] != redact.Placeholder {
+		t.Errorf("accountKey not redacted: %v", jsa["accountKey"])
+	}
+	if jsa["accountName"] != "sajobsa" {
+		t.Errorf("accountName clobbered: %v", jsa["accountName"])
 	}
 }
 

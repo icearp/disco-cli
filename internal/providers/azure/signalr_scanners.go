@@ -1,0 +1,36 @@
+package azure
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/signalr/armsignalr"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "azure:signalr",
+		fn:   scanSignalR,
+		emits: []coverage.TypeDecl{
+			// Identity → MSI and private-endpoint edges resolve centrally.
+			{Service: "microsoft.signalrservice", DiscoType: TypeSignalR, Leaf: true},
+		},
+	})
+}
+
+// scanSignalR discovers Azure SignalR Service resources.
+func scanSignalR(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	client, err := armsignalr.NewClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armsignalr:NewClient: %w", err)
+	}
+	return azSimpleScan(ctx, "armsignalr:SignalR.ListBySubscription", TypeSignalR, sub, st, scanID,
+		client.NewListBySubscriptionPager(nil),
+		func(p armsignalr.ClientListBySubscriptionResponse) []*armsignalr.ResourceInfo { return p.Value },
+		func(r *armsignalr.ResourceInfo) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+}

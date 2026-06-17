@@ -47,6 +47,26 @@ func init() {
 			{Path: "properties.apiProperties.storageAccountConnectionString", Mode: redact.RedactScalar},
 			{Path: "properties.migrationToken", Mode: redact.RedactScalar},
 		}},
+		// NetApp account Active Directory bind password ships on the standard
+		// Accounts list response.
+		{Type: TypeNetAppAccount, Attributes: []redact.Rule{
+			{Path: "properties.activeDirectories[*].password", Mode: redact.RedactScalar},
+		}},
+		// HDInsight cluster Get/List response echoes the Linux OS profile
+		// password (per compute role) and the AD domain-join password.
+		// (clusterDefinition.configurations is an untyped map that can also
+		// hold gateway/storage secrets; disco's dotted-path redact can't target
+		// freeform `any`, so that residual is not covered here.)
+		{Type: TypeHDInsightCluster, Attributes: []redact.Rule{
+			{Path: "properties.computeProfile.roles[*].osProfile.linuxOperatingSystemProfile.password", Mode: redact.RedactScalar},
+			{Path: "properties.securityProfile.domainUserPassword", Mode: redact.RedactScalar},
+		}},
+		// Stream Analytics job storage account key ships on the streaming-job
+		// list response (inputs/outputs are not $expand'd, so their datasource
+		// credentials never surface).
+		{Type: TypeStreamAnalyticsJob, Attributes: []redact.Rule{
+			{Path: "properties.jobStorageAccount.accountKey", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)
