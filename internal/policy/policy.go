@@ -176,10 +176,15 @@ func (e *Engine) Evaluate(ctx context.Context, resources []store.Resource) ([]Fi
 // or `input.tags.env`. Custody timestamps + scan-run IDs surface so policies
 // can express freshness-bound controls (`time.parse_rfc3339_ns(input.verified_at)`).
 func resourceToInput(r *store.Resource) (map[string]any, error) {
-	var attrs any
+	// Fall back to an empty object (not the raw string) on malformed JSON so
+	// object-shaped policies (`input.attributes.Encrypted`) fail closed rather
+	// than silently match nothing against a scalar — matches the documented
+	// `{}`-on-malformed contract.
+	var attrs any = map[string]any{}
 	if r.AttributesJSON != "" {
-		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
-			attrs = r.AttributesJSON
+		var parsed any
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &parsed); err == nil {
+			attrs = parsed
 		}
 	}
 	var tags any = map[string]any{}
@@ -187,8 +192,6 @@ func resourceToInput(r *store.Resource) (map[string]any, error) {
 		var parsed any
 		if err := json.Unmarshal([]byte(*r.TagsJSON), &parsed); err == nil {
 			tags = parsed
-		} else {
-			tags = *r.TagsJSON
 		}
 	}
 	return map[string]any{

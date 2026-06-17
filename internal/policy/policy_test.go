@@ -111,6 +111,36 @@ func TestResourceToInput_NilTagsEmptyMap(t *testing.T) {
 	}
 }
 
+// TestResourceToInput_MalformedJSONFailsClosed: malformed attributes/tags must
+// fall back to an empty object (not the raw string) so object-shaped policies
+// (`input.attributes.X`) match nothing against {} rather than silently matching
+// nothing against a scalar — fails closed, matching the documented contract.
+func TestResourceToInput_MalformedJSONFailsClosed(t *testing.T) {
+	badTags := `{not json`
+	r := &store.Resource{
+		ID: "abc", Provider: "aws", AccountID: "111", Type: "aws:s3:bucket",
+		NativeID: "b1", AttributesJSON: `{not json`, TagsJSON: &badTags,
+	}
+	in, err := resourceToInput(r)
+	if err != nil {
+		t.Fatalf("resourceToInput: %v", err)
+	}
+	attrs, ok := in["attributes"].(map[string]any)
+	if !ok {
+		t.Fatalf("attributes not map[string]any on malformed JSON: %T", in["attributes"])
+	}
+	if len(attrs) != 0 {
+		t.Errorf("want empty attrs map, got %v", attrs)
+	}
+	tags, ok := in["tags"].(map[string]any)
+	if !ok {
+		t.Fatalf("tags not map[string]any on malformed JSON: %T", in["tags"])
+	}
+	if len(tags) != 0 {
+		t.Errorf("want empty tags map, got %v", tags)
+	}
+}
+
 // TestEngine_EmptyPolicies confirms an engine built with no modules
 // evaluates cleanly and emits zero findings.
 func TestEngine_EmptyPolicies(t *testing.T) {
