@@ -397,8 +397,12 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
 	for _, p := range provNames {
-		if p != "aws" {
-			return fmt.Errorf("coverage resolvers currently supports --providers aws (got %q)", p)
+		prov, ok := coverage.Get(p)
+		if !ok {
+			return fmt.Errorf("provider %q has no coverage support; registered: %v", p, coverage.Names())
+		}
+		if _, ok := prov.(coverage.ResolverAuditor); !ok {
+			return fmt.Errorf("provider %q does not support resolver coverage", p)
 		}
 	}
 
@@ -409,20 +413,17 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	return runResolversList(w, services, onlyUnannotated, outputFmt)
 }
 
-// resolverAuditor fetches the aws provider's resolver registry through the
-// coverage registry. Returns a clear error when the aws provider is not
-// compiled into this build (slim build) so `coverage resolvers` degrades
-// gracefully instead of the subcommand being absent.
+// resolverAuditor finds the first registered coverage provider that exposes
+// resolver auditing (only AWS does today). Returns a clear error when no such
+// provider is compiled into this build (slim build) so `coverage resolvers`
+// degrades gracefully instead of the subcommand being absent.
 func resolverAuditor() (coverage.ResolverAuditor, error) {
-	prov, ok := coverage.Get("aws")
-	if !ok {
-		return nil, fmt.Errorf("resolver coverage requires the aws provider, which is not included in this build")
+	for _, prov := range coverage.All() {
+		if ra, ok := prov.(coverage.ResolverAuditor); ok {
+			return ra, nil
+		}
 	}
-	ra, ok := prov.(coverage.ResolverAuditor)
-	if !ok {
-		return nil, fmt.Errorf("aws coverage provider does not expose resolver auditing")
-	}
-	return ra, nil
+	return nil, fmt.Errorf("no provider in this build supports resolver coverage")
 }
 
 // runResolversList prints per-resolver EdgeDecl counts, optionally filtered
