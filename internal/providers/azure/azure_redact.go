@@ -117,6 +117,24 @@ func init() {
 			{Path: "properties.connectionString", Mode: redact.RedactScalar},
 			{Path: "properties.administrator.password", Mode: redact.RedactScalar},
 		}},
+		// Wave 3 Arc services that echo connect-credentials on the list response.
+		{Type: TypeAzureArcDataController, Attributes: []redact.Rule{
+			{Path: "properties.logsDashboardCredential.password", Mode: redact.RedactScalar},
+			{Path: "properties.metricsDashboardCredential.password", Mode: redact.RedactScalar},
+			// Log Analytics workspace shared key echoed on the list response.
+			{Path: "properties.logAnalyticsWorkspaceConfig.primaryKey", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeConnectedVMwareVCenter, Attributes: []redact.Rule{
+			{Path: "properties.credentials.password", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeScVmmServer, Attributes: []redact.Rule{
+			{Path: "properties.credentials.password", Mode: redact.RedactScalar},
+		}},
+		// Custom Location optional authentication carries a kubeconfig value
+		// (bearer token / client cert) — redact it.
+		{Type: TypeCustomLocation, Attributes: []redact.Rule{
+			{Path: "properties.authentication.value", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

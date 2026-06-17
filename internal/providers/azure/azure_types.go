@@ -47,6 +47,16 @@ const (
 	TypeMongoCluster             = "azure:microsoft.documentdb:mongo-cluster"
 	TypePostgreSQLServerGroupV2  = "azure:microsoft.dbforpostgresql:server-group-v2"
 	TypePowerBIDedicatedCapacity = "azure:microsoft.powerbidedicated:capacity"
+	// Hybrid / Arc (Wave 3)
+	TypeAzureArcDataController        = "azure:microsoft.azurearcdata:data-controller"
+	TypeAzureStackHCICluster          = "azure:microsoft.azurestackhci:cluster"
+	TypeConnectedVMwareVCenter        = "azure:microsoft.connectedvmwarevsphere:vcenter"
+	TypeCustomLocation                = "azure:microsoft.extendedlocation:custom-location"
+	TypeHybridComputeMachine          = "azure:microsoft.hybridcompute:machine"
+	TypeHybridContainerVirtualNetwork = "azure:microsoft.hybridcontainerservice:virtual-network"
+	TypeKubernetesConnectedCluster    = "azure:microsoft.kubernetes:connected-cluster"
+	TypeResourceConnectorAppliance    = "azure:microsoft.resourceconnector:appliance"
+	TypeScVmmServer                   = "azure:microsoft.scvmm:vmm-server"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -381,6 +391,15 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.documentdb/mongoclusters":                                   TypeMongoCluster,
 	"microsoft.dbforpostgresql/servergroupsv2":                             TypePostgreSQLServerGroupV2,
 	"microsoft.powerbidedicated/capacities":                                TypePowerBIDedicatedCapacity,
+	"microsoft.azurearcdata/datacontrollers":                               TypeAzureArcDataController,
+	"microsoft.azurestackhci/clusters":                                     TypeAzureStackHCICluster,
+	"microsoft.connectedvmwarevsphere/vcenters":                            TypeConnectedVMwareVCenter,
+	"microsoft.extendedlocation/customlocations":                           TypeCustomLocation,
+	"microsoft.hybridcompute/machines":                                     TypeHybridComputeMachine,
+	"microsoft.hybridcontainerservice/virtualnetworks":                     TypeHybridContainerVirtualNetwork,
+	"microsoft.kubernetes/connectedclusters":                               TypeKubernetesConnectedCluster,
+	"microsoft.resourceconnector/appliances":                               TypeResourceConnectorAppliance,
+	"microsoft.scvmm/vmmservers":                                           TypeScVmmServer,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

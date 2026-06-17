@@ -7,16 +7,20 @@ import (
 	"codeberg.org/icearp/disco/internal/redact"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/avs/armavs"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/botservice/armbotservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
 
@@ -388,5 +392,74 @@ func TestRedact_MongoCluster_ConnectionString(t *testing.T) {
 	}
 	if admin["userName"] != "mongoadmin" {
 		t.Errorf("userName clobbered: %v", admin["userName"])
+	}
+}
+
+func TestRedact_AzureArcDataController_DashboardCreds(t *testing.T) {
+	dc := armazurearcdata.DataControllerResource{Properties: &armazurearcdata.DataControllerProperties{
+		LogsDashboardCredential:    &armazurearcdata.BasicLoginInformation{Username: to.Ptr("logsu"), Password: to.Ptr("hunter2")},
+		MetricsDashboardCredential: &armazurearcdata.BasicLoginInformation{Username: to.Ptr("metru"), Password: to.Ptr("hunter3")},
+		LogAnalyticsWorkspaceConfig: &armazurearcdata.LogAnalyticsWorkspaceConfig{
+			WorkspaceID: to.Ptr("ws-id"), PrimaryKey: to.Ptr("la-shared-key"),
+		},
+	}}
+	got := applyAndDecode(t, TypeAzureArcDataController, dc)
+	props := got["properties"].(map[string]any)
+	for _, k := range []string{"logsDashboardCredential", "metricsDashboardCredential"} {
+		cred := props[k].(map[string]any)
+		if cred["password"] != redact.Placeholder {
+			t.Errorf("%s.password not redacted: %v", k, cred["password"])
+		}
+		if cred["username"] == redact.Placeholder || cred["username"] == nil {
+			t.Errorf("%s.username clobbered: %v", k, cred["username"])
+		}
+	}
+	la := props["logAnalyticsWorkspaceConfig"].(map[string]any)
+	if la["primaryKey"] != redact.Placeholder {
+		t.Errorf("LA primaryKey not redacted: %v", la["primaryKey"])
+	}
+	if la["workspaceId"] != "ws-id" {
+		t.Errorf("workspaceId clobbered: %v", la["workspaceId"])
+	}
+}
+
+func TestRedact_CustomLocation_AuthenticationKubeconfig(t *testing.T) {
+	cl := armextendedlocation.CustomLocation{Properties: &armextendedlocation.CustomLocationProperties{
+		Authentication: &armextendedlocation.CustomLocationPropertiesAuthentication{
+			Type: to.Ptr("KubeConfig"), Value: to.Ptr("apiVersion: v1\nusers:\n- user:\n    token: secret-bearer"),
+		},
+	}}
+	got := applyAndDecode(t, TypeCustomLocation, cl)
+	auth := got["properties"].(map[string]any)["authentication"].(map[string]any)
+	if auth["value"] != redact.Placeholder {
+		t.Errorf("kubeconfig value not redacted: %v", auth["value"])
+	}
+	if auth["type"] != "KubeConfig" {
+		t.Errorf("auth type clobbered: %v", auth["type"])
+	}
+}
+
+func TestRedact_ConnectedVMwareVCenter_Credentials(t *testing.T) {
+	v := armconnectedvmware.VCenter{Properties: &armconnectedvmware.VCenterProperties{
+		Credentials: &armconnectedvmware.VICredential{Username: to.Ptr("admin@vsphere"), Password: to.Ptr("hunter2")},
+	}}
+	got := applyAndDecode(t, TypeConnectedVMwareVCenter, v)
+	cred := got["properties"].(map[string]any)["credentials"].(map[string]any)
+	if cred["password"] != redact.Placeholder {
+		t.Errorf("vcenter password not redacted: %v", cred["password"])
+	}
+	if cred["username"] != "admin@vsphere" {
+		t.Errorf("username clobbered: %v", cred["username"])
+	}
+}
+
+func TestRedact_ScVmmServer_Credentials(t *testing.T) {
+	s := armscvmm.VmmServer{Properties: &armscvmm.VmmServerProperties{
+		Credentials: &armscvmm.VmmCredential{Username: to.Ptr("svc\\vmm"), Password: to.Ptr("hunter2")},
+	}}
+	got := applyAndDecode(t, TypeScVmmServer, s)
+	cred := got["properties"].(map[string]any)["credentials"].(map[string]any)
+	if cred["password"] != redact.Placeholder {
+		t.Errorf("vmm password not redacted: %v", cred["password"])
 	}
 }
