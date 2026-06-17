@@ -105,6 +105,18 @@ func init() {
 			{Path: "properties.publishingCredentials", Mode: redact.RedactScalar},
 			{Path: "properties.migrationToken", Mode: redact.RedactScalar},
 		}},
+		// Wave 2 database flavours that echo a write-shape admin password /
+		// connection string on the standard list response.
+		{Type: TypeHorizonDBCluster, Attributes: []redact.Rule{
+			{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar},
+		}},
+		{Type: TypePostgreSQLServerGroupV2, Attributes: []redact.Rule{
+			{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeMongoCluster, Attributes: []redact.Rule{
+			{Path: "properties.connectionString", Mode: redact.RedactScalar},
+			{Path: "properties.administrator.password", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

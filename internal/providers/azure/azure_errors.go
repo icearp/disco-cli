@@ -34,12 +34,31 @@ func isSubscriptionNotRegistered(err error) bool {
 	return false
 }
 
+// isResourceTypeUnavailable reports the benign "this resource type / API
+// version is not available in this scope" condition. It fires when an SDK
+// module pins an API version newer than what the target tenant/region has
+// rolled out (404 InvalidResourceType: "the resource type X could not be found
+// in the namespace Y for api version Z") or when the pinned API version is not
+// accepted at all (400 InvalidApiVersionParameter / NoRegisteredProviderFound).
+// Like an unregistered provider, there is nothing to enumerate, so the list is
+// skipped rather than surfaced as a hard error.
+func isResourceTypeUnavailable(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.ErrorCode == "InvalidResourceType" ||
+			respErr.ErrorCode == "InvalidApiVersionParameter" ||
+			respErr.ErrorCode == "NoRegisteredProviderFound"
+	}
+	return false
+}
+
 // isSkippableScanError is the canonical "this list call cannot return
 // resources; log a ScanWarning and continue" predicate for scanners. An
-// unregistered resource provider (isSubscriptionNotRegistered) genuinely has
-// no resources of the type, exactly like a denied (isAccessDenied) list.
+// unregistered resource provider (isSubscriptionNotRegistered) or an
+// unavailable resource type / API version (isResourceTypeUnavailable) genuinely
+// has no resources to enumerate, exactly like a denied (isAccessDenied) list.
 func isSkippableScanError(err error) bool {
-	return isAccessDenied(err) || isSubscriptionNotRegistered(err)
+	return isAccessDenied(err) || isSubscriptionNotRegistered(err) || isResourceTypeUnavailable(err)
 }
 
 // isFeatureNotAvailable reports whether err is a 400 FeatureDisabledOnSelectedEdition

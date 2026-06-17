@@ -39,6 +39,14 @@ const (
 	// Database flexible servers
 	TypePostgreSQLFlexibleServer = "azure:microsoft.dbforpostgresql:flexible-server"
 	TypeMySQLFlexibleServer      = "azure:microsoft.dbformysql:flexible-server"
+	// Databases & analytics (Wave 2)
+	TypeAnalysisServicesServer   = "azure:microsoft.analysisservices:server"
+	TypeDatabaseWatcher          = "azure:microsoft.databasewatcher:watcher"
+	TypeDataMigrationService     = "azure:microsoft.datamigration:service"
+	TypeHorizonDBCluster         = "azure:microsoft.horizondb:cluster"
+	TypeMongoCluster             = "azure:microsoft.documentdb:mongo-cluster"
+	TypePostgreSQLServerGroupV2  = "azure:microsoft.dbforpostgresql:server-group-v2"
+	TypePowerBIDedicatedCapacity = "azure:microsoft.powerbidedicated:capacity"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -366,6 +374,13 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.storagecache/caches":                                        TypeStorageCacheCache,
 	"microsoft.storagediscovery/storagediscoveryworkspaces":                TypeStorageDiscoveryWorkspace,
 	"microsoft.storagemover/storagemovers":                                 TypeStorageMover,
+	"microsoft.analysisservices/servers":                                   TypeAnalysisServicesServer,
+	"microsoft.databasewatcher/watchers":                                   TypeDatabaseWatcher,
+	"microsoft.datamigration/services":                                     TypeDataMigrationService,
+	"microsoft.horizondb/clusters":                                         TypeHorizonDBCluster,
+	"microsoft.documentdb/mongoclusters":                                   TypeMongoCluster,
+	"microsoft.dbforpostgresql/servergroupsv2":                             TypePostgreSQLServerGroupV2,
+	"microsoft.powerbidedicated/capacities":                                TypePowerBIDedicatedCapacity,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

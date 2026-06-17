@@ -16,6 +16,8 @@ github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.3.2 h1:yz1bePFlP5Vws5+
 github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache v0.3.2/go.mod h1:Pa9ZNPuoNu/GztvBSKk9J1cDJW6vk/n0zLtV4mgd8N8=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6XuRW0nU7hgg4zlmZZa+a9q4=
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/analysisservices/armanalysisservices v1.2.0 h1:iCQzouPqEJkjvgXooBv/AlUp16HHB+fR5S7CU1wDns8=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/analysisservices/armanalysisservices v1.2.0/go.mod h1:IDarmBQ4VwelvI5xEwBtDommOZYwb5xAsGS/ok1MYcg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement v1.1.1 h1:jCkNVNpsEevyic4bmjgVjzVA4tMGSJpXNGirf+S+mDI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/apimanagement/armapimanagement v1.1.1/go.mod h1:a0Ug1l73Il7EhrCJEEt2dGjlNjvphppZq5KqJdgnwuw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appconfiguration/armappconfiguration v1.1.1 h1:iRc20pGuVlc1HwRO2bg0m1tfP9rkPB0K88trl8Fei2w=
@@ -58,6 +60,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos v1.0.0 h1
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos v1.0.0/go.mod h1:Qpe/qN9d5IQ7WPtTXMRCd6+BWTnhi3sxXVys6oJ5Vho=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0 h1:MRPU8Bge2f9tkfG3PCr4vEnqXl8XOSjlhuK3l+8Hvkc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard v1.2.0/go.mod h1:xYrOYxajQvXMlp6M1E3amlaqPDXspyJxmjqTsGo6Jmw=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databasewatcher/armdatabasewatcher v0.1.0 h1:M94/GXgawGW3gqfbf6pOpPh1cmu24ZDQhJ4FLT/jIyE=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databasewatcher/armdatabasewatcher v0.1.0/go.mod h1:YIPCznfwdhAvQXgL45H7d8qfUkEk6ulPT9oznE8eVMs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databox/armdatabox v1.1.1 h1:Ep4eRsCDGQd4vbPY+8p9J/N9p3w7Xxv4ffg+ylUkQF8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databox/armdatabox v1.1.1/go.mod h1:Mdj4Lq+19dQwWUt5QzNheZsoHUfqZIR97nzQ48jrDgU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databoxedge/armdataboxedge v1.2.0 h1:mrOmLyq0PRvHLi5bPdoffiBDesUJJa6YXq9EC3bq870=
@@ -66,6 +70,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks v
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks v1.1.0/go.mod h1:4jtknLqzaPtwIz8Y9NBp2rXxeA7BbSICWBD0FDzG2VM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datafactory/armdatafactory v1.3.0 h1:pmKRJksZidUYbOMQ2wtVm4L9q0BadVfBsF/fPKUUnjg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datafactory/armdatafactory v1.3.0/go.mod h1:CmZkcUHLqzY7I+io4fQda7G1ZJ/4R0b3/iPFzEWWl7E=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datamigration/armdatamigration v1.2.0 h1:5Qk1itlQxNOlpJi5vRJrTIx3/10n3N19N6Zqd4HYJog=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datamigration/armdatamigration v1.2.0/go.mod h1:7YTtzYc294PrDB9+JUZmaM10hEWUpX1qUy+xBDMnOGg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dataprotection/armdataprotection v1.0.0 h1:VFqjVi532z3gdltbAkYrPl9Ez0czn3ZPM+bjmvLq6fk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dataprotection/armdataprotection v1.0.0/go.mod h1:CmZQSRwBPP7KNjDA+PHaoR2m8wgOsbTd9ncqZgSzgHA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/datashare/armdatashare v1.2.0 h1:5iPF3EaGy/cFiImQvKQFC8SbceEjFLYB4aLoFO1/WN8=
@@ -88,6 +94,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight v1.
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight v1.2.0/go.mod h1:skx0SS3je4jPa5KT5Ckf3tmmwWzMZ46nl1l6xTdxOGE=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthcareapis/armhealthcareapis v1.2.0 h1:VnMkpOO24bEB9LsSXDG6iY+7QOUlvIGowh9vzQTbitY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthcareapis/armhealthcareapis v1.2.0/go.mod h1:B0R/t6BYN4VdmkmCP2OtFzieuDYXzNw9cjufVKF8fc4=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb v0.1.0 h1:xJRm283QrdZVaAAiOOx1SUeSEr4Sq6y206Dwh5JPzNg=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb v0.1.0/go.mod h1:+Pd0BRKjPf9m0MOSpTfSaIDVn8Ykxm3CZZ+9oQCr8sI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal v1.1.2 h1:mLY+pNLjCUeKhgnAJWAKhEUQM+RJQo2H1fuGSw1Ky1E=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal v1.1.2/go.mod h1:FbdwsQ2EzwvXxOPcMFYO8ogEc9uMMIj3YkmCdXdAFmk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal/v2 v2.0.0 h1:PTFGRSlMKCQelWwxUyYVEUqseBJVemLyqWJjvMyt0do=
@@ -108,6 +116,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanage
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0/go.mod h1:8wzvopPfyZYPaQUoKW87Zfdul7jmJMDfp/k7YY3oJyA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maps/armmaps v1.1.0 h1:inGxEu63Z4TlLuGx1JwyBUpCxLfuhj3ADDcOLblIgxE=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maps/armmaps v1.1.0/go.mod h1:373XVuwxNUdrq7iRSegLj9a5faLXxH7GSe6gDgbPDh0=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster v1.1.0 h1:Kt30VxZ4lRB/+7RgP9lur4/OweaB3V5JLBf3wQezWIU=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster v1.1.0/go.mod h1:07VKTvjY84x3qmE2pk3gwIhcDZ7RX7ZLntc59E+ZiRI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0 h1:Ds0KRF8ggpEGg4Vo42oX1cIt/IfOhHWJBikksZbVxeg=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0/go.mod h1:jj6P8ybImR+5topJ+eH6fgcemSFBmU6/6bFF8KkwuDI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi v1.3.0 h1:L7G3dExHBgUxsO3qpTGhk/P2dgnYyW48yn7AO33Tbek=
@@ -122,6 +132,10 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armope
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights v1.2.0/go.mod h1:A4nzEXwVd5pAyneR6KOvUAo72svUc5rmCzRHhAbP6lA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0 h1:HzqcSJWx32XQdr8KtxAu/SZJj0PqDo9tKf2YGPdynV0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0/go.mod h1:nKcJObAisSPDrO9lMuuCBoYY7Ki7ADt8p6XmBhpKNTk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc v0.7.0 h1:zBpGBq3d7feyim/AGIcpvEFAoaExYbitL9Z6c0bIt6Y=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc v0.7.0/go.mod h1:klXr1z0liGffJZcaXZD4gmxJ8dutRVtvJ+qFfdyCcu8=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/powerbidedicated/armpowerbidedicated v1.2.0 h1:VOKNQRmuqvoU34qe0WKzOJN1dbWdoOWiW6MzFCKfgq0=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/powerbidedicated/armpowerbidedicated v1.2.0/go.mod h1:zvmw6y69e/vmsnoOqhgNC27Md+sgWY92SzuCknyDny8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0 h1:yzrctSl9GMIQ5lHu7jc8olOsGjWDCsBpJhWqfGa/YIM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns v1.3.0/go.mod h1:GE4m0rnnfwLGX0Y9A9A25Zx5N/90jneT5ABevqzhuFQ=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/purview/armpurview v1.2.0 h1:ZQaGjVbDGmFxdhZK4YMVKl/FPnYh+JOKNYaGj9byrKo=

@@ -12,8 +12,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
 
@@ -337,5 +340,53 @@ func TestRedact_AppServiceSite_KeyVaultRefPreserved(t *testing.T) {
 	v := got["properties"].(map[string]any)["siteConfig"].(map[string]any)["appSettings"].([]any)[0].(map[string]any)["value"]
 	if v != redact.Placeholder {
 		t.Errorf("expected redaction; got %v", v)
+	}
+}
+
+func TestRedact_HorizonDBCluster_AdminPassword(t *testing.T) {
+	c := armhorizondb.Cluster{Properties: &armhorizondb.ClusterProperties{
+		AdministratorLogin:         to.Ptr("pgadmin"),
+		AdministratorLoginPassword: to.Ptr("hunter2"),
+	}}
+	got := applyAndDecode(t, TypeHorizonDBCluster, c)
+	props := got["properties"].(map[string]any)
+	if props["administratorLoginPassword"] != redact.Placeholder {
+		t.Errorf("password not redacted: %v", props["administratorLoginPassword"])
+	}
+	if props["administratorLogin"] != "pgadmin" {
+		t.Errorf("login clobbered")
+	}
+}
+
+func TestRedact_PostgreSQLServerGroupV2_AdminPassword(t *testing.T) {
+	c := armpostgresqlhsc.Cluster{Properties: &armpostgresqlhsc.ClusterProperties{
+		AdministratorLoginPassword: to.Ptr("hunter2"),
+	}}
+	got := applyAndDecode(t, TypePostgreSQLServerGroupV2, c)
+	props := got["properties"].(map[string]any)
+	if props["administratorLoginPassword"] != redact.Placeholder {
+		t.Errorf("password not redacted: %v", props["administratorLoginPassword"])
+	}
+}
+
+func TestRedact_MongoCluster_ConnectionString(t *testing.T) {
+	c := armmongocluster.MongoCluster{Properties: &armmongocluster.Properties{
+		ConnectionString: to.Ptr("mongodb+srv://u:p@h.mongocluster.cosmos.azure.com/"),
+		Administrator: &armmongocluster.AdministratorProperties{
+			UserName: to.Ptr("mongoadmin"),
+			Password: to.Ptr("hunter2"),
+		},
+	}}
+	got := applyAndDecode(t, TypeMongoCluster, c)
+	props := got["properties"].(map[string]any)
+	if props["connectionString"] != redact.Placeholder {
+		t.Errorf("connectionString not redacted: %v", props["connectionString"])
+	}
+	admin := props["administrator"].(map[string]any)
+	if admin["password"] != redact.Placeholder {
+		t.Errorf("administrator password not redacted: %v", admin["password"])
+	}
+	if admin["userName"] != "mongoadmin" {
+		t.Errorf("userName clobbered: %v", admin["userName"])
 	}
 }

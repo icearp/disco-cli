@@ -119,6 +119,8 @@ func TestScanErrorClassifiers(t *testing.T) {
 	}{
 		{"404 SubscriptionNotRegistered", respErr(http.StatusNotFound, "SubscriptionNotRegistered"), true, true, false},
 		{"409 MissingSubscriptionRegistration", respErr(http.StatusConflict, "MissingSubscriptionRegistration"), true, true, false},
+		{"404 InvalidResourceType (api-version ahead of rollout)", respErr(http.StatusNotFound, "InvalidResourceType"), false, true, false},
+		{"400 InvalidApiVersionParameter", respErr(http.StatusBadRequest, "InvalidApiVersionParameter"), false, true, false},
 		{"403 AuthorizationFailed", respErr(http.StatusForbidden, "AuthorizationFailed"), false, true, true},
 		{"401 unauthorized", respErr(http.StatusUnauthorized, "Unauthorized"), false, true, true},
 		{"404 ResourceGroupNotFound (different code)", respErr(http.StatusNotFound, "ResourceGroupNotFound"), false, false, false},
