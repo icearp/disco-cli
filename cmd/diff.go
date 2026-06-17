@@ -26,7 +26,8 @@ Examples:
   disco diff abc123 def456
   disco diff abc123 def456 -o json`,
 	Args: cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, args []string) (rerr error) {
+		defer func() { maybeStructuredError(diffOutputFmt, rerr) }()
 		db, err := openDB()
 		if err != nil {
 			return fmt.Errorf("open database: %w", err)
