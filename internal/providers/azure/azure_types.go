@@ -83,6 +83,13 @@ const (
 	TypeIoTCentralApp               = "azure:microsoft.iotcentral:iot-app"
 	TypeIoTFirmwareDefenseWorkspace = "azure:microsoft.iotfirmwaredefense:workspace"
 	TypeIoTOperationsInstance       = "azure:microsoft.iotoperations:instance"
+	// AI / ML / media / test (Wave 7)
+	TypeHealthBot                      = "azure:microsoft.healthbot:health-bot"
+	TypeHealthDataAIDeidService        = "azure:microsoft.healthdataaiservices:deid-service"
+	TypeLoadTest                       = "azure:microsoft.loadtestservice:load-test"
+	TypeOnlineExperimentationWorkspace = "azure:microsoft.onlineexperimentation:workspace"
+	TypePlaywrightAccount              = "azure:microsoft.azureplaywrightservice:account"
+	TypeQuantumWorkspace               = "azure:microsoft.quantum:workspace"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -449,6 +456,12 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.iotcentral/iotapps":                                         TypeIoTCentralApp,
 	"microsoft.iotfirmwaredefense/workspaces":                              TypeIoTFirmwareDefenseWorkspace,
 	"microsoft.iotoperations/instances":                                    TypeIoTOperationsInstance,
+	"microsoft.healthbot/healthbots":                                       TypeHealthBot,
+	"microsoft.healthdataaiservices/deidservices":                          TypeHealthDataAIDeidService,
+	"microsoft.loadtestservice/loadtests":                                  TypeLoadTest,
+	"microsoft.onlineexperimentation/workspaces":                           TypeOnlineExperimentationWorkspace,
+	"microsoft.azureplaywrightservice/accounts":                            TypePlaywrightAccount,
+	"microsoft.quantum/workspaces":                                         TypeQuantumWorkspace,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,
