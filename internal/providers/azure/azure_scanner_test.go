@@ -12,6 +12,8 @@ import (
 // expectedAzureServices is the authoritative list of service names that must be
 // registered. Update this list when adding a new service scanner.
 var expectedAzureServices = []string{
+	"azure:managedservices",
+	"azure:policyinsights",
 	"azure:apicenter",
 	"azure:attestation",
 	"azure:automanage",

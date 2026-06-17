@@ -114,6 +114,10 @@ const (
 	TypePowerPlatformEnterprisePolicy = "azure:microsoft.powerplatform:enterprise-policy"
 	TypeOpenShiftCluster              = "azure:microsoft.redhatopenshift:openshift-cluster"
 	TypeSpringbootSite                = "azure:microsoft.offazurespringboot:springboot-site"
+	// Verify-or-drop keepers (genuine user resources from the bucket)
+	TypeManagedServicesRegistrationDefinition = "azure:microsoft.managedservices:registration-definition"
+	TypePolicyInsightsRemediation             = "azure:microsoft.policyinsights:remediation"
+	TypePolicyInsightsAttestation             = "azure:microsoft.policyinsights:attestation"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -509,6 +513,9 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.powerplatform/enterprisepolicies":                           TypePowerPlatformEnterprisePolicy,
 	"microsoft.redhatopenshift/openshiftclusters":                          TypeOpenShiftCluster,
 	"microsoft.offazurespringboot/springbootsites":                         TypeSpringbootSite,
+	"microsoft.managedservices/registrationdefinitions":                    TypeManagedServicesRegistrationDefinition,
+	"microsoft.policyinsights/remediations":                                TypePolicyInsightsRemediation,
+	"microsoft.policyinsights/attestations":                                TypePolicyInsightsAttestation,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

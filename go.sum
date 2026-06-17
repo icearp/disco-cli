@@ -194,6 +194,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maintenance/armmaintenance
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maintenance/armmaintenance v1.3.0/go.mod h1:o8YD+BbSeK8ANH4SpxQFCiz5OIFKgHxV1uwF2FrQJYY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric v1.1.0 h1:76AJ/vuw2dv0+PFo2ZwraxcCB3dnnEoQxCTY9F6D4i8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric v1.1.0/go.mod h1:8QafUJ4TzO4icgVJz2bPjAc15OChMbT4egSlyjvVCIo=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managedservices/armmanagedservices v0.7.0 h1:dwmV8G0tLD17J+LcTirpFmNKvZBLLuErtGR0h6h8n2c=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managedservices/armmanagedservices v0.7.0/go.mod h1:UmV8UnyCQ+05EvopWqF6CQsFWI5FWcp/AXGVkJguv9E=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0 h1:akP6VpxJGgQRpDR1P462piz/8OhYLRCreDj48AyNabc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups v1.2.0/go.mod h1:8wzvopPfyZYPaQUoKW87Zfdul7jmJMDfp/k7YY3oJyA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/maps/armmaps v1.1.0 h1:inGxEu63Z4TlLuGx1JwyBUpCxLfuhj3ADDcOLblIgxE=
@@ -228,6 +230,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering v1.2.0 
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering v1.2.0/go.mod h1:Kpb+MKQujpePmqbYeb8dY6z94WqfuEiAxzNWxVcstaw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/playwrighttesting/armplaywrighttesting v1.0.2 h1:Op1J8YCJm7r+1xOI/pONVbYD4u4PY7WWpxNkqvdEjBA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/playwrighttesting/armplaywrighttesting v1.0.2/go.mod h1:8K5YTQzF2Wyeys46FB+pUqp2KLJYI/AQEHWSkUfiTqw=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/policyinsights/armpolicyinsights v0.10.0 h1:AzaqGJAacR0jIOJ8MQy3VZ1IHv00DW7bneMA7hx6PXk=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/policyinsights/armpolicyinsights v0.10.0/go.mod h1:Y3BNZfmBzYJ/f7zkpsl1DkP2gmxmZfU5Z8Hn6g8M8R4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0 h1:HzqcSJWx32XQdr8KtxAu/SZJj0PqDo9tKf2YGPdynV0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0/go.mod h1:nKcJObAisSPDrO9lMuuCBoYY7Ki7ADt8p6XmBhpKNTk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc v0.7.0 h1:zBpGBq3d7feyim/AGIcpvEFAoaExYbitL9Z6c0bIt6Y=
