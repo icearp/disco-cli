@@ -57,6 +57,31 @@ type Scanner struct {
 // Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "azure" }
 
+// LongDescription is the help text for `disco scan azure --help`.
+func (s *Scanner) LongDescription() string {
+	return `Scan Azure resources across reachable subscriptions.
+
+Subscription scope comes from DefaultAzureCredential (az login, managed
+identity, env vars) or the explicit 'subscriptions:' list in config.yaml.
+--subscriptions pins the scan to exactly the listed subscription IDs and
+disables auto-enumeration (fail-closed) — use it to constrain a shared
+credential delegated across multiple tenants to one tenant's subscriptions.
+There is no --regions / --profile flag — Azure scopes per
+subscription/resource group, configured statically. --services narrows
+the scanner set when iterating on one provider.
+
+Examples:
+  disco scan azure
+  disco scan azure --subscriptions 00000000-0000-0000-0000-000000000000
+  disco scan azure --services azure:compute,azure:network`
+}
+
+// ServiceFilterExample is the --services example shown in azure scan help.
+func (s *Scanner) ServiceFilterExample() string { return "azure:compute,azure:network" }
+
+// ScopeColumnWidth pins the scan progress scope column to fit a subscription UUID.
+func (s *Scanner) ScopeColumnWidth() int { return 36 }
+
 // SetServiceFilter restricts the scan to the named services (e.g. "azure:compute", "azure:network").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }

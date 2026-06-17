@@ -48,6 +48,27 @@ type Scanner struct {
 // Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "aws" }
 
+// LongDescription is the help text for `disco scan aws --help`.
+func (s *Scanner) LongDescription() string {
+	return `Scan AWS resources across one or more regions.
+
+Account scope comes from the ambient AWS identity (env vars, instance
+profile, ~/.aws/config) or, if config.yaml lists explicit accounts, the
+declared role-chain per entry. Use --profile to pick a named profile and
+--regions to override the configured region list. --skip-globals omits
+account-wide services (IAM, Route53, CloudFront, etc.) when running a
+per-region audit.
+
+Examples:
+  disco scan aws
+  disco scan aws --regions us-west-2,eu-west-1
+  disco scan aws --services aws:ec2,aws:s3 --profile prod
+  disco scan aws --skip-globals --regions us-east-1`
+}
+
+// ServiceFilterExample is the --services example shown in aws scan help.
+func (s *Scanner) ServiceFilterExample() string { return "aws:ec2,aws:s3" }
+
 // SetServiceFilter restricts the scan to the named services (e.g. "aws:ec2", "aws:iam").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }

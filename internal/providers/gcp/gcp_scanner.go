@@ -38,6 +38,36 @@ type Scanner struct {
 // Name implements providers.Scanner.
 func (s *Scanner) Name() string { return "gcp" }
 
+// LongDescription is the help text for `disco scan gcp --help`.
+func (s *Scanner) LongDescription() string {
+	return `Scan GCP resources across reachable projects.
+
+Project scope comes from Application Default Credentials (gcloud auth
+application-default login) or the explicit 'projects:' list in
+config.yaml. There is no --regions / --profile flag — GCP fans out per
+project against each service's default scope. --services narrows the
+scanner set when iterating on one provider.
+
+Keyless auth (Workload Identity Federation): pass --credential-config
+(or set gcp.credential_config_file) to a cred-config file from
+'gcloud iam workload-identity-pools create-cred-config' to authenticate
+without downloading a service-account key. On AWS ECS/Fargate, where the
+task-role identity is reachable only via the container-credentials
+endpoint, set DISCO_GCP_WIF_AUDIENCE + DISCO_GCP_WIF_SERVICE_ACCOUNT
+instead.
+
+Examples:
+  disco scan gcp
+  disco scan gcp --services gcp:compute,gcp:storage
+  disco scan gcp --credential-config ./wif-cred-config.json`
+}
+
+// ServiceFilterExample is the --services example shown in gcp scan help.
+func (s *Scanner) ServiceFilterExample() string { return "gcp:compute,gcp:storage" }
+
+// ScopeColumnWidth pins the scan progress scope column to fit a project ID.
+func (s *Scanner) ScopeColumnWidth() int { return 30 }
+
 // SetServiceFilter restricts the scan to the named services (e.g. "gcp:compute", "gcp:gke").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }

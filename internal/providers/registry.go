@@ -101,6 +101,28 @@ type GlobalsSkipper interface {
 	SetSkipGlobals(skip bool)
 }
 
+// LongDescriber is an optional interface a provider may implement to supply the
+// long help text for its `disco scan <provider>` subcommand. cmd/scan.go falls
+// back to a generic one-line blurb when a provider does not implement it.
+type LongDescriber interface {
+	LongDescription() string
+}
+
+// ServiceFilterExemplar is an optional interface a provider may implement to
+// supply the real service-prefix example shown in its --services flag help
+// (e.g. "aws:ec2,aws:s3"). cmd/scan.go falls back to "<name>:<service>".
+type ServiceFilterExemplar interface {
+	ServiceFilterExample() string
+}
+
+// ScopeColumnWidther is an optional interface a provider may implement to
+// declare a minimum width for the scope column in scan progress output — used
+// for scopes that are not region names (Azure subscription UUID = 36, GCP
+// project ID = 30). cmd/scan.go takes the max of this hint and any RegionNames.
+type ScopeColumnWidther interface {
+	ScopeColumnWidth() int
+}
+
 // registry maps provider name → Scanner. Populated by provider init() calls.
 var registry = map[string]Scanner{}
 

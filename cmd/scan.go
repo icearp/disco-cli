@@ -299,14 +299,9 @@ func scopeColumnWidth(scanners []providers.Scanner) int {
 				}
 			}
 		}
-		switch s.Name() {
-		case "azure":
-			if 36 > width {
-				width = 36
-			}
-		case "gcp":
-			if 30 > width {
-				width = 30
+		if sw, ok := s.(providers.ScopeColumnWidther); ok {
+			if w := sw.ScopeColumnWidth(); w > width {
+				width = w
 			}
 		}
 	}
@@ -490,13 +485,13 @@ func init() {
 		subcmd := &cobra.Command{
 			Use:   s.Name(),
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
-			Long:  scanProviderLong(s.Name()),
+			Long:  scanProviderLong(s),
 		}
 		// Register optional flags only when the provider implements the matching
 		// capability interface — keeps --help honest (no flags listed that would
 		// be silently ignored).
 		if _, ok := s.(providers.ServiceFilterer); ok {
-			example := serviceFilterExample(s.Name())
+			example := serviceFilterExample(s)
 			subcmd.Flags().StringSlice("services", nil,
 				fmt.Sprintf("comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
 		}
@@ -577,83 +572,26 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 }
 
-// serviceFilterExample returns a representative pair of service prefixes
-// for the given provider, used in --services flag help. Falls back to a
-// generic placeholder for unknown providers.
 // scanProviderLong returns the per-provider Long description shown by
-// `disco scan <provider> --help`. Centralised so the top of every help
-// page documents the same ground rules: how scoping works, what flag is
-// safe to omit, and the canonical one-liner example. Unknown providers
-// fall through to a generic blurb so adding a new scanner package never
-// breaks the help.
-func scanProviderLong(provider string) string {
-	switch provider {
-	case "aws":
-		return `Scan AWS resources across one or more regions.
-
-Account scope comes from the ambient AWS identity (env vars, instance
-profile, ~/.aws/config) or, if config.yaml lists explicit accounts, the
-declared role-chain per entry. Use --profile to pick a named profile and
---regions to override the configured region list. --skip-globals omits
-account-wide services (IAM, Route53, CloudFront, etc.) when running a
-per-region audit.
-
-Examples:
-  disco scan aws
-  disco scan aws --regions us-west-2,eu-west-1
-  disco scan aws --services aws:ec2,aws:s3 --profile prod
-  disco scan aws --skip-globals --regions us-east-1`
-	case "azure":
-		return `Scan Azure resources across reachable subscriptions.
-
-Subscription scope comes from DefaultAzureCredential (az login, managed
-identity, env vars) or the explicit 'subscriptions:' list in config.yaml.
---subscriptions pins the scan to exactly the listed subscription IDs and
-disables auto-enumeration (fail-closed) — use it to constrain a shared
-credential delegated across multiple tenants to one tenant's subscriptions.
-There is no --regions / --profile flag — Azure scopes per
-subscription/resource group, configured statically. --services narrows
-the scanner set when iterating on one provider.
-
-Examples:
-  disco scan azure
-  disco scan azure --subscriptions 00000000-0000-0000-0000-000000000000
-  disco scan azure --services azure:compute,azure:network`
-	case "gcp":
-		return `Scan GCP resources across reachable projects.
-
-Project scope comes from Application Default Credentials (gcloud auth
-application-default login) or the explicit 'projects:' list in
-config.yaml. There is no --regions / --profile flag — GCP fans out per
-project against each service's default scope. --services narrows the
-scanner set when iterating on one provider.
-
-Keyless auth (Workload Identity Federation): pass --credential-config
-(or set gcp.credential_config_file) to a cred-config file from
-'gcloud iam workload-identity-pools create-cred-config' to authenticate
-without downloading a service-account key. On AWS ECS/Fargate, where the
-task-role identity is reachable only via the container-credentials
-endpoint, set DISCO_GCP_WIF_AUDIENCE + DISCO_GCP_WIF_SERVICE_ACCOUNT
-instead.
-
-Examples:
-  disco scan gcp
-  disco scan gcp --services gcp:compute,gcp:storage
-  disco scan gcp --credential-config ./wif-cred-config.json`
-	default:
-		return fmt.Sprintf("Scan %s resources.", provider)
+// `disco scan <provider> --help`. The text lives on each provider (via the
+// providers.LongDescriber capability) so the top of every help page documents
+// that provider's own scoping ground rules; providers that don't implement it
+// fall through to a generic blurb so adding a new scanner package never breaks
+// the help.
+func scanProviderLong(s providers.Scanner) string {
+	if d, ok := s.(providers.LongDescriber); ok {
+		return d.LongDescription()
 	}
+	return fmt.Sprintf("Scan %s resources.", s.Name())
 }
 
-func serviceFilterExample(provider string) string {
-	switch provider {
-	case "aws":
-		return "aws:ec2,aws:s3"
-	case "azure":
-		return "azure:compute,azure:network"
-	case "gcp":
-		return "gcp:compute,gcp:storage"
-	default:
-		return provider + ":<service>"
+// serviceFilterExample returns a representative pair of service prefixes for the
+// given provider, used in --services flag help. The pair lives on each provider
+// (via providers.ServiceFilterExemplar); unknown providers fall back to a
+// generic placeholder.
+func serviceFilterExample(s providers.Scanner) string {
+	if e, ok := s.(providers.ServiceFilterExemplar); ok {
+		return e.ServiceFilterExample()
 	}
+	return s.Name() + ":<service>"
 }
