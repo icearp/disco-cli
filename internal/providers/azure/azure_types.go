@@ -66,6 +66,16 @@ const (
 	TypeOrbitalSpacecraft                  = "azure:microsoft.orbital:spacecraft"
 	TypePeeringPeering                     = "azure:microsoft.peering:peering"
 	TypeServiceNetworkingTrafficController = "azure:microsoft.servicenetworking:traffic-controller"
+	// Compute & scale (Wave 5)
+	TypeComputeFleet                = "azure:microsoft.azurefleet:fleet"
+	TypeLargeInstance               = "azure:microsoft.azurelargeinstance:large-instance"
+	TypeBareMetalInstance           = "azure:microsoft.baremetalinfrastructure:bare-metal-instance"
+	TypeDevOpsInfrastructurePool    = "azure:microsoft.devopsinfrastructure:pool"
+	TypeHanaOnAzureSapMonitor       = "azure:microsoft.hanaonazure:sap-monitor"
+	TypeSQLVirtualMachine           = "azure:microsoft.sqlvirtualmachine:sql-virtual-machine"
+	TypeStandbyVMPool               = "azure:microsoft.standbypool:standby-virtual-machine-pool"
+	TypeStandbyContainerGroupPool   = "azure:microsoft.standbypool:standby-container-group-pool"
+	TypeWorkloadsSAPVirtualInstance = "azure:microsoft.workloads:sap-virtual-instance"
 	// Private Endpoints
 	TypeNetworkPrivateEndpoint = "azure:microsoft.network:private-endpoint"
 	// Enterprise networking — ExpressRoute + Virtual WAN + VPN
@@ -417,6 +427,15 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.orbital/spacecrafts":                                        TypeOrbitalSpacecraft,
 	"microsoft.peering/peerings":                                           TypePeeringPeering,
 	"microsoft.servicenetworking/trafficcontrollers":                       TypeServiceNetworkingTrafficController,
+	"microsoft.azurefleet/fleets":                                          TypeComputeFleet,
+	"microsoft.azurelargeinstance/azurelargeinstances":                     TypeLargeInstance,
+	"microsoft.baremetalinfrastructure/baremetalinstances":                 TypeBareMetalInstance,
+	"microsoft.devopsinfrastructure/pools":                                 TypeDevOpsInfrastructurePool,
+	"microsoft.hanaonazure/sapmonitors":                                    TypeHanaOnAzureSapMonitor,
+	"microsoft.sqlvirtualmachine/sqlvirtualmachines":                       TypeSQLVirtualMachine,
+	"microsoft.standbypool/standbyvirtualmachinepools":                     TypeStandbyVMPool,
+	"microsoft.standbypool/standbycontainergrouppools":                     TypeStandbyContainerGroupPool,
+	"microsoft.workloads/sapvirtualinstances":                              TypeWorkloadsSAPVirtualInstance,
 	"microsoft.sql/servers":                                                TypeSQLServer,
 	"microsoft.sql/servers/databases":                                      TypeSQLDatabase,
 	"microsoft.sql/instancepools":                                          TypeSQLInstancePool,

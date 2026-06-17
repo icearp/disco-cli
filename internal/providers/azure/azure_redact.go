@@ -151,6 +151,30 @@ func init() {
 			{Path: "properties.computeRackDefinitions[*].bareMetalMachineConfigurationData[*].bmcCredentials.password", Mode: redact.RedactScalar},
 			{Path: "properties.computeRackDefinitions[*].storageApplianceConfigurationData[*].adminCredentials.password", Mode: redact.RedactScalar},
 		}},
+		// Wave 5: SQL Server on Azure VMs echo a full set of write-shape
+		// credentials on the list response — auto-backup encryption password +
+		// storage key, WSFC domain account passwords, Key Vault service-
+		// principal secret, and the sysadmin auth-update password.
+		{Type: TypeSQLVirtualMachine, Attributes: []redact.Rule{
+			{Path: "properties.autoBackupSettings.password", Mode: redact.RedactScalar},
+			{Path: "properties.autoBackupSettings.storageAccessKey", Mode: redact.RedactScalar},
+			{Path: "properties.keyVaultCredentialSettings.servicePrincipalSecret", Mode: redact.RedactScalar},
+			{Path: "properties.wsfcDomainCredentials.clusterBootstrapAccountPassword", Mode: redact.RedactScalar},
+			{Path: "properties.wsfcDomainCredentials.clusterOperatorAccountPassword", Mode: redact.RedactScalar},
+			{Path: "properties.wsfcDomainCredentials.sqlServiceAccountPassword", Mode: redact.RedactScalar},
+			{Path: "properties.serverConfigurationsManagementSettings.sqlConnectivityUpdateSettings.sqlAuthUpdatePassword", Mode: redact.RedactScalar},
+		}},
+		// HANA-on-Azure SAP monitor echoes the Log Analytics workspace shared key.
+		{Type: TypeHanaOnAzureSapMonitor, Attributes: []redact.Rule{
+			{Path: "properties.logAnalyticsWorkspaceSharedKey", Mode: redact.RedactScalar},
+		}},
+		// Compute Fleet embeds a VMSS base profile; its OS profile can carry a
+		// plaintext admin password and base64 customData (cloud-init, which can
+		// hold app secrets).
+		{Type: TypeComputeFleet, Attributes: []redact.Rule{
+			{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.adminPassword", Mode: redact.RedactScalar},
+			{Path: "properties.computeProfile.baseVirtualMachineProfile.osProfile.customData", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

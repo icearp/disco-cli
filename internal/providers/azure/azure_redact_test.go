@@ -10,10 +10,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/botservice/armbotservice"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/computefleet/armcomputefleet"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
@@ -23,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sqlvirtualmachine/armsqlvirtualmachine"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
 
@@ -514,4 +517,71 @@ func TestRedact_NetworkCloudCluster_RackCredentials(t *testing.T) {
 	}
 	check(props["aggregatorOrSingleRackDefinition"].(map[string]any))
 	check(props["computeRackDefinitions"].([]any)[0].(map[string]any))
+}
+
+func TestRedact_SQLVirtualMachine_Credentials(t *testing.T) {
+	m := armsqlvirtualmachine.SQLVirtualMachine{Properties: &armsqlvirtualmachine.Properties{
+		AutoBackupSettings:         &armsqlvirtualmachine.AutoBackupSettings{Password: to.Ptr("bkp"), StorageAccessKey: to.Ptr("sak")},
+		KeyVaultCredentialSettings: &armsqlvirtualmachine.KeyVaultCredentialSettings{ServicePrincipalSecret: to.Ptr("sps")},
+		WsfcDomainCredentials: &armsqlvirtualmachine.WsfcDomainCredentials{
+			ClusterBootstrapAccountPassword: to.Ptr("cb"), ClusterOperatorAccountPassword: to.Ptr("co"), SQLServiceAccountPassword: to.Ptr("ss"),
+		},
+		ServerConfigurationsManagementSettings: &armsqlvirtualmachine.ServerConfigurationsManagementSettings{
+			SQLConnectivityUpdateSettings: &armsqlvirtualmachine.SQLConnectivityUpdateSettings{SQLAuthUpdatePassword: to.Ptr("sa")},
+		},
+	}}
+	got := applyAndDecode(t, TypeSQLVirtualMachine, m)
+	p := got["properties"].(map[string]any)
+	ab := p["autoBackupSettings"].(map[string]any)
+	if ab["password"] != redact.Placeholder || ab["storageAccessKey"] != redact.Placeholder {
+		t.Errorf("autoBackup secrets not redacted: %v", ab)
+	}
+	if p["keyVaultCredentialSettings"].(map[string]any)["servicePrincipalSecret"] != redact.Placeholder {
+		t.Errorf("KV servicePrincipalSecret not redacted")
+	}
+	w := p["wsfcDomainCredentials"].(map[string]any)
+	for _, k := range []string{"clusterBootstrapAccountPassword", "clusterOperatorAccountPassword", "sqlServiceAccountPassword"} {
+		if w[k] != redact.Placeholder {
+			t.Errorf("wsfc %s not redacted: %v", k, w[k])
+		}
+	}
+	scs := p["serverConfigurationsManagementSettings"].(map[string]any)["sqlConnectivityUpdateSettings"].(map[string]any)
+	if scs["sqlAuthUpdatePassword"] != redact.Placeholder {
+		t.Errorf("sqlAuthUpdatePassword not redacted: %v", scs["sqlAuthUpdatePassword"])
+	}
+}
+
+func TestRedact_HanaOnAzureSapMonitor_SharedKey(t *testing.T) {
+	mon := armhanaonazure.SapMonitor{Properties: &armhanaonazure.SapMonitorProperties{
+		LogAnalyticsWorkspaceSharedKey: to.Ptr("la-shared-key"),
+	}}
+	got := applyAndDecode(t, TypeHanaOnAzureSapMonitor, mon)
+	if got["properties"].(map[string]any)["logAnalyticsWorkspaceSharedKey"] != redact.Placeholder {
+		t.Errorf("LA shared key not redacted")
+	}
+}
+
+func TestRedact_ComputeFleet_OSProfileSecrets(t *testing.T) {
+	f := armcomputefleet.Fleet{Properties: &armcomputefleet.FleetProperties{
+		ComputeProfile: &armcomputefleet.ComputeProfile{
+			BaseVirtualMachineProfile: &armcomputefleet.BaseVirtualMachineProfile{
+				OSProfile: &armcomputefleet.VirtualMachineScaleSetOSProfile{
+					AdminUsername: to.Ptr("azureuser"),
+					AdminPassword: to.Ptr("hunter2"),
+					CustomData:    to.Ptr("c2VjcmV0LWNsb3VkLWluaXQ="),
+				},
+			},
+		},
+	}}
+	got := applyAndDecode(t, TypeComputeFleet, f)
+	os := got["properties"].(map[string]any)["computeProfile"].(map[string]any)["baseVirtualMachineProfile"].(map[string]any)["osProfile"].(map[string]any)
+	if os["adminPassword"] != redact.Placeholder {
+		t.Errorf("adminPassword not redacted: %v", os["adminPassword"])
+	}
+	if os["customData"] != redact.Placeholder {
+		t.Errorf("customData not redacted: %v", os["customData"])
+	}
+	if os["adminUsername"] != "azureuser" {
+		t.Errorf("adminUsername clobbered: %v", os["adminUsername"])
+	}
 }
