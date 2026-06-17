@@ -67,6 +67,26 @@ type RegionLister interface {
 	FetchRegions(ctx context.Context, opts FetchOptions) ([]string, error)
 }
 
+// ResolverInfo summarises one registered relationship resolver for the
+// `disco coverage resolvers` tooling: the resolver function name, the count of
+// declared EdgeDecls, and the distinct disco service segments its edges touch.
+// EdgeCount==0 marks an unannotated (intentional no-op or pending) resolver.
+type ResolverInfo struct {
+	Name      string   `json:"name"`
+	EdgeCount int      `json:"edge_count"`
+	Services  []string `json:"services,omitempty"`
+}
+
+// ResolverAuditor is an optional interface a Provider may implement to expose
+// its relationship-resolver registry to `disco coverage resolvers`. Keeping it
+// behind the registry (rather than a direct provider-package import in cmd) lets
+// cmd stay provider-agnostic, so a slim build that excludes the provider simply
+// reports the auditor as unavailable. Today only AWS implements it.
+type ResolverAuditor interface {
+	ListResolvers() []ResolverInfo // one entry per registered resolver, registration order
+	ResolverEdgeSources() []string // distinct EdgeDecl.Source disco-types across all resolvers
+}
+
 // RegionRow categorises a single region across the static-vs-live diff.
 // Status values:
 //   - "covered" — region appears in both disco's static RegionNames list

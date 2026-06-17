@@ -30,6 +30,34 @@ func (coverageProvider) Name() string { return "aws" }
 // type carries outbound refs.
 func (coverageProvider) Emits() []coverage.TypeDecl { return CollectEmits() }
 
+// ListResolvers implements coverage.ResolverAuditor by adapting the package's
+// ListResolvers() registry view into the neutral coverage shape, so cmd can
+// render `disco coverage resolvers` without importing this package directly.
+func (coverageProvider) ListResolvers() []coverage.ResolverInfo {
+	src := ListResolvers()
+	out := make([]coverage.ResolverInfo, len(src))
+	for i, r := range src {
+		out[i] = coverage.ResolverInfo{Name: r.Name, EdgeCount: r.EdgeCount, Services: r.Services}
+	}
+	return out
+}
+
+// ResolverEdgeSources implements coverage.ResolverAuditor: the distinct
+// EdgeDecl.Source disco-types declared across every registered resolver.
+func (coverageProvider) ResolverEdgeSources() []string {
+	edges := CollectResolverEdges()
+	seen := make(map[string]struct{}, len(edges))
+	out := make([]string, 0, len(edges))
+	for _, e := range edges {
+		if _, dup := seen[e.Source]; dup {
+			continue
+		}
+		seen[e.Source] = struct{}{}
+		out = append(out, e.Source)
+	}
+	return out
+}
+
 // Aliases overrides algorithmic disco-type → CFN-key mapping for cases
 // where the disco service segment doesn't equal the CFN service segment.
 //

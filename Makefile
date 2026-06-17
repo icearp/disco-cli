@@ -1,6 +1,9 @@
 BINARY   := disco
 DIST_DIR := dist
 GO       := CGO_ENABLED=0
+# TAGS opts into a provider subset for slim, provider-specific builds, e.g.
+# `make build TAGS="slim aws"` compiles aws only (azure/gcp SDKs not linked).
+# Bare `make build` compiles every provider. See internal/providers/all.
 TAGS     ?=
 TAGFLAG  := $(if $(TAGS),-tags "$(TAGS)",)
 VERSION  ?= $(shell git describe --tags --always --dirty=+dirty 2>/dev/null || echo dev)

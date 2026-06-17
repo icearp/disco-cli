@@ -16,7 +16,6 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/providers"
-	awsprov "codeberg.org/icearp/disco/internal/providers/aws"
 	"github.com/spf13/cobra"
 )
 
@@ -410,11 +409,31 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	return runResolversList(w, services, onlyUnannotated, outputFmt)
 }
 
+// resolverAuditor fetches the aws provider's resolver registry through the
+// coverage registry. Returns a clear error when the aws provider is not
+// compiled into this build (slim build) so `coverage resolvers` degrades
+// gracefully instead of the subcommand being absent.
+func resolverAuditor() (coverage.ResolverAuditor, error) {
+	prov, ok := coverage.Get("aws")
+	if !ok {
+		return nil, fmt.Errorf("resolver coverage requires the aws provider, which is not included in this build")
+	}
+	ra, ok := prov.(coverage.ResolverAuditor)
+	if !ok {
+		return nil, fmt.Errorf("aws coverage provider does not expose resolver auditing")
+	}
+	return ra, nil
+}
+
 // runResolversList prints per-resolver EdgeDecl counts, optionally filtered
 // to resolvers that touch one of the named services.
 func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outputFmt string) error {
 	allowed := lowerSet(services)
-	infos := awsprov.ListResolvers()
+	ra, err := resolverAuditor()
+	if err != nil {
+		return err
+	}
+	infos := ra.ListResolvers()
 	type row struct {
 		Provider string   `json:"provider"`
 		Resolver string   `json:"resolver"`
@@ -491,7 +510,11 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 	allowed := lowerSet(services)
 	prov, ok := coverage.Get("aws")
 	if !ok {
-		return fmt.Errorf("aws coverage provider not registered")
+		return fmt.Errorf("resolver coverage requires the aws provider, which is not included in this build")
+	}
+	ra, err := resolverAuditor()
+	if err != nil {
+		return err
 	}
 	emitted := make(map[string]struct{})
 	for _, decl := range prov.Emits() {
@@ -501,8 +524,8 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 		emitted[decl.DiscoType] = struct{}{}
 	}
 	sources := make(map[string]struct{})
-	for _, e := range awsprov.CollectResolverEdges() {
-		sources[e.Source] = struct{}{}
+	for _, s := range ra.ResolverEdgeSources() {
+		sources[s] = struct{}{}
 	}
 	orphans := make([]string, 0, len(emitted))
 	for t := range emitted {

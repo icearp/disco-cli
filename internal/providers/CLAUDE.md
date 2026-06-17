@@ -55,7 +55,11 @@ Optional capability interfaces a Scanner may implement: `ServiceFilterer` (`--se
 **Add new provider** (three steps):
 1. Create `internal/providers/<name>/` implementing `Scanner`
 2. Call `providers.Register(&MyScanner{})` in package `init()`
-3. Add `_ "codeberg.org/icearp/disco/internal/providers/<name>"` to `cmd/providers.go`
+3. Add `internal/providers/all/<name>.go` — `//go:build !slim || <name>`, `package all`, blank-importing the provider package. `cmd` imports only `internal/providers/all`, so this tagged file is the sole wiring point and `cmd` never names a provider.
+
+## Build-tag opt-in (`slim`)
+
+Default `go build` compiles every provider. `go build -tags 'slim aws'` compiles only the named provider(s) — excluded providers' SDKs are never linked (smaller binary, for provider-specific containers). The opt-in lives in `internal/providers/all/`: one `<name>.go` per provider, gated `//go:build !slim || <name>` (references only `slim` plus its own tag, never siblings, so providers stay decoupled). `all/all.go` is an untagged, import-less package stub that keeps `all` importable when every provider is tagged out (`-tags slim` alone → no providers). `-tags 'slim aws gcp'` selects a subset. cmd must never import a provider package directly — route provider-specific cmd needs through a registry interface (precedent: `coverage.ResolverAuditor` for `disco coverage resolvers`) so slim builds degrade gracefully.
 
 ## Declaring redaction rules
 

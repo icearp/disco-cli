@@ -33,9 +33,11 @@ Plural flags throughout: `--providers` (StringSlice; empty = all), `--regions` (
 
 `runScan(cmd, scanners)` (`scan.go`) holds the shared open-db / `CreateScan` / WaitGroup / `CompleteScan` lifecycle. `scanCmd.RunE` calls it with `providers.All()`; per-provider subcommands call it with a single-element slice.
 
-## Provider blank imports
+## Provider wiring (no provider names in cmd)
 
-`cmd/providers.go` holds all blank imports (`_ "codeberg.org/icearp/disco/internal/providers/<name>"`). `cmd/scan.go`'s `init()` iterates `providers.All()` to build `disco scan <name>` subcommands — no `scan.go` change when adding provider. See `internal/providers/CLAUDE.md` for add-new-provider steps.
+`cmd/providers.go` blank-imports a single generic aggregator (`internal/providers/all`) — cmd names no provider directly. Inside `all/`, one build-tagged file per provider (`aws.go` etc., gated `//go:build !slim || <name>`) blank-imports that provider's package, registering it via init(); `all/all.go` is an import-less stub keeping the package importable when all providers are tagged out. `cmd/scan.go`'s `init()` iterates `providers.All()` to build `disco scan <name>` subcommands — a slim build naturally exposes only the compiled providers. No `cmd` change when adding a provider. Build-tag opt-in (`go build -tags 'slim aws'`) and add-new-provider steps: `internal/providers/CLAUDE.md`.
+
+Keep cmd provider-agnostic: never `import` a provider package here. When a subcommand needs provider-specific data (e.g. `coverage resolvers` reads AWS's resolver registry), reach it through a registry interface (`coverage.ResolverAuditor`) so a slim build that excludes the provider returns a clean "not in this build" error instead of failing to compile.
 
 ## Scan subcommand flag registration
 
