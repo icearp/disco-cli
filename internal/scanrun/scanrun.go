@@ -135,9 +135,9 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 //
 // Captured warnings/errors are returned for the caller to render
 // (cmd/scan.go renders to stderr; the scan row's `error` column also carries
-// the summary for later inspection). Existing OnWarn / OnError
-// callbacks set by the caller still fire — RunScanners installs its own
-// only when none is registered, so wiring stays additive for the CLI.
+// the summary for later inspection). Existing OnWarn / OnError callbacks set
+// by the caller still fire — RunScanners chains onto them so wiring stays
+// additive for the CLI, and restores them before returning.
 func RunScanners(
 	ctx context.Context,
 	st *store.Store,
@@ -148,7 +148,14 @@ func RunScanners(
 		warnMu sync.Mutex
 		errMu  sync.Mutex
 	)
+	// Capture and restore the caller's callbacks: this chains onto any
+	// existing OnWarn/OnError so wiring stays additive, but the shared *Store
+	// outlives a single scan (the Allocate/Execute multi-scan API driver reuses
+	// one store), so leaving our closures installed would make scan #2 append to
+	// scan #1's dangling slices and grow the chain unbounded.
 	prevWarn := st.OnWarn
+	prevErr := st.OnError
+	defer func() { st.OnWarn = prevWarn; st.OnError = prevErr }()
 	st.OnWarn = func(w store.ScanWarning) {
 		warnMu.Lock()
 		warnings = append(warnings, w)
@@ -157,7 +164,6 @@ func RunScanners(
 			prevWarn(w)
 		}
 	}
-	prevErr := st.OnError
 	st.OnError = func(e store.ScanError) {
 		errMu.Lock()
 		scanErrors = append(scanErrors, e)
