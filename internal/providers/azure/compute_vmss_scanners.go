@@ -53,7 +53,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armcompute:VMSS.ListAll", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:VMSS.ListAll: %w", err)
@@ -195,7 +195,7 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armcompute:VMSSExtensions.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armcompute:VMSSExtensions.List %s/%s: %w", v.rg, v.name, err)
@@ -247,7 +247,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, nil, skipIfAccessDenied(st, "armcompute:VMSSVMs.List", sub.ID, err)
 			}
 			return 0, 0, nil, fmt.Errorf("armcompute:VMSSVMs.List %s/%s: %w", v.rg, v.name, err)
@@ -308,7 +308,7 @@ func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred *azidenti
 
 	resp, err := client.List(ctx, vm.rg, vm.vmssName, vm.instanceID, nil)
 	if err != nil {
-		if isAccessDenied(err) {
+		if isSkippableScanError(err) {
 			return 0, 0, skipIfAccessDenied(st, "armcompute:VMSSVMExtensions.List", sub.ID, err)
 		}
 		return 0, 0, fmt.Errorf("armcompute:VMSSVMExtensions.List %s/%s/%s: %w", vm.rg, vm.vmssName, vm.instanceID, err)

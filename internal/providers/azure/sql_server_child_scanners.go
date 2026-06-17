@@ -62,7 +62,7 @@ func sqlChildScan[C any, T any](
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:%s.ListByServer(%s): %w", label, srv.name, err)

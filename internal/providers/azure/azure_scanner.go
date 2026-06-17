@@ -117,54 +117,70 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	// resolvers (RBAC role assignments) FK-match against.
 	runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
 
+	// Plain WaitGroup (not errgroup): a per-subscription failure is reported
+	// and skipped rather than cancelling the other subscriptions' scans. Fatal
+	// conditions (load-subscriptions) already returned early above.
 	sem := semaphore.NewWeighted(maxConcurrentSubscriptions)
-	g, gctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 	for i := range subs {
 		sub := &subs[i]
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+		wg.Go(func() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return
 			}
 			defer sem.Release(1)
-			if err := scanSubscription(gctx, sub, cred, s.serviceFilter, st, scanID); err != nil {
-				return fmt.Errorf("azure subscription %s: %w", sub.ID, err)
+			if err := scanSubscription(ctx, sub, cred, s.serviceFilter, st, scanID); err != nil {
+				st.ReportError(store.ScanError{
+					Provider: "azure", Service: "scan", Scope: sub.ID,
+					Message: formatAzureError(err),
+				})
 			}
-			return nil
 		})
 	}
-	return g.Wait()
+	wg.Wait()
+	return nil
 }
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
 // (relationships) for one subscription.
 func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, services []string, st *store.Store, scanID string) error {
-	// Scan resource groups first (they are parents of all resources).
+	// Scan resource groups first (they are parents of all resources). A
+	// failure here is reported and the scan continues — one service's (even
+	// the RG list's) error must never abort the subscription's other scanners.
 	if err := scanResourceGroups(ctx, sub, cred, st, scanID); err != nil {
-		return err
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: "resourcegroups", Scope: sub.ID,
+			Message: formatAzureError(err),
+		})
 	}
 
-	// Scan all registered service types in parallel, bounded by maxConcurrentServices.
+	// Scan all registered service types in parallel, bounded by
+	// maxConcurrentServices. A plain WaitGroup (not errgroup) so one service's
+	// failure is reported and skipped, never cancelling its siblings — see
+	// providers/CLAUDE.md "Errors never abort scan".
 	sem := semaphore.NewWeighted(maxConcurrentServices)
-	g, gctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 	for _, svc := range filteredServices(services) {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+		wg.Go(func() {
+			if err := sem.Acquire(ctx, 1); err != nil {
+				return
 			}
 			defer sem.Release(1)
-			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
+			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, sub, cred, st, scanID)
 			if err != nil {
-				return err
+				st.ReportError(store.ScanError{
+					Provider: "azure", Service: svc.name, Scope: sub.ID,
+					Message: formatAzureError(err),
+				})
+				st.ReportService(svc.name, sub.ID, total, inserted, 1, false)
+				return
 			}
 			st.ReportService(svc.name, sub.ID, total, inserted, 0, false)
-			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
+	wg.Wait()
 
 	// Phase 1c: API-driven cross-cutting resolvers (e.g. diagnostic-settings)
 	// run AFTER phase-1 services so st.ListResources returns the full set.

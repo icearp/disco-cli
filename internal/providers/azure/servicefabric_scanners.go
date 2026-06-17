@@ -30,7 +30,7 @@ func scanServiceFabric(ctx context.Context, sub *subscription, cred *azidentity.
 	}
 	resp, err := client.List(ctx, nil)
 	if err != nil {
-		if isAccessDenied(err) {
+		if isSkippableScanError(err) {
 			return 0, 0, skipIfAccessDenied(st, "armservicefabric:Clusters.List", sub.ID, err)
 		}
 		return 0, 0, fmt.Errorf("armservicefabric:Clusters.List: %w", err)

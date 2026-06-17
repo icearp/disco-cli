@@ -21,6 +21,27 @@ func isAccessDenied(err error) bool {
 	return false
 }
 
+// isSubscriptionNotRegistered reports the benign "resource provider not
+// registered on this subscription" condition (404 SubscriptionNotRegistered /
+// 409 MissingSubscriptionRegistration) — there can be no resources of the
+// type, so the list call is skipped like AccessDenied.
+func isSubscriptionNotRegistered(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.ErrorCode == "SubscriptionNotRegistered" ||
+			respErr.ErrorCode == "MissingSubscriptionRegistration"
+	}
+	return false
+}
+
+// isSkippableScanError is the canonical "this list call cannot return
+// resources; log a ScanWarning and continue" predicate for scanners. An
+// unregistered resource provider (isSubscriptionNotRegistered) genuinely has
+// no resources of the type, exactly like a denied (isAccessDenied) list.
+func isSkippableScanError(err error) bool {
+	return isAccessDenied(err) || isSubscriptionNotRegistered(err)
+}
+
 // isFeatureNotAvailable reports whether err is a 400 FeatureDisabledOnSelectedEdition
 // or similar "not supported on this edition/tier" error. These are expected when
 // scanning databases on editions that don't support certain features (e.g.

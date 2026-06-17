@@ -40,7 +40,7 @@ func azPageScan[P any](
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return total, inserted, skipIfAccessDenied(st, action, sub.ID, err)
 			}
 			return total, inserted, fmt.Errorf("%s: %w", action, err)
@@ -120,7 +120,7 @@ func listSubscriptionRGNames(ctx context.Context, sub *subscription, cred *azide
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return nil, nil
 			}
 			return nil, fmt.Errorf("armresources:ResourceGroups.List: %w", err)
@@ -186,7 +186,7 @@ func azRGFanoutScan[T any, P any](
 			for pager.More() {
 				page, err := pager.NextPage(gctx)
 				if err != nil {
-					if isAccessDenied(err) || isResourceGroupNotFound(err) {
+					if isSkippableScanError(err) || isResourceGroupNotFound(err) {
 						return nil
 					}
 					return fmt.Errorf("%s rg=%s: %w", action, rg, err)

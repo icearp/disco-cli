@@ -184,7 +184,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armnetwork:VirtualNetworks.ListAll", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armnetwork:VirtualNetworks.ListAll: %w", err)
@@ -324,7 +324,7 @@ func scanPublicIPs(ctx context.Context, sub *subscription, cred *azidentity.Defa
 func scanExpressRouteGateways(ctx context.Context, sub *subscription, client *armnetwork.ExpressRouteGatewaysClient, st *store.Store, scanID string) (total, inserted int, err error) {
 	resp, err := client.ListBySubscription(ctx, nil)
 	if err != nil {
-		if isAccessDenied(err) {
+		if isSkippableScanError(err) {
 			return 0, 0, skipIfAccessDenied(st, "armnetwork:ExpressRouteGateways.ListBySubscription", sub.ID, err)
 		}
 		return 0, 0, fmt.Errorf("armnetwork:ExpressRouteGateways.ListBySubscription: %w", err)

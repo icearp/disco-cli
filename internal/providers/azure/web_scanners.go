@@ -182,7 +182,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:WebApps.List: %w", err)
@@ -285,7 +285,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.D
 func fetchFunctionAppSettings(ctx context.Context, sub *subscription, client *armappservice.WebAppsClient, site siteEntry) error {
 	resp, err := client.ListApplicationSettings(ctx, site.rg, site.name, nil)
 	if err != nil {
-		if isAccessDenied(err) {
+		if isSkippableScanError(err) {
 			return nil
 		}
 		// App settings fetch is best-effort enrichment, not a scan-fatal
@@ -314,7 +314,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:WebApps.ListSlots", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:WebApps.ListSlots %s/%s: %w", site.rg, site.name, err)
@@ -379,7 +379,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred *azident
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.List: %w", err)
@@ -474,7 +474,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 	for wpPager.More() {
 		page, err := wpPager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListWorkerPools", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.ListWorkerPools %s/%s: %w", ase.rg, ase.name, err)
@@ -506,7 +506,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 	for mrpPager.More() {
 		page, err := mrpPager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:Environments.ListMultiRolePools", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:Environments.ListMultiRolePools %s/%s: %w", ase.rg, ase.name, err)
@@ -594,7 +594,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred *azidenti
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:StaticSites.List: %w", err)
@@ -687,7 +687,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armappservice:StaticSites.GetStaticSiteBuilds", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armappservice:StaticSites.GetStaticSiteBuilds %s/%s: %w", ss.rg, ss.name, err)

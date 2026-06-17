@@ -59,7 +59,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armsql:ManagedInstances.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstances.List: %w", err)
@@ -260,7 +260,7 @@ func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred *azide
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstanceKeys.ListByInstance(%s): %w", mi.name, err)
@@ -299,7 +299,7 @@ func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscript
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstanceEncryptionProtectors.ListByInstance(%s): %w", mi.name, err)
@@ -338,7 +338,7 @@ func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *sub
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstancePrivateEndpointConnections.ListByManagedInstance(%s): %w", mi.name, err)
@@ -377,7 +377,7 @@ func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscripti
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedServerSecurityAlertPolicies.ListByInstance(%s): %w", mi.name, err)
@@ -416,7 +416,7 @@ func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred *aziden
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseTransparentDataEncryption.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
@@ -455,7 +455,7 @@ func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscrip
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.miName, db.name, err)
@@ -496,7 +496,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred *azidenti
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, nil, fmt.Errorf("armsql:ManagedDatabases.ListByInstance(%s): %w", mi.name, err)
@@ -554,7 +554,7 @@ func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred *azi
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstanceAdministrators.ListByInstance(%s): %w", mi.name, err)
@@ -593,7 +593,7 @@ func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedInstanceVulnerabilityAssessments.ListByInstance(%s): %w", mi.name, err)
@@ -632,7 +632,7 @@ func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, 
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ManagedDatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.miName, db.name, err)

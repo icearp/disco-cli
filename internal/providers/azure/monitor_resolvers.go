@@ -158,7 +158,7 @@ func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.D
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isDiagSettingsBenign(err) {
+			if isSkippableScanError(err) || isDiagSettingsBenign(err) {
 				denialCount.Add(1)
 				return nil
 			}

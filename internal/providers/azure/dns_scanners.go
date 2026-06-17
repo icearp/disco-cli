@@ -179,7 +179,7 @@ func collectDNSPrivateZoneVNetLinks(ctx context.Context, linkClient *armprivated
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return batch, pairs, nil
 			}
 			return nil, nil, err
@@ -335,7 +335,7 @@ func dnsRecordSetFanout(ctx context.Context, st *store.Store, sub *subscription,
 			for pager.More() {
 				rows, err := pager.NextPage(gctx)
 				if err != nil {
-					if isAccessDenied(err) {
+					if isSkippableScanError(err) {
 						return nil
 					}
 					return err

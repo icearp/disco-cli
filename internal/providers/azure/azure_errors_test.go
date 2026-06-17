@@ -97,3 +97,46 @@ func TestFormatAzureError(t *testing.T) {
 		}
 	})
 }
+
+// respErr builds an *azcore.ResponseError carrying the given status + ARM code.
+func respErr(status int, code string) *azcore.ResponseError {
+	return &azcore.ResponseError{
+		ErrorCode:   code,
+		StatusCode:  status,
+		RawResponse: &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(""))},
+	}
+}
+
+// TestScanErrorClassifiers covers isSubscriptionNotRegistered and the unified
+// isSkippableScanError predicate that gates scanner skip-and-continue branches.
+func TestScanErrorClassifiers(t *testing.T) {
+	cases := []struct {
+		name         string
+		err          error
+		notRegd      bool // want isSubscriptionNotRegistered
+		skippable    bool // want isSkippableScanError
+		accessDenied bool // want isAccessDenied (kept precise)
+	}{
+		{"404 SubscriptionNotRegistered", respErr(http.StatusNotFound, "SubscriptionNotRegistered"), true, true, false},
+		{"409 MissingSubscriptionRegistration", respErr(http.StatusConflict, "MissingSubscriptionRegistration"), true, true, false},
+		{"403 AuthorizationFailed", respErr(http.StatusForbidden, "AuthorizationFailed"), false, true, true},
+		{"401 unauthorized", respErr(http.StatusUnauthorized, "Unauthorized"), false, true, true},
+		{"404 ResourceGroupNotFound (different code)", respErr(http.StatusNotFound, "ResourceGroupNotFound"), false, false, false},
+		{"500 InternalError", respErr(http.StatusInternalServerError, "InternalError"), false, false, false},
+		{"plain error", errors.New("boom"), false, false, false},
+		{"nil", nil, false, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isSubscriptionNotRegistered(tc.err); got != tc.notRegd {
+				t.Errorf("isSubscriptionNotRegistered(%v) = %v; want %v", tc.err, got, tc.notRegd)
+			}
+			if got := isSkippableScanError(tc.err); got != tc.skippable {
+				t.Errorf("isSkippableScanError(%v) = %v; want %v", tc.err, got, tc.skippable)
+			}
+			if got := isAccessDenied(tc.err); got != tc.accessDenied {
+				t.Errorf("isAccessDenied(%v) = %v; want %v", tc.err, got, tc.accessDenied)
+			}
+		})
+	}
+}

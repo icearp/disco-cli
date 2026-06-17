@@ -103,7 +103,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred *azi
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armsql:Servers.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:Servers.List: %w", err)
@@ -241,7 +241,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred *azidentity.Defa
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, nil, fmt.Errorf("armsql:Databases.ListByServer(%s): %w", srv.name, err)
@@ -305,7 +305,7 @@ func scanSQLInstancePools(ctx context.Context, sub *subscription, cred *azidenti
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armsql:InstancePools.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:InstancePools.List: %w", err)
@@ -349,7 +349,7 @@ func scanSQLVirtualClusters(ctx context.Context, sub *subscription, cred *aziden
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) {
+			if isSkippableScanError(err) {
 				return 0, 0, skipIfAccessDenied(st, "armsql:VirtualClusters.List", sub.ID, err)
 			}
 			return 0, 0, fmt.Errorf("armsql:VirtualClusters.List: %w", err)

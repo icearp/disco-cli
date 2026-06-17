@@ -52,7 +52,7 @@ func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred *azid
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:TransparentDataEncryptions.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -91,7 +91,7 @@ func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *a
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:DatabaseSecurityAlertPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -130,7 +130,7 @@ func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:DatabaseAdvancedThreatProtection.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -169,7 +169,7 @@ func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred *aziden
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:DatabaseBlobAuditingPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -208,7 +208,7 @@ func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred *azident
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:DatabaseVulnerabilityAssessments.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -247,7 +247,7 @@ func scanSyncGroups(ctx context.Context, sub *subscription, cred *azidentity.Def
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:SyncGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -286,7 +286,7 @@ func scanReplicationLinks(ctx context.Context, sub *subscription, cred *azidenti
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:ReplicationLinks.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -325,7 +325,7 @@ func scanWorkloadGroups(ctx context.Context, sub *subscription, cred *azidentity
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:WorkloadGroups.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -364,7 +364,7 @@ func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred *azident
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:GeoBackupPolicies.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
@@ -403,7 +403,7 @@ func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred *azide
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			if isAccessDenied(err) || isFeatureNotAvailable(err) {
+			if isSkippableScanError(err) || isFeatureNotAvailable(err) {
 				break
 			}
 			return 0, 0, fmt.Errorf("armsql:LedgerDigestUploads.ListByDatabase(%s/%s): %w", db.serverName, db.name, err)
