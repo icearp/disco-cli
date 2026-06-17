@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/redact"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cognitiveservices/armcognitiveservices"
 )
 
 func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {
@@ -69,6 +71,39 @@ func TestRedact_AppServiceSite_AppSettingsAndConnStrings(t *testing.T) {
 	}
 	if cs["type"] != "SQLAzure" {
 		t.Errorf("type clobbered")
+	}
+}
+
+// TestRedact_CognitiveServicesAccount asserts the plaintext secrets that ship
+// on the standard Accounts.List response (apiProperties connection strings /
+// search key + migrationToken) come back redacted, while non-secret fields
+// (endpoint) survive. Built from the real SDK struct so an SDK field rename
+// breaks the test on go mod tidy rather than silently leaking.
+func TestRedact_CognitiveServicesAccount(t *testing.T) {
+	acct := armcognitiveservices.Account{
+		Properties: &armcognitiveservices.AccountProperties{
+			Endpoint:       to.Ptr("https://ai.cognitiveservices.azure.com/"),
+			MigrationToken: to.Ptr("secret-migration-token"),
+			APIProperties: &armcognitiveservices.APIProperties{
+				EventHubConnectionString:       to.Ptr("Endpoint=sb://eh/;SharedAccessKey=secret"),
+				QnaAzureSearchEndpointKey:      to.Ptr("search-admin-key"),
+				StorageAccountConnectionString: to.Ptr("DefaultEndpointsProtocol=https;AccountKey=secret"),
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeCognitiveServicesAccount, acct)
+	props := got["properties"].(map[string]any)
+	if props["migrationToken"] != redact.Placeholder {
+		t.Errorf("migrationToken not redacted: %v", props["migrationToken"])
+	}
+	if props["endpoint"] != "https://ai.cognitiveservices.azure.com/" {
+		t.Errorf("endpoint clobbered: %v", props["endpoint"])
+	}
+	api := props["apiProperties"].(map[string]any)
+	for _, k := range []string{"eventHubConnectionString", "qnaAzureSearchEndpointKey", "storageAccountConnectionString"} {
+		if api[k] != redact.Placeholder {
+			t.Errorf("apiProperties.%s not redacted: %v", k, api[k])
+		}
 	}
 }
 

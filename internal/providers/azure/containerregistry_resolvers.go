@@ -30,17 +30,9 @@ func resolveContainerRegistryRelationships(sub *subscription, st *store.Store) e
 		return nil
 	}
 
-	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
-		Types: []string{TypeKeyVaultVault},
-		Limit: util.AllResources,
-	})
+	vaultByName, err := vaultNameIndex(sub, st)
 	if err != nil {
 		return err
-	}
-	vaultByName := make(map[string]string, len(vaults))
-	for _, v := range vaults {
-		vaultByName[strings.ToLower(nameFromID(v.NativeID))] = v.ID
 	}
 
 	for _, r := range registries {

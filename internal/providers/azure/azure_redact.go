@@ -37,6 +37,16 @@ func init() {
 			{Path: "properties.siteConfig.appSettings[*].value", Mode: redact.RedactScalar},
 			{Path: "properties.siteConfig.connectionStrings[*].connectionString", Mode: redact.RedactScalar},
 		}},
+		// Cognitive Services accounts surface live secrets on the standard
+		// List response (not a dedicated listKeys op): QnAMaker / Metrics
+		// Advisor connection strings + search key under apiProperties, plus a
+		// credential-bearing migrationToken.
+		{Type: TypeCognitiveServicesAccount, Attributes: []redact.Rule{
+			{Path: "properties.apiProperties.eventHubConnectionString", Mode: redact.RedactScalar},
+			{Path: "properties.apiProperties.qnaAzureSearchEndpointKey", Mode: redact.RedactScalar},
+			{Path: "properties.apiProperties.storageAccountConnectionString", Mode: redact.RedactScalar},
+			{Path: "properties.migrationToken", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

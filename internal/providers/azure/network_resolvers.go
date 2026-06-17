@@ -125,17 +125,9 @@ func loadAGWTargetSets(sub *subscription, st *store.Store) (agwTargetSets, error
 	for _, p := range pips {
 		sets.pipIndex[strings.ToLower(p.NativeID)] = p.ID
 	}
-	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
-		Types: []string{TypeKeyVaultVault},
-		Limit: util.AllResources,
-	})
+	sets.vaultByName, err = vaultNameIndex(sub, st)
 	if err != nil {
 		return sets, err
-	}
-	sets.vaultByName = make(map[string]string, len(vaults))
-	for _, v := range vaults {
-		sets.vaultByName[strings.ToLower(nameFromID(v.NativeID))] = v.ID
 	}
 	return sets, nil
 }

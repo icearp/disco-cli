@@ -183,6 +183,18 @@ const (
 	TypeAppServiceStaticSite               = "azure:microsoft.web:static-sites"
 	TypeAppServiceStaticSiteBuild          = "azure:microsoft.web:static-sites/builds"
 	TypeAppServiceCertificate              = "azure:microsoft.web:certificates"
+	// Cognitive Services (Azure AI / OpenAI)
+	TypeCognitiveServicesAccount = "azure:microsoft.cognitiveservices:account"
+	// App Configuration
+	TypeAppConfigurationStore = "azure:microsoft.appconfiguration:configuration-store"
+	// Azure AI Search
+	TypeSearchService = "azure:microsoft.search:search-service"
+	// Recovery Services (Backup / Site Recovery vaults)
+	TypeRecoveryServicesVault = "azure:microsoft.recoveryservices:vault"
+	// Data Protection (Backup vaults)
+	TypeDataProtectionBackupVault = "azure:microsoft.dataprotection:backup-vault"
+	// Batch
+	TypeBatchAccount = "azure:microsoft.batch:batch-account"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -337,4 +349,11 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.web/staticsites":                        TypeAppServiceStaticSite,
 	"microsoft.web/staticsites/builds":                 TypeAppServiceStaticSiteBuild,
 	"microsoft.web/certificates":                       TypeAppServiceCertificate,
+	// Cognitive Services / App Configuration / Search / Recovery Services / Data Protection / Batch
+	"microsoft.cognitiveservices/accounts":           TypeCognitiveServicesAccount,
+	"microsoft.appconfiguration/configurationstores": TypeAppConfigurationStore,
+	"microsoft.search/searchservices":                TypeSearchService,
+	"microsoft.recoveryservices/vaults":              TypeRecoveryServicesVault,
+	"microsoft.dataprotection/backupvaults":          TypeDataProtectionBackupVault,
+	"microsoft.batch/batchaccounts":                  TypeBatchAccount,
 }

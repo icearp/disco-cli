@@ -21,7 +21,9 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 - `azRGFanoutScan[T,P](ctx, action, rtype, sub, cred, st, scanID, pagerFn, pageItems, extract)` — for ARM resource types with NO subscription-wide list API (only per-RG endpoints). Enumerates RGs via `listSubscriptionRGNames` (ARM `armresources.ResourceGroupsClient`), fans out per-RG list calls bounded by `maxConcurrentFanout`, batches all results, single upsert + closure. Per-RG AccessDenied + 404 (RG vanished mid-scan) tolerated. Same extract shape as `azSimpleScan`. Precedent: classic `VirtualNetworkGateways` in `network_scanners.go`. Use for Front Door endpoints, ADF linked services, Logic Apps API connections, etc.
 - `rgHierarchyPair(sub, type, nativeID)` — RG closure pair (resource → RG).
 - `vnetIDFromSubnetID(s)` — strip `/subnets/X` suffix to recover parent VNet ARM ID.
-- `nameFromID(id)` — last `/`-segment of ARM ID. Builds name-keyed indexes (vault-name, registry-name).
+- `nameFromID(id)` — last `/`-segment of ARM ID. Builds name-keyed indexes (vault-name, registry-name). NOTE: preserves case — lowercase the result when building a lookup key.
+- `vaultNameIndex(sub, st)` — lowercased `vault-name → resource-ID` index of the sub's Key Vaults. Shared by every CMK resolver mapping a key/vault URI back to a vault (cognitiveservices / appconfiguration / recoveryservices / ACR / Cosmos / network). Reuse — do not re-inline the list+loop.
+- `nativeIDIndex(sub, st, rtype)` — lowercased `NativeID → resource-ID` index for one type. Use when a reference field carries a full ARM resource ID (case-insensitive), not a name or URI. Precedent: `batch_resolvers.go` (auto-storage + key-vault refs).
 - `vaultNameFromKeyURI(s)` — parse full Key Vault key URI (`https://v.vault.azure.net/keys/k/v`). Used by ACR / Cosmos / MySQL CMEK.
 - `vaultNameFromVaultURI(s)` — parse vault DNS root (`https://v.vault.azure.net/`). Used by Event Hubs / Service Bus CMEK. **Pick right one per service** — wrong choice silently produces zero edges.
 - `skipIfAccessDenied(st, svc, sub.ID, err)` — log scan warning, continue (returns nil).
