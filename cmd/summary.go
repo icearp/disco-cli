@@ -396,7 +396,7 @@ func renderSummaryTable(rep summaryReport) error {
 }
 
 func init() {
-	summaryCmd.Flags().StringVarP(&summaryProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
+	summaryCmd.Flags().StringVarP(&summaryProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
 	summaryCmd.Flags().StringVarP(&summaryRegion, "region", "r", "", "Filter by region")
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")

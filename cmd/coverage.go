@@ -126,7 +126,7 @@ func init() {
 	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 
 	// services subcommand flags.
-	coverageServicesCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws|azure|gcp); empty = all registered")
+	coverageServicesCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
 	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageServicesCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
@@ -136,7 +136,7 @@ func init() {
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")
 
 	// regions subcommand flags.
-	coverageRegionsCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws|azure|gcp); empty = all registered")
+	coverageRegionsCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
 	coverageRegionsCmd.Flags().StringSlice("regions", nil, "Filter diff output to listed regions; empty = no filter")
 	coverageRegionsCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageRegionsCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")

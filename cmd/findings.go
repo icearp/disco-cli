@@ -339,7 +339,7 @@ func init() {
 	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low, medium, high, critical)")
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVar(&findingsType, "type", "", "Filter by resource type")
-	findingsListCmd.Flags().StringVar(&findingsProvider, "provider", "", "Filter by provider (aws, azure, gcp)")
+	findingsListCmd.Flags().StringVar(&findingsProvider, "provider", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
 	findingsListCmd.Flags().StringVar(&findingsFindingID, "finding-id", "", "Filter by Rego rule id (e.g. waf-sec-ebs-encryption-at-rest)")
 
 	findingsRunsCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")

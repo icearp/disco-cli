@@ -261,7 +261,7 @@ func renderTagReport(rep []tagCoverage, format string) error {
 }
 
 func init() {
-	tagCoverageCmd.Flags().StringVarP(&tagCovProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
+	tagCoverageCmd.Flags().StringVarP(&tagCovProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
 	tagCoverageCmd.Flags().StringVarP(&tagCovType, "type", "t", "", "Filter by resource type")
 	tagCoverageCmd.Flags().StringSliceVar(&tagCovExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from the denominator")
 	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")

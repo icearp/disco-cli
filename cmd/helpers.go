@@ -12,8 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/icearp/disco/internal/providers"
 	"codeberg.org/icearp/disco/store"
 )
+
+// providerListHint renders the registered provider names for flag help (e.g.
+// "aws, azure, gcp"). Provider init()s run before cmd's init() via the
+// internal/providers/all blank import, so the registry is populated when help
+// is built — a slim build advertises only its compiled providers.
+func providerListHint() string { return strings.Join(providers.Names(), ", ") }
 
 // structuredErrorEmitted is set to true after maybeStructuredError writes
 // the JSON envelope to stdout. cmd/root.go::Execute reads it and skips the

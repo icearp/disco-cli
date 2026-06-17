@@ -228,7 +228,7 @@ Examples:
 }
 
 func init() {
-	listCmd.Flags().StringVarP(&listProvider, "provider", "p", "", "Filter by provider (aws, azure, gcp)")
+	listCmd.Flags().StringVarP(&listProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
 	listCmd.Flags().StringVarP(&listType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	listCmd.Flags().StringSliceVar(&listExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	listCmd.Flags().StringVar(&listScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
