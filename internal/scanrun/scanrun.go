@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/providers"
 	"codeberg.org/icearp/disco/store"
@@ -95,23 +96,87 @@ type Allocation struct {
 // errors are persisted as PartialScan; the call returns nil so the
 // caller can exit cleanly.
 func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
-	_, scanErrors := RunScanners(ctx, st, a.ScanID, a.scanners)
-
-	count, _ := st.CountResourcesByScan(a.ScanID)
-	if len(scanErrors) > 0 {
-		msgs := make([]string, len(scanErrors))
-		for i, e := range scanErrors {
-			msgs[i] = fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message)
-		}
-		if perr := st.PartialScan(a.ScanID, count, strings.Join(msgs, "; ")); perr != nil {
-			return fmt.Errorf("mark partial: %w", perr)
-		}
-		return nil
-	}
-	if cerr := st.CompleteScan(a.ScanID, count); cerr != nil {
-		return fmt.Errorf("complete scan: %w", cerr)
+	_, scanErrors, totalSeen, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
+	// totalSeen (rows visited this scan, the canonical scans.resource_count) is
+	// accumulated by RunScanners so this path and cmd/scan.go record the same
+	// count. Finalize owns the Complete/Partial dispatch and structured-error
+	// persistence shared with the CLI.
+	if _, err := Finalize(st, a.ScanID, totalSeen, scanErrors); err != nil {
+		return err
 	}
 	return nil
+}
+
+// FinalizeResult reports the outcome of finalising a scan row. AppendErrors
+// holds non-fatal failures persisting structured per-failure entries — the CLI
+// renders them to stderr; library callers may ignore them.
+type FinalizeResult struct {
+	Partial      bool
+	AppendErrors []error
+}
+
+// Finalize marks the scan row complete (no errors) or partial (one or more
+// scan errors), and on the partial path persists one structured ScanErrorEntry
+// per failure alongside the concatenated legacy `error` blob. Single source of
+// truth shared by Execute and cmd/scan.go so a scan is finalised identically
+// regardless of entry point. count is the canonical rows-visited total.
+func Finalize(st *store.Store, scanID string, count int, scanErrors []store.ScanError) (FinalizeResult, error) {
+	if len(scanErrors) == 0 {
+		if err := st.CompleteScan(scanID, count); err != nil {
+			return FinalizeResult{}, fmt.Errorf("complete scan: %w", err)
+		}
+		return FinalizeResult{}, nil
+	}
+
+	// Any errors → partial scan. We no longer distinguish "all failed" from
+	// "some failed" because nothing aborts: even with errors, resources from
+	// the surviving services are persisted and worth keeping.
+	msgs := make([]string, len(scanErrors))
+	for i, e := range scanErrors {
+		msgs[i] = fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message)
+	}
+	if err := st.PartialScan(scanID, count, strings.Join(msgs, "; ")); err != nil {
+		return FinalizeResult{Partial: true}, fmt.Errorf("mark partial scan: %w", err)
+	}
+
+	res := FinalizeResult{Partial: true}
+	// Structured per-failure entries land in scans.errors (jsonb) so downstream
+	// consumers can group + filter without parsing prose. region is parsed
+	// best-effort from Scope (shaped "<account>/<region>" for AWS; bare for
+	// Azure/GCP).
+	for _, e := range scanErrors {
+		region := ""
+		if i := strings.LastIndex(e.Scope, "/"); i >= 0 {
+			region = e.Scope[i+1:]
+		}
+		if aerr := st.AppendScanError(scanID, store.ScanErrorEntry{
+			Service: e.Provider + ":" + e.Service,
+			Region:  region,
+			Code:    scanErrorCode(e.Message),
+			Message: e.Message,
+		}); aerr != nil {
+			res.AppendErrors = append(res.AppendErrors, aerr)
+		}
+	}
+	return res, nil
+}
+
+// scanErrorCode best-effort extracts an AWS-style error code from the failure
+// message — e.g. "AccessDenied", "Throttling", "UnknownOperation". Returns
+// "Error" when no recognisable token is present so the structured entry's
+// `code` field is never empty.
+func scanErrorCode(msg string) string {
+	for _, candidate := range []string{
+		"AccessDenied", "Throttling", "ThrottlingException",
+		"UnknownOperationException", "UnsupportedOperation",
+		"InvalidParameterValue", "AuthFailure", "RequestTimeout",
+		"InternalError", "ServiceUnavailable",
+	} {
+		if strings.Contains(msg, candidate) {
+			return candidate
+		}
+	}
+	return "Error"
 }
 
 // Run is the synchronous shorthand for Allocate + Execute. CLI uses this;
@@ -128,34 +193,43 @@ func Run(ctx context.Context, st *store.Store, req Request) (string, error) {
 }
 
 // RunScanners is the parallel fan-out core: invokes Scan() on each scanner
-// concurrently, capturing warnings + errors via the Store's existing
-// callbacks. The caller owns the scan row lifecycle (CreateScan +
-// Complete/PartialScan) — RunScanners only writes resources via the
-// scanners themselves.
+// concurrently, capturing warnings + errors and accumulating the rows-visited
+// (totalSeen) / newly-inserted (totalNew) totals via the Store's callbacks.
+// The caller owns the scan row lifecycle (CreateScan + Finalize) — RunScanners
+// only writes resources via the scanners themselves.
 //
-// Captured warnings/errors are returned for the caller to render
-// (cmd/scan.go renders to stderr; the scan row's `error` column also carries
-// the summary for later inspection). Existing OnWarn / OnError callbacks set
-// by the caller still fire — RunScanners chains onto them so wiring stays
-// additive for the CLI, and restores them before returning.
+// Captured warnings/errors are returned for the caller to render (cmd/scan.go
+// renders to stderr; the scan row's `error` column also carries the summary for
+// later inspection); the totals feed Finalize so every entry point records the
+// same scans.resource_count. Existing OnWarn / OnError / OnServiceComplete
+// callbacks set by the caller still fire — RunScanners chains onto them so
+// wiring stays additive for the CLI, and restores them before returning.
 func RunScanners(
 	ctx context.Context,
 	st *store.Store,
 	scanID string,
 	scanners []providers.Scanner,
-) (warnings []store.ScanWarning, scanErrors []store.ScanError) {
+) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalSeen, totalNew int) {
 	var (
 		warnMu sync.Mutex
 		errMu  sync.Mutex
+		seen   atomic.Int64
+		fresh  atomic.Int64
 	)
-	// Capture and restore the caller's callbacks: this chains onto any
-	// existing OnWarn/OnError so wiring stays additive, but the shared *Store
-	// outlives a single scan (the Allocate/Execute multi-scan API driver reuses
-	// one store), so leaving our closures installed would make scan #2 append to
-	// scan #1's dangling slices and grow the chain unbounded.
+	// Capture and restore the caller's callbacks: this chains onto any existing
+	// OnWarn/OnError/OnServiceComplete so wiring (CLI progress lines) stays
+	// additive, but the shared *Store outlives a single scan (the
+	// Allocate/Execute multi-scan API driver reuses one store), so leaving our
+	// closures installed would make scan #2 append to scan #1's dangling slices
+	// and grow the chain unbounded.
 	prevWarn := st.OnWarn
 	prevErr := st.OnError
-	defer func() { st.OnWarn = prevWarn; st.OnError = prevErr }()
+	prevSvc := st.OnServiceComplete
+	defer func() {
+		st.OnWarn = prevWarn
+		st.OnError = prevErr
+		st.OnServiceComplete = prevSvc
+	}()
 	st.OnWarn = func(w store.ScanWarning) {
 		warnMu.Lock()
 		warnings = append(warnings, w)
@@ -172,6 +246,16 @@ func RunScanners(
 			prevErr(e)
 		}
 	}
+	// Accumulate the canonical totals here so both entry points (CLI and the
+	// Allocate/Execute API driver) derive scans.resource_count identically:
+	// totalSeen = rows visited (incl. pre-existing), totalNew = newly inserted.
+	st.OnServiceComplete = func(service, scope string, total, inserted, errCount int, disabled bool) {
+		seen.Add(int64(total))
+		fresh.Add(int64(inserted))
+		if prevSvc != nil {
+			prevSvc(service, scope, total, inserted, errCount, disabled)
+		}
+	}
 
 	var wg sync.WaitGroup
 	for _, s := range scanners {
@@ -186,7 +270,7 @@ func RunScanners(
 		})
 	}
 	wg.Wait()
-	return warnings, scanErrors
+	return warnings, scanErrors, int(seen.Load()), int(fresh.Load())
 }
 
 func resolveScanners(req Request) ([]providers.Scanner, error) {

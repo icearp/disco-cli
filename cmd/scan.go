@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
@@ -207,14 +206,11 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// lines in multi-region / multi-account scans (AWS region or "global",
 	// Azure subscription ID, GCP project ID). Without it, --regions us-east-1,
 	// eu-west-1 prints aws:ec2 twice with no way to tell them apart.
-	// Accumulate totals here — these are the source of truth for the summary counts.
 	// errCount > 0 means the service hit one or more errors (which were already
 	// reported via OnError); annotate the line with "(with errors)" so the user
-	// can scan output for trouble without grepping.
-	var totalSeen, totalNew int64
+	// can scan output for trouble without grepping. Totals are accumulated by
+	// scanrun.RunScanners (single source of truth shared with the API driver).
 	db.OnServiceComplete = func(service, scope string, total, inserted, errCount int, disabled bool) {
-		atomic.AddInt64(&totalSeen, int64(total))
-		atomic.AddInt64(&totalNew, int64(inserted))
 		if quiet {
 			return
 		}
@@ -244,12 +240,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 			time.Since(start).Round(time.Second), provider, edges)
 	}
 
-	// Fan-out + warning/error capture lives in scanrun so the engine can be
-	// reused by other drivers. RunScanners chains its callbacks on top of any
-	// caller-installed OnWarn/OnError; here neither is set so RunScanners is
-	// the sole capture point.
+	// Fan-out + warning/error capture + total accumulation live in scanrun so
+	// the engine can be reused by other drivers. RunScanners chains its
+	// callbacks on top of the OnServiceComplete progress callback installed
+	// above and returns the canonical totals.
 	ctx := context.Background()
-	warnings, scanErrors := scanrun.RunScanners(ctx, db, scanID, scanners)
+	warnings, scanErrors, totalSeen, totalNew := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Render grouped warnings + errors blocks before the final summary line.
 	renderWarnings(progressW, warnings, quiet)
@@ -264,69 +260,25 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		errSuffix = fmt.Sprintf(", %d errors", len(scanErrors))
 	}
 
-	count := int(totalSeen)
+	// Finalize owns the Complete/Partial dispatch + structured-error
+	// persistence, shared with the scanrun.Execute API driver.
+	res, ferr := scanrun.Finalize(db, scanID, totalSeen, scanErrors)
+	if ferr != nil {
+		return ferr
+	}
+	for _, aerr := range res.AppendErrors {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "append scan error: %v\n", aerr)
+	}
 
-	// Any errors → partial scan; otherwise complete. We no longer distinguish
-	// "all failed" from "some failed" because nothing aborts: even with errors,
-	// resources from the surviving services are persisted and worth keeping.
-	if len(scanErrors) > 0 {
-		errMsgs := make([]string, len(scanErrors))
-		for i, e := range scanErrors {
-			errMsgs[i] = fmt.Sprintf("%s/%s: %s", e.Provider, e.Service, e.Message)
-		}
-		errMsg := strings.Join(errMsgs, "; ")
-		if perr := db.PartialScan(scanID, count, errMsg); perr != nil {
-			return fmt.Errorf("mark partial scan: %w", perr)
-		}
-		// Structured per-failure entries land in scans.errors (jsonb)
-		// alongside the legacy concatenated `error` blob, so downstream
-		// consumers can group + filter without parsing
-		// prose. region is parsed best-effort from Scope (shaped
-		// "<account>/<region>" for AWS; bare for Azure/GCP).
-		for _, e := range scanErrors {
-			region := ""
-			if i := strings.LastIndex(e.Scope, "/"); i >= 0 {
-				region = e.Scope[i+1:]
-			}
-			if aerr := db.AppendScanError(scanID, store.ScanErrorEntry{
-				Service: e.Provider + ":" + e.Service,
-				Region:  region,
-				Code:    scanErrorCode(e.Message),
-				Message: e.Message,
-			}); aerr != nil {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "append scan error: %v\n", aerr)
-			}
-		}
+	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan partial: %d resources (%d new) in %s%s%s\n",
-			count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return nil
 	}
-
-	if err := db.CompleteScan(scanID, count); err != nil {
-		return fmt.Errorf("complete scan: %w", err)
-	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
-		count, int(totalNew), time.Since(start).Round(time.Second), warnSuffix)
+		totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix)
 	return nil
-}
-
-// scanErrorCode best-effort extracts an AWS-style error code from the
-// failure message — e.g. "AccessDenied", "Throttling", "UnknownOperation".
-// Returns "Error" when no recognisable token is present so the structured
-// entry's `code` field is never empty.
-func scanErrorCode(msg string) string {
-	for _, candidate := range []string{
-		"AccessDenied", "Throttling", "ThrottlingException",
-		"UnknownOperationException", "UnsupportedOperation",
-		"InvalidParameterValue", "AuthFailure", "RequestTimeout",
-		"InternalError", "ServiceUnavailable",
-	} {
-		if strings.Contains(msg, candidate) {
-			return candidate
-		}
-	}
-	return "Error"
 }
 
 // scopeColumnWidth returns the padding width for the per-line scope column
