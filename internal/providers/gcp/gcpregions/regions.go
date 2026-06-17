@@ -7,6 +7,10 @@
 // `gcloud compute regions list --format="value(name)"`.
 package gcpregions
 
+import "codeberg.org/icearp/disco/regions"
+
+func init() { regions.Register("gcp", Regions) }
+
 // Regions is the supported GCP region list. Treat as read-only; callers that
 // expose it (e.g. RegionNames) clone first.
 var Regions = []string{

@@ -10,6 +10,10 @@
 // `az account list-locations --query "[].name"`.
 package azureregions
 
+import "codeberg.org/icearp/disco/regions"
+
+func init() { regions.Register("azure", Regions) }
+
 // Regions is the supported Azure location list. Treat as read-only; callers
 // that expose it (e.g. RegionNames) clone first.
 var Regions = []string{

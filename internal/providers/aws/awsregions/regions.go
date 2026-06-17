@@ -12,6 +12,10 @@
 // `aws ec2 describe-regions --all-regions` against a recent SDK.
 package awsregions
 
+import "codeberg.org/icearp/disco/regions"
+
+func init() { regions.Register("aws", Regions) }
+
 // Regions is the supported AWS region list. Treat as read-only; callers that
 // expose it (e.g. RegionNames) clone first.
 var Regions = []string{
