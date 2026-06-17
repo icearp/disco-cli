@@ -70,7 +70,7 @@ func WriteArchive(out string, format Format, dbPath string, m Manifest) error {
 
 	switch format {
 	case FormatZip:
-		err = writeZip(f, dbBytes, dbStat.Size(), manifestBytes)
+		err = writeZip(f, dbBytes, manifestBytes)
 	case FormatTarGz:
 		err = writeTarStream(f, dbBytes, dbStat.Size(), manifestBytes, true)
 	case FormatTarXz:
@@ -93,7 +93,7 @@ func WriteArchive(out string, format Format, dbPath string, m Manifest) error {
 	return os.Chmod(out, 0o600)
 }
 
-func writeZip(w io.Writer, db io.Reader, dbSize int64, manifestBytes []byte) error {
+func writeZip(w io.Writer, db io.Reader, manifestBytes []byte) error {
 	zw := zip.NewWriter(w)
 	dbHdr := &zip.FileHeader{Name: entryDB, Method: zip.Deflate}
 	dbHdr.SetMode(0o600)
@@ -113,7 +113,6 @@ func writeZip(w io.Writer, db io.Reader, dbSize int64, manifestBytes []byte) err
 	if _, err := mW.Write(manifestBytes); err != nil {
 		return fmt.Errorf("zip manifest write: %w", err)
 	}
-	_ = dbSize
 	return zw.Close()
 }
 

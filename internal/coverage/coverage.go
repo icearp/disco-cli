@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"unicode"
 )
 
 // TypeDecl is one disco resource type declared by a scanner's emits field.
@@ -284,29 +283,4 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 // provider's other quirks.
 func AlgorithmicUpstreamKey(discoType string) string {
 	return strings.ToLower(discoType)
-}
-
-// PascalToKebab converts a PascalCase or mixed-case identifier to kebab-case.
-// Lifted from cmd/types_aws.go so per-provider alias-map builders can reuse
-// it. Inserts '-' at lower→upper transitions and before the trailing capital
-// of an acronym run (e.g. "DBInstance" → "db-instance").
-func PascalToKebab(s string) string {
-	if s == "" {
-		return ""
-	}
-	runes := []rune(s)
-	var b strings.Builder
-	b.WriteRune(unicode.ToLower(runes[0]))
-	for i := 1; i < len(runes); i++ {
-		cur, prev := runes[i], runes[i-1]
-		if unicode.IsUpper(cur) {
-			if unicode.IsLower(prev) {
-				b.WriteByte('-')
-			} else if i+1 < len(runes) && unicode.IsLower(runes[i+1]) {
-				b.WriteByte('-')
-			}
-		}
-		b.WriteRune(unicode.ToLower(cur))
-	}
-	return b.String()
 }

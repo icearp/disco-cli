@@ -103,17 +103,3 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 		}
 	}
 }
-
-func TestPascalToKebab(t *testing.T) {
-	cases := map[string]string{
-		"Instance":     "instance",
-		"LoadBalancer": "load-balancer",
-		"DBInstance":   "db-instance",
-		"":             "",
-	}
-	for in, want := range cases {
-		if got := PascalToKebab(in); got != want {
-			t.Errorf("PascalToKebab(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
