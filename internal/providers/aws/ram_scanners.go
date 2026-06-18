@@ -103,10 +103,22 @@ func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, regio
 			}
 			// AWS-managed permission ARNs use account "aws": arn:aws:ram::aws:permission/...
 			managed := strings.HasPrefix(arn, "arn:aws:ram::aws:permission/")
+			// The AWS-managed permission catalogue is partition-global with
+			// region-less ARNs; emitting it from every region's concurrent upsert
+			// collides on the region-excluded natural key. Emit it once (us-east-1)
+			// and tag it global. Customer-managed permissions carry their region in
+			// the ARN, so they stay per-region.
+			permRegion := &region
+			if managed {
+				if region != "us-east-1" {
+					continue
+				}
+				permRegion = regionGlobal
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRAMPermission, NativeID: arn,
-				Name: p.Name, Region: &region,
+				Name: p.Name, Region: permRegion,
 				AttributesJSON:    mustJSON(p),
 				DiscoveredBy:      scanID,
 				ManagedByProvider: managed,
