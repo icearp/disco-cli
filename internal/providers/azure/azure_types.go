@@ -436,6 +436,46 @@ const (
 	TypeNetworkFrontDoorWAFManagedRuleset = "azure:microsoft.network:front-door-waf-managed-ruleset"
 	TypeNetworkFrontDoorWAFPolicy         = "azure:microsoft.network:front-door-waf-policy"
 	TypeNetworkExperimentProfile          = "azure:microsoft.network:network-experiment-profile"
+
+	// Coverage sweep: telco/edge
+	TypeManagedNetworkFabricACL             = "azure:microsoft.managednetworkfabric:access-control-lists"
+	TypeManagedNetworkFabricInternetGwRule  = "azure:microsoft.managednetworkfabric:internet-gateway-rules"
+	TypeManagedNetworkFabricInternetGateway = "azure:microsoft.managednetworkfabric:internet-gateways"
+	TypeManagedNetworkFabricIPCommunity     = "azure:microsoft.managednetworkfabric:ip-communities"
+	TypeManagedNetworkFabricIPExtCommunity  = "azure:microsoft.managednetworkfabric:ip-extended-communities"
+	TypeManagedNetworkFabricIPPrefix        = "azure:microsoft.managednetworkfabric:ip-prefixes"
+	TypeManagedNetworkFabricL2IsolationDom  = "azure:microsoft.managednetworkfabric:l2-isolation-domains"
+	TypeManagedNetworkFabricL3IsolationDom  = "azure:microsoft.managednetworkfabric:l3-isolation-domains"
+	TypeManagedNetworkFabricNeighborGroup   = "azure:microsoft.managednetworkfabric:neighbor-groups"
+	TypeManagedNetworkFabricNetworkDevice   = "azure:microsoft.managednetworkfabric:network-devices"
+	TypeManagedNetworkFabricController      = "azure:microsoft.managednetworkfabric:network-fabric-controllers"
+	TypeManagedNetworkFabricPacketBroker    = "azure:microsoft.managednetworkfabric:network-packet-brokers"
+	TypeManagedNetworkFabricRack            = "azure:microsoft.managednetworkfabric:network-racks"
+	TypeManagedNetworkFabricNetworkTapRule  = "azure:microsoft.managednetworkfabric:network-tap-rules"
+	TypeManagedNetworkFabricNetworkTap      = "azure:microsoft.managednetworkfabric:network-taps"
+	TypeManagedNetworkFabricRoutePolicy     = "azure:microsoft.managednetworkfabric:route-policies"
+
+	TypeNetworkCloudBareMetalMachine  = "azure:microsoft.networkcloud:bare-metal-machines"
+	TypeNetworkCloudServicesNetwork   = "azure:microsoft.networkcloud:cloud-services-networks"
+	TypeNetworkCloudClusterManager    = "azure:microsoft.networkcloud:cluster-managers"
+	TypeNetworkCloudKubernetesCluster = "azure:microsoft.networkcloud:kubernetes-clusters"
+	TypeNetworkCloudL2Network         = "azure:microsoft.networkcloud:l2-networks"
+	TypeNetworkCloudL3Network         = "azure:microsoft.networkcloud:l3-networks"
+	TypeNetworkCloudRack              = "azure:microsoft.networkcloud:racks"
+	TypeNetworkCloudRackSKU           = "azure:microsoft.networkcloud:rack-skus"
+	TypeNetworkCloudStorageAppliance  = "azure:microsoft.networkcloud:storage-appliances"
+	TypeNetworkCloudTrunkedNetwork    = "azure:microsoft.networkcloud:trunked-networks"
+	TypeNetworkCloudVirtualMachine    = "azure:microsoft.networkcloud:virtual-machines"
+	TypeNetworkCloudVolume            = "azure:microsoft.networkcloud:volumes"
+
+	TypeEdgeOrderAddress = "azure:microsoft.edgeorder:addresses"
+	TypeEdgeOrderOrder   = "azure:microsoft.edgeorder:orders"
+
+	TypePeeringPeerAsn        = "azure:microsoft.peering:peer-asns"
+	TypePeeringPeeringService = "azure:microsoft.peering:peering-services"
+
+	TypeEdgeMarketplaceOffer     = "azure:microsoft.edgemarketplace:offers"
+	TypeEdgeMarketplacePublisher = "azure:microsoft.edgemarketplace:publishers"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -809,4 +849,39 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/frontdoorwebapplicationfirewallmanagedrulesets":   TypeNetworkFrontDoorWAFManagedRuleset,
 	"microsoft.network/frontdoorwebapplicationfirewallpolicies":          TypeNetworkFrontDoorWAFPolicy,
 	"microsoft.network/networkexperimentprofiles":                        TypeNetworkExperimentProfile,
+	// Coverage sweep: telco/edge
+	"microsoft.managednetworkfabric/accesscontrollists":       TypeManagedNetworkFabricACL,
+	"microsoft.managednetworkfabric/internetgatewayrules":     TypeManagedNetworkFabricInternetGwRule,
+	"microsoft.managednetworkfabric/internetgateways":         TypeManagedNetworkFabricInternetGateway,
+	"microsoft.managednetworkfabric/ipcommunities":            TypeManagedNetworkFabricIPCommunity,
+	"microsoft.managednetworkfabric/ipextendedcommunities":    TypeManagedNetworkFabricIPExtCommunity,
+	"microsoft.managednetworkfabric/ipprefixes":               TypeManagedNetworkFabricIPPrefix,
+	"microsoft.managednetworkfabric/l2isolationdomains":       TypeManagedNetworkFabricL2IsolationDom,
+	"microsoft.managednetworkfabric/l3isolationdomains":       TypeManagedNetworkFabricL3IsolationDom,
+	"microsoft.managednetworkfabric/neighborgroups":           TypeManagedNetworkFabricNeighborGroup,
+	"microsoft.managednetworkfabric/networkdevices":           TypeManagedNetworkFabricNetworkDevice,
+	"microsoft.managednetworkfabric/networkfabriccontrollers": TypeManagedNetworkFabricController,
+	"microsoft.managednetworkfabric/networkpacketbrokers":     TypeManagedNetworkFabricPacketBroker,
+	"microsoft.managednetworkfabric/networkracks":             TypeManagedNetworkFabricRack,
+	"microsoft.managednetworkfabric/networktaprules":          TypeManagedNetworkFabricNetworkTapRule,
+	"microsoft.managednetworkfabric/networktaps":              TypeManagedNetworkFabricNetworkTap,
+	"microsoft.managednetworkfabric/routepolicies":            TypeManagedNetworkFabricRoutePolicy,
+	"microsoft.networkcloud/baremetalmachines":                TypeNetworkCloudBareMetalMachine,
+	"microsoft.networkcloud/cloudservicesnetworks":            TypeNetworkCloudServicesNetwork,
+	"microsoft.networkcloud/clustermanagers":                  TypeNetworkCloudClusterManager,
+	"microsoft.networkcloud/kubernetesclusters":               TypeNetworkCloudKubernetesCluster,
+	"microsoft.networkcloud/l2networks":                       TypeNetworkCloudL2Network,
+	"microsoft.networkcloud/l3networks":                       TypeNetworkCloudL3Network,
+	"microsoft.networkcloud/racks":                            TypeNetworkCloudRack,
+	"microsoft.networkcloud/rackskus":                         TypeNetworkCloudRackSKU,
+	"microsoft.networkcloud/storageappliances":                TypeNetworkCloudStorageAppliance,
+	"microsoft.networkcloud/trunkednetworks":                  TypeNetworkCloudTrunkedNetwork,
+	"microsoft.networkcloud/virtualmachines":                  TypeNetworkCloudVirtualMachine,
+	"microsoft.networkcloud/volumes":                          TypeNetworkCloudVolume,
+	"microsoft.edgeorder/addresses":                           TypeEdgeOrderAddress,
+	"microsoft.edgeorder/orders":                              TypeEdgeOrderOrder,
+	"microsoft.peering/peerasns":                              TypePeeringPeerAsn,
+	"microsoft.peering/peeringservices":                       TypePeeringPeeringService,
+	"microsoft.edgemarketplace/offers":                        TypeEdgeMarketplaceOffer,
+	"microsoft.edgemarketplace/publishers":                    TypeEdgeMarketplacePublisher,
 }

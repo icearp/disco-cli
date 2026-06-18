@@ -166,6 +166,27 @@ func init() {
 		{Type: TypeManagedNetworkFabric, Attributes: []redact.Rule{
 			{Path: "properties.terminalServerConfiguration.password", Mode: redact.RedactScalar},
 		}},
+		// Operator Nexus per-resource admin/BMC/image-repo passwords echoed on
+		// the list responses (usernames + IPs + SSH public keys preserved by
+		// omission; only the secret passwords are redacted).
+		{Type: TypeNetworkCloudBareMetalMachine, Attributes: []redact.Rule{
+			{Path: "properties.bmcCredentials.password", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeNetworkCloudStorageAppliance, Attributes: []redact.Rule{
+			{Path: "properties.administratorCredentials.password", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeNetworkCloudVirtualMachine, Attributes: []redact.Rule{
+			{Path: "properties.vmImageRepositoryCredentials.password", Mode: redact.RedactScalar},
+		}},
+		// Peering BGP sessions echo the MD5 authentication key, and peering
+		// services echo the Log Analytics workspace key, on their list responses.
+		{Type: TypePeeringPeering, Attributes: []redact.Rule{
+			{Path: "properties.direct.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar},
+			{Path: "properties.exchange.connections[*].bgpSession.md5AuthenticationKey", Mode: redact.RedactScalar},
+		}},
+		{Type: TypePeeringPeeringService, Attributes: []redact.Rule{
+			{Path: "properties.logAnalyticsWorkspaceProperties.key", Mode: redact.RedactScalar},
+		}},
 		// Operator Nexus clusters carry baseboard-management-controller and
 		// storage-appliance admin passwords in each rack definition (the SDK
 		// permits a plaintext password until the cluster moves to managed

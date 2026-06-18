@@ -59,6 +59,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dnsresolver/armdnsresolver v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/durabletask/armdurabletask v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgemarketplace/armedgemarketplace v0.0.0-20260618011309-7d2d140e3487
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgezones/armedgezones v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/elasticsan/armelasticsan v1.2.0

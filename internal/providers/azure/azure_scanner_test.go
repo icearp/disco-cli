@@ -83,6 +83,7 @@ var expectedAzureServices = []string{
 	"azure:digitaltwins",
 	"azure:dns",
 	"azure:dnsresolver",
+	"azure:edgemarketplace",
 	"azure:edgeorder",
 	"azure:edgezones",
 	"azure:elasticsan",

@@ -126,6 +126,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdoma
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration v0.1.0/go.mod h1:GhKaO5r8fWbtvWf+nlgnUGpIavVHFYVQv+aPbq/lwus=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/durabletask/armdurabletask v1.1.0 h1:ULewfSLr2QiALT00WHlri6qfILtOrunBEOV1QleB6rs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/durabletask/armdurabletask v1.1.0/go.mod h1:RXwqWImVJpg+0HJS0qMHJba/qdKcjSYqVKPM8YtJfAI=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgemarketplace/armedgemarketplace v0.0.0-20260618011309-7d2d140e3487 h1:hKettu1eh6ps4SpBXGp5vU5f0weZCCm9rkE3f4KTrMc=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgemarketplace/armedgemarketplace v0.0.0-20260618011309-7d2d140e3487/go.mod h1:t9lZbTXzuO3FaWSPqVklR9+9YpQKR4VZwAuGG9oYhLM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder v1.2.0 h1:tNYXJIrp3r/XRW2TyWIunViyRwv/gT+238HbQY+Yuys=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder v1.2.0/go.mod h1:jB973ann3psR+9aWNTfFTEaF5LQEVbGsOoaQF2SwM1A=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgezones/armedgezones v0.1.0 h1:CYGS1sz0FFu9hmUrdvbG/XVLGQu0Fo1FDPKWqL7l8po=

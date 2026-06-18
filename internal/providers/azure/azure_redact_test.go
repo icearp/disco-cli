@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redhatopenshift/armredhatopenshift"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
@@ -725,5 +726,94 @@ func TestRedact_NetworkVirtualAppliance_CloudInit(t *testing.T) {
 	props := got["properties"].(map[string]any)
 	if props["cloudInitConfiguration"] != redact.Placeholder {
 		t.Errorf("cloudInitConfiguration not redacted: %v", props["cloudInitConfiguration"])
+	}
+}
+
+func TestRedact_NetworkCloud_BareMetalMachineBmcPassword(t *testing.T) {
+	user, pass := "bmcadmin", "hunter2"
+	in := armnetworkcloud.BareMetalMachine{
+		Properties: &armnetworkcloud.BareMetalMachineProperties{
+			BmcCredentials: &armnetworkcloud.AdministrativeCredentials{Username: &user, Password: &pass},
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkCloudBareMetalMachine, in)
+	creds := got["properties"].(map[string]any)["bmcCredentials"].(map[string]any)
+	if creds["password"] != redact.Placeholder {
+		t.Errorf("bmc password not redacted: %v", creds["password"])
+	}
+	if creds["username"] != user {
+		t.Errorf("bmc username clobbered: %v", creds["username"])
+	}
+}
+
+func TestRedact_NetworkCloud_StorageApplianceAdminPassword(t *testing.T) {
+	user, pass := "saadmin", "hunter2"
+	in := armnetworkcloud.StorageAppliance{
+		Properties: &armnetworkcloud.StorageApplianceProperties{
+			AdministratorCredentials: &armnetworkcloud.AdministrativeCredentials{Username: &user, Password: &pass},
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkCloudStorageAppliance, in)
+	creds := got["properties"].(map[string]any)["administratorCredentials"].(map[string]any)
+	if creds["password"] != redact.Placeholder {
+		t.Errorf("admin password not redacted: %v", creds["password"])
+	}
+	if creds["username"] != user {
+		t.Errorf("admin username clobbered: %v", creds["username"])
+	}
+}
+
+func TestRedact_NetworkCloud_VirtualMachineImageRepoPassword(t *testing.T) {
+	user, pass, url := "repouser", "hunter2", "https://repo.example.com"
+	in := armnetworkcloud.VirtualMachine{
+		Properties: &armnetworkcloud.VirtualMachineProperties{
+			VMImageRepositoryCredentials: &armnetworkcloud.ImageRepositoryCredentials{
+				Username: &user, Password: &pass, RegistryURL: &url,
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkCloudVirtualMachine, in)
+	creds := got["properties"].(map[string]any)["vmImageRepositoryCredentials"].(map[string]any)
+	if creds["password"] != redact.Placeholder {
+		t.Errorf("image-repo password not redacted: %v", creds["password"])
+	}
+	if creds["username"] != user {
+		t.Errorf("image-repo username clobbered: %v", creds["username"])
+	}
+	if creds["registryUrl"] != url {
+		t.Errorf("registryUrl clobbered: %v", creds["registryUrl"])
+	}
+}
+
+func TestRedact_Peering_BgpMD5Key(t *testing.T) {
+	p := armpeering.Peering{
+		Properties: &armpeering.Properties{
+			Direct: &armpeering.PropertiesDirect{
+				Connections: []*armpeering.DirectConnection{
+					{BgpSession: &armpeering.BgpSession{MD5AuthenticationKey: to.Ptr("bgp-md5-secret")}},
+				},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypePeeringPeering, p)
+	conns := got["properties"].(map[string]any)["direct"].(map[string]any)["connections"].([]any)
+	bgp := conns[0].(map[string]any)["bgpSession"].(map[string]any)
+	if bgp["md5AuthenticationKey"] != redact.Placeholder {
+		t.Errorf("md5AuthenticationKey not redacted: %v", bgp["md5AuthenticationKey"])
+	}
+}
+
+func TestRedact_PeeringService_LogAnalyticsKey(t *testing.T) {
+	s := armpeering.Service{
+		Properties: &armpeering.ServiceProperties{
+			LogAnalyticsWorkspaceProperties: &armpeering.LogAnalyticsWorkspaceProperties{
+				Key: to.Ptr("la-workspace-key"),
+			},
+		},
+	}
+	got := applyAndDecode(t, TypePeeringPeeringService, s)
+	la := got["properties"].(map[string]any)["logAnalyticsWorkspaceProperties"].(map[string]any)
+	if la["key"] != redact.Placeholder {
+		t.Errorf("logAnalytics key not redacted: %v", la["key"])
 	}
 }
