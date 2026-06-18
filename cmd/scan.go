@@ -361,6 +361,15 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 			provScope["source_identity"] = sourceIdentity
 		}
 	}
+	if _, ok := s.(providers.RegionScopeToggler); ok {
+		enabled := true
+		if cmd.Flags().Changed("scope-regions") {
+			enabled, _ = cmd.Flags().GetBool("scope-regions")
+		} else if viper.IsSet(s.Name() + ".scope_to_available_regions") {
+			enabled = viper.GetBool(s.Name() + ".scope_to_available_regions")
+		}
+		provScope["scope_to_available_regions"] = enabled
+	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {
 			provScope["subscriptions"] = subs
@@ -480,6 +489,54 @@ func renderWarnings(w io.Writer, warnings []store.ScanWarning, quiet bool) {
 	renderMessages(w, "Warnings", rows, quiet)
 }
 
+// registerScannerFlags adds the optional flags a provider's subcommand supports,
+// gated on the matching capability interface — keeps --help honest (no flags
+// listed that would be silently ignored). Extracted from init() to keep that
+// function under the cyclomatic-complexity bar.
+func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
+	if _, ok := s.(providers.ServiceFilterer); ok {
+		example := serviceFilterExample(s)
+		subcmd.Flags().StringSlice("services", nil,
+			fmt.Sprintf("comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
+	}
+	if _, ok := s.(providers.RegionOverrider); ok {
+		subcmd.Flags().StringSlice("regions", nil,
+			"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
+		subcmd.Flags().StringSlice("region", nil, "alias for --regions")
+		_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
+	}
+	if _, ok := s.(providers.ProfileOverrider); ok {
+		subcmd.Flags().String("profile", "",
+			"named credential profile (e.g. a profile defined in ~/.aws/config)")
+	}
+	if _, ok := s.(providers.RoleOverrider); ok {
+		subcmd.Flags().String("role-arn", "",
+			"AssumeRole target — pins the scan to a single account reached by assuming this role; bypasses the config file's accounts: section")
+		subcmd.Flags().String("external-id", "",
+			"STS ExternalId for --role-arn (only honoured when --role-arn is also set)")
+	}
+	if _, ok := s.(providers.SourceIdentityOverrider); ok {
+		subcmd.Flags().String("source-identity", "",
+			"STS SourceIdentity stamped on assumed-role sessions for CloudTrail attribution; \"auto\" uses the scan ID. Requires the target role's trust policy to allow sts:SetSourceIdentity")
+	}
+	if _, ok := s.(providers.RegionScopeToggler); ok {
+		subcmd.Flags().Bool("scope-regions", true,
+			"skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --scope-regions=false")
+	}
+	if _, ok := s.(providers.SubscriptionOverrider); ok {
+		subcmd.Flags().StringSlice("subscriptions", nil,
+			"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
+	}
+	if _, ok := s.(providers.GlobalsSkipper); ok {
+		subcmd.Flags().Bool("skip-globals", false,
+			"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
+	}
+	if _, ok := s.(providers.CredentialConfigOverrider); ok {
+		subcmd.Flags().String("credential-config", "",
+			"path to a credential-configuration file: a keyless GCP Workload Identity Federation cred-config (from 'gcloud iam workload-identity-pools create-cred-config') or a service-account key; overrides the config file")
+	}
+}
+
 func init() {
 	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
@@ -500,46 +557,7 @@ func init() {
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
 			Long:  scanProviderLong(s),
 		}
-		// Register optional flags only when the provider implements the matching
-		// capability interface — keeps --help honest (no flags listed that would
-		// be silently ignored).
-		if _, ok := s.(providers.ServiceFilterer); ok {
-			example := serviceFilterExample(s)
-			subcmd.Flags().StringSlice("services", nil,
-				fmt.Sprintf("comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
-		}
-		if _, ok := s.(providers.RegionOverrider); ok {
-			subcmd.Flags().StringSlice("regions", nil,
-				"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
-			subcmd.Flags().StringSlice("region", nil, "alias for --regions")
-			_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
-		}
-		if _, ok := s.(providers.ProfileOverrider); ok {
-			subcmd.Flags().String("profile", "",
-				"named credential profile (e.g. a profile defined in ~/.aws/config)")
-		}
-		if _, ok := s.(providers.RoleOverrider); ok {
-			subcmd.Flags().String("role-arn", "",
-				"AssumeRole target — pins the scan to a single account reached by assuming this role; bypasses the config file's accounts: section")
-			subcmd.Flags().String("external-id", "",
-				"STS ExternalId for --role-arn (only honoured when --role-arn is also set)")
-		}
-		if _, ok := s.(providers.SourceIdentityOverrider); ok {
-			subcmd.Flags().String("source-identity", "",
-				"STS SourceIdentity stamped on assumed-role sessions for CloudTrail attribution; \"auto\" uses the scan ID. Requires the target role's trust policy to allow sts:SetSourceIdentity")
-		}
-		if _, ok := s.(providers.SubscriptionOverrider); ok {
-			subcmd.Flags().StringSlice("subscriptions", nil,
-				"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
-		}
-		if _, ok := s.(providers.GlobalsSkipper); ok {
-			subcmd.Flags().Bool("skip-globals", false,
-				"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
-		}
-		if _, ok := s.(providers.CredentialConfigOverrider); ok {
-			subcmd.Flags().String("credential-config", "",
-				"path to a credential-configuration file: a keyless GCP Workload Identity Federation cred-config (from 'gcloud iam workload-identity-pools create-cred-config') or a service-account key; overrides the config file")
-		}
+		registerScannerFlags(subcmd, s)
 		subcmd.RunE = func(cmd *cobra.Command, _ []string) error {
 			if sf, ok := s.(providers.ServiceFilterer); ok {
 				if svcs, _ := cmd.Flags().GetStringSlice("services"); len(svcs) > 0 {
@@ -575,6 +593,16 @@ func init() {
 				if sourceIdentity != "" {
 					si.SetSourceIdentity(sourceIdentity)
 				}
+			}
+			if rst, ok := s.(providers.RegionScopeToggler); ok {
+				// Default on; an explicit flag wins over the config key.
+				enabled := true
+				if cmd.Flags().Changed("scope-regions") {
+					enabled, _ = cmd.Flags().GetBool("scope-regions")
+				} else if viper.IsSet(s.Name() + ".scope_to_available_regions") {
+					enabled = viper.GetBool(s.Name() + ".scope_to_available_regions")
+				}
+				rst.SetRegionScope(enabled)
 			}
 			if so, ok := s.(providers.SubscriptionOverrider); ok {
 				if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {

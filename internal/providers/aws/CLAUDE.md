@@ -404,6 +404,30 @@ opt-in region (af-south-1, ap-east-1, …) returns `AuthFailure` / `Unrecognized
 credentials, and each one burns the 10-attempt adaptive retry budget. Do NOT add those codes
 to a dispatcher silent-skip: that would mask real credential failures. Fix at the source.
 
+## Per-service region pre-scoping via SSM global-infrastructure catalog
+
+`buildRegionAvailability` (`aws_region_availability.go`) runs once per account in
+`scanAccount`, after `enabledScanRegions`, when `--scope-regions` is on (default)
+AND more than one region is scanned. It queries the SSM global-infra catalog
+(`/aws/service/global-infrastructure/services/<code>/regions`, `ssm` client pinned
+to `us-east-1`) per distinct service code and caches `acct.availByCode`
+(code → region set). `scanRegion` then skips dispatching a service into a region
+the catalog says AWS doesn't offer it in — surfacing `(service disabled)`.
+
+**Fail-open is the whole safety model.** The catalog is AWS's own availability
+truth, so a region it omits is one the API genuinely isn't in (we'd NXDOMAIN/error
+anyway). `serviceAvailableInRegion` returns "scan" whenever the data is
+missing/unknown: nil map, code absent from catalog (divergent name), or empty
+region set. The service code derives from the registerService name minus `aws:`;
+divergent names (e.g. `aws:code-build` vs catalog `codebuild`) simply aren't found
+→ scanned everywhere. `regionAvailabilityCodeOverrides` (intentionally empty) is
+the unlock for divergent services — only add a mapping VERIFIED against the live
+catalog, since a wrong override is the one way to skip a region the service serves.
+This complements, never replaces, the per-region silent-skip predicates (NXDOMAIN,
+feature-gap codes) — those catch sub-feature gaps the service-level catalog can't.
+Toggle: `--scope-regions=false` (or `aws.scope_to_available_regions: false`).
+Capability: `providers.RegionScopeToggler`.
+
 ## NXDOMAIN at dispatcher = service not deployed in region
 
 `isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(service disabled)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.

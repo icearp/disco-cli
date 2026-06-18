@@ -77,6 +77,15 @@ type SourceIdentityOverrider interface {
 	SetSourceIdentity(sourceIdentity string)
 }
 
+// RegionScopeToggler is an optional interface for providers that can pre-scope
+// per-service scans to the regions where the cloud actually offers each service,
+// skipping dispatch into regions where it's unavailable. Enabled by default; the
+// --scope-regions flag toggles it. Fail-open — providers must scan all configured
+// regions whenever the availability source is unreachable.
+type RegionScopeToggler interface {
+	SetRegionScope(enabled bool)
+}
+
 // SubscriptionOverrider is an optional interface for providers that support
 // pinning the scan to an explicit subscription set via the --subscriptions CLI
 // flag. Used by an external orchestrator to constrain the shared worker

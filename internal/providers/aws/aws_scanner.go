@@ -39,13 +39,14 @@ func init() { providers.Register(&Scanner{}) }
 
 // Scanner implements providers.Scanner for AWS.
 type Scanner struct {
-	serviceFilter  []string // nil = scan all registered services
-	regionOverride []string // non-nil overrides all per-account and default regions
-	profile        string   // "" = default AWS credential chain
-	skipGlobals    bool     // when true, services registered as global are not invoked
-	roleARN        string   // "" = use config-file accounts; non-empty pins single-account scan via assume-role
-	externalID     string   // included in AssumeRole only when roleARN is also set
-	sourceIdentity string   // "" = off; "auto" = scan ID; else literal STS SourceIdentity stamped on assumed sessions
+	serviceFilter       []string // nil = scan all registered services
+	regionOverride      []string // non-nil overrides all per-account and default regions
+	profile             string   // "" = default AWS credential chain
+	skipGlobals         bool     // when true, services registered as global are not invoked
+	roleARN             string   // "" = use config-file accounts; non-empty pins single-account scan via assume-role
+	externalID          string   // included in AssumeRole only when roleARN is also set
+	sourceIdentity      string   // "" = off; "auto" = scan ID; else literal STS SourceIdentity stamped on assumed sessions
+	regionScopeDisabled bool     // when true, skip SSM global-infra region pre-scoping (--scope-regions=false)
 }
 
 // Name implements providers.Scanner.
@@ -108,6 +109,11 @@ func (s *Scanner) SetRoleOverride(roleARN, externalID string) {
 // policy to grant sts:SetSourceIdentity, so it is off unless explicitly set.
 func (s *Scanner) SetSourceIdentity(sourceIdentity string) { s.sourceIdentity = sourceIdentity }
 
+// SetRegionScope toggles SSM global-infrastructure region pre-scoping (default on
+// via --scope-regions). When disabled, every regional service is dispatched into
+// every enabled region as before.
+func (s *Scanner) SetRegionScope(enabled bool) { s.regionScopeDisabled = !enabled }
+
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
 	svcs := filteredServices(s.serviceFilter)
@@ -139,6 +145,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return nil
 	}
 	for i := range accounts {
+		accounts[i].regionScopeDisabled = s.regionScopeDisabled
 		scanAccount(ctx, &accounts[i], s.serviceFilter, s.skipGlobals, st, scanID)
 	}
 	return nil
@@ -204,7 +211,12 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 		})
 	}
 
-	for _, region := range enabledScanRegions(ctx, acct, st) {
+	kept := enabledScanRegions(ctx, acct, st)
+	// Pre-scope per-service regions from the SSM global-infrastructure catalog so
+	// services AWS doesn't offer in a region are never dispatched there. Fail-open
+	// + skipped entirely for single-region scans (nothing to scope).
+	buildRegionAvailability(ctx, acct, services, st, kept)
+	for _, region := range kept {
 		wg.Go(func() {
 			if err := regionSem.Acquire(ctx, 1); err != nil {
 				return
@@ -300,6 +312,14 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 		if svc.global {
 			continue
 		}
+		// AWS doesn't offer this service in this region (per the SSM global-infra
+		// catalog) — don't dispatch. Fail-open: serviceAvailableInRegion returns
+		// true whenever the availability data is missing/unknown for this code.
+		if !acct.regionScopeDisabled &&
+			!serviceAvailableInRegion(acct.availByCode, regionAvailabilityCode(svc.name), region) {
+			st.ReportService(svc.name, region, 0, 0, 0, true)
+			continue
+		}
 		wg.Go(func() {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return
@@ -378,6 +398,13 @@ type account struct {
 	wsiRegionsOnce sync.Once
 	wsiRegions     map[string]bool
 	wsiRegionsErr  error
+
+	// availByCode maps an AWS global-infrastructure service code to the set of
+	// regions where AWS offers it, built once per account from the SSM catalog
+	// (see aws_region_availability.go). nil = no scoping data → scan every region
+	// (fail-open). regionScopeDisabled mirrors --scope-regions=false.
+	availByCode         map[string]map[string]bool
+	regionScopeDisabled bool
 }
 
 // s3BucketEncryptionEntry carries a bucket's SSE configuration alongside the
