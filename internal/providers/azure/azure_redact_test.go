@@ -432,6 +432,29 @@ func TestRedact_AzureArcDataController_DashboardCreds(t *testing.T) {
 	}
 }
 
+func TestRedact_AzureArcData_InstanceBasicLogin(t *testing.T) {
+	pg := armazurearcdata.PostgresInstance{Properties: &armazurearcdata.PostgresInstanceProperties{
+		BasicLoginInformation: &armazurearcdata.BasicLoginInformation{Username: to.Ptr("pgadmin"), Password: to.Ptr("hunter2")},
+	}}
+	got := applyAndDecode(t, TypeAzureArcDataPostgres, pg)
+	bl := got["properties"].(map[string]any)["basicLoginInformation"].(map[string]any)
+	if bl["password"] != redact.Placeholder {
+		t.Errorf("postgres basicLoginInformation.password not redacted: %v", bl["password"])
+	}
+	if bl["username"] != "pgadmin" {
+		t.Errorf("postgres username clobbered: %v", bl["username"])
+	}
+
+	mi := armazurearcdata.SQLManagedInstance{Properties: &armazurearcdata.SQLManagedInstanceProperties{
+		BasicLoginInformation: &armazurearcdata.BasicLoginInformation{Username: to.Ptr("sqladmin"), Password: to.Ptr("hunter3")},
+	}}
+	got = applyAndDecode(t, TypeAzureArcDataSQLManagedInstance, mi)
+	bl = got["properties"].(map[string]any)["basicLoginInformation"].(map[string]any)
+	if bl["password"] != redact.Placeholder {
+		t.Errorf("sql-mi basicLoginInformation.password not redacted: %v", bl["password"])
+	}
+}
+
 func TestRedact_CustomLocation_AuthenticationKubeconfig(t *testing.T) {
 	cl := armextendedlocation.CustomLocation{Properties: &armextendedlocation.CustomLocationProperties{
 		Authentication: &armextendedlocation.CustomLocationPropertiesAuthentication{

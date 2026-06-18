@@ -59,12 +59,30 @@ const (
 	TypeAzureStackHCIStorageContainer        = "azure:microsoft.azurestackhci:storage-container"
 	TypeAzureStackHCIVirtualHardDisk         = "azure:microsoft.azurestackhci:virtual-hard-disk"
 	TypeConnectedVMwareVCenter               = "azure:microsoft.connectedvmwarevsphere:vcenter"
+	TypeConnectedVMwareCluster               = "azure:microsoft.connectedvmwarevsphere:cluster"
+	TypeConnectedVMwareDatastore             = "azure:microsoft.connectedvmwarevsphere:datastore"
+	TypeConnectedVMwareHost                  = "azure:microsoft.connectedvmwarevsphere:host"
+	TypeConnectedVMwareResourcePool          = "azure:microsoft.connectedvmwarevsphere:resource-pool"
+	TypeConnectedVMwareVMTemplate            = "azure:microsoft.connectedvmwarevsphere:virtual-machine-template"
+	TypeConnectedVMwareVirtualNetwork        = "azure:microsoft.connectedvmwarevsphere:virtual-network"
 	TypeCustomLocation                       = "azure:microsoft.extendedlocation:custom-location"
 	TypeHybridComputeMachine                 = "azure:microsoft.hybridcompute:machine"
+	TypeHybridComputePrivateLinkScope        = "azure:microsoft.hybridcompute:private-link-scope"
+	TypeHybridConnectivityPublicCloud        = "azure:microsoft.hybridconnectivity:public-cloud-connector"
 	TypeHybridContainerVirtualNetwork        = "azure:microsoft.hybridcontainerservice:virtual-network"
+	TypeHybridNetworkDevice                  = "azure:microsoft.hybridnetwork:device"
 	TypeKubernetesConnectedCluster           = "azure:microsoft.kubernetes:connected-cluster"
 	TypeResourceConnectorAppliance           = "azure:microsoft.resourceconnector:appliance"
 	TypeScVmmServer                          = "azure:microsoft.scvmm:vmm-server"
+	TypeScVmmCloud                           = "azure:microsoft.scvmm:cloud"
+	TypeScVmmAvailabilitySet                 = "azure:microsoft.scvmm:availability-set"
+	TypeScVmmVMTemplate                      = "azure:microsoft.scvmm:virtual-machine-template"
+	TypeScVmmVirtualNetwork                  = "azure:microsoft.scvmm:virtual-network"
+	TypeAzureArcDataPostgres                 = "azure:microsoft.azurearcdata:postgres-instance"
+	TypeAzureArcDataSQLManagedInstance       = "azure:microsoft.azurearcdata:sql-managed-instance"
+	TypeAzureArcDataSQLServerInstance        = "azure:microsoft.azurearcdata:sql-server-instance"
+	TypeConnectedCacheEnterpriseCustomer     = "azure:microsoft.connectedcache:enterprise-mcc-customer"
+	TypeConnectedCacheIspCustomer            = "azure:microsoft.connectedcache:isp-customer"
 	// Networking & telco/edge (Wave 4)
 	TypeEdgeZonesExtendedZone              = "azure:microsoft.edgezones:extended-zone"
 	TypeHybridNetworkFunction              = "azure:microsoft.hybridnetwork:network-function"
@@ -469,6 +487,25 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.azurestackhci/networksecuritygroups":                        TypeAzureStackHCINetworkSecurityGroup,
 	"microsoft.azurestackhci/storagecontainers":                            TypeAzureStackHCIStorageContainer,
 	"microsoft.azurestackhci/virtualharddisks":                             TypeAzureStackHCIVirtualHardDisk,
+	"microsoft.connectedvmwarevsphere/clusters":                            TypeConnectedVMwareCluster,
+	"microsoft.connectedvmwarevsphere/datastores":                          TypeConnectedVMwareDatastore,
+	"microsoft.connectedvmwarevsphere/hosts":                               TypeConnectedVMwareHost,
+	"microsoft.connectedvmwarevsphere/resourcepools":                       TypeConnectedVMwareResourcePool,
+	"microsoft.connectedvmwarevsphere/virtualmachinetemplates":             TypeConnectedVMwareVMTemplate,
+	"microsoft.connectedvmwarevsphere/virtualnetworks":                     TypeConnectedVMwareVirtualNetwork,
+	"microsoft.scvmm/clouds":                                               TypeScVmmCloud,
+	"microsoft.scvmm/availabilitysets":                                     TypeScVmmAvailabilitySet,
+	"microsoft.scvmm/virtualmachinetemplates":                              TypeScVmmVMTemplate,
+	"microsoft.scvmm/virtualnetworks":                                      TypeScVmmVirtualNetwork,
+	"microsoft.azurearcdata/postgresinstances":                             TypeAzureArcDataPostgres,
+	"microsoft.azurearcdata/sqlmanagedinstances":                           TypeAzureArcDataSQLManagedInstance,
+	"microsoft.azurearcdata/sqlserverinstances":                            TypeAzureArcDataSQLServerInstance,
+	"microsoft.hybridcompute/privatelinkscopes":                            TypeHybridComputePrivateLinkScope,
+	"microsoft.hybridconnectivity/publiccloudconnectors":                   TypeHybridConnectivityPublicCloud,
+	"microsoft.hybridnetwork/devices":                                      TypeHybridNetworkDevice,
+	"microsoft.connectedcache/enterprisemcccustomers":                      TypeConnectedCacheEnterpriseCustomer,
+	"microsoft.connectedcache/enterprisecustomers":                         TypeConnectedCacheEnterpriseCustomer,
+	"microsoft.connectedcache/ispcustomers":                                TypeConnectedCacheIspCustomer,
 	"microsoft.connectedvmwarevsphere/vcenters":                            TypeConnectedVMwareVCenter,
 	"microsoft.extendedlocation/customlocations":                           TypeCustomLocation,
 	"microsoft.hybridcompute/machines":                                     TypeHybridComputeMachine,

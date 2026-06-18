@@ -26,6 +26,30 @@ type azPager[P any] interface {
 	NextPage(context.Context) (P, error)
 }
 
+// azRunPhases runs the given scan phases concurrently, summing their (total,
+// inserted) counts and returning the first non-nil error. Each phase is one
+// azSimpleScan / azRGFanoutScan call. Use for multi-type single-service
+// scanners (e.g. azurestackhci, connectedvmware) instead of hand-rolling the
+// WaitGroup + mutex aggregation each time.
+func azRunPhases(phases ...func() (int, int, error)) (total, inserted int, err error) {
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for _, p := range phases {
+		wg.Go(func() {
+			t, i, e := p()
+			mu.Lock()
+			total += t
+			inserted += i
+			if e != nil && err == nil {
+				err = e
+			}
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+	return total, inserted, err
+}
+
 // azPageScan runs a paginated Azure list call, converting each page to resources
 // and hierarchy pairs via toResources, then upserts both. Handles access-denied
 // by logging and returning nil.

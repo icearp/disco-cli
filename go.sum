@@ -68,6 +68,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/computefleet/armcomputefle
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/computefleet/armcomputefleet v1.0.0/go.mod h1:GOPTZQgHCxLrFsgjPenISpMqRAyiiHR3xw5jRD492No=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/confidentialledger/armconfidentialledger v1.2.0 h1:r8gb1bUxeL/QpJbF1sAucSDu8PiguG+4mfa38lhNPEk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/confidentialledger/armconfidentialledger v1.2.0/go.mod h1:liwaWQzkLww/+T9MYkcUnGCmxGua58RWC3wIc+VntNw=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedcache/armconnectedcache v0.2.0 h1:uabK1cqjoeS9DdEDW0Bgc2xtztY4b0ZXkyPCDSgyx+U=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedcache/armconnectedcache v0.2.0/go.mod h1:Rq5aEa1qGfgCvQbViBVPWeKf29l6yRS1eGzBBjHWNsE=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware v1.1.1 h1:O1ompZVJ2i5xRZKjtwqs3cvo5wudSiOsM1rV7lAAOMA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware v1.1.1/go.mod h1:G/7M81HEF+0/K03wXebymUD+JiNCaZprhcN97KkdqOo=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance v1.0.0 h1:yKmuPI8w+5rXTMa4G5xrzwz9aGEkS6t4Gx/cRBnuh+M=
@@ -156,6 +158,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb v0.
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb v0.1.0/go.mod h1:+Pd0BRKjPf9m0MOSpTfSaIDVn8Ykxm3CZZ+9oQCr8sI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcompute/armhybridcompute v1.2.0 h1:7UuAn4ljE+H3GQ7qts3c7oAaMRvge68EgyckoNP/1Ro=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcompute/armhybridcompute v1.2.0/go.mod h1:F2eDq/BGK2LOEoDtoHbBOphaPqcjT0K/Y5Am8vf7+0w=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridconnectivity/armhybridconnectivity v1.2.0-beta.1 h1:Tx53yzQ04rO+mvH8gVljMb2L1wbRh6WyE0q4n66yIPM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridconnectivity/armhybridconnectivity v1.2.0-beta.1/go.mod h1:v9iW8TraubjW/Ot3tp2FLGt0nTfAvwJqDJX7i2NaZLc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcontainerservice/armhybridcontainerservice v1.0.0 h1:crtqxU3LRy2UEPkQJGhJM1KUPf9q0jfIrr1m2o6UAd4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridcontainerservice/armhybridcontainerservice v1.0.0/go.mod h1:amJDuQ3h8RzdvCxHSwEwn1t9cRQ7KXaoL2OeGSFVj24=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hybridkubernetes/armhybridkubernetes v1.2.0 h1:Mv/bQNTqVb4WxLuyc0GpeTwMZEJLyjP1+fqR3x4KdZA=

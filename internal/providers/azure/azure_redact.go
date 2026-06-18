@@ -124,6 +124,14 @@ func init() {
 			// Log Analytics workspace shared key echoed on the list response.
 			{Path: "properties.logAnalyticsWorkspaceConfig.primaryKey", Mode: redact.RedactScalar},
 		}},
+		// Arc data Postgres / SQL managed instances echo the basic-login admin
+		// password on their list response.
+		{Type: TypeAzureArcDataPostgres, Attributes: []redact.Rule{
+			{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeAzureArcDataSQLManagedInstance, Attributes: []redact.Rule{
+			{Path: "properties.basicLoginInformation.password", Mode: redact.RedactScalar},
+		}},
 		{Type: TypeConnectedVMwareVCenter, Attributes: []redact.Rule{
 			{Path: "properties.credentials.password", Mode: redact.RedactScalar},
 		}},
