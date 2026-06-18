@@ -56,6 +56,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devtestlabs/armdevtestlabs v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/digitaltwins/armdigitaltwins v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dnsresolver/armdnsresolver v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/durabletask/armdurabletask v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder v1.2.0
@@ -67,6 +68,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fabric/armfabric v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fileshares/armfileshares v0.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fluidrelay/armfluidrelay v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure v0.8.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hardwaresecuritymodules/armhardwaresecuritymodules v1.2.0

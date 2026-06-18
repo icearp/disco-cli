@@ -19,6 +19,24 @@ func init() {
 		{Type: TypeSQLServer, Attributes: []redact.Rule{
 			{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar},
 		}},
+		// Network VPN connections echo the IPsec PSK and ExpressRoute
+		// authorization key on the standard list response.
+		{Type: TypeNetworkConnection, Attributes: []redact.Rule{
+			{Path: "properties.sharedKey", Mode: redact.RedactScalar},
+			{Path: "properties.authorizationKey", Mode: redact.RedactScalar},
+		}},
+		// VPN server configurations echo the RADIUS shared secret on the list
+		// response — both the single-server field and each multi-server entry.
+		{Type: TypeNetworkVPNServerConfiguration, Attributes: []redact.Rule{
+			{Path: "properties.radiusServerSecret", Mode: redact.RedactScalar},
+			{Path: "properties.radiusServers[*].radiusServerSecret", Mode: redact.RedactScalar},
+		}},
+		// Network virtual appliance returns its cloud-init payload in plain text
+		// on the list response — routinely embeds bootstrap passwords / license
+		// keys / API tokens (same risk class as VMSS customData below).
+		{Type: TypeNetworkVirtualAppliance, Attributes: []redact.Rule{
+			{Path: "properties.cloudInitConfiguration", Mode: redact.RedactScalar},
+		}},
 		{Type: TypePostgreSQLFlexibleServer, Attributes: []redact.Rule{
 			{Path: "properties.administratorLoginPassword", Mode: redact.RedactScalar},
 		}},

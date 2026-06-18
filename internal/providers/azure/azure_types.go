@@ -387,6 +387,55 @@ const (
 	TypeStorageStorageTask              = "azure:microsoft.storage:storage-tasks"
 	TypeStreamAnalyticsCluster          = "azure:microsoft.streamanalytics:clusters"
 	TypeSynapsePrivateLinkHub           = "azure:microsoft.synapse:private-link-hubs"
+
+	// Coverage sweep: network (microsoft.network/* via armnetwork/v6)
+	TypeNetworkWAFPolicy                 = "azure:microsoft.network:application-gateway-waf-policy"
+	TypeNetworkApplicationSecurityGroup  = "azure:microsoft.network:application-security-group"
+	TypeNetworkAzureFirewallFqdnTag      = "azure:microsoft.network:azure-firewall-fqdn-tag"
+	TypeNetworkAzureFirewall             = "azure:microsoft.network:azure-firewall"
+	TypeNetworkAzureWebCategory          = "azure:microsoft.network:azure-web-category"
+	TypeNetworkBastionHost               = "azure:microsoft.network:bastion-host"
+	TypeNetworkBgpServiceCommunity       = "azure:microsoft.network:bgp-service-community"
+	TypeNetworkConnection                = "azure:microsoft.network:connection"
+	TypeNetworkCustomIPPrefix            = "azure:microsoft.network:custom-ip-prefix"
+	TypeNetworkDdosProtectionPlan        = "azure:microsoft.network:ddos-protection-plan"
+	TypeNetworkDscpConfiguration         = "azure:microsoft.network:dscp-configuration"
+	TypeNetworkExpressRoutePort          = "azure:microsoft.network:express-route-port"
+	TypeNetworkExpressRoutePortsLocation = "azure:microsoft.network:express-route-ports-location"
+	TypeNetworkExpressRouteServiceProv   = "azure:microsoft.network:express-route-service-provider"
+	TypeNetworkFirewallPolicy            = "azure:microsoft.network:firewall-policy"
+	TypeNetworkIPAllocation              = "azure:microsoft.network:ip-allocation"
+	TypeNetworkIPGroup                   = "azure:microsoft.network:ip-group"
+	TypeNetworkLoadBalancer              = "azure:microsoft.network:load-balancer"
+	TypeNetworkLocalNetworkGateway       = "azure:microsoft.network:local-network-gateway"
+	TypeNetworkNatGateway                = "azure:microsoft.network:nat-gateway"
+	TypeNetworkInterface                 = "azure:microsoft.network:network-interface"
+	TypeNetworkManagerConnection         = "azure:microsoft.network:network-manager-connection"
+	TypeNetworkManager                   = "azure:microsoft.network:network-manager"
+	TypeNetworkProfile                   = "azure:microsoft.network:network-profile"
+	TypeNetworkVirtualAppliance          = "azure:microsoft.network:network-virtual-appliance"
+	TypeNetworkVirtualApplianceSKU       = "azure:microsoft.network:network-virtual-appliance-sku"
+	TypeNetworkWatcher                   = "azure:microsoft.network:network-watcher"
+	TypeNetworkP2SVPNGateway             = "azure:microsoft.network:p2s-vpn-gateway"
+	TypeNetworkPrivateLinkService        = "azure:microsoft.network:private-link-service"
+	TypeNetworkPublicIPPrefix            = "azure:microsoft.network:public-ip-prefix"
+	TypeNetworkRouteFilter               = "azure:microsoft.network:route-filter"
+	TypeNetworkRouteTable                = "azure:microsoft.network:route-table"
+	TypeNetworkSecurityPartnerProvider   = "azure:microsoft.network:security-partner-provider"
+	TypeNetworkServiceEndpointPolicy     = "azure:microsoft.network:service-endpoint-policy"
+	TypeNetworkVirtualNetworkTap         = "azure:microsoft.network:virtual-network-tap"
+	TypeNetworkVirtualRouter             = "azure:microsoft.network:virtual-router"
+	TypeNetworkVPNServerConfiguration    = "azure:microsoft.network:vpn-server-configuration"
+	// Coverage sweep: network — DNS resolver family (microsoft.network/* via armdnsresolver)
+	TypeNetworkDNSForwardingRuleset  = "azure:microsoft.network:dns-forwarding-ruleset"
+	TypeNetworkDNSResolverDomainList = "azure:microsoft.network:dns-resolver-domain-list"
+	TypeNetworkDNSResolverPolicy     = "azure:microsoft.network:dns-resolver-policy"
+	TypeNetworkDNSResolver           = "azure:microsoft.network:dns-resolver"
+	// Coverage sweep: network — Front Door / WAF / network-experiment (microsoft.network/* via armfrontdoor)
+	TypeNetworkFrontDoor                  = "azure:microsoft.network:front-door"
+	TypeNetworkFrontDoorWAFManagedRuleset = "azure:microsoft.network:front-door-waf-managed-ruleset"
+	TypeNetworkFrontDoorWAFPolicy         = "azure:microsoft.network:front-door-waf-policy"
+	TypeNetworkExperimentProfile          = "azure:microsoft.network:network-experiment-profile"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -713,4 +762,51 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.storage/storagetasks":                  TypeStorageStorageTask,
 	"microsoft.streamanalytics/clusters":              TypeStreamAnalyticsCluster,
 	"microsoft.synapse/privatelinkhubs":               TypeSynapsePrivateLinkHub,
+
+	// Coverage sweep: network (microsoft.network/*)
+	"microsoft.network/applicationgatewaywebapplicationfirewallpolicies": TypeNetworkWAFPolicy,
+	"microsoft.network/applicationsecuritygroups":                        TypeNetworkApplicationSecurityGroup,
+	"microsoft.network/azurefirewallfqdntags":                            TypeNetworkAzureFirewallFqdnTag,
+	"microsoft.network/azurefirewalls":                                   TypeNetworkAzureFirewall,
+	"microsoft.network/azurewebcategories":                               TypeNetworkAzureWebCategory,
+	"microsoft.network/bastionhosts":                                     TypeNetworkBastionHost,
+	"microsoft.network/bgpservicecommunities":                            TypeNetworkBgpServiceCommunity,
+	"microsoft.network/connections":                                      TypeNetworkConnection,
+	"microsoft.network/customipprefixes":                                 TypeNetworkCustomIPPrefix,
+	"microsoft.network/ddosprotectionplans":                              TypeNetworkDdosProtectionPlan,
+	"microsoft.network/dscpconfigurations":                               TypeNetworkDscpConfiguration,
+	"microsoft.network/expressrouteports":                                TypeNetworkExpressRoutePort,
+	"microsoft.network/expressrouteportslocations":                       TypeNetworkExpressRoutePortsLocation,
+	"microsoft.network/expressrouteserviceproviders":                     TypeNetworkExpressRouteServiceProv,
+	"microsoft.network/firewallpolicies":                                 TypeNetworkFirewallPolicy,
+	"microsoft.network/ipallocations":                                    TypeNetworkIPAllocation,
+	"microsoft.network/ipgroups":                                         TypeNetworkIPGroup,
+	"microsoft.network/loadbalancers":                                    TypeNetworkLoadBalancer,
+	"microsoft.network/localnetworkgateways":                             TypeNetworkLocalNetworkGateway,
+	"microsoft.network/natgateways":                                      TypeNetworkNatGateway,
+	"microsoft.network/networkinterfaces":                                TypeNetworkInterface,
+	"microsoft.network/networkmanagerconnections":                        TypeNetworkManagerConnection,
+	"microsoft.network/networkmanagers":                                  TypeNetworkManager,
+	"microsoft.network/networkprofiles":                                  TypeNetworkProfile,
+	"microsoft.network/networkvirtualappliances":                         TypeNetworkVirtualAppliance,
+	"microsoft.network/networkvirtualapplianceskus":                      TypeNetworkVirtualApplianceSKU,
+	"microsoft.network/networkwatchers":                                  TypeNetworkWatcher,
+	"microsoft.network/p2svpngateways":                                   TypeNetworkP2SVPNGateway,
+	"microsoft.network/privatelinkservices":                              TypeNetworkPrivateLinkService,
+	"microsoft.network/publicipprefixes":                                 TypeNetworkPublicIPPrefix,
+	"microsoft.network/routefilters":                                     TypeNetworkRouteFilter,
+	"microsoft.network/routetables":                                      TypeNetworkRouteTable,
+	"microsoft.network/securitypartnerproviders":                         TypeNetworkSecurityPartnerProvider,
+	"microsoft.network/serviceendpointpolicies":                          TypeNetworkServiceEndpointPolicy,
+	"microsoft.network/virtualnetworktaps":                               TypeNetworkVirtualNetworkTap,
+	"microsoft.network/virtualrouters":                                   TypeNetworkVirtualRouter,
+	"microsoft.network/vpnserverconfigurations":                          TypeNetworkVPNServerConfiguration,
+	"microsoft.network/dnsforwardingrulesets":                            TypeNetworkDNSForwardingRuleset,
+	"microsoft.network/dnsresolverdomainlists":                           TypeNetworkDNSResolverDomainList,
+	"microsoft.network/dnsresolverpolicies":                              TypeNetworkDNSResolverPolicy,
+	"microsoft.network/dnsresolvers":                                     TypeNetworkDNSResolver,
+	"microsoft.network/frontdoors":                                       TypeNetworkFrontDoor,
+	"microsoft.network/frontdoorwebapplicationfirewallmanagedrulesets":   TypeNetworkFrontDoorWAFManagedRuleset,
+	"microsoft.network/frontdoorwebapplicationfirewallpolicies":          TypeNetworkFrontDoorWAFPolicy,
+	"microsoft.network/networkexperimentprofiles":                        TypeNetworkExperimentProfile,
 }

@@ -120,6 +120,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/digitaltwins/armdigitaltwi
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/digitaltwins/armdigitaltwins v1.2.0/go.mod h1:ESqbgba0Fl1eop2bwoJ84Vmh+d093eDrYK2TdR9bKEM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0 h1:lpOxwrQ919lCZoNCd69rVt8u1eLZuMORrGXqy8sNf3c=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns v1.2.0/go.mod h1:fSvRkb8d26z9dbL40Uf/OO6Vo9iExtZK3D0ulRV+8M0=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dnsresolver/armdnsresolver v1.3.0 h1:oFR4sUr/00//HiGZNO4Y0b/yZn4GxMmBPng4GdErJiY=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dnsresolver/armdnsresolver v1.3.0/go.mod h1:Rwggm+UIAtUyKV+chyaPaUeiVeP7Y+XtXH7/BSI2J8A=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration v0.1.0 h1:D52HXqUikqDhrnvEJN8/FOfPdVW0Qo/eyyJ7weUjHUo=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration v0.1.0/go.mod h1:GhKaO5r8fWbtvWf+nlgnUGpIavVHFYVQv+aPbq/lwus=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/durabletask/armdurabletask v1.1.0 h1:ULewfSLr2QiALT00WHlri6qfILtOrunBEOV1QleB6rs=
@@ -142,6 +144,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fileshares/armfileshares v
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fileshares/armfileshares v0.1.0/go.mod h1:vwPbWuuG8DQY7Jj3OTxnWXMeu+ktIMsgxgT3qfoGEGM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fluidrelay/armfluidrelay v1.2.0 h1:JpVScLhDIZF7XIYLzN5RZjNbq94hBCh/z0pwSZhkEBs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/fluidrelay/armfluidrelay v1.2.0/go.mod h1:v/pMJi3ZTXUHU3RXj2cNQ2FUpdyEYaewLSHJIm3EbQw=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.4.0 h1:dz5II+dFuMkrdpIkO9f/Ht3f8hnRUURiQdLj1hwKO5Q=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.4.0/go.mod h1:0tuwjeZbMwLV7h1bcyfTlnXUH6GBKkPml8ukX6EoS3o=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices v1.1.0 h1:CeeDA+QXmyLArVMhqlaVoDdS83f+G7pN5Tu69NkXkys=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices v1.1.0/go.mod h1:f6IPtVopsvGKnnmW9m6k46rjgUQydkb7Uv0Mw3xiNGo=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure v0.8.0 h1:pYT//17mA8k6LJceX7I9xabQWS1Qpak8CZcHOzNLHKo=

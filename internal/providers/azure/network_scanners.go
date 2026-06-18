@@ -31,6 +31,46 @@ func init() {
 			{Service: "microsoft.network", DiscoType: TypeNetworkVPNSite},
 			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteGateway},
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkGW},
+			// Coverage sweep: the rest of the sub/RG-listable Microsoft.Network
+			// surface. All Leaf — no in-scope outbound ARM-ID ref a per-service
+			// resolver would wire (subnet/PE/identity refs are handled centrally).
+			{Service: "microsoft.network", DiscoType: TypeNetworkWAFPolicy, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkApplicationSecurityGroup, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkAzureFirewallFqdnTag, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkAzureFirewall, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkAzureWebCategory, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkBastionHost, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkBgpServiceCommunity, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkConnection, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkCustomIPPrefix, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkDdosProtectionPlan, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkDscpConfiguration, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRoutePort, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRoutePortsLocation, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkExpressRouteServiceProv, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkFirewallPolicy, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkIPAllocation, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkIPGroup, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkLoadBalancer, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkLocalNetworkGateway, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkNatGateway, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkInterface, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkManagerConnection, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkManager, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkProfile, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualAppliance, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualApplianceSKU, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkWatcher, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkP2SVPNGateway, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkPrivateLinkService, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPPrefix, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkRouteFilter, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkRouteTable, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityPartnerProvider, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkServiceEndpointPolicy, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetworkTap, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualRouter, Leaf: true},
+			{Service: "microsoft.network", DiscoType: TypeNetworkVPNServerConfiguration, Leaf: true},
 		},
 	})
 }
@@ -161,6 +201,9 @@ func scanNetwork(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 				},
 				agwToBase)
 		},
+		// Coverage sweep — remaining Microsoft.Network types, fanned out as one
+		// nested phase to keep scanNetwork's complexity bounded.
+		func() (int, int, error) { return scanNetworkSweep(ctx, sub, cred, st, scanID) },
 	}
 
 	var wg sync.WaitGroup

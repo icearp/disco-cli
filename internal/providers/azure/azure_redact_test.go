@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mongocluster/armmongocluster"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/netapp/armnetapp/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redhatopenshift/armredhatopenshift"
@@ -671,5 +672,58 @@ func TestRedact_LabServicesLab_Passwords(t *testing.T) {
 	}
 	if vm["adminUser"].(map[string]any)["username"] != "admin" {
 		t.Errorf("username clobbered")
+	}
+}
+
+func TestRedact_NetworkConnection_SharedAndAuthKeys(t *testing.T) {
+	conn := armnetwork.VirtualNetworkGatewayConnection{
+		Properties: &armnetwork.VirtualNetworkGatewayConnectionPropertiesFormat{
+			SharedKey:        to.Ptr("ipsec-psk-secret"),
+			AuthorizationKey: to.Ptr("er-auth-secret"),
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkConnection, conn)
+	props := got["properties"].(map[string]any)
+	if props["sharedKey"] != redact.Placeholder {
+		t.Errorf("sharedKey not redacted: %v", props["sharedKey"])
+	}
+	if props["authorizationKey"] != redact.Placeholder {
+		t.Errorf("authorizationKey not redacted: %v", props["authorizationKey"])
+	}
+}
+
+func TestRedact_NetworkVPNServerConfiguration_RadiusSecrets(t *testing.T) {
+	cfg := armnetwork.VPNServerConfiguration{
+		Properties: &armnetwork.VPNServerConfigurationProperties{
+			RadiusServerSecret: to.Ptr("single-radius-secret"),
+			RadiusServers: []*armnetwork.RadiusServer{
+				{RadiusServerAddress: to.Ptr("10.0.0.1"), RadiusServerSecret: to.Ptr("multi-radius-secret")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkVPNServerConfiguration, cfg)
+	props := got["properties"].(map[string]any)
+	if props["radiusServerSecret"] != redact.Placeholder {
+		t.Errorf("radiusServerSecret not redacted: %v", props["radiusServerSecret"])
+	}
+	srv := props["radiusServers"].([]any)[0].(map[string]any)
+	if srv["radiusServerSecret"] != redact.Placeholder {
+		t.Errorf("radiusServers[0].radiusServerSecret not redacted: %v", srv["radiusServerSecret"])
+	}
+	if srv["radiusServerAddress"] != "10.0.0.1" {
+		t.Errorf("radiusServerAddress clobbered: %v", srv["radiusServerAddress"])
+	}
+}
+
+func TestRedact_NetworkVirtualAppliance_CloudInit(t *testing.T) {
+	nva := armnetwork.VirtualAppliance{
+		Properties: &armnetwork.VirtualAppliancePropertiesFormat{
+			CloudInitConfiguration: to.Ptr("#cloud-config\npassword: bootstrap-secret"),
+		},
+	}
+	got := applyAndDecode(t, TypeNetworkVirtualAppliance, nva)
+	props := got["properties"].(map[string]any)
+	if props["cloudInitConfiguration"] != redact.Placeholder {
+		t.Errorf("cloudInitConfiguration not redacted: %v", props["cloudInitConfiguration"])
 	}
 }
