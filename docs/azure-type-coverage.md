@@ -104,7 +104,6 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.logic/integrationaccounts | logic/armlogic | IntegrationAccountsClient.NewListBySubscriptionPager | IntegrationAccount | false | - |
 | microsoft.logic/integrationserviceenvironments | logic/armlogic | IntegrationServiceEnvironmentsClient.NewListBySubscriptionPager | IntegrationServiceEnvironment | false | - |
 | microsoft.machinelearningservices/registries | machinelearning/armmachinelearning/v4 | RegistriesClient.NewListBySubscriptionPager | Registry | false | - |
-| microsoft.maintenance/applyupdates | maintenance/armmaintenance | ApplyUpdatesClient.NewListPager | ApplyUpdate | false | - |
 | microsoft.maintenance/configurationassignments | maintenance/armmaintenance | ConfigurationAssignmentsWithinSubscriptionClient.NewListPager | ConfigurationAssignment | false | - |
 | microsoft.maintenance/publicmaintenanceconfigurations | maintenance/armmaintenance | PublicMaintenanceConfigurationsClient.NewListPager | MaintenanceConfiguration | true | - |
 | microsoft.managednetworkfabric/accesscontrollists | managednetworkfabric/armmanagednetworkfabric | AccessControlListsClient.NewListBySubscriptionPager | AccessControlList | false | - |
@@ -172,7 +171,6 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 | microsoft.network/networkmanagerconnections | network/armnetwork/v6 | SubscriptionNetworkManagerConnectionsClient.NewListPager | ManagerConnection | false | - |
 | microsoft.network/networkmanagers | network/armnetwork/v6 | ManagersClient.NewListBySubscriptionPager | Manager | false | - |
 | microsoft.network/networkprofiles | network/armnetwork/v6 | ProfilesClient.NewListAllPager | Profile | false | - |
-| microsoft.network/networkvirtualapplianceskus | network/armnetwork/v6 | VirtualApplianceSKUsClient.NewListPager | VirtualApplianceSKU | true | - |
 | microsoft.network/networkvirtualappliances | network/armnetwork/v6 | VirtualAppliancesClient.NewListPager | VirtualAppliance | false | - |
 | microsoft.network/networkwatchers | network/armnetwork/v6 | WatchersClient.NewListAllPager | Watcher | false | - |
 | microsoft.network/p2svpngateways | network/armnetwork/v6 | P2SVPNGatewaysClient.NewListPager | P2SVPNGateway | false | - |
@@ -249,7 +247,12 @@ Generated 2026-06-17. Regenerate the candidate set with the coverage command abo
 
 ## DROP — probed candidates (full list)
 
+> Note: two types were INCLUDE'd then dropped after the first live scan exposed
+> unrecoverable SDK/API failures (see below).
+
 ```
+microsoft.maintenance/applyupdates	404 operation-not-supported — not sub-listable
+microsoft.network/networkvirtualapplianceskus	SDK deserialization bug (instanceCount string vs int32)
 microsoft.aadcustomsecurityattributesdiagnosticsettings/diagnosticsettingscategories	metadata/ops
 microsoft.aadcustomsecurityattributesdiagnosticsettings/diagnosticsettings	no-sdk-module
 microsoft.app/agents	no-sdk-module

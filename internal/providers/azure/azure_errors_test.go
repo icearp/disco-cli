@@ -1,9 +1,12 @@
 package azure
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -123,8 +126,12 @@ func TestScanErrorClassifiers(t *testing.T) {
 		{"400 InvalidApiVersionParameter", respErr(http.StatusBadRequest, "InvalidApiVersionParameter"), false, true, false},
 		{"403 AuthorizationFailed", respErr(http.StatusForbidden, "AuthorizationFailed"), false, true, true},
 		{"401 unauthorized", respErr(http.StatusUnauthorized, "Unauthorized"), false, true, true},
-		{"404 ResourceGroupNotFound (different code)", respErr(http.StatusNotFound, "ResourceGroupNotFound"), false, false, false},
+		{"404 ResourceGroupNotFound (coded → not skippable)", respErr(http.StatusNotFound, "ResourceGroupNotFound"), false, false, false},
+		{"404 bare/empty-code (operation not supported)", respErr(http.StatusNotFound, ""), false, true, false},
 		{"500 InternalError", respErr(http.StatusInternalServerError, "InternalError"), false, false, false},
+		{"json syntax error (BOM-prefixed body)", &json.SyntaxError{}, false, true, false},
+		{"json type mismatch (string into int32)", &json.UnmarshalTypeError{Value: "string", Type: reflect.TypeOf(int32(0))}, false, true, false},
+		{"wrapped json type mismatch (azcore %w chain)", fmt.Errorf("unmarshalling type *armnetwork.X: %w", &json.UnmarshalTypeError{Value: "string", Type: reflect.TypeOf(int32(0))}), false, true, false},
 		{"plain error", errors.New("boom"), false, false, false},
 		{"nil", nil, false, false, false},
 	}

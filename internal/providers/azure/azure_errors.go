@@ -52,13 +52,50 @@ func isResourceTypeUnavailable(err error) bool {
 	return false
 }
 
+// isUnsupportedOperation reports a bare 404 (empty ErrorCode) on a list call —
+// the shape Azure returns when an operation is not available at the requested
+// scope (e.g. a sub-wide List the RP only supports per-resource: "404 Operation
+// not supported"). There is nothing to enumerate, so it is benign. Kept narrow
+// to an empty ErrorCode: coded 404s (ResourceGroupNotFound, ResourceNotFound,
+// …) are handled by their own predicates or deliberately surfaced, and the
+// specific api-version 404s are matched by isResourceTypeUnavailable.
+func isUnsupportedOperation(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == http.StatusNotFound && respErr.ErrorCode == ""
+	}
+	return false
+}
+
+// isDeserializationError reports an encoding/json decode failure surfaced by an
+// SDK pager — either a malformed body (*json.SyntaxError, e.g. a BOM-prefixed
+// response that armpeering PeerAsns returns) or a field-type mismatch
+// (*json.UnmarshalTypeError, e.g. armnetwork VirtualApplianceSKUs returning
+// instanceCount as a string where the generated struct types it int32). These
+// are SDK-vs-live-API mismatches: disco cannot extract data, but must not
+// hard-fail the scan. Safe to skip because azSimpleScan compile-checks the
+// response type against the pager, so a decode error is always external, never
+// a wrong-type bug on our side. azcore wraps the json error with %w, so
+// errors.As reaches it through the pager's wrapper chain.
+func isDeserializationError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
+}
+
 // isSkippableScanError is the canonical "this list call cannot return
 // resources; log a ScanWarning and continue" predicate for scanners. An
-// unregistered resource provider (isSubscriptionNotRegistered) or an
-// unavailable resource type / API version (isResourceTypeUnavailable) genuinely
-// has no resources to enumerate, exactly like a denied (isAccessDenied) list.
+// unregistered resource provider (isSubscriptionNotRegistered), an unavailable
+// resource type / API version (isResourceTypeUnavailable), an operation
+// unsupported at this scope (isUnsupportedOperation), or an unparseable SDK
+// response (isDeserializationError) genuinely yields no enumerable resources,
+// exactly like a denied (isAccessDenied) list.
 func isSkippableScanError(err error) bool {
-	return isAccessDenied(err) || isSubscriptionNotRegistered(err) || isResourceTypeUnavailable(err)
+	return isAccessDenied(err) ||
+		isSubscriptionNotRegistered(err) ||
+		isResourceTypeUnavailable(err) ||
+		isUnsupportedOperation(err) ||
+		isDeserializationError(err)
 }
 
 // isFeatureNotAvailable reports whether err is a 400 FeatureDisabledOnSelectedEdition

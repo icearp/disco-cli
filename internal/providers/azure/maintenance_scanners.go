@@ -16,7 +16,6 @@ func init() {
 		fn:   scanMaintenance,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.maintenance", DiscoType: TypeMaintenanceConfiguration, Leaf: true},
-			{Service: "microsoft.maintenance", DiscoType: TypeMaintenanceApplyUpdate, Leaf: true},
 			{Service: "microsoft.maintenance", DiscoType: TypeMaintenanceConfigAssignment, Leaf: true},
 			// Public maintenance configurations are platform-supplied catalog.
 			{Service: "microsoft.maintenance", DiscoType: TypeMaintenancePublicConfiguration, Leaf: true},
@@ -24,16 +23,12 @@ func init() {
 	})
 }
 
-// scanMaintenance discovers maintenance configurations, apply-updates,
+// scanMaintenance discovers maintenance configurations,
 // subscription-wide configuration assignments, and the public config catalog.
 func scanMaintenance(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	configs, err := armmaintenance.NewConfigurationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmaintenance:NewConfigurationsClient: %w", err)
-	}
-	applies, err := armmaintenance.NewApplyUpdatesClient(sub.ID, cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armmaintenance:NewApplyUpdatesClient: %w", err)
 	}
 	assigns, err := armmaintenance.NewConfigurationAssignmentsWithinSubscriptionClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -52,14 +47,6 @@ func scanMaintenance(ctx context.Context, sub *subscription, cred *azidentity.De
 				},
 				func(r *armmaintenance.Configuration) azTrackedBase {
 					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
-				})
-		},
-		func() (int, int, error) {
-			return azSimpleScan(ctx, "armmaintenance:ApplyUpdates.List", TypeMaintenanceApplyUpdate, sub, st, scanID,
-				applies.NewListPager(nil),
-				func(p armmaintenance.ApplyUpdatesClientListResponse) []*armmaintenance.ApplyUpdate { return p.Value },
-				func(r *armmaintenance.ApplyUpdate) azTrackedBase {
-					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
 				})
 		},
 		func() (int, int, error) {

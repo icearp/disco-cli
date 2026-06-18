@@ -19,9 +19,8 @@ import (
 //
 // Catalogue types Azure auto-materialises and the user cannot delete
 // (azurefirewallfqdntags, azurewebcategories, bgpservicecommunities,
-// expressrouteportslocations, expressrouteserviceproviders,
-// networkvirtualapplianceskus) are upserted with managed=true so they hide
-// from default `disco list` / `disco graph`.
+// expressrouteportslocations, expressrouteserviceproviders) are upserted with
+// managed=true so they hide from default `disco list` / `disco graph`.
 func scanNetworkSweep(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	phases, err := networkSweepPhases(ctx, sub, cred, st, scanID)
 	if err != nil {
@@ -63,7 +62,6 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred *azidentity
 		mgrs      *armnetwork.ManagersClient
 		netProf   *armnetwork.ProfilesClient
 		nva       *armnetwork.VirtualAppliancesClient
-		nvaSKU    *armnetwork.VirtualApplianceSKUsClient
 		watchers  *armnetwork.WatchersClient
 		p2sGW     *armnetwork.P2SVPNGatewaysClient
 		pls       *armnetwork.PrivateLinkServicesClient
@@ -153,10 +151,6 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred *azidentity
 		"ProfilesClient": func() (e error) { netProf, e = armnetwork.NewProfilesClient(sub.ID, cred, azClientOptions); return },
 		"VirtualAppliancesClient": func() (e error) {
 			nva, e = armnetwork.NewVirtualAppliancesClient(sub.ID, cred, azClientOptions)
-			return
-		},
-		"VirtualApplianceSKUsClient": func() (e error) {
-			nvaSKU, e = armnetwork.NewVirtualApplianceSKUsClient(sub.ID, cred, azClientOptions)
 			return
 		},
 		"WatchersClient":       func() (e error) { watchers, e = armnetwork.NewWatchersClient(sub.ID, cred, azClientOptions); return },
@@ -404,16 +398,6 @@ func networkSweepPhases(ctx context.Context, sub *subscription, cred *azidentity
 				func(p armnetwork.VirtualAppliancesClientListResponse) []*armnetwork.VirtualAppliance { return p.Value },
 				func(r *armnetwork.VirtualAppliance) azTrackedBase {
 					return netBase(r.ID, r.Name, r.Location, r.Tags, r)
-				})
-		},
-		func() (int, int, error) {
-			return azSimpleScan(ctx, "armnetwork:VirtualApplianceSKUs.List", TypeNetworkVirtualApplianceSKU, sub, st, scanID,
-				nvaSKU.NewListPager(nil),
-				func(p armnetwork.VirtualApplianceSKUsClientListResponse) []*armnetwork.VirtualApplianceSKU {
-					return p.Value
-				},
-				func(r *armnetwork.VirtualApplianceSKU) azTrackedBase {
-					return netManagedBase(r.ID, r.Name, r.Location, r.Tags, r)
 				})
 		},
 		func() (int, int, error) {

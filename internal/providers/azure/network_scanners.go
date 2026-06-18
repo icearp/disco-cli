@@ -59,7 +59,6 @@ func init() {
 			{Service: "microsoft.network", DiscoType: TypeNetworkManager, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkProfile, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualAppliance, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualApplianceSKU, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkWatcher, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkP2SVPNGateway, Leaf: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkPrivateLinkService, Leaf: true},

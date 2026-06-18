@@ -414,7 +414,6 @@ const (
 	TypeNetworkManager                   = "azure:microsoft.network:network-manager"
 	TypeNetworkProfile                   = "azure:microsoft.network:network-profile"
 	TypeNetworkVirtualAppliance          = "azure:microsoft.network:network-virtual-appliance"
-	TypeNetworkVirtualApplianceSKU       = "azure:microsoft.network:network-virtual-appliance-sku"
 	TypeNetworkWatcher                   = "azure:microsoft.network:network-watcher"
 	TypeNetworkP2SVPNGateway             = "azure:microsoft.network:p2s-vpn-gateway"
 	TypeNetworkPrivateLinkService        = "azure:microsoft.network:private-link-service"
@@ -505,7 +504,6 @@ const (
 	TypeLabServicesLabPlan                 = "azure:microsoft.labservices:lab-plan"
 	TypeLogicIntegrationAccount            = "azure:microsoft.logic:integration-account"
 	TypeLogicIntegrationServiceEnv         = "azure:microsoft.logic:integration-service-environment"
-	TypeMaintenanceApplyUpdate             = "azure:microsoft.maintenance:apply-update"
 	TypeMaintenanceConfigAssignment        = "azure:microsoft.maintenance:configuration-assignment"
 	TypeMaintenancePublicConfiguration     = "azure:microsoft.maintenance:public-maintenance-configuration"
 	TypeManagedServicesMarketplaceRegDef   = "azure:microsoft.managedservices:marketplace-registration-definition"
@@ -875,7 +873,6 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.network/networkmanagers":                                  TypeNetworkManager,
 	"microsoft.network/networkprofiles":                                  TypeNetworkProfile,
 	"microsoft.network/networkvirtualappliances":                         TypeNetworkVirtualAppliance,
-	"microsoft.network/networkvirtualapplianceskus":                      TypeNetworkVirtualApplianceSKU,
 	"microsoft.network/networkwatchers":                                  TypeNetworkWatcher,
 	"microsoft.network/p2svpngateways":                                   TypeNetworkP2SVPNGateway,
 	"microsoft.network/privatelinkservices":                              TypeNetworkPrivateLinkService,
@@ -959,7 +956,6 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.labservices/labplans":                               TypeLabServicesLabPlan,
 	"microsoft.logic/integrationaccounts":                          TypeLogicIntegrationAccount,
 	"microsoft.logic/integrationserviceenvironments":               TypeLogicIntegrationServiceEnv,
-	"microsoft.maintenance/applyupdates":                           TypeMaintenanceApplyUpdate,
 	"microsoft.maintenance/configurationassignments":               TypeMaintenanceConfigAssignment,
 	"microsoft.maintenance/publicmaintenanceconfigurations":        TypeMaintenancePublicConfiguration,
 	"microsoft.managedservices/marketplaceregistrationdefinitions": TypeManagedServicesMarketplaceRegDef,
