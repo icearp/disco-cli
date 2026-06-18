@@ -72,7 +72,11 @@ func azPageScan[P any](
 type azTrackedBase struct {
 	id, name, location string
 	tags               map[string]*string
-	full               any
+	// managed flags provider-managed resources (auto-present at subscription
+	// creation, or created indirectly by another customer action). Zero value
+	// false keeps every existing extractor unchanged.
+	managed bool
+	full    any
 }
 
 // azTrackedRows builds a store.Resource batch + RG hierarchy pairs from a
@@ -95,7 +99,8 @@ func azTrackedRows[T any](sub *subscription, scanID, rtype string, items []*T, e
 			Type: rtype, NativeID: b.id,
 			Name: &b.name, Region: &b.location,
 			TagsJSON: azTagsJSON(b.tags), AttributesJSON: mustJSON(b.full),
-			DiscoveredBy: scanID,
+			ManagedByProvider: b.managed,
+			DiscoveredBy:      scanID,
 		})
 		if rgFromID(b.id) != "" {
 			pairs = append(pairs, rgHierarchyPair(sub, rtype, b.id))
