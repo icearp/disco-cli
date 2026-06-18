@@ -377,6 +377,12 @@ func scanStorageLens(ctx context.Context, acct *account, region string, client s
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
 			}
+			// S3 Control returns a non-typed XML error body that smithy maps to the
+			// generic UnknownError code; a 403 here is a permission signal worth
+			// surfacing as a warning rather than aborting the region.
+			if c, ok := httpStatusCode(apiErr); ok && c == 403 {
+				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
+			}
 			return 0, 0, fmt.Errorf("s3control:ListStorageLensConfigurations: %w", apiErr)
 		}
 		entries = append(entries, out.StorageLensConfigurationList...)

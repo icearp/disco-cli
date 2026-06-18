@@ -157,6 +157,11 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeVpcEncryptionControls", acct.ID, region, perr)
 			}
+			// Per-region availability gap: VPC encryption controls aren't deployed
+			// in every region (UnsupportedOperation). Silent-skip.
+			if isAPIErrorCode(perr, "UnsupportedOperation") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("ec2:DescribeVpcEncryptionControls: %w", perr)
 		}
 		for _, c := range out.VpcEncryptionControls {

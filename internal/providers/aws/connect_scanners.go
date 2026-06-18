@@ -68,6 +68,12 @@ func listConnectInstances(ctx context.Context, client connectInstanceLister, acc
 				_ = skipIfAccessDenied(st, "connect:ListInstances", acct.ID, region, perr)
 				return nil, nil
 			}
+			// Regions where Connect instance enumeration isn't offered reject
+			// ListInstances with InvalidRequestException. Per-region availability
+			// gap — treat as no instances.
+			if isAPIErrorCode(perr, "InvalidRequestException") {
+				return nil, nil
+			}
 			return nil, fmt.Errorf("connect:ListInstances: %w", perr)
 		}
 		all = append(all, out.InstanceSummaryList...)

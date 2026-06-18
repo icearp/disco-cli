@@ -195,8 +195,11 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 			return 0, 0, nil
 		}
 		// SigningConfigurationNotFoundException = no signing config set for the
-		// account/region (default state). Treat as no-op.
-		if isAPIErrorCode(err, "SigningConfigurationNotFoundException") {
+		// account/region (default state). Regions where image signing isn't
+		// offered reject with ValidationException "This feature is disabled".
+		// Both are default/availability state — treat as no-op.
+		if isAPIErrorCode(err, "SigningConfigurationNotFoundException") ||
+			isAPIErrorWithMessage(err, "ValidationException", "feature is disabled") {
 			return 0, 0, nil
 		}
 		return 0, 0, fmt.Errorf("ecr:GetSigningConfiguration: %w", err)

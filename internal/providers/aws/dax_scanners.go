@@ -57,6 +57,12 @@ func scanDAXClusters(ctx context.Context, client daxAPI, acct *account, region s
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "dax:DescribeClusters", acct.ID, region, err)
 			}
+			// Regions without the DAX V3 control plane reject DescribeClusters with
+			// InvalidParameterValueException "Access Denied to API Version: DAX_V3".
+			// Per-region availability gap, not a real denial — silent-skip.
+			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "Access Denied to API Version") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("dax:DescribeClusters: %w", err)
 		}
 		for _, c := range out.Clusters {

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
 	smithy "github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 func apiErr(code, msg string) error {
@@ -33,7 +35,7 @@ func TestIsAPIErrorCode(t *testing.T) {
 func TestIsAccessDenied(t *testing.T) {
 	codes := []string{
 		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
-		"AccessDeniedException", "NotAuthorized", "ForbiddenException",
+		"AccessDeniedException", "NotAuthorized", "NotAuthorizedException", "ForbiddenException",
 	}
 	for _, c := range codes {
 		if !isAccessDenied(apiErr(c, "")) {
@@ -237,6 +239,8 @@ func TestIsTransientNetworkError(t *testing.T) {
 	reqTimeout := &smithy.GenericAPIError{Code: "RequestTimeout", Message: "request timed out"}
 	svcUnavail := &smithy.GenericAPIError{Code: "ServiceUnavailable", Message: "service unavailable"}
 	internal := &smithy.GenericAPIError{Code: "InternalFailure", Message: "internal failure"}
+	internalSvcExc := &smithy.GenericAPIError{Code: "InternalServerException", Message: "internal server exception"}
+	tooManyReqs := &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "too many requests"}
 	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
 	validation := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad input"}
 
@@ -254,6 +258,8 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"smithy RequestTimeout", reqTimeout, true},
 		{"smithy ServiceUnavailable", svcUnavail, true},
 		{"smithy InternalFailure", internal, true},
+		{"smithy InternalServerException", internalSvcExc, true},
+		{"smithy TooManyRequestsException", tooManyReqs, true},
 		{"smithy AccessDenied not transient", accessDenied, false},
 		{"smithy ValidationException not transient", validation, false},
 		{"context canceled not transient", context.Canceled, false},
@@ -266,6 +272,27 @@ func TestIsTransientNetworkError(t *testing.T) {
 				t.Errorf("isTransientNetworkError(%v) = %v, want %v", c.err, got, c.want)
 			}
 		})
+	}
+}
+
+func TestHTTPStatusCode(t *testing.T) {
+	respErr := func(code int) error {
+		return &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+			Err:      apiErr("UnknownError", ""),
+		}
+	}
+	if c, ok := httpStatusCode(respErr(404)); !ok || c != 404 {
+		t.Errorf("httpStatusCode(404 resp) = (%d, %v), want (404, true)", c, ok)
+	}
+	if c, ok := httpStatusCode(fmt.Errorf("wrapped: %w", respErr(403))); !ok || c != 403 {
+		t.Errorf("httpStatusCode(wrapped 403 resp) = (%d, %v), want (403, true)", c, ok)
+	}
+	if c, ok := httpStatusCode(apiErr("AccessDenied", "denied")); ok || c != 0 {
+		t.Errorf("httpStatusCode(bare APIError) = (%d, %v), want (0, false)", c, ok)
+	}
+	if c, ok := httpStatusCode(nil); ok || c != 0 {
+		t.Errorf("httpStatusCode(nil) = (%d, %v), want (0, false)", c, ok)
 	}
 }
 

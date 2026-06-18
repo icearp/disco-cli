@@ -141,6 +141,12 @@ func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, reg
 				_ = skipIfAccessDenied(st, "medialive:ListClusters", acct.ID, region, perr)
 				return nil, 0, 0, nil
 			}
+			// MediaLive Anywhere (clusters) isn't offered in every region; those
+			// reject ListClusters with 404 NotFoundException. Per-region
+			// availability gap — silent-skip.
+			if isAPIErrorCode(perr, "NotFoundException") {
+				return nil, 0, 0, nil
+			}
 			return nil, 0, 0, fmt.Errorf("medialive:ListClusters: %w", perr)
 		}
 		for _, c := range out.Clusters {

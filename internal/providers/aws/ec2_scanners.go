@@ -106,6 +106,14 @@ func ec2PageScan[P any](
 			if isAccessDenied(err) {
 				return total, inserted, skipIfAccessDenied(st, iamAction, acct.ID, region, err)
 			}
+			// Per-region op-availability gap: EC2 Describe* ops for features not
+			// deployed in a region return UnsupportedOperation (e.g. VPC block
+			// public access) or InvalidAction (e.g. Verified Access in regions
+			// where it isn't offered). Both are permanent region facts, not
+			// failures — silent-skip.
+			if isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction") {
+				return total, inserted, nil
+			}
 			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)
 		}
 		if batch := toResources(page); len(batch) > 0 {

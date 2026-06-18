@@ -10,6 +10,7 @@ import (
 
 	"codeberg.org/icearp/disco/store"
 	smithy "github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // isAPIErrorCode reports whether err is a Smithy APIError whose ErrorCode()
@@ -36,7 +37,7 @@ func isAccessDenied(err error) bool {
 // helpers stay in sync — adding a new code in one site updates both.
 var accessDeniedCodes = []string{
 	"AccessDenied", "UnauthorizedOperation", "AuthFailure",
-	"AccessDeniedException", "NotAuthorized", "ForbiddenException",
+	"AccessDeniedException", "NotAuthorized", "NotAuthorizedException", "ForbiddenException",
 }
 
 // isAPIErrorWithMessage reports whether err is a Smithy APIError whose
@@ -193,11 +194,25 @@ func isTransientNetworkError(err error) bool {
 	return isAPIErrorCode(err,
 		"RequestTimeout", "RequestTimeoutException", "RequestCanceled",
 		"ServiceUnavailable", "ServiceUnavailableException",
-		"InternalServerError", "InternalFailure", "InternalServerErrorException",
+		"InternalServerError", "InternalServerException", "InternalFailure", "InternalServerErrorException",
 		// Post-retry throttling exhaust: SDK retryer already burned its budget,
 		// the error reaching us is a momentary TPS pressure spike. Treat as
 		// transient so siblings continue rather than aborting the region.
-		"ThrottlingException", "Throttling", "ThrottledException", "RateExceededException")
+		"ThrottlingException", "Throttling", "ThrottledException", "RateExceededException",
+		"TooManyRequestsException")
+}
+
+// httpStatusCode extracts the HTTP status from a Smithy transport response error.
+// Some AWS services (S3 Control, IoT data-plane) return error bodies the SDK
+// cannot map to a typed exception — the Smithy code surfaces as the generic
+// "UnknownError" and only the HTTP status is reliable. Returns (0, false) when
+// err carries no transport response (e.g. a plain APIError or a network error).
+func httpStatusCode(err error) (int, bool) {
+	var re *smithyhttp.ResponseError
+	if errors.As(err, &re) {
+		return re.HTTPStatusCode(), true
+	}
+	return 0, false
 }
 
 // skipIfTransient mirrors skipIfAccessDenied for transient network/service

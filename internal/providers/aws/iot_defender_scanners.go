@@ -67,6 +67,12 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "iot:DescribeAccountAuditConfiguration", acct.ID, region, err)
 		}
+		// Regions without IoT Device Defender route the request to nothing and
+		// return HTTP 404 ("No method found matching route") under the generic
+		// UnknownError code. Per-region availability gap — silent-skip.
+		if c, ok := httpStatusCode(err); ok && c == 404 {
+			return 0, 0, nil
+		}
 		return 0, 0, fmt.Errorf("iot:DescribeAccountAuditConfiguration: %w", err)
 	}
 	arn := fmt.Sprintf("arn:aws:iot:%s:%s:account-audit-configuration", region, acct.ID)

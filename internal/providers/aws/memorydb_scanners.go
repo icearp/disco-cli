@@ -123,6 +123,12 @@ func scanMemDBMultiRegionClusters(ctx context.Context, client memorydbAPI, acct 
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "memorydb:DescribeMultiRegionClusters", acct.ID, region, err)
 			}
+			// Regions without multi-region cluster support reject with
+			// InvalidParameterValueException "This API operation is currently
+			// unavailable". Per-region availability gap — silent-skip.
+			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "currently unavailable") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("memorydb:DescribeMultiRegionClusters: %w", err)
 		}
 		for _, c := range out.MultiRegionClusters {
