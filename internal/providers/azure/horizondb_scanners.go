@@ -15,24 +15,42 @@ func init() {
 		name: "azure:horizondb",
 		fn:   scanHorizonDB,
 		emits: []coverage.TypeDecl{
-			// Private-endpoint → target edges resolved centrally; the cluster
-			// carries no other in-scope ARM-ID reference, so it ships
-			// scanner-only.
+			// Private-endpoint → target edges resolved centrally; carries no
+			// other in-scope ARM-ID reference, so both ship scanner-only.
 			{Service: "microsoft.horizondb", DiscoType: TypeHorizonDBCluster, Leaf: true},
+			{Service: "microsoft.horizondb", DiscoType: TypeHorizonDBParameterGroup, Leaf: true},
 		},
 	})
 }
 
-// scanHorizonDB discovers Azure HorizonDB clusters.
+// scanHorizonDB discovers Azure HorizonDB clusters and parameter groups.
 func scanHorizonDB(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armhorizondb.NewClustersClient(sub.ID, cred, azClientOptions)
+	clusters, err := armhorizondb.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armhorizondb:NewClustersClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armhorizondb:Clusters.ListBySubscription", TypeHorizonDBCluster, sub, st, scanID,
-		client.NewListBySubscriptionPager(nil),
-		func(p armhorizondb.ClustersClientListBySubscriptionResponse) []*armhorizondb.Cluster { return p.Value },
-		func(c *armhorizondb.Cluster) azTrackedBase {
-			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
-		})
+	pgroups, err := armhorizondb.NewParameterGroupsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armhorizondb:NewParameterGroupsClient: %w", err)
+	}
+	return azRunPhases(
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armhorizondb:Clusters.ListBySubscription", TypeHorizonDBCluster, sub, st, scanID,
+				clusters.NewListBySubscriptionPager(nil),
+				func(p armhorizondb.ClustersClientListBySubscriptionResponse) []*armhorizondb.Cluster { return p.Value },
+				func(c *armhorizondb.Cluster) azTrackedBase {
+					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+				})
+		},
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armhorizondb:ParameterGroups.ListBySubscription", TypeHorizonDBParameterGroup, sub, st, scanID,
+				pgroups.NewListBySubscriptionPager(nil),
+				func(p armhorizondb.ParameterGroupsClientListBySubscriptionResponse) []*armhorizondb.ParameterGroup {
+					return p.Value
+				},
+				func(g *armhorizondb.ParameterGroup) azTrackedBase {
+					return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+				})
+		},
+	)
 }

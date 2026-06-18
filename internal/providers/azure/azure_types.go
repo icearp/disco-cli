@@ -360,6 +360,33 @@ const (
 	TypeDashboardGrafana = "azure:microsoft.dashboard:grafana"
 	// Azure Chaos Studio
 	TypeChaosExperiment = "azure:microsoft.chaos:experiment"
+	// Coverage sweep: data-services
+	TypeRedisEnterpriseCluster          = "azure:microsoft.cache:redis-enterprise"
+	TypeCognitiveCommitmentPlan         = "azure:microsoft.cognitiveservices:commitment-plans"
+	TypeDatabricksAccessConnector       = "azure:microsoft.databricks:access-connectors"
+	TypeDataLakeAnalyticsAccount        = "azure:microsoft.datalakeanalytics:accounts"
+	TypeDataProtectionResourceGuard     = "azure:microsoft.dataprotection:resource-guards"
+	TypeDataReplicationFabric           = "azure:microsoft.datareplication:replication-fabrics"
+	TypeDataReplicationVault            = "azure:microsoft.datareplication:replication-vaults"
+	TypeMariaDBServer                   = "azure:microsoft.dbformariadb:servers"
+	TypeMySQLSingleServer               = "azure:microsoft.dbformysql:servers"
+	TypePostgreSQLSingleServer          = "azure:microsoft.dbforpostgresql:servers"
+	TypeCosmosCassandraCluster          = "azure:microsoft.documentdb:cassandra-clusters"
+	TypeCosmosRestorableDatabaseAccount = "azure:microsoft.documentdb:restorable-database-accounts"
+	TypeEventGridNamespace              = "azure:microsoft.eventgrid:namespaces"
+	TypeEventGridPartnerConfiguration   = "azure:microsoft.eventgrid:partner-configurations"
+	TypeEventGridPartnerNamespace       = "azure:microsoft.eventgrid:partner-namespaces"
+	TypeEventGridPartnerRegistration    = "azure:microsoft.eventgrid:partner-registrations"
+	TypeEventGridPartnerTopic           = "azure:microsoft.eventgrid:partner-topics"
+	TypeEventHubCluster                 = "azure:microsoft.eventhub:clusters"
+	TypeHorizonDBParameterGroup         = "azure:microsoft.horizondb:parameter-groups"
+	TypeKeyVaultManagedHSM              = "azure:microsoft.keyvault:managed-hsms"
+	TypeMachineLearningRegistry         = "azure:microsoft.machinelearningservices:registries"
+	TypeOpInsightsCluster               = "azure:microsoft.operationalinsights:clusters"
+	TypeOpsManagementSolution           = "azure:microsoft.operationsmanagement:solutions"
+	TypeStorageStorageTask              = "azure:microsoft.storage:storage-tasks"
+	TypeStreamAnalyticsCluster          = "azure:microsoft.streamanalytics:clusters"
+	TypeSynapsePrivateLinkHub           = "azure:microsoft.synapse:private-link-hubs"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -659,4 +686,31 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.purview/accounts":                        TypePurviewAccount,
 	"microsoft.dashboard/grafana":                       TypeDashboardGrafana,
 	"microsoft.chaos/experiments":                       TypeChaosExperiment,
+	// Coverage sweep: data-services
+	"microsoft.cache/redisenterprise":                 TypeRedisEnterpriseCluster,
+	"microsoft.cognitiveservices/commitmentplans":     TypeCognitiveCommitmentPlan,
+	"microsoft.databricks/accessconnectors":           TypeDatabricksAccessConnector,
+	"microsoft.datalakeanalytics/accounts":            TypeDataLakeAnalyticsAccount,
+	"microsoft.dataprotection/resourceguards":         TypeDataProtectionResourceGuard,
+	"microsoft.datareplication/replicationfabrics":    TypeDataReplicationFabric,
+	"microsoft.datareplication/replicationvaults":     TypeDataReplicationVault,
+	"microsoft.dbformariadb/servers":                  TypeMariaDBServer,
+	"microsoft.dbformysql/servers":                    TypeMySQLSingleServer,
+	"microsoft.dbforpostgresql/servers":               TypePostgreSQLSingleServer,
+	"microsoft.documentdb/cassandraclusters":          TypeCosmosCassandraCluster,
+	"microsoft.documentdb/restorabledatabaseaccounts": TypeCosmosRestorableDatabaseAccount,
+	"microsoft.eventgrid/namespaces":                  TypeEventGridNamespace,
+	"microsoft.eventgrid/partnerconfigurations":       TypeEventGridPartnerConfiguration,
+	"microsoft.eventgrid/partnernamespaces":           TypeEventGridPartnerNamespace,
+	"microsoft.eventgrid/partnerregistrations":        TypeEventGridPartnerRegistration,
+	"microsoft.eventgrid/partnertopics":               TypeEventGridPartnerTopic,
+	"microsoft.eventhub/clusters":                     TypeEventHubCluster,
+	"microsoft.horizondb/parametergroups":             TypeHorizonDBParameterGroup,
+	"microsoft.keyvault/managedhsms":                  TypeKeyVaultManagedHSM,
+	"microsoft.machinelearningservices/registries":    TypeMachineLearningRegistry,
+	"microsoft.operationalinsights/clusters":          TypeOpInsightsCluster,
+	"microsoft.operationsmanagement/solutions":        TypeOpsManagementSolution,
+	"microsoft.storage/storagetasks":                  TypeStorageStorageTask,
+	"microsoft.streamanalytics/clusters":              TypeStreamAnalyticsCluster,
+	"microsoft.synapse/privatelinkhubs":               TypeSynapsePrivateLinkHub,
 }

@@ -19,6 +19,11 @@ func init() {
 			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridSystemTopic},
 			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridDomain},
 			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridEventSubscription},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridNamespace, Leaf: true},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerConfiguration, Leaf: true},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerNamespace, Leaf: true},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerRegistration, Leaf: true},
+			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridPartnerTopic, Leaf: true},
 		},
 	})
 }
@@ -106,5 +111,95 @@ func scanEventGrid(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		})
 	total += et
 	inserted += ei
+	if err != nil {
+		return total, inserted, err
+	}
+
+	nsClient, err := armeventgrid.NewNamespacesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventgrid:NewNamespacesClient: %w", err)
+	}
+	nt, ni, err := azSimpleScan(ctx, "armeventgrid:Namespaces.ListBySubscription", TypeEventGridNamespace, sub, st, scanID,
+		nsClient.NewListBySubscriptionPager(nil),
+		func(p armeventgrid.NamespacesClientListBySubscriptionResponse) []*armeventgrid.Namespace {
+			return p.Value
+		},
+		func(n *armeventgrid.Namespace) azTrackedBase {
+			return azTrackedBase{id: sv(n.ID), name: sv(n.Name), location: sv(n.Location), tags: n.Tags, full: n}
+		})
+	total += nt
+	inserted += ni
+	if err != nil {
+		return total, inserted, err
+	}
+
+	pcClient, err := armeventgrid.NewPartnerConfigurationsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventgrid:NewPartnerConfigurationsClient: %w", err)
+	}
+	pct, pci, err := azSimpleScan(ctx, "armeventgrid:PartnerConfigurations.ListBySubscription", TypeEventGridPartnerConfiguration, sub, st, scanID,
+		pcClient.NewListBySubscriptionPager(nil),
+		func(p armeventgrid.PartnerConfigurationsClientListBySubscriptionResponse) []*armeventgrid.PartnerConfiguration {
+			return p.Value
+		},
+		func(c *armeventgrid.PartnerConfiguration) azTrackedBase {
+			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+		})
+	total += pct
+	inserted += pci
+	if err != nil {
+		return total, inserted, err
+	}
+
+	pnClient, err := armeventgrid.NewPartnerNamespacesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventgrid:NewPartnerNamespacesClient: %w", err)
+	}
+	pnt, pni, err := azSimpleScan(ctx, "armeventgrid:PartnerNamespaces.ListBySubscription", TypeEventGridPartnerNamespace, sub, st, scanID,
+		pnClient.NewListBySubscriptionPager(nil),
+		func(p armeventgrid.PartnerNamespacesClientListBySubscriptionResponse) []*armeventgrid.PartnerNamespace {
+			return p.Value
+		},
+		func(n *armeventgrid.PartnerNamespace) azTrackedBase {
+			return azTrackedBase{id: sv(n.ID), name: sv(n.Name), location: sv(n.Location), tags: n.Tags, full: n}
+		})
+	total += pnt
+	inserted += pni
+	if err != nil {
+		return total, inserted, err
+	}
+
+	prClient, err := armeventgrid.NewPartnerRegistrationsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventgrid:NewPartnerRegistrationsClient: %w", err)
+	}
+	prt, pri, err := azSimpleScan(ctx, "armeventgrid:PartnerRegistrations.ListBySubscription", TypeEventGridPartnerRegistration, sub, st, scanID,
+		prClient.NewListBySubscriptionPager(nil),
+		func(p armeventgrid.PartnerRegistrationsClientListBySubscriptionResponse) []*armeventgrid.PartnerRegistration {
+			return p.Value
+		},
+		func(r *armeventgrid.PartnerRegistration) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+	total += prt
+	inserted += pri
+	if err != nil {
+		return total, inserted, err
+	}
+
+	ptClient, err := armeventgrid.NewPartnerTopicsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventgrid:NewPartnerTopicsClient: %w", err)
+	}
+	ptt, pti, err := azSimpleScan(ctx, "armeventgrid:PartnerTopics.ListBySubscription", TypeEventGridPartnerTopic, sub, st, scanID,
+		ptClient.NewListBySubscriptionPager(nil),
+		func(p armeventgrid.PartnerTopicsClientListBySubscriptionResponse) []*armeventgrid.PartnerTopic {
+			return p.Value
+		},
+		func(t *armeventgrid.PartnerTopic) azTrackedBase {
+			return azTrackedBase{id: sv(t.ID), name: sv(t.Name), location: sv(t.Location), tags: t.Tags, full: t}
+		})
+	total += ptt
+	inserted += pti
 	return total, inserted, err
 }

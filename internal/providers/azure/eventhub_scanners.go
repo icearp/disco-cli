@@ -16,6 +16,7 @@ func init() {
 		fn:   scanEventHub,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.eventhub", DiscoType: TypeEventHubNamespace},
+			{Service: "microsoft.eventhub", DiscoType: TypeEventHubCluster, Leaf: true},
 		},
 	})
 }
@@ -30,10 +31,27 @@ func scanEventHub(ctx context.Context, sub *subscription, cred *azidentity.Defau
 	if err != nil {
 		return 0, 0, fmt.Errorf("armeventhub:NewNamespacesClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armeventhub:Namespaces.List", TypeEventHubNamespace, sub, st, scanID,
+	total, inserted, err = azSimpleScan(ctx, "armeventhub:Namespaces.List", TypeEventHubNamespace, sub, st, scanID,
 		client.NewListPager(nil),
 		func(p armeventhub.NamespacesClientListResponse) []*armeventhub.EHNamespace { return p.Value },
 		func(r *armeventhub.EHNamespace) azTrackedBase {
 			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
+	if err != nil {
+		return total, inserted, err
+	}
+
+	clClient, err := armeventhub.NewClustersClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armeventhub:NewClustersClient: %w", err)
+	}
+	ct, ci, err := azSimpleScan(ctx, "armeventhub:Clusters.ListBySubscription", TypeEventHubCluster, sub, st, scanID,
+		clClient.NewListBySubscriptionPager(nil),
+		func(p armeventhub.ClustersClientListBySubscriptionResponse) []*armeventhub.Cluster { return p.Value },
+		func(c *armeventhub.Cluster) azTrackedBase {
+			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+		})
+	total += ct
+	inserted += ci
+	return total, inserted, err
 }

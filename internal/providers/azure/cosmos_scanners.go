@@ -16,21 +16,24 @@ func init() {
 		fn:   scanCosmos,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.documentdb", DiscoType: TypeCosmosDatabaseAccount},
+			{Service: "microsoft.documentdb", DiscoType: TypeCosmosCassandraCluster, Leaf: true},
+			{Service: "microsoft.documentdb", DiscoType: TypeCosmosRestorableDatabaseAccount, Leaf: true},
 		},
 	})
 }
 
-// scanCosmos discovers Azure Cosmos DB database accounts. Per-API child
-// resources (SQL/Mongo/Cassandra/Gremlin/Table databases + containers/graphs)
-// are deferred — they explode in volume on multi-tenant accounts and the
-// account row alone carries the security-relevant edges (CMEK, identity,
-// network ACLs, private endpoints).
+// scanCosmos discovers Azure Cosmos DB database accounts, managed Cassandra
+// clusters, and restorable database accounts. Per-API child resources
+// (SQL/Mongo/Cassandra/Gremlin/Table databases + containers/graphs) are
+// deferred — they explode in volume on multi-tenant accounts and the account
+// row alone carries the security-relevant edges (CMEK, identity, network ACLs,
+// private endpoints).
 func scanCosmos(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcosmos.NewDatabaseAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcosmos:NewDatabaseAccountsClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armcosmos:DatabaseAccounts.List", TypeCosmosDatabaseAccount, sub, st, scanID,
+	total, inserted, err = azSimpleScan(ctx, "armcosmos:DatabaseAccounts.List", TypeCosmosDatabaseAccount, sub, st, scanID,
 		client.NewListPager(nil),
 		func(p armcosmos.DatabaseAccountsClientListResponse) []*armcosmos.DatabaseAccountGetResults {
 			return p.Value
@@ -38,4 +41,43 @@ func scanCosmos(ctx context.Context, sub *subscription, cred *azidentity.Default
 		func(a *armcosmos.DatabaseAccountGetResults) azTrackedBase {
 			return azTrackedBase{id: sv(a.ID), name: sv(a.Name), location: sv(a.Location), tags: a.Tags, full: a}
 		})
+	if err != nil {
+		return total, inserted, err
+	}
+
+	cassClient, err := armcosmos.NewCassandraClustersClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armcosmos:NewCassandraClustersClient: %w", err)
+	}
+	ct, ci, err := azSimpleScan(ctx, "armcosmos:CassandraClusters.ListBySubscription", TypeCosmosCassandraCluster, sub, st, scanID,
+		cassClient.NewListBySubscriptionPager(nil),
+		func(p armcosmos.CassandraClustersClientListBySubscriptionResponse) []*armcosmos.ClusterResource {
+			return p.Value
+		},
+		func(c *armcosmos.ClusterResource) azTrackedBase {
+			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+		})
+	total += ct
+	inserted += ci
+	if err != nil {
+		return total, inserted, err
+	}
+
+	// Restorable database accounts are a provider-managed backup view: Azure
+	// auto-materialises one per Cosmos account and the user cannot delete it.
+	restClient, err := armcosmos.NewRestorableDatabaseAccountsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armcosmos:NewRestorableDatabaseAccountsClient: %w", err)
+	}
+	rt, ri, err := azSimpleScan(ctx, "armcosmos:RestorableDatabaseAccounts.List", TypeCosmosRestorableDatabaseAccount, sub, st, scanID,
+		restClient.NewListPager(nil),
+		func(p armcosmos.RestorableDatabaseAccountsClientListResponse) []*armcosmos.RestorableDatabaseAccountGetResult {
+			return p.Value
+		},
+		func(r *armcosmos.RestorableDatabaseAccountGetResult) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), managed: true, full: r}
+		})
+	total += rt
+	inserted += ri
+	return total, inserted, err
 }

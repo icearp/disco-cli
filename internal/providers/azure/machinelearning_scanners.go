@@ -16,22 +16,41 @@ func init() {
 		fn:   scanMachineLearning,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.machinelearningservices", DiscoType: TypeMachineLearningWorkspace},
+			{Service: "microsoft.machinelearningservices", DiscoType: TypeMachineLearningRegistry, Leaf: true},
 		},
 	})
 }
 
-// scanMachineLearning discovers Azure Machine Learning workspaces.
+// scanMachineLearning discovers Azure Machine Learning workspaces and registries.
 func scanMachineLearning(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armmachinelearning.NewWorkspacesClient(sub.ID, cred, azClientOptions)
+	workspaces, err := armmachinelearning.NewWorkspacesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmachinelearning:NewWorkspacesClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armmachinelearning:Workspaces.ListBySubscription", TypeMachineLearningWorkspace, sub, st, scanID,
-		client.NewListBySubscriptionPager(nil),
-		func(p armmachinelearning.WorkspacesClientListBySubscriptionResponse) []*armmachinelearning.Workspace {
-			return p.Value
+	registries, err := armmachinelearning.NewRegistriesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armmachinelearning:NewRegistriesClient: %w", err)
+	}
+	return azRunPhases(
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armmachinelearning:Workspaces.ListBySubscription", TypeMachineLearningWorkspace, sub, st, scanID,
+				workspaces.NewListBySubscriptionPager(nil),
+				func(p armmachinelearning.WorkspacesClientListBySubscriptionResponse) []*armmachinelearning.Workspace {
+					return p.Value
+				},
+				func(w *armmachinelearning.Workspace) azTrackedBase {
+					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
+				})
 		},
-		func(w *armmachinelearning.Workspace) azTrackedBase {
-			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
-		})
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armmachinelearning:Registries.ListBySubscription", TypeMachineLearningRegistry, sub, st, scanID,
+				registries.NewListBySubscriptionPager(nil),
+				func(p armmachinelearning.RegistriesClientListBySubscriptionResponse) []*armmachinelearning.Registry {
+					return p.Value
+				},
+				func(r *armmachinelearning.Registry) azTrackedBase {
+					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+				})
+		},
+	)
 }
