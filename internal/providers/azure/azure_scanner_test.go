@@ -160,6 +160,20 @@ var expectedAzureServices = []string{
 	"azure:web",
 	"azure:webpubsub",
 	"azure:workloads",
+	"azure:blueprint",
+	"azure:cloudhealth",
+	"azure:customproviders",
+	"azure:dependencymap",
+	"azure:deviceprovisioningservices",
+	"azure:devtestlabs",
+	"azure:elastic",
+	"azure:planetarycomputer",
+	"azure:resiliencemanagement",
+	"azure:saas",
+	"azure:servicefabricmanagedclusters",
+	"azure:solutions",
+	"azure:trustedsigning",
+	"azure:virtualmachineimagebuilder",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the same name.

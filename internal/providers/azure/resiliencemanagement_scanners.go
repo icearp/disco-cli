@@ -1,0 +1,39 @@
+package azure
+
+import (
+	"context"
+	"fmt"
+
+	"codeberg.org/icearp/disco/internal/coverage"
+	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resiliencemanagement/armresiliencemanagement"
+)
+
+func init() {
+	registerService(serviceEntry{
+		name: "azure:resiliencemanagement",
+		fn:   scanResilienceManagement,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.azureresiliencemanagement", DiscoType: TypeResilienceUsagePlan},
+		},
+	})
+}
+
+// scanResilienceManagement discovers Azure Resilience usage plans. The other
+// resilience resources (alerts, experiments, fault simulations) are
+// parent-scoped (per usage-plan) and deferred.
+func scanResilienceManagement(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	client, err := armresiliencemanagement.NewUsagePlansClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armresiliencemanagement:NewUsagePlansClient: %w", err)
+	}
+	return azSimpleScan(ctx, "armresiliencemanagement:UsagePlans.ListBySubscription", TypeResilienceUsagePlan, sub, st, scanID,
+		client.NewListBySubscriptionPager(nil),
+		func(p armresiliencemanagement.UsagePlansClientListBySubscriptionResponse) []*armresiliencemanagement.UsagePlan {
+			return p.Value
+		},
+		func(r *armresiliencemanagement.UsagePlan) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+}

@@ -16,22 +16,41 @@ func init() {
 		fn:   scanPowerPlatform,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.powerplatform", DiscoType: TypePowerPlatformEnterprisePolicy, Leaf: true},
+			{Service: "microsoft.powerplatform", DiscoType: TypePowerPlatformAccount, Leaf: true},
 		},
 	})
 }
 
-// scanPowerPlatform discovers powerplatform resources.
+// scanPowerPlatform discovers Power Platform enterprise policies and accounts.
 func scanPowerPlatform(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armpowerplatform.NewEnterprisePoliciesClient(sub.ID, cred, azClientOptions)
+	policies, err := armpowerplatform.NewEnterprisePoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armpowerplatform:NewEnterprisePoliciesClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armpowerplatform:EnterprisePolicies.ListBySubscription", TypePowerPlatformEnterprisePolicy, sub, st, scanID,
-		client.NewListBySubscriptionPager(nil),
-		func(p armpowerplatform.EnterprisePoliciesClientListBySubscriptionResponse) []*armpowerplatform.EnterprisePolicy {
-			return p.Value
+	accounts, err := armpowerplatform.NewAccountsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return 0, 0, fmt.Errorf("armpowerplatform:NewAccountsClient: %w", err)
+	}
+	return azRunPhases(
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armpowerplatform:EnterprisePolicies.ListBySubscription", TypePowerPlatformEnterprisePolicy, sub, st, scanID,
+				policies.NewListBySubscriptionPager(nil),
+				func(p armpowerplatform.EnterprisePoliciesClientListBySubscriptionResponse) []*armpowerplatform.EnterprisePolicy {
+					return p.Value
+				},
+				func(r *armpowerplatform.EnterprisePolicy) azTrackedBase {
+					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+				})
 		},
-		func(r *armpowerplatform.EnterprisePolicy) azTrackedBase {
-			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
-		})
+		func() (int, int, error) {
+			return azSimpleScan(ctx, "armpowerplatform:Accounts.ListBySubscription", TypePowerPlatformAccount, sub, st, scanID,
+				accounts.NewListBySubscriptionPager(nil),
+				func(p armpowerplatform.AccountsClientListBySubscriptionResponse) []*armpowerplatform.Account {
+					return p.Value
+				},
+				func(r *armpowerplatform.Account) azTrackedBase {
+					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+				})
+		},
+	)
 }

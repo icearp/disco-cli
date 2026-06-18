@@ -16,26 +16,50 @@ func init() {
 		fn:   scanCDN,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.cdn", DiscoType: TypeCDNProfile},
+			{Service: "microsoft.cdn", DiscoType: TypeCDNWAFPolicy},
 		},
 	})
 }
 
-// scanCDN discovers Azure Front Door + classic CDN profiles. Both surface
-// under `Microsoft.Cdn/profiles`; the SKU.Name field differentiates Front
-// Door Standard / Premium (`Standard_AzureFrontDoor` / `Premium_AzureFrontDoor`)
+// scanCDN discovers Azure Front Door + classic CDN profiles plus the
+// Front Door / CDN WAF policies. Profiles surface under
+// `Microsoft.Cdn/profiles`; the SKU.Name field differentiates Front Door
+// Standard / Premium (`Standard_AzureFrontDoor` / `Premium_AzureFrontDoor`)
 // from classic CDN profiles (`Standard_Microsoft`, `Standard_Verizon`, etc.).
-// Endpoints (CDN), AFD endpoints, origin groups, origins, routes, rule sets
-// deferred — sub-resources whose graph value lives in the profile-level
-// origin-target edges; punch list for follow-up.
+// WAF policies have no subscription-wide list op — only per-RG — so they fan
+// out via azRGFanoutScan. Endpoints (CDN), AFD endpoints, origin groups,
+// origins, routes, rule sets deferred — sub-resources whose graph value lives
+// in the profile-level origin-target edges; punch list for follow-up.
 func scanCDN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armcdn.NewProfilesClient(sub.ID, cred, azClientOptions)
+	profClient, err := armcdn.NewProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcdn:NewProfilesClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armcdn:Profiles.List", TypeCDNProfile, sub, st, scanID,
-		client.NewListPager(nil),
+	pt, pi, err := azSimpleScan(ctx, "armcdn:Profiles.List", TypeCDNProfile, sub, st, scanID,
+		profClient.NewListPager(nil),
 		func(p armcdn.ProfilesClientListResponse) []*armcdn.Profile { return p.Value },
 		func(p *armcdn.Profile) azTrackedBase {
 			return azTrackedBase{id: sv(p.ID), name: sv(p.Name), location: sv(p.Location), tags: p.Tags, full: p}
 		})
+	total += pt
+	inserted += pi
+	if err != nil {
+		return total, inserted, err
+	}
+
+	polClient, err := armcdn.NewPoliciesClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armcdn:NewPoliciesClient: %w", err)
+	}
+	wt, wi, err := azRGFanoutScan(ctx, "armcdn:Policies.List", TypeCDNWAFPolicy, sub, cred, st, scanID,
+		func(rg string) azPager[armcdn.PoliciesClientListResponse] {
+			return polClient.NewListPager(rg, nil)
+		},
+		func(p armcdn.PoliciesClientListResponse) []*armcdn.WebApplicationFirewallPolicy { return p.Value },
+		func(r *armcdn.WebApplicationFirewallPolicy) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+	total += wt
+	inserted += wi
+	return total, inserted, err
 }

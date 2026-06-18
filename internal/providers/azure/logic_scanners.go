@@ -16,23 +16,64 @@ func init() {
 		fn:   scanLogic,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.logic", DiscoType: TypeLogicWorkflow},
+			{Service: "microsoft.logic", DiscoType: TypeLogicIntegrationAccount},
+			{Service: "microsoft.logic", DiscoType: TypeLogicIntegrationServiceEnv},
 		},
 	})
 }
 
-// scanLogic discovers Azure Logic Apps workflows. Triggers, actions,
-// integration accounts, and API connections deferred — connection refs in
-// the workflow definition are name-keyed (not ARM-IDs) and require
-// per-connection resource resolution that warrants a follow-up iteration.
+// scanLogic discovers Azure Logic Apps workflows, integration accounts, and
+// integration service environments. Triggers, actions, and API connections are
+// deferred — connection refs in the workflow definition are name-keyed (not
+// ARM-IDs) and require per-connection resolution that warrants a follow-up.
 func scanLogic(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armlogic.NewWorkflowsClient(sub.ID, cred, azClientOptions)
+	wfClient, err := armlogic.NewWorkflowsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armlogic:NewWorkflowsClient: %w", err)
 	}
-	return azSimpleScan(ctx, "armlogic:Workflows.ListBySubscription", TypeLogicWorkflow, sub, st, scanID,
-		client.NewListBySubscriptionPager(nil),
+	wt, wi, err := azSimpleScan(ctx, "armlogic:Workflows.ListBySubscription", TypeLogicWorkflow, sub, st, scanID,
+		wfClient.NewListBySubscriptionPager(nil),
 		func(p armlogic.WorkflowsClientListBySubscriptionResponse) []*armlogic.Workflow { return p.Value },
 		func(w *armlogic.Workflow) azTrackedBase {
 			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
 		})
+	total += wt
+	inserted += wi
+	if err != nil {
+		return total, inserted, err
+	}
+
+	iaClient, err := armlogic.NewIntegrationAccountsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armlogic:NewIntegrationAccountsClient: %w", err)
+	}
+	at, ai, err := azSimpleScan(ctx, "armlogic:IntegrationAccounts.ListBySubscription", TypeLogicIntegrationAccount, sub, st, scanID,
+		iaClient.NewListBySubscriptionPager(nil),
+		func(p armlogic.IntegrationAccountsClientListBySubscriptionResponse) []*armlogic.IntegrationAccount {
+			return p.Value
+		},
+		func(r *armlogic.IntegrationAccount) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+	total += at
+	inserted += ai
+	if err != nil {
+		return total, inserted, err
+	}
+
+	iseClient, err := armlogic.NewIntegrationServiceEnvironmentsClient(sub.ID, cred, azClientOptions)
+	if err != nil {
+		return total, inserted, fmt.Errorf("armlogic:NewIntegrationServiceEnvironmentsClient: %w", err)
+	}
+	et, ei, err := azSimpleScan(ctx, "armlogic:IntegrationServiceEnvironments.ListBySubscription", TypeLogicIntegrationServiceEnv, sub, st, scanID,
+		iseClient.NewListBySubscriptionPager(nil),
+		func(p armlogic.IntegrationServiceEnvironmentsClientListBySubscriptionResponse) []*armlogic.IntegrationServiceEnvironment {
+			return p.Value
+		},
+		func(r *armlogic.IntegrationServiceEnvironment) azTrackedBase {
+			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
+		})
+	total += et
+	inserted += ei
+	return total, inserted, err
 }

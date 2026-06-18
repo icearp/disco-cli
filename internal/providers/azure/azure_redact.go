@@ -187,6 +187,24 @@ func init() {
 		{Type: TypePeeringPeeringService, Attributes: []redact.Rule{
 			{Path: "properties.logAnalyticsWorkspaceProperties.key", Mode: redact.RedactScalar},
 		}},
+		// Container Apps Job config secrets, IoT DPS shared-access keys, and
+		// Service Fabric managed-cluster VM admin password — all echoed on their
+		// list responses.
+		{Type: TypeAppContainersJob, Attributes: []redact.Rule{
+			{Path: "properties.configuration.secrets[*].value", Mode: redact.RedactScalar},
+		}},
+		// Container Apps session pool returns its secret values inline (secrets
+		// sit directly under properties, unlike the Job shape).
+		{Type: TypeAppContainersSessionPool, Attributes: []redact.Rule{
+			{Path: "properties.secrets[*].value", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeDevicesProvisioningService, Attributes: []redact.Rule{
+			{Path: "properties.authorizationPolicies[*].primaryKey", Mode: redact.RedactScalar},
+			{Path: "properties.authorizationPolicies[*].secondaryKey", Mode: redact.RedactScalar},
+		}},
+		{Type: TypeServiceFabricManagedCluster, Attributes: []redact.Rule{
+			{Path: "properties.adminPassword", Mode: redact.RedactScalar},
+		}},
 		// Operator Nexus clusters carry baseboard-management-controller and
 		// storage-appliance admin passwords in each rack definition (the SDK
 		// permits a plaintext password until the cluster moves to managed

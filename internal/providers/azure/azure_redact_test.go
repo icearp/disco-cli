@@ -6,6 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/redact"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/avs/armavs"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/botservice/armbotservice"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedvmware/armconnectedvmware"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dashboard/armdashboard"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/deviceprovisioningservices/armdeviceprovisioningservices"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
@@ -31,6 +33,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresqlhsc/armpostgresqlhsc"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redhatopenshift/armredhatopenshift"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/scvmm/armscvmm"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicefabricmanagedclusters/armservicefabricmanagedclusters"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sqlvirtualmachine/armsqlvirtualmachine"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/streamanalytics/armstreamanalytics"
 )
@@ -815,5 +818,82 @@ func TestRedact_PeeringService_LogAnalyticsKey(t *testing.T) {
 	la := got["properties"].(map[string]any)["logAnalyticsWorkspaceProperties"].(map[string]any)
 	if la["key"] != redact.Placeholder {
 		t.Errorf("logAnalytics key not redacted: %v", la["key"])
+	}
+}
+
+func TestRedact_AppContainersJob_SecretValue(t *testing.T) {
+	in := &armappcontainers.Job{
+		Properties: &armappcontainers.JobProperties{
+			Configuration: &armappcontainers.JobConfiguration{
+				Secrets: []*armappcontainers.Secret{
+					{Name: to.Ptr("db-pass"), Value: to.Ptr("hunter2")},
+				},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeAppContainersJob, in)
+	secrets := got["properties"].(map[string]any)["configuration"].(map[string]any)["secrets"].([]any)
+	s := secrets[0].(map[string]any)
+	if s["value"] != redact.Placeholder {
+		t.Errorf("secret value not redacted: %v", s["value"])
+	}
+	if s["name"] != "db-pass" {
+		t.Errorf("secret name clobbered: %v", s["name"])
+	}
+}
+
+func TestRedact_DeviceProvisioning_SASKeys(t *testing.T) {
+	in := &armdeviceprovisioningservices.ProvisioningServiceDescription{
+		Properties: &armdeviceprovisioningservices.IotDpsPropertiesDescription{
+			AuthorizationPolicies: []*armdeviceprovisioningservices.SharedAccessSignatureAuthorizationRuleAccessRightsDescription{
+				{KeyName: to.Ptr("provisioningserviceowner"), PrimaryKey: to.Ptr("primary-secret"), SecondaryKey: to.Ptr("secondary-secret")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeDevicesProvisioningService, in)
+	pol := got["properties"].(map[string]any)["authorizationPolicies"].([]any)[0].(map[string]any)
+	if pol["primaryKey"] != redact.Placeholder {
+		t.Errorf("primaryKey not redacted: %v", pol["primaryKey"])
+	}
+	if pol["secondaryKey"] != redact.Placeholder {
+		t.Errorf("secondaryKey not redacted: %v", pol["secondaryKey"])
+	}
+	if pol["keyName"] != "provisioningserviceowner" {
+		t.Errorf("keyName clobbered: %v", pol["keyName"])
+	}
+}
+
+func TestRedact_ServiceFabricManagedCluster_AdminPassword(t *testing.T) {
+	in := &armservicefabricmanagedclusters.ManagedCluster{
+		Properties: &armservicefabricmanagedclusters.ManagedClusterProperties{
+			AdminUserName: to.Ptr("vmadmin"),
+			AdminPassword: to.Ptr("hunter2"),
+		},
+	}
+	got := applyAndDecode(t, TypeServiceFabricManagedCluster, in)
+	props := got["properties"].(map[string]any)
+	if props["adminPassword"] != redact.Placeholder {
+		t.Errorf("adminPassword not redacted: %v", props["adminPassword"])
+	}
+	if props["adminUserName"] != "vmadmin" {
+		t.Errorf("adminUserName clobbered: %v", props["adminUserName"])
+	}
+}
+
+func TestRedact_AppContainersSessionPool_SecretValue(t *testing.T) {
+	in := &armappcontainers.SessionPool{
+		Properties: &armappcontainers.SessionPoolProperties{
+			Secrets: []*armappcontainers.SessionPoolSecret{
+				{Name: to.Ptr("api-key"), Value: to.Ptr("hunter2")},
+			},
+		},
+	}
+	got := applyAndDecode(t, TypeAppContainersSessionPool, in)
+	s := got["properties"].(map[string]any)["secrets"].([]any)[0].(map[string]any)
+	if s["value"] != redact.Placeholder {
+		t.Errorf("session-pool secret value not redacted: %v", s["value"])
+	}
+	if s["name"] != "api-key" {
+		t.Errorf("secret name clobbered: %v", s["name"])
 	}
 }

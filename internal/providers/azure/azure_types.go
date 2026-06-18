@@ -476,6 +476,52 @@ const (
 
 	TypeEdgeMarketplaceOffer     = "azure:microsoft.edgemarketplace:offers"
 	TypeEdgeMarketplacePublisher = "azure:microsoft.edgemarketplace:publishers"
+	// Coverage sweep: app/compute/misc
+	TypeAppContainersConnectedEnvironment  = "azure:microsoft.app:connected-environment"
+	TypeAppContainersJob                   = "azure:microsoft.app:job"
+	TypeAppContainersSessionPool           = "azure:microsoft.app:session-pool"
+	TypeAutomanageBestPractice             = "azure:microsoft.automanage:best-practice"
+	TypeAutomanageConfigProfileAssignment  = "azure:microsoft.automanage:configuration-profile-assignment"
+	TypeAutomanageServicePrincipal         = "azure:microsoft.automanage:service-principal"
+	TypeLargeInstanceStorage               = "azure:microsoft.azurelargeinstance:large-storage-instance"
+	TypeResilienceUsagePlan                = "azure:microsoft.azureresiliencemanagement:usage-plan"
+	TypeBlueprintBlueprint                 = "azure:microsoft.blueprint:blueprint"
+	TypeBlueprintAssignment                = "azure:microsoft.blueprint:blueprint-assignment"
+	TypeCDNWAFPolicy                       = "azure:microsoft.cdn:waf-policy"
+	TypeCloudHealthHealthModel             = "azure:microsoft.cloudhealth:health-model"
+	TypeCodeSigningAccount                 = "azure:microsoft.codesigning:codesigning-account"
+	TypeContainerServiceFleet              = "azure:microsoft.containerservice:fleet"
+	TypeContainerServiceSnapshot           = "azure:microsoft.containerservice:snapshot"
+	TypeCustomProvidersResourceProvider    = "azure:microsoft.customproviders:resource-provider"
+	TypeDependencyMapMap                   = "azure:microsoft.dependencymap:map"
+	TypeDesktopVirtAppAttachPackage        = "azure:microsoft.desktopvirtualization:app-attach-package"
+	TypeDevCenterNetworkConnection         = "azure:microsoft.devcenter:network-connection"
+	TypeDevCenterProject                   = "azure:microsoft.devcenter:project"
+	TypeDeviceRegistryAssetEndpointProfile = "azure:microsoft.deviceregistry:asset-endpoint-profile"
+	TypeDeviceRegistryBillingContainer     = "azure:microsoft.deviceregistry:billing-container"
+	TypeDevicesProvisioningService         = "azure:microsoft.devices:provisioning-service"
+	TypeDevTestLabSchedule                 = "azure:microsoft.devtestlab:schedule"
+	TypeElasticMonitor                     = "azure:microsoft.elastic:monitor"
+	TypeLabServicesLabPlan                 = "azure:microsoft.labservices:lab-plan"
+	TypeLogicIntegrationAccount            = "azure:microsoft.logic:integration-account"
+	TypeLogicIntegrationServiceEnv         = "azure:microsoft.logic:integration-service-environment"
+	TypeMaintenanceApplyUpdate             = "azure:microsoft.maintenance:apply-update"
+	TypeMaintenanceConfigAssignment        = "azure:microsoft.maintenance:configuration-assignment"
+	TypeMaintenancePublicConfiguration     = "azure:microsoft.maintenance:public-maintenance-configuration"
+	TypeManagedServicesMarketplaceRegDef   = "azure:microsoft.managedservices:marketplace-registration-definition"
+	TypeManagedServicesRegistrationAssign  = "azure:microsoft.managedservices:registration-assignment"
+	TypeOrbitalGeoCatalog                  = "azure:microsoft.orbital:geo-catalog"
+	TypePowerBIDedicatedAutoScaleVCore     = "azure:microsoft.powerbidedicated:auto-scale-vcore"
+	TypePowerPlatformAccount               = "azure:microsoft.powerplatform:account"
+	TypeSaaSApplication                    = "azure:microsoft.saas:application"
+	TypeSaaSResource                       = "azure:microsoft.saas:resource"
+	TypeServiceFabricManagedCluster        = "azure:microsoft.servicefabric:managed-cluster"
+	TypeSolutionsApplicationDefinition     = "azure:microsoft.solutions:application-definition"
+	TypeSolutionsApplication               = "azure:microsoft.solutions:application"
+	TypeSolutionsJitRequest                = "azure:microsoft.solutions:jit-request"
+	TypeSQLVirtualMachineGroup             = "azure:microsoft.sqlvirtualmachine:sql-virtual-machine-group"
+	TypeVMImageBuilderImageTemplate        = "azure:microsoft.virtualmachineimages:image-template"
+	TypeWorkloadsMonitor                   = "azure:microsoft.workloads:monitor"
 )
 
 // azureAPITypeMap maps the lowercase Azure provider resource-type string
@@ -884,4 +930,50 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.peering/peeringservices":                       TypePeeringPeeringService,
 	"microsoft.edgemarketplace/offers":                        TypeEdgeMarketplaceOffer,
 	"microsoft.edgemarketplace/publishers":                    TypeEdgeMarketplacePublisher,
+	// Coverage sweep: app/compute/misc
+	"microsoft.app/connectedenvironments":                          TypeAppContainersConnectedEnvironment,
+	"microsoft.app/jobs":                                           TypeAppContainersJob,
+	"microsoft.app/sessionpools":                                   TypeAppContainersSessionPool,
+	"microsoft.automanage/bestpractices":                           TypeAutomanageBestPractice,
+	"microsoft.automanage/configurationprofileassignments":         TypeAutomanageConfigProfileAssignment,
+	"microsoft.automanage/serviceprincipals":                       TypeAutomanageServicePrincipal,
+	"microsoft.azurelargeinstance/azurelargestorageinstances":      TypeLargeInstanceStorage,
+	"microsoft.azureresiliencemanagement/usageplans":               TypeResilienceUsagePlan,
+	"microsoft.blueprint/blueprints":                               TypeBlueprintBlueprint,
+	"microsoft.blueprint/blueprintassignments":                     TypeBlueprintAssignment,
+	"microsoft.cdn/cdnwebapplicationfirewallpolicies":              TypeCDNWAFPolicy,
+	"microsoft.cloudhealth/healthmodels":                           TypeCloudHealthHealthModel,
+	"microsoft.codesigning/codesigningaccounts":                    TypeCodeSigningAccount,
+	"microsoft.containerservice/fleets":                            TypeContainerServiceFleet,
+	"microsoft.containerservice/snapshots":                         TypeContainerServiceSnapshot,
+	"microsoft.customproviders/resourceproviders":                  TypeCustomProvidersResourceProvider,
+	"microsoft.dependencymap/maps":                                 TypeDependencyMapMap,
+	"microsoft.desktopvirtualization/appattachpackages":            TypeDesktopVirtAppAttachPackage,
+	"microsoft.devcenter/networkconnections":                       TypeDevCenterNetworkConnection,
+	"microsoft.devcenter/projects":                                 TypeDevCenterProject,
+	"microsoft.deviceregistry/assetendpointprofiles":               TypeDeviceRegistryAssetEndpointProfile,
+	"microsoft.deviceregistry/billingcontainers":                   TypeDeviceRegistryBillingContainer,
+	"microsoft.devices/provisioningservices":                       TypeDevicesProvisioningService,
+	"microsoft.devtestlab/schedules":                               TypeDevTestLabSchedule,
+	"microsoft.elastic/monitors":                                   TypeElasticMonitor,
+	"microsoft.labservices/labplans":                               TypeLabServicesLabPlan,
+	"microsoft.logic/integrationaccounts":                          TypeLogicIntegrationAccount,
+	"microsoft.logic/integrationserviceenvironments":               TypeLogicIntegrationServiceEnv,
+	"microsoft.maintenance/applyupdates":                           TypeMaintenanceApplyUpdate,
+	"microsoft.maintenance/configurationassignments":               TypeMaintenanceConfigAssignment,
+	"microsoft.maintenance/publicmaintenanceconfigurations":        TypeMaintenancePublicConfiguration,
+	"microsoft.managedservices/marketplaceregistrationdefinitions": TypeManagedServicesMarketplaceRegDef,
+	"microsoft.managedservices/registrationassignments":            TypeManagedServicesRegistrationAssign,
+	"microsoft.orbital/geocatalogs":                                TypeOrbitalGeoCatalog,
+	"microsoft.powerbidedicated/autoscalevcores":                   TypePowerBIDedicatedAutoScaleVCore,
+	"microsoft.powerplatform/accounts":                             TypePowerPlatformAccount,
+	"microsoft.saas/applications":                                  TypeSaaSApplication,
+	"microsoft.saas/resources":                                     TypeSaaSResource,
+	"microsoft.servicefabric/managedclusters":                      TypeServiceFabricManagedCluster,
+	"microsoft.solutions/applicationdefinitions":                   TypeSolutionsApplicationDefinition,
+	"microsoft.solutions/applications":                             TypeSolutionsApplication,
+	"microsoft.solutions/jitrequests":                              TypeSolutionsJitRequest,
+	"microsoft.sqlvirtualmachine/sqlvirtualmachinegroups":          TypeSQLVirtualMachineGroup,
+	"microsoft.virtualmachineimages/imagetemplates":                TypeVMImageBuilderImageTemplate,
+	"microsoft.workloads/monitors":                                 TypeWorkloadsMonitor,
 }
