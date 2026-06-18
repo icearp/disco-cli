@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
@@ -14,7 +16,7 @@ import (
 // TestChainAssumeRoles_Empty returns nil for empty input — caller falls back
 // to baseCfg credentials.
 func TestChainAssumeRoles_Empty(t *testing.T) {
-	got := chainAssumeRoles(sdkaws.Config{Region: "us-east-1"}, nil)
+	got := chainAssumeRoles(sdkaws.Config{Region: "us-east-1"}, nil, "")
 	if got != nil {
 		t.Errorf("expected nil for empty chain, got %#v", got)
 	}
@@ -28,7 +30,7 @@ func TestChainAssumeRoles_BuildsCache(t *testing.T) {
 	cache := chainAssumeRoles(sdkaws.Config{Region: "us-east-1"}, []string{
 		"arn:aws:iam::111111111111:role/Hub",
 		"arn:aws:iam::222222222222:role/Audit",
-	})
+	}, "disco-scan")
 	if cache == nil {
 		t.Fatal("expected non-nil cache for two-hop chain")
 	}
@@ -81,6 +83,107 @@ func TestSetRoleOverride_PinsScannerState(t *testing.T) {
 	s.SetRoleOverride("", "")
 	if s.roleARN != "" || s.externalID != "" {
 		t.Errorf("SetRoleOverride should have cleared, got %q / %q", s.roleARN, s.externalID)
+	}
+}
+
+// TestAssumeRoleOpts verifies the shared AssumeRole option closure sets only
+// the fields it was given, and returns nil when there's nothing to set (so
+// callers pass a no-op extra rather than an empty closure).
+func TestAssumeRoleOpts(t *testing.T) {
+	if assumeRoleOpts("", "") != nil {
+		t.Error("both empty should return nil closure")
+	}
+
+	cases := []struct {
+		name             string
+		externalID       string
+		sourceIdentity   string
+		wantExternalID   string
+		wantSourceIdenty string
+	}{
+		{"external only", "ext", "", "ext", ""},
+		{"source only", "", "ident", "", "ident"},
+		{"both", "ext", "ident", "ext", "ident"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			o := &stscreds.AssumeRoleOptions{}
+			fn := assumeRoleOpts(c.externalID, c.sourceIdentity)
+			if fn == nil {
+				t.Fatal("expected non-nil closure")
+			}
+			fn(o)
+			gotExt := ""
+			if o.ExternalID != nil {
+				gotExt = *o.ExternalID
+			}
+			gotSrc := ""
+			if o.SourceIdentity != nil {
+				gotSrc = *o.SourceIdentity
+			}
+			if gotExt != c.wantExternalID {
+				t.Errorf("ExternalID = %q, want %q", gotExt, c.wantExternalID)
+			}
+			if gotSrc != c.wantSourceIdenty {
+				t.Errorf("SourceIdentity = %q, want %q", gotSrc, c.wantSourceIdenty)
+			}
+		})
+	}
+}
+
+// TestResolveSourceIdentity covers the off / auto / literal resolution.
+func TestResolveSourceIdentity(t *testing.T) {
+	const scanID = "0123456789abcdef0123456789abcdef"
+	cases := []struct {
+		configured string
+		want       string
+	}{
+		{"", ""},
+		{"auto", scanID},
+		{"my-operator", "my-operator"},
+	}
+	for _, c := range cases {
+		if got := resolveSourceIdentity(c.configured, scanID); got != c.want {
+			t.Errorf("resolveSourceIdentity(%q) = %q, want %q", c.configured, got, c.want)
+		}
+	}
+}
+
+// TestValidateSourceIdentity pins the AWS SourceIdentity constraint (2-64 chars
+// from [A-Za-z0-9_+=,.@-]). The 32-hex scan ID must always pass.
+func TestValidateSourceIdentity(t *testing.T) {
+	valid := []string{
+		"0123456789abcdef0123456789abcdef", // scan-ID shape
+		"a@b.c-1",
+		"ab",
+		"tenant_42+role=,x.y@z-w",
+	}
+	for _, v := range valid {
+		if err := validateSourceIdentity(v); err != nil {
+			t.Errorf("validateSourceIdentity(%q) = %v, want nil", v, err)
+		}
+	}
+	invalid := []string{
+		"",                      // empty
+		"a",                     // 1 char
+		"has space",             // disallowed char
+		"bad/slash",             // disallowed char
+		strings.Repeat("a", 65), // >64
+	}
+	for _, v := range invalid {
+		if err := validateSourceIdentity(v); err == nil {
+			t.Errorf("validateSourceIdentity(%q) = nil, want error", v)
+		}
+	}
+}
+
+// TestSetSourceIdentity_PinsScannerState verifies the capability setter stores
+// the raw configured value unchanged.
+func TestSetSourceIdentity_PinsScannerState(t *testing.T) {
+	s := &Scanner{}
+	s.SetSourceIdentity("auto")
+	if s.sourceIdentity != "auto" {
+		t.Errorf("sourceIdentity = %q, want auto", s.sourceIdentity)
 	}
 }
 

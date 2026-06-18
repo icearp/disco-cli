@@ -45,6 +45,7 @@ type Scanner struct {
 	skipGlobals    bool     // when true, services registered as global are not invoked
 	roleARN        string   // "" = use config-file accounts; non-empty pins single-account scan via assume-role
 	externalID     string   // included in AssumeRole only when roleARN is also set
+	sourceIdentity string   // "" = off; "auto" = scan ID; else literal STS SourceIdentity stamped on assumed sessions
 }
 
 // Name implements providers.Scanner.
@@ -101,6 +102,12 @@ func (s *Scanner) SetRoleOverride(roleARN, externalID string) {
 	s.externalID = externalID
 }
 
+// SetSourceIdentity opts the scan into stamping an STS SourceIdentity on every
+// assumed-role session (CloudTrail attribution). "auto" resolves to the scan ID;
+// any other non-empty value is used verbatim. Requires the target role's trust
+// policy to grant sts:SetSourceIdentity, so it is off unless explicitly set.
+func (s *Scanner) SetSourceIdentity(sourceIdentity string) { s.sourceIdentity = sourceIdentity }
+
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
 	svcs := filteredServices(s.serviceFilter)
@@ -115,7 +122,16 @@ func (s *Scanner) ServiceNames() []string {
 // Errors are reported via st.ReportError and never abort the scan: a failure
 // in one service / resolver / account does not stop the others.
 func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
-	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride, s.roleARN, s.externalID)
+	srcID := resolveSourceIdentity(s.sourceIdentity, scanID)
+	if srcID != "" {
+		if err := validateSourceIdentity(srcID); err != nil {
+			st.ReportError(store.ScanError{
+				Provider: "aws", Service: "source-identity", Scope: "", Message: err.Error(),
+			})
+			return nil
+		}
+	}
+	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride, s.roleARN, s.externalID, srcID)
 	if err != nil {
 		st.ReportError(store.ScanError{
 			Provider: "aws", Service: "load-accounts", Scope: "", Message: err.Error(),

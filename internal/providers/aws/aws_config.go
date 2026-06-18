@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -62,7 +63,7 @@ type accountCfg struct {
 // when non-empty). An external orchestrator (e.g. a scan-trigger Lambda)
 // uses this to drive per-tenant scans without writing config to disk in the
 // worker container.
-func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride string) ([]account, error) {
+func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride, sourceIdentity string) ([]account, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("aws", &cfg); err != nil {
 		return nil, fmt.Errorf("parse aws config: %w", err)
@@ -96,11 +97,7 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 	if roleARNOverride != "" {
 		stsClient := sts.NewFromConfig(baseCfg)
 		acctCfg := baseCfg
-		acctCfg.Credentials = cachedAssumeRole(stsClient, roleARNOverride, func(o *stscreds.AssumeRoleOptions) {
-			if externalIDOverride != "" {
-				o.ExternalID = &externalIDOverride
-			}
-		})
+		acctCfg.Credentials = cachedAssumeRole(stsClient, roleARNOverride, assumeRoleOpts(externalIDOverride, sourceIdentity))
 		// Resolve the assumed-role caller account for the synthetic ID; on
 		// error we still proceed with an empty ID rather than failing the
 		// scan, since the override path is meant to short-circuit STS pre-checks.
@@ -149,9 +146,9 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		// independently per hop.
 		switch {
 		case len(a.RoleChain) > 0:
-			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain)
+			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain, sourceIdentity)
 		case a.RoleARN != "":
-			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(baseCfg), a.RoleARN, nil)
+			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(baseCfg), a.RoleARN, assumeRoleOpts("", sourceIdentity))
 		}
 
 		regions := a.Regions
@@ -185,11 +182,19 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 // Use cases: hub-and-spoke org topology where the runner credentials live in
 // a security account, jumping through a per-org "Audit" role into each
 // member account, then optionally into a per-account read-only role.
-func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string) *sdkaws.CredentialsCache {
+func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string, sourceIdentity string) *sdkaws.CredentialsCache {
 	cur := baseCfg
 	var last *sdkaws.CredentialsCache
-	for _, role := range roleARNs {
-		cache := cachedAssumeRole(sts.NewFromConfig(cur), role, nil)
+	for i, role := range roleARNs {
+		// SourceIdentity is set on the entry hop only — AWS propagates it to every
+		// downstream session in the chain automatically. Re-asserting it on later
+		// hops would force each role's trust policy to grant sts:SetSourceIdentity;
+		// setting it once means only the entry role needs that permission.
+		var extra func(*stscreds.AssumeRoleOptions)
+		if i == 0 {
+			extra = assumeRoleOpts("", sourceIdentity)
+		}
+		cache := cachedAssumeRole(sts.NewFromConfig(cur), role, extra)
 		next := cur
 		next.Credentials = cache
 		cur = next
@@ -225,6 +230,55 @@ func cachedAssumeRole(client *sts.Client, roleARN string, extra func(*stscreds.A
 		o.ExpiryWindow = credRefreshWindow
 		o.ExpiryWindowJitterFrac = 0.5
 	})
+}
+
+// assumeRoleOpts builds the AssumeRole option closure shared by every assume
+// site. Returns nil when neither value is set, so callers pass a no-op extra
+// without an empty closure. SourceIdentity, once set on the entry session, is
+// stamped on every API call's CloudTrail record and propagated through role
+// chains — but the target role's trust policy must grant sts:SetSourceIdentity
+// or the assume fails, which is why it is opt-in.
+func assumeRoleOpts(externalID, sourceIdentity string) func(*stscreds.AssumeRoleOptions) {
+	if externalID == "" && sourceIdentity == "" {
+		return nil
+	}
+	return func(o *stscreds.AssumeRoleOptions) {
+		if externalID != "" {
+			o.ExternalID = &externalID
+		}
+		if sourceIdentity != "" {
+			o.SourceIdentity = &sourceIdentity
+		}
+	}
+}
+
+// sourceIdentityAuto is the reserved --source-identity token that resolves to the
+// disco scan ID, so CloudTrail's sourceIdentity maps back to the scans table row.
+const sourceIdentityAuto = "auto"
+
+// resolveSourceIdentity turns the configured --source-identity value into the
+// literal stamped on the session: "" stays off, the reserved "auto" token
+// becomes the scan ID, anything else is used verbatim.
+func resolveSourceIdentity(configured, scanID string) string {
+	switch configured {
+	case "":
+		return ""
+	case sourceIdentityAuto:
+		return scanID
+	default:
+		return configured
+	}
+}
+
+// sourceIdentityPattern is AWS's SourceIdentity constraint: 2–64 chars from the
+// set [\w+=,.@-]. The 32-hex scan ID always satisfies it.
+var sourceIdentityPattern = regexp.MustCompile(`^[\w+=,.@-]{2,64}$`)
+
+func validateSourceIdentity(s string) error {
+	if !sourceIdentityPattern.MatchString(s) {
+		return fmt.Errorf("%q must be 2-64 chars from [A-Za-z0-9_+=,.@-]", s)
+	}
+	return nil
 }
 
 // describeRegionsAPI is the test seam for region-enablement probing.

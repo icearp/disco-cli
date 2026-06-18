@@ -68,6 +68,15 @@ type RoleOverrider interface {
 	SetRoleOverride(roleARN, externalID string)
 }
 
+// SourceIdentityOverrider is an optional interface for providers that can stamp
+// an audit identity onto assumed-role sessions (AWS STS SourceIdentity, surfaced
+// in CloudTrail). The reserved value "auto" resolves to the scan ID; any other
+// value is used verbatim. Off when empty — requires the target role's trust
+// policy to permit setting a source identity, so it is never on by default.
+type SourceIdentityOverrider interface {
+	SetSourceIdentity(sourceIdentity string)
+}
+
 // SubscriptionOverrider is an optional interface for providers that support
 // pinning the scan to an explicit subscription set via the --subscriptions CLI
 // flag. Used by an external orchestrator to constrain the shared worker

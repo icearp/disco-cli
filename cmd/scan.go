@@ -12,6 +12,7 @@ import (
 	"codeberg.org/icearp/disco/internal/scanrun"
 	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var scanCmd = &cobra.Command{
@@ -348,6 +349,18 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 			provScope["role_arn"] = roleARN
 		}
 	}
+	if _, ok := s.(providers.SourceIdentityOverrider); ok {
+		// SourceIdentity is an audit value (not a credential), so it belongs in
+		// the scan scope. Record the configured token ("auto" or a literal); the
+		// resolved scan-ID form is the scan record's own ID.
+		sourceIdentity, _ := cmd.Flags().GetString("source-identity")
+		if sourceIdentity == "" {
+			sourceIdentity = viper.GetString(s.Name() + ".source_identity")
+		}
+		if sourceIdentity != "" {
+			provScope["source_identity"] = sourceIdentity
+		}
+	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {
 			provScope["subscriptions"] = subs
@@ -511,6 +524,10 @@ func init() {
 			subcmd.Flags().String("external-id", "",
 				"STS ExternalId for --role-arn (only honoured when --role-arn is also set)")
 		}
+		if _, ok := s.(providers.SourceIdentityOverrider); ok {
+			subcmd.Flags().String("source-identity", "",
+				"STS SourceIdentity stamped on assumed-role sessions for CloudTrail attribution; \"auto\" uses the scan ID. Requires the target role's trust policy to allow sts:SetSourceIdentity")
+		}
 		if _, ok := s.(providers.SubscriptionOverrider); ok {
 			subcmd.Flags().StringSlice("subscriptions", nil,
 				"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
@@ -548,6 +565,15 @@ func init() {
 				externalID, _ := cmd.Flags().GetString("external-id")
 				if roleARN != "" {
 					ro.SetRoleOverride(roleARN, externalID)
+				}
+			}
+			if si, ok := s.(providers.SourceIdentityOverrider); ok {
+				sourceIdentity, _ := cmd.Flags().GetString("source-identity")
+				if sourceIdentity == "" {
+					sourceIdentity = viper.GetString(s.Name() + ".source_identity")
+				}
+				if sourceIdentity != "" {
+					si.SetSourceIdentity(sourceIdentity)
 				}
 			}
 			if so, ok := s.(providers.SubscriptionOverrider); ok {
