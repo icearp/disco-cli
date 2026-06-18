@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spf13/viper"
 )
@@ -93,14 +96,11 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 	if roleARNOverride != "" {
 		stsClient := sts.NewFromConfig(baseCfg)
 		acctCfg := baseCfg
-		acctCfg.Credentials = sdkaws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(
-			stsClient, roleARNOverride,
-			func(o *stscreds.AssumeRoleOptions) {
-				if externalIDOverride != "" {
-					o.ExternalID = &externalIDOverride
-				}
-			},
-		))
+		acctCfg.Credentials = cachedAssumeRole(stsClient, roleARNOverride, func(o *stscreds.AssumeRoleOptions) {
+			if externalIDOverride != "" {
+				o.ExternalID = &externalIDOverride
+			}
+		})
 		// Resolve the assumed-role caller account for the synthetic ID; on
 		// error we still proceed with an empty ID rather than failing the
 		// scan, since the override path is meant to short-circuit STS pre-checks.
@@ -151,9 +151,7 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		case len(a.RoleChain) > 0:
 			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain)
 		case a.RoleARN != "":
-			stsClient := sts.NewFromConfig(baseCfg)
-			provider := stscreds.NewAssumeRoleProvider(stsClient, a.RoleARN)
-			acctCfg.Credentials = sdkaws.NewCredentialsCache(provider)
+			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(baseCfg), a.RoleARN, nil)
 		}
 
 		regions := a.Regions
@@ -191,13 +189,85 @@ func chainAssumeRoles(baseCfg sdkaws.Config, roleARNs []string) *sdkaws.Credenti
 	cur := baseCfg
 	var last *sdkaws.CredentialsCache
 	for _, role := range roleARNs {
-		stsClient := sts.NewFromConfig(cur)
-		provider := stscreds.NewAssumeRoleProvider(stsClient, role)
-		cache := sdkaws.NewCredentialsCache(provider)
+		cache := cachedAssumeRole(sts.NewFromConfig(cur), role, nil)
 		next := cur
 		next.Credentials = cache
 		cur = next
 		last = cache
 	}
 	return last
+}
+
+const (
+	// assumeRoleSessionDuration is the lifetime requested for each assumed-role
+	// session. 1h is the hard cap AWS enforces on chained AssumeRole (>3600s is
+	// rejected) and sits within every role's MaxSessionDuration (the minimum is
+	// 1h), so it is universally safe for both single-hop and chained paths.
+	assumeRoleSessionDuration = time.Hour
+	// credRefreshWindow makes the CredentialsCache refresh this long BEFORE the
+	// session actually expires, so a long scan never races an expiring token.
+	// Jitter spreads refreshes across the concurrent service goroutines.
+	credRefreshWindow = 5 * time.Minute
+)
+
+// cachedAssumeRole builds a CredentialsCache around an AssumeRoleProvider with a
+// proactive refresh window, so the SDK renews the session before it expires
+// rather than lazily at the expiry boundary. extra, when non-nil, customizes the
+// AssumeRole options (e.g. ExternalID); Duration is always set first.
+func cachedAssumeRole(client *sts.Client, roleARN string, extra func(*stscreds.AssumeRoleOptions)) *sdkaws.CredentialsCache {
+	provider := stscreds.NewAssumeRoleProvider(client, roleARN, func(o *stscreds.AssumeRoleOptions) {
+		o.Duration = assumeRoleSessionDuration
+		if extra != nil {
+			extra(o)
+		}
+	})
+	return sdkaws.NewCredentialsCache(provider, func(o *sdkaws.CredentialsCacheOptions) {
+		o.ExpiryWindow = credRefreshWindow
+		o.ExpiryWindowJitterFrac = 0.5
+	})
+}
+
+// describeRegionsAPI is the test seam for region-enablement probing.
+// *ec2.Client satisfies it; tests inject a stub.
+type describeRegionsAPI interface {
+	DescribeRegions(context.Context, *ec2.DescribeRegionsInput, ...func(*ec2.Options)) (*ec2.DescribeRegionsOutput, error)
+}
+
+// enabledRegionSet returns the regions enabled for the calling account
+// (opt-in-not-required or opted-in). Calling a regional endpoint for a
+// not-opted-in region returns AuthFailure / UnrecognizedClientException, so
+// filtering the scan to this set avoids a storm of doomed, retried calls.
+// Mirrors the opt-in-status filter in aws_coverage.go::FetchRegions.
+func enabledRegionSet(ctx context.Context, c describeRegionsAPI) (map[string]bool, error) {
+	allRegions := true
+	out, err := c.DescribeRegions(ctx, &ec2.DescribeRegionsInput{
+		AllRegions: &allRegions,
+		Filters: []ec2types.Filter{{
+			Name:   sp("opt-in-status"),
+			Values: []string{"opt-in-not-required", "opted-in"},
+		}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[string]bool, len(out.Regions))
+	for _, r := range out.Regions {
+		if r.RegionName != nil {
+			set[*r.RegionName] = true
+		}
+	}
+	return set, nil
+}
+
+// filterToEnabled partitions requested into the regions present in enabled
+// (kept) and those absent (skipped), preserving input order.
+func filterToEnabled(requested []string, enabled map[string]bool) (kept, skipped []string) {
+	for _, r := range requested {
+		if enabled[r] {
+			kept = append(kept, r)
+		} else {
+			skipped = append(skipped, r)
+		}
+	}
+	return kept, skipped
 }

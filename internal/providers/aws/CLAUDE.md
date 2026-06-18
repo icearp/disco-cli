@@ -387,6 +387,23 @@ When AWS retires a service to new customers (existing customers keep access), li
 
 Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second is an ON CONFLICT update. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
 
+## Account-disabled regions filtered before fan-out (not at dispatcher)
+
+`scanAccount` (`aws_scanner.go`) calls `enabledScanRegions` once per account before the
+per-region fan-out: a single `ec2:DescribeRegions` probe (from always-enabled `us-east-1`,
+under the account's own/assumed credentials — opt-in status is per-account) builds the
+enabled-region set via `enabledRegionSet` (`aws_config.go`, opt-in-status filter mirrors
+`aws_coverage.go::FetchRegions`), then `filterToEnabled` drops not-opted-in regions. Skipped
+regions surface as one `preflight:regions` warning. Probe failure (e.g. `ec2:DescribeRegions`
+denied) falls back to the full configured list — restricted roles still scan, just without
+the speedup.
+
+Why a pre-filter, not error classification: calling a regional endpoint in a not-opted-in
+opt-in region (af-south-1, ap-east-1, …) returns `AuthFailure` / `UnrecognizedClientException`
+/ `InvalidClientTokenId` — indistinguishable at the call site from genuinely bad/expired
+credentials, and each one burns the 10-attempt adaptive retry budget. Do NOT add those codes
+to a dispatcher silent-skip: that would mask real credential failures. Fix at the source.
+
 ## NXDOMAIN at dispatcher = service not deployed in region
 
 `isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(service disabled)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.

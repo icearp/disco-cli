@@ -6,6 +6,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -186,7 +188,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 		})
 	}
 
-	for _, region := range acct.Regions {
+	for _, region := range enabledScanRegions(ctx, acct, st) {
 		wg.Go(func() {
 			if err := regionSem.Acquire(ctx, 1); err != nil {
 				return
@@ -242,6 +244,34 @@ func resolveRelationships(ctx context.Context, acct *account, st *store.Store) {
 		})
 	}
 	_ = g.Wait()
+}
+
+// enabledScanRegions returns acct.Regions minus any region not enabled for the
+// account. Scanning a not-opted-in opt-in region (e.g. af-south-1, ap-east-1)
+// returns AuthFailure / UnrecognizedClientException on every service call —
+// which read like token-expiry errors and, under the 10-attempt adaptive
+// retryer, cost minutes of doomed retries. One ec2:DescribeRegions probe (from
+// always-enabled us-east-1, under the account's own credentials) replaces that
+// storm. If the probe fails (e.g. ec2:DescribeRegions denied), fall back to the
+// full list so restricted roles still scan — they just forgo the speedup.
+func enabledScanRegions(ctx context.Context, acct *account, st *store.Store) []string {
+	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = "us-east-1" })
+	enabled, err := enabledRegionSet(ctx, client)
+	if err != nil {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "preflight:regions", Scope: acct.ID,
+			Message: "could not list enabled regions (ec2:DescribeRegions): " + err.Error() + "; scanning all configured regions",
+		})
+		return acct.Regions
+	}
+	kept, skipped := filterToEnabled(acct.Regions, enabled)
+	if len(skipped) > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "preflight:regions", Scope: acct.ID,
+			Message: "skipping region(s) not enabled for this account: " + strings.Join(skipped, ", "),
+		})
+	}
+	return kept
 }
 
 // scanRegion runs all regional service scanners in parallel, bounded by
