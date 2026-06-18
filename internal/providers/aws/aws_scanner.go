@@ -354,6 +354,14 @@ type account struct {
 	// resulting KMS edges persist in relationships; the config itself does not.
 	s3BucketEncryption   map[string]s3BucketEncryptionEntry
 	s3BucketEncryptionMu sync.Mutex
+
+	// wsiRegions caches the set of regions where the WorkspacesInstances service
+	// is enabled (from its ListRegions API), computed once per account. The
+	// per-region scanners fan out concurrently, so the lookup is sync.Once-guarded.
+	// See workspacesInstancesEnabledRegions.
+	wsiRegionsOnce sync.Once
+	wsiRegions     map[string]bool
+	wsiRegionsErr  error
 }
 
 // s3BucketEncryptionEntry carries a bucket's SSE configuration alongside the
