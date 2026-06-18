@@ -44,6 +44,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcda
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata v0.7.0/go.mod h1:V+ZWrlPTghHvhUwL2+Df4HjsaaME/2V+otre25/ow/4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhci v1.2.0 h1:5m1Ewee6CXs/uWv+zI/K9u0RDxJH+dLIqOXMLpgZnjs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhci v1.2.0/go.mod h1:dr8glAHyNcCw+YlHIUmUrZiO+BiwO1FSQPkLNgaVGQQ=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhcivm v0.1.0 h1:jtt1L8NYmIYQvLB+mtxT9zhyBQhja9UFFPDX8NCBAGs=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhcivm v0.1.0/go.mod h1:I29zOO4IxIMOSNiVXntU4pRh03zw6tSjqu1zYKiJbD8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/baremetalinfrastructure/armbaremetalinfrastructure v1.2.0 h1:LRRq7a2GFikdqyK4mDGFp4r/2JptOog8pjGTqz43Tqk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/baremetalinfrastructure/armbaremetalinfrastructure v1.2.0/go.mod h1:vGO0KvuEM+Y2BnXUto+JkmWyccZ/4p1mAq9yJ9lxlcs=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/batch/armbatch v1.2.1 h1:IdXgoDe3cTMEGXpaW1Y9sLNRhY4iy0Ul2rXGRfMlWLI=

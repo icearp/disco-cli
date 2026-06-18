@@ -48,15 +48,23 @@ const (
 	TypePostgreSQLServerGroupV2  = "azure:microsoft.dbforpostgresql:server-group-v2"
 	TypePowerBIDedicatedCapacity = "azure:microsoft.powerbidedicated:capacity"
 	// Hybrid / Arc (Wave 3)
-	TypeAzureArcDataController        = "azure:microsoft.azurearcdata:data-controller"
-	TypeAzureStackHCICluster          = "azure:microsoft.azurestackhci:cluster"
-	TypeConnectedVMwareVCenter        = "azure:microsoft.connectedvmwarevsphere:vcenter"
-	TypeCustomLocation                = "azure:microsoft.extendedlocation:custom-location"
-	TypeHybridComputeMachine          = "azure:microsoft.hybridcompute:machine"
-	TypeHybridContainerVirtualNetwork = "azure:microsoft.hybridcontainerservice:virtual-network"
-	TypeKubernetesConnectedCluster    = "azure:microsoft.kubernetes:connected-cluster"
-	TypeResourceConnectorAppliance    = "azure:microsoft.resourceconnector:appliance"
-	TypeScVmmServer                   = "azure:microsoft.scvmm:vmm-server"
+	TypeAzureArcDataController = "azure:microsoft.azurearcdata:data-controller"
+	TypeAzureStackHCICluster   = "azure:microsoft.azurestackhci:cluster"
+	// Azure Local (HCI) VM/network/storage family — armazurestackhcivm module.
+	TypeAzureStackHCIGalleryImage            = "azure:microsoft.azurestackhci:gallery-image"
+	TypeAzureStackHCILogicalNetwork          = "azure:microsoft.azurestackhci:logical-network"
+	TypeAzureStackHCIMarketplaceGalleryImage = "azure:microsoft.azurestackhci:marketplace-gallery-image"
+	TypeAzureStackHCINetworkInterface        = "azure:microsoft.azurestackhci:network-interface"
+	TypeAzureStackHCINetworkSecurityGroup    = "azure:microsoft.azurestackhci:network-security-group"
+	TypeAzureStackHCIStorageContainer        = "azure:microsoft.azurestackhci:storage-container"
+	TypeAzureStackHCIVirtualHardDisk         = "azure:microsoft.azurestackhci:virtual-hard-disk"
+	TypeConnectedVMwareVCenter               = "azure:microsoft.connectedvmwarevsphere:vcenter"
+	TypeCustomLocation                       = "azure:microsoft.extendedlocation:custom-location"
+	TypeHybridComputeMachine                 = "azure:microsoft.hybridcompute:machine"
+	TypeHybridContainerVirtualNetwork        = "azure:microsoft.hybridcontainerservice:virtual-network"
+	TypeKubernetesConnectedCluster           = "azure:microsoft.kubernetes:connected-cluster"
+	TypeResourceConnectorAppliance           = "azure:microsoft.resourceconnector:appliance"
+	TypeScVmmServer                          = "azure:microsoft.scvmm:vmm-server"
 	// Networking & telco/edge (Wave 4)
 	TypeEdgeZonesExtendedZone              = "azure:microsoft.edgezones:extended-zone"
 	TypeHybridNetworkFunction              = "azure:microsoft.hybridnetwork:network-function"
@@ -454,6 +462,13 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.powerbidedicated/capacities":                                TypePowerBIDedicatedCapacity,
 	"microsoft.azurearcdata/datacontrollers":                               TypeAzureArcDataController,
 	"microsoft.azurestackhci/clusters":                                     TypeAzureStackHCICluster,
+	"microsoft.azurestackhci/galleryimages":                                TypeAzureStackHCIGalleryImage,
+	"microsoft.azurestackhci/logicalnetworks":                              TypeAzureStackHCILogicalNetwork,
+	"microsoft.azurestackhci/marketplacegalleryimages":                     TypeAzureStackHCIMarketplaceGalleryImage,
+	"microsoft.azurestackhci/networkinterfaces":                            TypeAzureStackHCINetworkInterface,
+	"microsoft.azurestackhci/networksecuritygroups":                        TypeAzureStackHCINetworkSecurityGroup,
+	"microsoft.azurestackhci/storagecontainers":                            TypeAzureStackHCIStorageContainer,
+	"microsoft.azurestackhci/virtualharddisks":                             TypeAzureStackHCIVirtualHardDisk,
 	"microsoft.connectedvmwarevsphere/vcenters":                            TypeConnectedVMwareVCenter,
 	"microsoft.extendedlocation/customlocations":                           TypeCustomLocation,
 	"microsoft.hybridcompute/machines":                                     TypeHybridComputeMachine,
