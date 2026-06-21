@@ -11,9 +11,17 @@ import (
 )
 
 func init() {
-	registerExtraEmits([]coverage.TypeDecl{
-		{Service: "microsoft.orbital", DiscoType: TypeOrbitalGeoCatalog},
-	}...)
+	// Microsoft.Orbital/geoCatalogs (Planetary Computer Pro) is the only live
+	// type left in the Microsoft.Orbital namespace — the ground-station
+	// Spacecrafts service was retired Dec 2024 — so this scanner owns the
+	// azure:microsoft.orbital service registration.
+	registerService(serviceEntry{
+		name: "azure:microsoft.orbital",
+		fn:   scanPlanetaryComputer,
+		emits: []coverage.TypeDecl{
+			{Service: "microsoft.orbital", DiscoType: TypeOrbitalGeoCatalog},
+		},
+	})
 }
 
 // scanPlanetaryComputer discovers Microsoft Planetary Computer GeoCatalogs

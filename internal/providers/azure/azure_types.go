@@ -89,7 +89,6 @@ const (
 	TypeManagedNetworkFabric               = "azure:microsoft.managednetworkfabric:network-fabric"
 	TypeNetworkCloudCluster                = "azure:microsoft.networkcloud:cluster"
 	TypeNetworkFunctionTrafficCollector    = "azure:microsoft.networkfunction:azure-traffic-collector"
-	TypeOrbitalSpacecraft                  = "azure:microsoft.orbital:spacecraft"
 	TypePeeringPeering                     = "azure:microsoft.peering:peering"
 	TypeServiceNetworkingTrafficController = "azure:microsoft.servicenetworking:traffic-controller"
 	// Compute & scale (Wave 5)
@@ -97,7 +96,6 @@ const (
 	TypeLargeInstance               = "azure:microsoft.azurelargeinstance:large-instance"
 	TypeBareMetalInstance           = "azure:microsoft.baremetalinfrastructure:bare-metal-instance"
 	TypeDevOpsInfrastructurePool    = "azure:microsoft.devopsinfrastructure:pool"
-	TypeHanaOnAzureSapMonitor       = "azure:microsoft.hanaonazure:sap-monitor"
 	TypeSQLVirtualMachine           = "azure:microsoft.sqlvirtualmachine:sql-virtual-machine"
 	TypeStandbyVMPool               = "azure:microsoft.standbypool:standby-virtual-machine-pool"
 	TypeStandbyContainerGroupPool   = "azure:microsoft.standbypool:standby-container-group-pool"
@@ -678,14 +676,12 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.managednetworkfabric/networkfabrics":                        TypeManagedNetworkFabric,
 	"microsoft.networkcloud/clusters":                                      TypeNetworkCloudCluster,
 	"microsoft.networkfunction/azuretrafficcollectors":                     TypeNetworkFunctionTrafficCollector,
-	"microsoft.orbital/spacecrafts":                                        TypeOrbitalSpacecraft,
 	"microsoft.peering/peerings":                                           TypePeeringPeering,
 	"microsoft.servicenetworking/trafficcontrollers":                       TypeServiceNetworkingTrafficController,
 	"microsoft.azurefleet/fleets":                                          TypeComputeFleet,
 	"microsoft.azurelargeinstance/azurelargeinstances":                     TypeLargeInstance,
 	"microsoft.baremetalinfrastructure/baremetalinstances":                 TypeBareMetalInstance,
 	"microsoft.devopsinfrastructure/pools":                                 TypeDevOpsInfrastructurePool,
-	"microsoft.hanaonazure/sapmonitors":                                    TypeHanaOnAzureSapMonitor,
 	"microsoft.sqlvirtualmachine/sqlvirtualmachines":                       TypeSQLVirtualMachine,
 	"microsoft.standbypool/standbyvirtualmachinepools":                     TypeStandbyVMPool,
 	"microsoft.standbypool/standbycontainergrouppools":                     TypeStandbyContainerGroupPool,

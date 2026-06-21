@@ -229,10 +229,6 @@ func init() {
 			{Path: "properties.wsfcDomainCredentials.sqlServiceAccountPassword", Mode: redact.RedactScalar},
 			{Path: "properties.serverConfigurationsManagementSettings.sqlConnectivityUpdateSettings.sqlAuthUpdatePassword", Mode: redact.RedactScalar},
 		}},
-		// HANA-on-Azure SAP monitor echoes the Log Analytics workspace shared key.
-		{Type: TypeHanaOnAzureSapMonitor, Attributes: []redact.Rule{
-			{Path: "properties.logAnalyticsWorkspaceSharedKey", Mode: redact.RedactScalar},
-		}},
 		// Compute Fleet embeds a VMSS base profile; its OS profile can carry a
 		// plaintext admin password and base64 customData (cloud-init, which can
 		// hold app secrets).

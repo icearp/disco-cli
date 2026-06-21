@@ -368,6 +368,7 @@ microsoft.eventhub/sku	SKU metadata, not a listable tracked resource
 microsoft.fabric/privatelinkservicesforfabric	No client for this type in SDK (only CapacitiesClient/OperationsClient)
 microsoft.genome/accounts	No arm SDK module published
 microsoft.hanaonazure/hanainstances	Deprecated/retired service; no HanaInstances client in SDK module
+microsoft.hanaonazure/sapmonitors	Retired: HANA Large Instances decommissioned (Dec 2025); SAP monitor superseded by microsoft.workloads/monitors (scanned)
 microsoft.hardware/orderpreview	No arm SDK module published
 microsoft.hardware/orders	No arm SDK module published
 microsoft.hardware/returnpreview	No arm SDK module published
@@ -445,6 +446,7 @@ microsoft.network/expressrouteproviderports	metadata/ops (provider port lookup, 
 microsoft.network/frontdooroperationresults	metadata/ops (async operation result)
 microsoft.networkfunction/copilot	action/feature verb, no listable resource client
 microsoft.networkfunction/meshvpns	no SDK client (armnetworkfunction has only AzureTrafficCollectors/CollectorPolicies)
+microsoft.orbital/spacecrafts	Retired: Azure Orbital ground-station service ended Dec 2024; microsoft.orbital/geocatalogs (Planetary Computer) still scanned
 microsoft.network/internalnotify	internal action-verb, not a resource
 microsoft.network/internalpublicipaddresses	internal type, no SDK client
 microsoft.network/networkgroupmemberships	parent-scoped membership under network group; no top-level listable resource

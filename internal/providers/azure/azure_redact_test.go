@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/domainregistration/armdomainregistration"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/edgeorder/armedgeorder"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/extendedlocation/armextendedlocation"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/horizondb/armhorizondb"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
@@ -580,16 +579,6 @@ func TestRedact_SQLVirtualMachine_Credentials(t *testing.T) {
 	scs := p["serverConfigurationsManagementSettings"].(map[string]any)["sqlConnectivityUpdateSettings"].(map[string]any)
 	if scs["sqlAuthUpdatePassword"] != redact.Placeholder {
 		t.Errorf("sqlAuthUpdatePassword not redacted: %v", scs["sqlAuthUpdatePassword"])
-	}
-}
-
-func TestRedact_HanaOnAzureSapMonitor_SharedKey(t *testing.T) {
-	mon := armhanaonazure.SapMonitor{Properties: &armhanaonazure.SapMonitorProperties{
-		LogAnalyticsWorkspaceSharedKey: to.Ptr("la-shared-key"),
-	}}
-	got := applyAndDecode(t, TypeHanaOnAzureSapMonitor, mon)
-	if got["properties"].(map[string]any)["logAnalyticsWorkspaceSharedKey"] != redact.Placeholder {
-		t.Errorf("LA shared key not redacted")
 	}
 }
 

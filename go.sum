@@ -164,8 +164,6 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/frontdoor/armfrontdoor v1.4.0/go.mod h1:0tuwjeZbMwLV7h1bcyfTlnXUH6GBKkPml8ukX6EoS3o=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices v1.1.0 h1:CeeDA+QXmyLArVMhqlaVoDdS83f+G7pN5Tu69NkXkys=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/graphservices/armgraphservices v1.1.0/go.mod h1:f6IPtVopsvGKnnmW9m6k46rjgUQydkb7Uv0Mw3xiNGo=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure v0.8.0 h1:pYT//17mA8k6LJceX7I9xabQWS1Qpak8CZcHOzNLHKo=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hanaonazure/armhanaonazure v0.8.0/go.mod h1:euNRYvEl3U8ITUJTWw0XrADKtr/YlbPG7RJV4Tlei34=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hardwaresecuritymodules/armhardwaresecuritymodules v1.2.0 h1:/3diQx1LKzTk47VSfBpltwOP9LgEqyPuiLCEN26zYC4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hardwaresecuritymodules/armhardwaresecuritymodules v1.2.0/go.mod h1:RhvI9QBwo5v/R6dzr/6/mY5QtHOpNKB3jrup3Mmn9N4=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/hdinsight/armhdinsight v1.2.0 h1:jyICffWo5qt7iFHCMEOtt5HfByBcQGAxp3WLz56nbxc=
@@ -258,8 +256,6 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armope
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights v1.2.0/go.mod h1:A4nzEXwVd5pAyneR6KOvUAo72svUc5rmCzRHhAbP6lA=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationsmanagement/armoperationsmanagement v0.8.0 h1:U9FnJLZMaXuvuY0NOYR+X/EKQImOb+LnO8NVpZ3ohY8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationsmanagement/armoperationsmanagement v0.8.0/go.mod h1:eT2CDSDpthWnHMyiu/K3MJmJhvc84DGJ4GqX5MjTVH0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/orbital/armorbital v1.0.0 h1:tbQjdebXyGfQl+Y3dgIUQP+iTs+mqbl2OlUm7rKOsD0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/orbital/armorbital v1.0.0/go.mod h1:Uwv4YuYrD0m07Ca0YwlOAn7uExqGgzAALMX423WEZ58=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering v1.2.0 h1:6IZNwuXxkL+3HiY6T/WMBfRNAGqUQnpQCMvBF3VVbuc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering v1.2.0/go.mod h1:Kpb+MKQujpePmqbYeb8dY6z94WqfuEiAxzNWxVcstaw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/planetarycomputer/armplanetarycomputer v1.0.0 h1:OuD/yNKRpyLqyESXAZgrP7UtbJg7sClH9GAOcJ3YXZk=

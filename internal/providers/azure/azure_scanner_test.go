@@ -89,7 +89,6 @@ var expectedAzureServices = []string{
 	"azure:microsoft.fileshares",
 	"azure:microsoft.fluidrelay",
 	"azure:microsoft.graphservices",
-	"azure:microsoft.hanaonazure",
 	"azure:microsoft.hardwaresecuritymodules",
 	"azure:microsoft.hdinsight",
 	"azure:microsoft.healthbot",
