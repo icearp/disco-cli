@@ -13,8 +13,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:network",
-		fn:   scanNetwork,
+		name: "azure:microsoft.network",
+		fn:   scanNetworkNamespace,
 		emits: []coverage.TypeDecl{
 			// Subscription-scoped core networking (VNets, NSGs, PublicIPs).
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetwork},
@@ -421,4 +421,18 @@ func ergToBase(g *armnetwork.ExpressRouteGateway) azTrackedBase {
 
 func agwToBase(g *armnetwork.ApplicationGateway) azTrackedBase {
 	return azTrackedBase{id: sv(g.ID), name: sv(g.Name), location: sv(g.Location), tags: g.Tags, full: g}
+}
+
+// scanNetworkNamespace runs every Microsoft.network scanner phase concurrently. The
+// network ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanNetworkNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanNetwork(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanDNS(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanDNSResolver(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanFrontDoor(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanPrivateEndpoints(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanTrafficManager(ctx, sub, cred, st, scanID) },
+	)
 }

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:horizondb",
+		name: "azure:microsoft.horizondb",
 		fn:   scanHorizonDB,
 		emits: []coverage.TypeDecl{
 			// Private-endpoint → target edges resolved centrally; carries no

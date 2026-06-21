@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:attestation",
+		name: "azure:microsoft.attestation",
 		fn:   scanAttestation,
 		emits: []coverage.TypeDecl{
 			// Private-endpoint edges resolved centrally; the provider ships

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:customproviders",
+		name: "azure:microsoft.customproviders",
 		fn:   scanCustomProviders,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.customproviders", DiscoType: TypeCustomProvidersResourceProvider},

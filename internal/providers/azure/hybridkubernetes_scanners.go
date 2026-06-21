@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:kubernetes",
+		name: "azure:microsoft.kubernetes",
 		fn:   scanHybridKubernetes,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the connected cluster is

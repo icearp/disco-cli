@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hdinsight",
+		name: "azure:microsoft.hdinsight",
 		fn:   scanHDInsight,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.hdinsight", DiscoType: TypeHDInsightCluster},

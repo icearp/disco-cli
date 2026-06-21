@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:trustedsigning",
+		name: "azure:microsoft.codesigning",
 		fn:   scanTrustedSigning,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.codesigning", DiscoType: TypeCodeSigningAccount},

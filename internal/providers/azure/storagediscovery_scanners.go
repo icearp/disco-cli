@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storagediscovery",
+		name: "azure:microsoft.storagediscovery",
 		fn:   scanStorageDiscovery,
 		emits: []coverage.TypeDecl{
 			// Workspace scopes reference storage accounts by ARM ID; that edge

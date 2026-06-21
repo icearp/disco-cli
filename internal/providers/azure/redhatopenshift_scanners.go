@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:redhatopenshift",
+		name: "azure:microsoft.redhatopenshift",
 		fn:   scanRedHatOpenShift,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.redhatopenshift", DiscoType: TypeOpenShiftCluster, Leaf: true},

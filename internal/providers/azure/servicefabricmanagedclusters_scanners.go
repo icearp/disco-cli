@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:servicefabricmanagedclusters",
-		fn:   scanServiceFabricManagedClusters,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.servicefabric", DiscoType: TypeServiceFabricManagedCluster},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.servicefabric", DiscoType: TypeServiceFabricManagedCluster},
+	}...)
 }
 
 // scanServiceFabricManagedClusters discovers Service Fabric managed clusters.

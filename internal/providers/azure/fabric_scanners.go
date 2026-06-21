@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:fabric",
+		name: "azure:microsoft.fabric",
 		fn:   scanFabric,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.fabric", DiscoType: TypeFabricCapacity, Leaf: true},

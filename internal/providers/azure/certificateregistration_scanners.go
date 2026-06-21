@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:certificateregistration",
+		name: "azure:microsoft.certificateregistration",
 		fn:   scanCertificateRegistration,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.certificateregistration", DiscoType: TypeCertificateOrder, Leaf: true},

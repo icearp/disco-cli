@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:analysisservices",
+		name: "azure:microsoft.analysisservices",
 		fn:   scanAnalysisServices,
 		emits: []coverage.TypeDecl{
 			// Backup storage is referenced by blob URI (not an ARM ID), so the

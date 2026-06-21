@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:automanage",
+		name: "azure:microsoft.automanage",
 		fn:   scanAutomanage,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.automanage", DiscoType: TypeAutomanageConfigProfile, Leaf: true},

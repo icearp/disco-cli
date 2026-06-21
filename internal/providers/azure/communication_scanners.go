@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:communication",
+		name: "azure:microsoft.communication",
 		fn:   scanCommunication,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.communication", DiscoType: TypeCommunicationService, Leaf: true},

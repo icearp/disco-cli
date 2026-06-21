@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:iothub",
-		fn:   scanIoTHub,
+		name: "azure:microsoft.devices",
+		fn:   scanDevicesNamespace,
 		emits: []coverage.TypeDecl{
 			// Routing endpoints reference Event Hubs / Service Bus / Storage by
 			// connection string, not ARM ID; identity edges resolve centrally.
@@ -34,4 +34,14 @@ func scanIoTHub(ctx context.Context, sub *subscription, cred *azidentity.Default
 		func(d *armiothub.Description) azTrackedBase {
 			return azTrackedBase{id: sv(d.ID), name: sv(d.Name), location: sv(d.Location), tags: d.Tags, full: d}
 		})
+}
+
+// scanDevicesNamespace runs every Microsoft.devices scanner phase concurrently. The
+// devices ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanDevicesNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanIoTHub(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanDeviceProvisioningServices(ctx, sub, cred, st, scanID) },
+	)
 }

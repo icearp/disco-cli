@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:logic",
+		name: "azure:microsoft.logic",
 		fn:   scanLogic,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.logic", DiscoType: TypeLogicWorkflow},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:cloudhealth",
+		name: "azure:microsoft.cloudhealth",
 		fn:   scanCloudHealth,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.cloudhealth", DiscoType: TypeCloudHealthHealthModel},

@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:azurestackhci",
+		name: "azure:microsoft.azurestackhci",
 		fn:   scanAzureStackHCI,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.azurestackhci", DiscoType: TypeAzureStackHCICluster, Leaf: true},

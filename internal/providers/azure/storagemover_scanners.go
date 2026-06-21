@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storagemover",
+		name: "azure:microsoft.storagemover",
 		fn:   scanStorageMover,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; storage/NFS endpoints

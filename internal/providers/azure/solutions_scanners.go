@@ -15,7 +15,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:solutions",
+		name: "azure:microsoft.solutions",
 		fn:   scanSolutions,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.solutions", DiscoType: TypeSolutionsApplicationDefinition},

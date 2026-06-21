@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:powerbidedicated",
+		name: "azure:microsoft.powerbidedicated",
 		fn:   scanPowerBIDedicated,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.powerbidedicated", DiscoType: TypePowerBIDedicatedCapacity, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:eventgrid",
+		name: "azure:microsoft.eventgrid",
 		fn:   scanEventGrid,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.eventgrid", DiscoType: TypeEventGridTopic},

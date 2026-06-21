@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:apimanagement",
+		name: "azure:microsoft.apimanagement",
 		fn:   scanAPIManagement,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.apimanagement", DiscoType: TypeAPIManagementService},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:deviceupdate",
+		name: "azure:microsoft.deviceupdate",
 		fn:   scanDeviceUpdate,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI and private-endpoint edges resolved centrally; the

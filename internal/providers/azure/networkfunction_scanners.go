@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:networkfunction",
+		name: "azure:microsoft.networkfunction",
 		fn:   scanNetworkFunction,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.networkfunction", DiscoType: TypeNetworkFunctionTrafficCollector, Leaf: true},

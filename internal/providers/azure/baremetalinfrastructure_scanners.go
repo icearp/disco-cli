@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:baremetalinfrastructure",
+		name: "azure:microsoft.baremetalinfrastructure",
 		fn:   scanBareMetalInfrastructure,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.baremetalinfrastructure", DiscoType: TypeBareMetalInstance, Leaf: true},

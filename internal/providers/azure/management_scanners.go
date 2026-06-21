@@ -13,30 +13,31 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:management",
+		name: "azure:microsoft.management",
 		fn:   scanManagement,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.management", DiscoType: TypeManagementGroup},
+		},
+	})
+	registerService(serviceEntry{
+		name: "azure:microsoft.resources",
+		fn:   scanSubscriptionResource,
+		emits: []coverage.TypeDecl{
 			{Service: "microsoft.resources", DiscoType: TypeSubscription},
 		},
 	})
 }
 
-// scanManagement discovers tenant-scoped governance entities: Azure Management
-// Groups and the subscription itself as a first-class resource. Both are
-// tenant-scoped APIs but the scanner runs per-subscription (duplication
-// accepted — same precedent as RBAC built-in role-definitions; ResourceID
-// hash includes account_id so per-sub resolvers FK locally).
-//
-// Adding subscription-as-resource closes a gap for scope-attached resolvers:
-// policy assignments scoped to `/subscriptions/<id>` could not previously FK
-// to a stored resource; they now will.
+// scanManagement discovers tenant-scoped Azure Management Groups. The API is
+// tenant-scoped but the scanner runs per-subscription (duplication accepted —
+// same precedent as RBAC built-in role-definitions; ResourceID hash includes
+// account_id so per-sub resolvers FK locally).
 func scanManagement(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	mgClient, err := armmanagementgroups.NewClient(cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmanagementgroups:NewClient: %w", err)
 	}
-	mt, mi, err := azPageScan(ctx, "armmanagementgroups:List", sub, st,
+	return azPageScan(ctx, "armmanagementgroups:List", sub, st,
 		mgClient.NewListPager(nil),
 		func(page armmanagementgroups.ClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -55,17 +56,21 @@ func scanManagement(ctx context.Context, sub *subscription, cred *azidentity.Def
 			}
 			return batch, nil
 		})
-	total += mt
-	inserted += mi
-	if err != nil {
-		return total, inserted, err
-	}
+}
 
+// scanSubscriptionResource discovers the subscription itself as a first-class
+// resource (Microsoft.Resources/subscriptions). Tenant-scoped API run
+// per-subscription (duplication accepted as above).
+//
+// Recording subscription-as-resource closes a gap for scope-attached
+// resolvers: policy assignments scoped to `/subscriptions/<id>` could not
+// previously FK to a stored resource; they now will.
+func scanSubscriptionResource(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	subClient, err := armsubscription.NewSubscriptionsClient(cred, azClientOptions)
 	if err != nil {
-		return total, inserted, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)
+		return 0, 0, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)
 	}
-	st1, si1, err := azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
+	return azPageScan(ctx, "armsubscription:Subscriptions.List", sub, st,
 		subClient.NewListPager(nil),
 		func(page armsubscription.SubscriptionsClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
@@ -84,7 +89,4 @@ func scanManagement(ctx context.Context, sub *subscription, cred *azidentity.Def
 			}
 			return batch, nil
 		})
-	total += st1
-	inserted += si1
-	return total, inserted, err
 }

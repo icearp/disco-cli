@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:graphservices",
+		name: "azure:microsoft.graphservices",
 		fn:   scanGraphServices,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.graphservices", DiscoType: TypeGraphServicesAccount, Leaf: true},

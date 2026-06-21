@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:streamanalytics",
+		name: "azure:microsoft.streamanalytics",
 		fn:   scanStreamAnalytics,
 		emits: []coverage.TypeDecl{
 			// Inputs/outputs are child config, not standalone resources;

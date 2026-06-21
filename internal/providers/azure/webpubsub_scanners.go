@@ -11,14 +11,10 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:webpubsub",
-		fn:   scanWebPubSub,
-		emits: []coverage.TypeDecl{
-			// Identity → MSI and private-endpoint edges resolve centrally.
-			{Service: "microsoft.signalrservice", DiscoType: TypeWebPubSub, Leaf: true},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		// Identity → MSI and private-endpoint edges resolve centrally.
+		{Service: "microsoft.signalrservice", DiscoType: TypeWebPubSub, Leaf: true},
+	}...)
 }
 
 // scanWebPubSub discovers Azure Web PubSub resources.

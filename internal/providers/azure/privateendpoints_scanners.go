@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:privateendpoints",
-		fn:   scanPrivateEndpoints,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.network", DiscoType: TypeNetworkPrivateEndpoint},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.network", DiscoType: TypeNetworkPrivateEndpoint},
+	}...)
 }
 
 // scanPrivateEndpoints discovers Azure Private Endpoints subscription-wide.

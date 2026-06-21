@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storageactions",
+		name: "azure:microsoft.storageactions",
 		fn:   scanStorageActions,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the task assignment to a

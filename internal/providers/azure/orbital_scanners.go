@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:orbital",
-		fn:   scanOrbital,
+		name: "azure:microsoft.orbital",
+		fn:   scanOrbitalNamespace,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.orbital", DiscoType: TypeOrbitalSpacecraft, Leaf: true},
 		},
@@ -34,4 +34,14 @@ func scanOrbital(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 		func(s *armorbital.Spacecraft) azTrackedBase {
 			return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
 		})
+}
+
+// scanOrbitalNamespace runs every Microsoft.orbital scanner phase concurrently. The
+// orbital ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanOrbitalNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanOrbital(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanPlanetaryComputer(ctx, sub, cred, st, scanID) },
+	)
 }

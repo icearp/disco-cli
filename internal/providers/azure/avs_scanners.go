@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:avs",
+		name: "azure:microsoft.avs",
 		fn:   scanAVS,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.avs", DiscoType: TypeAVSPrivateCloud, Leaf: true},

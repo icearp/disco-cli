@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:devcenter",
+		name: "azure:microsoft.devcenter",
 		fn:   scanDevCenter,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.devcenter", DiscoType: TypeDevCenter, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hybridnetwork",
+		name: "azure:microsoft.hybridnetwork",
 		fn:   scanHybridNetwork,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.hybridnetwork", DiscoType: TypeHybridNetworkFunction, Leaf: true},

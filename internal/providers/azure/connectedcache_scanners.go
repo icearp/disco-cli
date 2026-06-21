@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:connectedcache",
+		name: "azure:microsoft.connectedcache",
 		fn:   scanConnectedCache,
 		emits: []coverage.TypeDecl{
 			// Enterprise / ISP MCC customer roots; their cache nodes are

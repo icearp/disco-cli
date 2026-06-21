@@ -11,15 +11,11 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:policy",
-		fn:   scanPolicy,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.authorization", DiscoType: TypePolicyDefinition},
-			{Service: "microsoft.authorization", DiscoType: TypePolicySetDefinition},
-			{Service: "microsoft.authorization", DiscoType: TypePolicyAssignment},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.authorization", DiscoType: TypePolicyDefinition},
+		{Service: "microsoft.authorization", DiscoType: TypePolicySetDefinition},
+		{Service: "microsoft.authorization", DiscoType: TypePolicyAssignment},
+	}...)
 }
 
 // scanPolicy discovers Azure Policy definitions, set definitions, and

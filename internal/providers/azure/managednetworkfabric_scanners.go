@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:managednetworkfabric",
+		name: "azure:microsoft.managednetworkfabric",
 		fn:   scanManagedNetworkFabric,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.managednetworkfabric", DiscoType: TypeManagedNetworkFabricACL, Leaf: true},

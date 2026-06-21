@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:deviceprovisioningservices",
-		fn:   scanDeviceProvisioningServices,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.devices", DiscoType: TypeDevicesProvisioningService},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.devices", DiscoType: TypeDevicesProvisioningService},
+	}...)
 }
 
 // scanDeviceProvisioningServices discovers IoT Device Provisioning Service

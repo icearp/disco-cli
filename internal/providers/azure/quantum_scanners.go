@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:quantum",
+		name: "azure:microsoft.quantum",
 		fn:   scanQuantum,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the workspace references

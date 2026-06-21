@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hybridconnectivity",
+		name: "azure:microsoft.hybridconnectivity",
 		fn:   scanHybridConnectivity,
 		emits: []coverage.TypeDecl{
 			// Public-cloud connector (AWS/GCP multicloud onboarding) is the root;

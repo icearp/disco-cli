@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:connectedvmware",
+		name: "azure:microsoft.connectedvmwarevsphere",
 		fn:   scanConnectedVMware,
 		emits: []coverage.TypeDecl{
 			// vCenter is the Arc-VMware root; the inventory resources below all

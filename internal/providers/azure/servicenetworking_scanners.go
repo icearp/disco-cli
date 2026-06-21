@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:servicenetworking",
+		name: "azure:microsoft.servicenetworking",
 		fn:   scanServiceNetworking,
 		emits: []coverage.TypeDecl{
 			// Frontends / associations (which carry subnet refs) are child

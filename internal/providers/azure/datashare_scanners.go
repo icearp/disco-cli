@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:datashare",
+		name: "azure:microsoft.datashare",
 		fn:   scanDataShare,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the account carries no

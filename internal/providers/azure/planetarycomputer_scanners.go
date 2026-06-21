@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:planetarycomputer",
-		fn:   scanPlanetaryComputer,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.orbital", DiscoType: TypeOrbitalGeoCatalog},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.orbital", DiscoType: TypeOrbitalGeoCatalog},
+	}...)
 }
 
 // scanPlanetaryComputer discovers Microsoft Planetary Computer GeoCatalogs

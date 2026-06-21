@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:migrationassessment",
+		name: "azure:microsoft.migrate",
 		fn:   scanMigrationAssessment,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.migrate", DiscoType: TypeMigrateAssessmentProject, Leaf: true},

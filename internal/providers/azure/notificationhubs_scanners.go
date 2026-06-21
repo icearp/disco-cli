@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:notificationhubs",
+		name: "azure:microsoft.notificationhubs",
 		fn:   scanNotificationHubs,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.notificationhubs", DiscoType: TypeNotificationHubNamespace, Leaf: true},

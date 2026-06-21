@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:elasticsan",
+		name: "azure:microsoft.elasticsan",
 		fn:   scanElasticSan,
 		emits: []coverage.TypeDecl{
 			// Private-endpoint → target edges resolved centrally; CMK/network

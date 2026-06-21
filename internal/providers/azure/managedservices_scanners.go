@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:managedservices",
+		name: "azure:microsoft.managedservices",
 		fn:   scanManagedServices,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.managedservices", DiscoType: TypeManagedServicesRegistrationDefinition, Leaf: true},

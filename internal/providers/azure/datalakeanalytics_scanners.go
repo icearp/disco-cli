@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:datalakeanalytics",
+		name: "azure:microsoft.datalakeanalytics",
 		fn:   scanDataLakeAnalytics,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.datalakeanalytics", DiscoType: TypeDataLakeAnalyticsAccount, Leaf: true},

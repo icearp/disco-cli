@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:keyvault",
+		name: "azure:microsoft.keyvault",
 		fn:   scanKeyVault,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.keyvault", DiscoType: TypeKeyVaultVault},

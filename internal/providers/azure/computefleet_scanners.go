@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:azurefleet",
+		name: "azure:microsoft.azurefleet",
 		fn:   scanComputeFleet,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the fleet ships

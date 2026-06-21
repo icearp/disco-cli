@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:appconfiguration",
+		name: "azure:microsoft.appconfiguration",
 		fn:   scanAppConfiguration,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.appconfiguration", DiscoType: TypeAppConfigurationStore},

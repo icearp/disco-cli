@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:iotcentral",
+		name: "azure:microsoft.iotcentral",
 		fn:   scanIoTCentral,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI and private-endpoint edges resolved centrally; the

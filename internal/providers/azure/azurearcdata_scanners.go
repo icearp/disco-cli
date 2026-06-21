@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:azurearcdata",
+		name: "azure:microsoft.azurearcdata",
 		fn:   scanAzureArcData,
 		emits: []coverage.TypeDecl{
 			// Custom-location edge wired centrally (resolveExtendedLocationConsumers);

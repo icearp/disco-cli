@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:standbypool",
+		name: "azure:microsoft.standbypool",
 		fn:   scanStandbyPool,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.standbypool", DiscoType: TypeStandbyVMPool, Leaf: true},

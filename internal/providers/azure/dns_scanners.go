@@ -14,17 +14,13 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:dns",
-		fn:   scanDNS,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.network", DiscoType: TypeDNSZone},
-			{Service: "microsoft.network", DiscoType: TypeDNSRecordSet},
-			{Service: "microsoft.network", DiscoType: TypeDNSPrivateZone},
-			{Service: "microsoft.network", DiscoType: TypeDNSPrivateRecordSet},
-			{Service: "microsoft.network", DiscoType: TypeDNSPrivateZoneVNetLink},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.network", DiscoType: TypeDNSZone},
+		{Service: "microsoft.network", DiscoType: TypeDNSRecordSet},
+		{Service: "microsoft.network", DiscoType: TypeDNSPrivateZone},
+		{Service: "microsoft.network", DiscoType: TypeDNSPrivateRecordSet},
+		{Service: "microsoft.network", DiscoType: TypeDNSPrivateZoneVNetLink},
+	}...)
 }
 
 // dnsZoneRef captures a zone's RG + name + disco resource ID — shared

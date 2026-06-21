@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:loadtestservice",
+		name: "azure:microsoft.loadtestservice",
 		fn:   scanLoadTesting,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; CMK is referenced by key

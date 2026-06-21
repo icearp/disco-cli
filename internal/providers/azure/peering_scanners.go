@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:peering",
+		name: "azure:microsoft.peering",
 		fn:   scanPeering,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.peering", DiscoType: TypePeeringPeering, Leaf: true},

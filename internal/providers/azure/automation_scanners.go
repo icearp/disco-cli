@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:automation",
+		name: "azure:microsoft.automation",
 		fn:   scanAutomation,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.automation", DiscoType: TypeAutomationAccount},

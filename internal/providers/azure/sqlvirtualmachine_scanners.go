@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:sqlvirtualmachine",
+		name: "azure:microsoft.sqlvirtualmachine",
 		fn:   scanSQLVirtualMachine,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.sqlvirtualmachine", DiscoType: TypeSQLVirtualMachine, Leaf: true},

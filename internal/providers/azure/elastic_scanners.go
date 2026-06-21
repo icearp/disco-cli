@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:elastic",
+		name: "azure:microsoft.elastic",
 		fn:   scanElastic,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.elastic", DiscoType: TypeElasticMonitor},

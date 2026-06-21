@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:redisenterprise",
-		fn:   scanRedisEnterprise,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.cache", DiscoType: TypeRedisEnterpriseCluster, Leaf: true},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.cache", DiscoType: TypeRedisEnterpriseCluster, Leaf: true},
+	}...)
 }
 
 // scanRedisEnterprise discovers Azure Cache for Redis Enterprise clusters.

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:scvmm",
+		name: "azure:microsoft.scvmm",
 		fn:   scanScVmm,
 		emits: []coverage.TypeDecl{
 			// VMM server is the Arc-SCVMM root; clouds/availability-sets/templates/

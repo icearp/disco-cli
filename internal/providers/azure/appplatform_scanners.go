@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:appplatform",
+		name: "azure:microsoft.appplatform",
 		fn:   scanAppPlatform,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.appplatform", DiscoType: TypeAppPlatformService},

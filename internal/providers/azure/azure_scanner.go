@@ -26,7 +26,7 @@ const (
 	maxConcurrentSubscriptions = 10
 	// maxConcurrentServices caps parallel service scanners per subscription.
 	maxConcurrentServices = 10
-	// serviceTimeout is the per-service hard deadline. azure:compute now covers VMSS,
+	// serviceTimeout is the per-service hard deadline. azure:microsoft.compute now covers VMSS,
 	// galleries, and hosting fan-outs in addition to core compute types, so this must
 	// be generous enough for large subscriptions.
 	serviceTimeout = 30 * time.Minute
@@ -73,16 +73,18 @@ the scanner set when iterating on one provider.
 Examples:
   disco scan azure
   disco scan azure --subscriptions 00000000-0000-0000-0000-000000000000
-  disco scan azure --services azure:compute,azure:network`
+  disco scan azure --services azure:microsoft.compute,azure:microsoft.network`
 }
 
 // ServiceFilterExample is the --services example shown in azure scan help.
-func (s *Scanner) ServiceFilterExample() string { return "azure:compute,azure:network" }
+func (s *Scanner) ServiceFilterExample() string {
+	return "azure:microsoft.compute,azure:microsoft.network"
+}
 
 // ScopeColumnWidth pins the scan progress scope column to fit a subscription UUID.
 func (s *Scanner) ScopeColumnWidth() int { return 36 }
 
-// SetServiceFilter restricts the scan to the named services (e.g. "azure:compute", "azure:network").
+// SetServiceFilter restricts the scan to the named services (e.g. "azure:microsoft.compute", "azure:microsoft.network").
 // An empty or nil slice scans all registered services.
 func (s *Scanner) SetServiceFilter(services []string) { s.serviceFilter = services }
 
@@ -131,7 +133,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 			defer sem.Release(1)
 			if err := scanSubscription(ctx, sub, cred, s.serviceFilter, st, scanID); err != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "scan", Scope: sub.ID,
+					Provider: "azure", Service: "scan", Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
 				})
 			}
@@ -149,7 +151,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 	// the RG list's) error must never abort the subscription's other scanners.
 	if err := scanResourceGroups(ctx, sub, cred, st, scanID); err != nil {
 		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "resourcegroups", Scope: sub.ID,
+			Provider: "azure", Service: "resourcegroups", Scope: sub.scopeLabel(),
 			Message: formatAzureError(err),
 		})
 	}
@@ -171,13 +173,13 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 			total, inserted, err := svc.fn(svcCtx, sub, cred, st, scanID)
 			if err != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: svc.name, Scope: sub.ID,
+					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
 				})
-				st.ReportService(svc.name, sub.ID, total, inserted, 1, false)
+				st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 1, false)
 				return
 			}
-			st.ReportService(svc.name, sub.ID, total, inserted, 0, false)
+			st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 0, false)
 		})
 	}
 	wg.Wait()
@@ -189,13 +191,13 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 		edges, aerr := ar.fn(ctx, sub, cred, st)
 		if aerr != nil {
 			st.ReportError(store.ScanError{
-				Provider: "azure", Service: ar.name, Scope: sub.ID,
+				Provider: "azure", Service: ar.name, Scope: sub.scopeLabel(),
 				Message: formatAzureError(aerr),
 			})
-			st.ReportService(ar.name, sub.ID, 0, edges, 1, false)
+			st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 1, false)
 			continue
 		}
-		st.ReportService(ar.name, sub.ID, 0, edges, 0, false)
+		st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 0, false)
 	}
 
 	st.ReportResolveStart("azure")
@@ -221,12 +223,12 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 			bs := st.BeginRelBuffer()
 			if err := r.fn(sub, bs); err != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "resolve", Scope: sub.ID, Message: formatAzureError(err),
+					Provider: "azure", Service: "resolve", Scope: sub.scopeLabel(), Message: formatAzureError(err),
 				})
 			}
 			if ferr := bs.FlushRelBuffer(); ferr != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "resolve", Scope: sub.ID, Message: formatAzureError(ferr),
+					Provider: "azure", Service: "resolve", Scope: sub.scopeLabel(), Message: formatAzureError(ferr),
 				})
 			}
 			return nil // resolver errors are reported, never abort siblings
@@ -260,6 +262,18 @@ func filteredServices(filter []string) []serviceEntry {
 type subscription struct {
 	ID   string
 	Name string
+}
+
+// scopeLabel is the human-readable per-subscription scope shown in scan
+// progress + error output. Azure lists are subscription-wide (one call spans
+// all regions) so the scope is the subscription, not a region — prefer the
+// DisplayName, falling back to the GUID when the config path supplied only an
+// ID.
+func (s *subscription) scopeLabel() string {
+	if s.Name != "" {
+		return s.Name
+	}
+	return s.ID
 }
 
 // functionAppSettingsByDiscoID is a per-subscription sidecar populated by the

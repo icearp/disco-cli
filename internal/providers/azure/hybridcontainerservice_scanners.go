@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hybridcontainerservice",
+		name: "azure:microsoft.hybridcontainerservice",
 		fn:   scanHybridContainerService,
 		emits: []coverage.TypeDecl{
 			// Custom-location edge wired centrally; the logical network ships

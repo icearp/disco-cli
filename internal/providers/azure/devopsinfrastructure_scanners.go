@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:devopsinfrastructure",
+		name: "azure:microsoft.devopsinfrastructure",
 		fn:   scanDevOpsInfrastructure,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the managed DevOps pool

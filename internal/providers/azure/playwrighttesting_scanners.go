@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:playwright",
+		name: "azure:microsoft.azureplaywrightservice",
 		fn:   scanPlaywrightTesting,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.azureplaywrightservice", DiscoType: TypePlaywrightAccount, Leaf: true},

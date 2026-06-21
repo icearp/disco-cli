@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:devtestlabs",
-		fn:   scanDevTestLabs,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.devtestlab", DiscoType: TypeDevTestLabSchedule},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.devtestlab", DiscoType: TypeDevTestLabSchedule},
+	}...)
 }
 
 // scanDevTestLabs discovers DevTest Labs global schedules (subscription-wide

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hardwaresecuritymodules",
+		name: "azure:microsoft.hardwaresecuritymodules",
 		fn:   scanHardwareSecurityModules,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.hardwaresecuritymodules", DiscoType: TypeDedicatedHsm, Leaf: true},

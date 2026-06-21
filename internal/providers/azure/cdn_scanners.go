@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:cdn",
+		name: "azure:microsoft.cdn",
 		fn:   scanCDN,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.cdn", DiscoType: TypeCDNProfile},

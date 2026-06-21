@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:domainregistration",
+		name: "azure:microsoft.domainregistration",
 		fn:   scanDomainRegistration,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.domainregistration", DiscoType: TypeDomain, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:edgezones",
+		name: "azure:microsoft.edgezones",
 		fn:   scanEdgeZones,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.edgezones", DiscoType: TypeEdgeZonesExtendedZone, Leaf: true},

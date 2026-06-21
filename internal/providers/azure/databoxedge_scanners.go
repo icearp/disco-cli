@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:databoxedge",
+		name: "azure:microsoft.databoxedge",
 		fn:   scanDataBoxEdge,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the device carries no

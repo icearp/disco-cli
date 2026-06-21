@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:botservice",
+		name: "azure:microsoft.botservice",
 		fn:   scanBotService,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.botservice", DiscoType: TypeBotServiceBot, Leaf: true},

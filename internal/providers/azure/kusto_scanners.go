@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:kusto",
+		name: "azure:microsoft.kusto",
 		fn:   scanKusto,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.kusto", DiscoType: TypeKustoCluster},

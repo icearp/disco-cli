@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:dataprotection",
+		name: "azure:microsoft.dataprotection",
 		fn:   scanDataProtection,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolve centrally; no other single-hop

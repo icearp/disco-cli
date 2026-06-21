@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:netapp",
+		name: "azure:microsoft.netapp",
 		fn:   scanNetApp,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.netapp", DiscoType: TypeNetAppAccount},

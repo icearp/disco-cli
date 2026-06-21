@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:healthdataaiservices",
+		name: "azure:microsoft.healthdataaiservices",
 		fn:   scanHealthDataAIServices,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI and private-endpoint edges resolved centrally; the

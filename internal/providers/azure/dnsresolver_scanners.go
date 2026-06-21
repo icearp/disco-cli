@@ -14,16 +14,12 @@ import (
 // but ships in its own SDK module (armdnsresolver), so it registers as its own
 // disco service. All four types expose a subscription-wide NewListPager.
 func init() {
-	registerService(serviceEntry{
-		name: "azure:dnsresolver",
-		fn:   scanDNSResolver,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolver, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkDNSForwardingRuleset, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverDomainList, Leaf: true},
-			{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverPolicy, Leaf: true},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolver, Leaf: true},
+		{Service: "microsoft.network", DiscoType: TypeNetworkDNSForwardingRuleset, Leaf: true},
+		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverDomainList, Leaf: true},
+		{Service: "microsoft.network", DiscoType: TypeNetworkDNSResolverPolicy, Leaf: true},
+	}...)
 }
 
 func scanDNSResolver(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {

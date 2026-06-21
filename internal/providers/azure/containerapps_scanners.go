@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:containerapps",
+		name: "azure:microsoft.app",
 		fn:   scanContainerApps,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.app", DiscoType: TypeAppContainersManagedEnvironment},
@@ -21,15 +21,21 @@ func init() {
 			{Service: "microsoft.app", DiscoType: TypeAppContainersConnectedEnvironment},
 			{Service: "microsoft.app", DiscoType: TypeAppContainersJob},
 			{Service: "microsoft.app", DiscoType: TypeAppContainersSessionPool},
+		},
+	})
+	registerService(serviceEntry{
+		name: "azure:microsoft.containerinstance",
+		fn:   scanContainerInstance,
+		emits: []coverage.TypeDecl{
 			{Service: "microsoft.containerinstance", DiscoType: TypeContainerInstanceContainerGroup},
 		},
 	})
 }
 
 // scanContainerApps discovers Microsoft.App resources — Container Apps managed
-// environments + apps, connected environments, jobs, session pools — plus Azure
-// Container Instances container groups. Microsoft.App/builders has no
-// subscription-wide list op in the SDK and is omitted.
+// environments + apps, connected environments, jobs, session pools.
+// Microsoft.App/builders has no subscription-wide list op in the SDK and is
+// omitted.
 func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	envClient, err := armappcontainers.NewManagedEnvironmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -115,15 +121,17 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 		})
 	total += st2
 	inserted += si
-	if err != nil {
-		return total, inserted, err
-	}
+	return total, inserted, err
+}
 
+// scanContainerInstance discovers Azure Container Instances container groups
+// (Microsoft.ContainerInstance).
+func scanContainerInstance(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	aciClient, err := armcontainerinstance.NewContainerGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
-		return total, inserted, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)
+		return 0, 0, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)
 	}
-	gt, gi, err := azSimpleScan(ctx, "armcontainerinstance:ContainerGroups.List", TypeContainerInstanceContainerGroup, sub, st, scanID,
+	return azSimpleScan(ctx, "armcontainerinstance:ContainerGroups.List", TypeContainerInstanceContainerGroup, sub, st, scanID,
 		aciClient.NewListPager(nil),
 		func(p armcontainerinstance.ContainerGroupsClientListResponse) []*armcontainerinstance.ContainerGroup {
 			return p.Value
@@ -131,7 +139,4 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 		func(r *armcontainerinstance.ContainerGroup) azTrackedBase {
 			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
-	total += gt
-	inserted += gi
-	return total, inserted, err
 }

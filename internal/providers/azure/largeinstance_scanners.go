@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:azurelargeinstance",
+		name: "azure:microsoft.azurelargeinstance",
 		fn:   scanLargeInstance,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.azurelargeinstance", DiscoType: TypeLargeInstance, Leaf: true},

@@ -20,7 +20,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:sql",
+		name: "azure:microsoft.sql",
 		fn:   scanSQL,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.sql", DiscoType: TypeSQLServer},

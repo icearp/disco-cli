@@ -15,7 +15,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:security",
+		name: "azure:microsoft.security",
 		fn:   scanSecurity,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.security", DiscoType: TypeSecurityPricing},

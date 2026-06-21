@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:machinelearning",
+		name: "azure:microsoft.machinelearningservices",
 		fn:   scanMachineLearning,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.machinelearningservices", DiscoType: TypeMachineLearningWorkspace},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:healthbot",
+		name: "azure:microsoft.healthbot",
 		fn:   scanHealthBot,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the bot ships scanner-only.

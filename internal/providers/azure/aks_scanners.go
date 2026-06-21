@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:aks",
+		name: "azure:microsoft.containerservice",
 		fn:   scanAKS,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.containerservice", DiscoType: TypeContainerServiceManagedCluster},

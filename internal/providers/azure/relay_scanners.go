@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:relay",
+		name: "azure:microsoft.relay",
 		fn:   scanRelay,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.relay", DiscoType: TypeRelayNamespace, Leaf: true},

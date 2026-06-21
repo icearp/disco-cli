@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:databasewatcher",
+		name: "azure:microsoft.databasewatcher",
 		fn:   scanDatabaseWatcher,
 		emits: []coverage.TypeDecl{
 			// resolveDatabaseWatcherRelationships wires the datastore (Kusto)

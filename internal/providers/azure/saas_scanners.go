@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:saas",
+		name: "azure:microsoft.saas",
 		fn:   scanSaaS,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.saas", DiscoType: TypeSaaSApplication},

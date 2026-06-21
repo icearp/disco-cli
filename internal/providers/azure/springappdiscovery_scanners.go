@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:springappdiscovery",
+		name: "azure:microsoft.offazurespringboot",
 		fn:   scanSpringAppDiscovery,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.offazurespringboot", DiscoType: TypeSpringbootSite, Leaf: true},

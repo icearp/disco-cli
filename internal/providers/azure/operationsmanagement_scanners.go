@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:operationsmanagement",
+		name: "azure:microsoft.operationsmanagement",
 		fn:   scanOperationsManagement,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.operationsmanagement", DiscoType: TypeOpsManagementSolution, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:mariadb",
+		name: "azure:microsoft.dbformariadb",
 		fn:   scanMariaDB,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.dbformariadb", DiscoType: TypeMariaDBServer, Leaf: true},

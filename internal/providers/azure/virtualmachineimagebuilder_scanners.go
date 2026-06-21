@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:virtualmachineimagebuilder",
+		name: "azure:microsoft.virtualmachineimages",
 		fn:   scanVMImageBuilder,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.virtualmachineimages", DiscoType: TypeVMImageBuilderImageTemplate},

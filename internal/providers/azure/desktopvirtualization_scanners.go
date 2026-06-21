@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:desktopvirtualization",
+		name: "azure:microsoft.desktopvirtualization",
 		fn:   scanDesktopVirtualization,
 		emits: []coverage.TypeDecl{
 			// App-group/workspace/scaling-plan are resolver sources (see

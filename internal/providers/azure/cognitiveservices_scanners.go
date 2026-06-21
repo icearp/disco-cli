@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:cognitiveservices",
+		name: "azure:microsoft.cognitiveservices",
 		fn:   scanCognitiveServices,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.cognitiveservices", DiscoType: TypeCognitiveServicesAccount},

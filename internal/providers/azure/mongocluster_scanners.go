@@ -11,15 +11,11 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:mongocluster",
-		fn:   scanMongoCluster,
-		emits: []coverage.TypeDecl{
-			// resolveMongoClusterRelationships wires the CMK (Key Vault) edge
-			// below.
-			{Service: "microsoft.documentdb", DiscoType: TypeMongoCluster},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		// resolveMongoClusterRelationships wires the CMK (Key Vault) edge
+		// below.
+		{Service: "microsoft.documentdb", DiscoType: TypeMongoCluster},
+	}...)
 }
 
 // scanMongoCluster discovers Azure Cosmos DB for MongoDB (vCore) clusters.

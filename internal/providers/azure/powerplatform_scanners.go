@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:powerplatform",
+		name: "azure:microsoft.powerplatform",
 		fn:   scanPowerPlatform,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.powerplatform", DiscoType: TypePowerPlatformEnterprisePolicy, Leaf: true},

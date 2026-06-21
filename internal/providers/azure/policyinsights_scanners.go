@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:policyinsights",
+		name: "azure:microsoft.policyinsights",
 		fn:   scanPolicyInsights,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.policyinsights", DiscoType: TypePolicyInsightsRemediation, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:operationalinsights",
+		name: "azure:microsoft.operationalinsights",
 		fn:   scanOperationalInsights,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.operationalinsights", DiscoType: TypeOpInsightsWorkspace},

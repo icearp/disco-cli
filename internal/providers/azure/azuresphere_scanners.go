@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:azuresphere",
+		name: "azure:microsoft.azuresphere",
 		fn:   scanAzureSphere,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.azuresphere", DiscoType: TypeAzureSphereCatalog, Leaf: true},

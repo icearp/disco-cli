@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storage",
+		name: "azure:microsoft.storage",
 		fn:   scanStorage,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.storage", DiscoType: TypeStorageStorageAccount},

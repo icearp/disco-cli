@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:blueprint",
+		name: "azure:microsoft.blueprint",
 		fn:   scanBlueprint,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.blueprint", DiscoType: TypeBlueprintBlueprint},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:durabletask",
+		name: "azure:microsoft.durabletask",
 		fn:   scanDurableTask,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.durabletask", DiscoType: TypeDurableTaskScheduler, Leaf: true},

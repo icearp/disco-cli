@@ -11,15 +11,11 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:postgresqlhsc",
-		fn:   scanPostgreSQLHSC,
-		emits: []coverage.TypeDecl{
-			// resolvePostgreSQLHSCRelationships wires the CMK (Key Vault) edge
-			// below.
-			{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLServerGroupV2},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		// resolvePostgreSQLHSCRelationships wires the CMK (Key Vault) edge
+		// below.
+		{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLServerGroupV2},
+	}...)
 }
 
 // scanPostgreSQLHSC discovers Azure Cosmos DB for PostgreSQL (Citus) clusters.

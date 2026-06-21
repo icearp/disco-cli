@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:deviceregistry",
+		name: "azure:microsoft.deviceregistry",
 		fn:   scanDeviceRegistry,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.deviceregistry", DiscoType: TypeDeviceRegistryAsset, Leaf: true},

@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:mysql",
+		name: "azure:microsoft.dbformysql",
 		fn:   scanMySQL,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.dbformysql", DiscoType: TypeMySQLFlexibleServer},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:digitaltwins",
+		name: "azure:microsoft.digitaltwins",
 		fn:   scanDigitalTwins,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.digitaltwins", DiscoType: TypeDigitalTwinsInstance, Leaf: true},

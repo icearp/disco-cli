@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:containerregistry",
+		name: "azure:microsoft.containerregistry",
 		fn:   scanContainerRegistry,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.containerregistry", DiscoType: TypeContainerRegistryRegistry},

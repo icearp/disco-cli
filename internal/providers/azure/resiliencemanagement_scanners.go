@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:resiliencemanagement",
+		name: "azure:microsoft.azureresiliencemanagement",
 		fn:   scanResilienceManagement,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.azureresiliencemanagement", DiscoType: TypeResilienceUsagePlan},

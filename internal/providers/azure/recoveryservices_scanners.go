@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:recoveryservices",
+		name: "azure:microsoft.recoveryservices",
 		fn:   scanRecoveryServices,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.recoveryservices", DiscoType: TypeRecoveryServicesVault},

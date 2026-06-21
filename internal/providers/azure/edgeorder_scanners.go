@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:edgeorder",
+		name: "azure:microsoft.edgeorder",
 		fn:   scanEdgeOrder,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.edgeorder", DiscoType: TypeEdgeOrderItem, Leaf: true},

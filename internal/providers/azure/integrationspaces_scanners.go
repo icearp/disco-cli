@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:integrationspaces",
+		name: "azure:microsoft.integrationspaces",
 		fn:   scanIntegrationSpaces,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.integrationspaces", DiscoType: TypeIntegrationSpace, Leaf: true},

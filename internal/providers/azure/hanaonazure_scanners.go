@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hanaonazure",
+		name: "azure:microsoft.hanaonazure",
 		fn:   scanHanaOnAzure,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.hanaonazure", DiscoType: TypeHanaOnAzureSapMonitor, Leaf: true},

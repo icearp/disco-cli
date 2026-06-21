@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:dependencymap",
+		name: "azure:microsoft.dependencymap",
 		fn:   scanDependencyMap,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.dependencymap", DiscoType: TypeDependencyMapMap},

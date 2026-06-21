@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:databox",
+		name: "azure:microsoft.databox",
 		fn:   scanDataBox,
 		emits: []coverage.TypeDecl{
 			// Job destinations reference storage accounts only under the

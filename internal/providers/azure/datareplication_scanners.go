@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:datareplication",
+		name: "azure:microsoft.datareplication",
 		fn:   scanDataReplication,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.datareplication", DiscoType: TypeDataReplicationFabric, Leaf: true},

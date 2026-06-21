@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:onlineexperimentation",
+		name: "azure:microsoft.onlineexperimentation",
 		fn:   scanOnlineExperimentation,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the workspace ships

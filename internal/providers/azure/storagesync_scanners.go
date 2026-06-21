@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storagesync",
+		name: "azure:microsoft.storagesync",
 		fn:   scanStorageSync,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.storagesync", DiscoType: TypeStorageSyncService, Leaf: true},

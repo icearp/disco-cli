@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:purview",
+		name: "azure:microsoft.purview",
 		fn:   scanPurview,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.purview", DiscoType: TypePurviewAccount, Leaf: true},

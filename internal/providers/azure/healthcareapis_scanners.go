@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:healthcareapis",
+		name: "azure:microsoft.healthcareapis",
 		fn:   scanHealthcareAPIs,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.healthcareapis", DiscoType: TypeHealthcareAPIsService, Leaf: true},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:batch",
+		name: "azure:microsoft.batch",
 		fn:   scanBatch,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.batch", DiscoType: TypeBatchAccount},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:labservices",
+		name: "azure:microsoft.labservices",
 		fn:   scanLabServices,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.labservices", DiscoType: TypeLabServicesLab, Leaf: true},

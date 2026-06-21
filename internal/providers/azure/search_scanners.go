@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:search",
+		name: "azure:microsoft.search",
 		fn:   scanSearch,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges and private-endpoint → target edges are

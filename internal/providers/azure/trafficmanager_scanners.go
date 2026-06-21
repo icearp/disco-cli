@@ -11,13 +11,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
-		name: "azure:trafficmanager",
-		fn:   scanTrafficManager,
-		emits: []coverage.TypeDecl{
-			{Service: "microsoft.network", DiscoType: TypeNetworkTrafficManagerProfile},
-		},
-	})
+	registerExtraEmits([]coverage.TypeDecl{
+		{Service: "microsoft.network", DiscoType: TypeNetworkTrafficManagerProfile},
+	}...)
 }
 
 // scanTrafficManager discovers Azure Traffic Manager profiles. Endpoints are

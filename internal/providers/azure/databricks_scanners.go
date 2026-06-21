@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:databricks",
+		name: "azure:microsoft.databricks",
 		fn:   scanDatabricks,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.databricks", DiscoType: TypeDatabricksWorkspace},

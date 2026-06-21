@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:authorization",
-		fn:   scanAuthorization,
+		name: "azure:microsoft.authorization",
+		fn:   scanAuthorizationNamespace,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleAssignment},
 			{Service: "microsoft.authorization", DiscoType: TypeAuthorizationRoleDefinition},
@@ -92,4 +92,14 @@ func scanAuthorization(ctx context.Context, sub *subscription, cred *azidentity.
 	total += at
 	inserted += ai
 	return total, inserted, err
+}
+
+// scanAuthorizationNamespace runs every Microsoft.authorization scanner phase concurrently. The
+// authorization ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanAuthorization(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanPolicy(ctx, sub, cred, st, scanID) },
+	)
 }

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:servicebus",
+		name: "azure:microsoft.servicebus",
 		fn:   scanServiceBus,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.servicebus", DiscoType: TypeServiceBusNamespace},

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:eventhub",
+		name: "azure:microsoft.eventhub",
 		fn:   scanEventHub,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.eventhub", DiscoType: TypeEventHubNamespace},

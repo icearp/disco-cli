@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:confidentialledger",
+		name: "azure:microsoft.confidentialledger",
 		fn:   scanConfidentialLedger,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.confidentialledger", DiscoType: TypeConfidentialLedger, Leaf: true},

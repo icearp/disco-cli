@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:datamigration",
+		name: "azure:microsoft.datamigration",
 		fn:   scanDataMigration,
 		emits: []coverage.TypeDecl{
 			// resolveDataMigrationRelationships wires the virtualSubnetId (VNet)

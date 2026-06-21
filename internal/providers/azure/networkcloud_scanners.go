@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:networkcloud",
+		name: "azure:microsoft.networkcloud",
 		fn:   scanNetworkCloud,
 		emits: []coverage.TypeDecl{
 			// Custom-location edge wired centrally; all ship scanner-only.

@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:resourceconnector",
+		name: "azure:microsoft.resourceconnector",
 		fn:   scanResourceConnector,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; the appliance is the Arc

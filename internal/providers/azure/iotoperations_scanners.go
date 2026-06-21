@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:iotoperations",
+		name: "azure:microsoft.iotoperations",
 		fn:   scanIoTOperations,
 		emits: []coverage.TypeDecl{
 			// Custom-location + MSI edges wired centrally; the AIO instance is

@@ -13,8 +13,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:postgresql",
-		fn:   scanPostgreSQL,
+		name: "azure:microsoft.dbforpostgresql",
+		fn:   scanDBforPostgreSQLNamespace,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLFlexibleServer},
 			{Service: "microsoft.dbforpostgresql", DiscoType: TypePostgreSQLSingleServer, Leaf: true},
@@ -55,4 +55,14 @@ func scanPostgreSQL(ctx context.Context, sub *subscription, cred *azidentity.Def
 	total += st1
 	inserted += si1
 	return total, inserted, err
+}
+
+// scanDBforPostgreSQLNamespace runs every Microsoft.dbforpostgresql scanner phase concurrently. The
+// dbforpostgresql ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanDBforPostgreSQLNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanPostgreSQL(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanPostgreSQLHSC(ctx, sub, cred, st, scanID) },
+	)
 }

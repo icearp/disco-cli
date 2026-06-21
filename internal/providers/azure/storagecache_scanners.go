@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:storagecache",
+		name: "azure:microsoft.storagecache",
 		fn:   scanStorageCache,
 		emits: []coverage.TypeDecl{
 			// resolveStorageCacheRelationships wires the subnet (VNet) and CMK

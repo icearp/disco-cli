@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:datafactory",
+		name: "azure:microsoft.datafactory",
 		fn:   scanDataFactory,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.datafactory", DiscoType: TypeDataFactoryFactory},

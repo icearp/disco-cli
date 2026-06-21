@@ -13,7 +13,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:edgemarketplace",
+		name: "azure:microsoft.edgemarketplace",
 		fn:   scanEdgeMarketplace,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.edgemarketplace", DiscoType: TypeEdgeMarketplaceOffer, Leaf: true},

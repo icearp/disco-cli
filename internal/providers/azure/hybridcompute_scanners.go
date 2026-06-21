@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:hybridcompute",
+		name: "azure:microsoft.hybridcompute",
 		fn:   scanHybridCompute,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI edges resolved centrally; Arc machines / private-link

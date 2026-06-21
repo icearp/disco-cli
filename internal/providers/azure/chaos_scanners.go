@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:chaos",
+		name: "azure:microsoft.chaos",
 		fn:   scanChaos,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.chaos", DiscoType: TypeChaosExperiment, Leaf: true},

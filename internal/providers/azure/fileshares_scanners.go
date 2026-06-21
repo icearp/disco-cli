@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:fileshares",
+		name: "azure:microsoft.fileshares",
 		fn:   scanFileShares,
 		emits: []coverage.TypeDecl{
 			// Private-endpoint → target edges resolved centrally; no other

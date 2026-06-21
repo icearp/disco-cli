@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:extendedlocation",
+		name: "azure:microsoft.extendedlocation",
 		fn:   scanExtendedLocation,
 		emits: []coverage.TypeDecl{
 			// resolveCustomLocationRelationships wires the host (connected

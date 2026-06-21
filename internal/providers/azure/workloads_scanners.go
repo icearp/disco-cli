@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:workloads",
+		name: "azure:microsoft.workloads",
 		fn:   scanWorkloads,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.workloads", DiscoType: TypeWorkloadsSAPVirtualInstance, Leaf: true},

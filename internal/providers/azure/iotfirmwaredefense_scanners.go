@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:iotfirmwaredefense",
+		name: "azure:microsoft.iotfirmwaredefense",
 		fn:   scanIoTFirmwareDefense,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.iotfirmwaredefense", DiscoType: TypeIoTFirmwareDefenseWorkspace, Leaf: true},

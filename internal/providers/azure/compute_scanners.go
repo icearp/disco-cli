@@ -15,7 +15,7 @@ func init() {
 	// (compute_vms, compute_vmss, compute_disks, compute_galleries,
 	// compute_dedicated, compute_infra, compute_cloudservices). The scanCompute
 	// orchestrator itself upserts no resources.
-	registerService(serviceEntry{name: "azure:compute", fn: scanCompute})
+	registerService(serviceEntry{name: "azure:microsoft.compute", fn: scanCompute})
 }
 
 // scanCompute discovers Azure Compute resources across all sub-groups: VMs, disks,

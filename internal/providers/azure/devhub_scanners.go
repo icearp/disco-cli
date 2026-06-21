@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:devhub",
+		name: "azure:microsoft.devhub",
 		fn:   scanDevHub,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.devhub", DiscoType: TypeDevHubWorkflow, Leaf: true},

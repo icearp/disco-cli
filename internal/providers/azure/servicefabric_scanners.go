@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:servicefabric",
-		fn:   scanServiceFabric,
+		name: "azure:microsoft.servicefabric",
+		fn:   scanServiceFabricNamespace,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.servicefabric", DiscoType: TypeServiceFabricCluster, Leaf: true},
 		},
@@ -52,4 +52,14 @@ func scanServiceFabric(ctx context.Context, sub *subscription, cred *azidentity.
 		}
 	}
 	return len(batch), n, nil
+}
+
+// scanServiceFabricNamespace runs every Microsoft.servicefabric scanner phase concurrently. The
+// servicefabric ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanServiceFabricNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanServiceFabric(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanServiceFabricManagedClusters(ctx, sub, cred, st, scanID) },
+	)
 }

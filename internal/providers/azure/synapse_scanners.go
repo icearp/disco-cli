@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:synapse",
+		name: "azure:microsoft.synapse",
 		fn:   scanSynapse,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.synapse", DiscoType: TypeSynapseWorkspace},

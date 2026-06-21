@@ -12,6 +12,23 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 2. `azure_scanner_test.go`: append service name to `expectedAzureServices`.
 3. New `<svc>_scanners.go` self-registers via `init() { registerService(serviceEntry{name, fn}) }`. Resolvers via `registerResolver(fn)` from `<svc>_resolvers.go`.
 
+## Service names align to the ARM namespace: `azure:microsoft.<namespace>`
+
+`serviceEntry.name` (the `--services` selector + scan-progress label) is always
+`azure:microsoft.<arm-namespace>` — the `azure:` provider prefix (room for future
+`azure:<vendor>.*` 3rd-party RPs) plus the ARM namespace the service emits (the `Service` value in
+its `emits`, e.g. `microsoft.documentdb` — NOT the friendly `cosmos`). One registration **per
+namespace**: the registry panics on duplicate names (`azure_registry.go`).
+- If several scanners share a namespace (e.g. dns/frontdoor/private-endpoints are all
+  `microsoft.network`), **merge** them under one `serviceEntry` whose `fn` runs each via
+  `azRunPhases(...)` and whose `emits` is the union — secondary files keep their `scanX` fn but
+  declare emits via `registerExtraEmits(...)` instead of a second `registerService`. Precedent:
+  `network_scanners.go::scanNetworkNamespace`, `cosmos_scanners.go::scanDocumentDBNamespace`.
+- If one scanner spans two namespaces, **split** it into one registration each. Precedent:
+  `containerapps_scanners.go` (`microsoft.app` + `microsoft.containerinstance`).
+Tenant-scope `microsoft.entra` (Graph) is the lone non-ARM-RP exception, registered via
+`registerTenantService` and excluded from `expectedAzureServices`.
+
 ## Helpers (reuse before reinventing)
 
 - `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`. **Non-paginator single-call APIs** (e.g. `armsecurity.PricingsClient.List`): unwrap `azcore.ResponseError` manually for 401/403 → `skipIfAccessDenied`; precedent: `security_scanners.go`.

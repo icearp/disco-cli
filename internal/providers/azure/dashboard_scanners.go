@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:dashboard",
+		name: "azure:microsoft.dashboard",
 		fn:   scanDashboard,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.dashboard", DiscoType: TypeDashboardGrafana, Leaf: true},

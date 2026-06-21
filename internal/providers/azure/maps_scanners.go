@@ -12,7 +12,7 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:maps",
+		name: "azure:microsoft.maps",
 		fn:   scanMaps,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.maps", DiscoType: TypeMapsAccount, Leaf: true},

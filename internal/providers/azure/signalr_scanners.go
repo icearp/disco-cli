@@ -12,8 +12,8 @@ import (
 
 func init() {
 	registerService(serviceEntry{
-		name: "azure:signalr",
-		fn:   scanSignalR,
+		name: "azure:microsoft.signalrservice",
+		fn:   scanSignalRServiceNamespace,
 		emits: []coverage.TypeDecl{
 			// Identity → MSI and private-endpoint edges resolve centrally.
 			{Service: "microsoft.signalrservice", DiscoType: TypeSignalR, Leaf: true},
@@ -33,4 +33,14 @@ func scanSignalR(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 		func(r *armsignalr.ResourceInfo) azTrackedBase {
 			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
+}
+
+// scanSignalRServiceNamespace runs every Microsoft.signalrservice scanner phase concurrently. The
+// signalrservice ARM namespace spans several disco scanners merged under one
+// serviceEntry so the service name aligns to the namespace.
+func scanSignalRServiceNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	return azRunPhases(
+		func() (int, int, error) { return scanSignalR(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanWebPubSub(ctx, sub, cred, st, scanID) },
+	)
 }
