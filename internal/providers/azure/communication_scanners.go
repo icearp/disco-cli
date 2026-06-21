@@ -2,7 +2,6 @@ package azure
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -24,30 +23,34 @@ func init() {
 
 // scanCommunication discovers Azure Communication Services and Email Services.
 func scanCommunication(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	svcClient, err := armcommunication.NewServicesClient(sub.ID, cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armcommunication:NewServicesClient: %w", err)
-	}
-	emailClient, err := armcommunication.NewEmailServicesClient(sub.ID, cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armcommunication:NewEmailServicesClient: %w", err)
-	}
-
-	t1, i1, e1 := azSimpleScan(ctx, "armcommunication:Services.ListBySubscription", TypeCommunicationService, sub, st, scanID,
-		svcClient.NewListBySubscriptionPager(nil),
-		func(p armcommunication.ServicesClientListBySubscriptionResponse) []*armcommunication.ServiceResource {
-			return p.Value
+	return azRunPhases(
+		func() (int, int, error) {
+			svcClient, err := armcommunication.NewServicesClient(sub.ID, cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armcommunication:NewServicesClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armcommunication:Services.ListBySubscription", TypeCommunicationService, sub, st, scanID,
+				svcClient.NewListBySubscriptionPager(nil),
+				func(p armcommunication.ServicesClientListBySubscriptionResponse) []*armcommunication.ServiceResource {
+					return p.Value
+				},
+				func(s *armcommunication.ServiceResource) azTrackedBase {
+					return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
+				})
 		},
-		func(s *armcommunication.ServiceResource) azTrackedBase {
-			return azTrackedBase{id: sv(s.ID), name: sv(s.Name), location: sv(s.Location), tags: s.Tags, full: s}
-		})
-	t2, i2, e2 := azSimpleScan(ctx, "armcommunication:EmailServices.ListBySubscription", TypeCommunicationEmailService, sub, st, scanID,
-		emailClient.NewListBySubscriptionPager(nil),
-		func(p armcommunication.EmailServicesClientListBySubscriptionResponse) []*armcommunication.EmailServiceResource {
-			return p.Value
+		func() (int, int, error) {
+			emailClient, err := armcommunication.NewEmailServicesClient(sub.ID, cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armcommunication:NewEmailServicesClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armcommunication:EmailServices.ListBySubscription", TypeCommunicationEmailService, sub, st, scanID,
+				emailClient.NewListBySubscriptionPager(nil),
+				func(p armcommunication.EmailServicesClientListBySubscriptionResponse) []*armcommunication.EmailServiceResource {
+					return p.Value
+				},
+				func(e *armcommunication.EmailServiceResource) azTrackedBase {
+					return azTrackedBase{id: sv(e.ID), name: sv(e.Name), location: sv(e.Location), tags: e.Tags, full: e}
+				})
 		},
-		func(e *armcommunication.EmailServiceResource) azTrackedBase {
-			return azTrackedBase{id: sv(e.ID), name: sv(e.Name), location: sv(e.Location), tags: e.Tags, full: e}
-		})
-	return t1 + t2, i1 + i2, errors.Join(e1, e2)
+	)
 }

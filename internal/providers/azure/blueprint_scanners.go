@@ -27,34 +27,30 @@ func init() {
 // deferred). Blueprint definitions are proxy resources without location/tags.
 func scanBlueprint(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	scope := "/subscriptions/" + sub.ID
-
-	bpClient, err := armblueprint.NewBlueprintsClient(cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armblueprint:NewBlueprintsClient: %w", err)
-	}
-	bt, bi, err := azSimpleScan(ctx, "armblueprint:Blueprints.List", TypeBlueprintBlueprint, sub, st, scanID,
-		bpClient.NewListPager(scope, nil),
-		func(p armblueprint.BlueprintsClientListResponse) []*armblueprint.Blueprint { return p.Value },
-		func(r *armblueprint.Blueprint) azTrackedBase {
-			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
-		})
-	total += bt
-	inserted += bi
-	if err != nil {
-		return total, inserted, err
-	}
-
-	asClient, err := armblueprint.NewAssignmentsClient(cred, azClientOptions)
-	if err != nil {
-		return total, inserted, fmt.Errorf("armblueprint:NewAssignmentsClient: %w", err)
-	}
-	at, ai, err := azSimpleScan(ctx, "armblueprint:Assignments.List", TypeBlueprintAssignment, sub, st, scanID,
-		asClient.NewListPager(scope, nil),
-		func(p armblueprint.AssignmentsClientListResponse) []*armblueprint.Assignment { return p.Value },
-		func(r *armblueprint.Assignment) azTrackedBase {
-			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), full: r}
-		})
-	total += at
-	inserted += ai
-	return total, inserted, err
+	return azRunPhases(
+		func() (int, int, error) {
+			bpClient, err := armblueprint.NewBlueprintsClient(cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armblueprint:NewBlueprintsClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armblueprint:Blueprints.List", TypeBlueprintBlueprint, sub, st, scanID,
+				bpClient.NewListPager(scope, nil),
+				func(p armblueprint.BlueprintsClientListResponse) []*armblueprint.Blueprint { return p.Value },
+				func(r *armblueprint.Blueprint) azTrackedBase {
+					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), full: r}
+				})
+		},
+		func() (int, int, error) {
+			asClient, err := armblueprint.NewAssignmentsClient(cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armblueprint:NewAssignmentsClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armblueprint:Assignments.List", TypeBlueprintAssignment, sub, st, scanID,
+				asClient.NewListPager(scope, nil),
+				func(p armblueprint.AssignmentsClientListResponse) []*armblueprint.Assignment { return p.Value },
+				func(r *armblueprint.Assignment) azTrackedBase {
+					return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), full: r}
+				})
+		},
+	)
 }

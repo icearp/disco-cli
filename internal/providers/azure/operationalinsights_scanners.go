@@ -27,35 +27,34 @@ func init() {
 // edge target story (resource → workspace) once the diagnostic-settings
 // resolver lands; the sub-resources add inventory volume but few cross-edges.
 func scanOperationalInsights(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	client, err := armoperationalinsights.NewWorkspacesClient(sub.ID, cred, azClientOptions)
-	if err != nil {
-		return 0, 0, fmt.Errorf("armoperationalinsights:NewWorkspacesClient: %w", err)
-	}
-	total, inserted, err = azSimpleScan(ctx, "armoperationalinsights:Workspaces.List", TypeOpInsightsWorkspace, sub, st, scanID,
-		client.NewListPager(nil),
-		func(p armoperationalinsights.WorkspacesClientListResponse) []*armoperationalinsights.Workspace {
-			return p.Value
+	return azRunPhases(
+		func() (int, int, error) {
+			client, err := armoperationalinsights.NewWorkspacesClient(sub.ID, cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armoperationalinsights:NewWorkspacesClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armoperationalinsights:Workspaces.List", TypeOpInsightsWorkspace, sub, st, scanID,
+				client.NewListPager(nil),
+				func(p armoperationalinsights.WorkspacesClientListResponse) []*armoperationalinsights.Workspace {
+					return p.Value
+				},
+				func(w *armoperationalinsights.Workspace) azTrackedBase {
+					return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
+				})
 		},
-		func(w *armoperationalinsights.Workspace) azTrackedBase {
-			return azTrackedBase{id: sv(w.ID), name: sv(w.Name), location: sv(w.Location), tags: w.Tags, full: w}
-		})
-	if err != nil {
-		return total, inserted, err
-	}
-
-	clClient, err := armoperationalinsights.NewClustersClient(sub.ID, cred, azClientOptions)
-	if err != nil {
-		return total, inserted, fmt.Errorf("armoperationalinsights:NewClustersClient: %w", err)
-	}
-	ct, ci, err := azSimpleScan(ctx, "armoperationalinsights:Clusters.List", TypeOpInsightsCluster, sub, st, scanID,
-		clClient.NewListPager(nil),
-		func(p armoperationalinsights.ClustersClientListResponse) []*armoperationalinsights.Cluster {
-			return p.Value
+		func() (int, int, error) {
+			clClient, err := armoperationalinsights.NewClustersClient(sub.ID, cred, azClientOptions)
+			if err != nil {
+				return 0, 0, fmt.Errorf("armoperationalinsights:NewClustersClient: %w", err)
+			}
+			return azSimpleScan(ctx, "armoperationalinsights:Clusters.List", TypeOpInsightsCluster, sub, st, scanID,
+				clClient.NewListPager(nil),
+				func(p armoperationalinsights.ClustersClientListResponse) []*armoperationalinsights.Cluster {
+					return p.Value
+				},
+				func(c *armoperationalinsights.Cluster) azTrackedBase {
+					return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
+				})
 		},
-		func(c *armoperationalinsights.Cluster) azTrackedBase {
-			return azTrackedBase{id: sv(c.ID), name: sv(c.Name), location: sv(c.Location), tags: c.Tags, full: c}
-		})
-	total += ct
-	inserted += ci
-	return total, inserted, err
+	)
 }
