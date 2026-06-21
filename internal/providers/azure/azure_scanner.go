@@ -171,23 +171,35 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
 // (relationships) for one subscription.
 func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, services []string, st *store.Store, scanID string) error {
-	// Scan resource groups first (they are parents of all resources). A
-	// failure here is reported and the scan continues — one service's (even
-	// the RG list's) error must never abort the subscription's other scanners.
-	if err := scanResourceGroups(ctx, sub, cred, st, scanID); err != nil {
-		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "resourcegroups", Scope: sub.scopeLabel(),
-			Message: formatAzureError(err),
-		})
-	}
-
-	// Probe RP registration state once per subscription. ARM allows LIST on
-	// unregistered providers (empty 200, no error), so the per-call error path
-	// can't see a NotRegistered RP — this proactive gate is the only signal,
+	// scanResourceGroups (RG parents of all resources) and the RP-registration
+	// probe are independent ARM list calls, both on the critical path before any
+	// service scanner can start. Run them concurrently so the service loop is
+	// gated on the slower of the two, not their sum.
+	//
+	// scanResourceGroups failure is reported and the scan continues — one
+	// service's (even the RG list's) error must never abort the subscription's
+	// other scanners.
+	//
+	// The probe reads RP registration state once per subscription. ARM allows
+	// LIST on unregistered providers (empty 200, no error), so the per-call error
+	// path can't see a NotRegistered RP — this proactive gate is the only signal,
 	// the Azure analog of AWS's phase-0 "service enabled?" gate. A probe failure
 	// is non-fatal: regProviders stays nil and every service is scanned with the
 	// reactive error classifier as fallback.
-	regProviders, perr := loadRegisteredProviders(ctx, sub.ID, cred)
+	var (
+		regProviders map[string]bool
+		rgErr, perr  error
+		preWG        sync.WaitGroup
+	)
+	preWG.Go(func() { rgErr = scanResourceGroups(ctx, sub, cred, st, scanID) })
+	preWG.Go(func() { regProviders, perr = loadRegisteredProviders(ctx, sub.ID, cred) })
+	preWG.Wait()
+	if rgErr != nil {
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: "resourcegroups", Scope: sub.scopeLabel(),
+			Message: formatAzureError(rgErr),
+		})
+	}
 	if perr != nil {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "azure", Service: "providers", Scope: sub.scopeLabel(),
