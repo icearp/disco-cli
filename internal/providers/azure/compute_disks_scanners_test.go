@@ -1,6 +1,7 @@
 package azure
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -131,10 +132,10 @@ func TestScanDisks_FakeTransport_AccessDenied(t *testing.T) {
 }
 
 // TestScanDisks_FakeTransport_SubscriptionNotRegistered verifies the scanner
-// swallows a 404 SubscriptionNotRegistered (the resource provider is not
-// registered on the subscription) end-to-end via the azPageScan skip guard,
-// returning (0, 0, nil). This is the regression that aborted the live scan
-// before isSkippableScanError gated the skip branch.
+// surfaces a 404 SubscriptionNotRegistered (the resource provider is not
+// registered on the subscription) end-to-end as the errServiceNotRegistered
+// sentinel and (0, 0) counts — the dispatch loop turns this into a disabled
+// service (no warning, no error), the Azure analog of AWS's errServiceDisabled.
 func TestScanDisks_FakeTransport_SubscriptionNotRegistered(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription(testSubID)
@@ -153,8 +154,8 @@ func TestScanDisks_FakeTransport_SubscriptionNotRegistered(t *testing.T) {
 	}
 
 	total, inserted, err := scanDisksWithClient(t.Context(), sub, st, testScanID, client)
-	if err != nil {
-		t.Fatalf("scanDisksWithClient (not registered): expected nil error, got %v", err)
+	if !errors.Is(err, errServiceNotRegistered) {
+		t.Fatalf("scanDisksWithClient (not registered): got err=%v, want errServiceNotRegistered", err)
 	}
 	if total != 0 || inserted != 0 {
 		t.Fatalf("counts: got total=%d inserted=%d, want 0/0", total, inserted)

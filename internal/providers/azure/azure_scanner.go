@@ -5,6 +5,7 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -171,15 +172,24 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
 			total, inserted, err := svc.fn(svcCtx, sub, cred, st, scanID)
-			if err != nil {
+			switch {
+			case err == nil:
+				st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 0, false)
+			case errors.Is(err, errServiceNotRegistered) && total == 0:
+				// Service not available in this subscription (RP unregistered or
+				// resource type absent) and nothing was scanned — mark the
+				// service disabled (no error, no warning), the Azure analog of
+				// AWS's errServiceDisabled. The total==0 guard ensures a merged
+				// service that already scanned data in another phase is never
+				// blanked.
+				st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, true)
+			default:
 				st.ReportError(store.ScanError{
 					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
 				})
 				st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 1, false)
-				return
 			}
-			st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 0, false)
 		})
 	}
 	wg.Wait()

@@ -6,10 +6,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
+
+// errServiceNotRegistered is a sentinel returned (instead of a scan warning)
+// when a service is not available in this subscription — the resource provider
+// is not registered, or ARM reports its resource type as simply absent. The
+// dispatch loop detects it via errors.Is and reports the service as disabled —
+// the Azure analog of AWS's errServiceDisabled. Since each Azure service maps
+// 1:1 to an ARM namespace, an unavailable RP means the whole service is disabled.
+var errServiceNotRegistered = errors.New("azure resource provider not available in subscription")
 
 // isAccessDenied reports whether err is an Azure 403/401 response error.
 func isAccessDenied(err error) bool {
@@ -28,8 +37,16 @@ func isAccessDenied(err error) bool {
 func isSubscriptionNotRegistered(err error) bool {
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {
-		return respErr.ErrorCode == "SubscriptionNotRegistered" ||
-			respErr.ErrorCode == "MissingSubscriptionRegistration"
+		if respErr.ErrorCode == "SubscriptionNotRegistered" ||
+			respErr.ErrorCode == "MissingSubscriptionRegistration" {
+			return true
+		}
+		// Some RPs (e.g. Microsoft.Maintenance) report an unregistered
+		// subscription as a bare 400 with no error code — the phrase lives only
+		// in the response body. respErr.Error() is built and cached at
+		// construction (azcore NewResponseErrorWithErrorCode), so this is a
+		// cheap, idempotent string check that never touches the body.
+		return strings.Contains(strings.ToLower(respErr.Error()), "subscription not registered")
 	}
 	return false
 }
@@ -75,12 +92,51 @@ func isUnsupportedOperation(err error) bool {
 // are SDK-vs-live-API mismatches: disco cannot extract data, but must not
 // hard-fail the scan. Safe to skip because azSimpleScan compile-checks the
 // response type against the pager, so a decode error is always external, never
-// a wrong-type bug on our side. azcore wraps the json error with %w, so
-// errors.As reaches it through the pager's wrapper chain.
+// a wrong-type bug on our side. azcore formats the json error with %s (not %w),
+// so errors.As cannot reach it — the string fallback below handles the real
+// pager errors; the errors.As checks cover any properly-wrapped variants.
 func isDeserializationError(err error) bool {
+	if err == nil {
+		return false
+	}
 	var syntaxErr *json.SyntaxError
 	var typeErr *json.UnmarshalTypeError
-	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
+	if errors.As(err, &syntaxErr) || errors.As(err, &typeErr) {
+		return true
+	}
+	// azcore's runtime.UnmarshalAsJSON formats the json error with %s, not %w
+	// (azcore runtime/response.go), so errors.As cannot reach the underlying
+	// *json.SyntaxError / *json.UnmarshalTypeError — e.g. armpeering PeerAsns
+	// returns a BOM-prefixed body that fails to parse. Fall back to azcore's
+	// stable "unmarshalling type <T>:" signature.
+	return strings.Contains(err.Error(), "unmarshalling type ")
+}
+
+// mentionsSupportedAPIVersions reports whether an InvalidResourceType error's
+// message lists "supported api-versions" — the ARM signal that the RP IS
+// registered but the requested api-version isn't served yet (disco's SDK is
+// ahead of rollout). Its absence means the RP/type is simply not present in
+// this subscription. Reads the cached respErr.Error() (built at construction),
+// so it never disturbs the response body.
+func mentionsSupportedAPIVersions(err error) bool {
+	var respErr *azcore.ResponseError
+	if errors.As(err, &respErr) {
+		return strings.Contains(strings.ToLower(respErr.Error()), "supported api-versions")
+	}
+	return false
+}
+
+// isProviderUnavailable reports the "service not available in this
+// subscription" condition that should render as a disabled service rather than
+// a warning: an unregistered RP (isSubscriptionNotRegistered), or a resource
+// type/api-version ARM reports as simply absent (isResourceTypeUnavailable with
+// no "supported api-versions" list — which would instead mean the RP is
+// registered but disco's SDK is ahead of rollout, a warnable skew).
+func isProviderUnavailable(err error) bool {
+	if isSubscriptionNotRegistered(err) {
+		return true
+	}
+	return isResourceTypeUnavailable(err) && !mentionsSupportedAPIVersions(err)
 }
 
 // isSkippableScanError is the canonical "this list call cannot return
@@ -115,6 +171,13 @@ func isFeatureNotAvailable(err error) bool {
 
 // skipIfAccessDenied reports a non-fatal skip as a ScanWarning.
 func skipIfAccessDenied(st *store.Store, service, subID string, err error) error {
+	// Service not available in this subscription (RP not registered, or its
+	// resource type absent) == the AWS "service disabled" case: signal the
+	// dispatch loop to mark the service disabled (no warning, no error) rather
+	// than emitting noise for a service the sub doesn't use.
+	if isProviderUnavailable(err) {
+		return errServiceNotRegistered
+	}
 	st.ReportWarning(store.ScanWarning{
 		Provider: "azure",
 		Service:  service,

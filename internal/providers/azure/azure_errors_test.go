@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
@@ -110,6 +111,18 @@ func respErr(status int, code string) *azcore.ResponseError {
 	}
 }
 
+// respErrWithBody builds an *azcore.ResponseError with an ARM error body so the
+// cached respErr.Error() string carries the message — mirrors RPs that report
+// "subscription not registered" as a bare 400 with no error code.
+func respErrWithBody(status int, code, message string) *azcore.ResponseError {
+	body := fmt.Sprintf(`{"error":{"code":%q,"message":%q}}`, code, message)
+	return &azcore.ResponseError{
+		ErrorCode:   code,
+		StatusCode:  status,
+		RawResponse: &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body))},
+	}
+}
+
 // TestScanErrorClassifiers covers isSubscriptionNotRegistered and the unified
 // isSkippableScanError predicate that gates scanner skip-and-continue branches.
 func TestScanErrorClassifiers(t *testing.T) {
@@ -128,10 +141,12 @@ func TestScanErrorClassifiers(t *testing.T) {
 		{"401 unauthorized", respErr(http.StatusUnauthorized, "Unauthorized"), false, true, true},
 		{"404 ResourceGroupNotFound (coded → not skippable)", respErr(http.StatusNotFound, "ResourceGroupNotFound"), false, false, false},
 		{"404 bare/empty-code (operation not supported)", respErr(http.StatusNotFound, ""), false, true, false},
+		{"400 empty-code 'Subscription not registered' (Microsoft.Maintenance)", respErrWithBody(http.StatusBadRequest, "", "Subscription not registered"), true, true, false},
 		{"500 InternalError", respErr(http.StatusInternalServerError, "InternalError"), false, false, false},
 		{"json syntax error (BOM-prefixed body)", &json.SyntaxError{}, false, true, false},
 		{"json type mismatch (string into int32)", &json.UnmarshalTypeError{Value: "string", Type: reflect.TypeOf(int32(0))}, false, true, false},
 		{"wrapped json type mismatch (azcore %w chain)", fmt.Errorf("unmarshalling type *armnetwork.X: %w", &json.UnmarshalTypeError{Value: "string", Type: reflect.TypeOf(int32(0))}), false, true, false},
+		{"azcore %s-formatted unmarshal error (armpeering BOM, errors.As can't reach)", fmt.Errorf("armpeering:PeerAsns.ListBySubscription: %s", "unmarshalling type *armpeering.PeerAsnListResult: invalid character 'ï' looking for beginning of value"), false, true, false},
 		{"plain error", errors.New("boom"), false, false, false},
 		{"nil", nil, false, false, false},
 	}
@@ -145,6 +160,49 @@ func TestScanErrorClassifiers(t *testing.T) {
 			}
 			if got := isAccessDenied(tc.err); got != tc.accessDenied {
 				t.Errorf("isAccessDenied(%v) = %v; want %v", tc.err, got, tc.accessDenied)
+			}
+		})
+	}
+}
+
+// TestSkipIfAccessDenied_Classification pins the split between "service not
+// available in this subscription" (→ errServiceNotRegistered sentinel, no
+// warning, dispatch marks the service disabled) and every other skippable
+// condition (→ ScanWarning, nil error). The InvalidResourceType cases hinge on
+// whether the message lists "supported api-versions": absent ⇒ RP/type not
+// present ⇒ disabled; present ⇒ RP registered, SDK ahead of rollout ⇒ warning.
+func TestSkipIfAccessDenied_Classification(t *testing.T) {
+	cases := []struct {
+		name         string
+		err          error
+		wantSentinel bool // returns errServiceNotRegistered
+		wantWarn     bool // emitted a ScanWarning
+	}{
+		{"SubscriptionNotRegistered", respErr(http.StatusNotFound, "SubscriptionNotRegistered"), true, false},
+		{"MissingSubscriptionRegistration", respErr(http.StatusConflict, "MissingSubscriptionRegistration"), true, false},
+		{"400 empty-code 'Subscription not registered'", respErrWithBody(http.StatusBadRequest, "", "Subscription not registered"), true, false},
+		{"InvalidResourceType, RP/type absent (no supported-versions) → disabled", respErrWithBody(http.StatusNotFound, "InvalidResourceType", "The resource type could not be found in the namespace 'Microsoft.Orbital' for api version '2022-03-01'."), true, false},
+		{"InvalidResourceType, api-version skew (supported-versions listed) → warns", respErrWithBody(http.StatusNotFound, "InvalidResourceType", "The resource type 'watchers' could not be found in the namespace 'Microsoft.DatabaseWatcher' for api version '2025-01-02'. The supported api-versions are '2023-09-01-preview'."), false, true},
+		{"AccessDenied still warns", respErr(http.StatusForbidden, "AuthorizationFailed"), false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var warnings int
+			st := &store.Store{OnWarn: func(store.ScanWarning) { warnings++ }}
+			got := skipIfAccessDenied(st, "azure:microsoft.test", "sub-123", tc.err)
+
+			if isSentinel := errors.Is(got, errServiceNotRegistered); isSentinel != tc.wantSentinel {
+				t.Errorf("skipIfAccessDenied err=%v; errServiceNotRegistered=%v, want %v", got, isSentinel, tc.wantSentinel)
+			}
+			if !tc.wantSentinel && got != nil {
+				t.Errorf("skipIfAccessDenied returned %v; want nil for warnable error", got)
+			}
+			wantWarnings := 0
+			if tc.wantWarn {
+				wantWarnings = 1
+			}
+			if warnings != wantWarnings {
+				t.Errorf("emitted %d warnings; want %d", warnings, wantWarnings)
 			}
 		})
 	}
