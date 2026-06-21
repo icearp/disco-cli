@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservicefleet/armcontainerservicefleet/v3"
 )
@@ -26,7 +26,7 @@ func init() {
 // scanAKS discovers Microsoft.ContainerService resources — AKS managed
 // clusters, node-pool/managed-cluster snapshots, and AKS fleets (the fleet
 // type lives in the separate containerservicefleet SDK module).
-func scanAKS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAKS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			client, err := armcontainerservice.NewManagedClustersClient(sub.ID, cred, azClientOptions)

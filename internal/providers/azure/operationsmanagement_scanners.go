@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationsmanagement/armoperationsmanagement"
 )
 
@@ -23,7 +23,7 @@ func init() {
 // scanOperationsManagement discovers Azure Operations Management (OMS)
 // solutions. ListBySubscription is a single call (no pager), so it is wrapped
 // inline rather than via azSimpleScan.
-func scanOperationsManagement(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOperationsManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armoperationsmanagement.NewSolutionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armoperationsmanagement:NewSolutionsClient: %w", err)

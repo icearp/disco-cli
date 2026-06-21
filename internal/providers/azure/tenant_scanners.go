@@ -5,7 +5,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // tenantServiceEntry describes a tenant-scope Azure service (i.e. one whose
@@ -23,7 +23,7 @@ import (
 // assignments). Subscriptions are read-only here — never mutate.
 type tenantServiceEntry struct {
 	name  string
-	fn    func(ctx context.Context, subs []subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	fn    func(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)
 	emits []coverage.TypeDecl
 }
 
@@ -47,7 +47,7 @@ func registerTenantService(e tenantServiceEntry) {
 // per scan, before per-subscription fan-out. Errors per service are reported
 // via st.ReportError + st.ReportService (errCount=1) — never propagated.
 // Skipped when no tenant services are registered.
-func runTenantServices(ctx context.Context, subs []subscription, cred *azidentity.DefaultAzureCredential, filter []string, st *store.Store, scanID string) {
+func runTenantServices(ctx context.Context, subs []subscription, cred azcore.TokenCredential, filter []string, st *store.Store, scanID string) {
 	if len(registeredTenantServices) == 0 {
 		return
 	}

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis"
 )
 
@@ -23,7 +23,7 @@ func init() {
 // scanRedis discovers Azure Cache for Redis instances. Firewall rules, patch
 // schedules, linked servers, private endpoint connections, and access keys
 // deferred — sub-resources with narrow cross-service edge value.
-func scanRedis(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRedis(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armredis.NewClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armredis:NewClient: %w", err)
@@ -39,7 +39,7 @@ func scanRedis(ctx context.Context, sub *subscription, cred *azidentity.DefaultA
 // scanCacheNamespace runs every Microsoft.cache scanner phase concurrently. The
 // cache ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanCacheNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCacheNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanRedis(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanRedisEnterprise(ctx, sub, cred, st, scanID) },

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/labservices/armlabservices"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 // scanLabServices discovers Azure Lab Services labs and lab plans.
-func scanLabServices(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLabServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	labs, err := armlabservices.NewLabsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armlabservices:NewLabsClient: %w", err)

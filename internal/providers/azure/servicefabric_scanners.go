@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicefabric/armservicefabric"
 )
 
@@ -23,7 +23,7 @@ func init() {
 // scanServiceFabric discovers Service Fabric clusters. The Clusters.List op is
 // a single non-paginated subscription-wide call (no pager), so it can't use
 // azSimpleScan; AccessDenied is unwrapped manually like security_scanners.go.
-func scanServiceFabric(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armservicefabric.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armservicefabric:NewClustersClient: %w", err)
@@ -57,7 +57,7 @@ func scanServiceFabric(ctx context.Context, sub *subscription, cred *azidentity.
 // scanServiceFabricNamespace runs every Microsoft.servicefabric scanner phase concurrently. The
 // servicefabric ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanServiceFabricNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceFabricNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanServiceFabric(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanServiceFabricManagedClusters(ctx, sub, cred, st, scanID) },

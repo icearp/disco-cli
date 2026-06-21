@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/devtestlabs/armdevtestlabs"
 )
 
@@ -21,7 +21,7 @@ func init() {
 }
 
 // scanDevTestLab discovers devtestlab resources.
-func scanDevTestLab(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevTestLab(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armdevtestlabs.NewLabsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdevtestlabs:NewLabsClient: %w", err)
@@ -37,7 +37,7 @@ func scanDevTestLab(ctx context.Context, sub *subscription, cred *azidentity.Def
 // scanDevTestLabNamespace runs every Microsoft.devtestlab scanner phase concurrently. The
 // devtestlab ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanDevTestLabNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevTestLabNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanDevTestLab(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanDevTestLabs(ctx, sub, cred, st, scanID) },

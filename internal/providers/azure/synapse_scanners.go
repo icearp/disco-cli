@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/synapse/armsynapse"
 )
 
@@ -26,7 +26,7 @@ func init() {
 // connections, and managed private endpoints deferred — sub-resources whose
 // graph value lives in the workspace-level edges (default ADLS, managed VNet,
 // CMEK).
-func scanSynapse(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSynapse(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			client, err := armsynapse.NewWorkspacesClient(sub.ID, cred, azClientOptions)

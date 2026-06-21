@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -47,7 +47,7 @@ type sqlManagedDatabase struct {
 // scanSQLManaged discovers managed instances and their databases, administrators,
 // vulnerability assessments, and managed database vulnerability assessments.
 // Called concurrently from scanSQL alongside the server-based scanners.
-func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	miClient, err := armsql.NewManagedInstancesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstancesClient: %w", err)
@@ -222,7 +222,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred *azidentity.Def
 
 // managedInstanceChildScanners returns closures for MI-level sub-resource scanners
 // that run in the phase-2 fan-out (alongside databases, admins, VAs).
-func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
+func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) []func() (int, int, error) {
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanManagedInstanceKeys(ctx, sub, cred, st, scanID, mi) },
 		func() (int, int, error) {
@@ -239,7 +239,7 @@ func managedInstanceChildScanners(ctx context.Context, sub *subscription, cred *
 
 // managedDatabaseChildScanners returns closures for MDB-level sub-resource scanners
 // that run in the phase-3 fan-out (alongside MDB VAs).
-func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) []func() (int, int, error) {
+func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) []func() (int, int, error) {
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanManagedDatabaseVulnAssessments(ctx, sub, cred, st, scanID, db) },
 		func() (int, int, error) { return scanManagedDatabaseTDE(ctx, sub, cred, st, scanID, db) },
@@ -249,7 +249,7 @@ func managedDatabaseChildScanners(ctx context.Context, sub *subscription, cred *
 	}
 }
 
-func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedInstanceKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceKeysClient: %w", err)
@@ -288,7 +288,7 @@ func scanManagedInstanceKeys(ctx context.Context, sub *subscription, cred *azide
 	return sqlUpsert(st, batch, pairs, "managed instance keys")
 }
 
-func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedInstanceEncryptionProtectorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceEncryptionProtectorsClient: %w", err)
@@ -327,7 +327,7 @@ func scanManagedInstanceEncryptionProtectors(ctx context.Context, sub *subscript
 	return sqlUpsert(st, batch, pairs, "managed instance encryption protectors")
 }
 
-func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedInstancePrivateEndpointConnectionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstancePrivateEndpointConnectionsClient: %w", err)
@@ -366,7 +366,7 @@ func scanManagedInstancePrivateEndpointConnections(ctx context.Context, sub *sub
 	return sqlUpsert(st, batch, pairs, "managed instance private endpoint connections")
 }
 
-func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedServerSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedServerSecurityAlertPoliciesClient: %w", err)
@@ -405,7 +405,7 @@ func scanManagedServerSecurityAlertPolicies(ctx context.Context, sub *subscripti
 	return sqlUpsert(st, batch, pairs, "managed server security alert policies")
 }
 
-func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewManagedDatabaseTransparentDataEncryptionClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseTransparentDataEncryptionClient: %w", err)
@@ -444,7 +444,7 @@ func scanManagedDatabaseTDE(ctx context.Context, sub *subscription, cred *aziden
 	return sqlUpsert(st, batch, pairs, "managed database transparent data encryptions")
 }
 
-func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewManagedDatabaseSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseSecurityAlertPoliciesClient: %w", err)
@@ -485,7 +485,7 @@ func scanManagedDatabaseSecurityAlertPolicies(ctx context.Context, sub *subscrip
 
 // scanManagedDatabases lists databases for a managed instance, upserts them, and
 // returns sqlManagedDatabase entries for phase 3 sub-resource fan-out.
-func scanManagedDatabases(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, dbs []sqlManagedDatabase, err error) {
+func scanManagedDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, dbs []sqlManagedDatabase, err error) {
 	client, err := armsql.NewManagedDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armsql:NewManagedDatabasesClient: %w", err)
@@ -543,7 +543,7 @@ func scanManagedDatabases(ctx context.Context, sub *subscription, cred *azidenti
 	return total, inserted, dbs, nil
 }
 
-func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedInstanceAdministratorsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceAdministratorsClient: %w", err)
@@ -582,7 +582,7 @@ func scanManagedInstanceAdmins(ctx context.Context, sub *subscription, cred *azi
 	return sqlUpsert(st, batch, pairs, "managed instance administrators")
 }
 
-func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
+func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, mi sqlManagedInstance) (total, inserted int, err error) {
 	client, err := armsql.NewManagedInstanceVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedInstanceVulnerabilityAssessmentsClient: %w", err)
@@ -621,7 +621,7 @@ func scanManagedInstanceVulnAssessments(ctx context.Context, sub *subscription, 
 	return sqlUpsert(st, batch, pairs, "managed instance vulnerability assessments")
 }
 
-func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
+func scanManagedDatabaseVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlManagedDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewManagedDatabaseVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewManagedDatabaseVulnerabilityAssessmentsClient: %w", err)

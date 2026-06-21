@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhci"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurestackhci/armazurestackhcivm"
 )
@@ -35,7 +35,7 @@ func init() {
 // VM/network/storage resources of the connected cluster. Clusters live in
 // armazurestackhci; the rest are sub-wide ListAll in the sibling
 // armazurestackhcivm module.
-func scanAzureStackHCI(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureStackHCI(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	clusters, err := armazurestackhci.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armazurestackhci:NewClustersClient: %w", err)
@@ -56,7 +56,7 @@ func scanAzureStackHCI(ctx context.Context, sub *subscription, cred *azidentity.
 }
 
 // scanAzureStackHCIVM runs the seven sub-wide ListAll scans in armazurestackhcivm.
-func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureStackHCIVM(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	gi, err := armazurestackhcivm.NewGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armazurestackhcivm:NewGalleryImagesClient: %w", err)

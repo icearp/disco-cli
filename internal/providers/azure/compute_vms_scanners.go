@@ -8,7 +8,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -21,7 +21,7 @@ func init() {
 	)
 }
 
-func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachinesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachinesClient: %w", err)
@@ -87,7 +87,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 // scanVMExtensions lists all extensions for every VM in the subscription.
 // It fans out one API call per VM using errgroup, bounded by maxConcurrentFanout.
 // Must be called after scanVMs has populated the store.
-func scanVMExtensions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachineExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineExtensionsClient: %w", err)

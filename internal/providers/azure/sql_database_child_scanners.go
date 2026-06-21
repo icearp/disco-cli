@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 )
 
@@ -26,7 +26,7 @@ func init() {
 }
 
 // dbChildScanners returns one closure per database sub-resource type.
-func dbChildScanners(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) []func() (int, int, error) {
+func dbChildScanners(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) []func() (int, int, error) {
 	return []func() (int, int, error){
 		func() (int, int, error) { return scanDBTransparentDataEnc(ctx, sub, cred, st, scanID, db) },
 		func() (int, int, error) { return scanDBSecurityAlertPolicies(ctx, sub, cred, st, scanID, db) },
@@ -41,7 +41,7 @@ func dbChildScanners(ctx context.Context, sub *subscription, cred *azidentity.De
 	}
 }
 
-func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewTransparentDataEncryptionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewTransparentDataEncryptionsClient: %w", err)
@@ -80,7 +80,7 @@ func scanDBTransparentDataEnc(ctx context.Context, sub *subscription, cred *azid
 	return sqlUpsert(st, batch, pairs, "database transparent data encryptions")
 }
 
-func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewDatabaseSecurityAlertPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewDatabaseSecurityAlertPoliciesClient: %w", err)
@@ -119,7 +119,7 @@ func scanDBSecurityAlertPolicies(ctx context.Context, sub *subscription, cred *a
 	return sqlUpsert(st, batch, pairs, "database security alert policies")
 }
 
-func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewDatabaseAdvancedThreatProtectionSettingsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewDatabaseAdvancedThreatProtectionSettingsClient: %w", err)
@@ -158,7 +158,7 @@ func scanDBAdvancedThreatProtection(ctx context.Context, sub *subscription, cred
 	return sqlUpsert(st, batch, pairs, "database advanced threat protection settings")
 }
 
-func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewDatabaseBlobAuditingPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewDatabaseBlobAuditingPoliciesClient: %w", err)
@@ -197,7 +197,7 @@ func scanDBAuditingSettings(ctx context.Context, sub *subscription, cred *aziden
 	return sqlUpsert(st, batch, pairs, "database auditing settings")
 }
 
-func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewDatabaseVulnerabilityAssessmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewDatabaseVulnerabilityAssessmentsClient: %w", err)
@@ -236,7 +236,7 @@ func scanDBVulnAssessments(ctx context.Context, sub *subscription, cred *azident
 	return sqlUpsert(st, batch, pairs, "database vulnerability assessments")
 }
 
-func scanSyncGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanSyncGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewSyncGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewSyncGroupsClient: %w", err)
@@ -275,7 +275,7 @@ func scanSyncGroups(ctx context.Context, sub *subscription, cred *azidentity.Def
 	return sqlUpsert(st, batch, pairs, "sync groups")
 }
 
-func scanReplicationLinks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanReplicationLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewReplicationLinksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewReplicationLinksClient: %w", err)
@@ -314,7 +314,7 @@ func scanReplicationLinks(ctx context.Context, sub *subscription, cred *azidenti
 	return sqlUpsert(st, batch, pairs, "replication links")
 }
 
-func scanWorkloadGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanWorkloadGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewWorkloadGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewWorkloadGroupsClient: %w", err)
@@ -353,7 +353,7 @@ func scanWorkloadGroups(ctx context.Context, sub *subscription, cred *azidentity
 	return sqlUpsert(st, batch, pairs, "workload groups")
 }
 
-func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewGeoBackupPoliciesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewGeoBackupPoliciesClient: %w", err)
@@ -392,7 +392,7 @@ func scanGeoBackupPolicies(ctx context.Context, sub *subscription, cred *azident
 	return sqlUpsert(st, batch, pairs, "geo backup policies")
 }
 
-func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
+func scanLedgerDigestUploads(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, db sqlDatabase) (total, inserted int, err error) {
 	client, err := armsql.NewLedgerDigestUploadsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewLedgerDigestUploadsClient: %w", err)

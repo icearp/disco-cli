@@ -10,7 +10,6 @@ import (
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -77,7 +76,7 @@ var diagnosableTypes = []string{
 // resource errors are tolerated — first error per type counts toward an
 // in-memory counter so we don't fan out a million warnings on a tenant
 // without diag-settings permissions.
-func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store) (int, error) {
+func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store) (int, error) {
 	resources, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
 		Types: diagnosableTypes,

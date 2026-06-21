@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -48,7 +48,7 @@ type sqlDatabase struct {
 
 // scanSQL discovers Azure SQL servers and their databases plus all supported sub-resources.
 // Servers, instance pools, virtual clusters, and managed instances are scanned in parallel.
-func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		mu  sync.Mutex
 		tot int
@@ -91,7 +91,7 @@ func scanSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 // scanSQLServersAndChildren lists servers, then fans out concurrently to databases
 // and all 16 server-level sub-resources per server, then fans out to all 10
 // database-level sub-resources per database.
-func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	serversClient, err := armsql.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewServersClient: %w", err)
@@ -230,7 +230,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred *azi
 
 // scanDatabases lists databases for a server, upserts them, and returns sqlDatabase
 // entries for the database sub-resource fan-out in phase 3.
-func scanDatabases(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, dbs []sqlDatabase, err error) {
+func scanDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, srv sqlServer) (total, inserted int, dbs []sqlDatabase, err error) {
 	client, err := armsql.NewDatabasesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armsql:NewDatabasesClient: %w", err)
@@ -294,7 +294,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred *azidentity.Defa
 
 // — subscription-wide scanners —
 
-func scanSQLInstancePools(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLInstancePools(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armsql.NewInstancePoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewInstancePoolsClient: %w", err)
@@ -338,7 +338,7 @@ func scanSQLInstancePools(ctx context.Context, sub *subscription, cred *azidenti
 	return sqlUpsert(st, batch, pairs, "instance pools")
 }
 
-func scanSQLVirtualClusters(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSQLVirtualClusters(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armsql.NewVirtualClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsql:NewVirtualClustersClient: %w", err)

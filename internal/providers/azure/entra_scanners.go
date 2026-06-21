@@ -14,7 +14,6 @@ import (
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 func init() {
@@ -143,7 +142,7 @@ func (g *graphClient) listURL(path string, fields []string) string {
 //
 // Permission failures (Directory.Read.All not granted) degrade to a single
 // scan warning and a partial scan; later sub-scope scanners proceed normally.
-func scanEntra(ctx context.Context, subs []subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(subs) == 0 {
 		return 0, 0, nil
 	}
@@ -433,7 +432,7 @@ func jsonOrEmpty(v any) string {
 
 // tenantIDFromCred resolves the calling tenant by issuing a Graph token and
 // reading the `tid` claim from the JWT. azidentity exposes no tenant getter.
-func tenantIDFromCred(ctx context.Context, cred *azidentity.DefaultAzureCredential) (string, error) {
+func tenantIDFromCred(ctx context.Context, cred azcore.TokenCredential) (string, error) {
 	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}})
 	if err != nil {
 		return "", err

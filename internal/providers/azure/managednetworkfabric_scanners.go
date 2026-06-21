@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managednetworkfabric/armmanagednetworkfabric"
 )
 
@@ -42,7 +42,7 @@ func init() {
 // so each phase is a straight azSimpleScan. Phases run concurrently via
 // sync.WaitGroup (per "Errors never abort scan"); the orchestrator surfaces
 // only the first non-tolerated error.
-func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanManagedNetworkFabric(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	aclClient, err := armmanagednetworkfabric.NewAccessControlListsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmanagednetworkfabric:NewAccessControlListsClient: %w", err)

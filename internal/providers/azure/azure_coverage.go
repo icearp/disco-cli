@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -141,7 +142,7 @@ func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOpt
 
 // detectFirstSubscriptionForCoverage returns the ID of the first accessible
 // subscription. Lifted from cmd/types_azure.go (which gets deleted).
-func detectFirstSubscriptionForCoverage(ctx context.Context, cred *azidentity.DefaultAzureCredential) (string, error) {
+func detectFirstSubscriptionForCoverage(ctx context.Context, cred azcore.TokenCredential) (string, error) {
 	client, err := armsubscription.NewSubscriptionsClient(cred, nil)
 	if err != nil {
 		return "", err

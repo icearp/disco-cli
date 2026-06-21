@@ -8,7 +8,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appservice/armappservice"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -54,7 +54,7 @@ type staticSiteEntry struct {
 // and their pools, Kube Environments, Static Web Apps and their builds, and
 // TLS certificates. All top-level scanners run in parallel; fanout chains are
 // sequential within each chain.
-func scanAppService(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppService(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		mu      sync.Mutex
 		planErr = make(chan error, 1)
@@ -136,7 +136,7 @@ func scanAppService(ctx context.Context, sub *subscription, cred *azidentity.Def
 }
 
 // scanAppServicePlans discovers App Service Plans (Microsoft.Web/serverFarms).
-func scanAppServicePlans(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAppServicePlans(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewPlansClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewPlansClient: %w", err)
@@ -166,7 +166,7 @@ func scanAppServicePlans(ctx context.Context, sub *subscription, cred *azidentit
 
 // scanWebAppsChain discovers web apps (Microsoft.Web/sites) then fans out to
 // scan deployment slots (Microsoft.Web/sites/slots) per app.
-func scanWebAppsChain(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewWebAppsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewWebAppsClient: %w", err)
@@ -363,7 +363,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 
 // scanEnvironmentsChain discovers App Service Environments (Microsoft.Web/hostingEnvironments)
 // then fans out to scan worker pools and the multi-role pool per ASE.
-func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewEnvironmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewEnvironmentsClient: %w", err)
@@ -548,7 +548,7 @@ func scanASEPools(ctx context.Context, sub *subscription, client *armappservice.
 }
 
 // scanKubeEnvironments discovers Kubernetes Environments (Microsoft.Web/kubeEnvironments).
-func scanKubeEnvironments(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanKubeEnvironments(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewKubeEnvironmentsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewKubeEnvironmentsClient: %w", err)
@@ -578,7 +578,7 @@ func scanKubeEnvironments(ctx context.Context, sub *subscription, cred *azidenti
 
 // scanStaticSitesChain discovers Static Web Apps (Microsoft.Web/staticSites) then
 // fans out to scan their builds (Microsoft.Web/staticSites/builds).
-func scanStaticSitesChain(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewStaticSitesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewStaticSitesClient: %w", err)
@@ -729,7 +729,7 @@ func scanStaticSiteBuilds(ctx context.Context, sub *subscription, client *armapp
 }
 
 // scanCertificates discovers App Service TLS certificates (Microsoft.Web/certificates).
-func scanCertificates(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCertificates(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armappservice.NewCertificatesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armappservice:NewCertificatesClient: %w", err)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 )
 
@@ -28,7 +28,7 @@ func init() {
 // deferred — they explode in volume on multi-tenant accounts and the account
 // row alone carries the security-relevant edges (CMEK, identity, network ACLs,
 // private endpoints).
-func scanCosmos(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCosmos(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcosmos.NewDatabaseAccountsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcosmos:NewDatabaseAccountsClient: %w", err)
@@ -85,7 +85,7 @@ func scanCosmos(ctx context.Context, sub *subscription, cred *azidentity.Default
 // scanDocumentDBNamespace runs every Microsoft.documentdb scanner phase concurrently. The
 // documentdb ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanDocumentDBNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDocumentDBNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanCosmos(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanMongoCluster(ctx, sub, cred, st, scanID) },

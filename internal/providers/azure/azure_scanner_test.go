@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // expectedAzureServices is the authoritative list of service names that must be
@@ -286,7 +286,7 @@ func TestRegisterTenantService_DuplicatePanics(t *testing.T) {
 			t.Fatal("registerTenantService accepted duplicate name without panicking")
 		}
 	}()
-	noop := func(_ context.Context, _ []subscription, _ *azidentity.DefaultAzureCredential, _ *store.Store, _ string) (int, int, error) {
+	noop := func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ *store.Store, _ string) (int, int, error) {
 		return 0, 0, nil
 	}
 	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})

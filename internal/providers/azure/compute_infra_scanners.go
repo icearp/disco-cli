@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
@@ -20,7 +20,7 @@ func init() {
 	)
 }
 
-func scanAvailabilitySets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAvailabilitySets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewAvailabilitySetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewAvailabilitySetsClient: %w", err)
@@ -35,7 +35,7 @@ func scanAvailabilitySets(ctx context.Context, sub *subscription, cred *azidenti
 		})
 }
 
-func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewSSHPublicKeysClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewSSHPublicKeysClient: %w", err)
@@ -50,7 +50,7 @@ func scanSSHPublicKeys(ctx context.Context, sub *subscription, cred *azidentity.
 		})
 }
 
-func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewProximityPlacementGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewProximityPlacementGroupsClient: %w", err)
@@ -65,7 +65,7 @@ func scanProximityPlacementGroups(ctx context.Context, sub *subscription, cred *
 		})
 }
 
-func scanComputeImages(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanComputeImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewImagesClient: %w", err)
@@ -78,7 +78,7 @@ func scanComputeImages(ctx context.Context, sub *subscription, cred *azidentity.
 		})
 }
 
-func scanRestorePointCollections(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanRestorePointCollections(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewRestorePointCollectionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewRestorePointCollectionsClient: %w", err)

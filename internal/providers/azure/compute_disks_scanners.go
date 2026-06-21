@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 )
 
@@ -19,7 +19,7 @@ func init() {
 	)
 }
 
-func scanDisks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDisks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewDisksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDisksClient: %w", err)
@@ -38,7 +38,7 @@ func scanDisksWithClient(ctx context.Context, sub *subscription, st *store.Store
 		})
 }
 
-func scanSnapshots(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSnapshots(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewSnapshotsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewSnapshotsClient: %w", err)
@@ -51,7 +51,7 @@ func scanSnapshots(ctx context.Context, sub *subscription, cred *azidentity.Defa
 		})
 }
 
-func scanDiskEncryptionSets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDiskEncryptionSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewDiskEncryptionSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDiskEncryptionSetsClient: %w", err)
@@ -66,7 +66,7 @@ func scanDiskEncryptionSets(ctx context.Context, sub *subscription, cred *aziden
 		})
 }
 
-func scanDiskAccesses(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDiskAccesses(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armcompute.NewDiskAccessesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDiskAccessesClient: %w", err)

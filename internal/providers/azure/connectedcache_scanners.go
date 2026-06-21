@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/connectedcache/armconnectedcache"
 )
 
@@ -25,7 +25,7 @@ func init() {
 
 // scanConnectedCache discovers Microsoft Connected Cache enterprise and ISP
 // customer resources, both sub-wide via armconnectedcache.
-func scanConnectedCache(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanConnectedCache(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	emc, err := armconnectedcache.NewEnterpriseMccCustomersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armconnectedcache:NewEnterpriseMccCustomersClient: %w", err)

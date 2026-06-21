@@ -9,7 +9,6 @@ import (
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -139,7 +138,7 @@ func azTrackedRows[T any](sub *subscription, scanID, rtype string, items []*T, e
 // `azure:resourcegroups` service. AccessDenied tolerated (returns empty
 // slice + nil error). Imported as a reverse dep on `armresources` already
 // pulled in by `resourcegroups_scanners.go`.
-func listSubscriptionRGNames(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential) ([]string, error) {
+func listSubscriptionRGNames(ctx context.Context, sub *subscription, cred azcore.TokenCredential) ([]string, error) {
 	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("armresources:NewResourceGroupsClient: %w", err)
@@ -183,7 +182,7 @@ func azRGFanoutScan[T any, P any](
 	ctx context.Context,
 	action, rtype string,
 	sub *subscription,
-	cred *azidentity.DefaultAzureCredential,
+	cred azcore.TokenCredential,
 	st *store.Store,
 	scanID string,
 	pagerFn func(rg string) azPager[P],

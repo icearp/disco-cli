@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -36,7 +36,7 @@ type vmssVMEntry struct {
 //  1. VMSS (subscription-wide list)
 //  2. VMSS extensions and VMSS VMs (per VMSS, fanned out concurrently)
 //  3. VMSS VM extensions (per VMSS VM instance, fanned out concurrently)
-func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase A: list all VMSS in the subscription.
 	vmssClient, err := armcompute.NewVirtualMachineScaleSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -183,7 +183,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAz
 	return total, inserted, nil
 }
 
-func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, err error) {
+func scanVMSSExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetExtensionsClient: %w", err)
@@ -235,7 +235,7 @@ func scanVMSSExtensions(ctx context.Context, sub *subscription, cred *azidentity
 	return total, inserted, nil
 }
 
-func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, vms []vmssVMEntry, err error) {
+func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, v vmssEntry) (total, inserted int, vms []vmssVMEntry, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetVMsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMsClient: %w", err)
@@ -300,7 +300,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred *azidentity.Defaul
 	return total, inserted, vms, nil
 }
 
-func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, vm vmssVMEntry) (total, inserted int, err error) {
+func scanVMSSVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, vm vmssVMEntry) (total, inserted int, err error) {
 	client, err := armcompute.NewVirtualMachineScaleSetVMExtensionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewVirtualMachineScaleSetVMExtensionsClient: %w", err)

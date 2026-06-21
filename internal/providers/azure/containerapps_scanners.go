@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/appcontainers/armappcontainers/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerinstance/armcontainerinstance"
 )
@@ -36,7 +36,7 @@ func init() {
 // environments + apps, connected environments, jobs, session pools.
 // Microsoft.App/builders has no subscription-wide list op in the SDK and is
 // omitted.
-func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanContainerApps(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			envClient, err := armappcontainers.NewManagedEnvironmentsClient(sub.ID, cred, azClientOptions)
@@ -111,7 +111,7 @@ func scanContainerApps(ctx context.Context, sub *subscription, cred *azidentity.
 
 // scanContainerInstance discovers Azure Container Instances container groups
 // (Microsoft.ContainerInstance).
-func scanContainerInstance(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanContainerInstance(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	aciClient, err := armcontainerinstance.NewContainerGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcontainerinstance:NewContainerGroupsClient: %w", err)

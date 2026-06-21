@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/spf13/viper"
@@ -27,17 +28,22 @@ type subscriptionCfg struct {
 // scan to exactly those subscriptions; otherwise the config 'subscriptions:'
 // list; otherwise every accessible subscription is auto-enumerated. See
 // resolveSubscriptionScope for the fail-closed semantics of override.
-func loadSubscriptions(ctx context.Context, override []string) ([]subscription, *azidentity.DefaultAzureCredential, error) {
+func loadSubscriptions(ctx context.Context, override []string) ([]subscription, azcore.TokenCredential, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("azure", &cfg); err != nil {
 		return nil, nil, fmt.Errorf("parse azure config: %w", err)
 	}
 
 	// DefaultAzureCredential tries: env vars → workload identity → Azure CLI.
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// Wrap it in a token cache shared by every arm* client: each client builds
+	// its own BearerTokenPolicy, and an uncached credential serializes GetToken
+	// under the scan's client fan-out — the dominant scan-time cost before this
+	// cache (see cachingCredential).
+	base, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("azure credential: %w", err)
 	}
+	cred := newCachingCredential(base)
 
 	subs, err := resolveSubscriptionScope(override, cfg, func() ([]subscription, error) {
 		return enumerateSubscriptions(ctx, cred)
@@ -87,7 +93,7 @@ func resolveSubscriptionScope(override []string, cfg providerCfg, enumerate func
 
 // enumerateSubscriptions lists every subscription the credential can reach via
 // ARM. Only invoked when no pin and no config list constrain the scan.
-func enumerateSubscriptions(ctx context.Context, cred *azidentity.DefaultAzureCredential) ([]subscription, error) {
+func enumerateSubscriptions(ctx context.Context, cred azcore.TokenCredential) ([]subscription, error) {
 	client, err := armsubscription.NewSubscriptionsClient(cred, azClientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("armsubscription client: %w", err)

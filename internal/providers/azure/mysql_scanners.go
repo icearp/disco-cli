@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 )
@@ -25,7 +25,7 @@ func init() {
 // scanMySQL discovers Azure Database for MySQL flexible servers and the
 // deprecated Single Server tier. Single Server's RP is being retired; the
 // graceful-skip error classifier tolerates dead-RP responses at scan time.
-func scanMySQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMySQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			client, err := armmysqlflexibleservers.NewServersClient(sub.ID, cred, azClientOptions)

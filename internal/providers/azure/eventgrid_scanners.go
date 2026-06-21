@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/eventgrid/armeventgrid/v2"
 )
 
@@ -35,7 +35,7 @@ func init() {
 // graph-relevant traffic. Partner-namespace, partner-topic, partner-channel,
 // CA-certificates, and namespaces (the newer pull-style EventGrid namespaces)
 // deferred to follow-up iterations.
-func scanEventGrid(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanEventGrid(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			topicClient, err := armeventgrid.NewTopicsClient(sub.ID, cred, azClientOptions)

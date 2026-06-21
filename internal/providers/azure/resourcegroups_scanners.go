@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 )
 
@@ -22,7 +22,7 @@ func init() {
 // scanResourceGroups discovers all resource groups in a subscription and
 // upserts them as parent resources. All other Azure resources use the resource
 // group disco ID as their parent_id.
-func scanResourceGroups(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) error {
+func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) error {
 	client, err := armresources.NewResourceGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return fmt.Errorf("armresources:NewResourceGroupsClient: %w", err)

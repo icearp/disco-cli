@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/iothub/armiothub"
 )
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 // scanIoTHub discovers Azure IoT Hubs.
-func scanIoTHub(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanIoTHub(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armiothub.NewResourceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armiothub:NewResourceClient: %w", err)
@@ -39,7 +39,7 @@ func scanIoTHub(ctx context.Context, sub *subscription, cred *azidentity.Default
 // scanDevicesNamespace runs every Microsoft.devices scanner phase concurrently. The
 // devices ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanDevicesNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDevicesNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanIoTHub(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanDeviceProvisioningServices(ctx, sub, cred, st, scanID) },

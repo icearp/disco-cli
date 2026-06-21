@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/deviceprovisioningservices/armdeviceprovisioningservices"
 )
 
@@ -19,7 +19,7 @@ func init() {
 // scanDeviceProvisioningServices discovers IoT Device Provisioning Service
 // (DPS) instances. The list response embeds SAS authorization-policy keys —
 // redacted via azure_redact.go.
-func scanDeviceProvisioningServices(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDeviceProvisioningServices(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armdeviceprovisioningservices.NewIotDpsResourceClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdeviceprovisioningservices:NewIotDpsResourceClient: %w", err)

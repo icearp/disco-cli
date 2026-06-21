@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -35,7 +35,7 @@ type crgEntry struct {
 // scanDedicated discovers Azure dedicated infrastructure: host groups, dedicated hosts,
 // capacity reservation groups, and capacity reservations.
 // Both top-level resource chains are scanned in parallel.
-func scanDedicated(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDedicated(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		mu      sync.Mutex
 		hgErrs  = make(chan error, 1)
@@ -85,7 +85,7 @@ func scanDedicated(ctx context.Context, sub *subscription, cred *azidentity.Defa
 }
 
 // scanHostGroupChain scans host groups then fans out dedicated host scans per group.
-func scanHostGroupChain(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHostGroupChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	hgClient, err := armcompute.NewDedicatedHostGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewDedicatedHostGroupsClient: %w", err)
@@ -243,7 +243,7 @@ func scanDedicatedHosts(ctx context.Context, sub *subscription, client *armcompu
 }
 
 // scanCRGChain scans capacity reservation groups then fans out capacity reservation scans.
-func scanCRGChain(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCRGChain(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	crgClient, err := armcompute.NewCapacityReservationGroupsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewCapacityReservationGroupsClient: %w", err)

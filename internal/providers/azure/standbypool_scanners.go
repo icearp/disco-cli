@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/standbypool/armstandbypool"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 // scanStandbyPool discovers Standby VM pools and Standby Container Group pools.
-func scanStandbyPool(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanStandbyPool(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Both pool types are scanned regardless of either failing — a hard error
 	// on one must not suppress the other. The first non-nil error is returned.
 	return azRunPhases(

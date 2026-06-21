@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -22,7 +22,7 @@ func init() {
 // images, VMSS, galleries, dedicated infrastructure, and cloud services.
 // Phase 1 runs all resource types in parallel.
 // Phase 2 scans VM extensions (depends on Phase 1 VMs being in the store).
-func scanCompute(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCompute(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mu sync.Mutex
 	addTotals := func(t, n int) {
 		mu.Lock()

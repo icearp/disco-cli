@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v6"
 )
 
@@ -21,7 +21,7 @@ import (
 // (azurefirewallfqdntags, azurewebcategories, bgpservicecommunities,
 // expressrouteportslocations, expressrouteserviceproviders) are upserted with
 // managed=true so they hide from default `disco list` / `disco graph`.
-func scanNetworkSweep(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	phases, err := networkSweepPhases(ctx, sub, cred, st, scanID)
 	if err != nil {
 		return 0, 0, err
@@ -35,7 +35,7 @@ func scanNetworkSweep(ctx context.Context, sub *subscription, cred *azidentity.D
 // failing means all would).
 //
 //nolint:gocognit // linear client-construct + one closure per type; splitting hides the per-type list.
-func networkSweepPhases(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) ([]func() (int, int, error), error) {
+func networkSweepPhases(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]func() (int, int, error), error) {
 	var (
 		waf       *armnetwork.WebApplicationFirewallPoliciesClient
 		asg       *armnetwork.ApplicationSecurityGroupsClient

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/peering/armpeering"
 )
 
@@ -25,7 +25,7 @@ func init() {
 // scanPeering discovers Azure Peerings (direct/exchange), peer-ASN
 // registrations, and peering services. PeerAsns are tenant-level proxy
 // resources (no location/tags); peerings and services are tracked.
-func scanPeering(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPeering(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	peerings, err := armpeering.NewPeeringsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armpeering:NewPeeringsClient: %w", err)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 )
@@ -25,7 +25,7 @@ func init() {
 // scanPostgreSQL discovers Azure Database for PostgreSQL flexible servers and
 // the deprecated Single Server tier. Single Server's RP is being retired; the
 // graceful-skip error classifier tolerates dead-RP responses at scan time.
-func scanPostgreSQL(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPostgreSQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armpostgresqlflexibleservers.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armpostgresqlflexibleservers:NewServersClient: %w", err)
@@ -60,7 +60,7 @@ func scanPostgreSQL(ctx context.Context, sub *subscription, cred *azidentity.Def
 // scanDBforPostgreSQLNamespace runs every Microsoft.dbforpostgresql scanner phase concurrently. The
 // dbforpostgresql ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanDBforPostgreSQLNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDBforPostgreSQLNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanPostgreSQL(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanPostgreSQLHSC(ctx, sub, cred, st, scanID) },

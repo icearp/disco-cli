@@ -9,7 +9,6 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/solutions/armmanagedapplications"
 )
 
@@ -28,7 +27,7 @@ func init() {
 // scanSolutions discovers Managed Applications — application definitions,
 // applications, and JIT (just-in-time) access requests. JitRequests has a
 // single-call ListBySubscription (no pager), handled inline.
-func scanSolutions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSolutions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			defClient, err := armmanagedapplications.NewApplicationDefinitionsClient(sub.ID, cred, azClientOptions)
@@ -65,7 +64,7 @@ func scanSolutions(ctx context.Context, sub *subscription, cred *azidentity.Defa
 }
 
 // scanSolutionsJitRequests handles the single-call JitRequests list (no pager).
-func scanSolutionsJitRequests(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSolutionsJitRequests(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armmanagedapplications.NewJitRequestsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmanagedapplications:NewJitRequestsClient: %w", err)

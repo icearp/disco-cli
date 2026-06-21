@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -170,7 +169,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
 // (relationships) for one subscription.
-func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, services []string, st *store.Store, scanID string) error {
+func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenCredential, services []string, st *store.Store, scanID string) error {
 	// scanResourceGroups (RG parents of all resources) and the RP-registration
 	// probe are independent ARM list calls, both on the critical path before any
 	// service scanner can start. Run them concurrently so the service loop is
@@ -328,7 +327,7 @@ func filteredServices(filter []string) []serviceEntry {
 // genuinely not available in the sub — the Azure analog of AWS's phase-0
 // "service enabled?" gate. A nil map (probe failed) means "don't gate": fall
 // back to scanning every service and classifying per-call errors reactively.
-func loadRegisteredProviders(ctx context.Context, subID string, cred *azidentity.DefaultAzureCredential) (map[string]bool, error) {
+func loadRegisteredProviders(ctx context.Context, subID string, cred azcore.TokenCredential) (map[string]bool, error) {
 	client, err := armresources.NewProvidersClient(subID, cred, azClientOptions)
 	if err != nil {
 		return nil, err

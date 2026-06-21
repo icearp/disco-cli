@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/planetarycomputer/armplanetarycomputer"
 )
 
@@ -26,7 +26,7 @@ func init() {
 
 // scanPlanetaryComputer discovers Microsoft Planetary Computer GeoCatalogs
 // (surfaced under the Microsoft.Orbital/geoCatalogs ARM namespace).
-func scanPlanetaryComputer(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPlanetaryComputer(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armplanetarycomputer.NewGeoCatalogsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armplanetarycomputer:NewGeoCatalogsClient: %w", err)

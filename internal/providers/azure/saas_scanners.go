@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/saas/armsaas"
 )
 
@@ -24,7 +24,7 @@ func init() {
 // scanSaaS discovers Microsoft.SaaS applications (RG-scoped, fanned out per RG)
 // and subscription-level SaaS resources. SaaS Resource items carry tags but no
 // location.
-func scanSaaS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSaaS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			appClient, err := armsaas.NewApplicationsClient(sub.ID, cred, azClientOptions)

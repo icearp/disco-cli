@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/desktopvirtualization/armdesktopvirtualization/v2"
 )
 
@@ -28,7 +28,7 @@ func init() {
 
 // scanDesktopVirtualization discovers Azure Virtual Desktop host pools,
 // application groups, workspaces, scaling plans, and app-attach packages.
-func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDesktopVirtualization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	hp, err := armdesktopvirtualization.NewHostPoolsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdesktopvirtualization:NewHostPoolsClient: %w", err)

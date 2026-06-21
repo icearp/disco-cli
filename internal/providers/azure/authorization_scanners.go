@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 )
 
@@ -26,7 +26,7 @@ func init() {
 // tenant-scoped but are returned by the subscription-scoped list call; they are
 // stored under each subscription's account_id (acceptable duplication — the
 // ResourceID hash differs and per-sub resolvers can FK-match locally).
-func scanAuthorization(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorization(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	subScope := "/subscriptions/" + sub.ID
 
 	// Role definitions first so the resolver can FK from assignments.
@@ -97,7 +97,7 @@ func scanAuthorization(ctx context.Context, sub *subscription, cred *azidentity.
 // scanAuthorizationNamespace runs every Microsoft.authorization scanner phase concurrently. The
 // authorization ARM namespace spans several disco scanners merged under one
 // serviceEntry so the service name aligns to the namespace.
-func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAuthorizationNamespace(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) { return scanAuthorization(ctx, sub, cred, st, scanID) },
 		func() (int, int, error) { return scanPolicy(ctx, sub, cred, st, scanID) },

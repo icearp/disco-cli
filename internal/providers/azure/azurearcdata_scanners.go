@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/azurearcdata/armazurearcdata"
 )
 
@@ -28,7 +28,7 @@ func init() {
 // scanAzureArcData discovers Azure Arc-enabled data controllers plus the
 // Postgres / SQL managed / SQL Server instances projected into Azure, all
 // sub-wide via armazurearcdata.
-func scanAzureArcData(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAzureArcData(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	dc, err := armazurearcdata.NewDataControllersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armazurearcdata:NewDataControllersClient: %w", err)

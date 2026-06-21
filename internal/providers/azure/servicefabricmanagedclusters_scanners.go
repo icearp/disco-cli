@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/servicefabricmanagedclusters/armservicefabricmanagedclusters"
 )
 
@@ -20,7 +20,7 @@ func init() {
 // The cluster properties echo the VM admin password on the list response —
 // redacted via azure_redact.go. Node types and applications are parent-scoped
 // and deferred.
-func scanServiceFabricManagedClusters(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanServiceFabricManagedClusters(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armservicefabricmanagedclusters.NewManagedClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armservicefabricmanagedclusters:NewManagedClustersClient: %w", err)

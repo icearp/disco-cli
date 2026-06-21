@@ -7,7 +7,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -45,7 +45,7 @@ type galleryProfileEntry struct {
 //  1. Galleries (subscription-wide list)
 //  2. Gallery images, applications, and inVMAccessControlProfiles (per gallery, fanned out)
 //  3. Gallery image versions, application versions, and inVMACP versions (per child, fanned out)
-func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanGalleries(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	// Phase A: list all galleries in the subscription.
 	galleriesClient, err := armcompute.NewGalleriesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
@@ -232,7 +232,7 @@ func scanGalleries(ctx context.Context, sub *subscription, cred *azidentity.Defa
 	return total, inserted, nil
 }
 
-func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
+func scanGalleryImages(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
 	client, err := armcompute.NewGalleryImagesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryImagesClient: %w", err)
@@ -297,7 +297,7 @@ func scanGalleryImages(ctx context.Context, sub *subscription, cred *azidentity.
 	return total, inserted, entries, nil
 }
 
-func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
+func scanGalleryApplications(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryChildEntry, err error) {
 	client, err := armcompute.NewGalleryApplicationsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryApplicationsClient: %w", err)
@@ -362,7 +362,7 @@ func scanGalleryApplications(ctx context.Context, sub *subscription, cred *azide
 	return total, inserted, entries, nil
 }
 
-func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryProfileEntry, err error) {
+func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, gal galleryEntry) (total, inserted int, entries []galleryProfileEntry, err error) {
 	client, err := armcompute.NewGalleryInVMAccessControlProfilesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfilesClient: %w", err)
@@ -427,7 +427,7 @@ func scanGalleryInVMACPs(ctx context.Context, sub *subscription, cred *azidentit
 	return total, inserted, entries, nil
 }
 
-func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, img galleryChildEntry) (total, inserted int, err error) {
+func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, img galleryChildEntry) (total, inserted int, err error) {
 	client, err := armcompute.NewGalleryImageVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryImageVersionsClient: %w", err)
@@ -485,7 +485,7 @@ func scanGalleryImageVersions(ctx context.Context, sub *subscription, cred *azid
 	return total, inserted, nil
 }
 
-func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, app galleryChildEntry) (total, inserted int, err error) {
+func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, app galleryChildEntry) (total, inserted int, err error) {
 	client, err := armcompute.NewGalleryApplicationVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryApplicationVersionsClient: %w", err)
@@ -543,7 +543,7 @@ func scanGalleryApplicationVersions(ctx context.Context, sub *subscription, cred
 	return total, inserted, nil
 }
 
-func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, prof galleryProfileEntry) (total, inserted int, err error) {
+func scanGalleryInVMACPVersions(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, prof galleryProfileEntry) (total, inserted int, err error) {
 	client, err := armcompute.NewGalleryInVMAccessControlProfileVersionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armcompute:NewGalleryInVMAccessControlProfileVersionsClient: %w", err)

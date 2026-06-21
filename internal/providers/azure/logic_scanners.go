@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/logic/armlogic"
 )
 
@@ -26,7 +26,7 @@ func init() {
 // integration service environments. Triggers, actions, and API connections are
 // deferred — connection refs in the workflow definition are name-keyed (not
 // ARM-IDs) and require per-connection resolution that warrants a follow-up.
-func scanLogic(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLogic(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			wfClient, err := armlogic.NewWorkflowsClient(sub.ID, cred, azClientOptions)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 )
 
@@ -24,7 +24,7 @@ func init() {
 // alongside customer-authored definitions and stored under each subscription's
 // account_id (acceptable duplication — same logic as RBAC role-definitions).
 // Exemptions (`armpolicy.ExemptionsClient`) deferred — narrow customer base.
-func scanPolicy(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	defClient, err := armpolicy.NewDefinitionsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armpolicy:NewDefinitionsClient: %w", err)

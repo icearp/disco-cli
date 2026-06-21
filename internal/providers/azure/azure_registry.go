@@ -5,7 +5,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
 
 // extraEmits accumulates disco-type decls for non-serviceEntry sources —
@@ -45,7 +45,7 @@ func CollectEmits() []coverage.TypeDecl {
 // serviceEntry describes a scannable Azure service (scoped to one subscription).
 type serviceEntry struct {
 	name  string
-	fn    func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error)
+	fn    func(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error)
 	emits []coverage.TypeDecl
 }
 
@@ -75,7 +75,7 @@ func registerService(e serviceEntry) {
 // — never propagate.
 type apiResolverEntry struct {
 	name string
-	fn   func(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store) (edges int, err error)
+	fn   func(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store) (edges int, err error)
 }
 
 // registeredAPIResolvers is populated by *_resolvers.go init() blocks that

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mariadb/armmariadb"
 )
 
@@ -23,7 +23,7 @@ func init() {
 // scanMariaDB discovers Azure Database for MariaDB servers. The RP is
 // deprecated (retiring) but the SDK still lists servers; the graceful-skip
 // error classifier tolerates dead-RP responses at scan time.
-func scanMariaDB(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanMariaDB(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	client, err := armmariadb.NewServersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmariadb:NewServersClient: %w", err)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/operationalinsights/armoperationalinsights"
 )
 
@@ -26,7 +26,7 @@ func init() {
 // services are deferred — workspace rows alone unlock the diagnostic-settings
 // edge target story (resource → workspace) once the diagnostic-settings
 // resolver lands; the sub-resources add inventory volume but few cross-edges.
-func scanOperationalInsights(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanOperationalInsights(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			client, err := armoperationalinsights.NewWorkspacesClient(sub.ID, cred, azClientOptions)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/healthcareapis/armhealthcareapis"
 )
 
@@ -24,7 +24,7 @@ func init() {
 // scanHealthcareAPIs discovers Azure Health Data Services: account-level
 // service instances (DICOM/FHIR/IoT connectors of the classic shape) and the
 // newer workspaces.
-func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanHealthcareAPIs(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			svcClient, err := armhealthcareapis.NewServicesClient(sub.ID, cred, azClientOptions)

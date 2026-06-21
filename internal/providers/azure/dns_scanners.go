@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/dns/armdns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"golang.org/x/sync/errgroup"
@@ -32,7 +32,7 @@ type dnsZoneRef struct {
 // scanDNS discovers Azure public DNS zones, private DNS zones, the
 // virtual-network links per private zone, and record sets per zone. SOA
 // records are skipped — auto-managed and offer no graph value.
-func scanDNS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDNS(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	pubZones, t, i, ferr := scanDNSPublicZones(ctx, sub, cred, st, scanID)
 	total += t
 	inserted += i
@@ -72,7 +72,7 @@ func scanDNS(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzu
 	return total, inserted, nil
 }
 
-func scanDNSPublicZones(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
+func scanDNSPublicZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
 	zonesClient, err := armdns.NewZonesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("armdns:NewZonesClient: %w", err)
@@ -94,7 +94,7 @@ func scanDNSPublicZones(ctx context.Context, sub *subscription, cred *azidentity
 	return pubZones, zt, zi, err
 }
 
-func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
+func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) ([]dnsZoneRef, int, int, error) {
 	pzClient, err := armprivatedns.NewPrivateZonesClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("armprivatedns:NewPrivateZonesClient: %w", err)
@@ -119,7 +119,7 @@ func scanDNSPrivateZones(ctx context.Context, sub *subscription, cred *azidentit
 // scanDNSPrivateZoneVNetLinks fans out one VirtualNetworkLinks list per
 // private zone. Each zone has at most a handful of links so fanoutMed
 // semantics fit; semaphore bounds concurrent ARM calls per sub.
-func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
+func scanDNSPrivateZoneVNetLinks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
 	linkClient, err := armprivatedns.NewVirtualNetworkLinksClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armprivatedns:NewVirtualNetworkLinksClient: %w", err)
@@ -200,7 +200,7 @@ func collectDNSPrivateZoneVNetLinks(ctx context.Context, linkClient *armprivated
 	return batch, pairs, nil
 }
 
-func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, pubZones []dnsZoneRef) (int, int, error) {
+func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, pubZones []dnsZoneRef) (int, int, error) {
 	rsClient, err := armdns.NewRecordSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armdns:NewRecordSetsClient: %w", err)
@@ -216,7 +216,7 @@ func scanDNSPublicRecordSets(ctx context.Context, sub *subscription, cred *azide
 		})
 }
 
-func scanDNSPrivateRecordSets(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
+func scanDNSPrivateRecordSets(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string, privZones []dnsZoneRef) (int, int, error) {
 	prsClient, err := armprivatedns.NewRecordSetsClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armprivatedns:NewRecordSetsClient: %w", err)

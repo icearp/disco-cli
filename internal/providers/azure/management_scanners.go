@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 )
@@ -32,7 +32,7 @@ func init() {
 // tenant-scoped but the scanner runs per-subscription (duplication accepted —
 // same precedent as RBAC built-in role-definitions; ResourceID hash includes
 // account_id so per-sub resolvers FK locally).
-func scanManagement(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	mgClient, err := armmanagementgroups.NewClient(cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmanagementgroups:NewClient: %w", err)
@@ -65,7 +65,7 @@ func scanManagement(ctx context.Context, sub *subscription, cred *azidentity.Def
 // Recording subscription-as-resource closes a gap for scope-attached
 // resolvers: policy assignments scoped to `/subscriptions/<id>` could not
 // previously FK to a stored resource; they now will.
-func scanSubscriptionResource(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSubscriptionResource(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	subClient, err := armsubscription.NewSubscriptionsClient(cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armsubscription:NewSubscriptionsClient: %w", err)

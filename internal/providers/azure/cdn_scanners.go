@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cdn/armcdn"
 )
 
@@ -30,7 +30,7 @@ func init() {
 // out via azRGFanoutScan. Endpoints (CDN), AFD endpoints, origin groups,
 // origins, routes, rule sets deferred — sub-resources whose graph value lives
 // in the profile-level origin-target edges; punch list for follow-up.
-func scanCDN(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanCDN(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			profClient, err := armcdn.NewProfilesClient(sub.ID, cred, azClientOptions)

@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/networkcloud/armnetworkcloud"
 )
 
@@ -39,7 +39,7 @@ func init() {
 // SECURITY: bare-metal-machines, storage-appliances, and virtual-machines
 // return administrative / BMC / image-repository credentials inline on the list
 // response — those passwords are redacted via rules in azure_redact.go.
-func scanNetworkCloud(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanNetworkCloud(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	clClient, err := armnetworkcloud.NewClustersClient(sub.ID, cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armnetworkcloud:NewClustersClient: %w", err)

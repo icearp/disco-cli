@@ -6,7 +6,7 @@ import (
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/databricks/armdatabricks"
 )
 
@@ -24,7 +24,7 @@ func init() {
 // scanDatabricks discovers Azure Databricks workspaces and access connectors.
 // Per-workspace VNet peerings and private endpoint connections deferred —
 // covered by the dedicated PE scanner.
-func scanDatabricks(ctx context.Context, sub *subscription, cred *azidentity.DefaultAzureCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDatabricks(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	return azRunPhases(
 		func() (int, int, error) {
 			client, err := armdatabricks.NewWorkspacesClient(sub.ID, cred, azClientOptions)
