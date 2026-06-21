@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,7 +18,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -157,6 +160,20 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 		})
 	}
 
+	// Probe RP registration state once per subscription. ARM allows LIST on
+	// unregistered providers (empty 200, no error), so the per-call error path
+	// can't see a NotRegistered RP — this proactive gate is the only signal,
+	// the Azure analog of AWS's phase-0 "service enabled?" gate. A probe failure
+	// is non-fatal: regProviders stays nil and every service is scanned with the
+	// reactive error classifier as fallback.
+	regProviders, perr := loadRegisteredProviders(ctx, sub.ID, cred)
+	if perr != nil {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "azure", Service: "providers", Scope: sub.scopeLabel(),
+			Message: formatAzureError(perr),
+		})
+	}
+
 	// Scan all registered service types in parallel, bounded by
 	// maxConcurrentServices. A plain WaitGroup (not errgroup) so one service's
 	// failure is reported and skipped, never cancelling its siblings — see
@@ -164,6 +181,12 @@ func scanSubscription(ctx context.Context, sub *subscription, cred *azidentity.D
 	sem := semaphore.NewWeighted(maxConcurrentServices)
 	var wg sync.WaitGroup
 	for _, svc := range filteredServices(services) {
+		// RP not registered in this subscription → mark disabled and skip the
+		// scanner entirely (no goroutine, no list call), mirroring AWS.
+		if providerDisabled(regProviders, svc.name) {
+			st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, true)
+			continue
+		}
 		wg.Go(func() {
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return
@@ -264,6 +287,55 @@ func filteredServices(filter []string) []serviceEntry {
 		}
 	}
 	return out
+}
+
+// loadRegisteredProviders returns a lowercased ARM-namespace → isRegistered map
+// for the subscription. ARM allows LIST on unregistered RPs (they return an
+// empty 200, not an error), so this is the only signal that a service is
+// genuinely not available in the sub — the Azure analog of AWS's phase-0
+// "service enabled?" gate. A nil map (probe failed) means "don't gate": fall
+// back to scanning every service and classifying per-call errors reactively.
+func loadRegisteredProviders(ctx context.Context, subID string, cred *azidentity.DefaultAzureCredential) (map[string]bool, error) {
+	client, err := armresources.NewProvidersClient(subID, cred, azClientOptions)
+	if err != nil {
+		return nil, err
+	}
+	return registeredProvidersFromPager(ctx, client.NewListPager(nil))
+}
+
+// registeredProvidersFromPager drains a Providers/List pager into the
+// namespace→registered map. Split from loadRegisteredProviders so tests can
+// drive it with an armresources fake transport.
+func registeredProvidersFromPager(ctx context.Context, pager *runtime.Pager[armresources.ProvidersClientListResponse]) (map[string]bool, error) {
+	out := map[string]bool{}
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range page.Value {
+			if p.Namespace == nil || p.RegistrationState == nil {
+				continue
+			}
+			// "Registered" / "Registering" → scan it; "NotRegistered" /
+			// "Unregistering" → nothing to enumerate, mark disabled.
+			state := *p.RegistrationState
+			out[strings.ToLower(*p.Namespace)] = strings.EqualFold(state, "Registered") ||
+				strings.EqualFold(state, "Registering")
+		}
+	}
+	return out, nil
+}
+
+// providerDisabled reports whether svc's ARM namespace is known-not-registered
+// in this subscription. Unknown namespace or nil map ⇒ false (scan it).
+func providerDisabled(reg map[string]bool, svcName string) bool {
+	if reg == nil {
+		return false
+	}
+	ns := strings.ToLower(strings.TrimPrefix(svcName, "azure:"))
+	registered, known := reg[ns]
+	return known && !registered
 }
 
 // — shared helpers —
