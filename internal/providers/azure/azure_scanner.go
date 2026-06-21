@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,12 +37,32 @@ const (
 	serviceTimeout = 30 * time.Minute
 )
 
+// azHTTPClient pools connections to the ARM control plane. Every arm* client
+// targets the single host management.azure.com, but Go's default transport
+// keeps only MaxIdleConnsPerHost=2 idle connections — under the scan's
+// service + fanout concurrency that forces most requests to pay a fresh
+// TCP+TLS handshake (or block waiting for a connection to free up), which
+// dominates wall-clock even for empty services. Raise the per-host idle pool;
+// the scan's own semaphores already bound in-flight concurrency, so
+// MaxConnsPerHost stays unbounded.
+var azHTTPClient = newAzHTTPClient()
+
+func newAzHTTPClient() *http.Client {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxIdleConns = 200
+	tr.MaxIdleConnsPerHost = 100
+	tr.MaxConnsPerHost = 0
+	tr.IdleConnTimeout = 90 * time.Second
+	return &http.Client{Transport: tr}
+}
+
 // azClientOptions is shared by all arm* SDK client constructors. The retry
 // policy reduces the base delay from the SDK default (800ms) to 500ms and
 // allows up to 4 attempts — enough headroom for transient ARM errors without
-// stalling the fanout critical path.
+// stalling the fanout critical path. Transport is the pooled azHTTPClient.
 var azClientOptions = &arm.ClientOptions{
 	ClientOptions: azcore.ClientOptions{
+		Transport: azHTTPClient,
 		Retry: policy.RetryOptions{
 			MaxRetries:    4,
 			RetryDelay:    500 * time.Millisecond,

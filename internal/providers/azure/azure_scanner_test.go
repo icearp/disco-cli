@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"net/http"
 	"slices"
 	"testing"
 
@@ -161,6 +162,28 @@ var expectedAzureServices = []string{
 	"azure:microsoft.virtualmachineimages",
 	"azure:microsoft.web",
 	"azure:microsoft.workloads",
+}
+
+// TestAzClientOptions_PooledTransport verifies the shared ARM client options
+// wire a custom HTTP client whose transport keeps a per-host idle-connection
+// pool well above Go's stdlib default of 2 — every arm* client targets the
+// single host management.azure.com, so connection reuse there gates scan
+// wall-clock under the service/fanout concurrency.
+func TestAzClientOptions_PooledTransport(t *testing.T) {
+	hc, ok := azClientOptions.Transport.(*http.Client)
+	if !ok {
+		t.Fatalf("azClientOptions.Transport = %T; want *http.Client", azClientOptions.Transport)
+	}
+	tr, ok := hc.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("http client transport = %T; want *http.Transport", hc.Transport)
+	}
+	if tr.MaxIdleConnsPerHost <= 2 {
+		t.Errorf("MaxIdleConnsPerHost = %d; want > 2 (stdlib default) to pool ARM connections", tr.MaxIdleConnsPerHost)
+	}
+	if tr.MaxIdleConnsPerHost != 100 {
+		t.Errorf("MaxIdleConnsPerHost = %d; want 100", tr.MaxIdleConnsPerHost)
+	}
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the same name.

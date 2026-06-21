@@ -58,7 +58,7 @@ type graphClient struct {
 }
 
 func newGraphClient(cred tokenIssuer) *graphClient {
-	return &graphClient{cred: cred, http: http.DefaultClient, baseURL: graphDefaultURL}
+	return &graphClient{cred: cred, http: azHTTPClient, baseURL: graphDefaultURL}
 }
 
 // graphErr surfaces Graph error bodies so reportEntraErr's substring
