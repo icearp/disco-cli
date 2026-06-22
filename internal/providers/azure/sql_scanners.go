@@ -49,43 +49,17 @@ type sqlDatabase struct {
 // scanSQL discovers Azure SQL servers and their databases plus all supported sub-resources.
 // Servers, instance pools, virtual clusters, and managed instances are scanned in parallel.
 func scanSQL(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
-	var (
-		mu  sync.Mutex
-		tot int
-		ins int
+	// Top-level phases run concurrently via azRunPhases (no cross-phase
+	// cancellation): a failure in one (e.g. managed instances) must not abort the
+	// servers/pools/clusters scans — "errors never abort scan". Per-server and
+	// per-database fan-out inside scanSQLServersAndChildren keeps its own
+	// bounded errgroup, matching the azRGFanoutScan pattern.
+	return azRunPhases(
+		func() (int, int, error) { return scanSQLServersAndChildren(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanSQLInstancePools(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanSQLVirtualClusters(ctx, sub, cred, st, scanID) },
+		func() (int, int, error) { return scanSQLManaged(ctx, sub, cred, st, scanID) },
 	)
-	add := func(t, i int) {
-		mu.Lock()
-		tot += t
-		ins += i
-		mu.Unlock()
-	}
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		t, i, err := scanSQLServersAndChildren(gctx, sub, cred, st, scanID)
-		add(t, i)
-		return err
-	})
-	g.Go(func() error {
-		t, i, err := scanSQLInstancePools(gctx, sub, cred, st, scanID)
-		add(t, i)
-		return err
-	})
-	g.Go(func() error {
-		t, i, err := scanSQLVirtualClusters(gctx, sub, cred, st, scanID)
-		add(t, i)
-		return err
-	})
-	g.Go(func() error {
-		t, i, err := scanSQLManaged(gctx, sub, cred, st, scanID)
-		add(t, i)
-		return err
-	})
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	return tot, ins, nil
 }
 
 // scanSQLServersAndChildren lists servers, then fans out concurrently to databases
