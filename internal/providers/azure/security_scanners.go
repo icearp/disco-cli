@@ -2,9 +2,7 @@ package azure
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -37,8 +35,7 @@ func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 	scope := "/subscriptions/" + sub.ID
 	resp, err := client.List(ctx, scope, nil)
 	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && (respErr.StatusCode == http.StatusForbidden || respErr.StatusCode == http.StatusUnauthorized) {
+		if isSkippableScanError(err) {
 			return 0, 0, skipIfAccessDenied(st, "armsecurity:Pricings.List", sub.ID, err)
 		}
 		return 0, 0, fmt.Errorf("armsecurity:Pricings.List: %w", err)

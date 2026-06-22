@@ -25,6 +25,23 @@ type azPager[P any] interface {
 	NextPage(context.Context) (P, error)
 }
 
+// singlePager adapts a non-paginated SDK List response (a single `List(ctx)`
+// call with no pager) to azPager, so one-shot List scanners can reuse
+// azSimpleScan instead of hand-rolling the build+upsert tail. The caller
+// classifies the List error itself before wrapping the response here; NextPage
+// never errors.
+type singlePager[P any] struct {
+	page P
+	done bool
+}
+
+func (p *singlePager[P]) More() bool { return !p.done }
+
+func (p *singlePager[P]) NextPage(context.Context) (P, error) {
+	p.done = true
+	return p.page, nil
+}
+
 // azRunPhases runs the given scan phases concurrently, summing their (total,
 // inserted) counts and returning the first non-nil error. Each phase is one
 // azSimpleScan / azRGFanoutScan call. Use for multi-type single-service

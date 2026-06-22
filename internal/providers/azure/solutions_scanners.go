@@ -2,9 +2,7 @@ package azure
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/http"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -71,27 +69,19 @@ func scanSolutionsJitRequests(ctx context.Context, sub *subscription, cred azcor
 	}
 	resp, err := client.ListBySubscription(ctx, nil)
 	if err != nil {
-		var respErr *azcore.ResponseError
-		if errors.As(err, &respErr) && (respErr.StatusCode == http.StatusForbidden || respErr.StatusCode == http.StatusUnauthorized) {
+		if isSkippableScanError(err) {
 			return 0, 0, skipIfAccessDenied(st, "armmanagedapplications:JitRequests.ListBySubscription", sub.ID, err)
 		}
 		return 0, 0, fmt.Errorf("armmanagedapplications:JitRequests.ListBySubscription: %w", err)
 	}
-	batch, pairs := azTrackedRows(sub, scanID, TypeSolutionsJitRequest, resp.Value,
+	// Non-paginated List → feed the one response through azSimpleScan via a
+	// one-shot pager so the build+upsert+closure tail matches paged scanners.
+	return azSimpleScan(ctx, "armmanagedapplications:JitRequests.ListBySubscription", TypeSolutionsJitRequest, sub, st, scanID,
+		&singlePager[armmanagedapplications.JitRequestsClientListBySubscriptionResponse]{page: resp},
+		func(p armmanagedapplications.JitRequestsClientListBySubscriptionResponse) []*armmanagedapplications.JitRequestDefinition {
+			return p.Value
+		},
 		func(r *armmanagedapplications.JitRequestDefinition) azTrackedBase {
 			return azTrackedBase{id: sv(r.ID), name: sv(r.Name), location: sv(r.Location), tags: r.Tags, full: r}
 		})
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert solutions jit-requests: %w", err)
-	}
-	if len(pairs) > 0 {
-		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return len(batch), n, fmt.Errorf("closure solutions jit-requests: %w", err)
-		}
-	}
-	return len(batch), n, nil
 }

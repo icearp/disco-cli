@@ -36,21 +36,12 @@ func scanAttestation(ctx context.Context, sub *subscription, cred azcore.TokenCr
 		}
 		return 0, 0, fmt.Errorf("armattestation:Providers.List: %w", err)
 	}
-	batch, pairs := azTrackedRows(sub, scanID, TypeAttestationProvider, resp.Value,
+	// Non-paginated List → feed the one response through azSimpleScan via a
+	// one-shot pager so the build+upsert+closure tail matches paged scanners.
+	return azSimpleScan(ctx, "armattestation:Providers.List", TypeAttestationProvider, sub, st, scanID,
+		&singlePager[armattestation.ProvidersClientListResponse]{page: resp},
+		func(p armattestation.ProvidersClientListResponse) []*armattestation.Provider { return p.Value },
 		func(p *armattestation.Provider) azTrackedBase {
 			return azTrackedBase{id: sv(p.ID), name: sv(p.Name), location: sv(p.Location), tags: p.Tags, full: p}
 		})
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert attestation: %w", err)
-	}
-	if len(pairs) > 0 {
-		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return len(batch), n, fmt.Errorf("closure attestation: %w", err)
-		}
-	}
-	return len(batch), n, nil
 }
