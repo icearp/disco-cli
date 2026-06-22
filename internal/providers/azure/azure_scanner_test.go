@@ -4,11 +4,50 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 )
+
+// TestReportPanic_RecoversAndReports is the contract behind the per-goroutine
+// panic guard: a panicking scanner must surface as a reported ScanError for its
+// service/scope and let the goroutine return normally, never crash the process.
+func TestReportPanic_RecoversAndReports(t *testing.T) {
+	st := newTestStore(t)
+	var (
+		mu   sync.Mutex
+		got  store.ScanError
+		hits int
+	)
+	st.OnError = func(e store.ScanError) {
+		mu.Lock()
+		got, hits = e, hits+1
+		mu.Unlock()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer reportPanic(st, "azure:microsoft.compute", "sub-1")
+		panic("boom in scanner")
+	}()
+	<-done // would not be reached if the panic propagated (test process would crash)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if hits != 1 {
+		t.Fatalf("OnError fired %d times; want 1", hits)
+	}
+	if got.Service != "azure:microsoft.compute" || got.Scope != "sub-1" {
+		t.Errorf("error meta = {Service:%q Scope:%q}; want service+scope set", got.Service, got.Scope)
+	}
+	if !strings.Contains(got.Message, "panic:") || !strings.Contains(got.Message, "boom in scanner") {
+		t.Errorf("message = %q; want it to carry the panic cause", got.Message)
+	}
+}
 
 // expectedAzureServices is the authoritative list of service names that must be
 // registered. Update this list when adding a new service scanner.

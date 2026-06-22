@@ -151,6 +151,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	for i := range subs {
 		sub := &subs[i]
 		wg.Go(func() {
+			defer reportPanic(st, "scan", sub.scopeLabel())
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return
 			}
@@ -190,8 +191,14 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 		rgErr, perr  error
 		preWG        sync.WaitGroup
 	)
-	preWG.Go(func() { rgErr = scanResourceGroups(ctx, sub, cred, st, scanID) })
-	preWG.Go(func() { regProviders, perr = loadRegisteredProviders(ctx, sub.ID, cred) })
+	preWG.Go(func() {
+		defer reportPanic(st, "resourcegroups", sub.scopeLabel())
+		rgErr = scanResourceGroups(ctx, sub, cred, st, scanID)
+	})
+	preWG.Go(func() {
+		defer reportPanic(st, "providers", sub.scopeLabel())
+		regProviders, perr = loadRegisteredProviders(ctx, sub.ID, cred)
+	})
 	preWG.Wait()
 	if rgErr != nil {
 		st.ReportError(store.ScanError{
@@ -220,6 +227,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 			continue
 		}
 		wg.Go(func() {
+			defer reportPanic(st, svc.name, sub.scopeLabel())
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return
 			}
@@ -282,6 +290,7 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 	g.SetLimit(maxConcurrentResolvers)
 	for _, r := range registeredResolvers {
 		g.Go(func() error {
+			defer reportPanic(st, "resolve", sub.scopeLabel())
 			// Each resolver gets its own buffered store (independent buffer) so
 			// concurrent resolvers stay isolated; flush collapses the per-edge
 			// autocommit serialisation into one tx per resolver.
@@ -300,6 +309,21 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 		})
 	}
 	_ = g.Wait()
+}
+
+// reportPanic recovers a panicking scan goroutine and reports it as a scan
+// error instead of letting the panic crash the whole process. Scanner and
+// resolver extract closures dereference deeply-nested SDK pointer fields; a nil
+// deref in any one of them must degrade to a reported error for that
+// service/scope, never abort the scan — the panic-case extension of the
+// "errors never abort scan" contract (providers/CLAUDE.md). Call deferred.
+func reportPanic(st *store.Store, service, scope string) {
+	if r := recover(); r != nil {
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: service, Scope: scope,
+			Message: fmt.Sprintf("panic: %v", r),
+		})
+	}
 }
 
 // filteredServices returns the services to run. When filter is non-empty, only
