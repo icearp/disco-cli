@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"golang.org/x/sync/singleflight"
 )
 
 // cachingCredential memoizes access tokens per scope across every arm* client.
@@ -25,6 +26,10 @@ type cachingCredential struct {
 	inner azcore.TokenCredential
 	mu    sync.Mutex
 	toks  map[string]azcore.AccessToken
+	// group coalesces concurrent cache-misses for the same scope into a single
+	// inner fetch, so a cold cache (the first service-loop burst) can't fan dozens
+	// of simultaneous — and serialized — GetToken calls into the inner credential.
+	group singleflight.Group
 }
 
 // newCachingCredential wraps inner so repeated GetToken calls for the same scope
@@ -46,14 +51,22 @@ func (c *cachingCredential) GetToken(ctx context.Context, opts policy.TokenReque
 		return tok, nil
 	}
 
-	fresh, err := c.inner.GetToken(ctx, opts)
+	// Coalesce concurrent misses for the same scope. All scan callers share the
+	// scan's root context, so the leader's ctx governing the fetch is acceptable.
+	v, err, _ := c.group.Do(key, func() (any, error) {
+		fresh, ferr := c.inner.GetToken(ctx, opts)
+		if ferr != nil {
+			return azcore.AccessToken{}, ferr
+		}
+		c.mu.Lock()
+		c.toks[key] = fresh
+		c.mu.Unlock()
+		return fresh, nil
+	})
 	if err != nil {
 		return azcore.AccessToken{}, err
 	}
-	c.mu.Lock()
-	c.toks[key] = fresh
-	c.mu.Unlock()
-	return fresh, nil
+	return v.(azcore.AccessToken), nil
 }
 
 // tokenCacheKey derives a stable cache key from the token request. Scopes are

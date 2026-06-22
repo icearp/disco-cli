@@ -114,6 +114,7 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azco
 	var (
 		edgeCount   atomic.Int64
 		denialCount atomic.Int64
+		failCount   atomic.Int64
 	)
 	sem := semaphore.NewWeighted(maxConcurrentFanout)
 	g, gctx := errgroup.WithContext(ctx)
@@ -123,7 +124,7 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azco
 				return err
 			}
 			defer sem.Release(1)
-			return scanDiagnosticSettingsForResource(gctx, client, st, r, idx, &edgeCount, &denialCount)
+			return scanDiagnosticSettingsForResource(gctx, client, st, r, idx, &edgeCount, &denialCount, &failCount)
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -135,6 +136,14 @@ func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azco
 			Service:  "azure:diagnostic-settings",
 			Scope:    sub.ID,
 			Message:  fmt.Sprintf("%d resources skipped (permission denied or unsupported)", denialCount.Load()),
+		})
+	}
+	if failCount.Load() > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "azure",
+			Service:  "azure:diagnostic-settings",
+			Scope:    sub.ID,
+			Message:  fmt.Sprintf("%d diagnostic-settings edges failed to persist", failCount.Load()),
 		})
 	}
 	return int(edgeCount.Load()), nil
@@ -152,7 +161,7 @@ type diagTargetIndexes struct {
 // single source resource and emits one routes-to edge per matched destination.
 // AccessDenied / unsupported-type failures bump denialCount and return nil so
 // siblings keep going.
-func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.DiagnosticSettingsClient, st *store.Store, r store.Resource, idx diagTargetIndexes, edgeCount, denialCount *atomic.Int64) error {
+func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.DiagnosticSettingsClient, st *store.Store, r store.Resource, idx diagTargetIndexes, edgeCount, denialCount, failCount *atomic.Int64) error {
 	pager := client.NewListPager(r.NativeID, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
@@ -164,7 +173,7 @@ func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.D
 			return fmt.Errorf("monitor:DiagnosticSettings.list %s: %w", r.NativeID, err)
 		}
 		for _, ds := range page.Value {
-			emitDiagSettingEdges(st, r.ID, ds, idx, edgeCount)
+			emitDiagSettingEdges(st, r.ID, ds, idx, edgeCount, failCount)
 		}
 	}
 	return nil
@@ -172,9 +181,10 @@ func scanDiagnosticSettingsForResource(ctx context.Context, client *armmonitor.D
 
 // emitDiagSettingEdges fans the three known destination kinds (workspace,
 // storage account, event-hub namespace) into routes-to edges. Per-edge upsert
-// errors are intentionally swallowed — partial-edge progress is preferable to
-// failing the whole resolver.
-func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.DiagnosticSettingsResource, idx diagTargetIndexes, edgeCount *atomic.Int64) {
+// failures are tolerated (partial-edge progress beats failing the whole
+// resolver) but counted into failCount so the caller can surface them rather
+// than letting edge loss vanish silently.
+func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.DiagnosticSettingsResource, idx diagTargetIndexes, edgeCount, failCount *atomic.Int64) {
 	if ds == nil || ds.Properties == nil {
 		return
 	}
@@ -190,6 +200,8 @@ func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.Diagnos
 		})
 		if err := st.UpsertRelationship(fromID, targetID, store.RelRoutesTo, "directed", &attrs); err == nil {
 			edgeCount.Add(1)
+		} else {
+			failCount.Add(1)
 		}
 	}
 	props := ds.Properties

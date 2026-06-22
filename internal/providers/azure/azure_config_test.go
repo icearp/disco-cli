@@ -46,6 +46,20 @@ func TestResolveSubscriptionScope_PinEmptyIsError(t *testing.T) {
 	}
 }
 
+// TestResolveSubscriptionScope_WhitespaceOnlyPinFailsClosed pins the Lighthouse
+// multi-tenant boundary for the subtlest case: a single whitespace-only pin with
+// an empty config must error, never fall through to enumerate (which would read
+// every tenant's subscriptions under a delegated identity).
+func TestResolveSubscriptionScope_WhitespaceOnlyPinFailsClosed(t *testing.T) {
+	_, err := resolveSubscriptionScope([]string{"   "}, providerCfg{}, func() ([]subscription, error) {
+		t.Fatal("enumerate must not run for a whitespace-only pin (fail-open)")
+		return nil, nil
+	})
+	if err == nil {
+		t.Fatal("expected fail-closed error for a whitespace-only pin")
+	}
+}
+
 // TestResolveSubscriptionScope_NilUsesConfig verifies a nil override falls back
 // to the config 'subscriptions:' list and does not enumerate.
 func TestResolveSubscriptionScope_NilUsesConfig(t *testing.T) {
