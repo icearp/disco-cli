@@ -137,6 +137,23 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
 
+	// Resolve the tenant GUID once and stamp it onto every subscription so
+	// tenant-scope scanners/resolvers can store tenant-identical resources
+	// (management groups, built-in role/policy definitions) under a single
+	// account rather than duplicating them per subscription. Resolution is
+	// best-effort: on failure the empty tenantID disables that deduplication and
+	// each subscription falls back to storing its own copy (current behavior).
+	if tenantID, terr := tenantIDFromCredScope(ctx, cred, armScope); terr != nil {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "azure", Service: "scan", Scope: "tenant",
+			Message: "resolve tenant id: " + formatAzureError(terr),
+		})
+	} else {
+		for i := range subs {
+			subs[i].tenantID = tenantID
+		}
+	}
+
 	// Plain WaitGroup (not errgroup): a per-subscription failure is reported
 	// and skipped rather than cancelling the other subscriptions' scans. Fatal
 	// conditions (load-subscriptions) already returned early above.
@@ -433,6 +450,13 @@ func providerDisabled(reg map[string]bool, svcName string) bool {
 type subscription struct {
 	ID   string
 	Name string
+	// tenantID is the AAD tenant GUID, resolved once in Scan and stamped onto
+	// every subscription. Tenant-scope scanners/resolvers use it as the
+	// AccountID for tenant-identical resources (management groups, built-in
+	// role/policy definitions) so they are stored once per tenant rather than
+	// once per subscription. Empty when tenant resolution failed — callers must
+	// fall back to per-subscription behavior.
+	tenantID string
 }
 
 // scopeLabel is the human-readable per-subscription scope shown in scan

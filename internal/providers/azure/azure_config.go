@@ -83,7 +83,7 @@ func resolveSubscriptionScope(override []string, cfg providerCfg, enumerate func
 	if len(cfg.Subscriptions) > 0 {
 		subs := make([]subscription, 0, len(cfg.Subscriptions))
 		for _, s := range cfg.Subscriptions {
-			subs = append(subs, subscription(s))
+			subs = append(subs, subscription{ID: s.ID, Name: s.Name})
 		}
 		return subs, nil
 	}

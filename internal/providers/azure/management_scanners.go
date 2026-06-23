@@ -12,9 +12,9 @@ import (
 )
 
 func init() {
-	registerService(serviceEntry{
+	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.management",
-		fn:   scanManagement,
+		fn:   scanManagementTenant,
 		emits: []coverage.TypeDecl{
 			{Service: "microsoft.management", DiscoType: TypeManagementGroup},
 		},
@@ -28,17 +28,36 @@ func init() {
 	})
 }
 
-// scanManagement discovers tenant-scoped Azure Management Groups. The API is
-// tenant-scoped but the scanner runs per-subscription (duplication accepted —
-// same precedent as RBAC built-in role-definitions; ResourceID hash includes
-// account_id so per-sub resolvers FK locally).
-func scanManagement(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanManagementTenant discovers Azure Management Groups, which are a
+// tenant-level construct (the API list is tenant-wide, not subscription-scoped).
+// It runs ONCE per scan as a tenant service and stores each MG under the tenant
+// GUID, so a multi-subscription scan keeps a single copy of the MG tree rather
+// than one per subscription. When the tenant GUID could not be resolved it falls
+// back to the first subscription's ID — still a single deduplicated copy.
+func scanManagementTenant(ctx context.Context, subs []subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
+	if len(subs) == 0 {
+		return 0, 0, nil
+	}
+	accountID := subs[0].tenantID
+	if accountID == "" {
+		accountID = subs[0].ID
+	}
 	mgClient, err := armmanagementgroups.NewClient(cred, azClientOptions)
 	if err != nil {
 		return 0, 0, fmt.Errorf("armmanagementgroups:NewClient: %w", err)
 	}
-	return azPageScan(ctx, "armmanagementgroups:List", sub, st,
-		mgClient.NewListPager(nil),
+	return scanManagementInto(ctx, accountID, st, scanID, mgClient)
+}
+
+// scanManagementInto is the testable core: it pages the (tenant-wide) management
+// group list from the supplied client and upserts each MG under accountID. Split
+// from scanManagementTenant so tests can drive it with a fake-transport client.
+func scanManagementInto(ctx context.Context, accountID string, st *store.Store, scanID string, client *armmanagementgroups.Client) (total, inserted int, err error) {
+	// scopeRef satisfies azPageScan's *subscription parameter (used only for the
+	// AccessDenied scope label, never for the stored AccountID).
+	scopeRef := &subscription{ID: accountID, Name: "tenant"}
+	return azPageScan(ctx, "armmanagementgroups:List", scopeRef, st,
+		client.NewListPager(nil),
 		func(page armmanagementgroups.ClientListResponse) ([]*store.Resource, [][2]string) {
 			var batch []*store.Resource
 			for _, mg := range page.Value {
@@ -47,9 +66,10 @@ func scanManagement(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				}
 				name := sv(mg.Name)
 				batch = append(batch, &store.Resource{
-					Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,
+					Provider: "azure", AccountID: accountID,
 					Type: TypeManagementGroup, NativeID: sv(mg.ID),
 					Name:           &name,
+					Region:         regionGlobal,
 					AttributesJSON: mustJSON(mg),
 					DiscoveredBy:   scanID,
 				})

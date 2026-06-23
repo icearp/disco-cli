@@ -155,7 +155,6 @@ var expectedAzureServices = []string{
 	"azure:microsoft.managedidentity",
 	"azure:microsoft.managednetworkfabric",
 	"azure:microsoft.managedservices",
-	"azure:microsoft.management",
 	"azure:microsoft.maps",
 	"azure:microsoft.migrate",
 	"azure:microsoft.netapp",
@@ -287,6 +286,7 @@ func TestFilteredServices_Unknown(t *testing.T) {
 // scanners (Entra ID users/groups/SPs/app-regs/directory-roles, etc.).
 var expectedAzureTenantServices = []string{
 	"azure:microsoft.entra",
+	"azure:microsoft.management",
 }
 
 // TestRegisteredTenantServices_NoDuplicates verifies no duplicate names.

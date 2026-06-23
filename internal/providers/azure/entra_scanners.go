@@ -36,6 +36,10 @@ const (
 	graphScope      = "https://graph.microsoft.com/.default"
 	graphDefaultURL = "https://graph.microsoft.com/v1.0"
 	graphPageSize   = 500
+	// armScope is the ARM token audience. Used to resolve the tenant GUID from
+	// the `tid` claim without depending on Graph access — every scan already
+	// holds an ARM token, so this is the robust source for tenant resolution.
+	armScope = "https://management.azure.com/.default"
 )
 
 // tokenIssuer narrows azcore.TokenCredential to the one method scanEntra
@@ -433,7 +437,15 @@ func jsonOrEmpty(v any) string {
 // tenantIDFromCred resolves the calling tenant by issuing a Graph token and
 // reading the `tid` claim from the JWT. azidentity exposes no tenant getter.
 func tenantIDFromCred(ctx context.Context, cred azcore.TokenCredential) (string, error) {
-	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{graphScope}})
+	return tenantIDFromCredScope(ctx, cred, graphScope)
+}
+
+// tenantIDFromCredScope resolves the tenant GUID from the `tid` claim of a token
+// issued for the given scope. Any AAD token carries `tid`; the scope only
+// decides which audience must be reachable. Prefer armScope when the caller has
+// no guaranteed Graph access — every scan already obtains ARM tokens.
+func tenantIDFromCredScope(ctx context.Context, cred azcore.TokenCredential, scope string) (string, error) {
+	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{scope}})
 	if err != nil {
 		return "", err
 	}
