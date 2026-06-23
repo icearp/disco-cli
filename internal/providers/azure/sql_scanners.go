@@ -100,10 +100,7 @@ func scanSQLServersAndChildren(ctx context.Context, sub *subscription, cred azco
 				AttributesJSON: mustJSON(srv),
 				DiscoveredBy:   scanID,
 			}
-			if srv.Tags != nil {
-				s := mustJSON(srv.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(srv.Tags)
 			batch = append(batch, r)
 			servers = append(servers, sqlServer{
 				resourceID: store.ResourceID("azure", sub.ID, TypeSQLServer, sv(srv.ID)),
@@ -237,10 +234,7 @@ func scanDatabases(ctx context.Context, sub *subscription, cred azcore.TokenCred
 				AttributesJSON: mustJSON(db),
 				DiscoveredBy:   scanID,
 			}
-			if db.Tags != nil {
-				s := mustJSON(db.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(db.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeSQLDatabase, sv(db.ID))
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{discoID, srv.resourceID})
@@ -301,10 +295,7 @@ func scanSQLInstancePools(ctx context.Context, sub *subscription, cred azcore.To
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			if item.Tags != nil {
-				s := mustJSON(item.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(item.Tags)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeSQLInstancePool, sv(item.ID)))
 		}
@@ -345,10 +336,7 @@ func scanSQLVirtualClusters(ctx context.Context, sub *subscription, cred azcore.
 				AttributesJSON: mustJSON(item),
 				DiscoveredBy:   scanID,
 			}
-			if item.Tags != nil {
-				s := mustJSON(item.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(item.Tags)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeSQLVirtualCluster, sv(item.ID)))
 		}

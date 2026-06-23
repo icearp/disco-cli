@@ -55,10 +55,7 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 				AttributesJSON: mustJSON(rg),
 				DiscoveredBy:   scanID,
 			}
-			if rg.Tags != nil {
-				s := mustJSON(rg.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(rg.Tags)
 			batch = append(batch, r)
 		}
 		if len(batch) > 0 {

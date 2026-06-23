@@ -62,10 +62,7 @@ func scanVMs(ctx context.Context, sub *subscription, cred azcore.TokenCredential
 			if vm.Properties != nil {
 				r.CreatedAt = tp(vm.Properties.TimeCreated)
 			}
-			if vm.Tags != nil {
-				s := mustJSON(vm.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(vm.Tags)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeComputeVirtualMachine, sv(vm.ID)))
 		}

@@ -254,10 +254,7 @@ func scanVNets(ctx context.Context, sub *subscription, cred azcore.TokenCredenti
 				AttributesJSON: mustJSON(vnet),
 				DiscoveredBy:   scanID,
 			}
-			if vnet.Tags != nil {
-				s := mustJSON(vnet.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(vnet.Tags)
 			batch = append(batch, r)
 
 			// Subnets are embedded in the VNet response.

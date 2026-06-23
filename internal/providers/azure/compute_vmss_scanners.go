@@ -76,10 +76,7 @@ func scanVMSS(ctx context.Context, sub *subscription, cred azcore.TokenCredentia
 				AttributesJSON: mustJSON(v),
 				DiscoveredBy:   scanID,
 			}
-			if v.Tags != nil {
-				s := mustJSON(v.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(v.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeComputeVMSS, nativeID)
 			vmssBatch = append(vmssBatch, r)
 			vmssPairs = append(vmssPairs, rgHierarchyPair(sub, TypeComputeVMSS, nativeID))
@@ -270,10 +267,7 @@ func scanVMSSVMs(ctx context.Context, sub *subscription, cred azcore.TokenCreden
 				AttributesJSON: mustJSON(vm),
 				DiscoveredBy:   scanID,
 			}
-			if vm.Tags != nil {
-				s := mustJSON(vm.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(vm.Tags)
 			vmDiscoID := store.ResourceID("azure", sub.ID, TypeComputeVMSSVM, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, [2]string{vmDiscoID, v.discoID})

@@ -205,10 +205,7 @@ func scanWebAppsChain(ctx context.Context, sub *subscription, cred azcore.TokenC
 				AttributesJSON: mustJSON(s),
 				DiscoveredBy:   scanID,
 			}
-			if s.Tags != nil {
-				ts := mustJSON(s.Tags)
-				r.TagsJSON = &ts
-			}
+			r.TagsJSON = azTagsJSON(s.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceSite, nativeID)
 			kind := sv(s.Kind)
 			batch = append(batch, r)
@@ -337,10 +334,7 @@ func scanWebAppSlots(ctx context.Context, sub *subscription, client *armappservi
 				AttributesJSON: mustJSON(s),
 				DiscoveredBy:   scanID,
 			}
-			if s.Tags != nil {
-				ts := mustJSON(s.Tags)
-				r.TagsJSON = &ts
-			}
+			r.TagsJSON = azTagsJSON(s.Tags)
 			slotID := store.ResourceID("azure", sub.ID, TypeAppServiceSiteSlot, nativeID)
 			batch = append(batch, r)
 			// slot → parent site hierarchy
@@ -402,10 +396,7 @@ func scanEnvironmentsChain(ctx context.Context, sub *subscription, cred azcore.T
 				AttributesJSON: mustJSON(e),
 				DiscoveredBy:   scanID,
 			}
-			if e.Tags != nil {
-				s := mustJSON(e.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(e.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceEnvironment, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceEnvironment, nativeID))
@@ -617,10 +608,7 @@ func scanStaticSitesChain(ctx context.Context, sub *subscription, cred azcore.To
 				AttributesJSON: mustJSON(ss),
 				DiscoveredBy:   scanID,
 			}
-			if ss.Tags != nil {
-				s := mustJSON(ss.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(ss.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeAppServiceStaticSite, nativeID)
 			batch = append(batch, r)
 			pairs = append(pairs, rgHierarchyPair(sub, TypeAppServiceStaticSite, nativeID))

@@ -1,17 +1,14 @@
 package azure
 
-// azTagsJSON converts an Azure SDK tag map to a JSON-encoded {key:value} string pointer.
-// Returns nil when tags is nil or empty.
+// azTagsJSON serializes an Azure SDK tag map to a JSON string pointer,
+// faithfully: it preserves null values and serializes an empty non-nil map as
+// "{}", returning nil only for a genuinely nil map. disco stores the API
+// response as-is rather than reshaping it. mustJSON sorts map keys, so the
+// output is deterministic.
 func azTagsJSON(tags map[string]*string) *string {
-	if len(tags) == 0 {
+	if tags == nil {
 		return nil
 	}
-	m := make(map[string]string, len(tags))
-	for k, v := range tags {
-		if v != nil {
-			m[k] = *v
-		}
-	}
-	s := mustJSON(m)
+	s := mustJSON(tags)
 	return &s
 }

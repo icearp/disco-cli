@@ -71,10 +71,7 @@ func scanCloudServiceChain(ctx context.Context, sub *subscription, cred azcore.T
 				AttributesJSON: mustJSON(cs),
 				DiscoveredBy:   scanID,
 			}
-			if cs.Tags != nil {
-				s := mustJSON(cs.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(cs.Tags)
 			discoID := store.ResourceID("azure", sub.ID, TypeComputeCloudService, nativeID)
 			csBatch = append(csBatch, r)
 			csPairs = append(csPairs, rgHierarchyPair(sub, TypeComputeCloudService, nativeID))

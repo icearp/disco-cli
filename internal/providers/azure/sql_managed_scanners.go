@@ -82,10 +82,7 @@ func scanSQLManaged(ctx context.Context, sub *subscription, cred azcore.TokenCre
 				AttributesJSON: mustJSON(mi),
 				DiscoveredBy:   scanID,
 			}
-			if mi.Tags != nil {
-				s := mustJSON(mi.Tags)
-				r.TagsJSON = &s
-			}
+			r.TagsJSON = azTagsJSON(mi.Tags)
 			batch = append(batch, r)
 			instances = append(instances, sqlManagedInstance{
 				resourceID: store.ResourceID("azure", sub.ID, TypeSQLManagedInstance, sv(mi.ID)),
