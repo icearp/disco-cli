@@ -285,6 +285,7 @@ func TestFilteredServices_Unknown(t *testing.T) {
 // Azure services that must be registered. Update when adding tenant-scope
 // scanners (Entra ID users/groups/SPs/app-regs/directory-roles, etc.).
 var expectedAzureTenantServices = []string{
+	"azure:microsoft.authorization",
 	"azure:microsoft.entra",
 	"azure:microsoft.management",
 }

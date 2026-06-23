@@ -70,37 +70,17 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 		principalIndex[strings.ToLower(r.NativeID)] = r
 	}
 
-	// Pre-pass: collect distinct foreign subscription IDs referenced by Scope
-	// so we can pre-upsert stubs before emitting edges (FK-safe).
-	foreignSubs := map[string]struct{}{}
-	for _, r := range assignments {
-		scope := assignmentScope(r)
-		if scope == "" {
-			continue
-		}
-		if other, ok := subscriptionFromScope(scope); ok && !strings.EqualFold(other, sub.ID) {
-			foreignSubs[other] = struct{}{}
-		}
+	// Role-definition index keyed by scope-independent identity so an assignment
+	// FKs to either a per-sub custom definition or a tenant-deduplicated built-in.
+	roleDefIndex, err := buildRoleDefIndex(sub, st)
+	if err != nil {
+		return err
 	}
-	if len(foreignSubs) > 0 {
-		stubs := make([]*store.Resource, 0, len(foreignSubs))
-		for other := range foreignSubs {
-			nativeID := "/subscriptions/" + other
-			name := other
-			stubs = append(stubs, &store.Resource{
-				Provider:       "azure",
-				AccountID:      other,
-				Type:           TypeForeignSubscription,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         regionGlobal,
-				AttributesJSON: fmt.Sprintf(`{"subscriptionId":%q,"synthetic":true}`, other),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if _, err := st.UpsertResources(stubs); err != nil {
-			return fmt.Errorf("upsert foreign-subscription stubs: %w", err)
-		}
+
+	// Pre-pass: pre-upsert foreign-subscription stubs before emitting edges so the
+	// cross-sub-rbac FK on relationships.to_id holds.
+	if err := upsertForeignSubscriptionStubs(sub, assignments, st, scanID); err != nil {
+		return err
 	}
 
 	for _, r := range assignments {
@@ -137,11 +117,12 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 			}
 		}
 
-		// Edge → role definition (FK: same-sub role-definition with matching NativeID).
+		// Edge → role definition. FK on the scope-independent role key so the
+		// target resolves whether the definition is a per-sub custom role or a
+		// tenant-deduplicated built-in.
 		if attrs.Properties.RoleDefinitionID != nil {
-			defResourceID := store.ResourceID("azure", sub.ID, TypeAuthorizationRoleDefinition, *attrs.Properties.RoleDefinitionID)
-			if _, err := st.GetResource(defResourceID); err == nil {
-				if err := st.UpsertRelationship(r.ID, defResourceID, store.RelUses, "directed", nil); err != nil {
+			if defID, ok := roleDefIndex[normalizeRoleDefKey(*attrs.Properties.RoleDefinitionID)]; ok {
+				if err := st.UpsertRelationship(r.ID, defID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert role-assignment→role-definition: %w", err)
 				}
 			}
@@ -217,4 +198,100 @@ func ptrOr(p *string, fallback string) string {
 		return fallback
 	}
 	return *p
+}
+
+// upsertForeignSubscriptionStubs collects distinct foreign subscription IDs
+// referenced by assignment scopes (a scope pointing at a subscription other than
+// the assignment's owner — R5 cross-sub RBAC) and pre-upserts a stub resource
+// for each, so the later cross-sub-rbac edge has a valid FK target.
+func upsertForeignSubscriptionStubs(sub *subscription, assignments []store.Resource, st *store.Store, scanID string) error {
+	foreignSubs := map[string]struct{}{}
+	for _, r := range assignments {
+		scope := assignmentScope(r)
+		if scope == "" {
+			continue
+		}
+		if other, ok := subscriptionFromScope(scope); ok && !strings.EqualFold(other, sub.ID) {
+			foreignSubs[other] = struct{}{}
+		}
+	}
+	if len(foreignSubs) == 0 {
+		return nil
+	}
+	stubs := make([]*store.Resource, 0, len(foreignSubs))
+	for other := range foreignSubs {
+		nativeID := "/subscriptions/" + other
+		name := other
+		stubs = append(stubs, &store.Resource{
+			Provider:       "azure",
+			AccountID:      other,
+			Type:           TypeForeignSubscription,
+			NativeID:       nativeID,
+			Name:           &name,
+			Region:         regionGlobal,
+			AttributesJSON: fmt.Sprintf(`{"subscriptionId":%q,"synthetic":true}`, other),
+			DiscoveredBy:   scanID,
+		})
+	}
+	if _, err := st.UpsertResources(stubs); err != nil {
+		return fmt.Errorf("upsert foreign-subscription stubs: %w", err)
+	}
+	return nil
+}
+
+// buildRoleDefIndex returns a map of scope-independent role key → resource ID
+// covering role definitions under the subscription (custom roles) and, when a
+// tenant GUID is set, the tenant account (deduplicated built-ins). The scope
+// prefix on a roleDefinitionId varies by where a role is used; the GUID is the
+// stable identity, so keys are normalized via normalizeRoleDefKey.
+func buildRoleDefIndex(sub *subscription, st *store.Store) (map[string]string, error) {
+	roleDefs, err := st.ListResources(store.ResourceFilter{
+		Provider: "azure", AccountID: sub.ID,
+		Types: []string{TypeAuthorizationRoleDefinition},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if sub.tenantID != "" && sub.tenantID != sub.ID {
+		tenantDefs, terr := st.ListResources(store.ResourceFilter{
+			Provider: "azure", AccountID: sub.tenantID,
+			Types: []string{TypeAuthorizationRoleDefinition},
+			Limit: util.AllResources,
+		})
+		if terr != nil {
+			return nil, terr
+		}
+		roleDefs = append(roleDefs, tenantDefs...)
+	}
+	idx := make(map[string]string, len(roleDefs))
+	for _, rd := range roleDefs {
+		idx[normalizeRoleDefKey(rd.NativeID)] = rd.ID
+	}
+	return idx, nil
+}
+
+// roleDefSegment is the scope-independent tail every role-definition ARM ID
+// shares (lowercased for case-insensitive matching).
+const roleDefSegment = "/providers/microsoft.authorization/roledefinitions/"
+
+// roleDefSuffix strips the scope prefix from a role-definition ARM ID, returning
+// the case-preserved `/providers/Microsoft.Authorization/roleDefinitions/{guid}`
+// tail. Built-in role definitions are listed with whatever scope prefix the list
+// call used (e.g. `/subscriptions/{sub}/...`); the suffix is their stable
+// identity. Returns the input unchanged when the segment is absent. Used by the
+// tenant built-in scanner to store a single scope-free NativeID.
+func roleDefSuffix(id string) string {
+	if i := strings.Index(strings.ToLower(id), roleDefSegment); i >= 0 {
+		return id[i:]
+	}
+	return id
+}
+
+// normalizeRoleDefKey reduces a role-definition ARM ID (or a role-assignment's
+// roleDefinitionId) to its scope-independent identity, lowercased — the FK key
+// matching custom definitions (stored per-sub) and built-ins (deduplicated under
+// the tenant account) uniformly.
+func normalizeRoleDefKey(id string) string {
+	return strings.ToLower(roleDefSuffix(id))
 }

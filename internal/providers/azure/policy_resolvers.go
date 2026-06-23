@@ -41,6 +41,24 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 		resourceIndex[strings.ToLower(r.NativeID)] = r.ID
 	}
 
+	// Built-in policy/set definitions are deduplicated under the tenant account
+	// (scanAuthorizationBuiltins), so they're absent from this per-sub index.
+	// Merge them in: their ARM IDs are scope-free and globally unique, so an
+	// assignment's policyDefinitionId matches the single tenant copy directly.
+	if sub.tenantID != "" && sub.tenantID != sub.ID {
+		builtins, berr := st.ListResources(store.ResourceFilter{
+			Provider: "azure", AccountID: sub.tenantID,
+			Types: []string{TypePolicyDefinition, TypePolicySetDefinition},
+			Limit: util.AllResources,
+		})
+		if berr != nil {
+			return berr
+		}
+		for _, b := range builtins {
+			resourceIndex[strings.ToLower(b.NativeID)] = b.ID
+		}
+	}
+
 	for _, r := range assignments {
 		var attrs struct {
 			Properties *struct {

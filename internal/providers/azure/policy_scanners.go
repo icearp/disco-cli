@@ -37,6 +37,9 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 				if d == nil || d.ID == nil {
 					continue
 				}
+				if sub.tenantID != "" && d.Properties != nil && isBuiltInPolicyType(d.Properties.PolicyType) {
+					continue // built-ins deduplicated under the tenant account
+				}
 				name := sv(d.Name)
 				var managed bool
 				if d.Properties != nil {
@@ -70,6 +73,9 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 			for _, d := range page.Value {
 				if d == nil || d.ID == nil {
 					continue
+				}
+				if sub.tenantID != "" && d.Properties != nil && isBuiltInPolicyType(d.Properties.PolicyType) {
+					continue // built-ins deduplicated under the tenant account
 				}
 				name := sv(d.Name)
 				var managed bool
@@ -137,4 +143,13 @@ func isManagedPolicyType(t *armpolicy.PolicyType) bool {
 		return false
 	}
 	return managedPolicyTypes[*t]
+}
+
+// isBuiltInPolicyType reports whether the policy type is Microsoft's BuiltIn —
+// the only kind the tenant-level ListBuiltIn endpoint returns. The per-sub
+// scanner skips ONLY these when deduplicating to the tenant account; Static
+// (Defender-emitted) and NotSpecified can be subscription-specific and are not
+// returned by ListBuiltIn, so they must remain per-sub.
+func isBuiltInPolicyType(t *armpolicy.PolicyType) bool {
+	return t != nil && *t == armpolicy.PolicyTypeBuiltIn
 }

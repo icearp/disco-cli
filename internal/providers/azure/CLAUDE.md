@@ -57,9 +57,11 @@ Helpers extracting segments from ARM IDs (subscription guid, RG name, resource n
 
 `privateLinkServiceConnections[].privateLinkServiceId` often points at sub-path (e.g. `/storageAccounts/foo/blobServices/default`) not stored resource. Resolver pattern: progressively trim `/`-segments from right until one matches index. See `privateendpoints_resolvers.go::resolvePrivateEndpointRelationships`.
 
-## Built-in role definitions duplicate per subscription
+## Built-in role/policy definitions are deduplicated under the tenant account
 
-`armauthorization.RoleDefinitionsClient.List(scope=sub)` returns built-ins with sub prefix rewritten in. Each sub gets own copy — accepted because `ResourceID` hash includes account_id, so per-sub resolvers FK-match locally. Same logic applies to anything tenant-scoped that per-sub API surfaces.
+Built-in role definitions, built-in policy definitions, and built-in policy set definitions are tenant-identical Microsoft-shipped resources. The tenant service `scanAuthorizationBuiltins` fetches them once per scan (`RoleDefinitions.List` with `$filter=type eq 'BuiltInRole'`, iterating subscriptions until one is authorized; `armpolicy` `NewListBuiltInPager` for policy/set defs) and stores them under the tenant GUID. The per-sub scanners (`scanRoleDefinitionsInto`, `scanPolicy`) skip built-ins when `sub.tenantID != ""` — role: `RoleType=="BuiltInRole"`; policy: **only** `PolicyTypeBuiltIn` (Static/NotSpecified are NOT returned by `ListBuiltIn`, so they stay per-sub). Custom definitions always stay per-sub.
+
+Role-definition ARM IDs are returned scope-prefixed (`/subscriptions/{sub}/...`); the tenant copy is stored with a scope-stripped NativeID (`roleDefSuffix`) and resolvers FK via the scope-independent `normalizeRoleDefKey` (matches custom + built-in uniformly). Built-in policy-definition IDs are already scope-free, stored verbatim. `resolveAuthorizationRelationships` builds its role-def index over sub.ID + tenantID accounts (`buildRoleDefIndex`); `resolvePolicyRelationships` merges tenant-account built-in policy/set defs into its per-sub index. When `tenantID` is empty (resolution failed), all of this degrades to per-sub storage with no data loss. Custom role/policy definitions and role/policy **assignments** are genuinely per-sub and never deduplicated.
 
 ## Microsoft Graph (Entra ID) via raw REST + azcore token
 
