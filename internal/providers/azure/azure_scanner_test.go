@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -330,4 +331,75 @@ func TestRegisterTenantService_DuplicatePanics(t *testing.T) {
 	}
 	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
 	registerTenantService(tenantServiceEntry{name: "azure:dup-test", fn: noop})
+}
+
+// assertReturns runs fn in a goroutine and fails if it has not returned within a
+// generous deadline — turning a "blocks forever" regression into a localized
+// failure instead of a whole-suite hang. The deadline only matters on the
+// failure path; a correct fn returns near-instantly.
+func assertReturns(t *testing.T, fn func()) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		fn()
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("did not return within deadline — blocked unexpectedly")
+	}
+}
+
+// TestWaitForTenant pins the synchronization contract gating each subscription's
+// phase-2 resolvers on the concurrent tenant (Entra) phase: it returns when the
+// tenant phase signals completion, and also returns on ctx cancellation so a
+// cancelled scan never hangs at the join.
+func TestWaitForTenant(t *testing.T) {
+	t.Run("returns when done is closed", func(t *testing.T) {
+		done := make(chan struct{})
+		close(done)
+		assertReturns(t, func() { waitForTenant(context.Background(), done) })
+	})
+	t.Run("returns on ctx cancellation even if done stays open", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		done := make(chan struct{}) // never closed
+		assertReturns(t, func() { waitForTenant(ctx, done) })
+	})
+}
+
+// TestTenantPhase_ClosesChannelOnPanic guards the no-deadlock contract of the
+// concurrent tenant goroutine in Scan: even when the tenant phase panics, the
+// entraDone channel must still close so every subscription waiting at the phase-2
+// join is released. It mirrors Scan's exact defer ordering (close deferred so it
+// runs after reportPanic recovers) and drives a panic through a temporarily
+// registered tenant service. Regression mode: making close non-deferred (run
+// after runTenantServices) skips it on panic and deadlocks — assertReturns
+// localizes that to this test.
+func TestTenantPhase_ClosesChannelOnPanic(t *testing.T) {
+	saved := registeredTenantServices
+	t.Cleanup(func() { registeredTenantServices = saved })
+	registeredTenantServices = []tenantServiceEntry{{
+		name: "azure:panic-test",
+		fn: func(_ context.Context, _ []subscription, _ azcore.TokenCredential, _ *store.Store, _ string) (int, int, error) {
+			panic("boom in tenant phase")
+		},
+	}}
+
+	st := newTestStore(t)
+	entraDone := make(chan struct{})
+	assertReturns(t, func() {
+		// Same shape as the tenant goroutine in Scan: close deferred first (runs
+		// last, after the panic is recovered), reportPanic deferred second.
+		defer close(entraDone)
+		defer reportPanic(st, "entra", "tenant")
+		runTenantServices(context.Background(), nil, nil, nil, st, "scan-id")
+	})
+
+	select {
+	case <-entraDone:
+	default:
+		t.Fatal("entraDone was not closed after the tenant phase panicked")
+	}
 }

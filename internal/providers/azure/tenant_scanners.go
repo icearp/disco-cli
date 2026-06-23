@@ -10,7 +10,10 @@ import (
 
 // tenantServiceEntry describes a tenant-scope Azure service (i.e. one whose
 // API surface sits ABOVE the subscription boundary). The fn runs ONCE per
-// scan, after subscription discovery and before per-subscription fan-out.
+// scan, after subscription discovery and concurrently with the per-subscription
+// fan-out; each subscription's phase-2 resolvers block on its completion (see
+// Scan / waitForTenant) so the principals it writes are present before any
+// resolver consumes them.
 //
 // Targets: Entra ID (Microsoft Graph users / groups / service principals /
 // app registrations / directory roles) and any other Microsoft Graph or
@@ -44,7 +47,9 @@ func registerTenantService(e tenantServiceEntry) {
 }
 
 // runTenantServices fires every registered tenant-scope service exactly once
-// per scan, before per-subscription fan-out. Errors per service are reported
+// per scan. Scan runs it concurrently with the per-subscription fan-out and
+// gates each subscription's phase-2 resolvers on its completion. Errors per
+// service are reported
 // via st.ReportError + st.ReportService (errCount=1) — never propagated.
 // Skipped when no tenant services are registered.
 func runTenantServices(ctx context.Context, subs []subscription, cred azcore.TokenCredential, filter []string, st *store.Store, scanID string) {

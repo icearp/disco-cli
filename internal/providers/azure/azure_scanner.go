@@ -137,17 +137,31 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		return fmt.Errorf("azure: load subscriptions: %w", err)
 	}
 
-	// Tenant-scope services (e.g. Entra ID via Microsoft Graph) run ONCE per
-	// scan, before per-subscription fan-out. Sits above the subscription
-	// boundary so consumers can populate principal resources that per-sub
-	// resolvers (RBAC role assignments) FK-match against.
-	runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
-
 	// Plain WaitGroup (not errgroup): a per-subscription failure is reported
 	// and skipped rather than cancelling the other subscriptions' scans. Fatal
 	// conditions (load-subscriptions) already returned early above.
 	sem := semaphore.NewWeighted(maxConcurrentSubscriptions)
 	var wg sync.WaitGroup
+
+	// Tenant-scope services (e.g. Entra ID via Microsoft Graph) populate the
+	// principal resources that per-sub phase-2 resolvers (RBAC role assignments)
+	// FK-match against. The dependency is narrow — only the phase-2 authorization
+	// resolver consumes Entra rows — so rather than run the tenant phase serially
+	// before the fan-out, we run it concurrently and gate only each subscription's
+	// resolver phase on entraDone (see scanSubscription). Entra's latency is thus
+	// hidden behind phase-1 scanning instead of added onto total scan time.
+	//
+	// close(entraDone) is deferred FIRST so it runs LAST — after reportPanic
+	// recovers — guaranteeing waiters are released even if the tenant phase panics
+	// (no deadlock). The channel close happens-after every principal upsert, so
+	// phase-2 readers always observe a fully-written principal set.
+	entraDone := make(chan struct{})
+	wg.Go(func() {
+		defer close(entraDone)
+		defer reportPanic(st, "entra", "tenant")
+		runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
+	})
+
 	for i := range subs {
 		sub := &subs[i]
 		wg.Go(func() {
@@ -156,7 +170,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 				return
 			}
 			defer sem.Release(1)
-			if err := scanSubscription(ctx, sub, cred, s.serviceFilter, st, scanID); err != nil {
+			if err := scanSubscription(ctx, sub, cred, s.serviceFilter, st, scanID, entraDone); err != nil {
 				st.ReportError(store.ScanError{
 					Provider: "azure", Service: "scan", Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
@@ -170,7 +184,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 
 // scanSubscription runs phase 1 (resources + hierarchy) then phase 2
 // (relationships) for one subscription.
-func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenCredential, services []string, st *store.Store, scanID string) error {
+func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenCredential, services []string, st *store.Store, scanID string, entraDone <-chan struct{}) error {
 	// scanResourceGroups (RG parents of all resources) and the RP-registration
 	// probe are independent ARM list calls, both on the critical path before any
 	// service scanner can start. Run them concurrently so the service loop is
@@ -273,6 +287,12 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 		st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 0, false)
 	}
 
+	// Phase 2 resolvers consume Entra principals written by the tenant phase, which
+	// runs concurrently with phase-1 scanning. Block until it completes so
+	// authorization edges (assignment -uses-> principal) are complete. ctx
+	// cancellation releases the wait so a cancelled scan never hangs here.
+	waitForTenant(ctx, entraDone)
+
 	st.ReportResolveStart("azure")
 	var counter atomic.Int64
 	resolveRelationships(ctx, sub, st.WithRelCounter(&counter))
@@ -309,6 +329,19 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 		})
 	}
 	_ = g.Wait()
+}
+
+// waitForTenant blocks until the tenant phase (Entra) has completed (done is
+// closed) or the context is cancelled. It is the entire synchronization surface
+// between the concurrent tenant goroutine and each subscription's phase-2
+// resolver — split out so the ordering invariant is unit-testable without a
+// live scan. On ctx cancellation it returns so a cancelled scan never hangs;
+// the downstream resolvers honour the cancelled ctx themselves.
+func waitForTenant(ctx context.Context, done <-chan struct{}) {
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 // reportPanic recovers a panicking scan goroutine and reports it as a scan
