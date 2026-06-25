@@ -26,6 +26,17 @@ func TestResolveDNSRecordSetRelationships(t *testing.T) {
 	privID := upsertTestResource(t, st, "azure", sub.ID, TypeDNSPrivateRecordSet,
 		"/subscriptions/sub-dns/resourceGroups/RG/providers/Microsoft.Network/privateDnsZones/internal.contoso/A/host1", "global", privAAttrs)
 
+	// IPv6 PIP stores the v6 literal in the same properties.ipAddress field. The
+	// PIP writes it expanded/upper-cased; the AAAA record writes it compressed —
+	// canonicalIP must fold both to one key so the edge still resolves.
+	pip6Attrs := `{"properties":{"ipAddress":"2001:0DB8:0000:0000:0000:0000:0000:0001","publicIPAddressVersion":"IPv6"}}`
+	pip6ID := upsertTestResource(t, st, "azure", sub.ID, TypeNetworkPublicIPAddress,
+		"/subscriptions/sub-dns/resourceGroups/RG/providers/Microsoft.Network/publicIPAddresses/pip6", "eastus", pip6Attrs)
+
+	aaaaAttrs := `{"properties":{"TTL":3600,"aaaaRecords":[{"ipv6Address":"2001:db8::1"}]}}`
+	aaaaID := upsertTestResource(t, st, "azure", sub.ID, TypeDNSRecordSet,
+		"/subscriptions/sub-dns/resourceGroups/RG/providers/Microsoft.Network/dnsZones/example.com/AAAA/v6", "global", aaaaAttrs)
+
 	// Non-A record (CNAME) — must skip.
 	cnameAttrs := `{"properties":{"cnameRecord":{"cname":"target.example.com"}}}`
 	cnameID := upsertTestResource(t, st, "azure", sub.ID, TypeDNSRecordSet,
@@ -38,10 +49,11 @@ func TestResolveDNSRecordSetRelationships(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		id   string
-	}{{"public-A", aRecID}, {"private-A", privID}} {
+		pip  string
+	}{{"public-A", aRecID, pipID}, {"private-A", privID, pipID}, {"AAAA", aaaaID, pip6ID}} {
 		rels, _ := st.RelationshipsFrom(c.id)
-		if len(rels) != 1 || rels[0].ToID != pipID || rels[0].Kind != store.RelUses {
-			t.Errorf("%s: expected one uses → pip, got %+v", c.name, rels)
+		if len(rels) != 1 || rels[0].ToID != c.pip || rels[0].Kind != store.RelUses {
+			t.Errorf("%s: expected one uses → pip %s, got %+v", c.name, c.pip, rels)
 		}
 	}
 	if rels, _ := st.RelationshipsFrom(cnameID); len(rels) != 0 {
