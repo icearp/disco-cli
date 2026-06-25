@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -72,8 +73,12 @@ var rootCmd = &cobra.Command{
 Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders/projects).`,
 }
 
-// Execute runs the root command.
-func Execute() {
+// Execute runs the root command. ctx carries SIGINT/SIGTERM cancellation from
+// main; cobra propagates it to the executing subcommand via cmd.Context(), so a
+// long-running scan can unwind cleanly (and run its deferred WAL checkpoint)
+// on interrupt instead of being hard-killed.
+func Execute(ctx context.Context) {
+	rootCmd.SetContext(ctx)
 	cmd, err := rootCmd.ExecuteC()
 	if err != nil {
 		// `graph path` exits 1 silently when the two resources are unreachable

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -245,7 +244,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// the engine can be reused by other drivers. RunScanners chains its
 	// callbacks on top of the OnServiceComplete progress callback installed
 	// above and returns the canonical totals.
-	ctx := context.Background()
+	// cmd.Context() carries main's SIGINT/SIGTERM cancellation, so an
+	// interrupted scan unwinds (scanners honor ctx on their SDK calls) and the
+	// deferred db.Close() still runs the WAL checkpoint+cleanup.
+	ctx := cmd.Context()
 	warnings, scanErrors, totalSeen, totalNew := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Render grouped warnings + errors blocks before the final summary line.

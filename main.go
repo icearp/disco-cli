@@ -2,8 +2,25 @@
 // the package docs under cmd/ for usage. main only dispatches to cmd.
 package main
 
-import "codeberg.org/icearp/disco/cmd"
+import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"codeberg.org/icearp/disco/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	// Cancel the command's context on the first SIGINT/SIGTERM so a running
+	// scan unwinds gracefully and its deferred store.Close() runs the WAL
+	// checkpoint+cleanup (no orphaned -wal/-shm sidecars). A second signal
+	// restores the default handler and force-kills if shutdown hangs.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	cmd.Execute(ctx)
 }

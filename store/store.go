@@ -7,8 +7,10 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 
 	"github.com/jmoiron/sqlx"
@@ -61,6 +63,8 @@ type Store struct {
 	db                *sqlx.DB // pool. nil iff this Store was produced by WrapTx.
 	tx                *sqlx.Tx // non-nil iff produced by WrapTx; caller owns lifecycle.
 	driver            driver
+	readOnly          bool                                                                      // true iff opened via OpenReadOnly; gates the Close-time WAL checkpoint+cleanup off a RO DB.
+	path              string                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
 	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
 	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                          // after all resolvers finish
@@ -187,7 +191,13 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 
-	s := &Store{db: db, driver: driverSQLite}
+	// Fold any WAL left behind by a prior unclean exit (SIGKILL / crash) into
+	// the main file and reset it. applyPragmas just re-set WAL mode, so this
+	// keeps WAL active for the scan while self-healing leftover sidecars — the
+	// clean-exit Close path (checkpoint + journal_mode=DELETE) removes them.
+	_, _ = db.Exec("PRAGMA wal_checkpoint(TRUNCATE)")
+
+	s := &Store{db: db, driver: driverSQLite, path: path}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -225,16 +235,57 @@ func OpenReadOnly(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db, driver: driverSQLite}, nil
+	return &Store{db: db, driver: driverSQLite, readOnly: true}, nil
 }
 
 // Close closes the underlying database connection. No-op for tx-bound Stores
 // produced by WrapTx — the caller owns the transaction lifecycle.
+//
+// For a writable SQLite store it first ends the WAL session cleanly: checkpoint
+// the WAL tail into the main file, then switch journal_mode to DELETE so SQLite
+// deterministically removes the -wal/-shm sidecars (the next Open re-enables
+// WAL). Without this we rely on SQLite's best-effort last-connection auto-delete,
+// which needs an exclusive lock and is silently skipped if a reader lingers —
+// the source of orphaned sidecars. Errors are ignored: a held lock leaves the
+// WAL in place (safely replayed on next open) rather than failing the command.
 func (s *Store) Close() error {
 	if s.db == nil {
 		return nil
 	}
+	if s.driver == driverSQLite && !s.readOnly {
+		s.checkpointAndCleanup()
+	}
 	return s.db.Close()
+}
+
+// walCleanupWarnW is where the WAL-cleanup-deferred diagnostic is written.
+// Package-level + injectable so a test can capture the line; os.Stderr in prod.
+var walCleanupWarnW io.Writer = os.Stderr
+
+// checkpointAndCleanup ends the WAL session before the final db.Close():
+// checkpoint the WAL tail into the main file, then flip journal_mode to DELETE
+// so SQLite removes the -wal/-shm sidecars (the next Open re-enables WAL). Both
+// steps need to win the locks; another process (or a lingering reader) holding
+// the DB blocks them — wal_checkpoint(TRUNCATE) reports busy and the DELETE
+// switch is refused (SQLite forbids leaving WAL mode while other connections are
+// open). That is safe (the WAL stays, replayed on next open) but it is the
+// likely source of "sidecars left behind", so surface one diagnostic line
+// instead of failing silently. Never returns an error or blocks.
+func (s *Store) checkpointAndCleanup() {
+	// wal_checkpoint(TRUNCATE) returns one row: (busy, log, checkpointed).
+	// busy != 0 (or a scan error) means locks blocked a full checkpoint.
+	var busy, logPages, ckpt int
+	ckptErr := s.db.QueryRow("PRAGMA wal_checkpoint(TRUNCATE)").Scan(&busy, &logPages, &ckpt)
+
+	// journal_mode = DELETE returns the resulting mode; anything other than
+	// "delete" means the WAL→rollback switch was refused (DB open elsewhere).
+	var mode string
+	_ = s.db.QueryRow("PRAGMA journal_mode = DELETE").Scan(&mode)
+
+	if ckptErr != nil || busy != 0 || (mode != "" && !strings.EqualFold(mode, "delete")) {
+		_, _ = fmt.Fprintf(walCleanupWarnW,
+			"disco: SQLite WAL cleanup deferred (%s in use); -wal/-shm remain, cleaned on next open\n", s.path)
+	}
 }
 
 // DB returns the underlying sqlx.DB for use in packages that need direct access.
