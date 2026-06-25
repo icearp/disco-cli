@@ -10,7 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveManagedIdentityAssignmentPrincipals)
+	registerResolver(resolveManagedIdentityAssignmentPrincipals,
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeManagedIdentityUserAssigned, Kind: store.RelUses},
+	)
+	// resolveManagedIdentityConsumers is a cross-cutting central resolver: its
+	// source is EVERY resource type carrying an identity.userAssignedIdentities
+	// map, so enumerating per-type EdgeDecl.Source entries is meaningless (and
+	// would pollute the `coverage resolvers --missing` per-service inventory).
+	// Left unannotated deliberately — the target (user-assigned-identity) is
+	// reached via consumer edges from arbitrary types.
 	registerResolver(resolveManagedIdentityConsumers)
 }
 

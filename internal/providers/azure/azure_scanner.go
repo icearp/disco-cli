@@ -332,20 +332,24 @@ func resolveRelationships(ctx context.Context, sub *subscription, st *store.Stor
 	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(maxConcurrentResolvers)
 	for _, r := range registeredResolvers {
+		resolverLabel := r.name
+		if resolverLabel == "" {
+			resolverLabel = "resolve"
+		}
 		g.Go(func() error {
-			defer reportPanic(st, "resolve", sub.scopeLabel())
+			defer reportPanic(st, resolverLabel, sub.scopeLabel())
 			// Each resolver gets its own buffered store (independent buffer) so
 			// concurrent resolvers stay isolated; flush collapses the per-edge
 			// autocommit serialisation into one tx per resolver.
 			bs := st.BeginRelBuffer()
 			if err := r.fn(sub, bs); err != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "resolve", Scope: sub.scopeLabel(), Message: formatAzureError(err),
+					Provider: "azure", Service: resolverLabel, Scope: sub.scopeLabel(), Message: formatAzureError(err),
 				})
 			}
 			if ferr := bs.FlushRelBuffer(); ferr != nil {
 				st.ReportError(store.ScanError{
-					Provider: "azure", Service: "resolve", Scope: sub.scopeLabel(), Message: formatAzureError(ferr),
+					Provider: "azure", Service: resolverLabel, Scope: sub.scopeLabel(), Message: formatAzureError(ferr),
 				})
 			}
 			return nil // resolver errors are reported, never abort siblings

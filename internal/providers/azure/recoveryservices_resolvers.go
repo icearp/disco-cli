@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveRecoveryServicesRelationships) }
+func init() {
+	registerResolver(resolveRecoveryServicesRelationships,
+		EdgeDecl{Source: TypeRecoveryServicesVault, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveRecoveryServicesRelationships derives Recovery Services vault
 // -[uses]-> Key Vault edges for vaults encrypted with a customer-managed key.

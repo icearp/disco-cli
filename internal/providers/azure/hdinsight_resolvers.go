@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveHDInsightRelationships) }
+func init() {
+	registerResolver(
+		resolveHDInsightRelationships,
+		EdgeDecl{Source: TypeHDInsightCluster, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveHDInsightRelationships derives HDInsight cluster -[attached-to]-> VNet
 // edges via the per-role VNet-injection subnet references

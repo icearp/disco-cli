@@ -9,7 +9,14 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveTrafficManagerRelationships) }
+func init() {
+	registerResolver(
+		resolveTrafficManagerRelationships,
+		EdgeDecl{Source: TypeNetworkTrafficManagerProfile, Target: TypeNetworkPublicIPAddress, Kind: store.RelUses},
+		EdgeDecl{Source: TypeNetworkTrafficManagerProfile, Target: TypeAppServiceSite, Kind: store.RelUses},
+		EdgeDecl{Source: TypeNetworkTrafficManagerProfile, Target: TypeNetworkTrafficManagerProfile, Kind: store.RelUses},
+	)
+}
 
 // resolveTrafficManagerRelationships derives profile -[uses]-> backend
 // resource edges via embedded properties.endpoints[].properties.targetResourceId.

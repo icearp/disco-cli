@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDatabricksRelationships) }
+func init() {
+	registerResolver(
+		resolveDatabricksRelationships,
+		EdgeDecl{Source: TypeDatabricksWorkspace, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveDatabricksRelationships derives Databricks workspace
 // -[attached-to]-> VNet edge for VNet-injected ("VNet-injected workspaces"

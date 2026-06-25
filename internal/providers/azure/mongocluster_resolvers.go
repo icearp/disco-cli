@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveMongoClusterRelationships) }
+func init() {
+	registerResolver(resolveMongoClusterRelationships,
+		EdgeDecl{Source: TypeMongoCluster, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveMongoClusterRelationships wires a Cosmos DB for MongoDB (vCore)
 // cluster to its CMK Key Vault via

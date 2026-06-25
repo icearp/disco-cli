@@ -8,8 +8,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDedicatedHostRelationships)
-	registerResolver(resolveCapacityReservationRelationships)
+	registerResolver(resolveDedicatedHostRelationships,
+		EdgeDecl{Source: TypeComputeDedicatedHost, Target: TypeComputeHostGroup, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveCapacityReservationRelationships,
+		EdgeDecl{Source: TypeComputeCapacityReservation, Target: TypeComputeCapacityReservationGroup, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveDedicatedHostRelationships derives the parent host group for each dedicated

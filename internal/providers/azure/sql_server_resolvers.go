@@ -10,11 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveDatabaseToElasticPool)
-	registerResolver(resolveReplicationLinkToPartner)
-	registerResolver(resolveFailoverGroupToPartnerServer)
-	registerResolver(resolveSyncGroupToSyncAgent)
-	registerResolver(resolveServerEncryptionProtectorToKey)
+	registerResolver(resolveDatabaseToElasticPool,
+		EdgeDecl{Source: TypeSQLDatabase, Target: TypeSQLElasticPool, Kind: store.RelUses},
+	)
+	registerResolver(resolveReplicationLinkToPartner,
+		EdgeDecl{Source: TypeSQLReplicationLink, Target: TypeSQLDatabase, Kind: store.RelPeer},
+	)
+	registerResolver(resolveFailoverGroupToPartnerServer,
+		EdgeDecl{Source: TypeSQLFailoverGroup, Target: TypeSQLServer, Kind: store.RelPeer},
+	)
+	registerResolver(resolveSyncGroupToSyncAgent,
+		EdgeDecl{Source: TypeSQLSyncGroup, Target: TypeSQLSyncAgent, Kind: store.RelUses},
+	)
+	registerResolver(resolveServerEncryptionProtectorToKey,
+		EdgeDecl{Source: TypeSQLEncryptionProtector, Target: TypeSQLServerKey, Kind: store.RelUses},
+	)
 }
 
 // resolveServerEncryptionProtectorToKey adds a uses edge from each server

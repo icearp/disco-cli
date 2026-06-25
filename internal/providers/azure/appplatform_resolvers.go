@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAppPlatformRelationships) }
+func init() {
+	registerResolver(resolveAppPlatformRelationships,
+		EdgeDecl{Source: TypeAppPlatformService, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveAppPlatformRelationships derives Azure Spring Apps service
 // -[attached-to]-> VNet edges via the VNet-injection subnet references

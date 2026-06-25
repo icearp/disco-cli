@@ -9,10 +9,18 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVMSSProximityGroupRelationships)
-	registerResolver(resolveVMSSExtensionRelationships)
-	registerResolver(resolveVMSSVMRelationships)
-	registerResolver(resolveVMSSVMExtensionRelationships)
+	registerResolver(resolveVMSSProximityGroupRelationships,
+		EdgeDecl{Source: TypeComputeVMSS, Target: TypeComputeProximityPlacementGroup, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveVMSSExtensionRelationships,
+		EdgeDecl{Source: TypeComputeVMSSExtension, Target: TypeComputeVMSS, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveVMSSVMRelationships,
+		EdgeDecl{Source: TypeComputeVMSSVM, Target: TypeComputeVMSS, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveVMSSVMExtensionRelationships,
+		EdgeDecl{Source: TypeComputeVMSSVMExtension, Target: TypeComputeVMSSVM, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveVMSSProximityGroupRelationships adds an attached-to edge from each VMSS

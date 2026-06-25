@@ -9,7 +9,19 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolvePrivateEndpointRelationships) }
+func init() {
+	registerResolver(
+		resolvePrivateEndpointRelationships,
+		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+		// PE targets are matched against a store-wide index of every Azure
+		// resource (provider-agnostic on the target side). Storage account is
+		// the dominant concrete target; private-link-service is the explicit
+		// connection endpoint. Any future scanner storing its native ARM ID
+		// picks up PE edges automatically.
+		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeStorageStorageAccount, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeNetworkPrivateEndpoint, Target: TypeNetworkPrivateLinkService, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolvePrivateEndpointRelationships derives two edge classes per PE:
 //   - PE -[attached-to]-> subnet's parent VNet (via properties.subnet.id)

@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveNetAppRelationships) }
+func init() {
+	registerResolver(
+		resolveNetAppRelationships,
+		EdgeDecl{Source: TypeNetAppAccount, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveNetAppRelationships derives NetApp account -[uses]-> Key Vault edges
 // for accounts encrypted with a customer-managed key. NetApp exposes the

@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveMySQLRelationships) }
+func init() {
+	registerResolver(resolveMySQLRelationships,
+		EdgeDecl{Source: TypeMySQLFlexibleServer, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeMySQLFlexibleServer, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveMySQLRelationships derives MySQL flexible-server edges:
 //   - server -[attached-to]-> VNet via properties.network.delegatedSubnetResourceId

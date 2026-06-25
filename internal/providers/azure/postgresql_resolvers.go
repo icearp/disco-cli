@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolvePostgreSQLRelationships) }
+func init() {
+	registerResolver(resolvePostgreSQLRelationships,
+		EdgeDecl{Source: TypePostgreSQLFlexibleServer, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolvePostgreSQLRelationships derives PG flexible-server -[attached-to]->
 // VNet via properties.network.delegatedSubnetResourceId. PG flexible servers

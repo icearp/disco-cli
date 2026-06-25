@@ -9,11 +9,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveVMAvailabilitySetRelationships)
-	registerResolver(resolveVMProximityGroupRelationships)
-	registerResolver(resolveVMExtensionRelationships)
-	registerResolver(resolveImageSourceVMRelationships)
-	registerResolver(resolveRestorePointCollectionSourceRelationships)
+	registerResolver(resolveVMAvailabilitySetRelationships,
+		EdgeDecl{Source: TypeComputeVirtualMachine, Target: TypeComputeAvailabilitySet, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveVMProximityGroupRelationships,
+		EdgeDecl{Source: TypeComputeVirtualMachine, Target: TypeComputeProximityPlacementGroup, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveVMExtensionRelationships,
+		EdgeDecl{Source: TypeComputeVMExtension, Target: TypeComputeVirtualMachine, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveImageSourceVMRelationships,
+		EdgeDecl{Source: TypeComputeImage, Target: TypeComputeVirtualMachine, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveRestorePointCollectionSourceRelationships,
+		EdgeDecl{Source: TypeComputeRestorePointCollection, Target: TypeComputeVirtualMachine, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveVMAvailabilitySetRelationships adds an attached-to edge from each VM to

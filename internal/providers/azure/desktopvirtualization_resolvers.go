@@ -9,7 +9,14 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDesktopVirtualizationRelationships) }
+func init() {
+	registerResolver(
+		resolveDesktopVirtualizationRelationships,
+		EdgeDecl{Source: TypeDVCApplicationGroup, Target: TypeDVCHostPool, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeDVCWorkspace, Target: TypeDVCApplicationGroup, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeDVCScalingPlan, Target: TypeDVCHostPool, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveDesktopVirtualizationRelationships wires the Azure Virtual Desktop
 // object graph (all ARM-ID references, matched case-insensitively):

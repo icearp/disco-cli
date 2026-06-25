@@ -10,9 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveContainerAppEnvironments)
-	registerResolver(resolveContainerAppRegistries)
-	registerResolver(resolveContainerInstanceVNets)
+	registerResolver(resolveContainerAppEnvironments,
+		EdgeDecl{Source: TypeAppContainersContainerApp, Target: TypeAppContainersManagedEnvironment, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeAppContainersManagedEnvironment, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveContainerAppRegistries,
+		EdgeDecl{Source: TypeAppContainersContainerApp, Target: TypeContainerRegistryRegistry, Kind: store.RelUses},
+	)
+	registerResolver(resolveContainerInstanceVNets,
+		EdgeDecl{Source: TypeContainerInstanceContainerGroup, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveContainerAppEnvironments derives:

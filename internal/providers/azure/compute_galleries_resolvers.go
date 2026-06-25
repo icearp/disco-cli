@@ -8,12 +8,24 @@ import (
 )
 
 func init() {
-	registerResolver(resolveGalleryImageRelationships)
-	registerResolver(resolveGalleryImageVersionRelationships)
-	registerResolver(resolveGalleryApplicationRelationships)
-	registerResolver(resolveGalleryApplicationVersionRelationships)
-	registerResolver(resolveGalleryInVMACPRelationships)
-	registerResolver(resolveGalleryInVMACPVersionRelationships)
+	registerResolver(resolveGalleryImageRelationships,
+		EdgeDecl{Source: TypeComputeGalleryImage, Target: TypeComputeGallery, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveGalleryImageVersionRelationships,
+		EdgeDecl{Source: TypeComputeGalleryImageVersion, Target: TypeComputeGalleryImage, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveGalleryApplicationRelationships,
+		EdgeDecl{Source: TypeComputeGalleryApplication, Target: TypeComputeGallery, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveGalleryApplicationVersionRelationships,
+		EdgeDecl{Source: TypeComputeGalleryApplicationVersion, Target: TypeComputeGalleryApplication, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveGalleryInVMACPRelationships,
+		EdgeDecl{Source: TypeComputeGalleryInVMACP, Target: TypeComputeGallery, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveGalleryInVMACPVersionRelationships,
+		EdgeDecl{Source: TypeComputeGalleryInVMACPVersion, Target: TypeComputeGalleryInVMACP, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveGalleryImageRelationships derives the parent gallery for each gallery image

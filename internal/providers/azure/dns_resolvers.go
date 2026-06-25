@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDNSRelationships) }
+func init() {
+	registerResolver(
+		resolveDNSRelationships,
+		EdgeDecl{Source: TypeDNSPrivateZoneVNetLink, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveDNSRelationships derives private-DNS-zone vnet-link
 // -[attached-to]-> VNet edges via properties.virtualNetwork.id. Match is

@@ -7,7 +7,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDataMigrationRelationships) }
+func init() {
+	registerResolver(resolveDataMigrationRelationships,
+		EdgeDecl{Source: TypeDataMigrationService, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveDataMigrationRelationships wires a DMS instance to the VNet it is
 // joined to via properties.virtualSubnetId (a Microsoft.Network/.../subnets

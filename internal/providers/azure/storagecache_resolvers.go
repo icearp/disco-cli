@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveStorageCacheRelationships) }
+func init() {
+	registerResolver(
+		resolveStorageCacheRelationships,
+		EdgeDecl{Source: TypeStorageCacheCache, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeStorageCacheCache, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveStorageCacheRelationships derives Azure HPC Cache edges:
 //   - cache -[attached-to]-> VNet via properties.subnet

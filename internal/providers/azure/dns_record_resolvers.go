@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDNSRecordSetRelationships) }
+func init() {
+	registerResolver(
+		resolveDNSRecordSetRelationships,
+		EdgeDecl{Source: TypeDNSRecordSet, Target: TypeNetworkPublicIPAddress, Kind: store.RelUses},
+		EdgeDecl{Source: TypeDNSPrivateRecordSet, Target: TypeNetworkPublicIPAddress, Kind: store.RelUses},
+	)
+}
 
 // resolveDNSRecordSetRelationships derives DNS record-set -[uses]-> Public IP
 // edges. Walks both public and private A record sets and matches each

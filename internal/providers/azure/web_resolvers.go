@@ -10,11 +10,21 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSiteToServerFarm)
-	registerResolver(resolveSiteToHostingEnv)
-	registerResolver(resolveSlotToSite)
-	registerResolver(resolveSlotToServerFarm)
-	registerResolver(resolveServerFarmToHostingEnv)
+	registerResolver(resolveSiteToServerFarm,
+		EdgeDecl{Source: TypeAppServiceSite, Target: TypeAppServiceServerFarm, Kind: store.RelUses},
+	)
+	registerResolver(resolveSiteToHostingEnv,
+		EdgeDecl{Source: TypeAppServiceSite, Target: TypeAppServiceEnvironment, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveSlotToSite,
+		EdgeDecl{Source: TypeAppServiceSiteSlot, Target: TypeAppServiceSite, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveSlotToServerFarm,
+		EdgeDecl{Source: TypeAppServiceSiteSlot, Target: TypeAppServiceServerFarm, Kind: store.RelUses},
+	)
+	registerResolver(resolveServerFarmToHostingEnv,
+		EdgeDecl{Source: TypeAppServiceServerFarm, Target: TypeAppServiceEnvironment, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveSiteToServerFarm adds a uses edge from each web app to its App Service

@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveCosmosRelationships) }
+func init() {
+	registerResolver(resolveCosmosRelationships,
+		EdgeDecl{Source: TypeCosmosDatabaseAccount, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveCosmosRelationships derives Cosmos DB account -[uses]-> Key Vault
 // edges via the keyVaultKeyUri CMEK reference. Reuses vaultNameFromKeyURI

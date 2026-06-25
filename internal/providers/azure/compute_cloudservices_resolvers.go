@@ -8,8 +8,12 @@ import (
 )
 
 func init() {
-	registerResolver(resolveCloudServiceRoleRelationships)
-	registerResolver(resolveCloudServiceRoleInstanceRelationships)
+	registerResolver(resolveCloudServiceRoleRelationships,
+		EdgeDecl{Source: TypeComputeCloudServiceRole, Target: TypeComputeCloudService, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveCloudServiceRoleInstanceRelationships,
+		EdgeDecl{Source: TypeComputeCloudServiceRoleInstance, Target: TypeComputeCloudService, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveCloudServiceRoleRelationships derives the parent cloud service for each

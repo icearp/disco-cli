@@ -10,9 +10,15 @@ import (
 )
 
 func init() {
-	registerResolver(resolveMIToSubnet)
-	registerResolver(resolveMIEncryptionProtectorToKey)
-	registerResolver(resolveManagedDatabaseToSource)
+	registerResolver(resolveMIToSubnet,
+		EdgeDecl{Source: TypeSQLManagedInstance, Target: TypeNetworkSubnet, Kind: store.RelUses},
+	)
+	registerResolver(resolveMIEncryptionProtectorToKey,
+		EdgeDecl{Source: TypeSQLManagedInstanceEP, Target: TypeSQLManagedInstanceKey, Kind: store.RelUses},
+	)
+	registerResolver(resolveManagedDatabaseToSource,
+		EdgeDecl{Source: TypeSQLManagedDatabase, Target: TypeSQLManagedDatabase, Kind: store.RelUses},
+	)
 }
 
 // resolveMIToSubnet adds a uses edge from each managed instance to the subnet

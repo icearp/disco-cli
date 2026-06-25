@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveCognitiveServicesRelationships) }
+func init() {
+	registerResolver(
+		resolveCognitiveServicesRelationships,
+		EdgeDecl{Source: TypeCognitiveServicesAccount, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveCognitiveServicesRelationships derives Cognitive Services account
 // -[uses]-> Key Vault edges for accounts opting into customer-managed key

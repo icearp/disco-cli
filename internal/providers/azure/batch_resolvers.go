@@ -9,7 +9,13 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveBatchRelationships) }
+func init() {
+	registerResolver(
+		resolveBatchRelationships,
+		EdgeDecl{Source: TypeBatchAccount, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+		EdgeDecl{Source: TypeBatchAccount, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveBatchRelationships derives Batch account edges:
 //   - account -[uses]-> storage account via properties.autoStorage.storageAccountId

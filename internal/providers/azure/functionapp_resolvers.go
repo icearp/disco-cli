@@ -8,7 +8,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveFunctionAppRelationships) }
+func init() {
+	registerResolver(resolveFunctionAppRelationships,
+		EdgeDecl{Source: TypeAppServiceSite, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+		EdgeDecl{Source: TypeAppServiceSite, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveFunctionAppRelationships derives Functions-specific edges from the
 // per-subscription app-settings sidecar populated by the AppService scanner:

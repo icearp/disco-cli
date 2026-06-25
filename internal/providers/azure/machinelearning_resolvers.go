@@ -9,7 +9,14 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveMachineLearningRelationships) }
+func init() {
+	registerResolver(
+		resolveMachineLearningRelationships,
+		EdgeDecl{Source: TypeMachineLearningWorkspace, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+		EdgeDecl{Source: TypeMachineLearningWorkspace, Target: TypeKeyVaultVault, Kind: store.RelUses},
+		EdgeDecl{Source: TypeMachineLearningWorkspace, Target: TypeContainerRegistryRegistry, Kind: store.RelUses},
+	)
+}
 
 // resolveMachineLearningRelationships derives Azure ML workspace -[uses]->
 // edges to its bound storage account, key vault, and container registry. Each

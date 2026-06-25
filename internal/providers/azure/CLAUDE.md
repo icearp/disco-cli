@@ -29,6 +29,20 @@ namespace**: the registry panics on duplicate names (`azure_registry.go`).
 Tenant-scope `microsoft.entra` (Graph) is the lone non-ARM-RP exception, registered via
 `registerTenantService` and excluded from `expectedAzureServices`.
 
+## Resolver-edge metadata: `EdgeDecl`
+
+`registerResolver(fn, emits ...EdgeDecl)` is variadic — every resolver lists each
+`(Source, Target, Kind)` triple it upserts (`EdgeDecl{Source: TypeX, Target: TypeY, Kind: store.RelUses}`).
+Source = the disco type whose `.ID` is the edge's from_id (the resolver's iteration type);
+Target = the type the edge points at; Kind = a `store.Rel*` constant. Audit + coverage tooling
+(`disco coverage resolvers [--missing] --providers azure`) reads this metadata, so an unannotated
+resolver is invisible to gap analysis. Cross-cutting central resolvers whose source is *every*
+resource type (`resolveManagedIdentityConsumers`, `resolveExtendedLocationConsumers`) stay
+unannotated **on purpose** — per-type Source enumeration is meaningless and would pollute the
+`--missing` per-service inventory; they carry a comment saying so. `TestLeafTypesNotResolverSources`
+(`azure_coverage_test.go`) fails if a type flagged `Leaf: true` on its emits decl appears as an
+`EdgeDecl.Source` — drop the Leaf flag in the same commit that ships the resolver.
+
 ## Helpers (reuse before reinventing)
 
 - `azPageScan(ctx, action, sub, st, pager, toResources)` — paginate + upsert + hierarchy + AccessDenied skip in one call. Returns `(total, inserted, err)`. **Non-paginator single-call APIs** (e.g. `armsecurity.PricingsClient.List`): unwrap `azcore.ResponseError` manually for 401/403 → `skipIfAccessDenied`; precedent: `security_scanners.go`.

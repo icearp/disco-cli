@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAKSRelationships) }
+func init() {
+	registerResolver(resolveAKSRelationships,
+		EdgeDecl{Source: TypeContainerServiceManagedCluster, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{

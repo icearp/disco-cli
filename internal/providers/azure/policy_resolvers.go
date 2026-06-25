@@ -9,7 +9,16 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolvePolicyRelationships) }
+func init() {
+	registerResolver(resolvePolicyRelationships,
+		EdgeDecl{Source: TypePolicyAssignment, Target: TypePolicyDefinition, Kind: store.RelUses},
+		EdgeDecl{Source: TypePolicyAssignment, Target: TypePolicySetDefinition, Kind: store.RelUses},
+		// scope can be any resource; the canonical scope-container levels:
+		EdgeDecl{Source: TypePolicyAssignment, Target: TypeSubscription, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypePolicyAssignment, Target: TypeManagementGroup, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypePolicyAssignment, Target: TypeResourcesResourceGroup, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolvePolicyRelationships derives two edge classes per policy assignment:
 //   - assignment -[uses]-> policy-definition OR policy-set-definition (FK on policyDefinitionId)

@@ -9,9 +9,17 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSnapshotSourceRelationships)
-	registerResolver(resolveDiskEncryptionSetRelationships)
-	registerResolver(resolveDiskSourceRelationships)
+	registerResolver(resolveSnapshotSourceRelationships,
+		EdgeDecl{Source: TypeComputeSnapshot, Target: TypeComputeManagedDisk, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeComputeSnapshot, Target: TypeComputeSnapshot, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveDiskEncryptionSetRelationships,
+		EdgeDecl{Source: TypeComputeManagedDisk, Target: TypeComputeDiskEncryptionSet, Kind: store.RelAttachedTo},
+	)
+	registerResolver(resolveDiskSourceRelationships,
+		EdgeDecl{Source: TypeComputeManagedDisk, Target: TypeComputeManagedDisk, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeComputeManagedDisk, Target: TypeComputeSnapshot, Kind: store.RelAttachedTo},
+	)
 }
 
 // resolveSnapshotSourceRelationships adds an attached-to edge from each snapshot

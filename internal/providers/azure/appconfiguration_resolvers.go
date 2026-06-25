@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAppConfigurationRelationships) }
+func init() {
+	registerResolver(resolveAppConfigurationRelationships,
+		EdgeDecl{Source: TypeAppConfigurationStore, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveAppConfigurationRelationships derives App Configuration store
 // -[uses]-> Key Vault edges for stores using customer-managed key encryption.

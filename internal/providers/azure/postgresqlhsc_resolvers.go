@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolvePostgreSQLHSCRelationships) }
+func init() {
+	registerResolver(resolvePostgreSQLHSCRelationships,
+		EdgeDecl{Source: TypePostgreSQLServerGroupV2, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolvePostgreSQLHSCRelationships wires a Cosmos DB for PostgreSQL (Citus)
 // cluster to its CMK Key Vault via properties.dataEncryption.primaryKeyUri

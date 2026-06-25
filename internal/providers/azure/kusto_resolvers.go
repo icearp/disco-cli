@@ -9,7 +9,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveKustoRelationships) }
+func init() {
+	registerResolver(resolveKustoRelationships,
+		EdgeDecl{Source: TypeKustoCluster, Target: TypeKeyVaultVault, Kind: store.RelUses},
+		EdgeDecl{Source: TypeKustoCluster, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveKustoRelationships derives Azure Data Explorer cluster edges:
 //   - cluster -[uses]-> Key Vault via the CMK keyVaultProperties.keyVaultUri (vault root)

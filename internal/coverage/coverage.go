@@ -81,7 +81,7 @@ type ResolverInfo struct {
 // its relationship-resolver registry to `disco coverage resolvers`. Keeping it
 // behind the registry (rather than a direct provider-package import in cmd) lets
 // cmd stay provider-agnostic, so a slim build that excludes the provider simply
-// reports the auditor as unavailable. Today only AWS implements it.
+// reports the auditor as unavailable. AWS and Azure implement it.
 type ResolverAuditor interface {
 	ListResolvers() []ResolverInfo // one entry per registered resolver, registration order
 	ResolverEdgeSources() []string // distinct EdgeDecl.Source disco-types across all resolvers

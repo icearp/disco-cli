@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveDatabaseWatcherRelationships) }
+func init() {
+	registerResolver(resolveDatabaseWatcherRelationships,
+		EdgeDecl{Source: TypeDatabaseWatcher, Target: TypeKustoCluster, Kind: store.RelUses},
+	)
+}
 
 // resolveDatabaseWatcherRelationships wires a Database Watcher to its backing
 // Azure Data Explorer cluster via properties.datastore.adxClusterResourceId

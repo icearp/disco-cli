@@ -9,7 +9,24 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveEventGridRelationships) }
+func init() {
+	registerResolver(resolveEventGridRelationships,
+		// event-subscription -[attached-to]-> topic / system-topic / domain (properties.topic).
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeEventGridTopic, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeEventGridSystemTopic, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeEventGridDomain, Kind: store.RelAttachedTo},
+		// event-subscription -[uses]-> destination + dead-letter resource families
+		// (function / storage queue+account / service bus / event hub / relay hybrid connection).
+		// Webhook/URL destinations carry no ARM ID and are skipped.
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeAppServiceSite, Kind: store.RelUses},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeServiceBusNamespace, Kind: store.RelUses},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeEventHubNamespace, Kind: store.RelUses},
+		EdgeDecl{Source: TypeEventGridEventSubscription, Target: TypeRelayNamespace, Kind: store.RelUses},
+		// system-topic -[uses]-> source resource (properties.source); storage is the canonical source.
+		EdgeDecl{Source: TypeEventGridSystemTopic, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+	)
+}
 
 // eventGridResourceIDProps is the shared `properties:{resourceId}` shape
 // used by EventGrid destination + dead-letter destination payloads.

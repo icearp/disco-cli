@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveSynapseRelationships) }
+func init() {
+	registerResolver(resolveSynapseRelationships,
+		EdgeDecl{Source: TypeSynapseWorkspace, Target: TypeStorageStorageAccount, Kind: store.RelUses},
+	)
+}
 
 // resolveSynapseRelationships derives Synapse workspace -[uses]-> Storage
 // account edge for the workspace's default ADLS Gen2 backing store via

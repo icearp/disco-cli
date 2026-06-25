@@ -108,10 +108,12 @@ Candidate gap list for new resolvers.
 --services filters to resolvers (or orphan types) whose service segment
 matches one of the named services.
 
-AWS-only today; --providers must be unset or "aws".
+Implemented by AWS and Azure. --providers selects which (unset = all that
+support resolver auditing); naming a provider without auditing support errors.
 
 Examples:
   disco coverage resolvers
+  disco coverage resolvers --providers azure
   disco coverage resolvers --only-unannotated
   disco coverage resolvers --missing
   disco coverage resolvers --services ec2,s3
@@ -396,69 +398,88 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 
-	for _, p := range provNames {
-		prov, ok := coverage.Get(p)
-		if !ok {
-			return fmt.Errorf("provider %q has no coverage support; registered: %v", p, coverage.Names())
-		}
-		if _, ok := prov.(coverage.ResolverAuditor); !ok {
-			return fmt.Errorf("provider %q does not support resolver coverage", p)
-		}
+	auditors, err := selectedAuditors(provNames)
+	if err != nil {
+		return err
 	}
 
 	w := cmd.OutOrStdout()
 	if missing {
-		return runResolversMissing(w, services, outputFmt)
+		return runResolversMissing(w, auditors, services, outputFmt)
 	}
-	return runResolversList(w, services, onlyUnannotated, outputFmt)
+	return runResolversList(w, auditors, services, onlyUnannotated, outputFmt)
 }
 
-// resolverAuditor finds the first registered coverage provider that exposes
-// resolver auditing (only AWS does today). It returns the provider (for its
-// Name / Emits) alongside the auditor. Returns a clear error when no such
-// provider is compiled into this build (slim build) so `coverage resolvers`
-// degrades gracefully instead of the subcommand being absent.
-func resolverAuditor() (coverage.Provider, coverage.ResolverAuditor, error) {
-	for _, prov := range coverage.All() {
-		if ra, ok := prov.(coverage.ResolverAuditor); ok {
-			return prov, ra, nil
+// auditorPair binds a coverage provider to its resolver-auditing view.
+type auditorPair struct {
+	prov coverage.Provider
+	ra   coverage.ResolverAuditor
+}
+
+// selectedAuditors resolves the providers whose resolver registries should be
+// audited. An empty provNames (the `--providers` default) selects every
+// compiled provider that implements coverage.ResolverAuditor; a non-empty list
+// selects exactly those, erroring if a named provider is unknown or lacks
+// resolver auditing. Returns a clear error when no auditor is available (e.g. a
+// slim build excluding AWS+Azure) so `coverage resolvers` degrades gracefully.
+func selectedAuditors(provNames []string) ([]auditorPair, error) {
+	var out []auditorPair
+	if len(provNames) == 0 {
+		for _, prov := range coverage.All() {
+			if ra, ok := prov.(coverage.ResolverAuditor); ok {
+				out = append(out, auditorPair{prov, ra})
+			}
 		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("no provider in this build supports resolver coverage")
+		}
+		return out, nil
 	}
-	return nil, nil, fmt.Errorf("no provider in this build supports resolver coverage")
+	for _, p := range provNames {
+		prov, ok := coverage.Get(p)
+		if !ok {
+			return nil, fmt.Errorf("provider %q has no coverage support; registered: %v", p, coverage.Names())
+		}
+		ra, ok := prov.(coverage.ResolverAuditor)
+		if !ok {
+			return nil, fmt.Errorf("provider %q does not support resolver coverage", p)
+		}
+		out = append(out, auditorPair{prov, ra})
+	}
+	return out, nil
 }
 
 // runResolversList prints per-resolver EdgeDecl counts, optionally filtered
 // to resolvers that touch one of the named services.
-func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outputFmt string) error {
+func runResolversList(w io.Writer, auditors []auditorPair, services []string, onlyUnannotated bool, outputFmt string) error {
 	allowed := lowerSet(services)
-	prov, ra, err := resolverAuditor()
-	if err != nil {
-		return err
-	}
-	provName := prov.Name()
-	infos := ra.ListResolvers()
 	type row struct {
 		Provider string   `json:"provider"`
 		Resolver string   `json:"resolver"`
 		Edges    int      `json:"edges"`
 		Services []string `json:"services,omitempty"`
 	}
-	rows := make([]row, 0, len(infos))
-	annotated, unannotated := 0, 0
-	for _, r := range infos {
-		if len(allowed) > 0 && !anyServiceMatch(r.Services, allowed) {
-			continue
+	var rows []row
+	total, annotated, unannotated := 0, 0, 0
+	for _, a := range auditors {
+		provName := a.prov.Name()
+		infos := a.ra.ListResolvers()
+		total += len(infos)
+		for _, r := range infos {
+			if len(allowed) > 0 && !anyServiceMatch(r.Services, allowed) {
+				continue
+			}
+			if r.EdgeCount == 0 {
+				unannotated++
+				rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: 0, Services: r.Services})
+				continue
+			}
+			annotated++
+			if onlyUnannotated {
+				continue
+			}
+			rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 		}
-		if r.EdgeCount == 0 {
-			unannotated++
-			rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: 0, Services: r.Services})
-			continue
-		}
-		annotated++
-		if onlyUnannotated {
-			continue
-		}
-		rows = append(rows, row{Provider: provName, Resolver: r.Name, Edges: r.EdgeCount, Services: r.Services})
 	}
 	switch outputFmt {
 	case "json":
@@ -502,52 +523,51 @@ func runResolversList(w io.Writer, services []string, onlyUnannotated bool, outp
 			return err
 		}
 	}
-	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", len(infos), annotated, unannotated)
+	fmt.Fprintf(os.Stderr, "\n%d resolvers total — %d annotated, %d unannotated\n", total, annotated, unannotated)
 	return nil
 }
 
 // runResolversMissing prints orphan disco types — those never appearing
 // as the Source of any EdgeDecl. Optionally filtered to types whose service
 // segment matches one of the named services.
-func runResolversMissing(w io.Writer, services []string, outputFmt string) error {
+func runResolversMissing(w io.Writer, auditors []auditorPair, services []string, outputFmt string) error {
 	allowed := lowerSet(services)
-	prov, ra, err := resolverAuditor()
-	if err != nil {
-		return err
-	}
-	provName := prov.Name()
-	emitted := make(map[string]struct{})
-	for _, decl := range prov.Emits() {
-		if decl.Leaf {
-			continue
-		}
-		emitted[decl.DiscoType] = struct{}{}
-	}
-	sources := make(map[string]struct{})
-	for _, s := range ra.ResolverEdgeSources() {
-		sources[s] = struct{}{}
-	}
-	orphans := make([]string, 0, len(emitted))
-	for t := range emitted {
-		if _, has := sources[t]; has {
-			continue
-		}
-		orphans = append(orphans, t)
-	}
-	sort.Strings(orphans)
-
 	type row struct {
 		Provider  string `json:"provider"`
 		DiscoType string `json:"disco_type"`
 		Service   string `json:"service"`
 	}
-	rows := make([]row, 0, len(orphans))
-	for _, t := range orphans {
-		svc := discoServiceSegment(t)
-		if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
-			continue
+	var rows []row
+	totalEmitted := 0
+	for _, a := range auditors {
+		provName := a.prov.Name()
+		emitted := make(map[string]struct{})
+		for _, decl := range a.prov.Emits() {
+			if decl.Leaf {
+				continue
+			}
+			emitted[decl.DiscoType] = struct{}{}
 		}
-		rows = append(rows, row{Provider: provName, DiscoType: t, Service: svc})
+		totalEmitted += len(emitted)
+		sources := make(map[string]struct{})
+		for _, s := range a.ra.ResolverEdgeSources() {
+			sources[s] = struct{}{}
+		}
+		orphans := make([]string, 0, len(emitted))
+		for t := range emitted {
+			if _, has := sources[t]; has {
+				continue
+			}
+			orphans = append(orphans, t)
+		}
+		sort.Strings(orphans)
+		for _, t := range orphans {
+			svc := discoServiceSegment(t)
+			if len(allowed) > 0 && !allowed[strings.ToLower(svc)] {
+				continue
+			}
+			rows = append(rows, row{Provider: provName, DiscoType: t, Service: svc})
+		}
 	}
 	switch outputFmt {
 	case "json":
@@ -591,7 +611,7 @@ func runResolversMissing(w io.Writer, services []string, outputFmt string) error
 			return err
 		}
 	}
-	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(rows), len(emitted))
+	fmt.Fprintf(os.Stderr, "\n%d source-orphan types out of %d emitted\n", len(rows), totalEmitted)
 	return nil
 }
 

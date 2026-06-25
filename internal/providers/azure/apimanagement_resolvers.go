@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAPIManagementRelationships) }
+func init() {
+	registerResolver(resolveAPIManagementRelationships,
+		EdgeDecl{Source: TypeAPIManagementService, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveAPIManagementRelationships derives APIM service -[attached-to]-> VNet
 // edge for VNet-injected (Internal/External mode) instances via

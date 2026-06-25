@@ -9,7 +9,19 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAuthorizationRelationships) }
+func init() {
+	registerResolver(resolveAuthorizationRelationships,
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeAuthorizationRoleDefinition, Kind: store.RelUses},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraUser, Kind: store.RelUses},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraGroup, Kind: store.RelUses},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraServicePrincipal, Kind: store.RelUses},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeForeignSubscription, Kind: store.RelCrossSubRBAC},
+		// scope can be any resource; the canonical scope-container levels:
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeSubscription, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeManagementGroup, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeResourcesResourceGroup, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveAuthorizationRelationships derives edges from RBAC role assignments:
 //   - assignment -[uses]-> role-definition (via RoleDefinitionID)

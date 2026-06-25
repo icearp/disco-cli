@@ -9,7 +9,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveAutomationRelationships) }
+func init() {
+	registerResolver(resolveAutomationRelationships,
+		EdgeDecl{Source: TypeAutomationAccount, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveAutomationRelationships derives Automation account -[uses]-> Key Vault
 // edges for accounts encrypted with a customer-managed key. The CMK reference

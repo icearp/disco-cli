@@ -8,7 +8,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveRedisRelationships) }
+func init() {
+	registerResolver(resolveRedisRelationships,
+		EdgeDecl{Source: TypeRedisCache, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+}
 
 // resolveRedisRelationships derives Redis cache -[attached-to]-> VNet edges
 // for VNet-injected Premium-tier instances. The cache references its target

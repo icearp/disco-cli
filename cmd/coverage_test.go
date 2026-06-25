@@ -119,3 +119,43 @@ func TestCoverage_NonStrictTolerantOnFetchFailure(t *testing.T) {
 		t.Errorf("non-strict should tolerate fetch failure, got: %v", err)
 	}
 }
+
+// TestSelectedAuditors pins which providers expose resolver auditing to
+// `disco coverage resolvers`. AWS and Azure implement coverage.ResolverAuditor;
+// GCP does not. The registry is populated by the internal/providers/all blank
+// import; the call does no network I/O (registry lookup + interface assertion).
+func TestSelectedAuditors(t *testing.T) {
+	// Empty selection = every auditing provider; must include aws + azure.
+	all, err := selectedAuditors(nil)
+	if err != nil {
+		t.Fatalf("selectedAuditors(nil): %v", err)
+	}
+	got := map[string]bool{}
+	for _, a := range all {
+		got[a.prov.Name()] = true
+	}
+	if !got["aws"] || !got["azure"] {
+		t.Errorf("expected aws and azure auditors, got %v", got)
+	}
+
+	// Explicit azure selects exactly one.
+	az, err := selectedAuditors([]string{"azure"})
+	if err != nil {
+		t.Fatalf("selectedAuditors([azure]): %v", err)
+	}
+	if len(az) != 1 || az[0].prov.Name() != "azure" {
+		t.Fatalf("expected [azure], got %d providers", len(az))
+	}
+
+	// GCP is registered for coverage but has no resolver auditing → clear error.
+	if _, err := selectedAuditors([]string{"gcp"}); err == nil ||
+		!strings.Contains(err.Error(), "does not support resolver coverage") {
+		t.Errorf("expected gcp 'does not support resolver coverage', got %v", err)
+	}
+
+	// Unknown provider → registry error.
+	if _, err := selectedAuditors([]string{"nope"}); err == nil ||
+		!strings.Contains(err.Error(), "no coverage support") {
+		t.Errorf("expected unknown-provider error, got %v", err)
+	}
+}

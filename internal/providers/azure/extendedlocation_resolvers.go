@@ -10,8 +10,16 @@ import (
 )
 
 func init() {
+	// resolveExtendedLocationConsumers is a cross-cutting central resolver: its
+	// source is EVERY resource type carrying a top-level extendedLocation
+	// envelope, so per-type EdgeDecl.Source enumeration is meaningless. Left
+	// unannotated deliberately (mirrors resolveManagedIdentityConsumers).
 	registerResolver(resolveExtendedLocationConsumers)
-	registerResolver(resolveCustomLocationRelationships)
+	registerResolver(resolveCustomLocationRelationships,
+		EdgeDecl{Source: TypeCustomLocation, Target: TypeKubernetesConnectedCluster, Kind: store.RelUses},
+		EdgeDecl{Source: TypeCustomLocation, Target: TypeResourceConnectorAppliance, Kind: store.RelUses},
+		EdgeDecl{Source: TypeCustomLocation, Target: TypeContainerServiceManagedCluster, Kind: store.RelUses},
+	)
 }
 
 // resolveExtendedLocationConsumers derives consumer -[uses]-> custom-location

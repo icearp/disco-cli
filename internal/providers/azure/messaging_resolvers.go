@@ -10,7 +10,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveMessagingRelationships) }
+func init() {
+	registerResolver(resolveMessagingRelationships,
+		EdgeDecl{Source: TypeEventHubNamespace, Target: TypeKeyVaultVault, Kind: store.RelUses},
+		EdgeDecl{Source: TypeServiceBusNamespace, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveMessagingRelationships derives Event Hubs + Service Bus namespace
 // -[uses]-> Key Vault edges for CMEK-enabled namespaces. Both services

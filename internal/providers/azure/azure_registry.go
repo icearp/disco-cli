@@ -2,6 +2,10 @@ package azure
 
 import (
 	"context"
+	"reflect"
+	"regexp"
+	"runtime"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -94,15 +98,118 @@ func registerAPIResolver(e apiResolverEntry) {
 	registeredAPIResolvers = append(registeredAPIResolvers, e)
 }
 
-// resolverEntry describes a phase-2 relationship resolver.
+// EdgeDecl declares one relationship edge a resolver upserts. Resolvers list
+// every distinct (source, target, kind) triple so audit + coverage tooling can
+// reason about resolver coverage without observing actual DB edges (which
+// require both endpoints to be scanned in the current subscription).
+type EdgeDecl struct {
+	Source string // disco type emitting the edge (the resolver's source iteration type)
+	Target string // disco type the edge points at
+	Kind   string // store.Rel* constant — "attached-to", "uses", "routes-to", etc.
+}
+
+// resolverEntry describes a phase-2 relationship resolver. Name is derived from
+// the function's reflected name so error reports can identify the failing
+// resolver. Emits is optional — resolvers that declare their edge shapes power
+// resolver coverage tooling.
 type resolverEntry struct {
-	fn func(sub *subscription, st *store.Store) error
+	name  string
+	fn    func(sub *subscription, st *store.Store) error
+	emits []EdgeDecl
 }
 
 // registeredResolvers is populated by each *_resolvers.go file's init().
 var registeredResolvers []resolverEntry
 
-// registerResolver adds a resolver to the package-level registry.
-func registerResolver(fn func(sub *subscription, st *store.Store) error) {
-	registeredResolvers = append(registeredResolvers, resolverEntry{fn: fn})
+// registerResolver adds a resolver to the package-level registry. The variadic
+// `emits` argument is optional metadata — list every distinct (source, target,
+// kind) triple the resolver upserts. Resolvers without an emits list still
+// register, but their edge coverage is invisible to the audit tooling.
+func registerResolver(fn func(sub *subscription, st *store.Store) error, emits ...EdgeDecl) {
+	registeredResolvers = append(registeredResolvers, resolverEntry{
+		name: resolverName(fn), fn: fn, emits: emits,
+	})
 }
+
+// CollectResolverEdges returns every EdgeDecl declared by every registered
+// resolver, deduplicated on (source, target, kind). Order is stable for
+// diff-friendly output.
+func CollectResolverEdges() []EdgeDecl {
+	seen := map[EdgeDecl]struct{}{}
+	out := make([]EdgeDecl, 0)
+	for _, r := range registeredResolvers {
+		for _, e := range r.emits {
+			if _, dup := seen[e]; dup {
+				continue
+			}
+			seen[e] = struct{}{}
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// ResolverInfo summarises one registered resolver for coverage tooling: the
+// unqualified function name, count of declared EdgeDecls, and the distinct disco
+// service segments touched by those edges (Source-side and Target-side
+// combined). EdgeCount==0 marks an unannotated resolver — either a deliberate
+// no-op (sidecar populator) or a sweep target not yet annotated.
+type ResolverInfo struct {
+	Name      string
+	EdgeCount int
+	Services  []string
+}
+
+// ListResolvers returns one ResolverInfo per registered resolver in
+// registration order. Used by `disco coverage resolvers` to discover
+// unannotated registrations.
+func ListResolvers() []ResolverInfo {
+	out := make([]ResolverInfo, 0, len(registeredResolvers))
+	for _, r := range registeredResolvers {
+		seen := map[string]struct{}{}
+		var svcs []string
+		for _, e := range r.emits {
+			for _, t := range []string{e.Source, e.Target} {
+				if s := serviceSegment(t); s != "" {
+					if _, dup := seen[s]; !dup {
+						seen[s] = struct{}{}
+						svcs = append(svcs, s)
+					}
+				}
+			}
+		}
+		out = append(out, ResolverInfo{Name: r.name, EdgeCount: len(r.emits), Services: svcs})
+	}
+	return out
+}
+
+// serviceSegment returns the middle segment of a disco type
+// ("azure:microsoft.compute:virtual-machine" -> "microsoft.compute"). Returns
+// "" for malformed inputs.
+func serviceSegment(discoType string) string {
+	parts := strings.SplitN(discoType, ":", 3)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[1]
+}
+
+// resolverName returns the unqualified function name from runtime reflection,
+// e.g. "resolvePolicyRelationships". Anonymous closures reflect as
+// `pkg.init.funcN`; panic at init so the foot-gun is loud (the name surfaces in
+// `disco coverage resolvers` and `ScanError.Service`).
+func resolverName(fn any) string {
+	full := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	short := full
+	if i := strings.LastIndex(full, "."); i >= 0 {
+		short = full[i+1:]
+	}
+	if anonResolverNameRE.MatchString(short) {
+		panic("disco: registerResolver requires a named function (got anonymous closure " + full + "); extract to a top-level fn")
+	}
+	return short
+}
+
+// anonResolverNameRE matches the `funcN` suffix Go's runtime gives an anonymous
+// closure (`pkg.init.func1`, etc.).
+var anonResolverNameRE = regexp.MustCompile(`^func\d+$`)

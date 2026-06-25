@@ -10,8 +10,16 @@ import (
 )
 
 func init() {
-	registerResolver(resolveSubnetVNetRelationships)
-	registerResolver(resolveApplicationGatewayRelationships)
+	registerResolver(
+		resolveSubnetVNetRelationships,
+		EdgeDecl{Source: TypeNetworkSubnet, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveApplicationGatewayRelationships,
+		EdgeDecl{Source: TypeNetworkApplicationGateway, Target: TypeNetworkVirtualNetwork, Kind: store.RelAttachedTo},
+		EdgeDecl{Source: TypeNetworkApplicationGateway, Target: TypeNetworkPublicIPAddress, Kind: store.RelUses},
+		EdgeDecl{Source: TypeNetworkApplicationGateway, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
 }
 
 func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {

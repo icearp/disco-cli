@@ -10,7 +10,11 @@ import (
 	"codeberg.org/icearp/disco/store"
 )
 
-func init() { registerResolver(resolveContainerRegistryRelationships) }
+func init() {
+	registerResolver(resolveContainerRegistryRelationships,
+		EdgeDecl{Source: TypeContainerRegistryRegistry, Target: TypeKeyVaultVault, Kind: store.RelUses},
+	)
+}
 
 // resolveContainerRegistryRelationships derives ACR -[uses]-> Key Vault edges
 // for registries that opt into customer-managed key encryption. The CMEK
