@@ -3,6 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -111,9 +112,55 @@ func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.To
 		})
 		return
 	}
+	mgIndex, err := storeNativeIDIndex(st, TypeManagementGroup)
+	if err != nil {
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
+			Message: "index management groups for hierarchy: " + formatAzureError(err),
+		})
+		return
+	}
 
-	// Tier 3: resource-group -[contains]-> subscription (pure store data).
-	pairs, err := resourceGroupParentPairs(st, subIndex)
+	// Tiers 1+2: management-group / subscription -[contains]-> parent management
+	// group, from the tenant-wide Entities list (the flat management-group list
+	// carries no parent linkage), shallowest-first so each parent's chain exists
+	// before its children record. AccessDenied self-reports via skipIfAccessDenied
+	// and degrades to the self-seeds + RG tier; any other failure is reported so
+	// the missing tiers don't vanish silently.
+	mgPairs, eerr := managementParentPairs(ctx, cred, subs[0], mgIndex, subIndex, st)
+	if eerr != nil {
+		st.ReportError(store.ScanError{
+			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
+			Message: "management-group entities for hierarchy: " + formatAzureError(eerr),
+		})
+	}
+	recordTopHierarchy(st, mgIndex, subIndex, mgPairs)
+}
+
+// recordTopHierarchy assembles and records the top-tier closure in the one order
+// that lets every transitive ancestor row materialise, then writes it in a single
+// RecordHierarchyBatch. Split from stitchTopHierarchy so tests drive it without a
+// live Entities client:
+//  1. Self-seed every management group and subscription. RecordHierarchyBatch
+//     builds a child's depth-N+1 rows by joining its parent's existing closure
+//     rows, so a node that is only ever a parent (the tenant root group) must be
+//     seeded or its children's chains never form. Seeding from the store indexes
+//     (not the Entities API) keeps the RG→sub tier intact even when the tenant
+//     Entities read is denied. Mirrors GCP's RecordHierarchy(org, org) root seed.
+//  2. The depth-ordered MG/subscription child→parent pairs.
+//  3. Resource-group → subscription last — the subscription chains it hangs from
+//     are built by step 2.
+func recordTopHierarchy(st *store.Store, mgIndex, subIndex map[string]string, mgPairs [][2]string) {
+	pairs := make([][2]string, 0, len(mgIndex)+len(subIndex)+len(mgPairs))
+	for _, id := range mgIndex {
+		pairs = append(pairs, [2]string{id, id})
+	}
+	for _, id := range subIndex {
+		pairs = append(pairs, [2]string{id, id})
+	}
+	pairs = append(pairs, mgPairs...)
+
+	rgPairs, err := resourceGroupParentPairs(st, subIndex)
 	if err != nil {
 		st.ReportError(store.ScanError{
 			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
@@ -121,34 +168,8 @@ func stitchTopHierarchy(ctx context.Context, subs []subscription, cred azcore.To
 		})
 		return
 	}
+	pairs = append(pairs, rgPairs...)
 
-	// Tiers 1+2: management-group / subscription -[contains]-> parent
-	// management-group, sourced from the tenant-wide Entities list (the flat
-	// management-group list carries no parent linkage). AccessDenied self-reports
-	// via skipIfAccessDenied and degrades to the RG tier already collected above;
-	// any other failure (index build, transient ARM error) is reported so the
-	// missing tiers don't vanish silently.
-	mgIndex, merr := storeNativeIDIndex(st, TypeManagementGroup)
-	switch {
-	case merr != nil:
-		st.ReportError(store.ScanError{
-			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
-			Message: "index management groups for hierarchy: " + formatAzureError(merr),
-		})
-	default:
-		mgPairs, eerr := managementParentPairs(ctx, cred, subs[0], mgIndex, subIndex, st)
-		if eerr != nil {
-			st.ReportError(store.ScanError{
-				Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
-				Message: "management-group entities for hierarchy: " + formatAzureError(eerr),
-			})
-		}
-		pairs = append(pairs, mgPairs...)
-	}
-
-	if len(pairs) == 0 {
-		return
-	}
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		st.ReportError(store.ScanError{
 			Provider: "azure", Service: "azure:microsoft.management", Scope: "tenant",
@@ -192,17 +213,24 @@ func managementParentPairs(ctx context.Context, cred azcore.TokenCredential, sco
 }
 
 // managementParentPairsWithClient is the testable core of managementParentPairs,
-// driven by a supplied Entities client so tests can feed a fake transport.
+// driven by a supplied Entities client so tests can feed a fake transport. The
+// returned child→parent pairs are ordered shallowest-first (by the entity's
+// parent-name-chain length) so RecordHierarchyBatch records a parent before its
+// children and every transitive ancestor row materialises.
 func managementParentPairsWithClient(ctx context.Context, client *armmanagementgroups.EntitiesClient, scopeRef subscription, mgIndex, subIndex map[string]string, st *store.Store) ([][2]string, error) {
-	var pairs [][2]string
+	type childParent struct {
+		pair  [2]string
+		depth int
+	}
+	var nodes []childParent
 	pager := client.NewListPager(nil)
 	for pager.More() {
 		page, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				return pairs, skipIfAccessDenied(st, "armmanagementgroups:Entities.List", scopeRef.ID, perr)
+				return nil, skipIfAccessDenied(st, "armmanagementgroups:Entities.List", scopeRef.ID, perr)
 			}
-			return pairs, fmt.Errorf("armmanagementgroups:Entities.List: %w", perr)
+			return nil, fmt.Errorf("armmanagementgroups:Entities.List: %w", perr)
 		}
 		for _, e := range page.Value {
 			if e == nil || e.ID == nil || e.Properties == nil || e.Properties.Parent == nil || e.Properties.Parent.ID == nil {
@@ -219,9 +247,16 @@ func managementParentPairsWithClient(ctx context.Context, client *armmanagementg
 				childID, ok = subIndex[strings.ToLower(*e.ID)]
 			}
 			if ok && childID != parentID {
-				pairs = append(pairs, [2]string{childID, parentID})
+				nodes = append(nodes, childParent{
+					pair: [2]string{childID, parentID}, depth: len(e.Properties.ParentNameChain),
+				})
 			}
 		}
+	}
+	sort.SliceStable(nodes, func(i, j int) bool { return nodes[i].depth < nodes[j].depth })
+	pairs := make([][2]string, len(nodes))
+	for i, n := range nodes {
+		pairs[i] = n.pair
 	}
 	return pairs, nil
 }

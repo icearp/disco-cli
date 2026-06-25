@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"codeberg.org/icearp/disco/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/managementgroups/armmanagementgroups"
@@ -32,13 +33,16 @@ func entitiesServer() armmgmtfake.EntitiesServer {
 					Value: []*armmanagementgroups.EntityInfo{
 						{ID: to.Ptr(rootMGID)}, // root: no parent → skipped
 						{ID: to.Ptr(childMGID), Properties: &armmanagementgroups.EntityInfoProperties{
-							Parent: &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(rootMGID)},
+							Parent:          &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(rootMGID)},
+							ParentNameChain: []*string{to.Ptr("root")},
 						}},
 						{ID: to.Ptr(hierSubID), Properties: &armmanagementgroups.EntityInfoProperties{
-							Parent: &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(childMGID)},
+							Parent:          &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(childMGID)},
+							ParentNameChain: []*string{to.Ptr("root"), to.Ptr("child")},
 						}},
 						{ID: to.Ptr("/subscriptions/out-of-scope"), Properties: &armmanagementgroups.EntityInfoProperties{
-							Parent: &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(childMGID)},
+							Parent:          &armmanagementgroups.EntityParentGroupInfo{ID: to.Ptr(childMGID)},
+							ParentNameChain: []*string{to.Ptr("root"), to.Ptr("child")},
 						}},
 					},
 				},
@@ -78,18 +82,14 @@ func TestStitchTopHierarchy_LinksAllTiers(t *testing.T) {
 		t.Fatalf("storeNativeIDIndex(mg): %v", err)
 	}
 
-	rgPairs, err := resourceGroupParentPairs(st, subIndex)
-	if err != nil {
-		t.Fatalf("resourceGroupParentPairs: %v", err)
-	}
 	mgPairs, err := managementParentPairsWithClient(t.Context(), entitiesClient(t, entitiesServer()), *newTestSubscription(hierSub), mgIndex, subIndex, st)
 	if err != nil {
 		t.Fatalf("managementParentPairsWithClient: %v", err)
 	}
-	if err := st.RecordHierarchyBatch(append(rgPairs, mgPairs...)); err != nil {
-		t.Fatalf("RecordHierarchyBatch: %v", err)
-	}
+	// Exercise the real assembly+record path (self-seed + ordering live here).
+	recordTopHierarchy(st, mgIndex, subIndex, mgPairs)
 
+	// Topology: root MG → child MG → subscription → resource group.
 	assertContains := func(parent, child, label string) {
 		t.Helper()
 		rels, err := st.RelationshipsFrom(parent, "contains")
@@ -106,6 +106,24 @@ func TestStitchTopHierarchy_LinksAllTiers(t *testing.T) {
 	assertContains(rootID, childID, "MG->MG")
 	assertContains(childID, subID, "MG->subscription")
 	assertContains(subID, rgID, "subscription->RG")
+
+	// Closure depth chains: DescendantsOf walks the transitive closure (depth>0),
+	// so the root must reach all three descendants, the child two, the sub one.
+	// This is the regression the contains-only assertions above miss — without
+	// the root self-seed + ancestor ordering the closure stays depth-0 only.
+	assertDescendants := func(ancestor, label string, want int) {
+		t.Helper()
+		desc, err := st.DescendantsOf(ancestor, store.ResourceFilter{})
+		if err != nil {
+			t.Fatalf("DescendantsOf(%s): %v", label, err)
+		}
+		if len(desc) != want {
+			t.Errorf("DescendantsOf(%s) = %d, want %d", label, len(desc), want)
+		}
+	}
+	assertDescendants(rootID, "root", 3)   // child MG, subscription, RG
+	assertDescendants(childID, "child", 2) // subscription, RG
+	assertDescendants(subID, "sub", 1)     // RG
 }
 
 // TestManagementParentPairs_SkipsUnknownEndpoints proves the entity matcher emits
