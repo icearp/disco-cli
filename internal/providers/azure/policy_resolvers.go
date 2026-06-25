@@ -41,15 +41,22 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 		resourceIndex[strings.ToLower(r.NativeID)] = r.ID
 	}
 
-	// Built-in policy/set definitions are deduplicated under the tenant account
-	// (scanAuthorizationBuiltins), so they're absent from this per-sub index.
-	// Merge them in: their ARM IDs are scope-free and globally unique, so an
-	// assignment's policyDefinitionId matches the single tenant copy directly.
+	// Built-in policy/set definitions are ManagedByProvider, which ListResources
+	// hides by default — so the per-sub `all` index above omits them. Merge them
+	// in explicitly with IncludeManaged, from the tenant account (deduplicated) and
+	// the subscription (degraded mode, when no tenant GUID resolved). Their ARM IDs
+	// are scope-free and globally unique, so an assignment's policyDefinitionId
+	// matches directly.
+	defAccounts := []string{sub.ID}
 	if sub.tenantID != "" && sub.tenantID != sub.ID {
+		defAccounts = append(defAccounts, sub.tenantID)
+	}
+	for _, acct := range defAccounts {
 		builtins, berr := st.ListResources(store.ResourceFilter{
-			Provider: "azure", AccountID: sub.tenantID,
-			Types: []string{TypePolicyDefinition, TypePolicySetDefinition},
-			Limit: util.AllResources,
+			Provider: "azure", AccountID: acct,
+			Types:          []string{TypePolicyDefinition, TypePolicySetDefinition},
+			IncludeManaged: true,
+			Limit:          util.AllResources,
 		})
 		if berr != nil {
 			return berr

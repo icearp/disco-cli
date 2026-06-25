@@ -37,7 +37,7 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 				if d == nil || d.ID == nil {
 					continue
 				}
-				if sub.tenantID != "" && d.Properties != nil && isBuiltInPolicyType(d.Properties.PolicyType) {
+				if sub.tenantID != "" && d.Properties != nil && isTenantDedupedPolicyType(d.Properties.PolicyType) {
 					continue // built-ins deduplicated under the tenant account
 				}
 				name := sv(d.Name)
@@ -74,7 +74,7 @@ func scanPolicy(ctx context.Context, sub *subscription, cred azcore.TokenCredent
 				if d == nil || d.ID == nil {
 					continue
 				}
-				if sub.tenantID != "" && d.Properties != nil && isBuiltInPolicyType(d.Properties.PolicyType) {
+				if sub.tenantID != "" && d.Properties != nil && isTenantDedupedPolicyType(d.Properties.PolicyType) {
 					continue // built-ins deduplicated under the tenant account
 				}
 				name := sv(d.Name)
@@ -145,11 +145,13 @@ func isManagedPolicyType(t *armpolicy.PolicyType) bool {
 	return managedPolicyTypes[*t]
 }
 
-// isBuiltInPolicyType reports whether the policy type is Microsoft's BuiltIn —
-// the only kind the tenant-level ListBuiltIn endpoint returns. The per-sub
-// scanner skips ONLY these when deduplicating to the tenant account; Static
-// (Defender-emitted) and NotSpecified can be subscription-specific and are not
-// returned by ListBuiltIn, so they must remain per-sub.
-func isBuiltInPolicyType(t *armpolicy.PolicyType) bool {
-	return t != nil && *t == armpolicy.PolicyTypeBuiltIn
+// isTenantDedupedPolicyType reports whether the policy type is one the tenant-
+// level ListBuiltIn endpoint returns — empirically BuiltIn AND Static (Microsoft-
+// shipped regulatory/Defender definitions, identical tenant-wide). The per-sub
+// scanner skips exactly these when a tenant GUID is set, so they are stored once
+// under the tenant rather than duplicated per subscription. NotSpecified is NOT
+// returned by ListBuiltIn (and can be subscription-specific), so it stays per-sub
+// to avoid data loss.
+func isTenantDedupedPolicyType(t *armpolicy.PolicyType) bool {
+	return t != nil && (*t == armpolicy.PolicyTypeBuiltIn || *t == armpolicy.PolicyTypeStatic)
 }

@@ -245,10 +245,14 @@ func upsertForeignSubscriptionStubs(sub *subscription, assignments []store.Resou
 // prefix on a roleDefinitionId varies by where a role is used; the GUID is the
 // stable identity, so keys are normalized via normalizeRoleDefKey.
 func buildRoleDefIndex(sub *subscription, st *store.Store) (map[string]string, error) {
+	// IncludeManaged is required: built-in role definitions are ManagedByProvider
+	// and ListResources hides managed rows by default — without this the index
+	// would omit every built-in and assignments would get no role-definition edge.
 	roleDefs, err := st.ListResources(store.ResourceFilter{
 		Provider: "azure", AccountID: sub.ID,
-		Types: []string{TypeAuthorizationRoleDefinition},
-		Limit: util.AllResources,
+		Types:          []string{TypeAuthorizationRoleDefinition},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return nil, err
@@ -256,8 +260,9 @@ func buildRoleDefIndex(sub *subscription, st *store.Store) (map[string]string, e
 	if sub.tenantID != "" && sub.tenantID != sub.ID {
 		tenantDefs, terr := st.ListResources(store.ResourceFilter{
 			Provider: "azure", AccountID: sub.tenantID,
-			Types: []string{TypeAuthorizationRoleDefinition},
-			Limit: util.AllResources,
+			Types:          []string{TypeAuthorizationRoleDefinition},
+			IncludeManaged: true,
+			Limit:          util.AllResources,
 		})
 		if terr != nil {
 			return nil, terr

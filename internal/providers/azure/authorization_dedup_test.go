@@ -4,7 +4,51 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armpolicy"
 )
+
+// TestIsTenantDedupedPolicyType pins the per-sub skip boundary: BuiltIn and
+// Static are deduplicated to the tenant (both returned by ListBuiltIn), so they
+// are skipped per-sub; NotSpecified and Custom stay per-sub.
+func TestIsTenantDedupedPolicyType(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *armpolicy.PolicyType
+		want bool
+	}{
+		{"BuiltIn", to.Ptr(armpolicy.PolicyTypeBuiltIn), true},
+		{"Static", to.Ptr(armpolicy.PolicyTypeStatic), true},
+		{"NotSpecified", to.Ptr(armpolicy.PolicyTypeNotSpecified), false},
+		{"Custom", to.Ptr(armpolicy.PolicyTypeCustom), false},
+		{"nil", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isTenantDedupedPolicyType(tc.in); got != tc.want {
+				t.Errorf("isTenantDedupedPolicyType(%s) = %v; want %v", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+// upsertManagedTestResource inserts a ManagedByProvider resource (built-in role /
+// policy definition) and returns its stable ID. Built-ins are managed in
+// production, and ListResources hides managed rows by default — so resolver tests
+// MUST seed them managed to exercise the IncludeManaged FK path.
+func upsertManagedTestResource(t *testing.T, st *store.Store, accountID, rtype, nativeID, attrsJSON string) string {
+	t.Helper()
+	region := "global"
+	r := &store.Resource{
+		Provider: "azure", AccountID: accountID, Type: rtype, NativeID: nativeID,
+		Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: testScanID,
+		ManagedByProvider: true,
+	}
+	if _, err := st.UpsertResource(r); err != nil {
+		t.Fatalf("upsertManagedTestResource %s/%s: %v", rtype, nativeID, err)
+	}
+	return store.ResourceID("azure", accountID, rtype, nativeID)
+}
 
 // TestNormalizeRoleDefKey pins the scope-independent role-definition identity:
 // the GUID-bearing suffix, lowercased, regardless of the (subscription / MG /
@@ -41,7 +85,7 @@ func TestResolveAuthorization_CrossAccountBuiltinFK(t *testing.T) {
 	// Built-in role def stored once under the tenant account with a scope-free
 	// NativeID (as scanAuthorizationBuiltins writes it).
 	builtinNativeID := "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
-	builtinID := upsertTestResource(t, st, "azure", sub.tenantID, TypeAuthorizationRoleDefinition, builtinNativeID, "global", `{"properties":{"roleName":"Contributor"}}`)
+	builtinID := upsertManagedTestResource(t, st, sub.tenantID, TypeAuthorizationRoleDefinition, builtinNativeID, `{"properties":{"roleName":"Contributor"}}`)
 
 	// Assignment under the subscription references the built-in with the
 	// subscription-scoped form Azure returns.
@@ -76,7 +120,7 @@ func TestResolveAuthorization_DegradedNoTenantID(t *testing.T) {
 	sub := &subscription{ID: "sub-1"} // tenantID empty
 
 	roleNativeID := "/subscriptions/sub-1/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
-	roleID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleDefinition, roleNativeID, "", `{"properties":{"roleName":"Contributor"}}`)
+	roleID := upsertManagedTestResource(t, st, sub.ID, TypeAuthorizationRoleDefinition, roleNativeID, `{"properties":{"roleName":"Contributor"}}`)
 	asnNativeID := "/subscriptions/sub-1/providers/Microsoft.Authorization/roleAssignments/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 	asnID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleAssignment, asnNativeID, "",
 		`{"properties":{"roleDefinitionId":"`+roleNativeID+`"}}`)
@@ -108,7 +152,7 @@ func TestResolvePolicy_CrossAccountBuiltinFK(t *testing.T) {
 	sub := &subscription{ID: "sub-1", tenantID: "tenant-1"}
 
 	defNativeID := "/providers/Microsoft.Authorization/policyDefinitions/0a914e76-4921-4c19-b460-a2d36003525a"
-	defID := upsertTestResource(t, st, "azure", sub.tenantID, TypePolicyDefinition, defNativeID, "global", `{"properties":{"policyType":"BuiltIn"}}`)
+	defID := upsertManagedTestResource(t, st, sub.tenantID, TypePolicyDefinition, defNativeID, `{"properties":{"policyType":"BuiltIn"}}`)
 
 	asnNativeID := "/subscriptions/sub-1/providers/Microsoft.Authorization/policyAssignments/myassignment"
 	asnID := upsertTestResource(t, st, "azure", sub.ID, TypePolicyAssignment, asnNativeID, "",
