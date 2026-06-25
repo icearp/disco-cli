@@ -89,6 +89,22 @@ Cross-service helpers live one-per-file under the `azure_` prefix: `azure_scan_h
 
 `pageItems` returns `[]*T` where T is SDK's per-resource struct, often *not* obvious singular of client name. Common patterns: `armredis.ResourceInfo` (not `Cache`), `armservicebus.SBNamespace`, `armeventhub.EHNamespace`, `armapimanagement.ServiceResource`, `armmsi.Identity`, `armcosmos.DatabaseAccountGetResults`, `armcompute.SSHPublicKeyResource`. Grep SDK's `models.go` or build-and-fix when uncertain.
 
+## Top three hierarchy tiers are stitched post-scan, not per-scanner
+
+`management-group → subscription → resource-group` can't be wired by any single
+per-subscription scanner: the three tiers are stored by different phases under
+different accounts (MGs under the tenant account in the tenant phase; the
+subscription-as-resource and RGs per-sub). `stitchTopHierarchy` (`management_scanners.go`)
+runs ONCE from `Scan` after `wg.Wait()` — the only point where all endpoints are
+committed, so `RecordHierarchyBatch` emits the graph-visible `contains` row instead of
+gating it out. It looks targets up in store-built lowercased `NativeID → ResourceID`
+indexes (`storeNativeIDIndex`), never recomputing `store.ResourceID`, so a casing diff
+between APIs can't desync the hash. The RG→subscription tier is pure store data (links
+even without tenant Management read); the MG→MG and subscription→MG tiers need the
+tenant-wide `armmanagementgroups.EntitiesClient.NewListPager` (the flat
+`Client.NewListPager` carries no parent), whose AccessDenied is tolerated. New top-level
+container types that nest above the RG join here, not in a per-sub scanner.
+
 ## RG hierarchy pairs are mandatory
 
 Every RG-scoped resource must emit `rgHierarchyPair` (resource → RG closure). `azSimpleScan` does this automatically. When hand-rolling callback, do not omit pairs — peers without pairs were oversights, not design.

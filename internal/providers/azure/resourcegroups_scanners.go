@@ -62,9 +62,10 @@ func scanResourceGroups(ctx context.Context, sub *subscription, cred azcore.Toke
 			if _, err := st.UpsertResources(batch); err != nil {
 				return fmt.Errorf("upsert resource groups: %w", err)
 			}
-			// Populate hierarchy closure: each RG belongs to the subscription.
-			// We don't model the subscription as a resource here, so we just
-			// add self-entries for resource groups.
+			// Seed each RG's closure self-entry now so every RG is queryable in
+			// the closure even when the scan lacks tenant-level management access.
+			// The RG → subscription parent link is wired later by
+			// stitchTopHierarchy, after the subscription-as-resource row exists.
 			pairs := make([][2]string, len(batch))
 			for i, r := range batch {
 				rgID := store.ResourceID("azure", sub.ID, TypeResourcesResourceGroup, r.NativeID)

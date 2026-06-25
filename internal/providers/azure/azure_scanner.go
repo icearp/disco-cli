@@ -196,6 +196,12 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 		})
 	}
 	wg.Wait()
+
+	// Stitch the top three hierarchy tiers (management-group → subscription →
+	// resource-group) once every subscription's phase-1 and the tenant phase have
+	// written their rows — the only point at which both endpoints of each
+	// cross-phase closure pair exist in the store.
+	stitchTopHierarchy(ctx, subs, cred, st)
 	return nil
 }
 
