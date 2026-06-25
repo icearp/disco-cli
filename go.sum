@@ -280,6 +280,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/purview/armpurview v1.2.0 
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/purview/armpurview v1.2.0/go.mod h1:B/ISjKE6y8n0C9rnrIoVjv6RnXii3xIXjwYjKo/smh0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quantum/armquantum v0.8.0 h1:4yQYjeYTbSl2pHkQyZhqy2KSQAo/jJcBcw8K59ZrMlI=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quantum/armquantum v0.8.0/go.mod h1:TDmhrzGwtKeO2Bx1x+2xz+suZ3kUGLkhJy1SeJN+0ys=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota v1.1.0 h1:bE03lIgv8W44MYz60pGvn03P7F2oW6Z5esZ3s7RrW34=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/quota/armquota v1.1.0/go.mod h1:ICnUwYZtis5BpJDzUno4lUM/2szzlp/x6DscD69U85U=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/recoveryservices/armrecoveryservices v1.6.0 h1:tyFbORs8iNJGoD4DCRTweqLRCS8PiWqyoj8TqLFZZfo=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/recoveryservices/armrecoveryservices v1.6.0/go.mod h1:D01KTLlDky2hIhRbX5NjyDb84O6jflookw6b+Gd5h/U=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/recoveryservicesdatareplication/armrecoveryservicesdatareplication v1.0.0 h1:QmVuhhduVKUouFYkKOehDyt3P0i7IP2arMwrE0RqFrs=

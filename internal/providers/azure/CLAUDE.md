@@ -103,6 +103,24 @@ Cross-service helpers live one-per-file under the `azure_` prefix: `azure_scan_h
 
 `pageItems` returns `[]*T` where T is SDK's per-resource struct, often *not* obvious singular of client name. Common patterns: `armredis.ResourceInfo` (not `Cache`), `armservicebus.SBNamespace`, `armeventhub.EHNamespace`, `armapimanagement.ServiceResource`, `armmsi.Identity`, `armcosmos.DatabaseAccountGetResults`, `armcompute.SSHPublicKeyResource`. Grep SDK's `models.go` or build-and-fix when uncertain.
 
+## Service quotas: scope-addressed fan-out + limit-only versioning
+
+`quota_scanners.go` is the lone scanner that talks to a *unified proxy RP*
+(`Microsoft.Quota` via `armquota`) instead of a per-service list. The proxy is
+scope-addressed — `NewListPager(scope)` where
+`scope = /subscriptions/{sub}/providers/{RP}/locations/{loc}` — so it fans out the
+cartesian product of `quotaProviderNamespaces × azureregions.Regions`, bounded by
+`maxConcurrentFanout` (same errgroup+semaphore shape as `azRGFanoutScan`). Any
+(namespace, region) the proxy doesn't serve returns an `isSkippableScanError` and
+is dropped; only a genuine error aborts. Stored **limit-only** (the Quota API
+returns no usage and the serialized `CurrentQuotaLimitBase` omits
+`ProxyResource`/`SystemData`, so no etag/timestamp), which makes each quota a
+churn-free versioned resource — the version chain bumps only on a real limit
+change. `disco history <id>` reads that chain (see `cmd/CLAUDE.md`). Quotas are
+`Leaf: true` (no resolver edges) and emit no hierarchy pairs (not RG-scoped). When
+adding another quota-bearing namespace, extend `quotaProviderNamespaces` — nothing
+else.
+
 ## Top three hierarchy tiers are stitched post-scan, not per-scanner
 
 `management-group → subscription → resource-group` can't be wired by any single

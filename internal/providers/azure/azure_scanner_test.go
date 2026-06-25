@@ -173,6 +173,7 @@ var expectedAzureServices = []string{
 	"azure:microsoft.powerplatform",
 	"azure:microsoft.purview",
 	"azure:microsoft.quantum",
+	"azure:microsoft.quota",
 	"azure:microsoft.recoveryservices",
 	"azure:microsoft.redhatopenshift",
 	"azure:microsoft.relay",
