@@ -2,11 +2,39 @@ package scanrun
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"codeberg.org/icearp/disco/internal/providers"
 	"codeberg.org/icearp/disco/store"
 )
+
+// newFinalizeStore opens a temp SQLite store and creates a scan row, returning
+// the store and the new scan id. Finalize writes through real store methods
+// (CompleteScan/PartialScan/AppendScanError), so it needs a backing DB.
+func newFinalizeStore(t *testing.T) (*store.Store, string) {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "finalize.db"))
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
+	if err != nil {
+		t.Fatalf("CreateScan: %v", err)
+	}
+	return st, scanID
+}
+
+func scanStatus(t *testing.T, st *store.Store, id string) *store.Scan {
+	t.Helper()
+	sc, err := st.GetScan(id)
+	if err != nil {
+		t.Fatalf("GetScan: %v", err)
+	}
+	return sc
+}
 
 // fakeScanner reports one service (5 seen, 3 new) and one error per Scan via
 // the store callbacks, exercising the OnServiceComplete and OnError chains
@@ -61,5 +89,88 @@ func TestRunScanners_AccumulatesTotals(t *testing.T) {
 	}
 	if totalNew != 6 { // 2 scanners × 3 new
 		t.Errorf("totalNew = %d, want 6", totalNew)
+	}
+}
+
+// quietScanner reports nothing — used to prove an interrupted scan is marked
+// partial solely via the ctx.Err() wiring, with zero scan errors in play.
+type quietScanner struct{}
+
+func (quietScanner) Name() string                                           { return "quiet" }
+func (quietScanner) Scan(_ context.Context, _ *store.Store, _ string) error { return nil }
+
+// TestExecute_CancelledCtxMarksPartial guards the Execute call-site wiring: a
+// pre-cancelled ctx must finalize the scan partial even though no scanner
+// reported an error. Without `ctx.Err() != nil` threaded into Finalize, the
+// empty-error path would mark it completed.
+func TestExecute_CancelledCtxMarksPartial(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+	a := &Allocation{ScanID: scanID, scanners: []providers.Scanner{quietScanner{}}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancelled before Execute runs
+
+	if err := Execute(ctx, st, a); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if sc := scanStatus(t, st, scanID); sc.Status != "partial" {
+		t.Errorf("status = %q, want partial (cancelled ctx)", sc.Status)
+	}
+}
+
+// TestFinalize_InterruptedMarksPartial is the regression guard: a scan cancelled
+// before completion must be recorded partial even when NO per-service error was
+// reported (cancellation lands silently at the concurrency-semaphore gate). Pre
+// fix, empty scanErrors → CompleteScan, so this asserted 'completed' wrongly.
+func TestFinalize_InterruptedMarksPartial(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	res, err := Finalize(st, scanID, 42, nil, true)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if !res.Partial || !res.Interrupted {
+		t.Errorf("result = %+v, want Partial && Interrupted", res)
+	}
+	sc := scanStatus(t, st, scanID)
+	if sc.Status != "partial" {
+		t.Errorf("status = %q, want partial", sc.Status)
+	}
+	if sc.Error == nil || !strings.Contains(*sc.Error, "interrupted") {
+		t.Errorf("error blob = %v, want it to mention the interruption", sc.Error)
+	}
+}
+
+// TestFinalize_CleanMarksComplete: no errors and not interrupted → completed.
+func TestFinalize_CleanMarksComplete(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	res, err := Finalize(st, scanID, 100, nil, false)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if res.Partial || res.Interrupted {
+		t.Errorf("result = %+v, want clean (not partial/interrupted)", res)
+	}
+	if sc := scanStatus(t, st, scanID); sc.Status != "completed" {
+		t.Errorf("status = %q, want completed", sc.Status)
+	}
+}
+
+// TestFinalize_ErrorsMarkPartial pins existing behavior: a reported scan error
+// (not an interruption) → partial, not flagged Interrupted.
+func TestFinalize_ErrorsMarkPartial(t *testing.T) {
+	st, scanID := newFinalizeStore(t)
+
+	errs := []store.ScanError{{Provider: "aws", Service: "ec2", Message: "boom"}}
+	res, err := Finalize(st, scanID, 7, errs, false)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if !res.Partial || res.Interrupted {
+		t.Errorf("result = %+v, want Partial && !Interrupted", res)
+	}
+	if sc := scanStatus(t, st, scanID); sc.Status != "partial" {
+		t.Errorf("status = %q, want partial", sc.Status)
 	}
 }

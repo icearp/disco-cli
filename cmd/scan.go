@@ -264,8 +264,9 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	}
 
 	// Finalize owns the Complete/Partial dispatch + structured-error
-	// persistence, shared with the scanrun.Execute API driver.
-	res, ferr := scanrun.Finalize(db, scanID, totalSeen, scanErrors)
+	// persistence, shared with the scanrun.Execute API driver. A cancelled ctx
+	// (SIGINT/SIGTERM) forces partial even if no per-service error was reported.
+	res, ferr := scanrun.Finalize(db, scanID, totalSeen, scanErrors, ctx.Err() != nil)
 	if ferr != nil {
 		return ferr
 	}
@@ -273,6 +274,12 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "append scan error: %v\n", aerr)
 	}
 
+	if res.Interrupted {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+			"Scan interrupted: %d resources (%d new) in %s%s%s\n",
+			totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+		return nil
+	}
 	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan partial: %d resources (%d new) in %s%s%s\n",
