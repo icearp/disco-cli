@@ -186,6 +186,11 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 // the source profile has no SDK-resolvable credentials (no static keys, credential_process,
 // or sso_session) — commonly because the AWS CLI resolves them via a custom credential
 // helper the Go SDK can't invoke. Exporting the CLI-resolved creds sidesteps it.
+//
+// A known trigger is an `aws login` source profile (login_session): the SDK rejects
+// role_arn + source_profile=<login-only> at config-load time because hasCredentials()
+// omits LoginSession, even though it resolves login_session fine standalone. Upstream
+// bug — see aws-sdk-go-v2#3446 / PR #3447; drop this once that fix ships and we bump the SDK.
 func explainConfigLoadError(err error, profile string) error {
 	var arErr awsconfig.SharedConfigAssumeRoleError
 	if !errors.As(err, &arErr) {
