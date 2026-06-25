@@ -8,10 +8,60 @@ import (
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
+
+// TestExplainConfigLoadError verifies the assume-role failure is translated into
+// an actionable hint while preserving the wrapped SDK error, and that non-assume
+// errors pass through unchanged.
+func TestExplainConfigLoadError(t *testing.T) {
+	const roleARN = "arn:aws:iam::131546573061:role/OrganizationAccountAccessRole"
+	arErr := awsconfig.SharedConfigAssumeRoleError{Profile: "default", RoleARN: roleARN, Err: nil}
+
+	t.Run("assume-role hint uses invoked profile", func(t *testing.T) {
+		got := explainConfigLoadError(arErr, "sandbox")
+		msg := got.Error()
+		for _, want := range []string{
+			"aws configure export-credentials",
+			"--profile sandbox",
+			roleARN,
+			`source profile "default"`,
+		} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("explainConfigLoadError msg missing %q\ngot: %s", want, msg)
+			}
+		}
+		// Wrap preserved: callers/logging can still recover the SDK error.
+		var rt awsconfig.SharedConfigAssumeRoleError
+		if !errors.As(got, &rt) {
+			t.Errorf("explainConfigLoadError dropped the wrapped SharedConfigAssumeRoleError")
+		}
+	})
+
+	t.Run("empty invoked profile falls back to source profile", func(t *testing.T) {
+		msg := explainConfigLoadError(arErr, "").Error()
+		if !strings.Contains(msg, "--profile default") {
+			t.Errorf("want fallback to --profile default; got: %s", msg)
+		}
+	})
+
+	t.Run("non-assume error passes through", func(t *testing.T) {
+		base := errors.New("boom")
+		got := explainConfigLoadError(base, "sandbox")
+		if got.Error() != "load aws sdk config: boom" {
+			t.Errorf("passthrough = %q; want %q", got.Error(), "load aws sdk config: boom")
+		}
+		if strings.Contains(got.Error(), "export-credentials") {
+			t.Errorf("non-assume error should carry no export hint; got: %s", got.Error())
+		}
+		if !errors.Is(got, base) {
+			t.Errorf("passthrough dropped the wrapped error")
+		}
+	})
+}
 
 // TestChainAssumeRoles_Empty returns nil for empty input — caller falls back
 // to baseCfg credentials.

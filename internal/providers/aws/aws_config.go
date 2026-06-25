@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -77,7 +78,6 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 	// throttling responses and proactively slows down requests. 10 max attempts
 	// gives the backoff enough headroom for low-rate-limit services like IAM.
 	opts := []func(*awsconfig.LoadOptions) error{
-		awsconfig.WithRegion("us-east-1"),
 		awsconfig.WithRetryMaxAttempts(10),
 		awsconfig.WithRetryMode(sdkaws.RetryModeAdaptive),
 	}
@@ -88,7 +88,15 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 	// Load the base SDK config once (uses default credential chain: env → ~/.aws → IAM role).
 	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("load aws sdk config: %w", err)
+		return nil, explainConfigLoadError(err, profile)
+	}
+
+	// Honor the region from the profile/env; fall back to us-east-1 only when none is
+	// configured, since global-endpoint clients built from baseCfg need a non-empty region.
+	// (The us-east-1-pinned probes — enabledScanRegions, region-availability SSM — set o.Region
+	// themselves, so they are unaffected.)
+	if baseCfg.Region == "" {
+		baseCfg.Region = "us-east-1"
 	}
 
 	// CLI/Lambda override pins a single AssumeRole-driven account; ignore
@@ -171,6 +179,27 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		})
 	}
 	return accounts, nil
+}
+
+// explainConfigLoadError augments aws-sdk-go-v2's opaque assume-role failure
+// ("… of profile <src>, <nil>") with an actionable hint. The nil inner error means
+// the source profile has no SDK-resolvable credentials (no static keys, credential_process,
+// or sso_session) — commonly because the AWS CLI resolves them via a custom credential
+// helper the Go SDK can't invoke. Exporting the CLI-resolved creds sidesteps it.
+func explainConfigLoadError(err error, profile string) error {
+	var arErr awsconfig.SharedConfigAssumeRoleError
+	if !errors.As(err, &arErr) {
+		return fmt.Errorf("load aws sdk config: %w", err)
+	}
+	target := profile // the profile the user actually invoked
+	if target == "" {
+		target = arErr.Profile
+	}
+	return fmt.Errorf("load aws sdk config: cannot assume role %s: source profile %q has no "+
+		"SDK-resolvable credentials (needs static keys, credential_process, or sso_session). "+
+		"If your AWS CLI uses a custom credential helper, export the resolved credentials and "+
+		"re-run without --profile:\n  eval \"$(aws configure export-credentials --profile %s --format env)\"\n: %w",
+		arErr.RoleARN, arErr.Profile, target, err)
 }
 
 // chainAssumeRoles walks roleARNs in order, building a credentials provider
