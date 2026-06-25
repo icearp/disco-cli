@@ -92,6 +92,40 @@ func TestResolveAuthorizationRelationships_UnknownScope(t *testing.T) {
 	}
 }
 
+// TestResolveAuthorizationRelationships_ManagementGroupScope locks the contract
+// that a role assignment inherited from an ancestor management group resolves
+// its scope to the MG resource — which lives under the tenant account, not the
+// assignment's subscription. The resolver's store-wide scope index (every
+// subscription + the tenant account, managed rows excluded but MGs are not
+// managed) is what makes this work; this test fails if that index is ever
+// narrowed to the per-sub account.
+func TestResolveAuthorizationRelationships_ManagementGroupScope(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription("sub-mg")
+	sub.tenantID = "tenant-mg"
+
+	mgID := "/providers/Microsoft.Management/managementGroups/mg-root"
+	mgRID := upsertTestResource(t, st, "azure", sub.tenantID, TypeManagementGroup, mgID, "global", "{}")
+
+	asnNativeID := "/subscriptions/sub-mg/providers/Microsoft.Authorization/roleAssignments/cccccccc-cccc-cccc-cccc-cccccccccccc"
+	asnAttrs := `{"properties":{"scope":"` + mgID + `","principalId":"33333333-3333-3333-3333-333333333333"}}`
+	asnID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleAssignment, asnNativeID, "", asnAttrs)
+
+	if err := resolveAuthorizationRelationships(sub, st); err != nil {
+		t.Fatalf("resolveAuthorizationRelationships: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(asnID, store.RelAttachedTo)
+	var found bool
+	for _, r := range rels {
+		if r.ToID == mgRID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected attached-to edge %s -> management group %s, got %v", asnID, mgRID, rels)
+	}
+}
+
 // TestResolveAuthorizationRelationships_MissingRoleDef verifies that an
 // assignment referencing a role definition not present locally (e.g. a
 // tenant-scope built-in not yet listed) produces no edge and no error.

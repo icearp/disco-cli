@@ -41,27 +41,30 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 		resourceIndex[strings.ToLower(r.NativeID)] = r.ID
 	}
 
-	// Built-in policy/set definitions are ManagedByProvider, which ListResources
-	// hides by default — so the per-sub `all` index above omits them. Merge them
-	// in explicitly with IncludeManaged, from the tenant account (deduplicated) and
-	// the subscription (degraded mode, when no tenant GUID resolved). Their ARM IDs
-	// are scope-free and globally unique, so an assignment's policyDefinitionId
-	// matches directly.
+	// Two classes of FK target live outside the per-sub `all` index above and are
+	// merged in here from the tenant account (deduplicated) and the subscription
+	// (degraded mode, when no tenant GUID resolved):
+	//   - Built-in policy/set definitions are ManagedByProvider, which
+	//     ListResources hides by default; their scope-free ARM IDs let an
+	//     assignment's policyDefinitionId match directly.
+	//   - Management groups are stored under the tenant account, so a per-sub
+	//     index misses them; a policy assignment inherited from an ancestor MG
+	//     carries that MG's ID as its scope and resolves to an attached-to edge.
 	defAccounts := []string{sub.ID}
 	if sub.tenantID != "" && sub.tenantID != sub.ID {
 		defAccounts = append(defAccounts, sub.tenantID)
 	}
 	for _, acct := range defAccounts {
-		builtins, berr := st.ListResources(store.ResourceFilter{
+		extra, berr := st.ListResources(store.ResourceFilter{
 			Provider: "azure", AccountID: acct,
-			Types:          []string{TypePolicyDefinition, TypePolicySetDefinition},
+			Types:          []string{TypePolicyDefinition, TypePolicySetDefinition, TypeManagementGroup},
 			IncludeManaged: true,
 			Limit:          util.AllResources,
 		})
 		if berr != nil {
 			return berr
 		}
-		for _, b := range builtins {
+		for _, b := range extra {
 			resourceIndex[strings.ToLower(b.NativeID)] = b.ID
 		}
 	}
