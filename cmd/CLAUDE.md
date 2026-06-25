@@ -65,6 +65,20 @@ Cobra package-level flag vars (`graph*`, `list*`, …) persist across tests beca
 
 Cobra also persists flag-attached values across tests when commands read via `cmd.Flags().GetX("name")` instead of package vars (e.g. `coverage.go::runCoverage`). `resetXFlags()` won't clear those — pass an explicit `--flag=false` in negative-case tests, or call `cmd.Flags().Set("flag", "false")` before `Execute()`.
 
+## `disco history <id>` surfaces the resource version chain
+
+`history` (alias `versions`) renders every version of a resource oldest→newest —
+the OSS read surface for change-over-time (e.g. Azure quota-limit grants). The arg
+resolves through `store.ResolveResource` (same exact-id / name / native-id / short-id
+lookup as `graph`); the resolved current row's `.ID` (= `root_id`) keys
+`store.GetResourceVersions`. Output uses a purpose-built `historyEntry` struct, NOT
+`store.ResourceVersion` directly: `store.Resource` has a value-receiver `MarshalJSON`
+that would be promoted onto the embedding struct and silently drop the version-only
+fields (`verified_at`, `superseded_by`, …) in JSON. New version-chain output paths
+must follow the same explicit-struct pattern, not encode `ResourceVersion`. The
+`historyEntry` snake_case JSON tags require `cmd/history.go` in the tagliatelle
+snake_case exclusion zone (`.golangci.yaml`).
+
 ## Silent exit codes for query-absence
 
 When "no result" is a valid query outcome (e.g. `graph path` between unreachable resources), return a sentinel error from the store layer (`store.ErrNoPath`) and let `cmd/root.go` `Execute()` map it to `os.Exit(1)` without printing. Keeps `RunE` testable — `os.Exit` inside `RunE` bypasses in-process test assertions.

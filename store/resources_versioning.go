@@ -63,7 +63,8 @@ func resourceVersionColumns() []string {
 }
 
 // GetResourceVersions walks the full version chain for a resource and
-// returns every row in chronological order (root first). Paid-only.
+// returns every row in chronological order (root first). Surfaced in OSS via
+// `disco history`.
 func (s *Store) GetResourceVersions(rootID string) ([]ResourceVersion, error) {
 	q := sq.Select(resourceVersionColumns()...).From("resources").
 		Where(sq.Eq{"root_id": rootID}).
