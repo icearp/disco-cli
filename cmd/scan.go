@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,16 @@ import (
 	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+)
+
+// Terminal-state exit-code sentinels. The summary line is already written to
+// stdout; these only carry the exit-code gate, so cmd/root.go::Execute maps
+// them without re-printing (mirrors errFindingsReported). errScanInterrupted →
+// 130 (conventional SIGINT code); errScanPartial → 1, emitted only under
+// --fail-on-error so the default partial-run behaviour stays exit 0.
+var (
+	errScanInterrupted = errors.New("scan interrupted")
+	errScanPartial     = errors.New("scan completed with errors")
 )
 
 var scanCmd = &cobra.Command{
@@ -64,7 +75,7 @@ Examples:
 		for _, name := range names {
 			s, ok := providers.Get(name)
 			if !ok {
-				return fmt.Errorf("unknown provider %q (available: %s)", name, strings.Join(providers.Names(), ", "))
+				return fmt.Errorf("unknown provider %q (available: %s)", name, providerListHint())
 			}
 			scanners = append(scanners, s)
 		}
@@ -272,12 +283,15 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan interrupted: %d resources (%d new, %d changed) in %s%s%s\n",
 			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
-		return nil
+		return errScanInterrupted
 	}
 	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 			"Scan partial: %d resources (%d new, %d changed) in %s%s%s\n",
 			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+		if failOnError, _ := cmd.Flags().GetBool("fail-on-error"); failOnError {
+			return errScanPartial
+		}
 		return nil
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed) in %s%s\n",
@@ -578,6 +592,8 @@ func init() {
 		"skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
 	scanCmd.PersistentFlags().Bool("dry-run", false,
 		"resolve provider selection + --if-older-than and print 'would scan / would skip' decisions; no SDK clients constructed, no cloud APIs called")
+	scanCmd.PersistentFlags().Bool("fail-on-error", false,
+		"exit non-zero when a scan finishes partial (one or more services errored); default exit 0 on partial. SIGINT always exits 130")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,

@@ -20,6 +20,18 @@ func resetFindingsFlags() {
 	findingsFindingID = ""
 }
 
+// TestRenderCheckRuns_EmptyJSON pins the wire contract: a zero-row check-run
+// list renders as `[]`, not `null` (F6 parity with list/scans).
+func TestRenderCheckRuns_EmptyJSON(t *testing.T) {
+	out, err := captureStdout(t, func() error { return renderCheckRuns(nil, "json") })
+	if err != nil {
+		t.Fatalf("renderCheckRuns: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "[]" {
+		t.Errorf("empty findings runs -o json: want [], got %q", got)
+	}
+}
+
 // seedFindingRun upserts one check_run carrying a single high-severity
 // EBS finding. Returns the run id for assertions.
 func seedFindingRun(t *testing.T, st *store.Store) string {

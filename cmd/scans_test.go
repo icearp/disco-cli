@@ -12,6 +12,18 @@ func resetScansFlags() {
 	scansOutputFmt = ""
 }
 
+// TestRenderScans_EmptyJSON pins the wire contract: a zero-row scan list
+// renders as `[]`, not `null`, so strict consumers (jq '.[]') don't break.
+func TestRenderScans_EmptyJSON(t *testing.T) {
+	out, err := captureStdout(t, func() error { return renderScans(nil, "json") })
+	if err != nil {
+		t.Fatalf("renderScans: %v", err)
+	}
+	if got := strings.TrimSpace(out); got != "[]" {
+		t.Errorf("empty scans -o json: want [], got %q", got)
+	}
+}
+
 func TestScans_List(t *testing.T) {
 	st := seedTestDB(t) // creates one scan + 2 rows
 	if _, err := st.CreateScan([]string{"aws", "gcp"}, map[string]any{"regions": []string{"us-east-1"}}); err != nil {

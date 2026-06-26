@@ -106,9 +106,9 @@ Examples:
 	},
 }
 
-// graphPathCmd implements `disco graph path <A> <B>`.
+// graphPathCmd implements `disco graph path <from-id> <to-id>`.
 var graphPathCmd = &cobra.Command{
-	Use:   "path <A> <B>",
+	Use:   "path <from-id> <to-id>",
 	Short: "Shortest path between two resources",
 	Long: `Find the shortest edge sequence between two resource identifiers using
 BFS over relationships. Honors --kinds / --direction / --exclude-types /
@@ -176,7 +176,7 @@ within the configured constraints.`,
 
 // graphBlastCmd implements `disco graph blast <id>`.
 var graphBlastCmd = &cobra.Command{
-	Use:   "blast <id>",
+	Use:   "blast <name|native-id|resource-id>",
 	Short: "Outbound reachability (blast radius) from a seed",
 	Long: `Walk all nodes reachable from the seed via outbound edges, grouping
 results by distance ring. Default kind-set excludes 'contains' so hierarchy

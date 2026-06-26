@@ -204,6 +204,53 @@ func TestSummary_CSV(t *testing.T) {
 	}
 }
 
+// TestSummary_JSONL verifies the long-form jsonl output: one object per
+// bucket with {dimension,value,count}, mirroring the CSV shape.
+func TestSummary_JSONL(t *testing.T) {
+	seedSummaryDB(t)
+	resetSummaryFlags()
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"summary", "-o", "jsonl"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+
+	dec := json.NewDecoder(strings.NewReader(out))
+	seen := map[string]bool{}
+	var lines int
+	for dec.More() {
+		var row struct {
+			Dimension string `json:"dimension"`
+			Value     string `json:"value"`
+			Count     int    `json:"count"`
+		}
+		if derr := dec.Decode(&row); derr != nil {
+			t.Fatalf("decode jsonl line: %v\n%s", derr, out)
+		}
+		lines++
+		switch row.Dimension {
+		case "provider", "account", "region", "type":
+			seen[row.Dimension] = true
+		default:
+			t.Errorf("unexpected dimension: %+v", row)
+		}
+		if row.Count <= 0 {
+			t.Errorf("non-positive count in %+v", row)
+		}
+	}
+	if lines == 0 {
+		t.Fatal("no jsonl lines emitted")
+	}
+	// provider + type buckets are always present given the seeded rows.
+	if !seen["provider"] || !seen["type"] {
+		t.Errorf("missing core dimensions; saw %v", seen)
+	}
+}
+
 func TestSummary_UnknownFormat(t *testing.T) {
 	seedSummaryDB(t)
 	resetSummaryFlags()

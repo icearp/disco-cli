@@ -188,7 +188,7 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":
 	default:
-		return fmt.Errorf("--output must be one of table|markdown|csv|json|jsonl; got %q", outputFmt)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", outputFmt)
 	}
 
 	covProviders, err := resolveCoverageProviders(provNames)
@@ -283,7 +283,7 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 	switch outputFmt {
 	case "table", "markdown", "md", "json", "jsonl", "csv":
 	default:
-		return fmt.Errorf("--output must be one of table|markdown|csv|json|jsonl; got %q", outputFmt)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", outputFmt)
 	}
 
 	covProviders, err := resolveCoverageProviders(provNames)
@@ -397,6 +397,14 @@ func runCoverageResolvers(cmd *cobra.Command, _ []string) (rerr error) {
 	missing, _ := cmd.Flags().GetBool("missing")
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
+
+	// Pre-validate like the services/regions siblings; both resolvers render
+	// paths otherwise fall through to the tabwriter table on an unknown value.
+	switch outputFmt {
+	case "table", "markdown", "md", "json", "jsonl", "csv":
+	default:
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", outputFmt)
+	}
 
 	auditors, err := selectedAuditors(provNames)
 	if err != nil {

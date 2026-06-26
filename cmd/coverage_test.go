@@ -124,6 +124,21 @@ func TestCoverage_NonStrictTolerantOnFetchFailure(t *testing.T) {
 // `disco coverage resolvers`. AWS and Azure implement coverage.ResolverAuditor;
 // GCP does not. The registry is populated by the internal/providers/all blank
 // import; the call does no network I/O (registry lookup + interface assertion).
+// TestCoverageResolvers_UnknownFormat verifies `coverage resolvers` now
+// rejects an invalid -o instead of silently falling through to the table
+// (parity with the services/regions siblings). Registry-only, no network.
+func TestCoverageResolvers_UnknownFormat(t *testing.T) {
+	resetCoverageFlags(t)
+	_, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "resolvers", "-o", "xml"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "unknown --output format") {
+		t.Errorf("want unknown-format error, got %v", err)
+	}
+}
+
 func TestSelectedAuditors(t *testing.T) {
 	// Empty selection = every auditing provider; must include aws + azure.
 	all, err := selectedAuditors(nil)

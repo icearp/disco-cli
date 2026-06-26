@@ -32,6 +32,7 @@ var (
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Evaluate Rego policies against discovered resources",
+	Args:  cobra.NoArgs,
 	Long: `Run OPA Rego policies against the local resource DB and emit findings.
 
 Policies are loaded from files or directories passed via --rules (directories

@@ -15,16 +15,21 @@ var diffOutputFmt string
 
 var diffCmd = &cobra.Command{
 	Use:   "diff <from-scan-id> <to-scan-id>",
-	Short: "Show resource delta between two scans",
+	Short: "Show resource delta between two scan runs",
 	Long: `Compare two scan runs and report resources added by the newer scan
 and resources that are stale (last verified by the older scan).
 
 Limitations: attribute drift (updated fields on the same resource) is not
 reported — the schema stores only the latest state of each resource.
 
+Scan IDs accept the same forms as every other scan-id consumer: a full ID,
+an 8-31-char prefix (as printed by 'disco scans'), or 'latest'.
+
 Examples:
-  disco diff abc123 def456
-  disco diff abc123 def456 -o json`,
+  disco diff <old-id> latest
+  disco diff <old-id> <new-id> -o json
+
+Run 'disco scans' to list scan IDs.`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(diffOutputFmt, rerr) }()
@@ -34,9 +39,26 @@ Examples:
 		}
 		defer func() { _ = db.Close() }()
 
-		d, err := db.DiffScans(args[0], args[1])
+		fromID, err := resolveScanID(db, args[0])
 		if err != nil {
 			return err
+		}
+		toID, err := resolveScanID(db, args[1])
+		if err != nil {
+			return err
+		}
+
+		d, err := db.DiffScans(fromID, toID)
+		if err != nil {
+			return err
+		}
+		// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
+		// for the Added/Stale arrays on a zero-delta diff (F6 wire-contract).
+		if d.Added == nil {
+			d.Added = []store.Resource{}
+		}
+		if d.Stale == nil {
+			d.Stale = []store.Resource{}
 		}
 
 		switch diffOutputFmt {

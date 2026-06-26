@@ -40,7 +40,7 @@ particular). Use --exclude-types to mute specific types from the
 denominator across all three sections; the same flag works on
 'disco list' and 'disco tag-coverage'.
 
-Output formats: table (default), json, csv. JSON envelope shape:
+Output formats: table (default), markdown, csv, json, jsonl. JSON envelope shape:
 
   {
     "as_of":              "<RFC3339 timestamp from latest scan or empty>",
@@ -53,7 +53,7 @@ Output formats: table (default), json, csv. JSON envelope shape:
     "type_buckets_total": <int — distinct types pre --top-types truncation>
   }
 
-CSV is long-form: dimension,value,count (one row per bucket).
+CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).
 
 Examples:
   disco summary
@@ -238,6 +238,8 @@ func renderSummary(rep summaryReport, format string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(rep)
+	case "jsonl":
+		return renderSummaryJSONL(rep)
 	case "csv":
 		return renderSummaryCSV(rep)
 	case "markdown", "md":
@@ -245,8 +247,48 @@ func renderSummary(rep summaryReport, format string) error {
 	case "table", "":
 		return renderSummaryTable(rep)
 	default:
-		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json)", format)
+		return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", format)
 	}
+}
+
+// renderSummaryJSONL emits one JSON object per bucket, mirroring the long-form
+// CSV shape (dimension,value,count) so `disco summary -o jsonl | jq` streams
+// rows the same way the other reports do.
+func renderSummaryJSONL(rep summaryReport) error {
+	enc := json.NewEncoder(os.Stdout)
+	type line struct {
+		Dimension string `json:"dimension"`
+		Value     string `json:"value"`
+		Count     int    `json:"count"`
+	}
+	emit := func(dim, val string, count int) error {
+		return enc.Encode(line{Dimension: dim, Value: val, Count: count})
+	}
+	for _, b := range rep.ByProvider {
+		if err := emit("provider", b.Provider, b.Count); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByAccount {
+		label := b.AccountID
+		if b.AccountName != "" {
+			label = b.AccountID + " (" + b.AccountName + ")"
+		}
+		if err := emit("account", label, b.Count); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByRegion {
+		if err := emit("region", b.Region, b.Count); err != nil {
+			return err
+		}
+	}
+	for _, b := range rep.ByType {
+		if err := emit("type", b.Type, b.Count); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func renderSummaryCSV(rep summaryReport) error {
@@ -401,7 +443,7 @@ func init() {
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	summaryCmd.Flags().Var(&summaryDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json")
+	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
 	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")

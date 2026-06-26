@@ -81,6 +81,7 @@ var configInitForce bool
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Generate a boilerplate config file at the default location",
+	Args:  cobra.NoArgs,
 	Long: `Writes a starter config.yaml under the resolved config directory
 (${XDG_CONFIG_HOME}/disco/config.yaml on Linux). The file enumerates
 optional aws / gcp / azure sections; each is opt-in — disco auto-detects

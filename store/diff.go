@@ -19,10 +19,10 @@ import (
 //   - Updated (attribute drift) cannot be computed without historical
 //     snapshots — not implemented.
 type ScanDiff struct {
-	FromScanID string     // "A"
-	ToScanID   string     // "B"
-	Added      []Resource // first seen in scan B
-	Stale      []Resource // last seen in scan A, not refreshed by B
+	FromScanID string     `json:"from_scan_id"` // "A"
+	ToScanID   string     `json:"to_scan_id"`   // "B"
+	Added      []Resource `json:"added"`        // first seen in scan B
+	Stale      []Resource `json:"stale"`        // last seen in scan A, not refreshed by B
 }
 
 // DiffScans returns the resource delta between two scan runs.

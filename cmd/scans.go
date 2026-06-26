@@ -64,7 +64,7 @@ Examples:
 
 var scansShowCmd = &cobra.Command{
 	Use:   "show <id|latest>",
-	Short: "Show full detail for one scan",
+	Short: "Show full detail for one scan run",
 	Long: `Print the full record for one scan: lifecycle timestamps, providers
 included, scope (per-provider account/region/project filters captured at
 scan time), arbitrary meta, the resource_count the scan touched, and the
@@ -115,6 +115,11 @@ Examples:
 }
 
 func renderScans(scans []store.Scan, format string) error {
+	// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
+	// on a zero-row query (mirrors list.go; F6 wire-contract parity).
+	if scans == nil {
+		scans = []store.Scan{}
+	}
 	switch format {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)

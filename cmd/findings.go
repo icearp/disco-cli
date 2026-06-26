@@ -176,6 +176,11 @@ func renderFindings(fs []policy.Finding, format string) error {
 }
 
 func renderCheckRuns(runs []store.CheckRun, format string) error {
+	// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
+	// on a zero-row query (mirrors list.go; F6 wire-contract parity).
+	if runs == nil {
+		runs = []store.CheckRun{}
+	}
 	switch format {
 	case "json":
 		enc := json.NewEncoder(os.Stdout)
@@ -338,8 +343,8 @@ func init() {
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low, medium, high, critical)")
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
-	findingsListCmd.Flags().StringVar(&findingsType, "type", "", "Filter by resource type")
-	findingsListCmd.Flags().StringVar(&findingsProvider, "provider", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
+	findingsListCmd.Flags().StringVarP(&findingsType, "type", "t", "", "Filter by resource type")
+	findingsListCmd.Flags().StringVarP(&findingsProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
 	findingsListCmd.Flags().StringVar(&findingsFindingID, "finding-id", "", "Filter by Rego rule id (e.g. waf-sec-ebs-encryption-at-rest)")
 
 	findingsRunsCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")

@@ -92,6 +92,15 @@ func Execute(ctx context.Context) {
 		if errors.Is(err, errTagCoverageBelow) || errors.Is(err, errFindingsReported) {
 			os.Exit(1)
 		}
+		// `scan` already printed its summary line to stdout; the sentinel only
+		// carries the exit-code gate. SIGINT/SIGTERM → 130 (conventional);
+		// --fail-on-error partial → 1. No duplicate stderr print.
+		if errors.Is(err, errScanInterrupted) {
+			os.Exit(130)
+		}
+		if errors.Is(err, errScanPartial) {
+			os.Exit(1)
+		}
 		// --require-resources / --min-resources gate (Phase 3.9). Print the
 		// wrapped error to stderr so operators see "have N, want >= M" but
 		// pipelines that already parsed stdout get an unambiguous exit 1.
