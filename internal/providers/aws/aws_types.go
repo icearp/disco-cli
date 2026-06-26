@@ -302,6 +302,8 @@ const (
 	TypeS3MultiRegionAccessPointPolicy = "aws:s3:multi-region-access-point-policy"
 	TypeS3StorageLens                  = "aws:s3:storage-lens"
 	TypeS3StorageLensGroup             = "aws:s3:storage-lens-group"
+	// Service Quotas
+	TypeServiceQuota = "aws:servicequotas:quota"
 	// SNS
 	TypeSNSTopic        = "aws:sns:topic"
 	TypeSNSSubscription = "aws:sns:subscription"

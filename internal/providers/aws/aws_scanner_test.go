@@ -263,6 +263,7 @@ var expectedAWSServices = []string{
 	"aws:kendra",
 	"aws:kafka-connect",
 	"aws:fms",
+	"aws:servicequotas",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

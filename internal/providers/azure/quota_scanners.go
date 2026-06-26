@@ -138,7 +138,10 @@ func quotaExtract(scope, region string) func(*armquota.CurrentQuotaLimitBase) az
 			}
 			id = scope + "/providers/Microsoft.Quota/quotas/" + name
 		}
-		return azTrackedBase{id: id, name: name, location: region, full: q}
+		// managed: quotas materialize automatically per subscription and cannot be
+		// deleted — hidden from default list/graph unless --include-managed (kept
+		// consistent with aws:servicequotas:quota).
+		return azTrackedBase{id: id, name: name, location: region, managed: true, full: q}
 	}
 }
 
