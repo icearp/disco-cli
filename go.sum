@@ -648,8 +648,6 @@ github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.6 h1:BZuH7nZjB+3HghoE9d
 github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.6/go.mod h1:d1oJcGnJe++u//4bp58J5gwQyE10wPObgWAvlfGjy/4=
 github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.53.1 h1:RTY46UYKqpasD7jLu0esw6rw95CXpAmGE4oBBs6zoko=
 github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.53.1/go.mod h1:qaCPaUpUwFeeqaeG4x0eNKkPt5fINOh4YEoSLLcxdjc=
-github.com/aws/aws-sdk-go-v2/service/inspector v1.30.22 h1:phWl4pu6OSvB8xRF14eTKWrvk7hQspQqz1YqyV++fmA=
-github.com/aws/aws-sdk-go-v2/service/inspector v1.30.22/go.mod h1:BRKeLwlPqToFLwqO3GcIETzktr5QvnWprfI/iICeyJ0=
 github.com/aws/aws-sdk-go-v2/service/inspector2 v1.47.5 h1:fqE8G6my+uzbK/2/vh0JOhOJT0oOpfvsRzk29bPlLAo=
 github.com/aws/aws-sdk-go-v2/service/inspector2 v1.47.5/go.mod h1:qV3kvZJnNivWgMVdKlKdFLGA0LI4SnsSm1V0DUN5ngI=
 github.com/aws/aws-sdk-go-v2/service/interconnect v1.0.2 h1:p1wUejEH4C4SAyqym883npFKyOiuNwuvEr8o97loNGI=
@@ -698,8 +696,6 @@ github.com/aws/aws-sdk-go-v2/service/keyspaces v1.25.6 h1:jMzKib5IFZAZOfFyw4i7Wf
 github.com/aws/aws-sdk-go-v2/service/keyspaces v1.25.6/go.mod h1:+666D+0+cFuzSwavezjOcMMxDuASZpb0f6kXSNxQ4A0=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6 h1:Gw375uiaTvryG3z4QN9m5KuaIRkfdWASq/xqZS18zMg=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6/go.mod h1:CHCpwz0om22znPqK8Gn3jmu1QZxnxDzMZ6UbQ1duH3A=
-github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25 h1:OBjINDp8xhZjliKWnidzagqyHpNIRPDm4jeP/173WkI=
-github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25/go.mod h1:PdNJ4V245nwJUkLf5VmeHCEE+dYg60vg0y5f+UpOZUw=
 github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.37.2 h1:rln/edRVCCmMlxaFc0UaroIOWEuQr9ih2/1jIUWNNNg=
 github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.37.2/go.mod h1:h9uvfBlO37RRw0CZQIXanA1kqpDEvnsUeVSf9pNej3I=
 github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.10 h1:Z3xoYyzvZa3YmIzTdUctjgEEvuE6NMcJqEKHAZkJxns=
@@ -742,8 +738,6 @@ github.com/aws/aws-sdk-go-v2/service/mediapackagev2 v1.37.0 h1:EhuYHjqXNpkpROCzG
 github.com/aws/aws-sdk-go-v2/service/mediapackagev2 v1.37.0/go.mod h1:lmYE+EShgxxI35+UwVCbE8Z3OsutViSOMNNx3Y3/Y3c=
 github.com/aws/aws-sdk-go-v2/service/mediapackagevod v1.39.23 h1:3D0AdP2dlAuyS8+bI32nwWeVElqpum5x57qd7gnv0/g=
 github.com/aws/aws-sdk-go-v2/service/mediapackagevod v1.39.23/go.mod h1:3nv4OO4gMdloy2CVFb+veQzwndmDhxXatvZ/D0dEN1Y=
-github.com/aws/aws-sdk-go-v2/service/mediastore v1.29.23 h1:yxt0mlXvIz6tBqE6tE+8nT4HInWgEjzwnHDI6TxKm7E=
-github.com/aws/aws-sdk-go-v2/service/mediastore v1.29.23/go.mod h1:8nxl+cuTs2USuUurU51GknJf37qAFtSRsrpSomYqqsA=
 github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2 h1:LE3qVc8rZ40Dimit60IwYFESOjUYW7q4Vq+xFvjFuek=
 github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2/go.mod h1:vYxDw6nIW7MEWJIZBiw8m+RMz7Q6i0VjL5YXoI6F6TY=
 github.com/aws/aws-sdk-go-v2/service/medicalimaging v1.24.2 h1:LeFcURujd6+MLgDTLNgYrjEJfCuJ5oK7AVkkgrSgkwQ=

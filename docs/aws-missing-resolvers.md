@@ -207,7 +207,6 @@ aws:iam:instance-profile	iam
 aws:identitystore:group	identitystore
 aws:identitystore:group-membership	identitystore
 aws:identitystore:user	identitystore
-aws:inspector:resource-group	inspector
 aws:interconnect:connection	interconnect
 aws:internet-monitor:monitor	internet-monitor
 aws:ivs-chat:logging-configuration	ivs-chat
@@ -229,7 +228,6 @@ aws:managed-blockchain:node	managed-blockchain
 aws:media-convert:job-template	media-convert
 aws:media-convert:preset	media-convert
 aws:media-convert:queue	media-convert
-aws:media-store:container	media-store
 aws:medialive:cloudwatch-alarm-template-group	medialive
 aws:medialive:eventbridge-rule-template-group	medialive
 aws:medialive:multiplex	medialive

@@ -974,8 +974,6 @@ const (
 	TypeMWAAServerlessWorkflow = "aws:mwaa-serverless:workflow"
 	// MWAA (mwaa_scanners.go)
 	TypeMWAAEnvironment = "aws:mwaa:environment"
-	// MediaStore (mediastore_scanners.go)
-	TypeMediaStoreContainer = "aws:media-store:container"
 	// LookoutEquipment (lookoutequipment_scanners.go)
 	TypeLookoutEquipmentInferenceScheduler = "aws:lookout-equipment:inference-scheduler"
 	// LaunchWizard (launchwizard_scanners.go)
@@ -1255,10 +1253,6 @@ const (
 	TypeInspector2CisScanConfiguration          = "aws:inspector2:cis-scan-configuration"
 	TypeInspector2CodeSecurityIntegration       = "aws:inspector2:code-security-integration"
 	TypeInspector2CodeSecurityScanConfiguration = "aws:inspector2:code-security-scan-configuration"
-	// Inspector v1 (inspector_v1_scanners.go) — legacy classic Inspector.
-	TypeInspectorAssessmentTarget   = "aws:inspector:assessment-target"
-	TypeInspectorAssessmentTemplate = "aws:inspector:assessment-template"
-	TypeInspectorResourceGroup      = "aws:inspector:resource-group"
 	// Glue Data Catalog (glue_scanners.go, glue_resolvers.go)
 	TypeGlueDatabase       = "aws:glue:database"
 	TypeGlueTable          = "aws:glue:table"
@@ -1574,10 +1568,6 @@ const (
 	TypeKendraDataSource = "aws:kendra:data-source"
 	TypeKendraFaq        = "aws:kendra:faq"
 	TypeKendraIndex      = "aws:kendra:index"
-	// KinesisAnalytics v1 (kinesisanalytics_scanners.go).
-	TypeKinesisAnalyticsApplication              = "aws:kinesis-analytics:application"
-	TypeKinesisAnalyticsApplicationOutput        = "aws:kinesis-analytics:application-output"
-	TypeKinesisAnalyticsApplicationReferenceData = "aws:kinesis-analytics:application-reference-data-source"
 	// KinesisAnalyticsV2 (kinesisanalyticsv2_scanners.go).
 	TypeKAV2Application                 = "aws:kinesis-analytics-v2:application"
 	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"

@@ -301,7 +301,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.7
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.36.6
 	github.com/aws/aws-sdk-go-v2/service/imagebuilder v1.53.1
-	github.com/aws/aws-sdk-go-v2/service/inspector v1.30.22
 	github.com/aws/aws-sdk-go-v2/service/inspector2 v1.47.5
 	github.com/aws/aws-sdk-go-v2/service/interconnect v1.0.2
 	github.com/aws/aws-sdk-go-v2/service/internetmonitor v1.26.16
@@ -321,7 +320,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kendraranking v1.15.27
 	github.com/aws/aws-sdk-go-v2/service/keyspaces v1.25.6
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.6
-	github.com/aws/aws-sdk-go-v2/service/kinesisanalytics v1.30.25
 	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.37.2
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.10
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.5
@@ -343,7 +341,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/mediapackage v1.39.23
 	github.com/aws/aws-sdk-go-v2/service/mediapackagev2 v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/mediapackagevod v1.39.23
-	github.com/aws/aws-sdk-go-v2/service/mediastore v1.29.23
 	github.com/aws/aws-sdk-go-v2/service/mediatailor v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/medicalimaging v1.24.2
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.33.16
