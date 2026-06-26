@@ -161,7 +161,7 @@ type ResourceFilter struct {
 	// roles, AWS-owned prefix lists, etc.). Defaults false at the SQL layer.
 	IncludeManaged bool
 	// SkipGlobals, when true, excludes rows whose region = "global". Used by
-	// `disco list --skip-globals` and friends to opt out of the default
+	// `disco resources --skip-globals` and friends to opt out of the default
 	// "include globals when filtering by --regions" behaviour.
 	SkipGlobals bool
 }
@@ -319,7 +319,7 @@ func (s *Store) ResolveResource(arg, provider, rtype, account string) (*Resource
 	}
 
 	// Pass 1: exact match on native_id or name. Most callers pass full
-	// values from `disco list` output and want a deterministic hit before
+	// values from `disco resources` output and want a deterministic hit before
 	// falling back to fuzzy matching.
 	rows, err := s.resolveQuery(
 		sq.Or{sq.Eq{"native_id": arg}, sq.Eq{"name": arg}},
@@ -402,7 +402,7 @@ func (s *Store) resolveQuery(match sq.Sqlizer, provider, rtype, account string) 
 }
 
 // isLikelyHexPrefix returns true when arg is 4-31 lowercase-hex chars —
-// the shape of a `disco list` short-ID paste. Avoids triggering the
+// the shape of a `disco resources` short-ID paste. Avoids triggering the
 // id-prefix fallback for arbitrary short strings.
 func isLikelyHexPrefix(arg string) bool {
 	if len(arg) < 4 || len(arg) >= 32 {

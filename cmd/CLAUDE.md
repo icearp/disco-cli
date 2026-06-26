@@ -7,7 +7,7 @@ Cobra command layer.
 - `disco scan` — runs all registered providers in parallel
 - `disco scan <provider>` — single provider (e.g. `disco scan aws`)
 - `disco scan --providers aws,gcp` — only named providers (comma-separated `StringSlice`)
-- `disco list` — query local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
+- `disco resources` — query local DB with filters (`--provider`, `--type`, `--region`, `--status`, `--tag-key`/`--tag-value`, `--output table|json|csv|jsonl`)
 - `disco diff <scanA> <scanB>` — drift detect; emits added/removed/changed rows between two scan IDs
 - `disco graph <resource-id> --depth N --kinds contains,attached-to --direction both --output table|json|dot|mermaid --dot-theme light|dark|mono` — walks `relationships` + `hierarchy_closure`. DOT styling lives in `cmd/graph_theme.go` — single `dotTheme` struct holds graph/node/edge attribute blocks + `nodePreset` map (primary/secondary/storage/identity/muted/error) + cluster palette. `presetForResource` picks a preset by `Type` second segment (`s3|rds|...`→storage, `iam|sso|...`→identity, `ec2|lambda|...`→primary). `mono` reproduces pre-theme output byte-for-byte for diff-stable piping.
 - `disco graph complete` — dumps every customer resource + every provider-managed resource that shares an edge with one. No seed, no BFS — backed by `store.GraphAll(GraphAllOpts)` which reads `ListResources({IncludeManaged: true})` paginated + `ListRelationships()` and applies the customer-edge inclusion rule in-memory. `--include-managed` keeps orphan managed nodes too. Traversal flags (`--depth`/`--kinds`/`--direction`) ignored.
@@ -49,7 +49,7 @@ Keep cmd provider-agnostic: never `import` a provider package here. When a subco
 
 Output styling: per-format theme modules (`cmd/graph_theme.go` for DOT) own all attribute blocks + a preset map keyed by an enum. Renderers look up presets, never inline color/shape literals. New themes = one entry in the `themes` map; new resource→preset rules = one switch case in `presetForResource`. Always include a `mono` theme that reproduces pre-theme output byte-for-byte for diff-stable piping.
 
-## Shared test helpers (`list_test.go`)
+## Shared test helpers (`resources_test.go`)
 
 Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
 - `seedTestDB(t)` — temp SQLite + scan record + 2 resources; sets `viper.Set("db", path)` so cobra cmds pick it up via `defaultDBPath()`.
@@ -58,10 +58,10 @@ Reused by `graph_test.go`, `check_test.go`, `diff_test.go`:
 - Default invocations are stderr-clean. The "Using config file:" banner is gated behind the global `--verbose` flag (`cmd/root.go::initConfig`); banners added later should reuse the same `verbose` boolean rather than introducing per-cmd `--quiet` flags.
 - Cobra's `InitDefaultVersionFlag` (lazy, called at execute) only claims `-v` when no other flag holds the shorthand. Pre-register a global flag with `-v` in `init()` to repurpose it (precedent: `--verbose` in `cmd/root.go`); `--version` long-form keeps working with no shorthand.
 - JSON/JSONL output paths: wrap RunE as `func(...) (rerr error) { defer func() { maybeStructuredError(<formatVar>, rerr) }(); ... }` so failures emit a `{"error": "msg"}` envelope on stdout (helper in `cmd/helpers.go`). Skip the envelope for sentinel "absence" errors like `ErrNoPath` where empty stdout + exit 1 is documented contract — `graph path` does this with an `errors.Is` guard.
-- `list -o csv` columns are positional-stable: append-only when adding fields to `listColumns` / `resourceRow` in `cmd/list.go`. Pre-existing positions back spreadsheet imports keyed on index; reordering breaks downstream silently.
+- `resources -o csv` columns are positional-stable: append-only when adding fields to `resourcesColumns` / `resourceRow` in `cmd/resources.go`. Pre-existing positions back spreadsheet imports keyed on index; reordering breaks downstream silently.
 - Read commands open the DB via `openDB()` (`cmd/helpers.go`) which always opens read-only — defense-in-depth so a future read-side bug can't silently mutate evidence. Write commands (`scan`, `config init`, `check --persist`) call `openWriteDB()` and refuse `dbReadOnly` up-front. The global `--db-readonly` flag is preserved as the writer-refuse override; on read commands it's a no-op (already RO). First-run UX: when the DB file doesn't exist, `openDB()` errors with a "run a scan first" hint inline. Stale-schema gate: `openDB()` probes `schema_migrations` and rejects with a "run `disco scan` to upgrade" hint when the on-disk schema lags the binary's `TargetSchemaVersion()` — RO opens skip migrate by design, so reads must reject pre-flight rather than surface cryptic SQLite errors.
 
-Cobra package-level flag vars (`graph*`, `list*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `listOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
+Cobra package-level flag vars (`graph*`, `resources*`, …) persist across tests because `rootCmd` is shared. Each subcommand test must reset its flags before `cmd.SetArgs(...)` — see `resetGraphFlags()` in `graph_test.go`. Flag pollution is transitive: a NEW test setting `--type`/`--limit`/`--direction` via `SetArgs` can break older sibling tests that only did partial resets (e.g. `resourcesOutputFmt = ""`). When adding such a test, upgrade siblings to the full `resetXFlags()` helper.
 
 Cobra also persists flag-attached values across tests when commands read via `cmd.Flags().GetX("name")` instead of package vars (e.g. `coverage.go::runCoverage`). `resetXFlags()` won't clear those — pass an explicit `--flag=false` in negative-case tests, or call `cmd.Flags().Set("flag", "false")` before `Execute()`.
 
@@ -87,7 +87,7 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 `store.Resource.MarshalJSON` is the single source of truth — emits snake_case keys with nested `attributes` / `tags` objects, not stringified `AttributesJSON` / `TagsJSON`. Matches `policy.Finding` and `coverage.Row` shape. New JSON output paths must encode `[]store.Resource` (or struct embedding it) directly; do not reach for raw field access. Empty / missing / malformed `attributes`/`tags` always render as `{}` (never absent); optional fields render as `null` (never omitted).
 
-`disco list -o json` initialises the result slice as `[]store.Resource{}` not `nil` so a zero-row query emits `[]` instead of `null` — fix for F6. Mirror the pattern in any new top-level array command.
+`disco resources -o json` initialises the result slice as `[]store.Resource{}` not `nil` so a zero-row query emits `[]` instead of `null` — fix for F6. Mirror the pattern in any new top-level array command.
 
 `disco scans -o json` / `disco scans show -o json` use `store.Scan.MarshalJSON` (F5 fix): snake_case keys, RFC3339 timestamps, parsed `providers` / `scope` / `meta`, no PascalCase or `*JSON` SQLite-column leak. `disco summary.as_of` is normalised at population time via `store.ToRFC3339`.
 
@@ -103,21 +103,21 @@ When "no result" is a valid query outcome (e.g. `graph path` between unreachable
 
 ## `--scan-id` + `latest` shorthand via `resolveScanID`
 
-`list`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow (F3 fix). Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
+`resources`, `summary`, `tag-coverage`, and `scans show` all accept `--scan-id <id|latest>`. `latest` resolves via `resolveScanID(db, raw)` (`cmd/helpers.go`) to the most-recent scan whose `resource_count > 0` — a re-verify run that touched no new rows otherwise silently zero-rows the documented drift workflow (F3 fix). Falls back to the most-recent scan when none qualify with a one-line stderr note. Literal IDs round-trip after a `GetScan` presence check; unknown IDs return `scan %q not found`. Plumbed onto `ResourceFilter.DiscoveredBy`; `scan --resume <id|latest>` uses the same shorthand convention.
 
 `ListScans` ORDER BY tie-breaks `started_at DESC` with `rowid DESC` because `datetime('now')` has 1s resolution — two scans created within the same second otherwise ordered by SQLite implementation default and `latest` could resolve to the older one.
 
-## `--scan-as discovered|verified|any` reconciles `scans.ResourceCount` ↔ `list --scan-id`
+## `--scan-as discovered|verified|any` reconciles `scans.ResourceCount` ↔ `resources --scan-id`
 
-`scans.resource_count` counts every row a scan touched (insert OR re-verify). `list --scan-id <id>` previously filtered on `discovered_by` only, so a scan that re-verified pre-existing rows reported `RESOURCES: 2045` in `scans` but yielded 0 from `list --scan-id`. F3 fix:
+`scans.resource_count` counts every row a scan touched (insert OR re-verify). `resources --scan-id <id>` previously filtered on `discovered_by` only, so a scan that re-verified pre-existing rows reported `RESOURCES: 2045` in `scans` but yielded 0 from `resources --scan-id`. F3 fix:
 
 - `ResourceFilter.ScanAs` selects which scan-FK column matches: `discovered` → `discovered_by = ?`, `verified` → `verified_by = ?`, `any` (default, empty) → either column matches.
-- `list --scan-as <value>` exposes the choice. Default `any` matches the persona expectation that the named scan returns rows it touched. Flag name was originally `--scan-role`; renamed to `--scan-as` to avoid IAM-role cognitive collision and read naturally inline (`--scan-id latest --scan-as discovered`).
-- `list --id <resource-id>` is a primary-key short-circuit on `ResourceFilter.ID` (`WHERE id = ?`); pairs with the F12 partial-ID lookup planned for WS7.
+- `resources --scan-as <value>` exposes the choice. Default `any` matches the persona expectation that the named scan returns rows it touched. Flag name was originally `--scan-role`; renamed to `--scan-as` to avoid IAM-role cognitive collision and read naturally inline (`--scan-id latest --scan-as discovered`).
+- `resources --id <resource-id>` is a primary-key short-circuit on `ResourceFilter.ID` (`WHERE id = ?`); pairs with the F12 partial-ID lookup planned for WS7.
 
 ## seedTestDB ships with 2 baseline rows
 
-`seedTestDB` (`list_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
+`seedTestDB` (`resources_test.go`) seeds one `aws:ec2:instance` + one `aws:s3:bucket` plus the scan record. Tests adding more rows must factor those two into expected totals (e.g. `summary.total`, `tag-coverage.total`). Don't try to delete them — every other cmd test already depends on them.
 
 ## `disco graph complete --orphans-only` filters to disconnected nodes
 
@@ -162,7 +162,7 @@ The gate function `emulatorAccountIDOverride()` is the single read site; both th
 
 ## `disco check` defaults to customer-managed (F24); --include-managed opts in
 
-`check` previously evaluated every row in the DB (including AWS-managed IAM policies, Azure built-in role definitions, GCP foreign-project stubs) — every BYO Rego author had to defensively `not input.managed_by_provider` or get noisy findings against resources they cannot remediate. Now `check` mirrors `list` / `summary`: customer-only by default, opt in via `--include-managed`. The flag is wired straight onto `ResourceFilter.IncludeManaged`.
+`check` previously evaluated every row in the DB (including AWS-managed IAM policies, Azure built-in role definitions, GCP foreign-project stubs) — every BYO Rego author had to defensively `not input.managed_by_provider` or get noisy findings against resources they cannot remediate. Now `check` mirrors `resources` / `summary`: customer-only by default, opt in via `--include-managed`. The flag is wired straight onto `ResourceFilter.IncludeManaged`.
 
 ## Findings gate the exit code by default; `--exit-zero` overrides
 
@@ -193,11 +193,11 @@ Some scanners wrap the SDK response under a key (CloudTrail: `{"Trail": ..., "St
 
 ## Set `Args: cobra.NoArgs` on flag-only subcommands
 
-Cobra's default Args validator silently accepts arbitrary positional tokens. `disco list --discovered-since 2025-05-01 12:01:01` parses `--discovered-since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`list`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.
+Cobra's default Args validator silently accepts arbitrary positional tokens. `disco resources --discovered-since 2025-05-01 12:01:01` parses `--discovered-since=2025-05-01` and treats `12:01:01` as a positional, ignored without error. Read commands with no positional arity (`resources`, `summary`, `scans`) MUST set `Args: cobra.NoArgs`. Use `cobra.ExactArgs(N)` / `MaximumNArgs(N)` / `MinimumNArgs(N)` per shape — never leave Args unset on a flag-only verb.
 
 ## Time filters: `{discovered, created} × {since, before}` — half-open `[since, before)`
 
-`list`, `summary`, `tag-coverage` accept the column-anchored time-filter pair `--<col>-since` / `--<col>-before`:
+`resources`, `summary`, `tag-coverage` accept the column-anchored time-filter pair `--<col>-since` / `--<col>-before`:
 
 - `--discovered-since <ts>` → `ResourceFilter.DiscoveredSince` → SQL `discovered_at >= ?`. Inclusive lower bound on first-seen-by-disco.
 - `--discovered-before <ts>` → `ResourceFilter.DiscoveredBefore` → SQL `discovered_at < ?`. Strict upper bound; pairs with `--discovered-since` for half-open `[since, before)` intervals; also serves as the standalone "stale" hygiene query.
@@ -221,7 +221,7 @@ New column-anchored time filters follow the same `{*-since, *-before}` shape —
 
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
-`list`, `summary`, `tag-coverage`, and `check` all expose `--exclude-types` (StringSlice → comma-separated). All forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
+`resources`, `summary`, `tag-coverage`, and `check` all expose `--exclude-types` (StringSlice → comma-separated). All forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
 
 ## DOT `dir=back` requires endpoint swap, not just attribute
 
@@ -229,7 +229,7 @@ Graphviz `dir=back` only re-renders the arrowhead — rank still flows tail→he
 
 ## Output-format parity: `table | markdown | csv | json` floor
 
-Every reportable subcommand (`list`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`scan`, `snapshot`, `verify`, `config init`) have no `-o` flag — they perform actions, not reports. Help text lists every supported format the command accepts in canonical order then extras.
+Every reportable subcommand (`resources`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`scan`, `snapshot`, `verify`, `config init`) have no `-o` flag — they perform actions, not reports. Help text lists every supported format the command accepts in canonical order then extras.
 
 ## UX consistency conventions (scan exit codes, scan-id resolution, collections, completion)
 
@@ -239,10 +239,10 @@ A consistency pass aligned several edges with the conventions above. When touchi
 
 - **`diff` resolves scan IDs like every other consumer.** `diff <from> <to>` routes both args through `resolveScanID` (`helpers.go`), so 8–31-char prefixes (as `disco scans` prints) and `latest` work — not just full 32-hex IDs. Any new scan-id-taking command must do the same.
 
-- **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries snake_case json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `list`).
+- **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries snake_case json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `resources`).
 
-- **Collection grammar.** `list` carries `Aliases: ["resources"]` so the collection is reachable by its noun alongside `scans` / `findings` (precedent: `history`/`versions`). Scan runs are top-level (`disco scans`); check runs stay nested (`disco findings runs`) — they are subordinate to the findings they produce, and a top-level `disco checks` would overload the `disco check` verb. This asymmetry is deliberate.
+- **Collection grammar.** The resource collection is the canonical noun `resources` (consistent with the other collections `scans` / `findings`), with `list` kept as an alias for the verb form (`Aliases: ["list"]`; precedent: `history`/`versions`). Scan runs are top-level (`disco scans`); check runs stay nested (`disco findings runs`) — they are subordinate to the findings they produce, and a top-level `disco checks` would overload the `disco check` verb. This asymmetry is deliberate.
 
 - **Shell completion.** `--output` flags register `staticCompletion(<formats>)` and `scan --providers` registers `completeProviderNames` (`cmd/completion.go`). A new reportable command should register `--output` completion with exactly the formats its switch accepts. Resource/scan-ID argument completion is intentionally not wired (it needs DB I/O on the completion path) — a deliberate follow-up, not an oversight.
 
-- **Markdown cells are sanitized centrally.** `renderMarkdownTable` runs every header/cell through `sanitizeMarkdownCell` (escape `|`, fold newlines), so callers may pass raw JSON blobs (scope/tags) without pre-escaping. `list -o markdown` uses Title Case `listMarkdownHeaders` (parallel to snake_case `listColumns`, which stays for CSV positional stability — keep the two in lockstep; `TestListMarkdownHeadersParity` guards length).
+- **Markdown cells are sanitized centrally.** `renderMarkdownTable` runs every header/cell through `sanitizeMarkdownCell` (escape `|`, fold newlines), so callers may pass raw JSON blobs (scope/tags) without pre-escaping. `resources -o markdown` uses Title Case `resourcesMarkdownHeaders` (parallel to snake_case `resourcesColumns`, which stays for CSV positional stability — keep the two in lockstep; `TestResourcesMarkdownHeadersParity` guards length).

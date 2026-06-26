@@ -95,18 +95,18 @@ func capturePipe(t *testing.T, target **os.File, fn func() error) (string, error
 	return buf.String(), runErr
 }
 
-// TestListCmd_JSON verifies that --output json emits a valid JSON array of
+// TestResourcesCmd_JSON verifies that --output json emits a valid JSON array of
 // all seeded resources.
-func TestListCmd_JSON(t *testing.T) {
+func TestResourcesCmd_JSON(t *testing.T) {
 	seedTestDB(t)
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "json"})
+		cmd.SetArgs([]string{"resources", "--output", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list --output json: %v", err)
+		t.Fatalf("resources --output json: %v", err)
 	}
 
 	var decoded []store.Resource
@@ -118,12 +118,12 @@ func TestListCmd_JSON(t *testing.T) {
 	}
 }
 
-// TestListCmd_JSON_SnakeCase guards the F3 unification: keys must be
+// TestResourcesCmd_JSON_SnakeCase guards the F3 unification: keys must be
 // snake_case and attributes/tags must be nested objects on the wire, not
 // stringified JSON blobs as in the legacy PascalCase shape.
-func TestListCmd_JSON_SnakeCase(t *testing.T) {
+func TestResourcesCmd_JSON_SnakeCase(t *testing.T) {
 	st := seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
 		t.Fatalf("CreateScan: %v", err)
@@ -141,11 +141,11 @@ func TestListCmd_JSON_SnakeCase(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume"})
+		cmd.SetArgs([]string{"resources", "--output", "json", "--type", "aws:ec2:volume"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list json: %v", err)
+		t.Fatalf("resources json: %v", err)
 	}
 	var rows []map[string]any
 	if err := json.Unmarshal([]byte(out), &rows); err != nil {
@@ -174,52 +174,52 @@ func TestListCmd_JSON_SnakeCase(t *testing.T) {
 	}
 }
 
-// TestListCmd_Markdown verifies that --output markdown emits a GitHub-flavoured
-// TestListMarkdownHeadersParity guards that the Title Case markdown header
+// TestResourcesMarkdownHeadersParity guards that the Title Case markdown header
 // slice stays in lockstep with the CSV column slice — a column added to one
 // must be added to the other (same position).
-func TestListMarkdownHeadersParity(t *testing.T) {
-	if len(listMarkdownHeaders) != len(listColumns) {
-		t.Fatalf("listMarkdownHeaders (%d) and listColumns (%d) must have equal length",
-			len(listMarkdownHeaders), len(listColumns))
+func TestResourcesMarkdownHeadersParity(t *testing.T) {
+	if len(resourcesMarkdownHeaders) != len(resourcesColumns) {
+		t.Fatalf("resourcesMarkdownHeaders (%d) and resourcesColumns (%d) must have equal length",
+			len(resourcesMarkdownHeaders), len(resourcesColumns))
 	}
 }
 
-// TestListCmd_ResourcesAlias verifies the `resources` noun alias dispatches to
-// the same command as `list` (collection-grammar parity with scans/findings).
-func TestListCmd_ResourcesAlias(t *testing.T) {
+// TestResourcesCmd_ListAlias verifies the `list` verb alias still dispatches to
+// the canonical `resources` command (back-compat after the canonical flip).
+func TestResourcesCmd_ListAlias(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"resources", "-o", "json"})
+		cmd.SetArgs([]string{"list", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("resources -o json: %v", err)
+		t.Fatalf("list -o json: %v", err)
 	}
 	var rows []store.Resource
 	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
-		t.Fatalf("alias did not produce list JSON: %v\n%s", jerr, out)
+		t.Fatalf("alias did not produce resources JSON: %v\n%s", jerr, out)
 	}
 	if len(rows) != 2 {
-		t.Errorf("want 2 seeded rows via `resources` alias, got %d", len(rows))
+		t.Errorf("want 2 seeded rows via `list` alias, got %d", len(rows))
 	}
 }
 
-// markdown table with the canonical column order.
-func TestListCmd_Markdown(t *testing.T) {
+// TestResourcesCmd_Markdown verifies that --output markdown emits a
+// GitHub-flavoured markdown table with the canonical column order.
+func TestResourcesCmd_Markdown(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "markdown"})
+		cmd.SetArgs([]string{"resources", "--output", "markdown"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list --output markdown: %v", err)
+		t.Fatalf("resources --output markdown: %v", err)
 	}
 
 	if !strings.Contains(out, "| Provider | Account ID |") {
@@ -233,19 +233,19 @@ func TestListCmd_Markdown(t *testing.T) {
 	}
 }
 
-// TestListCmd_CSV verifies that --output csv emits the header row plus one
+// TestResourcesCmd_CSV verifies that --output csv emits the header row plus one
 // row per resource with the canonical column order.
-func TestListCmd_CSV(t *testing.T) {
+func TestResourcesCmd_CSV(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "csv"})
+		cmd.SetArgs([]string{"resources", "--output", "csv"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list --output csv: %v", err)
+		t.Fatalf("resources --output csv: %v", err)
 	}
 
 	r := csv.NewReader(bytes.NewReader([]byte(out)))
@@ -289,9 +289,9 @@ func TestListCmd_CSV(t *testing.T) {
 	}
 }
 
-// TestListCmd_CSV_TagsAttrsRoundTrip seeds a row with tags + attrs and asserts
+// TestResourcesCmd_CSV_TagsAttrsRoundTrip seeds a row with tags + attrs and asserts
 // the CSV blob cells parse back via json.Unmarshal — F7 fidelity guard.
-func TestListCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
+func TestResourcesCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -306,15 +306,15 @@ func TestListCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	resetListFlags()
+	resetResourcesFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "csv", "--type", "aws:ec2:volume"})
+		cmd.SetArgs([]string{"resources", "--output", "csv", "--type", "aws:ec2:volume"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list csv: %v", err)
+		t.Fatalf("resources csv: %v", err)
 	}
 	r := csv.NewReader(bytes.NewReader([]byte(out)))
 	rows, err := r.ReadAll()
@@ -345,19 +345,19 @@ func TestListCmd_CSV_TagsAttrsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestListCmd_JSONL verifies that --output jsonl emits one JSON object per
+// TestResourcesCmd_JSONL verifies that --output jsonl emits one JSON object per
 // newline-terminated line.
-func TestListCmd_JSONL(t *testing.T) {
+func TestResourcesCmd_JSONL(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "jsonl"})
+		cmd.SetArgs([]string{"resources", "--output", "jsonl"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list --output jsonl: %v", err)
+		t.Fatalf("resources --output jsonl: %v", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
@@ -372,30 +372,30 @@ func TestListCmd_JSONL(t *testing.T) {
 	}
 }
 
-// resetListFlags returns package-level list flag vars to defaults — cobra
+// resetResourcesFlags returns package-level list flag vars to defaults — cobra
 // leaks them across tests because rootCmd is shared.
-func resetListFlags() {
-	listProvider = ""
-	listType = ""
-	listExcludeTypes = nil
-	listRegion = ""
-	listStatus = ""
-	listTagKey = ""
-	listTagValue = ""
-	listScanID = ""
-	listDiscoveredSince.reset()
-	listDiscoveredBefore.reset()
-	listCreatedSince.reset()
-	listCreatedBefore.reset()
-	listOutputFmt = ""
-	listLimit = 0
-	listIncludeManaged = false
+func resetResourcesFlags() {
+	resourcesProvider = ""
+	resourcesType = ""
+	resourcesExcludeTypes = nil
+	resourcesRegion = ""
+	resourcesStatus = ""
+	resourcesTagKey = ""
+	resourcesTagValue = ""
+	resourcesScanID = ""
+	resourcesDiscoveredSince.reset()
+	resourcesDiscoveredBefore.reset()
+	resourcesCreatedSince.reset()
+	resourcesCreatedBefore.reset()
+	resourcesOutputFmt = ""
+	resourcesLimit = 0
+	resourcesIncludeManaged = false
 }
 
-// TestListCmd_DefaultReturnsAll guards against silent 500-row truncation.
+// TestResourcesCmd_DefaultReturnsAll guards against silent 500-row truncation.
 // Seeds 600+ rows (well above the historical default cap) and asserts the
 // no-flag invocation returns every row.
-func TestListCmd_DefaultReturnsAll(t *testing.T) {
+func TestResourcesCmd_DefaultReturnsAll(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -413,14 +413,14 @@ func TestListCmd_DefaultReturnsAll(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	resetListFlags()
+	resetResourcesFlags()
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "json"})
+		cmd.SetArgs([]string{"resources", "--output", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("resources: %v", err)
 	}
 	var decoded []store.Resource
 	if jerr := json.Unmarshal([]byte(out), &decoded); jerr != nil {
@@ -431,9 +431,9 @@ func TestListCmd_DefaultReturnsAll(t *testing.T) {
 	}
 }
 
-// TestListCmd_LimitWarnsOnTruncation asserts a positive --limit that hits
+// TestResourcesCmd_LimitWarnsOnTruncation asserts a positive --limit that hits
 // the cap emits a stderr warning and clean stdout.
-func TestListCmd_LimitWarnsOnTruncation(t *testing.T) {
+func TestResourcesCmd_LimitWarnsOnTruncation(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -451,19 +451,19 @@ func TestListCmd_LimitWarnsOnTruncation(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	resetListFlags()
+	resetResourcesFlags()
 	var stdoutCap string
 	stderrCap, err := captureStderr(t, func() error {
 		var inner error
 		stdoutCap, inner = captureStdout(t, func() error {
 			cmd := rootCmd
-			cmd.SetArgs([]string{"list", "--output", "json", "--limit", "100"})
+			cmd.SetArgs([]string{"resources", "--output", "json", "--limit", "100"})
 			return cmd.Execute()
 		})
 		return inner
 	})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("resources: %v", err)
 	}
 	if !strings.Contains(stderrCap, "warning: --limit 100") {
 		t.Errorf("want truncation warning on stderr, got %q", stderrCap)
@@ -492,8 +492,8 @@ func TestScan_RejectedUnderReadOnly(t *testing.T) {
 	}
 }
 
-// TestListCmd_DBReadOnly guards F20: --db-readonly opens RO and reads OK.
-func TestListCmd_DBReadOnly(t *testing.T) {
+// TestResourcesCmd_DBReadOnly guards F20: --db-readonly opens RO and reads OK.
+func TestResourcesCmd_DBReadOnly(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -507,17 +507,17 @@ func TestListCmd_DBReadOnly(t *testing.T) {
 	}
 	_ = st.Close()
 
-	resetListFlags()
+	resetResourcesFlags()
 	dbReadOnly = true
 	t.Cleanup(func() { dbReadOnly = false })
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume"})
+		cmd.SetArgs([]string{"resources", "--output", "json", "--type", "aws:ec2:volume"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list under --db-readonly: %v", err)
+		t.Fatalf("resources under --db-readonly: %v", err)
 	}
 	var rows []map[string]any
 	if err := json.Unmarshal([]byte(out), &rows); err != nil {
@@ -532,28 +532,28 @@ func TestListCmd_DBReadOnly(t *testing.T) {
 // banner must not contaminate stderr on default invocations.
 func TestRoot_BannerSuppressedByDefault(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 	verbose = false
 
 	stderrCap, err := captureStderr(t, func() error {
 		_, inner := captureStdout(t, func() error {
 			cmd := rootCmd
-			cmd.SetArgs([]string{"list", "-o", "json"})
+			cmd.SetArgs([]string{"resources", "-o", "json"})
 			return cmd.Execute()
 		})
 		return inner
 	})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("resources: %v", err)
 	}
 	if strings.Contains(stderrCap, "Using config file") {
 		t.Errorf("banner leaked on default invocation: %q", stderrCap)
 	}
 }
 
-// TestListCmd_LimitNoWarnAtExactBoundary guards against the F2 boundary
+// TestResourcesCmd_LimitNoWarnAtExactBoundary guards against the F2 boundary
 // false positive: when population fits exactly within --limit, no warning.
-func TestListCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
+func TestResourcesCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -571,19 +571,19 @@ func TestListCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	resetListFlags()
+	resetResourcesFlags()
 	var stdoutCap string
 	stderrCap, err := captureStderr(t, func() error {
 		var inner error
 		stdoutCap, inner = captureStdout(t, func() error {
 			cmd := rootCmd
-			cmd.SetArgs([]string{"list", "--output", "json", "--type", "aws:ec2:volume", "--limit", "50"})
+			cmd.SetArgs([]string{"resources", "--output", "json", "--type", "aws:ec2:volume", "--limit", "50"})
 			return cmd.Execute()
 		})
 		return inner
 	})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("resources: %v", err)
 	}
 	if strings.Contains(stderrCap, "warning: --limit") {
 		t.Errorf("spurious truncation warning at exact boundary: %q", stderrCap)
@@ -597,9 +597,9 @@ func TestListCmd_LimitNoWarnAtExactBoundary(t *testing.T) {
 	}
 }
 
-// TestListCmd_ExcludeTypes round-trips --exclude-types through the SQL
+// TestResourcesCmd_ExcludeTypes round-trips --exclude-types through the SQL
 // filter; rows of named types must be absent from JSON output.
-func TestListCmd_ExcludeTypes(t *testing.T) {
+func TestResourcesCmd_ExcludeTypes(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -619,14 +619,14 @@ func TestListCmd_ExcludeTypes(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	resetListFlags()
+	resetResourcesFlags()
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--exclude-types", "aws:logs:log-stream", "-o", "json"})
+		cmd.SetArgs([]string{"resources", "--exclude-types", "aws:logs:log-stream", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list: %v", err)
+		t.Fatalf("resources: %v", err)
 	}
 	var decoded []store.Resource
 	if jerr := json.Unmarshal([]byte(out), &decoded); jerr != nil {
@@ -643,10 +643,10 @@ func TestListCmd_ExcludeTypes(t *testing.T) {
 	}
 }
 
-// TestListCmd_ScanID seeds two distinct scan runs with rows under each, then
+// TestResourcesCmd_ScanID seeds two distinct scan runs with rows under each, then
 // asserts --scan-id returns only that run's rows. Also exercises the
 // 'latest' shorthand and the unknown-id error path.
-func TestListCmd_ScanID(t *testing.T) {
+func TestResourcesCmd_ScanID(t *testing.T) {
 	st := seedTestDB(t) // baseline scan + 2 rows
 	scanB, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -663,14 +663,14 @@ func TestListCmd_ScanID(t *testing.T) {
 
 	// scanB is the most-recent scan; --scan-id latest should resolve to it
 	// and return only the one row inserted under it.
-	resetListFlags()
+	resetResourcesFlags()
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--scan-id", "latest", "-o", "json"})
+		cmd.SetArgs([]string{"resources", "--scan-id", "latest", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list latest: %v", err)
+		t.Fatalf("resources latest: %v", err)
 	}
 	var rows []store.Resource
 	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
@@ -681,14 +681,14 @@ func TestListCmd_ScanID(t *testing.T) {
 	}
 
 	// Explicit literal scan ID round-trip.
-	resetListFlags()
+	resetResourcesFlags()
 	out, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--scan-id", scanB, "-o", "json"})
+		cmd.SetArgs([]string{"resources", "--scan-id", scanB, "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list literal: %v", err)
+		t.Fatalf("resources literal: %v", err)
 	}
 	rows = nil
 	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
@@ -699,10 +699,10 @@ func TestListCmd_ScanID(t *testing.T) {
 	}
 
 	// Unknown id rejects.
-	resetListFlags()
+	resetResourcesFlags()
 	_, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--scan-id", "deadbeef"})
+		cmd.SetArgs([]string{"resources", "--scan-id", "deadbeef"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "not found") {
@@ -710,10 +710,10 @@ func TestListCmd_ScanID(t *testing.T) {
 	}
 }
 
-// TestListCmd_Since seeds rows with explicit DiscoveredAt either side of a
+// TestResourcesCmd_Since seeds rows with explicit DiscoveredAt either side of a
 // cutoff and asserts --since filters the older one out. Also exercises the
 // bare-date input form and the invalid-input error path.
-func TestListCmd_Since(t *testing.T) {
+func TestResourcesCmd_Since(t *testing.T) {
 	st := seedTestDB(t)
 	scanID, err := st.CreateScan([]string{"aws"}, map[string]any{})
 	if err != nil {
@@ -734,14 +734,14 @@ func TestListCmd_Since(t *testing.T) {
 	}
 
 	// Bare-date input form.
-	resetListFlags()
+	resetResourcesFlags()
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--discovered-since", "2026-04-01", "--type", "aws:ec2:vpc", "-o", "json"})
+		cmd.SetArgs([]string{"resources", "--discovered-since", "2026-04-01", "--type", "aws:ec2:vpc", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("list since: %v", err)
+		t.Fatalf("resources since: %v", err)
 	}
 	var got []store.Resource
 	if jerr := json.Unmarshal([]byte(out), &got); jerr != nil {
@@ -752,10 +752,10 @@ func TestListCmd_Since(t *testing.T) {
 	}
 
 	// Invalid input rejects.
-	resetListFlags()
+	resetResourcesFlags()
 	_, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--discovered-since", "7d"})
+		cmd.SetArgs([]string{"resources", "--discovered-since", "7d"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "RFC3339") {
@@ -763,10 +763,10 @@ func TestListCmd_Since(t *testing.T) {
 	}
 
 	// Repeated --since rejects (singleSetString).
-	resetListFlags()
+	resetResourcesFlags()
 	_, err = captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--discovered-since", "2026-04-01", "--discovered-since", "2026-05-01"})
+		cmd.SetArgs([]string{"resources", "--discovered-since", "2026-04-01", "--discovered-since", "2026-05-01"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "more than once") {
@@ -774,14 +774,14 @@ func TestListCmd_Since(t *testing.T) {
 	}
 }
 
-// TestListCmd_UnknownFormat verifies the unknown --output format error path.
-func TestListCmd_UnknownFormat(t *testing.T) {
+// TestResourcesCmd_UnknownFormat verifies the unknown --output format error path.
+func TestResourcesCmd_UnknownFormat(t *testing.T) {
 	seedTestDB(t)
-	resetListFlags()
+	resetResourcesFlags()
 
 	_, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "--output", "xml"})
+		cmd.SetArgs([]string{"resources", "--output", "xml"})
 		return cmd.Execute()
 	})
 	if err == nil || !strings.Contains(err.Error(), "unknown --output format") {

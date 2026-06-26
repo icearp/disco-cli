@@ -24,7 +24,7 @@ itself takes no positional args — it always returns the full list. Use
 'disco scans show <id|latest>' for a single-scan deep dive (envelope
 shape documented under that subcommand's --help).
 
-Pairs with 'disco list --scan-id <id>' to inspect rows produced by a
+Pairs with 'disco resources --scan-id <id>' to inspect rows produced by a
 specific run; --scan-id accepts the same 8-31 char hex prefix or
 'latest' shorthand that 'scans show' does.
 
@@ -37,9 +37,9 @@ most-recent scan with a stderr note when none qualify.
 
 The RESOURCES column is rows the scan touched (insert + re-verify), not
 first-seen attribution. To split them, use:
-  disco list --scan-id <id> --scan-as discovered   # rows the scan first saw
-  disco list --scan-id <id> --scan-as verified     # rows the scan re-verified
-  disco list --scan-id <id> --scan-as any          # both (default)
+  disco resources --scan-id <id> --scan-as discovered   # rows the scan first saw
+  disco resources --scan-id <id> --scan-as verified     # rows the scan re-verified
+  disco resources --scan-id <id> --scan-as any          # both (default)
 
 Examples:
   disco scans
@@ -116,7 +116,7 @@ Examples:
 
 func renderScans(scans []store.Scan, format string) error {
 	// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
-	// on a zero-row query (mirrors list.go; F6 wire-contract parity).
+	// on a zero-row query (mirrors resources.go; F6 wire-contract parity).
 	if scans == nil {
 		scans = []store.Scan{}
 	}

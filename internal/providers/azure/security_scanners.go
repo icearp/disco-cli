@@ -54,7 +54,7 @@ func scanSecurity(ctx context.Context, sub *subscription, cred azcore.TokenCrede
 		// the customer has enabled the plan. EnablementTime is set only when
 		// the plan was switched to Standard — its absence marks the row as a
 		// system-emitted placeholder (Free tier / never-enabled), which we
-		// flag managed so `disco list` / `disco graph` defaults skip them.
+		// flag managed so `disco resources` / `disco graph` defaults skip them.
 		managed := p.Properties == nil || p.Properties.EnablementTime == nil
 		batch = append(batch, &store.Resource{
 			Provider: "azure", AccountID: sub.ID, AccountName: &sub.Name,

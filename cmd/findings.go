@@ -192,7 +192,7 @@ func renderFindings(fs []policy.Finding, format string) error {
 
 func renderCheckRuns(runs []store.CheckRun, format string) error {
 	// Re-establish the non-nil contract so `-o json` emits `[]` not `null`
-	// on a zero-row query (mirrors list.go; F6 wire-contract parity).
+	// on a zero-row query (mirrors resources.go; F6 wire-contract parity).
 	if runs == nil {
 		runs = []store.CheckRun{}
 	}

@@ -20,7 +20,7 @@ import (
 // Catalogue types Azure auto-materialises and the user cannot delete
 // (azurefirewallfqdntags, azurewebcategories, bgpservicecommunities,
 // expressrouteportslocations, expressrouteserviceproviders) are upserted with
-// managed=true so they hide from default `disco list` / `disco graph`.
+// managed=true so they hide from default `disco resources` / `disco graph`.
 func scanNetworkSweep(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store, scanID string) (total, inserted int, err error) {
 	phases, err := networkSweepPhases(ctx, sub, cred, st, scanID)
 	if err != nil {

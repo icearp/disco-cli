@@ -1,0 +1,271 @@
+package cmd
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+	"text/tabwriter"
+
+	"codeberg.org/icearp/disco/store"
+	"github.com/spf13/cobra"
+)
+
+// resourcesColumns is the canonical column order for CSV output. Pre-F7 columns
+// keep their positions; chain-of-custody + full-fidelity columns appended
+// so positional-index spreadsheet imports keep working. The table renderer
+// uses its own narrower header.
+var resourcesColumns = []string{
+	"provider", "account_id", "type", "name", "region", "status", "native_id",
+	"id", "account_name", "zone", "managed_by_provider",
+	"tags", "attributes",
+	"created_at", "discovered_at", "discovered_by",
+}
+
+// resourcesMarkdownHeaders mirrors resourcesColumns positionally but in Title Case, so
+// `resources -o markdown` matches the Title Case headers every other markdown
+// renderer uses (summary/scans/diff/findings/graph). resourcesColumns stays
+// snake_case for CSV positional stability; keep the two in lockstep on edits.
+var resourcesMarkdownHeaders = []string{
+	"Provider", "Account ID", "Type", "Name", "Region", "Status", "Native ID",
+	"ID", "Account Name", "Zone", "Managed By Provider",
+	"Tags", "Attributes",
+	"Created At", "Discovered At", "Discovered By",
+}
+
+// resourceRow returns the resource's column values in resourcesColumns order.
+// Used by CSV output; nil string fields render as empty cells. tags and
+// attributes carry the raw JSON blobs — encoding/csv quotes them as needed.
+func resourceRow(r *store.Resource) []string {
+	s := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	tags := ""
+	if r.TagsJSON != nil {
+		tags = *r.TagsJSON
+	}
+	return []string{
+		r.Provider, r.AccountID, r.Type, s(r.Name), s(r.Region), s(r.Status), r.NativeID,
+		r.ID, s(r.AccountName), s(r.Zone), strconv.FormatBool(r.ManagedByProvider),
+		tags, r.AttributesJSON,
+		s(r.CreatedAt), r.DiscoveredAt, r.DiscoveredBy,
+	}
+}
+
+var (
+	resourcesProvider         string
+	resourcesType             string
+	resourcesExcludeTypes     []string
+	resourcesRegion           string
+	resourcesStatus           string
+	resourcesTagKey           string
+	resourcesTagValue         string
+	resourcesScanID           string
+	resourcesID               string
+	resourcesDiscoveredSince  = singleSetString{flag: "discovered-since"}
+	resourcesDiscoveredBefore = singleSetString{flag: "discovered-before"}
+	resourcesCreatedSince     = singleSetString{flag: "created-since"}
+	resourcesCreatedBefore    = singleSetString{flag: "created-before"}
+	resourcesOutputFmt        string
+	resourcesLimit            uint64
+	resourcesIncludeManaged   bool
+	resourcesSkipGlobals      bool
+	resourcesRequireResources bool
+	resourcesMinResources     uint64
+)
+
+var resourcesCmd = &cobra.Command{
+	Use: "resources",
+	// `resources` is the canonical noun (consistent with the other collection
+	// commands `scans` / `findings`); `list` stays as an alias for the verb
+	// form users may reach for (precedent: history/versions).
+	Aliases: []string{"list"},
+	Short:   "List discovered resources (alias: list)",
+	Args:    cobra.NoArgs,
+	Long: `List resources from the local database with optional filters.
+
+Examples:
+  disco resources
+  disco resources --provider aws --type aws:ec2:instance
+  disco resources --discovered-since 2026-01-01 -o jsonl | jq -s 'length'
+  disco resources --created-before 2025-01-01 -t aws:iam:user --include-managed -o json
+  disco resources --scan-id latest -o csv > q.csv
+  disco resources --tag-key env --tag-value production -o json`,
+	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
+		defer func() { maybeStructuredError(resourcesOutputFmt, rerr) }()
+		db, err := openDB()
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		scanID, err := resolveScanID(db, resourcesScanID)
+		if err != nil {
+			return err
+		}
+		discoveredSince, err := parseTimeFlag("--discovered-since", resourcesDiscoveredSince.val)
+		if err != nil {
+			return err
+		}
+		discoveredBefore, err := parseTimeFlag("--discovered-before", resourcesDiscoveredBefore.val)
+		if err != nil {
+			return err
+		}
+		createdSince, err := parseTimeFlag("--created-since", resourcesCreatedSince.val)
+		if err != nil {
+			return err
+		}
+		createdBefore, err := parseTimeFlag("--created-before", resourcesCreatedBefore.val)
+		if err != nil {
+			return err
+		}
+
+		var types []string
+		if resourcesType != "" {
+			types = []string{resourcesType}
+		}
+		var regions []string
+		if resourcesRegion != "" {
+			regions = []string{resourcesRegion}
+		}
+
+		f := store.ResourceFilter{
+			Provider:         resourcesProvider,
+			Types:            types,
+			ExcludeTypes:     resourcesExcludeTypes,
+			Regions:          regions,
+			Status:           resourcesStatus,
+			TagKey:           resourcesTagKey,
+			TagValue:         resourcesTagValue,
+			DiscoveredBy:     scanID,
+			ID:               resourcesID,
+			DiscoveredSince:  discoveredSince,
+			DiscoveredBefore: discoveredBefore,
+			CreatedSince:     createdSince,
+			CreatedBefore:    createdBefore,
+			Limit:            resourcesLimit,
+			IncludeManaged:   resourcesIncludeManaged,
+			SkipGlobals:      resourcesSkipGlobals,
+		}
+
+		// Non-nil contract for `[]` vs `null` JSON output is re-established
+		// post-call (focus-group SUMMARY F6).
+		var resources []store.Resource
+		if resourcesLimit == 0 {
+			resources, err = loadAllResourcesPaged(db, f)
+		} else {
+			// Fetch one extra row as a truncation probe. If the store
+			// returns N+1, more matched than --limit allows; warn and trim.
+			// Equal-N populations no longer trip a false positive.
+			f.Limit = resourcesLimit + 1
+			resources, err = db.ListResources(f)
+			if err == nil && uint64(len(resources)) > resourcesLimit {
+				resources = resources[:resourcesLimit]
+				fmt.Fprintf(os.Stderr,
+					"warning: --limit %d may be hiding rows; raise --limit or pass --limit 0 for all\n",
+					resourcesLimit)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("list resources: %w", err)
+		}
+		// Either branch above may reassign resources to a nil slice on a
+		// zero-row query; re-establish the non-nil contract so json.Encode
+		// emits `[]` not `null`.
+		if resources == nil {
+			resources = []store.Resource{}
+		}
+
+		if err := gateResourceCount(len(resources), resourcesRequireResources, resourcesMinResources); err != nil {
+			return err
+		}
+
+		// When --scan-id returns no rows, the most common cause is the
+		// customer-only filter dropping a managed resource the scan
+		// touched. Surface a stderr nudge so the operator sees the
+		// filter as the suspect rather than reading a disagreement
+		// with `scans show` as a bug.
+		if scanID != "" && !resourcesIncludeManaged && len(resources) == 0 {
+			fmt.Fprintf(os.Stderr,
+				"note: --scan-id + customer-only filter returned 0 rows; pass --include-managed to evaluate provider-managed resources the scan touched\n")
+		}
+
+		switch resourcesOutputFmt {
+		case "json":
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(resources)
+		case "jsonl":
+			// Newline-delimited JSON: one resource per line, no indent.
+			// Suited to streaming into jq, log pipelines, or ELK.
+			enc := json.NewEncoder(os.Stdout)
+			for _, r := range resources {
+				if err := enc.Encode(r); err != nil {
+					return err
+				}
+			}
+			return nil
+		case "csv":
+			w := csv.NewWriter(os.Stdout)
+			defer w.Flush()
+			if err := w.Write(resourcesColumns); err != nil {
+				return err
+			}
+			for _, r := range resources {
+				if err := w.Write(resourceRow(&r)); err != nil {
+					return err
+				}
+			}
+			return nil
+		case "markdown", "md":
+			rows := make([][]string, 0, len(resources))
+			for _, r := range resources {
+				rows = append(rows, resourceRow(&r))
+			}
+			return renderMarkdownTable(os.Stdout, resourcesMarkdownHeaders, rows)
+		case "table", "":
+			if len(resources) == 0 {
+				_, _ = fmt.Fprintln(os.Stderr, "No resources found.")
+				return nil
+			}
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tACCOUNT NAME\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
+			for _, r := range resources {
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+					r.Provider, r.AccountID, ptrOrDash(r.AccountName), r.Type,
+					ptrOrDash(r.Name), ptrOrDash(r.Region), ptrOrDash(r.Status))
+			}
+			return w.Flush()
+		default:
+			return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", resourcesOutputFmt)
+		}
+	},
+}
+
+func init() {
+	resourcesCmd.Flags().StringVarP(&resourcesProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
+	resourcesCmd.Flags().StringVarP(&resourcesType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
+	resourcesCmd.Flags().StringSliceVar(&resourcesExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
+	resourcesCmd.Flags().StringVar(&resourcesScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
+	resourcesCmd.Flags().StringVar(&resourcesID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
+	resourcesCmd.Flags().Var(&resourcesDiscoveredSince, "discovered-since", "Show rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	resourcesCmd.Flags().Var(&resourcesDiscoveredBefore, "discovered-before", "Show rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
+	resourcesCmd.Flags().Var(&resourcesCreatedSince, "created-since", "Show rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
+	resourcesCmd.Flags().Var(&resourcesCreatedBefore, "created-before", "Show rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
+	resourcesCmd.Flags().StringVarP(&resourcesRegion, "region", "r", "", "Filter by region")
+	resourcesCmd.Flags().StringVar(&resourcesStatus, "status", "", "Filter by status")
+	resourcesCmd.Flags().StringVar(&resourcesTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")
+	resourcesCmd.Flags().StringVar(&resourcesTagValue, "tag-value", "", "Filter by tag value (matches any key when --tag-key is unset)")
+	resourcesCmd.Flags().StringVarP(&resourcesOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = resourcesCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
+	resourcesCmd.Flags().Uint64Var(&resourcesLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
+	resourcesCmd.Flags().BoolVar(&resourcesIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
+	resourcesCmd.Flags().BoolVar(&resourcesSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\" (IAM, Route53, CloudFront, tenant-scope Azure, org-scope GCP). By default --regions filters fold globals in.")
+	resourcesCmd.Flags().BoolVar(&resourcesRequireResources, "require-resources", false, "Exit non-zero when 0 rows are returned (fail-closed gate against an empty / unscanned DB)")
+	resourcesCmd.Flags().Uint64Var(&resourcesMinResources, "min-resources", 0, "Exit non-zero when fewer than N rows are returned (overrides --require-resources when both set)")
+	rootCmd.AddCommand(resourcesCmd)
+}

@@ -53,7 +53,7 @@ For the authoritative, live list of scanned resource types, run
 
 ## Query & reporting
 
-- **`list`** — filter by `--type`, `--provider`, `--region`, `--discovered-since`,
+- **`resources`** — filter by `--type`, `--provider`, `--region`, `--discovered-since`,
   and `--scan-id` / `--scan-as discovered|verified|any`. AWS-managed resources are
   hidden by default, opt-in via `--include-managed`.
 - **`summary`** — portfolio rollup by provider / account / region / type with an
@@ -63,7 +63,7 @@ For the authoritative, live list of scanned resource types, run
 - **`diff <scanA> <scanB>`** — what changed between two recorded scans.
 - **`scans`** / **`scans show <id>`** — list recorded runs and inspect one.
 - **Output formats** — table, JSON, JSONL, CSV, SARIF, DOT, Mermaid (per command).
-  `list -o json`, `graph complete -o json`, and `check -o json` are byte-identical
+  `resources -o json`, `graph complete -o json`, and `check -o json` are byte-identical
   across runs (same SHA-256), so they're safe to commit, diff, and feed into CI.
 
 ## Policy & compliance checks

@@ -67,9 +67,9 @@ SQL files in `migrations/` (SQLite) and `migrations/pg/` (Postgres) embedded at 
 
 Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope, plus resolver-side cross-tenant synthetic stubs (`aws:iam:foreign-account`, foreign-subscription, foreign-project) — carry `region = "global"`, not NULL. Each provider package exposes a package-level `regionGlobal *string` pointer (`internal/providers/<p>/<p>.go`); global scanners and stub-emitting resolvers set `Resource.Region = regionGlobal` directly on the literal. Single sentinel pointer per package keeps the call sites trivial.
 
-`ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--skip-globals` on `disco list` / `summary` / `tag-coverage`). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
+`ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--skip-globals` on `disco resources` / `summary` / `tag-coverage`). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
 
-`disco list --regions global` is the canonical "show me every global resource" query.
+`disco resources --regions global` is the canonical "show me every global resource" query.
 
 ## Resource versioning
 
@@ -158,7 +158,7 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go:451`) page-lo
 
 **Schema contract — every documented key always present.** `Resource.MarshalJSON` (and the matching `resources_json_test.go::TestResource_MarshalJSON_AlwaysPresent`) emits every key listed under `disco check --help`: optional pointer fields render as `null` (not omitted), `tags` and `attributes` always render as objects (`{}` for empty / missing / malformed legacy blobs). Stripping `,omitempty` was the F6 fix from focus-group/SUMMARY.md — Rego authors and downstream consumers can traverse `input.attributes.X` / `input.tags.Y` without per-row presence guards. Don't reintroduce `,omitempty` on the contract fields.
 
-Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `listColumns`/`resourceRow` in `cmd/list.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
+Adding a field to `Resource` has three downstream touch-points: (1) `MarshalJSON`/`UnmarshalJSON` if it carries on the JSON wire; (2) `resourceToInput` in `internal/policy/policy.go` so Rego policies can see it; (3) `resourcesColumns`/`resourceRow` in `cmd/resources.go` for CSV. Skipping (2) silently hides the field from every Rego rule.
 
 modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `OpenReadOnly` uses `mode=ro`; same shape extends to `cache=shared`, `_pragma=...`, etc. when needed.
 
@@ -182,7 +182,7 @@ modernc/sqlite accepts SQLite URI parameters via `file:<path>?<params>` form. `O
 
 ## `ResolveResource` two-pass: exact → id-prefix → substring
 
-Seed lookup (`graph blast`, `graph path`, `list --id`) tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. F12 fix for "the CLI's own short-ID prints don't round-trip as input." Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
+Seed lookup (`graph blast`, `graph path`, `resources --id`) tries exact `native_id`/`name` first, then ID-prefix on the 32-hex resource ID (when arg is 4–31 lowercase hex), then `LIKE %arg%` on `native_id`/`name`. F12 fix for "the CLI's own short-ID prints don't round-trip as input." Disambiguators (`--provider`, `--type`, `--account`) narrow each pass; multi-row results surface as the existing ambiguity error. Each pass capped at 50 rows so substring-on-large-DB doesn't OOM. New callers should route through `ResolveResource` rather than rolling their own lookups — single source of truth.
 
 ## Cross-backend SQL: `s.exec`/`s.get`/`s.query`/`s.queryRow`/`s.selectAll`
 

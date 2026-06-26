@@ -494,7 +494,7 @@ func scanElastiCacheUserGroups(ctx context.Context, client elasticacheAPI, acct 
 // AWS's pre-created defaults — names like "default.redis6.x",
 // "default.memcached1.6", "default.valkey7". AWS creates one per supported
 // engine/version, immutable by the customer; treating them as managed hides
-// them from `disco list` / `disco graph` defaults. Customer PGs may also
+// them from `disco resources` / `disco graph` defaults. Customer PGs may also
 // start with "default" but never embed a "." (forbidden in user-supplied
 // names alongside the "default" prefix), so the two-part check is reliable.
 func isDefaultElastiCachePG(name string) bool {

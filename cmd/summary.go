@@ -41,7 +41,7 @@ recent scan.
 Headline counts are dominated by noisy types (CloudWatch log streams in
 particular). Use --exclude-types to mute specific types from the
 denominator across all three sections; the same flag works on
-'disco list' and 'disco tag-coverage'.
+'disco resources' and 'disco tag-coverage'.
 
 Output formats: table (default), markdown, csv, json, jsonl. JSON envelope shape:
 

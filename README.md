@@ -6,7 +6,7 @@
 
 - `scan` walks an AWS account, Azure subscription, or GCP org and writes every resource it finds.
 - `scan` also runs a resolve phase that connects resources with typed edges (`contains`, `uses`, `attached-to`, `routes-to`, `assumes`, `peer`, `bounded-by`, plus `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam`).
-- `list`, `diff`, `graph`, `check`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
+- `resources`, `diff`, `graph`, `check`, `coverage`, `summary`, `tag-coverage`, `scans`, `snapshot`, and `verify` query the local DB without going back to the cloud.
 
 ## Why not Resource Explorer, Resource Graph, or Cloud Asset Inventory?
 
@@ -14,9 +14,9 @@ Those services are convenient but incomplete. `disco` calls each cloud's per-ser
 
 ## Why disco
 
-Scans take minutes; queries are sub-second against a few-thousand-resource DB. Cloud APIs only get hit at scan time, so `list` / `graph` / `check` work the same on a plane as on the office network.
+Scans take minutes; queries are sub-second against a few-thousand-resource DB. Cloud APIs only get hit at scan time, so `resources` / `graph` / `check` work the same on a plane as on the office network.
 
-JSON, JSONL, CSV, SARIF, DOT, and Mermaid output are available for the queryable verbs. `list -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), which makes them safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff. `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
+JSON, JSONL, CSV, SARIF, DOT, and Mermaid output are available for the queryable verbs. `resources -o json`, `graph complete -o json`, and `check -o json` produce identical bytes across runs (same SHA-256), which makes them safe to commit, diff, and feed into CI. `disco check --output sarif` drops straight into GitHub code scanning. `disco snapshot` packs the DB into a single file with a manifest and inner-DB hash for handoff. `disco coverage services --check-strict` flags new cloud resource types disco doesn't yet scan.
 
 ## Install
 
@@ -72,7 +72,7 @@ disco scan azure  --services azure:compute,azure:network
 disco scan gcp    --services gcp:compute,gcp:storage
 
 # Query
-disco list  --type aws:ec2:instance --region us-east-1
+disco resources  --type aws:ec2:instance --region us-east-1
 disco graph <resource-id> --kinds contains --depth 2 --output dot
 disco coverage services --providers aws
 
@@ -133,8 +133,8 @@ Every `disco scan` records a row in `scans`. `--scan-id latest` resolves to the 
 
 ```bash
 disco scans
-disco list --scan-id latest --scan-as discovered
-disco list --discovered-since 2026-04-01 -o json | jq 'length'
+disco resources --scan-id latest --scan-as discovered
+disco resources --discovered-since 2026-04-01 -o json | jq 'length'
 ```
 
 ### Evidence package handoff (read-only snapshot + signed verify)

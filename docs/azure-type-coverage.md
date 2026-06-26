@@ -7,7 +7,7 @@ the SDK lists it subscription- or RG-wide), **DEFER** (only lists under a parent
 instance — no sub/RG-wide pager; revisit via parent fan-out), **DROP** (not a
 listable user resource). Provider-managed resources (auto-materialised + not
 user-deletable) are scanned with `managed_by_provider=true` and hidden from
-default `list`/`graph`/`check` unless `--include-managed`.
+default `resources`/`graph`/`check` unless `--include-managed`.
 
 Generated 2026-06-17. Regenerate the candidate set with the coverage command above.
 

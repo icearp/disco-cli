@@ -557,7 +557,7 @@ func scanLambdaLayerVersions(ctx context.Context, client lambdaAPI, acct *accoun
 // reference via Layers[].Arn. ListLayers only returns caller-account
 // layers, so without this phase those references would FK-fail in
 // resolveLambdaLayerRelationships. Each foreign layer is upserted with
-// ManagedByProvider=true so it stays hidden from default `disco list` /
+// ManagedByProvider=true so it stays hidden from default `disco resources` /
 // `disco graph`.
 func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	// Read the function rows the function-scanner just upserted (this
