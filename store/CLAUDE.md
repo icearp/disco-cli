@@ -33,6 +33,8 @@ IAM principals (users/roles/groups, service accounts) are edge **destinations**:
 
 `UpsertResources` calls `redact.Apply(r.Type, r.AttributesJSON)` (in `internal/redact`) on every row before insert. Provider packages register per-type rules in their `init()` blocks (see `internal/providers/<p>/redact.go`). Each rule names a JSON path inside `AttributesJSON` and a mode — `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Path syntax: dotted literals, `*` for map-key wildcard, `[*]` for array wildcard. Malformed JSON passes through untouched. Providers must NOT pre-sanitize — store boundary owns this.
 
+Immediately after redaction, `UpsertResources` calls `volatile.Apply(r.Type, r.AttributesJSON)` (in `internal/volatile`), which **removes** provider-declared volatile keys (e.g. CloudWatch Logs `UploadSequenceToken`, which AWS rotates every read) so they don't version-split an otherwise-unchanged resource. Both passes run before the `jsonEqual` version comparison. Volatile removes the key (vs redact's `[REDACTED]` placeholder); see `internal/providers/CLAUDE.md` "Declaring volatile-field rules".
+
 Pointer-style fields (ARNs, KeyVault reference URIs, CredentialsArn / SecretArn / TokenSourceArn) are preserved by **omission** — no rule targets them. Adding edge support for a previously-redacted pointer field means dropping or narrowing the rule, not adding a shape allowlist.
 
 Redact state is pinned at scan time. Editing rules only affects rows upserted after the change — pre-existing rows keep their old `[REDACTED]` (or unredacted) values until re-scanned.

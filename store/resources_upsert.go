@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"codeberg.org/icearp/disco/internal/redact"
+	"codeberg.org/icearp/disco/internal/volatile"
 )
 
 // UpsertResources bulk-upserts resources under the paid version-chain
@@ -44,6 +45,10 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
 		}
 		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
+		// Drop volatile fields (e.g. CloudWatch Logs UploadSequenceToken) that
+		// AWS rotates on every read — left in, they version-split an unchanged
+		// resource on every scan. Runs before the jsonEqual comparison below.
+		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
 	}
 
 	tx, err := s.db.Beginx()

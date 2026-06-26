@@ -69,6 +69,12 @@ Adding a new resource type whose SDK response carries credentials, tokens, init-
 
 Per-provider `redact_test.go` constructs sample SDK responses via `json.Marshal` of real SDK types and asserts the sensitive field comes back `[REDACTED]`. SDK field renames break the test on `go mod tidy` — cheap drift catch.
 
+## Declaring volatile-field rules
+
+Some cloud APIs return a field that changes on every read independent of any real resource change — e.g. CloudWatch Logs `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` every call regardless of activity. Stored, it version-splits an unchanged resource on every scan (the scan output shows it as "changed" with nothing actually changed). Declare it volatile so the store **drops** the key before the version comparison: per-provider `<provider>_volatile.go` (e.g. `internal/providers/aws/aws_volatile.go`) registers in `init()` via `volatile.Register(volatile.TypeRules{Type: TypeFoo, Paths: []string{"Bar.Baz"}})`. Paths are dot-separated literal keys (no wildcards yet). `Store.UpsertResources` runs `volatile.Apply` right after `redact.Apply`.
+
+This is distinct from redaction: redaction replaces a secret with `[REDACTED]` (a stable value); volatile **removes** the key entirely, so no stale value is left in the DB. Only register a field that is genuinely activity-independent noise — a field that changes on real activity (IAM `RoleLastUsed.LastUsedDate`, log-group `StoredBytes`) is a legitimate version trigger and must NOT be dropped. Per-provider `<provider>_volatile_test.go` asserts the key is removed from a real SDK-typed payload (SDK-rename drift catch), plus a store-level test that a token-only change does not split while a real change still does.
+
 ## Provider file naming
 
 Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS scanners + resolvers self-register via `registerService` / `registerResolver` (see `aws_services.go`) called from each file's `init()` — no manual wire-up in `aws.go`.
