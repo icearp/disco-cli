@@ -567,6 +567,28 @@ func TestGraphCmd_Complete(t *testing.T) {
 	}
 }
 
+// TestGraphCmd_Complete_MarkdownNoSeed verifies the seedless `graph complete`
+// markdown header drops the seed token (no "# Graph  — " double space) since
+// GraphAll returns SeedID == "".
+func TestGraphCmd_Complete_MarkdownNoSeed(t *testing.T) {
+	seedTestDB(t)
+	resetGraphFlags()
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"graph", "complete", "-o", "markdown"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("graph complete -o markdown: %v", err)
+	}
+	if !strings.Contains(out, "# Graph — ") {
+		t.Errorf("want seedless '# Graph — ' header, got\n%s", out)
+	}
+	if strings.Contains(out, "# Graph  — ") {
+		t.Errorf("double-space (empty seed token) leaked into header:\n%s", out)
+	}
+}
+
 // TestGraphCmd_Complete_IncludeManaged asserts --include-managed promotes
 // orphan managed resources back into the graph.
 func TestGraphCmd_Complete_IncludeManaged(t *testing.T) {

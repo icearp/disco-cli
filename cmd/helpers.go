@@ -361,10 +361,25 @@ func renderMessages(w io.Writer, label string, rows []messageRow, quiet bool) {
 	}
 }
 
+// sanitizeMarkdownCell makes an arbitrary value safe to drop into a GFM table
+// cell: escape `|` (else it splits the column) and fold newlines to spaces (md
+// tables can't span lines). Callers — including the raw-JSON ones (scope/tags
+// blobs) — stay safe by construction.
+func sanitizeMarkdownCell(s string) string {
+	if !strings.ContainsAny(s, "|\n\r") {
+		return s
+	}
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	return s
+}
+
 // renderMarkdownTable writes a GitHub-flavoured markdown table to w. Returns
-// nil when headers is empty. Cells are emitted verbatim — callers are
-// responsible for escaping `|` and stripping newlines from cell values
-// before passing them in (md tables don't support multi-line cells).
+// nil when headers is empty. Cell values are sanitized internally
+// (sanitizeMarkdownCell) — `|` is escaped and newlines folded to spaces — so
+// callers may pass raw values (incl. JSON blobs) without pre-escaping.
 //
 // Output shape:
 //
@@ -378,7 +393,11 @@ func renderMarkdownTable(w io.Writer, headers []string, rows [][]string) error {
 	if len(headers) == 0 {
 		return nil
 	}
-	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(headers, " | ")); err != nil {
+	hdr := make([]string, len(headers))
+	for i, h := range headers {
+		hdr[i] = sanitizeMarkdownCell(h)
+	}
+	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(hdr, " | ")); err != nil {
 		return err
 	}
 	sep := make([]string, len(headers))
@@ -393,7 +412,7 @@ func renderMarkdownTable(w io.Writer, headers []string, rows [][]string) error {
 		cells := make([]string, len(headers))
 		for i := range cells {
 			if i < len(row) {
-				cells[i] = row[i]
+				cells[i] = sanitizeMarkdownCell(row[i])
 			}
 		}
 		if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(cells, " | ")); err != nil {

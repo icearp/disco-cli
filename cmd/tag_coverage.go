@@ -28,6 +28,9 @@ var (
 	tagCovRegion           string
 	tagCovScanID           string
 	tagCovDiscoveredSince  = singleSetString{flag: "discovered-since"}
+	tagCovDiscoveredBefore = singleSetString{flag: "discovered-before"}
+	tagCovCreatedSince     = singleSetString{flag: "created-since"}
+	tagCovCreatedBefore    = singleSetString{flag: "created-before"}
 	tagCovOutputFmt        string
 	tagCovIncludeManaged   bool
 	tagCovSkipGlobals      bool
@@ -92,15 +95,30 @@ Examples:
 		if err != nil {
 			return err
 		}
+		discoveredBefore, err := parseTimeFlag("--discovered-before", tagCovDiscoveredBefore.val)
+		if err != nil {
+			return err
+		}
+		createdSince, err := parseTimeFlag("--created-since", tagCovCreatedSince.val)
+		if err != nil {
+			return err
+		}
+		createdBefore, err := parseTimeFlag("--created-before", tagCovCreatedBefore.val)
+		if err != nil {
+			return err
+		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
-			Provider:        tagCovProvider,
-			Types:           types,
-			ExcludeTypes:    tagCovExcludeTypes,
-			Regions:         regions,
-			DiscoveredBy:    scanID,
-			DiscoveredSince: discoveredSince,
-			IncludeManaged:  tagCovIncludeManaged,
-			SkipGlobals:     tagCovSkipGlobals,
+			Provider:         tagCovProvider,
+			Types:            types,
+			ExcludeTypes:     tagCovExcludeTypes,
+			Regions:          regions,
+			DiscoveredBy:     scanID,
+			DiscoveredSince:  discoveredSince,
+			DiscoveredBefore: discoveredBefore,
+			CreatedSince:     createdSince,
+			CreatedBefore:    createdBefore,
+			IncludeManaged:   tagCovIncludeManaged,
+			SkipGlobals:      tagCovSkipGlobals,
 		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
@@ -266,6 +284,9 @@ func init() {
 	tagCoverageCmd.Flags().StringSliceVar(&tagCovExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from the denominator")
 	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	tagCoverageCmd.Flags().Var(&tagCovDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	tagCoverageCmd.Flags().Var(&tagCovDiscoveredBefore, "discovered-before", "Restrict to rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
+	tagCoverageCmd.Flags().Var(&tagCovCreatedSince, "created-since", "Restrict to rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
+	tagCoverageCmd.Flags().Var(&tagCovCreatedBefore, "created-before", "Restrict to rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
 	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")

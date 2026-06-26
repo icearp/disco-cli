@@ -158,6 +158,10 @@ func renderScans(scans []store.Scan, format string) error {
 		}
 		return renderMarkdownTable(os.Stdout, []string{"ID", "Started", "Finished", "Status", "Providers", "Resources"}, rows)
 	case "table", "":
+		if len(scans) == 0 {
+			_, _ = fmt.Fprintln(os.Stderr, "No scan runs recorded.")
+			return nil
+		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tSTATUS\tPROVIDERS\tRESOURCES")
 		for _, s := range scans {

@@ -45,7 +45,13 @@ Subcommands:
 var findingsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List persisted findings (defaults to the latest check run)",
-	Args:  cobra.NoArgs,
+	Long: `List findings persisted by 'disco check --persist'. Without --check-run-id
+the latest run is used; filter further by severity, category, provider, type,
+or finding ID. Use 'disco findings runs' to list run IDs.`,
+	Example: `  disco findings list
+  disco findings list --check-run-id latest --severity high
+  disco findings list -p aws -t aws:s3:bucket -o json`,
+	Args: cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
 
@@ -92,7 +98,12 @@ var findingsListCmd = &cobra.Command{
 var findingsRunsCmd = &cobra.Command{
 	Use:   "runs",
 	Short: "List recorded check runs",
-	Args:  cobra.NoArgs,
+	Long: `List every check run persisted by 'disco check --persist', newest first,
+with its packs, severity filter, and finding count. Copy a run ID into
+'disco findings list --check-run-id <id>' to inspect that run's findings.`,
+	Example: `  disco findings runs
+  disco findings runs --run-since 2025-01-01 -o json`,
+	Args: cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(findingsOutputFmt, rerr) }()
 
@@ -164,6 +175,10 @@ func renderFindings(fs []policy.Finding, format string) error {
 		return renderMarkdownTable(os.Stdout,
 			[]string{"Finding", "Severity", "Resource", "Type", "Name", "Region", "Category", "Message"}, rows)
 	case "table", "":
+		if len(fs) == 0 {
+			_, _ = fmt.Fprintln(os.Stderr, "No findings.")
+			return nil
+		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "FINDING\tSEVERITY\tTYPE\tNAME\tMESSAGE")
 		for _, f := range fs {
@@ -222,6 +237,10 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 		return renderMarkdownTable(os.Stdout,
 			[]string{"ID", "Started", "Finished", "Packs", "Rules", "Severity", "Resources", "Findings"}, rows)
 	case "table", "":
+		if len(runs) == 0 {
+			_, _ = fmt.Fprintln(os.Stderr, "No check runs recorded.")
+			return nil
+		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "ID\tSTARTED\tFINISHED\tPACKS\tRULES\tRESOURCES\tFINDINGS")
 		for _, r := range runs {

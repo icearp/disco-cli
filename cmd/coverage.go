@@ -38,7 +38,7 @@ they show up as silent gaps in scan output.`,
 
 var coverageServicesCmd = &cobra.Command{
 	Use:   "services",
-	Short: "diff disco scanner emits against the upstream type registry (CloudFormation ListTypes / ARM Providers/List / GCP Discovery)",
+	Short: "Diff scanner emits against the upstream type registry",
 	Long: `Compares disco's registered scanners against the live upstream type
 registry of each cloud provider:
 
@@ -70,7 +70,7 @@ Examples:
 
 var coverageRegionsCmd = &cobra.Command{
 	Use:   "regions",
-	Short: "diff each provider's static RegionNames list against the cloud's live SDK region list",
+	Short: "Diff each provider's static region list against the cloud's live SDK regions",
 	Long: `Compares each provider's compiled-in RegionNames slice (the disco-side
 opinion of "what could be scanned") against the cloud's authoritative
 SDK region/location list:
@@ -95,7 +95,7 @@ Examples:
 
 var coverageResolversCmd = &cobra.Command{
 	Use:   "resolvers",
-	Short: "list AWS resolvers and their EdgeDecl annotations, or surface orphan disco types with no resolver source (--missing)",
+	Short: "List resolvers with their edge annotations, or orphan types (--missing)",
 	Long: `Default mode: list every registered AWS resolver and its declared
 EdgeDecl count. Unannotated resolvers (count=0) surface as sweep
 targets — either deliberate no-ops (sidecar populators, audit-stubs)

@@ -70,7 +70,19 @@ var rootCmd = &cobra.Command{
 	Short:         "Cloud resource discovery tool for AWS, Azure, and GCP",
 	Long: `disco scans cloud accounts and resolves relationships between discovered resources.
 
-Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders/projects).`,
+Supported providers: AWS (accounts), Azure (subscriptions/resource groups), GCP (organizations/folders/projects).
+
+Getting started:
+  disco config init        # optional: write a starter ~/.config/disco/config.yaml
+  disco scan aws           # scan a provider (uses ambient credentials)
+  disco list               # query what was discovered (resource IDs feed graph/history)
+  disco scans              # list scan runs; copy an ID for diff or --scan-id
+  disco diff <old> latest  # drift between two scan runs`,
+	Example: `  disco scan                      # scan every configured/auto-detected provider
+  disco list --provider aws -o json
+  disco summary                   # portfolio rollup
+  disco graph <resource-id>       # walk relationships from a resource
+  disco diff <old-scan-id> latest # what changed since an earlier scan`,
 }
 
 // Execute runs the root command. ctx carries SIGINT/SIGTERM cancellation from

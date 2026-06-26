@@ -116,6 +116,8 @@ BFS over relationships. Honors --kinds / --direction / --exclude-types /
 
 Returns exit code 1 (with no output) if the two resources are not connected
 within the configured constraints.`,
+	Example: `  disco graph path i-0abc123 sg-0def456
+  disco graph path my-role my-bucket --kinds attached-to,uses -o mermaid`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() {
@@ -189,6 +191,9 @@ returns the seed alone. blast detects this case and re-walks with
 explicitly to disable the fallback.
 
 Caps via --max-nodes / --max-edges report truncation to stderr.`,
+	Example: `  disco graph blast i-0abc123
+  disco graph blast my-vpc --depth 5 --kinds contains,attached-to
+  disco graph blast my-role --direction both -o json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
@@ -274,6 +279,9 @@ drop out by default. Pass --include-managed to keep them all.
 --depth, --kinds, and --direction are ignored (no seed, no BFS). Other
 filter flags (--exclude-types, --exclude-regions, --max-nodes, --max-edges)
 work as for the seeded subcommands.`,
+	Example: `  disco graph complete
+  disco graph complete --include-managed -o dot > graph.dot
+  disco graph complete --orphans-only`,
 	Args: cobra.NoArgs,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(graphOutputFmt, rerr) }()
@@ -397,7 +405,12 @@ func renderGraphCSV(g *store.GraphResult) error {
 // table and an EDGES table. Both keyed via the same headers as the CSV
 // shape, minus the `kind` discriminator since each section is homogeneous.
 func renderGraphMarkdown(g *store.GraphResult) error {
-	_, _ = fmt.Fprintf(os.Stdout, "# Graph %s — %d nodes, %d edges\n\n", short(g.SeedID), len(g.Nodes), len(g.Edges))
+	// `graph complete` has no seed; drop the seed token (and its double space).
+	title := "# Graph"
+	if g.SeedID != "" {
+		title += " " + short(g.SeedID)
+	}
+	_, _ = fmt.Fprintf(os.Stdout, "%s — %d nodes, %d edges\n\n", title, len(g.Nodes), len(g.Edges))
 
 	if len(g.Nodes) > 0 {
 		_, _ = fmt.Fprintln(os.Stdout, "## NODES")
@@ -436,7 +449,11 @@ func renderGraphMarkdown(g *store.GraphResult) error {
 // short 8-char ID prefixes to keep rows scannable.
 func renderGraphTable(g *store.GraphResult) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Seed: %s\nNodes: %d, Edges: %d\n\n", short(g.SeedID), len(g.Nodes), len(g.Edges))
+	// `graph complete` has no seed; omit the empty "Seed:" line in that case.
+	if g.SeedID != "" {
+		_, _ = fmt.Fprintf(w, "Seed: %s\n", short(g.SeedID))
+	}
+	_, _ = fmt.Fprintf(w, "Nodes: %d, Edges: %d\n\n", len(g.Nodes), len(g.Edges))
 
 	_, _ = fmt.Fprintln(w, "NODES")
 	_, _ = fmt.Fprintln(w, "DEPTH\tID\tPROVIDER\tTYPE\tNAME\tREGION")

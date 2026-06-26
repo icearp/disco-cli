@@ -8,6 +8,25 @@ import (
 	"github.com/spf13/viper"
 )
 
+// TestSanitizeMarkdownCell verifies a value containing `|` or newlines is made
+// safe for a GFM table cell (escape pipe, fold newlines) so raw JSON blobs
+// don't corrupt column alignment.
+func TestSanitizeMarkdownCell(t *testing.T) {
+	cases := map[string]string{
+		"plain":              "plain",
+		`{"a":"b"}`:          `{"a":"b"}`,
+		`a|b`:                `a\|b`,
+		"line1\nline2":       "line1 line2",
+		"win\r\nline":        "win line",
+		`{"k":"a|b"}` + "\n": `{"k":"a\|b"} `,
+	}
+	for in, want := range cases {
+		if got := sanitizeMarkdownCell(in); got != want {
+			t.Errorf("sanitizeMarkdownCell(%q) = %q; want %q", in, got, want)
+		}
+	}
+}
+
 func TestParseSince_RFC3339(t *testing.T) {
 	out, err := parseTimeFlag("--discovered-since", "2026-04-01T00:00:00Z")
 	if err != nil {

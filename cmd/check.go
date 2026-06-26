@@ -23,6 +23,7 @@ var (
 	checkOutputFmt        string
 	checkExitZero         bool
 	checkTagFilters       []string
+	checkExcludeTypes     []string
 	checkIncludeManaged   bool
 	checkRequireResources bool
 	checkMinResources     uint64
@@ -149,7 +150,10 @@ Examples:
 			return err
 		}
 
-		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{IncludeManaged: checkIncludeManaged})
+		resources, err := loadAllResourcesPaged(db, store.ResourceFilter{
+			ExcludeTypes:   checkExcludeTypes,
+			IncludeManaged: checkIncludeManaged,
+		})
 		if err != nil {
 			return fmt.Errorf("list resources: %w", err)
 		}
@@ -368,6 +372,7 @@ func init() {
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif")
 	checkCmd.Flags().BoolVar(&checkExitZero, "exit-zero", false, "Force exit 0 even when findings are reported (inventory mode; CI override)")
 	checkCmd.Flags().StringSliceVar(&checkTagFilters, "tag", nil, "Keep only findings whose tags match k=v (repeatable; bare k matches any value)")
+	checkCmd.Flags().StringSliceVar(&checkExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from evaluation (e.g. aws:logs:log-stream)")
 	checkCmd.Flags().BoolVar(&checkIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.) in the evaluation set")
 	checkCmd.Flags().BoolVar(&checkRequireResources, "require-resources", false, "Exit non-zero when 0 resources are evaluated (fail-closed gate against an empty / unscanned DB)")
 	checkCmd.Flags().Uint64Var(&checkMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources are evaluated (overrides --require-resources when both set)")

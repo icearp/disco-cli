@@ -23,6 +23,17 @@ var listColumns = []string{
 	"created_at", "discovered_at", "discovered_by",
 }
 
+// listMarkdownHeaders mirrors listColumns positionally but in Title Case, so
+// `list -o markdown` matches the Title Case headers every other markdown
+// renderer uses (summary/scans/diff/findings/graph). listColumns stays
+// snake_case for CSV positional stability; keep the two in lockstep on edits.
+var listMarkdownHeaders = []string{
+	"Provider", "Account ID", "Type", "Name", "Region", "Status", "Native ID",
+	"ID", "Account Name", "Zone", "Managed By Provider",
+	"Tags", "Attributes",
+	"Created At", "Discovered At", "Discovered By",
+}
+
 // resourceRow returns the resource's column values in listColumns order.
 // Used by CSV output; nil string fields render as empty cells. tags and
 // attributes carry the raw JSON blobs — encoding/csv quotes them as needed.
@@ -211,8 +222,12 @@ Examples:
 			for _, r := range resources {
 				rows = append(rows, resourceRow(&r))
 			}
-			return renderMarkdownTable(os.Stdout, listColumns, rows)
+			return renderMarkdownTable(os.Stdout, listMarkdownHeaders, rows)
 		case "table", "":
+			if len(resources) == 0 {
+				_, _ = fmt.Fprintln(os.Stderr, "No resources found.")
+				return nil
+			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "PROVIDER\tACCOUNT ID\tACCOUNT NAME\tRESOURCE TYPE\tNAME\tREGION\tSTATUS")
 			for _, r := range resources {

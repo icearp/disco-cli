@@ -18,6 +18,9 @@ func resetTagCoverageFlags() {
 	tagCovExcludeTypes = nil
 	tagCovScanID = ""
 	tagCovDiscoveredSince.reset()
+	tagCovDiscoveredBefore.reset()
+	tagCovCreatedSince.reset()
+	tagCovCreatedBefore.reset()
 	tagCovOutputFmt = ""
 	tagCovIncludeManaged = false
 }

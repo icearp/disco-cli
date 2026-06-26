@@ -17,6 +17,9 @@ func resetSummaryFlags() {
 	summaryExcludeTypes = nil
 	summaryScanID = ""
 	summaryDiscoveredSince.reset()
+	summaryDiscoveredBefore.reset()
+	summaryCreatedSince.reset()
+	summaryCreatedBefore.reset()
 	summaryOutputFmt = ""
 	summaryTopTypes = 10
 	summaryIncludeManaged = false

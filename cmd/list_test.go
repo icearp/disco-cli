@@ -175,6 +175,16 @@ func TestListCmd_JSON_SnakeCase(t *testing.T) {
 }
 
 // TestListCmd_Markdown verifies that --output markdown emits a GitHub-flavoured
+// TestListMarkdownHeadersParity guards that the Title Case markdown header
+// slice stays in lockstep with the CSV column slice — a column added to one
+// must be added to the other (same position).
+func TestListMarkdownHeadersParity(t *testing.T) {
+	if len(listMarkdownHeaders) != len(listColumns) {
+		t.Fatalf("listMarkdownHeaders (%d) and listColumns (%d) must have equal length",
+			len(listMarkdownHeaders), len(listColumns))
+	}
+}
+
 // markdown table with the canonical column order.
 func TestListCmd_Markdown(t *testing.T) {
 	seedTestDB(t)
@@ -189,8 +199,8 @@ func TestListCmd_Markdown(t *testing.T) {
 		t.Fatalf("list --output markdown: %v", err)
 	}
 
-	if !strings.Contains(out, "| provider | account_id |") {
-		t.Errorf("markdown header row missing; got\n%s", out)
+	if !strings.Contains(out, "| Provider | Account ID |") {
+		t.Errorf("markdown Title Case header row missing; got\n%s", out)
 	}
 	if !strings.Contains(out, "| --- |") {
 		t.Errorf("markdown separator row missing; got\n%s", out)
