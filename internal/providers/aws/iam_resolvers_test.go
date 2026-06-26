@@ -291,6 +291,58 @@ func TestResolveUserGroupMemberships_Empty(t *testing.T) {
 	}
 }
 
+// TestResolveUserGroupMemberships_FromGroupList verifies memberships are built from
+// the user's stored GAAD GroupList (group names) with no API calls: a group →
+// user contains edge appears for each scanned group, and an unscanned group name
+// is skipped FK-safe.
+func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	userARN := "arn:aws:iam::123456789012:user/alice"
+	adminsARN := "arn:aws:iam::123456789012:group/Admins"
+	devsARN := "arn:aws:iam::123456789012:group/division/Devs" // non-default path
+
+	// Groups carry Name (set by the scanner from GAAD GroupDetail); the helper
+	// does not set Name, so upsert directly to populate the name index source.
+	upsertGroup := func(arn, name string) string {
+		t.Helper()
+		region := ""
+		if _, err := st.UpsertResource(&store.Resource{
+			Provider: "aws", AccountID: acct.ID, Type: TypeIAMGroup, NativeID: arn,
+			Name: &name, Region: &region, DiscoveredBy: testScanID,
+		}); err != nil {
+			t.Fatalf("upsert group %s: %v", name, err)
+		}
+		return store.ResourceID("aws", acct.ID, TypeIAMGroup, arn)
+	}
+	adminsID := upsertGroup(adminsARN, "Admins")
+	devsID := upsertGroup(devsARN, "Devs")
+
+	// GroupList names both scanned groups plus one that was never scanned.
+	userAttrs := mustJSON(iamtypes.UserDetail{
+		Arn:       sdkaws.String(userARN),
+		GroupList: []string{"Admins", "Devs", "GhostGroup"},
+	})
+	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMUser, userARN, "", userAttrs)
+
+	if err := resolveUserGroupMemberships(acct, st); err != nil {
+		t.Fatalf("resolveUserGroupMemberships: %v", err)
+	}
+
+	for _, groupID := range []string{adminsID, devsID} {
+		rels, err := st.RelationshipsFrom(groupID)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", groupID, err)
+		}
+		assertRelationship(t, rels, groupID, userID, "contains")
+		if len(rels) != 1 {
+			t.Errorf("group %s: got %d edges, want 1", groupID, len(rels))
+		}
+	}
+	// GhostGroup was never scanned — no row, so no edge (FK-safe skip, no error).
+}
+
 // --- resolveIAMRoleFederatedTrust ---
 
 func TestResolveIAMRoleFederatedTrust(t *testing.T) {

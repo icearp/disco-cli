@@ -1,19 +1,14 @@
 package aws
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
-	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -990,8 +985,11 @@ func resourceIDSet(st *store.Store, accountID, rtype string) (map[string]struct{
 	return out, nil
 }
 
-// resolveUserGroupMemberships calls ListGroupsForUser for each user and creates
-// contains edges from each group to the user, modelling AWS::IAM::UserToGroupAddition.
+// resolveUserGroupMemberships creates contains edges from each group to the users
+// that belong to it (modelling AWS::IAM::UserToGroupAddition). GAAD's UserDetail
+// already carries each user's GroupList (group names), stored verbatim in the
+// user's attributes by scanIAMAuthDetails, so memberships come straight from the
+// store — no per-user ListGroupsForUser fan-out.
 func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	users, err := st.ListResources(store.ResourceFilter{
 		Provider:  "aws",
@@ -1005,44 +1003,43 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	if len(users) == 0 {
 		return nil
 	}
-	client := iam.NewFromConfig(acct.cfg)
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	g, gctx := errgroup.WithContext(context.Background())
-	for _, u := range users {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			pager := iam.NewListGroupsForUserPaginator(client, &iam.ListGroupsForUserInput{
-				UserName: u.Name,
-			})
-			for pager.HasMorePages() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:ListGroupsForUser %s: %w", sv(u.Name), err)
-				}
-				mu.Lock()
-				for _, group := range page.Groups {
-					if group.Arn == nil {
-						continue
-					}
-					groupID := store.ResourceID("aws", acct.ID, TypeIAMGroup, *group.Arn)
-					if err := st.UpsertRelationship(groupID, u.ID, store.RelContains, "directed", nil); err != nil {
-						mu.Unlock()
-						return fmt.Errorf("upsert group→user membership: %w", err)
-					}
-				}
-				mu.Unlock()
-			}
-			return nil
-		})
+	// GroupList holds group names (not ARNs), so index groups by name → resource ID.
+	groups, err := st.ListResources(store.ResourceFilter{
+		Provider:  "aws",
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMGroup},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
 	}
-	return g.Wait()
+	groupIDByName := make(map[string]string, len(groups))
+	for _, gr := range groups {
+		if gr.Name != nil {
+			groupIDByName[*gr.Name] = gr.ID
+		}
+	}
+	for _, u := range users {
+		if u.AttributesJSON == "" {
+			continue
+		}
+		var detail struct {
+			GroupList []string `json:"GroupList"`
+		}
+		if err := json.Unmarshal([]byte(u.AttributesJSON), &detail); err != nil {
+			continue
+		}
+		for _, name := range detail.GroupList {
+			groupID, ok := groupIDByName[name]
+			if !ok {
+				continue // group not scanned — FK-safe skip
+			}
+			if err := st.UpsertRelationship(groupID, u.ID, store.RelContains, "directed", nil); err != nil {
+				return fmt.Errorf("upsert group→user membership: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveIAMRoleCrossAccountTrust walks each role's AssumeRolePolicyDocument and
