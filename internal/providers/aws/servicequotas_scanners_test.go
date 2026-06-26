@@ -10,7 +10,12 @@ import (
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	sqtypes "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
+	"golang.org/x/time/rate"
 )
+
+// noRateLimit returns an unthrottled pacer so unit tests don't pace their calls at
+// the production 10 req/s. rate.Inf makes Wait return immediately; burst is ignored.
+func noRateLimit() *sqPacer { return &sqPacer{lim: rate.NewLimiter(rate.Inf, 0)} }
 
 // stubServiceQuotas is an in-memory serviceQuotasAPI for unit tests. ListServices
 // returns the service codes; ListServiceQuotas serves per-code quota slices, both
@@ -128,7 +133,7 @@ func TestScanServiceQuotas_PersistsAdjustableOnly(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -180,7 +185,7 @@ func TestScanServiceQuotas_UnsupportedCodeSkipped(t *testing.T) {
 		},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -199,7 +204,7 @@ func TestScanServiceQuotas_EmptyService(t *testing.T) {
 		quotas:   map[string][]sqtypes.ServiceQuota{"ec2": {}},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -224,7 +229,7 @@ func TestScanServiceQuotas_SynthesizedNativeID(t *testing.T) {
 		quotas:   map[string][]sqtypes.ServiceQuota{"ec2": {noArn, noCode}},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -254,7 +259,7 @@ func TestScanServiceQuotas_GenuineErrorContinues(t *testing.T) {
 		quotaErr: map[string]error{"broken": errors.New("network kaput")},
 	}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan returned err, want nil (collect-and-continue): %v", err)
 	}
@@ -276,7 +281,7 @@ func TestScanServiceQuotas_ListServicesAccessDenied(t *testing.T) {
 
 	stub := &stubServiceQuotas{servicesErr: apiErr("AccessDenied", "denied")}
 
-	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID)
+	total, inserted, err := scanServiceQuotasWithClient(context.Background(), stub, acct, "us-east-1", st, testScanID, noRateLimit())
 	if err != nil {
 		t.Fatalf("scan returned err: %v", err)
 	}
@@ -305,7 +310,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2"}}
 
 		stEast := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-east-1", stEast, testScanID); err != nil {
+		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-east-1", stEast, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("east scan: %v", err)
 		}
 		rows := listQuotaRows(t, stEast)
@@ -317,7 +322,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		}
 
 		stWest := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-west-2", stWest, testScanID); err != nil {
+		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-west-2", stWest, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("west scan: %v", err)
 		}
 		if rows := listQuotaRows(t, stWest); len(rows) != 0 {
@@ -329,7 +334,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-west-2", "eu-west-1"}}
 		// min(us-west-2, eu-west-1) == eu-west-1 → home.
 		st := newTestStore(t)
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID); err != nil {
+		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		if rows := listQuotaRows(t, st); len(rows) != 1 {
@@ -357,7 +362,7 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 				"ec2": {regionalQuota(region, "ec2", "L-1", "VPCs", value, true)},
 			},
 		}
-		if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID); err != nil {
+		if _, _, err := scanServiceQuotasWithClient(context.Background(), stub, acct, region, st, testScanID, noRateLimit()); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 	}
