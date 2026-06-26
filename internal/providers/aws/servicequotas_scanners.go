@@ -3,10 +3,8 @@ package aws
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -27,14 +25,6 @@ const (
 	// under-utilizes the bucket, which is the regression this sizing avoids.
 	sqWorkers = 30
 )
-
-// sqPacer paces every ListServiceQuotas request to the per-region 10 req/s ceiling
-// (one pacer per region, since the harness dispatches the scanner per region) and
-// tallies calls for the optional DISCO_SCAN_RATE_DEBUG saturation report.
-type sqPacer struct {
-	lim   *rate.Limiter
-	calls atomic.Int64
-}
 
 func init() {
 	// global:false (default) — the harness dispatches this scanner once per
@@ -79,11 +69,11 @@ type serviceQuotasAPI interface {
 // see --include-service-quotas.
 func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
-	pacer := &sqPacer{lim: rate.NewLimiter(sqReqPerSec, sqBurst)}
+	pacer := newPacer(sqReqPerSec, sqBurst)
 	return scanServiceQuotasWithClient(ctx, client, acct, region, st, scanID, pacer)
 }
 
-func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacer *sqPacer) (total, inserted int, err error) {
+func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, acct *account, region string, st *store.Store, scanID string, pacer *pacer) (total, inserted int, err error) {
 	start := time.Now()
 	codes, err := listQuotaServiceCodes(ctx, client)
 	if err != nil {
@@ -127,7 +117,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 		})
 	}
 	wg.Wait()
-	reportRateDebug(st, region, pacer, start)
+	reportRateDebug(st, "servicequotas", region, pacer, start)
 
 	if len(batch) == 0 {
 		return 0, 0, nil
@@ -137,27 +127,6 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 		return 0, 0, fmt.Errorf("upsert service quotas: %w", err)
 	}
 	return len(batch), n, nil
-}
-
-// reportRateDebug emits a one-line saturation report (calls, elapsed, observed
-// req/s) when DISCO_SCAN_RATE_DEBUG is set, so a live run can confirm the scanner
-// sits at the ~10 req/s ceiling. Silent otherwise — zero cost beyond an env read.
-func reportRateDebug(st *store.Store, region string, pacer *sqPacer, start time.Time) {
-	if os.Getenv("DISCO_SCAN_RATE_DEBUG") == "" {
-		return
-	}
-	calls := pacer.calls.Load()
-	elapsed := time.Since(start).Seconds()
-	var rps float64
-	if elapsed > 0 {
-		rps = float64(calls) / elapsed
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws",
-		Service:  "servicequotas",
-		Scope:    region,
-		Message:  fmt.Sprintf("ListServiceQuotas: %d calls in %.1fs = %.1f req/s", calls, elapsed, rps),
-	})
 }
 
 // listQuotaServiceCodes enumerates every service code Service Quotas knows about
@@ -187,16 +156,15 @@ func listQuotaServiceCodes(ctx context.Context, client serviceQuotasAPI) ([]stri
 // (or IllegalArgumentException for a malformed code); both are skipped silently,
 // mirroring Azure's isSkippableScanError. QuotaAppliedAtLevel is left unset so
 // the proxy returns ACCOUNT-level quotas (ALL would add churny per-resource rows).
-func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, pacer *sqPacer) ([]*store.Resource, error) {
+func listQuotasForCode(ctx context.Context, client serviceQuotasAPI, code string, acct *account, region, home, scanID string, pacer *pacer) ([]*store.Resource, error) {
 	var rows []*store.Resource
 	in := &servicequotas.ListServiceQuotasInput{ServiceCode: &code, MaxResults: sdkaws.Int32(100)}
 	for {
 		// Pace each request (incl. paginated follow-ups) to the per-region 10 req/s
 		// bucket; ctx cancellation surfaces as a clean stop, not an error row.
-		if err := pacer.lim.Wait(ctx); err != nil {
+		if err := pacer.wait(ctx); err != nil {
 			return rows, nil
 		}
-		pacer.calls.Add(1)
 		out, err := client.ListServiceQuotas(ctx, in)
 		if err != nil {
 			if isAccessDenied(err) || isAPIErrorCode(err, "NoSuchResourceException", "IllegalArgumentException") {

@@ -15,7 +15,7 @@ import (
 
 // noRateLimit returns an unthrottled pacer so unit tests don't pace their calls at
 // the production 10 req/s. rate.Inf makes Wait return immediately; burst is ignored.
-func noRateLimit() *sqPacer { return &sqPacer{lim: rate.NewLimiter(rate.Inf, 0)} }
+func noRateLimit() *pacer { return newPacer(rate.Inf, 0) }
 
 // stubServiceQuotas is an in-memory serviceQuotasAPI for unit tests. ListServices
 // returns the service codes; ListServiceQuotas serves per-code quota slices, both
