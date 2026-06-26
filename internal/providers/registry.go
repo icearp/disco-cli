@@ -86,6 +86,15 @@ type RegionScopeToggler interface {
 	SetRegionScope(enabled bool)
 }
 
+// ServiceQuotasIncluder is an optional interface for providers with a default-off
+// service-quotas scan (account limit metadata — slow and distinct from resource
+// discovery). The --include-service-quotas flag adds it to the default scan; off by
+// default, so a normal scan skips it. It can also be selected explicitly by name via
+// the --services filter.
+type ServiceQuotasIncluder interface {
+	SetIncludeServiceQuotas(include bool)
+}
+
 // SubscriptionOverrider is an optional interface for providers that support
 // pinning the scan to an explicit subscription set via the --subscriptions CLI
 // flag. Used by an external orchestrator to constrain the shared worker

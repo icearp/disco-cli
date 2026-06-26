@@ -379,6 +379,15 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 		}
 		provScope["scope_to_available_regions"] = enabled
 	}
+	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
+		include := false
+		if cmd.Flags().Changed("include-service-quotas") {
+			include, _ = cmd.Flags().GetBool("include-service-quotas")
+		} else if viper.IsSet(s.Name() + ".include_service_quotas") {
+			include = viper.GetBool(s.Name() + ".include_service_quotas")
+		}
+		provScope["include_service_quotas"] = include
+	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {
 			provScope["subscriptions"] = subs
@@ -532,6 +541,10 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 		subcmd.Flags().Bool("scope-regions", true,
 			"skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --scope-regions=false")
 	}
+	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
+		subcmd.Flags().Bool("include-service-quotas", false,
+			"also scan aws:servicequotas (account quota limits); skipped by default — slow and separate from resource discovery. Or select it explicitly with --services aws:servicequotas")
+	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		subcmd.Flags().StringSlice("subscriptions", nil,
 			"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
@@ -560,7 +573,6 @@ func init() {
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,
 	// which are guaranteed to run before this init().
 	for _, s := range providers.All() {
-		s := s
 		subcmd := &cobra.Command{
 			Use:   s.Name(),
 			Short: fmt.Sprintf("Scan %s resources", s.Name()),
@@ -612,6 +624,16 @@ func init() {
 					enabled = viper.GetBool(s.Name() + ".scope_to_available_regions")
 				}
 				rst.SetRegionScope(enabled)
+			}
+			if sqi, ok := s.(providers.ServiceQuotasIncluder); ok {
+				// Default off; an explicit flag wins over the config key.
+				include := false
+				if cmd.Flags().Changed("include-service-quotas") {
+					include, _ = cmd.Flags().GetBool("include-service-quotas")
+				} else if viper.IsSet(s.Name() + ".include_service_quotas") {
+					include = viper.GetBool(s.Name() + ".include_service_quotas")
+				}
+				sqi.SetIncludeServiceQuotas(include)
 			}
 			if so, ok := s.(providers.SubscriptionOverrider); ok {
 				if subs, _ := cmd.Flags().GetStringSlice("subscriptions"); len(subs) > 0 {

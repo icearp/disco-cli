@@ -28,6 +28,7 @@ var expectedAWSServices = []string{
 	"aws:rds",
 	"aws:s3",
 	"aws:s3control",
+	"aws:servicequotas",
 	"aws:sms-voice",
 	"aws:sns",
 	"aws:sqs",
@@ -263,7 +264,6 @@ var expectedAWSServices = []string{
 	"aws:kendra",
 	"aws:kafka-connect",
 	"aws:fms",
-	"aws:servicequotas",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the
@@ -300,17 +300,60 @@ func TestRegisteredServices_ExpectedNames(t *testing.T) {
 	}
 }
 
-// TestFilteredServices_Nil verifies that nil filter returns all registered services.
-func TestFilteredServices_Nil(t *testing.T) {
-	got := filteredServices(nil)
-	if len(got) != len(registeredServices) {
-		t.Errorf("filteredServices(nil): got %d, want %d", len(got), len(registeredServices))
+func filteredServiceNames(filter []string, includeOptIn bool) []string {
+	svcs := filteredServices(filter, includeOptIn)
+	names := make([]string, len(svcs))
+	for i, s := range svcs {
+		names[i] = s.name
+	}
+	return names
+}
+
+// optInCount returns how many registered services are opt-in (excluded from the
+// default scan). The opt-in assertions below derive expectations from it so a future
+// second opt-in service doesn't silently break them.
+func optInCount() int {
+	n := 0
+	for _, s := range registeredServices {
+		if s.optIn {
+			n++
+		}
+	}
+	return n
+}
+
+// TestFilteredServices_DefaultExcludesOptIn verifies a nil filter returns every
+// non-opt-in service and omits aws:servicequotas (which is opt-in) unless explicitly
+// included.
+func TestFilteredServices_DefaultExcludesOptIn(t *testing.T) {
+	got := filteredServiceNames(nil, false)
+	if want := len(registeredServices) - optInCount(); len(got) != want {
+		t.Errorf("filteredServices(nil, false): got %d, want %d (registered minus opt-in)", len(got), want)
+	}
+	if slices.Contains(got, "aws:servicequotas") {
+		t.Error("default scan must exclude opt-in aws:servicequotas")
+	}
+}
+
+// TestFilteredServices_IncludeOptIn verifies the includeOptIn flag adds the opt-in
+// services to the default set, and that explicit selection by name also works.
+func TestFilteredServices_IncludeOptIn(t *testing.T) {
+	if got := filteredServiceNames(nil, true); !slices.Contains(got, "aws:servicequotas") {
+		t.Error("filteredServices(nil, true) must include aws:servicequotas")
+	}
+	if got := filteredServiceNames(nil, true); len(got) != len(registeredServices) {
+		t.Errorf("filteredServices(nil, true): got %d, want %d (all registered)", len(got), len(registeredServices))
+	}
+	// Explicit selection wins regardless of includeOptIn.
+	got := filteredServiceNames([]string{"aws:servicequotas"}, false)
+	if len(got) != 1 || got[0] != "aws:servicequotas" {
+		t.Errorf("filteredServices([aws:servicequotas], false): got %v, want [aws:servicequotas]", got)
 	}
 }
 
 // TestFilteredServices_Subset verifies that a named filter returns only the matching service.
 func TestFilteredServices_Subset(t *testing.T) {
-	got := filteredServices([]string{"aws:ec2"})
+	got := filteredServices([]string{"aws:ec2"}, false)
 	if len(got) != 1 {
 		t.Fatalf("filteredServices([aws:ec2]): got %d results, want 1", len(got))
 	}
@@ -322,7 +365,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 // TestFilteredServices_Unknown verifies that an unknown service name returns an
 // empty slice without panicking.
 func TestFilteredServices_Unknown(t *testing.T) {
-	got := filteredServices([]string{"aws:nonexistent"})
+	got := filteredServices([]string{"aws:nonexistent"}, false)
 	if len(got) != 0 {
 		t.Errorf("filteredServices([aws:nonexistent]): got %d results, want 0", len(got))
 	}
@@ -330,7 +373,7 @@ func TestFilteredServices_Unknown(t *testing.T) {
 
 // TestFilteredServices_Multiple verifies that multiple services can be selected at once.
 func TestFilteredServices_Multiple(t *testing.T) {
-	got := filteredServices([]string{"aws:ec2", "aws:s3"})
+	got := filteredServices([]string{"aws:ec2", "aws:s3"}, false)
 	if len(got) != 2 {
 		t.Errorf("filteredServices([aws:ec2,aws:s3]): got %d results, want 2", len(got))
 	}

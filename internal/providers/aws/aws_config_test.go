@@ -136,6 +136,23 @@ func TestSetRoleOverride_PinsScannerState(t *testing.T) {
 	}
 }
 
+// TestSetIncludeServiceQuotas verifies the capability-interface setter flips the
+// Scanner field that opts the default-off aws:servicequotas scanner into the scan.
+func TestSetIncludeServiceQuotas(t *testing.T) {
+	s := &Scanner{}
+	if s.includeServiceQuotas {
+		t.Fatal("default should be false (servicequotas opt-in)")
+	}
+	s.SetIncludeServiceQuotas(true)
+	if !s.includeServiceQuotas {
+		t.Error("SetIncludeServiceQuotas(true) did not set the field")
+	}
+	s.SetIncludeServiceQuotas(false)
+	if s.includeServiceQuotas {
+		t.Error("SetIncludeServiceQuotas(false) did not clear the field")
+	}
+}
+
 // TestAssumeRoleOpts verifies the shared AssumeRole option closure sets only
 // the fields it was given, and returns nil when there's nothing to set (so
 // callers pass a no-op extra rather than an empty closure).

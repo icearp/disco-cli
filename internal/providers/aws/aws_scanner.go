@@ -47,6 +47,8 @@ type Scanner struct {
 	externalID          string   // included in AssumeRole only when roleARN is also set
 	sourceIdentity      string   // "" = off; "auto" = scan ID; else literal STS SourceIdentity stamped on assumed sessions
 	regionScopeDisabled bool     // when true, skip SSM global-infra region pre-scoping (--scope-regions=false)
+
+	includeServiceQuotas bool // when true, the opt-in aws:servicequotas scanner is added to the default scan (--include-service-quotas)
 }
 
 // Name implements providers.Scanner.
@@ -63,11 +65,16 @@ declared role-chain per entry. Use --profile to pick a named profile and
 account-wide services (IAM, Route53, CloudFront, etc.) when running a
 per-region audit.
 
+aws:servicequotas (account quota limits) is opt-in — a default scan skips it.
+Add it with --include-service-quotas, or run it on its own with
+--services aws:servicequotas.
+
 Examples:
   disco scan aws
   disco scan aws --regions us-west-2,eu-west-1
   disco scan aws --services aws:ec2,aws:s3 --profile prod
-  disco scan aws --skip-globals --regions us-east-1`
+  disco scan aws --skip-globals --regions us-east-1
+  disco scan aws --include-service-quotas`
 }
 
 // ServiceFilterExample is the --services example shown in aws scan help.
@@ -114,9 +121,15 @@ func (s *Scanner) SetSourceIdentity(sourceIdentity string) { s.sourceIdentity = 
 // every enabled region as before.
 func (s *Scanner) SetRegionScope(enabled bool) { s.regionScopeDisabled = !enabled }
 
+// SetIncludeServiceQuotas adds the opt-in aws:servicequotas scanner to the default
+// scan (--include-service-quotas). Off by default: servicequotas reads account quota
+// limits (metadata, not resources) and is markedly slower than any resource scan, so
+// it runs only when explicitly requested — here, or via --services aws:servicequotas.
+func (s *Scanner) SetIncludeServiceQuotas(include bool) { s.includeServiceQuotas = include }
+
 // ServiceNames returns the names of all services this scanner will report.
 func (s *Scanner) ServiceNames() []string {
-	svcs := filteredServices(s.serviceFilter)
+	svcs := filteredServices(s.serviceFilter, s.includeServiceQuotas)
 	names := make([]string, len(svcs))
 	for i, svc := range svcs {
 		names[i] = svc.name
@@ -146,6 +159,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	}
 	for i := range accounts {
 		accounts[i].regionScopeDisabled = s.regionScopeDisabled
+		accounts[i].includeServiceQuotas = s.includeServiceQuotas
 		scanAccount(ctx, &accounts[i], s.serviceFilter, s.skipGlobals, st, scanID)
 	}
 	return nil
@@ -170,7 +184,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 	regionSem := semaphore.NewWeighted(maxConcurrentRegions)
 	var wg sync.WaitGroup
 
-	for _, svc := range filteredServices(services) {
+	for _, svc := range filteredServices(services, acct.includeServiceQuotas) {
 		if !svc.global {
 			continue
 		}
@@ -308,7 +322,7 @@ func enabledScanRegions(ctx context.Context, acct *account, st *store.Store) []s
 func scanRegion(ctx context.Context, acct *account, region string, services []string, st *store.Store, scanID string) {
 	sem := semaphore.NewWeighted(maxConcurrentServices)
 	var wg sync.WaitGroup
-	for _, svc := range filteredServices(services) {
+	for _, svc := range filteredServices(services, acct.includeServiceQuotas) {
 		if svc.global {
 			continue
 		}
@@ -356,19 +370,28 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 	wg.Wait()
 }
 
-// filteredServices returns the services to run. When filter is non-empty, only
-// services whose name appears in filter are returned.
-func filteredServices(filter []string) []serviceEntry {
-	if len(filter) == 0 {
-		return registeredServices
+// filteredServices returns the services to run. An explicit filter wins: when
+// non-empty, exactly the named services run (opt-in or not). With no filter, the
+// default set is every non-opt-in service, plus opt-in services only when
+// includeOptIn is set (aws:servicequotas is currently the only opt-in service —
+// see --include-service-quotas).
+func filteredServices(filter []string, includeOptIn bool) []serviceEntry {
+	if len(filter) > 0 {
+		allowed := make(map[string]bool, len(filter))
+		for _, name := range filter {
+			allowed[name] = true
+		}
+		var out []serviceEntry
+		for _, svc := range registeredServices {
+			if allowed[svc.name] {
+				out = append(out, svc)
+			}
+		}
+		return out
 	}
-	allowed := make(map[string]bool, len(filter))
-	for _, name := range filter {
-		allowed[name] = true
-	}
-	var out []serviceEntry
+	out := make([]serviceEntry, 0, len(registeredServices))
 	for _, svc := range registeredServices {
-		if allowed[svc.name] {
+		if !svc.optIn || includeOptIn {
 			out = append(out, svc)
 		}
 	}
@@ -405,6 +428,10 @@ type account struct {
 	// (fail-open). regionScopeDisabled mirrors --scope-regions=false.
 	availByCode         map[string]map[string]bool
 	regionScopeDisabled bool
+
+	// includeServiceQuotas mirrors --include-service-quotas: when true the opt-in
+	// aws:servicequotas scanner is added to the default service set for this scan.
+	includeServiceQuotas bool
 }
 
 // s3BucketEncryptionEntry carries a bucket's SSE configuration alongside the

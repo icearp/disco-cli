@@ -39,9 +39,14 @@ type sqPacer struct {
 func init() {
 	// global:false (default) — the harness dispatches this scanner once per
 	// enabled region; it fans out over service codes within that one region.
+	// optIn:true — account quota limits are metadata, not resources, and the scan
+	// is markedly slower than any resource scanner, so it is excluded from a default
+	// `disco scan aws`. Select it with --include-service-quotas or --services
+	// aws:servicequotas.
 	registerService(serviceEntry{
-		name: "aws:servicequotas",
-		fn:   scanServiceQuotas,
+		name:  "aws:servicequotas",
+		optIn: true,
+		fn:    scanServiceQuotas,
 		emits: []coverage.TypeDecl{
 			// Synthetic: there is no CloudFormation AWS::ServiceQuotas resource type,
 			// so the disco type must not fall into coverage's upstream-missing bucket
@@ -70,7 +75,8 @@ type serviceQuotasAPI interface {
 // the worker count — holds the ceiling, so throughput stays at ~10 req/s regardless
 // of control-plane latency without ever overshooting into throttling. MaxResults=100
 // (the API max, set per call below) keeps the page count near one-per-service so the
-// wall-time floor stays at calls÷10req/s.
+// wall-time floor stays at calls÷10req/s. The whole scanner is opt-in (optIn:true);
+// see --include-service-quotas.
 func scanServiceQuotas(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
 	pacer := &sqPacer{lim: rate.NewLimiter(sqReqPerSec, sqBurst)}

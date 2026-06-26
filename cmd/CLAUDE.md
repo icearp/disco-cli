@@ -41,7 +41,7 @@ Keep cmd provider-agnostic: never `import` a provider package here. When a subco
 
 ## Scan subcommand flag registration
 
-`scan.go` `init()` builds per-provider subcommands. Register `--services` / `--regions` / `--profile` **only when the scanner implements the matching capability interface** (`providers.ServiceFilterer`, `RegionOverrider`, `ProfileOverrider`). Listing a flag a provider silently ignores misleads users — Cobra has no per-subcommand "hide if unsupported" toggle. New optional flags follow same gate. Real service-prefix examples come from `serviceFilterExample(provider)` — keep entries truthful (e.g. `aws:ec2,aws:s3`, not `aws:compute`).
+`scan.go` `init()` builds per-provider subcommands. Register `--services` / `--regions` / `--profile` **only when the scanner implements the matching capability interface** (`providers.ServiceFilterer`, `RegionOverrider`, `ProfileOverrider`; also `--scope-regions` via `RegionScopeToggler`, `--include-service-quotas` via `ServiceQuotasIncluder`). Listing a flag a provider silently ignores misleads users — Cobra has no per-subcommand "hide if unsupported" toggle. New optional flags follow same gate. Real service-prefix examples come from `serviceFilterExample(provider)` — keep entries truthful (e.g. `aws:ec2,aws:s3`, not `aws:compute`). Note `aws:servicequotas` is opt-in (`serviceEntry.optIn`) — excluded from a default scan; `--include-service-quotas` adds it, or select it by name with `--services aws:servicequotas`.
 
 ## Shared render helpers (`helpers.go`)
 

@@ -127,7 +127,7 @@ func buildRegionAvailability(ctx context.Context, acct *account, services []stri
 	if acct.regionScopeDisabled || len(kept) <= 1 {
 		return
 	}
-	codes := distinctRegionAvailabilityCodes(filteredServices(services))
+	codes := distinctRegionAvailabilityCodes(filteredServices(services, acct.includeServiceQuotas))
 	if len(codes) == 0 {
 		return
 	}

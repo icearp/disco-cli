@@ -19,6 +19,7 @@ import (
 type serviceEntry struct {
 	name   string
 	global bool // global = once per account (region ignored); regional = once per region
+	optIn  bool // optIn = excluded from the default scan; runs only when explicitly selected (--services <name> or a dedicated --include flag)
 	fn     func(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error)
 	emits  []coverage.TypeDecl
 }
