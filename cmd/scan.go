@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
@@ -183,20 +184,21 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		return err
 	}
 	start := time.Now()
-	if resuming {
+	// Progress goes to stderr so stdout stays clean for piping (only the final
+	// summary line lands on stdout). --quiet silences the start/resume banners
+	// and per-service progress but keeps the final summary.
+	quiet, _ := cmd.Flags().GetBool("quiet")
+	progressW := cmd.ErrOrStderr()
+	if resuming && !quiet {
 		cps, lerr := db.ListCheckpoints(scanID)
 		if lerr == nil {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+			_, _ = fmt.Fprintf(progressW,
 				"Resuming scan %s with %d checkpoint(s)\n", scanID, len(cps))
 		}
 	}
-
-	// Progress goes to stderr so stdout stays clean for piping (only the
-	// final summary line and the scan ID land on stdout). --quiet silences
-	// the per-service progress but keeps the summary.
-	quiet, _ := cmd.Flags().GetBool("quiet")
-	progressW := cmd.ErrOrStderr()
-	_, _ = fmt.Fprintf(progressW, "Scan %s started: %v\n", scanID, start.Round(time.Second))
+	if !quiet {
+		_, _ = fmt.Fprintf(progressW, "Scan %s started: %v\n", scanID, start.Round(time.Second))
+	}
 
 	// Compute the longest service name across all in-scope scanners for column alignment.
 	nameWidth := 0
@@ -221,13 +223,22 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// reported via OnError); annotate the line with "(with errors)" so the user
 	// can scan output for trouble without grepping. Totals are accumulated by
 	// scanrun.RunScanners (single source of truth shared with the API driver).
+	// completed counts finished (service, scope) units so the progress line
+	// carries a monotonic "#N" — an honest momentum signal. A done/total
+	// fraction is intentionally omitted: the denominator (services × scopes)
+	// isn't reliably knowable up front (Azure subscriptions and GCP projects
+	// are discovered at scan time, and RegionNames covers all static regions,
+	// not the --regions subset). Atomic because RunScanners fans scanners out
+	// concurrently, so this closure is called from multiple goroutines.
+	var completed atomic.Int64
 	db.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
+		n := completed.Add(1)
 		if quiet {
 			return
 		}
 		suffix := serviceStatusSuffix(status, errCount)
-		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
-			time.Since(start).Round(time.Second), nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
+		_, _ = fmt.Fprintf(progressW, "  [%s] #%-3d %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
+			time.Since(start).Round(time.Second), n, nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
@@ -585,6 +596,7 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 
 func init() {
 	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
+	_ = scanCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
 	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
 	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")

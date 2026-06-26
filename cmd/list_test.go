@@ -185,6 +185,29 @@ func TestListMarkdownHeadersParity(t *testing.T) {
 	}
 }
 
+// TestListCmd_ResourcesAlias verifies the `resources` noun alias dispatches to
+// the same command as `list` (collection-grammar parity with scans/findings).
+func TestListCmd_ResourcesAlias(t *testing.T) {
+	seedTestDB(t)
+	resetListFlags()
+
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"resources", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("resources -o json: %v", err)
+	}
+	var rows []store.Resource
+	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
+		t.Fatalf("alias did not produce list JSON: %v\n%s", jerr, out)
+	}
+	if len(rows) != 2 {
+		t.Errorf("want 2 seeded rows via `resources` alias, got %d", len(rows))
+	}
+}
+
 // markdown table with the canonical column order.
 func TestListCmd_Markdown(t *testing.T) {
 	seedTestDB(t)

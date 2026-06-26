@@ -172,5 +172,6 @@ func renderDiffJSONL(d *store.ScanDiff) error {
 
 func init() {
 	diffCmd.Flags().StringVarP(&diffOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = diffCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	rootCmd.AddCommand(diffCmd)
 }

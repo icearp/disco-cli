@@ -465,6 +465,7 @@ func init() {
 	summaryCmd.Flags().Var(&summaryCreatedSince, "created-since", "Restrict to rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
 	summaryCmd.Flags().Var(&summaryCreatedBefore, "created-before", "Restrict to rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
 	summaryCmd.Flags().StringVarP(&summaryOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = summaryCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
 	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")

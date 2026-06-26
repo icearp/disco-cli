@@ -357,6 +357,11 @@ func intPtrOrDashI(p *int) string {
 
 func init() {
 	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif (sarif on list only)")
+	// --output is a shared persistent flag, so its completion applies to both
+	// `findings list` and `findings runs`; offer only the common set. `sarif`
+	// is list-only and would error on `runs`, so it's omitted from the
+	// suggestions (it still works when typed on `findings list`).
+	_ = findingsCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")

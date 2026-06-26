@@ -126,6 +126,7 @@ func init() {
 	// Parent owns --output (PersistentFlags) so every subcommand inherits the
 	// same set of formats with one declaration.
 	coverageCmd.PersistentFlags().StringP("output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = coverageCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 
 	// services subcommand flags.
 	coverageServicesCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))

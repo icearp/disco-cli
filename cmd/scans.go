@@ -254,6 +254,7 @@ func intPtrOrDash(p *int) string {
 
 func init() {
 	scansCmd.PersistentFlags().StringVarP(&scansOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = scansCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	scansCmd.AddCommand(scansShowCmd)
 	rootCmd.AddCommand(scansCmd)
 }

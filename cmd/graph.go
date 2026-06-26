@@ -730,6 +730,7 @@ func init() {
 	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all kinds)")
 	graphCmd.PersistentFlags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
 	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, dot, mermaid")
+	_ = graphCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "dot", "mermaid"))
 	graphCmd.PersistentFlags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeTypes, "exclude-types", nil, "Drop nodes whose type matches; literal or suffix-glob (e.g. 'aws:iam:*')")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeRegions, "exclude-regions", nil, "Drop nodes whose region matches exactly")

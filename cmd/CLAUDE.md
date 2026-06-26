@@ -221,7 +221,7 @@ New column-anchored time filters follow the same `{*-since, *-before}` shape —
 
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
-`list`, `summary`, and `tag-coverage` all expose `--exclude-types` (StringSlice → comma-separated). All three forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
+`list`, `summary`, `tag-coverage`, and `check` all expose `--exclude-types` (StringSlice → comma-separated). All forward to `store.ResourceFilter.ExcludeTypes`, which emits a SQL `type NOT IN (...)` clause via `squirrel.NotEq`. Filter is applied at the SQL layer, so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
 
 ## DOT `dir=back` requires endpoint swap, not just attribute
 
@@ -230,3 +230,19 @@ Graphviz `dir=back` only re-renders the arrowhead — rank still flows tail→he
 ## Output-format parity: `table | markdown | csv | json` floor
 
 Every reportable subcommand (`list`, `summary`, `scans` + `scans show`, `tag-coverage`, `diff`, `graph` + `path`/`blast`/`complete`, `check`, `coverage` + `services`/`regions`/`resolvers`, `findings list`/`runs`) accepts the four canonical output formats as a floor. Per-command extras (`jsonl`, `sarif`, `dot`, `mermaid`) layer on top. Markdown rendering goes through the shared `renderMarkdownTable(w, headers, rows)` helper in `cmd/helpers.go` for byte-stable output. Markdown case label is `markdown`; `md` is accepted as a short alias. Operational commands (`scan`, `snapshot`, `verify`, `config init`) have no `-o` flag — they perform actions, not reports. Help text lists every supported format the command accepts in canonical order then extras.
+
+## UX consistency conventions (scan exit codes, scan-id resolution, collections, completion)
+
+A consistency pass aligned several edges with the conventions above. When touching these areas, preserve the shape:
+
+- **Scan exit codes.** `runScan` (`scan.go`) returns sentinel `errScanInterrupted` on SIGINT/SIGTERM (ctx cancelled) → `cmd/root.go::Execute` maps it to exit **130**; with `--fail-on-error` a partial run (one or more services errored) returns `errScanPartial` → exit **1**. Default partial stays exit 0. The summary line is already on stdout; the sentinels only carry the exit-code gate (no duplicate stderr print, mirrors `errFindingsReported`). `--quiet` now suppresses the `Scan … started` / `Resuming scan …` banners too (each guarded by its own `if !quiet`, the same boolean the per-service line uses); the per-service progress line carries a monotonic `#N` completed-counter (atomic — `OnServiceComplete` is called from concurrent scanner goroutines). A `done/total` fraction is deliberately omitted: the denominator (services × scopes) isn't reliably knowable up front (Azure subs / GCP projects are discovered at scan time).
+
+- **`diff` resolves scan IDs like every other consumer.** `diff <from> <to>` routes both args through `resolveScanID` (`helpers.go`), so 8–31-char prefixes (as `disco scans` prints) and `latest` work — not just full 32-hex IDs. Any new scan-id-taking command must do the same.
+
+- **Empty-result JSON is `[]`, never `null`.** `renderScans` / `renderCheckRuns` force a non-nil slice before encoding; `diff` forces non-nil `Added`/`Stale`; `store.ScanDiff` carries snake_case json tags. Mirror the non-nil-before-encode pattern in any new array command (precedent: `list`).
+
+- **Collection grammar.** `list` carries `Aliases: ["resources"]` so the collection is reachable by its noun alongside `scans` / `findings` (precedent: `history`/`versions`). Scan runs are top-level (`disco scans`); check runs stay nested (`disco findings runs`) — they are subordinate to the findings they produce, and a top-level `disco checks` would overload the `disco check` verb. This asymmetry is deliberate.
+
+- **Shell completion.** `--output` flags register `staticCompletion(<formats>)` and `scan --providers` registers `completeProviderNames` (`cmd/completion.go`). A new reportable command should register `--output` completion with exactly the formats its switch accepts. Resource/scan-ID argument completion is intentionally not wired (it needs DB I/O on the completion path) — a deliberate follow-up, not an oversight.
+
+- **Markdown cells are sanitized centrally.** `renderMarkdownTable` runs every header/cell through `sanitizeMarkdownCell` (escape `|`, fold newlines), so callers may pass raw JSON blobs (scope/tags) without pre-escaping. `list -o markdown` uses Title Case `listMarkdownHeaders` (parallel to snake_case `listColumns`, which stays for CSV positional stability — keep the two in lockstep; `TestListMarkdownHeadersParity` guards length).

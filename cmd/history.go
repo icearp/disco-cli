@@ -170,5 +170,6 @@ Examples:
 
 func init() {
 	historyCmd.Flags().StringVarP(&historyOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = historyCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	rootCmd.AddCommand(historyCmd)
 }
