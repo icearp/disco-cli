@@ -72,6 +72,16 @@ func isAccessDeniedWithMessage(err error, needle string) bool {
 	return false
 }
 
+// isServiceNotAvailableInRegion reports whether err is the gateway-level
+// "Unable to determine service/operation name to be authorized" AccessDenied —
+// returned when a service's regional endpoint resolves but the service is not
+// actually offered in that region (e.g. HealthOmics outside its supported
+// regions, Lambda capacity-providers, Bedrock AgentCore). A per-region feature
+// gap, not an IAM denial: silent-skip the call.
+func isServiceNotAvailableInRegion(err error) bool {
+	return isAccessDeniedWithMessage(err, "Unable to determine service/operation name")
+}
+
 // isPayerAccountOnly reports whether err is the restriction AWS returns when a
 // payer/management-account-only billing API (BCM Pricing Calculator, BCM Data
 // Exports, Invoicing) is called from an organisation member account. It
@@ -86,12 +96,14 @@ func isPayerAccountOnly(err error) bool {
 }
 
 // errServiceDisabled is a sentinel returned by per-service scanners when they
-// detect that the AWS service itself is not enabled in the calling account or
-// region (Macie not enabled, Shield Advanced not subscribed, Security Hub
-// hub not present, etc). The scanRegion / scanAccount dispatch loop detects
-// it via errors.Is and surfaces "(service disabled)" on the progress line —
-// no warning, no error report. Wrap upstream errors via markServiceDisabled
-// so the original message is preserved for debugging if anyone unwraps.
+// detect that the AWS service itself is not enabled in the calling account
+// (Macie not enabled, Shield Advanced not subscribed, Security Hub hub not
+// present, etc) — an account-level state the user could turn on. The
+// scanRegion / scanAccount dispatch loop detects it via errors.Is and surfaces
+// "(service disabled)" on the progress line — no warning, no error report.
+// Wrap upstream errors via markServiceDisabled so the original message is
+// preserved for debugging if anyone unwraps. Distinct from errServiceUnavailable
+// (service not deployed in this region).
 var errServiceDisabled = errors.New("aws service not enabled")
 
 // markServiceDisabled wraps the upstream "feature not enabled" error so the
@@ -101,6 +113,23 @@ var errServiceDisabled = errors.New("aws service not enabled")
 // detection step instead of nil.
 func markServiceDisabled(err error) error {
 	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
+}
+
+// errServiceUnavailable is a sentinel returned by per-service scanners when the
+// WHOLE service is not deployed in the scanned region — the regional endpoint
+// resolves but every op fails (e.g. HealthOmics outside its supported regions,
+// where the gateway answers "Unable to determine service/operation name"). The
+// dispatch loop detects it via errors.Is and surfaces "(service unavailable)"
+// on the progress line — no warning. Use only when the entire service is absent;
+// a per-op / sub-feature region gap (the parent service is present) keeps its
+// own silent per-phase skip instead. Distinct from errServiceDisabled
+// (account-level not-enabled).
+var errServiceUnavailable = errors.New("aws service not available in region")
+
+// markServiceUnavailable wraps the upstream region-gap error so the dispatch
+// loop can identify it via errors.Is(err, errServiceUnavailable).
+func markServiceUnavailable(err error) error {
+	return fmt.Errorf("%w: %s", errServiceUnavailable, err.Error())
 }
 
 // isSCPExplicitDeny matches the AccessDeniedException AWS returns when an

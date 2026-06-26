@@ -120,6 +120,8 @@ Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`
 
 Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propagating; one failed sibling does not cancel the others (matches `aws.go::scanRegion` "Errors never abort scan"). For users who don't need log-stream inventory, two existing escape hatches stand: `disco scan aws --services aws:ec2,aws:s3,...` (omit `aws:logs`) skips the service entirely; `disco list --exclude-types aws:logs:log-stream` mutes streams from queries while keeping them in the DB (`cmd/CLAUDE.md`).
 
+**`UploadSequenceToken` is dropped as volatile.** `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` on every call regardless of log activity — left in `AttributesJSON` it version-splits every log stream on every scan (a 907-stream account reports `907 changed` each scan). `aws_volatile.go` registers it with `volatile.Register` so the store drops the key before the version comparison; see `internal/providers/CLAUDE.md` "Declaring volatile-field rules". `LastEventTimestamp` / `LastIngestionTime` (real ingestion) and the log-group `StoredBytes` are kept — they reflect genuine change.
+
 ## IAM scan uses GetAccountAuthorizationDetails (single paginated call)
 
 `scanIAMAuthDetails` (`iam_scanners.go`) consolidates users + roles + groups + managed policies (Local + AWS scope, including each policy's default version `Document`) + every principal's inline policies into one paginated `iam:GetAccountAuthorizationDetails` (GAAD) call with `MaxItems=1000` + a `Filter` listing all five entity types.
@@ -163,7 +165,7 @@ Some AWS APIs return distinct exception code when account has not subscribed to 
 
 **Member-account variant — DescribeOrganization probe.** Organizations List* ops (`ListRoots` / `ListAccounts` / `ListPolicies` / `ListOrganizationalUnitsForParent`) reject member-account calls with opaque `AccessDeniedException`. `DescribeOrganization` succeeds from any member and exposes `MasterAccountId`. `scanOrganizations` upserts the `aws:organizations:organization` row first (member-account scans still get the org metadata), then probes: if `sv(org.MasterAccountId) != acct.ID`, returns `(total, inserted, nil)` — service ran successfully on the member, just skipping the management-only phases. Returning `nil` (not `markServiceDisabled`) keeps the per-service progress line accurate (`(1 total, 1 new)` instead of a misleading `(service disabled)` suffix that would also zero the counts via the dispatch-level handler in `aws.go`). Replaces N AccessDenied warnings from the management-only phases. Precedent: `organizations_scanners.go`.
 
-**`errServiceDisabled` zeroes total/inserted at dispatch.** The dispatch handlers in `aws.go` (`scanRegion`, phase-1a) call `ReportService(svc.name, 0, 0, 0, true)` when `errors.Is(err, errServiceDisabled)` matches — `total`/`inserted` from the scanner are discarded. If the scanner did partial work (e.g. upserted one row before short-circuiting the rest of the phases), return `(total, inserted, nil)` instead of `markServiceDisabled(...)`. Use the sentinel only when zero rows were produced. Precedent: member-account path in `scanOrganizations`.
+**`errServiceDisabled` zeroes total/new/changed at dispatch.** The dispatch handlers in `aws.go` (`scanRegion`, phase-1a) call `ReportService(svc.name, scope, 0, 0, 0, 0, store.ServiceDisabled)` when `errors.Is(err, errServiceDisabled)` matches — `total` from the scanner and the bound new/changed counters are discarded. If the scanner did partial work (e.g. upserted one row before short-circuiting the rest of the phases), return `(total, inserted, nil)` instead of `markServiceDisabled(...)`. Use the sentinel only when zero rows were produced. Precedent: member-account path in `scanOrganizations`.
 
 **Shared not-enabled predicate across services.** When two services gate on the same account-level enablement (e.g. Cost Explorer access blocks both `aws:ce` and `aws:bcmpricingcalculator`), declare one predicate (`isCostExplorerNotEnabled` in `bcmpricingcalculator_scanners.go`) and have both scanners' dispatcher call it before falling through to `skipIfAccessDenied`. Avoids drift between two near-identical message matchers.
 
@@ -200,7 +202,9 @@ When target NativeID not deterministic per (acct, region) (e.g. multiple `aws:gu
 
 ## Multi-phase scanner totals
 
-Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — scan-progress line reports nonsense on rescans where every row updates.
+Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — the scan-progress line's `total` column reports nonsense on rescans otherwise.
+
+The progress line's **new** / **changed** columns no longer come from the returned `inserted`: the dispatcher (`aws_scanner.go::scanRegion` / `scanAccount`) binds `st.WithUpsertCounters(&newC, &changedC)` around each `svc.fn` call and reads those counters for `ReportService(..., total, new, changed, errCount, disabled)`. `UpsertResources` bumps `newC` on a first-discovery and `changedC` on a version split. So a re-scan of an unchanged account that genuinely re-versions a row (e.g. IAM `RoleLastUsed.LastUsedDate` ticked, Logs `StoredBytes` grew) reports `0 new, N changed` rather than a misleading `N new`. Scanners still return `(total, inserted, err)` — the returned `inserted` is now vestigial for reporting, but `total` and `err` still matter, so keep the signature.
 
 ## Cross-service ResourceArn ≠ scanner NativeID shape
 
@@ -431,7 +435,7 @@ AND more than one region is scanned. It queries the SSM global-infra catalog
 (`/aws/service/global-infrastructure/services/<code>/regions`, `ssm` client pinned
 to `us-east-1`) per distinct service code and caches `acct.availByCode`
 (code → region set). `scanRegion` then skips dispatching a service into a region
-the catalog says AWS doesn't offer it in — surfacing `(service disabled)`.
+the catalog says AWS doesn't offer it in — surfacing `(service unavailable)`.
 
 **Fail-open is the whole safety model.** The catalog is AWS's own availability
 truth, so a region it omits is one the API genuinely isn't in (we'd NXDOMAIN/error
@@ -449,7 +453,16 @@ Capability: `providers.RegionScopeToggler`.
 
 ## NXDOMAIN at dispatcher = service not deployed in region
 
-`isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(service disabled)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.
+`isDNSNotFound` (`aws.go`) matches `*net.DNSError` with `IsNotFound=true` — AWS endpoint host has no DNS record. Permanent fact about region availability, not transient outage. `scanRegion` / `scanAccount` silent-skip BEFORE `isTransientNetworkError` warn-skip; service progress line shows `(service unavailable)`. Real DNS server problems surface as timeouts / SERVFAIL, not NXDOMAIN, and still warn. Replaces N per-region "transient: dial tcp: lookup …: no such host" warnings for services not yet deployed in scanned region.
+
+## `(service disabled)` vs `(service unavailable)` — two distinct dispatch states
+
+The per-service progress suffix distinguishes account-level not-enabled from region-not-deployed (`store.ServiceStatus`: `ServiceOK` / `ServiceDisabled` / `ServiceUnavailable`, rendered in `cmd/scan.go::serviceStatusSuffix`):
+
+- **`(service disabled)`** — `errServiceDisabled` sentinel (`markServiceDisabled`): the **account** hasn't enabled/subscribed the service (Shield, Macie, Security Hub, Organizations-not-in-use). The user could turn it on. Azure (`errServiceNotRegistered`) and GCP (`errServiceDisabled`) map their subscription/project not-enabled states here too.
+- **`(service unavailable)`** — the service is **not deployed in this AWS region**: NXDOMAIN (`isDNSNotFound`), the SSM region-availability catalog miss, OR the `errServiceUnavailable` sentinel (`markServiceUnavailable`) returned by a scanner when the **whole** service is absent (every op fails). Precedent: omics — outside its supported regions the gateway answers `AccessDeniedException: Unable to determine service/operation name`, so each phase's `isServiceNotAvailableInRegion` guard returns `markServiceUnavailable(perr)`. AWS-only — Azure/GCP have no per-region fan-out.
+
+**Use the sentinel only for WHOLE-service-absent.** A per-op / sub-feature region gap where the parent service IS present (lambda capacity-providers, gamelift Containers, iotsitewise ComputationModels, cloudwatch OTel) keeps its existing per-phase silent skip (`return 0, 0, nil`) — marking the whole service unavailable would wrongly blank a working service.
 
 ## Per-region feature-gap error codes are service-specific
 

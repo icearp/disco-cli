@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 )
@@ -85,6 +86,15 @@ func (s *Store) GetResourceVersions(rootID string) ([]ResourceVersion, error) {
 // inputs and parse failures fall back to plain string equality so the
 // comparison is conservative (treats malformed JSON as not-equal to
 // well-formed JSON, which is the correct change-detection behavior).
+//
+// Both sides are run through canonicalizeJSONValue before re-marshalling,
+// which recursively canonicalizes any string leaf that is itself a JSON
+// object/array. This absorbs non-deterministic key ordering inside embedded
+// policy documents — AWS returns the KMS key Policy (and S3/SNS/SQS resource
+// policies, IAM assume-role docs) as an opaque JSON *string* with
+// Condition-map keys in random order, which would otherwise version-split an
+// unchanged resource on every scan. A genuinely different policy still
+// produces different canonical bytes, so real changes are still detected.
 func jsonEqual(a, b string) bool {
 	if a == b {
 		return true
@@ -99,15 +109,53 @@ func jsonEqual(a, b string) bool {
 	if err := json.Unmarshal([]byte(b), &bv); err != nil {
 		return false
 	}
-	abytes, err := json.Marshal(av)
+	abytes, err := json.Marshal(canonicalizeJSONValue(av))
 	if err != nil {
 		return false
 	}
-	bbytes, err := json.Marshal(bv)
+	bbytes, err := json.Marshal(canonicalizeJSONValue(bv))
 	if err != nil {
 		return false
 	}
 	return string(abytes) == string(bbytes)
+}
+
+// canonicalizeJSONValue recursively normalizes a decoded JSON value so that
+// json.Marshal (which sorts object keys) yields order-stable bytes at every
+// nesting level — including inside string leaves that themselves carry an
+// embedded JSON object/array. A string leaf is reinterpreted as JSON only
+// when it begins with '{' or '[' AND parses cleanly; otherwise it is left
+// untouched (so values like "123" or "true" stay literal strings, and
+// malformed embedded JSON passes through unchanged).
+func canonicalizeJSONValue(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, val := range t {
+			t[k] = canonicalizeJSONValue(val)
+		}
+		return t
+	case []any:
+		for i, val := range t {
+			t[i] = canonicalizeJSONValue(val)
+		}
+		return t
+	case string:
+		trimmed := strings.TrimSpace(t)
+		if trimmed == "" || (trimmed[0] != '{' && trimmed[0] != '[') {
+			return t
+		}
+		var inner any
+		if err := json.Unmarshal([]byte(t), &inner); err != nil {
+			return t
+		}
+		canon, err := json.Marshal(canonicalizeJSONValue(inner))
+		if err != nil {
+			return t
+		}
+		return string(canon)
+	default:
+		return v
+	}
 }
 
 // derefStr returns the empty string for nil pointers.

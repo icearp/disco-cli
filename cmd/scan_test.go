@@ -3,7 +3,31 @@ package cmd
 import (
 	"testing"
 	"time"
+
+	"codeberg.org/icearp/disco/store"
 )
+
+func TestServiceStatusSuffix(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   store.ServiceStatus
+		errCount int
+		want     string
+	}{
+		{"ok", store.ServiceOK, 0, ""},
+		{"unavailable", store.ServiceUnavailable, 0, "  (service unavailable)"},
+		{"disabled", store.ServiceDisabled, 0, "  (service disabled)"},
+		{"errors", store.ServiceOK, 3, "  (with errors)"},
+		{"unavailable beats errors", store.ServiceUnavailable, 3, "  (service unavailable)"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := serviceStatusSuffix(c.status, c.errCount); got != c.want {
+				t.Errorf("serviceStatusSuffix(%v, %d) = %q; want %q", c.status, c.errCount, got, c.want)
+			}
+		})
+	}
+}
 
 // TestEvaluateIfOlderThan_SkipsOnRecentCompleteScan pins the regression where
 // the LatestCompleteScan query matched 'complete' but CompleteScan writes

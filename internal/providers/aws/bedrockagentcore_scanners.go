@@ -262,7 +262,7 @@ func scanBACEvaluators(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 			// Per-region feature gap: gateway-level "Unable to determine
 			// service/operation name to be authorized" means the op is not
 			// recognised by the regional endpoint. Silent-skip.
-			if isAccessDeniedWithMessage(perr, "Unable to determine service/operation name") {
+			if isServiceNotAvailableInRegion(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {
@@ -400,7 +400,7 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 			// Per-region feature gap: gateway-level "Unable to determine
 			// service/operation name to be authorized" means the op is not
 			// recognised by the regional endpoint. Silent-skip.
-			if isAccessDeniedWithMessage(perr, "Unable to determine service/operation name") {
+			if isServiceNotAvailableInRegion(perr) {
 				return 0, 0, nil
 			}
 			if isAccessDenied(perr) {

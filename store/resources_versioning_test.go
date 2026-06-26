@@ -1,8 +1,22 @@
 package store
 
 import (
+	"encoding/json"
+	"sync/atomic"
 	"testing"
 )
+
+// mustQuote returns s as a JSON string literal (quoted + escaped), so a JSON
+// document can carry it as an opaque embedded-JSON string value — mirroring how
+// AWS returns IAM/KMS policy documents inside AttributesJSON.
+func mustQuote(t *testing.T, s string) string {
+	t.Helper()
+	b, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("mustQuote: %v", err)
+	}
+	return string(b)
+}
 
 // ensureTestScan inserts a stub scan row so DiscoveredBy/VerifiedBy
 // FK constraints are satisfied. Idempotent — OR IGNORE swallows the
@@ -157,6 +171,123 @@ func TestVersioning_ChangedTags_VersionSplit(t *testing.T) {
 	}
 	if len(versions) != 2 {
 		t.Fatalf("tag change must split: got %d rows", len(versions))
+	}
+}
+
+// TestVersioning_ReorderedEmbeddedPolicy_NoSplit guards Fix 1: AWS returns
+// embedded policy-document JSON strings (KMS key Policy, S3/SNS/SQS resource
+// policies, IAM assume-role docs) with Condition-map keys in non-deterministic
+// order. The same policy with reordered keys must NOT version-split.
+func TestVersioning_ReorderedEmbeddedPolicy_NoSplit(t *testing.T) {
+	st := openTestStore(t)
+
+	// Policy is an opaque JSON *string* whose inner Condition.StringEquals
+	// map has two keys; the second upsert swaps their order.
+	const polA = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Condition":{"StringEquals":{"kms:CallerAccount":"111","kms:ViaService":"lambda.amazonaws.com"}}}]}`
+	const polB = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Condition":{"StringEquals":{"kms:ViaService":"lambda.amazonaws.com","kms:CallerAccount":"111"}}}]}`
+	attrsA := `{"Metadata":{"KeyId":"k-1"},"Policy":` + mustQuote(t, polA) + `}`
+	attrsB := `{"Metadata":{"KeyId":"k-1"},"Policy":` + mustQuote(t, polB) + `}`
+
+	rootID := upsertOne(t, st, attrsA, `{}`, "scan-A")
+	ensureTestScan(t, st, "scan-B")
+	if _, err := st.UpsertResource(&Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
+		AttributesJSON: attrsB,
+		TagsJSON:       sp(`{}`),
+		DiscoveredBy:   "scan-B",
+	}); err != nil {
+		t.Fatalf("reordered-policy upsert: %v", err)
+	}
+
+	versions, err := st.GetResourceVersions(rootID)
+	if err != nil {
+		t.Fatalf("GetResourceVersions: %v", err)
+	}
+	if len(versions) != 1 {
+		t.Fatalf("reordered embedded policy must NOT split: got %d rows", len(versions))
+	}
+}
+
+// TestVersioning_ChangedEmbeddedPolicy_Split is the negative-space companion:
+// a genuinely different embedded policy still version-splits (canonicalization
+// only absorbs key ordering, never semantic content).
+func TestVersioning_ChangedEmbeddedPolicy_Split(t *testing.T) {
+	st := openTestStore(t)
+
+	const polA = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"kms:Decrypt"}]}`
+	const polB = `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"kms:Decrypt"},{"Effect":"Deny","Action":"kms:Encrypt"}]}`
+	attrsA := `{"Policy":` + mustQuote(t, polA) + `}`
+	attrsB := `{"Policy":` + mustQuote(t, polB) + `}`
+
+	rootID := upsertOne(t, st, attrsA, `{}`, "scan-A")
+	ensureTestScan(t, st, "scan-B")
+	if _, err := st.UpsertResource(&Resource{
+		Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-vers-1",
+		AttributesJSON: attrsB,
+		TagsJSON:       sp(`{}`),
+		DiscoveredBy:   "scan-B",
+	}); err != nil {
+		t.Fatalf("changed-policy upsert: %v", err)
+	}
+
+	versions, err := st.GetResourceVersions(rootID)
+	if err != nil {
+		t.Fatalf("GetResourceVersions: %v", err)
+	}
+	if len(versions) != 2 {
+		t.Fatalf("changed embedded policy must split: got %d rows", len(versions))
+	}
+}
+
+// TestWithUpsertCounters_SplitsNewVsChanged guards Fix 2: the scoped
+// new/changed counters attribute first-discoveries vs version splits so the
+// scan progress line can report them separately.
+func TestWithUpsertCounters_SplitsNewVsChanged(t *testing.T) {
+	st := openTestStore(t)
+	ensureTestScan(t, st, "scan-A")
+	ensureTestScan(t, st, "scan-B")
+	ensureTestScan(t, st, "scan-C")
+
+	rows := []*Resource{
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-A"},
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-2", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-A"},
+	}
+
+	// First scan: two brand-new resources → new=2, changed=0.
+	var newC, changedC atomic.Int64
+	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+	if newC.Load() != 2 || changedC.Load() != 0 {
+		t.Fatalf("first scan: new=%d changed=%d, want new=2 changed=0", newC.Load(), changedC.Load())
+	}
+
+	// Second scan: i-1 changes, i-2 unchanged → new=0, changed=1.
+	newC.Store(0)
+	changedC.Store(0)
+	rows2 := []*Resource{
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: `{"a":2}`, DiscoveredBy: "scan-B"},
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-2", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-B"},
+	}
+	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows2); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+	if newC.Load() != 0 || changedC.Load() != 1 {
+		t.Fatalf("second scan: new=%d changed=%d, want new=0 changed=1", newC.Load(), changedC.Load())
+	}
+
+	// Third scan: all unchanged → new=0, changed=0 (verify-only).
+	newC.Store(0)
+	changedC.Store(0)
+	rows3 := []*Resource{
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-1", AttributesJSON: `{"a":2}`, DiscoveredBy: "scan-C"},
+		{Provider: "aws", AccountID: "acct", Type: "aws:ec2:instance", NativeID: "i-2", AttributesJSON: `{"a":1}`, DiscoveredBy: "scan-C"},
+	}
+	if _, err := st.WithUpsertCounters(&newC, &changedC).UpsertResources(rows3); err != nil {
+		t.Fatalf("third upsert: %v", err)
+	}
+	if newC.Load() != 0 || changedC.Load() != 0 {
+		t.Fatalf("third scan: new=%d changed=%d, want new=0 changed=0", newC.Load(), changedC.Load())
 	}
 }
 

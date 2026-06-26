@@ -93,6 +93,31 @@ index `idx_resources_current_by_natural_key` (over
 `(provider, account_id, type, native_id) WHERE superseded_by IS
 NULL`) never sees two current rows simultaneously.
 
+**Changed-detection canonicalizes embedded JSON.** `jsonEqual`
+(`resources_versioning.go`) decides unchanged-vs-split by parsing both
+`AttributesJSON`/`TagsJSON` blobs and re-marshalling through
+`canonicalizeJSONValue`, which recursively normalizes key order **including
+inside string leaves that are themselves JSON** (an IAM/KMS policy document
+embedded as an opaque string). AWS returns those policy strings with
+`Condition`-map keys in non-deterministic order; without this an unchanged
+KMS key (and S3/SNS/SQS resource policies, IAM assume-role docs) would
+version-split on every scan. A genuinely different policy still produces
+different canonical bytes, so real changes are still detected. When adding a
+field whose value is an opaque embedded-JSON string, no special handling is
+needed — canonicalization already covers it.
+
+**`new` vs `changed` reporting.** `UpsertResources` returns `inserted` (=
+first-discoveries + version-splits) for backward compatibility, but the scan
+progress line attributes the two separately via scoped atomic counters:
+`Store.WithUpsertCounters(newC, changedC)` returns a shallow-copy `*Store`
+(mirrors `WithRelCounter`) whose `UpsertResources` bumps `newC` on a
+first-discovery and `changedC` on a version split. Provider dispatchers bind
+a pair per per-service scan and pass them to `ReportService(service, scope,
+total, new, changed, errCount, disabled)` — so the count splits per (service,
+scope) without threading a second value through every scanner's
+`(total, inserted, err)` signature. The scanner-returned `inserted` is no
+longer what drives the progress line's "new" column.
+
 Relationships reference `root_id` (the deterministic hash), not
 per-version row ids. FK to `resources(id)` is dropped (SQLite
 recreates `relationships` + `hierarchy_closure` without the FK

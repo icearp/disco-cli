@@ -33,7 +33,7 @@ Account-level / region-level singleton config types (e.g. data-lake-settings, ac
 Provider scanners must NOT propagate per-service / per-region / per-resolver errors. Instead:
 
 - On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
-- `ReportService(name, total, inserted, errCount)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line.
+- `ReportService(name, scope, total, new, changed, errCount, disabled)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`.
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
 - `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end. Inline `FAILED:` lines no longer printed.
 

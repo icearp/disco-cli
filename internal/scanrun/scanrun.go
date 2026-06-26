@@ -96,7 +96,7 @@ type Allocation struct {
 // errors are persisted as PartialScan; the call returns nil so the
 // caller can exit cleanly.
 func Execute(ctx context.Context, st *store.Store, a *Allocation) error {
-	_, scanErrors, totalSeen, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
+	_, scanErrors, totalSeen, _, _ := RunScanners(ctx, st, a.ScanID, a.scanners)
 	// totalSeen (rows visited this scan, the canonical scans.resource_count) is
 	// accumulated by RunScanners so this path and cmd/scan.go record the same
 	// count. Finalize owns the Complete/Partial dispatch and structured-error
@@ -240,12 +240,13 @@ func RunScanners(
 	st *store.Store,
 	scanID string,
 	scanners []providers.Scanner,
-) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalSeen, totalNew int) {
+) (warnings []store.ScanWarning, scanErrors []store.ScanError, totalSeen, totalNew, totalChanged int) {
 	var (
-		warnMu sync.Mutex
-		errMu  sync.Mutex
-		seen   atomic.Int64
-		fresh  atomic.Int64
+		warnMu  sync.Mutex
+		errMu   sync.Mutex
+		seen    atomic.Int64
+		fresh   atomic.Int64
+		changed atomic.Int64
 	)
 	// Capture and restore the caller's callbacks: this chains onto any existing
 	// OnWarn/OnError/OnServiceComplete so wiring (CLI progress lines) stays
@@ -279,12 +280,14 @@ func RunScanners(
 	}
 	// Accumulate the canonical totals here so both entry points (CLI and the
 	// Allocate/Execute API driver) derive scans.resource_count identically:
-	// totalSeen = rows visited (incl. pre-existing), totalNew = newly inserted.
-	st.OnServiceComplete = func(service, scope string, total, inserted, errCount int, disabled bool) {
+	// totalSeen = rows visited (incl. pre-existing), totalNew = first-discoveries,
+	// totalChanged = version splits (existing rows whose attrs/tags changed).
+	st.OnServiceComplete = func(service, scope string, total, newCount, changedCount, errCount int, status store.ServiceStatus) {
 		seen.Add(int64(total))
-		fresh.Add(int64(inserted))
+		fresh.Add(int64(newCount))
+		changed.Add(int64(changedCount))
 		if prevSvc != nil {
-			prevSvc(service, scope, total, inserted, errCount, disabled)
+			prevSvc(service, scope, total, newCount, changedCount, errCount, status)
 		}
 	}
 
@@ -301,7 +304,7 @@ func RunScanners(
 		})
 	}
 	wg.Wait()
-	return warnings, scanErrors, int(seen.Load()), int(fresh.Load())
+	return warnings, scanErrors, int(seen.Load()), int(fresh.Load()), int(changed.Load())
 }
 
 func resolveScanners(req Request) ([]providers.Scanner, error) {

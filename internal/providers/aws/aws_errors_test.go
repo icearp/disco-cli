@@ -109,6 +109,23 @@ func TestIsMacieNotEnabled(t *testing.T) {
 	}
 }
 
+func TestIsServiceNotAvailableInRegion(t *testing.T) {
+	yes := apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")
+	if !isServiceNotAvailableInRegion(yes) {
+		t.Error("region-gap gateway message should be classified service-not-in-region")
+	}
+	// A real per-action IAM denial shares the code but names the action — must warn, not skip.
+	if isServiceNotAvailableInRegion(apiErr("AccessDeniedException", "User: arn:aws:iam::1:user/x is not authorized to perform: omics:ListAnnotationStores")) {
+		t.Error("real IAM denial must not be classified service-not-in-region")
+	}
+	if isServiceNotAvailableInRegion(apiErr("ValidationException", "Unable to determine service/operation name")) {
+		t.Error("non-access-denied code with hint must not match")
+	}
+	if isServiceNotAvailableInRegion(nil) {
+		t.Error("nil error must not match")
+	}
+}
+
 func TestIsSecurityHubNotEnabled(t *testing.T) {
 	for _, c := range []string{"InvalidAccessException", "ResourceNotFoundException"} {
 		if !isSecurityHubNotEnabled(apiErr(c, "")) {
@@ -175,6 +192,20 @@ func TestMarkServiceDisabled(t *testing.T) {
 		t.Error("errors.Is should detect errServiceDisabled sentinel")
 	}
 	if !errors.Is(wrapped, errServiceDisabled) || wrapped.Error() == errServiceDisabled.Error() {
+		t.Error("wrapped error should preserve upstream message")
+	}
+}
+
+func TestMarkServiceUnavailable(t *testing.T) {
+	upstream := errors.New("Unable to determine service/operation name to be authorized")
+	wrapped := markServiceUnavailable(upstream)
+	if !errors.Is(wrapped, errServiceUnavailable) {
+		t.Error("errors.Is should detect errServiceUnavailable sentinel")
+	}
+	if errors.Is(wrapped, errServiceDisabled) {
+		t.Error("unavailable sentinel must be distinct from errServiceDisabled")
+	}
+	if wrapped.Error() == errServiceUnavailable.Error() {
 		t.Error("wrapped error should preserve upstream message")
 	}
 }

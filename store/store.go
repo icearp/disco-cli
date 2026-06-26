@@ -59,34 +59,50 @@ const (
 	driverPostgres driver = "postgres"
 )
 
+// ServiceStatus is the terminal state of a per-service scan, surfaced as a
+// suffix on the progress line. ServiceDisabled = the account/subscription/project
+// has not enabled the service (the user could turn it on). ServiceUnavailable =
+// the service is not deployed in this AWS region (nothing the user can do).
+type ServiceStatus uint8
+
+const (
+	ServiceOK ServiceStatus = iota
+	ServiceDisabled
+	ServiceUnavailable
+)
+
 type Store struct {
 	db                *sqlx.DB // pool. nil iff this Store was produced by WrapTx.
 	tx                *sqlx.Tx // non-nil iff produced by WrapTx; caller owns lifecycle.
 	driver            driver
-	readOnly          bool                                                                      // true iff opened via OpenReadOnly; gates the Close-time WAL checkpoint+cleanup off a RO DB.
-	path              string                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
-	OnServiceComplete func(service, scope string, total, inserted, errCount int, disabled bool) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", disabled surfaces "(service disabled)"
-	OnResolveStart    func(provider string)                                                     // just before phase-2 resolvers run
-	OnResolveComplete func(provider string, edges int)                                          // after all resolvers finish
-	OnWarn            func(ScanWarning)                                                         // skip-worthy error handled (transient, access-denied)
-	OnError           func(ScanError)                                                           // service or resolver failure; never aborts the scan
-	activeCounter     *atomic.Int64                                                             // non-nil only in scoped copies returned by WithRelCounter
-	relBuf            *relBuffer                                                                // non-nil only in scoped copies returned by BeginRelBuffer
+	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; gates the Close-time WAL checkpoint+cleanup off a RO DB.
+	path              string                                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
+	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(service disabled)" / "(service unavailable)"
+	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
+	OnResolveComplete func(provider string, edges int)                                                          // after all resolvers finish
+	OnWarn            func(ScanWarning)                                                                         // skip-worthy error handled (transient, access-denied)
+	OnError           func(ScanError)                                                                           // service or resolver failure; never aborts the scan
+	activeCounter     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithRelCounter
+	upsertNew         *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on first-discovery
+	upsertChanged     *atomic.Int64                                                                             // non-nil only in scoped copies returned by WithUpsertCounters; bumped on version split
+	relBuf            *relBuffer                                                                                // non-nil only in scoped copies returned by BeginRelBuffer
 }
 
 // ReportService invokes OnServiceComplete if set. Providers call this after each
 // service scan function returns. scope identifies the per-call dimension that
 // would otherwise duplicate the line in multi-region / multi-account scans
 // (AWS region or "global", Azure subscription ID, GCP project ID). total =
-// resources seen this scan, inserted = resources newly added (not previously
-// in the DB), errCount = number of errors encountered while scanning this
-// service (>0 surfaces as a "(with errors)" suffix on the progress line).
-// disabled = service is not enabled in this account/region (surfaces as a
-// "(service disabled)" suffix; mutually exclusive with errCount>0 since a
-// disabled service emits no errors).
-func (s *Store) ReportService(service, scope string, total, inserted, errCount int, disabled bool) {
+// resources seen this scan, newCount = resources discovered for the first time
+// (never previously in the DB), changed = existing resources whose attributes
+// or tags changed this scan (a version split), errCount = number of errors
+// encountered while scanning this service (>0 surfaces as a "(with errors)"
+// suffix on the progress line). status = ServiceDisabled (not enabled in this
+// account) or ServiceUnavailable (not deployed in this AWS region); either
+// surfaces as a suffix and is mutually exclusive with errCount>0 since a
+// skipped service emits no errors.
+func (s *Store) ReportService(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) {
 	if s.OnServiceComplete != nil {
-		s.OnServiceComplete(service, scope, total, inserted, errCount, disabled)
+		s.OnServiceComplete(service, scope, total, newCount, changed, errCount, status)
 	}
 }
 
@@ -97,6 +113,19 @@ func (s *Store) ReportService(service, scope string, total, inserted, errCount i
 func (s *Store) WithRelCounter(c *atomic.Int64) *Store {
 	s2 := *s
 	s2.activeCounter = c
+	return &s2
+}
+
+// WithUpsertCounters returns a shallow copy of the Store with the new/changed
+// upsert counters bound. UpsertResources bumps newC on each first-discovery and
+// changedC on each version split. Providers create two local atomic.Int64
+// around a per-service scan dispatch, pass them here, then read them for
+// ReportService — attributing the split per (service, scope) without threading
+// a second count through every scanner signature. Mirrors WithRelCounter.
+func (s *Store) WithUpsertCounters(newC, changedC *atomic.Int64) *Store {
+	s2 := *s
+	s2.upsertNew = newC
+	s2.upsertChanged = changedC
 	return &s2
 }
 

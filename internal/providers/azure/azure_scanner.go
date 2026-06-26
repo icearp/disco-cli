@@ -260,7 +260,7 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 		// RP not registered in this subscription → mark disabled and skip the
 		// scanner entirely (no goroutine, no list call), mirroring AWS.
 		if providerDisabled(regProviders, svc.name) {
-			st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, true)
+			st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, 0, store.ServiceDisabled)
 			continue
 		}
 		wg.Go(func() {
@@ -271,10 +271,11 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(ctx, serviceTimeout)
 			defer cancel()
-			total, inserted, err := svc.fn(svcCtx, sub, cred, st, scanID)
+			var newC, changedC atomic.Int64
+			total, _, err := svc.fn(svcCtx, sub, cred, st.WithUpsertCounters(&newC, &changedC), scanID)
 			switch {
 			case err == nil:
-				st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 0, false)
+				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
 			case errors.Is(err, errServiceNotRegistered) && total == 0:
 				// Service not available in this subscription (RP unregistered or
 				// resource type absent) and nothing was scanned — mark the
@@ -282,13 +283,13 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 				// AWS's errServiceDisabled. The total==0 guard ensures a merged
 				// service that already scanned data in another phase is never
 				// blanked.
-				st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, true)
+				st.ReportService(svc.name, sub.scopeLabel(), 0, 0, 0, 0, store.ServiceDisabled)
 			default:
 				st.ReportError(store.ScanError{
 					Provider: "azure", Service: svc.name, Scope: sub.scopeLabel(),
 					Message: formatAzureError(err),
 				})
-				st.ReportService(svc.name, sub.scopeLabel(), total, inserted, 1, false)
+				st.ReportService(svc.name, sub.scopeLabel(), total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 			}
 		})
 	}
@@ -304,10 +305,10 @@ func scanSubscription(ctx context.Context, sub *subscription, cred azcore.TokenC
 				Provider: "azure", Service: ar.name, Scope: sub.scopeLabel(),
 				Message: formatAzureError(aerr),
 			})
-			st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 1, false)
+			st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 0, 1, store.ServiceOK)
 			continue
 		}
-		st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 0, false)
+		st.ReportService(ar.name, sub.scopeLabel(), 0, edges, 0, 0, store.ServiceOK)
 	}
 
 	// Phase 2 resolvers consume Entra principals written by the tenant phase, which

@@ -115,6 +115,9 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 			}
 			if n, _ := res.RowsAffected(); n > 0 {
 				inserted++
+				if s.upsertNew != nil {
+					s.upsertNew.Add(1)
+				}
 			}
 
 		case lookupErr != nil:
@@ -180,6 +183,9 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 				return 0, fmt.Errorf("insert new version of %s: %w", r.ID, err)
 			}
 			inserted++
+			if s.upsertChanged != nil {
+				s.upsertChanged.Add(1)
+			}
 		}
 	}
 

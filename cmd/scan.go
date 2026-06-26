@@ -210,19 +210,13 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// reported via OnError); annotate the line with "(with errors)" so the user
 	// can scan output for trouble without grepping. Totals are accumulated by
 	// scanrun.RunScanners (single source of truth shared with the API driver).
-	db.OnServiceComplete = func(service, scope string, total, inserted, errCount int, disabled bool) {
+	db.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
 		if quiet {
 			return
 		}
-		suffix := ""
-		switch {
-		case disabled:
-			suffix = "  (service disabled)"
-		case errCount > 0:
-			suffix = "  (with errors)"
-		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  %-*s  (%d total, %d new)%s\n",
-			time.Since(start).Round(time.Second), nameWidth, service, scopeWidth, scope, total, inserted, suffix)
+		suffix := serviceStatusSuffix(status, errCount)
+		_, _ = fmt.Fprintf(progressW, "  [%s] %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
+			time.Since(start).Round(time.Second), nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
@@ -248,7 +242,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// interrupted scan unwinds (scanners honor ctx on their SDK calls) and the
 	// deferred db.Close() still runs the WAL checkpoint+cleanup.
 	ctx := cmd.Context()
-	warnings, scanErrors, totalSeen, totalNew := scanrun.RunScanners(ctx, db, scanID, scanners)
+	warnings, scanErrors, totalSeen, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
 
 	// Render grouped warnings + errors blocks before the final summary line.
 	renderWarnings(progressW, warnings, quiet)
@@ -276,19 +270,35 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 
 	if res.Interrupted {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"Scan interrupted: %d resources (%d new) in %s%s%s\n",
-			totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			"Scan interrupted: %d resources (%d new, %d changed) in %s%s%s\n",
+			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return nil
 	}
 	if res.Partial {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(),
-			"Scan partial: %d resources (%d new) in %s%s%s\n",
-			totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
+			"Scan partial: %d resources (%d new, %d changed) in %s%s%s\n",
+			totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix, errSuffix)
 		return nil
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new) in %s%s\n",
-		totalSeen, totalNew, time.Since(start).Round(time.Second), warnSuffix)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed) in %s%s\n",
+		totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// serviceStatusSuffix renders the trailing annotation on a per-service scan
+// progress line. ServiceUnavailable (not deployed in this AWS region) and
+// ServiceDisabled (account hasn't enabled it) are mutually exclusive with the
+// error suffix, since a skipped service produces no errors.
+func serviceStatusSuffix(status store.ServiceStatus, errCount int) string {
+	switch {
+	case status == store.ServiceUnavailable:
+		return "  (service unavailable)"
+	case status == store.ServiceDisabled:
+		return "  (service disabled)"
+	case errCount > 0:
+		return "  (with errors)"
+	}
+	return ""
 }
 
 // scopeColumnWidth returns the padding width for the per-line scope column

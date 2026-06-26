@@ -80,6 +80,9 @@ func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *accou
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListAnnotationStores", acct.ID, region, perr)
 				return 0, 0, nil
@@ -111,6 +114,9 @@ func scanOmicsConfigurations(ctx context.Context, client omicsAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListConfigurations", acct.ID, region, perr)
 				return 0, 0, nil
@@ -142,6 +148,9 @@ func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListReferenceStores", acct.ID, region, perr)
 				return 0, 0, nil
@@ -173,6 +182,9 @@ func scanOmicsRunGroups(ctx context.Context, client omicsAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListRunGroups", acct.ID, region, perr)
 				return 0, 0, nil
@@ -204,6 +216,9 @@ func scanOmicsSequenceStores(ctx context.Context, client omicsAPI, acct *account
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListSequenceStores", acct.ID, region, perr)
 				return 0, 0, nil
@@ -235,6 +250,9 @@ func scanOmicsVariantStores(ctx context.Context, client omicsAPI, acct *account,
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListVariantStores", acct.ID, region, perr)
 				return 0, 0, nil
@@ -267,6 +285,9 @@ func scanOmicsWorkflows(ctx context.Context, client omicsAPI, acct *account, reg
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return nil, 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListWorkflows", acct.ID, region, perr)
 				return nil, 0, 0, nil
@@ -303,6 +324,9 @@ func scanOmicsWorkflowVersions(ctx context.Context, client omicsAPI, acct *accou
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListWorkflowVersions", acct.ID, region, perr)
 				return 0, 0, nil

@@ -3,6 +3,7 @@ package gcp
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -122,24 +123,25 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 		if allowed != nil && !allowed[svc.name] {
 			continue
 		}
-		total, inserted, err := svc.fn(ctx, scopes, st, scanID)
+		var newC, changedC atomic.Int64
+		total, _, err := svc.fn(ctx, scopes, st.WithUpsertCounters(&newC, &changedC), scanID)
 		if err != nil {
 			// API-not-enabled at the org scope (accesscontextmanager,
 			// org-policy, etc.) returns the errServiceDisabled sentinel —
 			// mirror scanProject and surface "(service disabled)" instead
 			// of an error.
 			if errors.Is(err, errServiceDisabled) {
-				st.ReportService(svc.name, "org", 0, 0, 0, true)
+				st.ReportService(svc.name, "org", 0, 0, 0, 0, store.ServiceDisabled)
 				continue
 			}
 			st.ReportError(store.ScanError{
 				Provider: "gcp", Service: svc.name, Scope: "org",
 				Message: err.Error(),
 			})
-			st.ReportService(svc.name, "org", total, inserted, 1, false)
+			st.ReportService(svc.name, "org", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 			continue
 		}
-		st.ReportService(svc.name, "org", total, inserted, 0, false)
+		st.ReportService(svc.name, "org", total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
 	}
 }
 

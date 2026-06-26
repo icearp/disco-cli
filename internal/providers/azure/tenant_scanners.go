@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"sync/atomic"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -61,16 +62,17 @@ func runTenantServices(ctx context.Context, subs []subscription, cred azcore.Tok
 		if allowed != nil && !allowed[svc.name] {
 			continue
 		}
-		total, inserted, err := svc.fn(ctx, subs, cred, st, scanID)
+		var newC, changedC atomic.Int64
+		total, _, err := svc.fn(ctx, subs, cred, st.WithUpsertCounters(&newC, &changedC), scanID)
 		if err != nil {
 			st.ReportError(store.ScanError{
 				Provider: "azure", Service: svc.name, Scope: "tenant",
 				Message: formatAzureError(err),
 			})
-			st.ReportService(svc.name, "tenant", total, inserted, 1, false)
+			st.ReportService(svc.name, "tenant", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 			continue
 		}
-		st.ReportService(svc.name, "tenant", total, inserted, 0, false)
+		st.ReportService(svc.name, "tenant", total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
 	}
 }
 

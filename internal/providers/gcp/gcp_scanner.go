@@ -168,17 +168,18 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			defer sem.Release(1)
 			svcCtx, cancel := context.WithTimeout(gctx, serviceTimeout)
 			defer cancel()
-			total, inserted, err := svc.fn(svcCtx, p, st, scanID)
+			var newC, changedC atomic.Int64
+			total, _, err := svc.fn(svcCtx, p, st.WithUpsertCounters(&newC, &changedC), scanID)
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
 					// GCP API not enabled in this project — surface as
 					// "(service disabled)" suffix instead of a warning.
-					st.ReportService(svc.name, p.ID, 0, 0, 0, true)
+					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceDisabled)
 					return nil
 				}
 				return err
 			}
-			st.ReportService(svc.name, p.ID, total, inserted, 0, false)
+			st.ReportService(svc.name, p.ID, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
 			return nil
 		})
 	}
