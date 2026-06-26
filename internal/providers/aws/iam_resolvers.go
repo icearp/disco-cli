@@ -329,123 +329,67 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	return nil
 }
 
-// resolveManagedPolicyAttachments calls ListEntitiesForPolicy for each customer-
-// managed policy and creates attached-to edges to roles, users, and groups.
-// The IAM SDK returns only names (not ARNs) from ListEntitiesForPolicy, so we
-// pre-index all principals by name to look up their stable resource IDs.
+// resolveManagedPolicyAttachments creates attached-to edges from each managed
+// policy (customer-managed AND AWS-managed) to the roles, users, and groups it is
+// attached to. GAAD already returns every principal's AttachedManagedPolicies with
+// ARNs (stored verbatim in the principal's attributes by scanIAMAuthDetails), so we
+// read attachments straight from the store — no per-policy ListEntitiesForPolicy
+// fan-out, and IncludeManaged surfaces the AWS-managed catalogue rows that the
+// default filter would hide (so AdministratorAccess et al. become edge targets).
 func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMPolicy},
-		Limit:     util.AllResources,
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		Types:          []string{TypeIAMPolicy},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err
 	}
-	if len(policies) == 0 {
+	policyByARN := make(map[string]string, len(policies))
+	for _, p := range policies {
+		policyByARN[p.NativeID] = p.ID
+	}
+	if len(policyByARN) == 0 {
 		return nil
 	}
 
-	// Build name→resourceID indexes for each principal type.
-	rolesByName, err := resourceIDsByName(st, acct.ID, TypeIAMRole)
-	if err != nil {
-		return err
-	}
-	slrByName, err := resourceIDsByName(st, acct.ID, TypeIAMServiceLinkedRole)
-	if err != nil {
-		return err
-	}
-	usersByName, err := resourceIDsByName(st, acct.ID, TypeIAMUser)
-	if err != nil {
-		return err
-	}
-	groupsByName, err := resourceIDsByName(st, acct.ID, TypeIAMGroup)
-	if err != nil {
-		return err
-	}
-
-	// Fan out across all policies concurrently; collect relationship edges and
-	// write them under a mutex to avoid concurrent SQLite writes.
-	client := iam.NewFromConfig(acct.cfg)
-	sem := semaphore.NewWeighted(fanoutMed)
-	var mu sync.Mutex
-	g, gctx := errgroup.WithContext(context.Background())
-	for _, r := range policies {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			pager := iam.NewListEntitiesForPolicyPaginator(client, &iam.ListEntitiesForPolicyInput{
-				PolicyArn: &r.NativeID,
-			})
-			for pager.HasMorePages() {
-				page, err := pager.NextPage(gctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("iam:ListEntitiesForPolicy %s: %w", r.NativeID, err)
-				}
-				mu.Lock()
-				for _, role := range page.PolicyRoles {
-					name := sv(role.RoleName)
-					// Check both role maps; only upsert if the resource was actually discovered.
-					for _, nameMap := range []map[string]string{rolesByName, slrByName} {
-						if tID, ok := nameMap[name]; ok {
-							if err := st.UpsertRelationship(r.ID, tID, store.RelAttachedTo, "directed", nil); err != nil {
-								mu.Unlock()
-								return fmt.Errorf("upsert managed-policy→role: %w", err)
-							}
-						}
-					}
-				}
-				for _, user := range page.PolicyUsers {
-					name := sv(user.UserName)
-					if userID, ok := usersByName[name]; ok {
-						if err := st.UpsertRelationship(r.ID, userID, store.RelAttachedTo, "directed", nil); err != nil {
-							mu.Unlock()
-							return fmt.Errorf("upsert managed-policy→user: %w", err)
-						}
-					}
-				}
-				for _, group := range page.PolicyGroups {
-					name := sv(group.GroupName)
-					if groupID, ok := groupsByName[name]; ok {
-						if err := st.UpsertRelationship(r.ID, groupID, store.RelAttachedTo, "directed", nil); err != nil {
-							mu.Unlock()
-							return fmt.Errorf("upsert managed-policy→group: %w", err)
-						}
-					}
-				}
-				mu.Unlock()
-			}
-			return nil
-		})
-	}
-	return g.Wait()
-}
-
-// resourceIDsByName loads all resources of rtype for the account and returns a
-// map of name → stable resource ID. Used to resolve name-only API responses.
-func resourceIDsByName(st *store.Store, accountID, rtype string) (map[string]string, error) {
-	resources, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: accountID,
-		Types:     []string{rtype},
-		Limit:     util.AllResources,
+	// SLRs carry ManagedByProvider=true, so IncludeManaged is required or they drop
+	// out of the principal set entirely.
+	principals, err := st.ListResources(store.ResourceFilter{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		Types:          []string{TypeIAMRole, TypeIAMServiceLinkedRole, TypeIAMUser, TypeIAMGroup},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	m := make(map[string]string, len(resources))
-	for _, r := range resources {
-		if r.Name != nil {
-			m[*r.Name] = r.ID
+	for _, pr := range principals {
+		if pr.AttributesJSON == "" {
+			continue
+		}
+		var detail struct {
+			AttachedManagedPolicies []struct {
+				PolicyArn string `json:"PolicyArn"`
+			} `json:"AttachedManagedPolicies"`
+		}
+		if err := json.Unmarshal([]byte(pr.AttributesJSON), &detail); err != nil {
+			continue
+		}
+		for _, amp := range detail.AttachedManagedPolicies {
+			policyID, ok := policyByARN[amp.PolicyArn]
+			if !ok {
+				continue // policy not in store — FK-safe skip
+			}
+			if err := st.UpsertRelationship(policyID, pr.ID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert managed-policy→principal: %w", err)
+			}
 		}
 	}
-	return m, nil
+	return nil
 }
 
 // principalList decodes the Principal.Federated field of a trust policy,
@@ -589,10 +533,11 @@ type policyStmt struct {
 // targets are skipped FK-safe.
 func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy},
-		Limit:     util.AllResources,
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		Types:          []string{TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy},
+		IncludeManaged: true, // AWS-managed policy documents carry resource refs too
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err

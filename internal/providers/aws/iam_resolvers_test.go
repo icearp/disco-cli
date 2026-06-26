@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 )
 
 // --- resolveInstanceProfileRoles ---
@@ -214,6 +216,69 @@ func TestResolveManagedPolicyAttachments_Empty(t *testing.T) {
 	if err := resolveManagedPolicyAttachments(acct, st); err != nil {
 		t.Fatalf("resolveManagedPolicyAttachments: %v", err)
 	}
+}
+
+// TestResolveManagedPolicyAttachments_IncludesAWSManaged is the regression ratchet
+// for the gap fixed here: attachment edges must reach AWS-managed policies (and
+// service-linked roles), not just customer-managed ones. Reads each principal's
+// GAAD AttachedManagedPolicies from stored attrs — no API calls.
+func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	awsManagedARN := "arn:aws:iam::aws:policy/AdministratorAccess"
+	customerARN := "arn:aws:iam::123456789012:policy/my-custom"
+	bogusARN := "arn:aws:iam::aws:policy/NotScanned" // referenced but never scanned
+	roleARN := "arn:aws:iam::123456789012:role/app-role"
+	slrARN := "arn:aws:iam::123456789012:role/aws-service-role/elasticbeanstalk.amazonaws.com/AWSServiceRoleForElasticBeanstalk"
+
+	// AWS-managed policy + SLR carry ManagedByProvider=true, so they only surface
+	// when the resolver reads them with IncludeManaged — upsert directly to set it.
+	upsertManaged := func(rtype, nativeID, attrs string) string {
+		t.Helper()
+		if _, err := st.UpsertResource(&store.Resource{
+			Provider: "aws", AccountID: acct.ID, Type: rtype, NativeID: nativeID,
+			AttributesJSON: attrs, DiscoveredBy: testScanID, ManagedByProvider: true,
+		}); err != nil {
+			t.Fatalf("upsert managed %s: %v", nativeID, err)
+		}
+		return store.ResourceID("aws", acct.ID, rtype, nativeID)
+	}
+	roleAttrs := func(arn string, policyARNs ...string) string {
+		amp := make([]iamtypes.AttachedPolicy, len(policyARNs))
+		for i, p := range policyARNs {
+			amp[i] = iamtypes.AttachedPolicy{PolicyArn: sdkaws.String(p)}
+		}
+		return mustJSON(iamtypes.RoleDetail{Arn: sdkaws.String(arn), AttachedManagedPolicies: amp})
+	}
+
+	awsPolicyID := upsertManaged(TypeIAMPolicy, awsManagedARN, "{}")
+	custPolicyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, customerARN, "", "{}")
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", roleAttrs(roleARN, awsManagedARN, customerARN, bogusARN))
+	slrID := upsertManaged(TypeIAMServiceLinkedRole, slrARN, roleAttrs(slrARN, awsManagedARN))
+
+	if err := resolveManagedPolicyAttachments(acct, st); err != nil {
+		t.Fatalf("resolveManagedPolicyAttachments: %v", err)
+	}
+
+	// The AWS-managed policy is attached to both the role and the SLR — the edges
+	// the old customer-only resolver never produced. bogusARN yields no edge.
+	awsRels, err := st.RelationshipsFrom(awsPolicyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(aws-managed): %v", err)
+	}
+	assertRelationship(t, awsRels, awsPolicyID, roleID, "attached-to")
+	assertRelationship(t, awsRels, awsPolicyID, slrID, "attached-to")
+	if len(awsRels) != 2 {
+		t.Errorf("aws-managed policy: got %d edges, want 2 (role + SLR; bogus ARN skipped)", len(awsRels))
+	}
+
+	// Customer-managed attachment still works (no regression).
+	custRels, err := st.RelationshipsFrom(custPolicyID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(customer): %v", err)
+	}
+	assertRelationship(t, custRels, custPolicyID, roleID, "attached-to")
 }
 
 // --- resolveUserGroupMemberships (empty store — no API calls made) ---
