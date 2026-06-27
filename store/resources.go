@@ -161,8 +161,8 @@ type ResourceFilter struct {
 	// roles, AWS-owned prefix lists, etc.). Defaults false at the SQL layer.
 	IncludeManaged bool
 	// SkipGlobals, when true, excludes rows whose region = "global". Used by
-	// `disco resources --skip-globals` and friends to opt out of the default
-	// "include globals when filtering by --regions" behaviour.
+	// `disco resources --exclude-global-region` and friends to opt out of the
+	// default "include globals when filtering by --regions" behaviour.
 	SkipGlobals bool
 }
 
@@ -186,8 +186,8 @@ func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 		// `--regions us-east-1` is intuitively "show me what's scoped to
 		// us-east-1". Global resources (Region="global") sit logically in
 		// every region; folding them in by default matches that mental
-		// model. `--skip-globals` opts out for callers that want strictly
-		// region-scoped rows.
+		// model. `--exclude-global-region` opts out for callers that want
+		// strictly region-scoped rows.
 		if f.SkipGlobals {
 			q = q.Where(sq.Eq{"region": f.Regions})
 		} else {
