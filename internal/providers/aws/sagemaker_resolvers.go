@@ -139,10 +139,6 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
-	if err != nil {
-		return err
-	}
 	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
 	if err != nil {
 		return err
@@ -234,8 +230,6 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert sagemaker-model→sg: %w", err)
 			}
 		}
-		// Skip VPC edge per comment above; vpcSet kept for symmetry/future use.
-		_ = vpcSet
 	}
 	return nil
 }

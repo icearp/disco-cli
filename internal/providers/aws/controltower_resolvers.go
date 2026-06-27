@@ -64,16 +64,14 @@ func resolveControlTowerBaselineTarget(acct *account, st *store.Store) error {
 		// TargetIdentifier is an Organizations ARN.
 		// Account ARN: arn:aws:organizations::<mgmt>:account/<o-id>/<acct-id>
 		// OU ARN:      arn:aws:organizations::<mgmt>:ou/<o-id>/<ou-id>
-		var targetType, targetID string
+		var targetID string
 		switch {
 		case strings.Contains(target, ":account/"):
-			targetType = TypeOrganizationsAccount
 			targetID = store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, target)
 			if _, ok := acctIDs[targetID]; !ok {
 				continue
 			}
 		case strings.Contains(target, ":ou/"):
-			targetType = TypeOrganizationsOU
 			targetID = store.ResourceID("aws", acct.ID, TypeOrganizationsOU, target)
 			if _, ok := ouIDs[targetID]; !ok {
 				continue
@@ -81,7 +79,6 @@ func resolveControlTowerBaselineTarget(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		_ = targetType
 		if err := st.UpsertRelationship(b.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert controltower baseline→org target: %w", err)
 		}

@@ -94,7 +94,7 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 		return err
 	}
 
-	if err := resolveAutoScalingGroupEdges(acct, st, groups, asgIDByName, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs); err != nil {
+	if err := resolveAutoScalingGroupEdges(acct, st, groups, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs); err != nil {
 		return err
 	}
 	if err := resolveAutoScalingLaunchConfigEdges(acct, st, instProfileIDs, sgIDs); err != nil {
@@ -103,7 +103,7 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	return resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs)
 }
 
-func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store.Resource, asgIDByName map[string]string, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs map[string]bool) error {
+func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store.Resource, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs map[string]bool) error {
 	type lt struct {
 		LaunchTemplateID *string `json:"LaunchTemplateId"`
 	}
@@ -189,7 +189,6 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 			}
 		}
 	}
-	_ = asgIDByName
 	return nil
 }
 

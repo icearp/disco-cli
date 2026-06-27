@@ -206,8 +206,6 @@ func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionI
 	}
 	var batch []*store.Resource
 	for _, vid := range versionIDs {
-		sid := gluetypes.SchemaVersionNumber{}
-		_ = sid // suppress unused — input below uses SchemaVersionId directly
 		var token *string
 		for {
 			out, perr := client.QuerySchemaVersionMetadata(ctx, &glue.QuerySchemaVersionMetadataInput{SchemaVersionId: &vid, NextToken: token})

@@ -54,19 +54,9 @@ func scanIAMPoliciesOrg(ctx context.Context, scopes []orgScope, st *store.Store,
 		}
 		nativeID := sc.Name + "/policy"
 		name := nativeID
-		var typ string
-		switch sc.Kind {
-		case "organization":
-			typ = TypeOrganization
-		case "folder":
-			typ = TypeFolder
-		default:
-			continue
-		}
 		// Use a stable AccountName derived from the scope name; we lack a
 		// display name here without an extra Get call.
 		acctName := sc.Name
-		_ = typ // kept for future use; resource's Type is still TypeIAMPolicy.
 
 		r := &store.Resource{
 			Provider:       "gcp",

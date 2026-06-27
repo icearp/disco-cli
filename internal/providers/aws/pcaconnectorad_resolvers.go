@@ -25,13 +25,13 @@ func init() {
 
 // pcacAdLookupDirectory returns (resourceID, type) for the scanned DS row whose
 // NativeID ends with `/{directoryId}`. Returns ok=false if no matching row.
-func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (string, string, bool, error) {
+func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (string, bool, error) {
 	for _, dt := range []string{TypeDSMicrosoftAD, TypeDSSimpleAD} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Provider: "aws", AccountID: acct.ID, Types: []string{dt}, Limit: util.AllResources,
 		})
 		if err != nil {
-			return "", "", false, err
+			return "", false, err
 		}
 		for _, r := range rows {
 			var a struct {
@@ -41,11 +41,11 @@ func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (
 				continue
 			}
 			if sv(a.DirectoryID) == directoryID {
-				return r.ID, dt, true, nil
+				return r.ID, true, nil
 			}
 		}
 	}
-	return "", "", false, nil
+	return "", false, nil
 }
 
 // resolvePCACAdConnectorRefs wires connector → ACM private CA, AD directory,
@@ -89,10 +89,9 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if d := sv(attrs.DirectoryID); d != "" {
-			if dirID, dirType, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
+			if dirID, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
 				return lerr
 			} else if ok {
-				_ = dirType
 				if err := st.UpsertRelationship(r.ID, dirID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert pca-ad conn→ds: %w", err)
 				}
@@ -136,7 +135,7 @@ func resolvePCACAdDirRegRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if d := sv(attrs.DirectoryID); d != "" {
-			if dirID, _, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
+			if dirID, ok, lerr := pcacAdLookupDirectory(acct, st, d); lerr != nil {
 				return lerr
 			} else if ok {
 				if err := st.UpsertRelationship(r.ID, dirID, store.RelAttachedTo, "directed", nil); err != nil {

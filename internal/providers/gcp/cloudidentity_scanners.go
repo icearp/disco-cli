@@ -3,7 +3,6 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -150,9 +149,6 @@ func scanCloudIdentityGroups(ctx context.Context, svc *cloudidentity.Service, cu
 				AttributesJSON: mustJSON(g),
 				DiscoveredBy:   scanID,
 			}
-			// Email is the FK-key resolvers will use; redundant copy under
-			// canonical attributes is fine since g already includes GroupKey.
-			_ = strings.TrimSpace(email) // silence unused if email lookup not yet wired
 			batch = append(batch, r)
 		}
 		return nil
