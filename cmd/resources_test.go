@@ -184,29 +184,6 @@ func TestResourcesMarkdownHeadersParity(t *testing.T) {
 	}
 }
 
-// TestResourcesCmd_ListAlias verifies the `list` verb alias still dispatches to
-// the canonical `resources` command (back-compat after the canonical flip).
-func TestResourcesCmd_ListAlias(t *testing.T) {
-	seedTestDB(t)
-	resetResourcesFlags()
-
-	out, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"list", "-o", "json"})
-		return cmd.Execute()
-	})
-	if err != nil {
-		t.Fatalf("list -o json: %v", err)
-	}
-	var rows []store.Resource
-	if jerr := json.Unmarshal([]byte(out), &rows); jerr != nil {
-		t.Fatalf("alias did not produce resources JSON: %v\n%s", jerr, out)
-	}
-	if len(rows) != 2 {
-		t.Errorf("want 2 seeded rows via `list` alias, got %d", len(rows))
-	}
-}
-
 // TestResourcesCmd_Markdown verifies that --output markdown emits a
 // GitHub-flavoured markdown table with the canonical column order.
 func TestResourcesCmd_Markdown(t *testing.T) {

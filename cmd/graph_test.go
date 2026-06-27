@@ -418,46 +418,6 @@ func TestGraphCmd_DotLightTheme(t *testing.T) {
 	}
 }
 
-// TestGraphCmd_DotMonoBackcompat asserts --dot-theme=mono reproduces the
-// diff-stable output: no per-node fills, no edge colors, just a `node`
-// header with shape + fontname. Attribute key order may differ from the
-// pre-theme legacy form (alphabetical now) — that's intentional.
-func TestGraphCmd_DotMonoBackcompat(t *testing.T) {
-	st := seedTestDB(t)
-	rs, err := st.ListResources(store.ResourceFilter{})
-	if err != nil {
-		t.Fatalf("ListResources: %v", err)
-	}
-	if err := st.UpsertRelationship(rs[0].ID, rs[1].ID, store.RelAttachedTo, "directed", nil); err != nil {
-		t.Fatalf("upsert rel: %v", err)
-	}
-
-	resetGraphFlags()
-	out, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"graph", rs[0].ID, "-o", "dot", "--dot-theme", "mono"})
-		return cmd.Execute()
-	})
-	if err != nil {
-		t.Fatalf("graph dot mono: %v", err)
-	}
-
-	if strings.Contains(out, "fillcolor") {
-		t.Errorf("mono should emit no fillcolor:\n%s", out)
-	}
-	if strings.Contains(out, "splines") {
-		t.Errorf("mono should emit no splines (legacy header only):\n%s", out)
-	}
-	// Renderer sorts attrs alphabetically, so legacy `[shape=box, fontname=...]`
-	// comes out as `[fontname="Helvetica", shape="box"]`. Assert both
-	// pieces are present without pinning the order.
-	if !strings.Contains(out, `node [`) ||
-		!strings.Contains(out, `shape="box"`) ||
-		!strings.Contains(out, `fontname="Helvetica"`) {
-		t.Errorf("mono missing minimal node header (shape=box + fontname=Helvetica):\n%s", out)
-	}
-}
-
 // TestGraphCmd_DotUnknownTheme confirms the flag validator rejects unknown
 // theme names with a friendly error rather than silently falling back.
 func TestGraphCmd_DotUnknownTheme(t *testing.T) {
@@ -625,10 +585,10 @@ func TestGraphCmd_Complete_IncludeManaged(t *testing.T) {
 	}
 }
 
-// TestThemesCompleteness asserts every themed (non-mono) theme covers all
-// nodePreset values plus all known store.Rel* edge kinds. Catches drift
-// when a new edge kind lands but a theme isn't updated — without this
-// the edge would silently render with no kind-specific styling.
+// TestThemesCompleteness asserts every theme covers all nodePreset values
+// plus all known store.Rel* edge kinds. Catches drift when a new edge kind
+// lands but a theme isn't updated — without this the edge would silently
+// render with no kind-specific styling.
 func TestThemesCompleteness(t *testing.T) {
 	allPresets := []nodePreset{
 		presetPrimary, presetSecondary, presetStorage,
@@ -641,9 +601,6 @@ func TestThemesCompleteness(t *testing.T) {
 		store.RelCrossSubRBAC, store.RelCrossProjectIAM,
 	}
 	for name, theme := range themes {
-		if len(theme.NodePresets) == 0 {
-			continue // mono / minimal themes by design — no presets
-		}
 		for _, p := range allPresets {
 			if _, ok := theme.NodePresets[p]; !ok {
 				t.Errorf("theme %q missing NodePreset %q", name, p)

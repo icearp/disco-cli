@@ -23,14 +23,14 @@ func TestStaticCompletion(t *testing.T) {
 // would silently no-op on) is caught end-to-end, unlike the helper unit tests.
 func TestOutputCompletion_Integration(t *testing.T) {
 	out, err := captureStdout(t, func() error {
-		rootCmd.SetArgs([]string{"__complete", "list", "-o", ""})
+		rootCmd.SetArgs([]string{"__complete", "resources", "-o", ""})
 		return rootCmd.Execute()
 	})
 	if err != nil {
-		t.Fatalf("__complete list -o: %v", err)
+		t.Fatalf("__complete resources -o: %v", err)
 	}
 	if !strings.Contains(out, "json") || !strings.Contains(out, "table") {
-		t.Errorf("want format suggestions for list -o, got:\n%s", out)
+		t.Errorf("want format suggestions for resources -o, got:\n%s", out)
 	}
 	// ShellCompDirectiveNoFileComp == 4; its absence means file completion leaked.
 	if !strings.Contains(out, ":4") {

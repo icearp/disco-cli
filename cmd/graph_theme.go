@@ -11,10 +11,8 @@ import (
 // dotTheme drives all DOT styling. One *dotTheme per --dot-theme value;
 // rendering code reads attrs from here, never inlines color literals — so
 // adding a new palette is one new themePalette literal + one buildTheme
-// call, not edits across renderGraphDot.
-//
-// "Mono" output (no per-node fills, minimal header) is expressed as a
-// theme with empty NodePresets / EdgePresets / Graph rather than a flag —
+// call, not edits across renderGraphDot. A theme with empty
+// NodePresets / EdgePresets / Graph renders with no per-node fills —
 // renderGraphDot's normal path already emits nothing for empty maps.
 type dotTheme struct {
 	// Graph holds digraph-level attributes (bgcolor, splines, nodesep, ...).
@@ -119,19 +117,18 @@ func renderAttrs(m map[string]string) string {
 }
 
 // themeByName looks up a registered theme; unknown names fall back to
-// mono so a typo never crashes graph rendering. Caller validates against
+// light so a typo never crashes graph rendering. Caller validates against
 // known names at flag-parse time for a friendly error.
 func themeByName(name string) *dotTheme {
 	if t, ok := themes[name]; ok {
 		return t
 	}
-	return themes["mono"]
+	return themes["light"]
 }
 
 var themes = map[string]*dotTheme{
 	"light": lightTheme(),
 	"dark":  darkTheme(),
-	"mono":  monoTheme(),
 }
 
 // dotThemeNames returns the registered theme names, sorted, for help text
@@ -325,18 +322,4 @@ func darkTheme() *dotTheme {
 			{BGColor: "#4A148C", Border: "#7B1FA2"},
 		},
 	})
-}
-
-// monoTheme is the diff-stable minimal theme: only a `node` header with
-// shape + fontname so legacy `dot` consumers see something. Empty Graph
-// / EdgePresets / NodePresets / ClusterPalette mean renderGraphDot
-// emits no per-node fills, no edge colors, no cluster styling — exactly
-// the pre-theme output shape (modulo Graphviz attribute key ordering).
-func monoTheme() *dotTheme {
-	return &dotTheme{
-		NodeDefaults: map[string]string{
-			"shape":    "box",
-			"fontname": "Helvetica",
-		},
-	}
 }

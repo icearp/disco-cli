@@ -562,8 +562,7 @@ func clusterKey(r store.Resource) string {
 // renderGraphDot emits a Graphviz digraph. Styling lives in cmd/graph_theme.go;
 // this function just walks nodes/edges and looks up preset attribute blocks.
 // When --cluster is set, nodes are wrapped in `subgraph cluster_<key>` blocks
-// so big graphs stay readable. When --dot-theme=mono, output is byte-for-byte
-// identical to the pre-theme implementation for diff-stable piping.
+// so big graphs stay readable.
 func renderGraphDot(g *store.GraphResult) error {
 	theme := themeByName(graphDotTheme)
 
@@ -571,9 +570,9 @@ func renderGraphDot(g *store.GraphResult) error {
 	b.WriteString("digraph disco {\n")
 	fmt.Fprintf(&b, "  rankdir=%s;\n", graphRankdir)
 
-	// Theme header — emits only the blocks the theme populates. Mono
-	// theme has empty Graph + EdgePresets so no `graph [...]` / `edge [...]`
-	// lines appear; themed themes emit all three.
+	// Theme header — emits only the blocks the theme populates. A theme with
+	// empty Graph + EdgePresets emits no `graph [...]` / `edge [...]` lines;
+	// fully-populated themes emit all three.
 	if attrs := renderAttrs(theme.Graph); attrs != "" {
 		fmt.Fprintf(&b, "  graph [%s];\n", attrs)
 	}
@@ -620,7 +619,7 @@ func renderGraphDot(g *store.GraphResult) error {
 			fmt.Fprintf(&b, "    label=%q;\n", k)
 			// Cluster styling rotates through the palette so adjacent
 			// clusters never share a fill — keeps a 3+ cluster graph
-			// scannable. Mono / palette-less themes skip the block.
+			// scannable. Palette-less themes skip the block.
 			if len(theme.ClusterPalette) > 0 {
 				cs := theme.ClusterPalette[i%len(theme.ClusterPalette)]
 				fmt.Fprintf(&b, "    style=\"rounded,filled\";\n")
@@ -638,8 +637,8 @@ func renderGraphDot(g *store.GraphResult) error {
 
 	// xlabel (external label) — themed graphs use splines=ortho, which
 	// drops standard edge labels with a Graphviz warning. xlabel floats
-	// the text alongside without breaking the route. Mono uses xlabel
-	// too — harmless when splines aren't set.
+	// the text alongside without breaking the route. Harmless for themes
+	// that don't set splines.
 	for _, e := range g.Edges {
 		preset := theme.EdgePresets[e.Kind]
 		// dir=back means "lay out tail→head reversed": swap endpoints so
@@ -738,7 +737,7 @@ func init() {
 	graphCmd.PersistentFlags().IntVar(&graphMaxEdges, "max-edges", 0, "Cap edges (0 = unlimited)")
 	graphCmd.PersistentFlags().StringVar(&graphCluster, "cluster", "", "Cluster nodes in dot/mermaid output by: provider, region, account")
 	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
-	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", ")+" (mono = byte-stable legacy output)")
+	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", "))
 	graphCmd.PersistentFlags().StringVar(&graphRankdir, "rankdir", "LR", "DOT layout direction: LR, RL, TB, BT (RL inverts horizontally — handy when edges flow child→parent)")
 	graphPathCmd.Flags().IntVar(&graphPathDepth, "depth", 8, "Maximum BFS traversal depth (0 = seed only)")
 	graphBlastCmd.Flags().IntVar(&graphBlastDepth, "depth", 3, "Maximum BFS traversal depth (0 = seed only)")

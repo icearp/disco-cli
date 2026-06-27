@@ -12,10 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// resourcesColumns is the canonical column order for CSV output. Pre-F7 columns
-// keep their positions; chain-of-custody + full-fidelity columns appended
-// so positional-index spreadsheet imports keep working. The table renderer
-// uses its own narrower header.
+// resourcesColumns is the column order for CSV output. The table renderer uses
+// its own narrower header.
 var resourcesColumns = []string{
 	"provider", "account_id", "type", "name", "region", "status", "native_id",
 	"id", "account_name", "zone", "managed_by_provider",
@@ -25,8 +23,7 @@ var resourcesColumns = []string{
 
 // resourcesMarkdownHeaders mirrors resourcesColumns positionally but in Title Case, so
 // `resources -o markdown` matches the Title Case headers every other markdown
-// renderer uses (summary/scans/diff/findings/graph). resourcesColumns stays
-// snake_case for CSV positional stability; keep the two in lockstep on edits.
+// renderer uses (summary/scans/diff/findings/graph). Keep the two in lockstep on edits.
 var resourcesMarkdownHeaders = []string{
 	"Provider", "Account ID", "Type", "Name", "Region", "Status", "Native ID",
 	"ID", "Account Name", "Zone", "Managed By Provider",
@@ -79,13 +76,9 @@ var (
 )
 
 var resourcesCmd = &cobra.Command{
-	Use: "resources",
-	// `resources` is the canonical noun (consistent with the other collection
-	// commands `scans` / `findings`); `list` stays as an alias for the verb
-	// form users may reach for (precedent: history/versions).
-	Aliases: []string{"list"},
-	Short:   "List discovered resources (alias: list)",
-	Args:    cobra.NoArgs,
+	Use:   "resources",
+	Short: "List discovered resources",
+	Args:  cobra.NoArgs,
 	Long: `List resources from the local database with optional filters.
 
 Examples:

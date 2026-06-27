@@ -84,10 +84,9 @@ func derefOr(p *string, dflt string) string {
 }
 
 var historyCmd = &cobra.Command{
-	Use:     "history <resource-id>",
-	Aliases: []string{"versions"},
-	Short:   "Show a resource's version history (changes over time)",
-	Args:    cobra.ExactArgs(1),
+	Use:   "history <resource-id>",
+	Short: "Show a resource's version history (changes over time)",
+	Args:  cobra.ExactArgs(1),
 	Long: `Show every recorded version of a resource, oldest to newest.
 
 disco keeps a version chain per resource: re-scanning supersedes the previous

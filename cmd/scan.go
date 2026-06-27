@@ -387,9 +387,6 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 	provScope := map[string]any{}
 	if _, ok := s.(providers.RegionOverrider); ok {
 		regions, _ := cmd.Flags().GetStringSlice("regions")
-		if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
-			regions = legacy
-		}
 		if len(regions) > 0 {
 			provScope["regions"] = regions
 		} else {
@@ -572,8 +569,6 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	if _, ok := s.(providers.RegionOverrider); ok {
 		subcmd.Flags().StringSlice("regions", nil,
 			"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
-		subcmd.Flags().StringSlice("region", nil, "alias for --regions")
-		_ = subcmd.Flags().MarkDeprecated("region", "use --regions instead")
 	}
 	if _, ok := s.(providers.ProfileOverrider); ok {
 		subcmd.Flags().String("profile", "",
@@ -643,9 +638,6 @@ func init() {
 			}
 			if ro, ok := s.(providers.RegionOverrider); ok {
 				regions, _ := cmd.Flags().GetStringSlice("regions")
-				if legacy, _ := cmd.Flags().GetStringSlice("region"); len(regions) == 0 && len(legacy) > 0 {
-					regions = legacy
-				}
 				if len(regions) > 0 {
 					ro.SetRegionOverride(regions)
 				}
