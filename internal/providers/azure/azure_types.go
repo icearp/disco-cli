@@ -366,13 +366,9 @@ const (
 	TypeRedisEnterpriseCluster          = "azure:microsoft.cache:redis-enterprise"
 	TypeCognitiveCommitmentPlan         = "azure:microsoft.cognitiveservices:commitment-plans"
 	TypeDatabricksAccessConnector       = "azure:microsoft.databricks:access-connectors"
-	TypeDataLakeAnalyticsAccount        = "azure:microsoft.datalakeanalytics:accounts"
 	TypeDataProtectionResourceGuard     = "azure:microsoft.dataprotection:resource-guards"
 	TypeDataReplicationFabric           = "azure:microsoft.datareplication:replication-fabrics"
 	TypeDataReplicationVault            = "azure:microsoft.datareplication:replication-vaults"
-	TypeMariaDBServer                   = "azure:microsoft.dbformariadb:servers"
-	TypeMySQLSingleServer               = "azure:microsoft.dbformysql:servers"
-	TypePostgreSQLSingleServer          = "azure:microsoft.dbforpostgresql:servers"
 	TypeCosmosCassandraCluster          = "azure:microsoft.documentdb:cassandra-clusters"
 	TypeCosmosRestorableDatabaseAccount = "azure:microsoft.documentdb:restorable-database-accounts"
 	TypeEventGridNamespace              = "azure:microsoft.eventgrid:namespaces"
@@ -824,13 +820,9 @@ var azureAPITypeMap = map[string]string{
 	"microsoft.cache/redisenterprise":                 TypeRedisEnterpriseCluster,
 	"microsoft.cognitiveservices/commitmentplans":     TypeCognitiveCommitmentPlan,
 	"microsoft.databricks/accessconnectors":           TypeDatabricksAccessConnector,
-	"microsoft.datalakeanalytics/accounts":            TypeDataLakeAnalyticsAccount,
 	"microsoft.dataprotection/resourceguards":         TypeDataProtectionResourceGuard,
 	"microsoft.datareplication/replicationfabrics":    TypeDataReplicationFabric,
 	"microsoft.datareplication/replicationvaults":     TypeDataReplicationVault,
-	"microsoft.dbformariadb/servers":                  TypeMariaDBServer,
-	"microsoft.dbformysql/servers":                    TypeMySQLSingleServer,
-	"microsoft.dbforpostgresql/servers":               TypePostgreSQLSingleServer,
 	"microsoft.documentdb/cassandraclusters":          TypeCosmosCassandraCluster,
 	"microsoft.documentdb/restorabledatabaseaccounts": TypeCosmosRestorableDatabaseAccount,
 	"microsoft.eventgrid/namespaces":                  TypeEventGridNamespace,
