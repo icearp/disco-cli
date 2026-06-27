@@ -27,7 +27,7 @@ func init() {
 // and CloudWatch Logs log group.
 func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 	trails, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudTrailTrail},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudTrailTrail},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -83,7 +83,7 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 // scanned id sets — cross-account targets silently skip.
 func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store) error {
 	eds, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudTrailEventDataStore},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudTrailEventDataStore},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -97,7 +97,7 @@ func resolveCloudTrailEventDataStoreRelationships(acct *account, st *store.Store
 		return err
 	}
 	roles, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIAMRole},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIAMRole},
 		Limit: util.AllResources,
 	})
 	if err != nil {

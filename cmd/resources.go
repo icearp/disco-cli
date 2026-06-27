@@ -54,10 +54,10 @@ func resourceRow(r *store.Resource) []string {
 }
 
 var (
-	resourcesProvider         string
+	resourcesProviders        []string
 	resourcesType             string
 	resourcesExcludeTypes     []string
-	resourcesRegion           string
+	resourcesRegions          []string
 	resourcesStatus           string
 	resourcesTagKey           string
 	resourcesTagValue         string
@@ -81,7 +81,7 @@ var resourcesCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	Long:  `List resources from the local database with optional filters.`,
 	Example: `  disco resources
-  disco resources --provider aws --type aws:ec2:instance
+  disco resources --providers aws --type aws:ec2:instance
   disco resources --discovered-since 2026-01-01 -o jsonl | jq -s 'length'
   disco resources --created-before 2025-01-01 -t aws:iam:user --include-managed -o json
   disco resources --scan-id latest -o csv > q.csv
@@ -119,16 +119,12 @@ var resourcesCmd = &cobra.Command{
 		if resourcesType != "" {
 			types = []string{resourcesType}
 		}
-		var regions []string
-		if resourcesRegion != "" {
-			regions = []string{resourcesRegion}
-		}
 
 		f := store.ResourceFilter{
-			Provider:         resourcesProvider,
+			Providers:        resourcesProviders,
 			Types:            types,
 			ExcludeTypes:     resourcesExcludeTypes,
-			Regions:          regions,
+			Regions:          resourcesRegions,
 			Status:           resourcesStatus,
 			TagKey:           resourcesTagKey,
 			TagValue:         resourcesTagValue,
@@ -238,7 +234,8 @@ var resourcesCmd = &cobra.Command{
 }
 
 func init() {
-	resourcesCmd.Flags().StringVarP(&resourcesProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
+	resourcesCmd.Flags().StringSliceVarP(&resourcesProviders, "providers", "p", nil, fmt.Sprintf("Filter by provider(s), comma-separated (%s)", providerListHint()))
+	_ = resourcesCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	resourcesCmd.Flags().StringVarP(&resourcesType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
 	resourcesCmd.Flags().StringSliceVar(&resourcesExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	resourcesCmd.Flags().StringVar(&resourcesScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
@@ -247,7 +244,7 @@ func init() {
 	resourcesCmd.Flags().Var(&resourcesDiscoveredBefore, "discovered-before", "Restrict to rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
 	resourcesCmd.Flags().Var(&resourcesCreatedSince, "created-since", "Restrict to rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
 	resourcesCmd.Flags().Var(&resourcesCreatedBefore, "created-before", "Restrict to rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
-	resourcesCmd.Flags().StringVarP(&resourcesRegion, "region", "r", "", "Filter by region")
+	resourcesCmd.Flags().StringSliceVarP(&resourcesRegions, "regions", "r", nil, "Filter by region(s), comma-separated")
 	resourcesCmd.Flags().StringVar(&resourcesStatus, "status", "", "Filter by status")
 	resourcesCmd.Flags().StringVar(&resourcesTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")
 	resourcesCmd.Flags().StringVar(&resourcesTagValue, "tag-value", "", "Filter by tag value (matches any key when --tag-key is unset)")

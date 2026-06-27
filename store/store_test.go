@@ -448,7 +448,7 @@ func TestListResources_ByProvider(t *testing.T) {
 	insertResource(t, st, "aws", "acct", "aws:ec2:instance", "i-1")
 	insertResource(t, st, "gcp", "proj", "gcp:compute:instance", "inst-1")
 
-	results, err := st.ListResources(ResourceFilter{Provider: "aws", Limit: 100})
+	results, err := st.ListResources(ResourceFilter{Providers: []string{"aws"}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}

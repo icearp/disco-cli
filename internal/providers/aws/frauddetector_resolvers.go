@@ -29,7 +29,7 @@ func fdARN(region, acct, kind, name string) string {
 // `EventTypeName` (bare name → canonical ARN).
 func resolveFDDetectorEventType(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFraudDetectorDetector}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFraudDetectorDetector}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func resolveFDDetectorEventType(acct *account, st *store.Store) error {
 // event-variables[] (bare-name lists in SDK shape).
 func resolveFDEventTypeRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFraudDetectorEventType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFraudDetectorEventType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

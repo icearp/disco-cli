@@ -26,7 +26,7 @@ func init() {
 // Pipeline.RoleArn + ArtifactStore (or ArtifactStores map per region).
 func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodePipelinePipeline}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodePipelinePipeline}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -110,7 +110,7 @@ func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 // pipeline via Definition.TargetPipeline (a pipeline name).
 func resolveCodePipelineWebhookToPipeline(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodePipelineWebhook}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodePipelineWebhook}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

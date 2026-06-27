@@ -69,7 +69,7 @@ func resolveDataZoneChildrenToDomain(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -110,7 +110,7 @@ func resolveDataZoneEnvActionsToEnvironment(acct *account, st *store.Store) erro
 	}
 	for _, c := range cases {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{c.ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{c.ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -155,7 +155,7 @@ func init() {
 // IAM roles. GetDomain body shape.
 func resolveDataZoneDomainRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataZoneDomain}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataZoneDomain}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -22,10 +22,10 @@ import (
 var errTagCoverageBelow = errors.New("tag coverage below threshold")
 
 var (
-	tagCovProvider         string
+	tagCovProviders        []string
 	tagCovType             string
 	tagCovExcludeTypes     []string
-	tagCovRegion           string
+	tagCovRegions          []string
 	tagCovScanID           string
 	tagCovDiscoveredSince  = singleSetString{flag: "discovered-since"}
 	tagCovDiscoveredBefore = singleSetString{flag: "discovered-before"}
@@ -53,10 +53,10 @@ keys only (zero-coverage keys still appear so audit dashboards see the
 absent-tag signal).
 
 Customer-managed resources only by default; --include-managed expands the
-denominator. Filter scope with --provider / --type / --region — useful for
+denominator. Filter scope with --providers / --type / --regions — useful for
 "tag coverage on EC2 instances only" rollups.`,
 	Example: `  disco tag-coverage owner cost-center
-  disco tag-coverage --provider aws --type aws:ec2:instance
+  disco tag-coverage --providers aws --type aws:ec2:instance
   disco tag-coverage -o json | jq '.[] | select(.coverage < 0.5)'`,
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 		defer func() {
@@ -80,10 +80,6 @@ denominator. Filter scope with --provider / --type / --region — useful for
 		if tagCovType != "" {
 			types = []string{tagCovType}
 		}
-		var regions []string
-		if tagCovRegion != "" {
-			regions = []string{tagCovRegion}
-		}
 
 		scanID, err := resolveScanID(db, tagCovScanID)
 		if err != nil {
@@ -106,10 +102,10 @@ denominator. Filter scope with --provider / --type / --region — useful for
 			return err
 		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
-			Provider:         tagCovProvider,
+			Providers:        tagCovProviders,
 			Types:            types,
 			ExcludeTypes:     tagCovExcludeTypes,
-			Regions:          regions,
+			Regions:          tagCovRegions,
 			DiscoveredBy:     scanID,
 			DiscoveredSince:  discoveredSince,
 			DiscoveredBefore: discoveredBefore,
@@ -277,7 +273,8 @@ func renderTagReport(rep []tagCoverage, format string) error {
 }
 
 func init() {
-	tagCoverageCmd.Flags().StringVarP(&tagCovProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
+	tagCoverageCmd.Flags().StringSliceVarP(&tagCovProviders, "providers", "p", nil, fmt.Sprintf("Filter by provider(s), comma-separated (%s)", providerListHint()))
+	_ = tagCoverageCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	tagCoverageCmd.Flags().StringVarP(&tagCovType, "type", "t", "", "Filter by resource type")
 	tagCoverageCmd.Flags().StringSliceVar(&tagCovExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude from the denominator")
 	tagCoverageCmd.Flags().StringVar(&tagCovScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
@@ -285,11 +282,11 @@ func init() {
 	tagCoverageCmd.Flags().Var(&tagCovDiscoveredBefore, "discovered-before", "Restrict to rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
 	tagCoverageCmd.Flags().Var(&tagCovCreatedSince, "created-since", "Restrict to rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
 	tagCoverageCmd.Flags().Var(&tagCovCreatedBefore, "created-before", "Restrict to rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
-	tagCoverageCmd.Flags().StringVarP(&tagCovRegion, "region", "r", "", "Filter by region")
+	tagCoverageCmd.Flags().StringSliceVarP(&tagCovRegions, "regions", "r", nil, "Filter by region(s), comma-separated")
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	_ = tagCoverageCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
-	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
+	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
 	tagCoverageCmd.Flags().Float64Var(&tagCovMinCoverage, "min-coverage", 0,
 		"Coverage threshold in [0,1]; if any reported key falls below, exit non-zero (use --exit-zero to override)")

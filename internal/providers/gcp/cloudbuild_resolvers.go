@@ -21,7 +21,7 @@ func init() { registerResolver(resolveCloudBuildRelationships) }
 // repo connection edges deferred — connection scanner landing alongside.
 func resolveCloudBuildRelationships(p *project, st *store.Store) error {
 	trs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCloudBuildTrigger},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudBuildTrigger},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -32,7 +32,7 @@ func resolveCloudBuildRelationships(p *project, st *store.Store) error {
 	}
 
 	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
 		Limit: util.AllResources,
 	})
 	if err != nil {

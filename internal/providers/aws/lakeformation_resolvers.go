@@ -36,7 +36,7 @@ type lakeFormationResourceAttrs struct {
 // Cross-account refs (foreign bucket / foreign role) skip silently.
 func resolveLakeFormationResourceTargets(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLakeFormationResource},
 		Limit:     util.AllResources,

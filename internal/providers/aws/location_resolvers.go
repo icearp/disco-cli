@@ -36,7 +36,7 @@ func init() {
 // Dispatch by ARN segment substring; each target type checked FK-safe.
 func resolveLocationAPIKeyResources(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLocationAPIKey}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLocationAPIKey}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func resolveLocationKMSRefs(acct *account, st *store.Store) error {
 	}
 	for _, ttyp := range []string{TypeLocationGeofenceCollection, TypeLocationTracker} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -144,7 +144,7 @@ func resolveLocationKMSRefs(acct *account, st *store.Store) error {
 // API contract).
 func resolveLocationTrackerConsumerRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLocationTrackerConsumer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLocationTrackerConsumer},
 		Limit: util.AllResources,
 	})
 	if err != nil {

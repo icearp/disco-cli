@@ -60,7 +60,7 @@ func resolveQBusinessChildrenToApp(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func resolveQBusinessChildrenToApp(acct *account, st *store.Store) error {
 // and SSO Identity Center application (IdcApplicationArn).
 func resolveQBusinessDataAccessorRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQBusinessDataAccessor}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeQBusinessDataAccessor}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func resolveQBusinessDataAccessorRefs(acct *account, st *store.Store) error {
 // parsing the `/index/{iid}/data-source/{did}` segment out of the NativeID.
 func resolveQBusinessDataSourceToIndex(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQBusinessDataSource}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeQBusinessDataSource}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

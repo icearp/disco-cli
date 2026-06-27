@@ -20,7 +20,7 @@ func init() {
 // the default AWS-managed key — index resolution skips dangling targets.
 func resolveBackupGatewayRelationships(acct *account, st *store.Store) error {
 	hyps, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBackupGatewayHypervisor},
 		Limit:     util.AllResources,

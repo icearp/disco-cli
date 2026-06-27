@@ -27,7 +27,7 @@ func init() {
 // built from scanned workflows.
 func resolveOmicsWorkflowVersionParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOmicsWorkflowVersion},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOmicsWorkflowVersion},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -64,7 +64,7 @@ func resolveOmicsWorkflowVersionParent(acct *account, st *store.Store) error {
 
 func omicsWorkflowIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOmicsWorkflow},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOmicsWorkflow},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func resolveOmicsStoreKMS(acct *account, st *store.Store) error {
 		TypeOmicsSequenceStore,
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: storeTypes, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: storeTypes, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -35,7 +35,7 @@ func init() {
 // is a bool), so they get no resolver edges.
 func resolveAppRunnerVpcIngressConnectionTargets(acct *account, st *store.Store) error {
 	conns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppRunnerVpcIngressConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppRunnerVpcIngressConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ type apprunnerServiceTargetSets struct {
 
 func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
 	services, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeAppRunnerService},
 		Limit:     util.AllResources,
@@ -299,7 +299,7 @@ type apprunnerVPCConnectorAttrs struct {
 // FK-safe via subnet + SG id sets.
 func resolveAppRunnerVPCConnectorTargets(acct *account, st *store.Store) error {
 	connectors, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeAppRunnerVPCConnector},
 		Limit:     util.AllResources,

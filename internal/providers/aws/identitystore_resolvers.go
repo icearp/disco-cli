@@ -47,7 +47,7 @@ func idStoreMembershipParse(arn string) (owner, store string) {
 // parent group (GroupId) and its user member (MemberId.Value). FK-safe.
 func resolveIdentityStoreGroupMembershipRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIdentityStoreGroupMembership}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIdentityStoreGroupMembership}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

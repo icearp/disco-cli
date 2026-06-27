@@ -40,7 +40,7 @@ func init() {
 // `arn:aws:iam::{acct}:role/{name}` for FK-safe lookup.
 func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRCluster}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRCluster}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	kpRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2KeyPair}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -162,7 +162,7 @@ func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 // FK-safe.
 func resolveEMRStudioVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRStudio}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRStudio}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func resolveEMRChildrenToCluster(acct *account, st *store.Store) error {
 		{TypeEMRInstanceGroup, "instance-group"},
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ct.typ}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ct.typ}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -245,7 +245,7 @@ func resolveEMRChildrenToCluster(acct *account, st *store.Store) error {
 // its parent studio via the `/identity/...` NativeID tail.
 func resolveEMRStudioSessionMappingToStudio(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRStudioSessionMapping}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRStudioSessionMapping}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -87,7 +87,7 @@ func TestScanAppFlowConnectors(t *testing.T) {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
 	want := appflowConnectorNativeID(region, acct.ID, label)
-	rows, err := st.ListResources(store.ResourceFilter{Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppFlowConnector}, Limit: 100})
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppFlowConnector}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestScanAppFlowConnectorProfiles(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	rows, err := st.ListResources(store.ResourceFilter{Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppFlowConnectorProfile}, Limit: 100})
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppFlowConnectorProfile}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}

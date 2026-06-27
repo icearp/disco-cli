@@ -39,7 +39,7 @@ func init() {
 // MSI rows live under the sub, not the tenant).
 func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error {
 	assignments, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAuthorizationRoleAssignment},
 		Limit: util.AllResources,
 	})
@@ -55,7 +55,7 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 	// assignment Scope (cross-sub by construction at MG level) can be resolved
 	// to a canonical store ResourceID. Lowercased per ARM-ID case-insensitivity.
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", Limit: util.AllResources,
+		Providers: []string{"azure"}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -70,9 +70,9 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 	// shape Graph returns. Application registrations excluded — RBAC binds to
 	// the SP companion, not the application.
 	entra, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure",
-		Types:    []string{TypeEntraUser, TypeEntraGroup, TypeEntraServicePrincipal},
-		Limit:    util.AllResources,
+		Providers: []string{"azure"},
+		Types:     []string{TypeEntraUser, TypeEntraGroup, TypeEntraServicePrincipal},
+		Limit:     util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -261,7 +261,7 @@ func buildRoleDefIndex(sub *subscription, st *store.Store) (map[string]string, e
 	// and ListResources hides managed rows by default — without this the index
 	// would omit every built-in and assignments would get no role-definition edge.
 	roleDefs, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types:          []string{TypeAuthorizationRoleDefinition},
 		IncludeManaged: true,
 		Limit:          util.AllResources,
@@ -271,7 +271,7 @@ func buildRoleDefIndex(sub *subscription, st *store.Store) (map[string]string, e
 	}
 	if sub.tenantID != "" && sub.tenantID != sub.ID {
 		tenantDefs, terr := st.ListResources(store.ResourceFilter{
-			Provider: "azure", AccountID: sub.tenantID,
+			Providers: []string{"azure"}, AccountID: sub.tenantID,
 			Types:          []string{TypeAuthorizationRoleDefinition},
 			IncludeManaged: true,
 			Limit:          util.AllResources,

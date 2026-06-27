@@ -55,7 +55,7 @@ func gameliftFleetARN(region, acct, fleetID string) string {
 // fleet via `RoutingStrategy.FleetID`. TERMINAL aliases (no fleet) skip.
 func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftAlias}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftAlias}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 // when present) + IAM role (InstanceRoleArn).
 func resolveGameLiftFleetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftFleet}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftFleet}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -162,7 +162,7 @@ func resolveGameLiftFleetRefs(acct *account, st *store.Store) error {
 // (FleetRoleArn) + container-group-definition (GameServerContainerGroupDefinitionArn).
 func resolveGameLiftContainerFleetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftContainerFleet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftContainerFleet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -211,7 +211,7 @@ func resolveGameLiftContainerFleetRefs(acct *account, st *store.Store) error {
 // auto-scaling group.
 func resolveGameLiftGameServerGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftGameServerGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftGameServerGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -260,7 +260,7 @@ func resolveGameLiftGameServerGroupRefs(acct *account, st *store.Store) error {
 // (Destinations[].DestinationArn dispatched by ARN segment) + SNS notification.
 func resolveGameLiftGameSessionQueueRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftGameSessionQueue},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftGameSessionQueue},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -333,7 +333,7 @@ func resolveGameLiftGameSessionQueueRefs(acct *account, st *store.Store) error {
 // (GameSessionQueueArns[]) + rule-set (RuleSetArn) + SNS notification.
 func resolveGameLiftMatchmakingConfigRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGameLiftMatchmakingConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGameLiftMatchmakingConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {

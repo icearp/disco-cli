@@ -44,7 +44,7 @@ func sagemakerModelARN(region, acctID, name string) string {
 // the canonical ARN to look up the local endpoint-config row.
 func resolveSageMakerEndpointConfig(acct *account, st *store.Store) error {
 	endpoints, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSageMakerEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSageMakerEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -81,7 +81,7 @@ func resolveSageMakerEndpointConfig(acct *account, st *store.Store) error {
 // endpoint-config can fan-out to N models (multi-variant deployments).
 func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error {
 	configs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSageMakerEndpointConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSageMakerEndpointConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error 
 // → EC2 networking targets.
 func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 	models, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSageMakerModel},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSageMakerModel},
 		Limit: util.AllResources,
 	})
 	if err != nil {

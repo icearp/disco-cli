@@ -42,7 +42,7 @@ func init() {
 // resolveELBv2LBRelationships links each load balancer to its VPC.
 func resolveELBv2LBRelationships(acct *account, st *store.Store) error {
 	lbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2LoadBalancer},
 		Limit: util.AllResources,
 	})
@@ -72,7 +72,7 @@ func resolveELBv2LBRelationships(acct *account, st *store.Store) error {
 // resolveELBv2ListenerRelationships links each listener to its load balancer.
 func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 	listeners, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2Listener},
 		Limit: util.AllResources,
 	})
@@ -114,7 +114,7 @@ func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 // resolveELBv2RuleRelationships links each listener rule to its listener.
 func resolveELBv2RuleRelationships(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2ListenerRule},
 		Limit: util.AllResources,
 	})
@@ -142,7 +142,7 @@ func resolveELBv2RuleRelationships(acct *account, st *store.Store) error {
 // resolveELBv2CertRelationships links each listener certificate to its listener.
 func resolveELBv2CertRelationships(acct *account, st *store.Store) error {
 	certs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2ListenerCertificate},
 		Limit: util.AllResources,
 	})
@@ -170,7 +170,7 @@ func resolveELBv2CertRelationships(acct *account, st *store.Store) error {
 // resolveELBv2TGRelationships links each target group to its VPC.
 func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 	tgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2TargetGroup},
 		Limit: util.AllResources,
 	})
@@ -226,7 +226,7 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 // resolveELBv2RevocationRelationships links each trust store revocation to its trust store.
 func resolveELBv2RevocationRelationships(acct *account, st *store.Store) error {
 	revs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBv2TrustStoreRevocation},
 		Limit: util.AllResources,
 	})

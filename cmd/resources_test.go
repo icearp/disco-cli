@@ -352,10 +352,10 @@ func TestResourcesCmd_JSONL(t *testing.T) {
 // resetResourcesFlags returns package-level list flag vars to defaults — cobra
 // leaks them across tests because rootCmd is shared.
 func resetResourcesFlags() {
-	resourcesProvider = ""
+	resourcesProviders = nil
 	resourcesType = ""
 	resourcesExcludeTypes = nil
-	resourcesRegion = ""
+	resourcesRegions = nil
 	resourcesStatus = ""
 	resourcesTagKey = ""
 	resourcesTagValue = ""

@@ -78,7 +78,7 @@ type FindingFilter struct {
 	FindingID  string
 	Severity   string
 	Category   string
-	Provider   string
+	Providers  []string
 	Type       string
 	ResourceID string
 	Since      string
@@ -190,8 +190,8 @@ func (s *Store) ListFindings(f FindingFilter) ([]StoredFinding, error) {
 	if f.Category != "" {
 		q = q.Where(sq.Eq{"findings.category": f.Category})
 	}
-	if f.Provider != "" {
-		q = q.Where(sq.Eq{"findings.provider": f.Provider})
+	if len(f.Providers) > 0 {
+		q = q.Where(sq.Eq{"findings.provider": f.Providers})
 	}
 	if f.Type != "" {
 		q = q.Where(sq.Eq{"findings.type": f.Type})

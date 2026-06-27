@@ -22,7 +22,7 @@ func init() { registerResolver(resolveLoggingSinkRelationships) }
 // deferred — log-bucket scanner not yet landed.
 func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 	sinks, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeLoggingSink},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeLoggingSink},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -35,7 +35,7 @@ func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 	// Per-type destination indexes.
 	bucketIDByNative := map[string]string{}
 	bs, _ := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeStorageBucket},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeStorageBucket},
 		Limit: util.AllResources,
 	})
 	for _, b := range bs {
@@ -49,7 +49,7 @@ func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 
 	dsIDByNative := map[string]string{}
 	dss, _ := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeBQDataset},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBQDataset},
 		Limit: util.AllResources,
 	})
 	for _, d := range dss {
@@ -61,7 +61,7 @@ func resolveLoggingSinkRelationships(p *project, st *store.Store) error {
 
 	topicIDByNative := map[string]string{}
 	ts, _ := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypePubSubTopic},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypePubSubTopic},
 		Limit: util.AllResources,
 	})
 	for _, t := range ts {

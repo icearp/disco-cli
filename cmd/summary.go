@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	summaryProvider         string
-	summaryRegion           string
+	summaryProviders        []string
+	summaryRegions          []string
 	summaryExcludeTypes     []string
 	summaryScanID           string
 	summaryDiscoveredSince  = singleSetString{flag: "discovered-since"}
@@ -59,7 +59,7 @@ Output formats: table (default), markdown, csv, json, jsonl. JSON envelope shape
 CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 	Example: `  disco summary
   disco summary --exclude-types aws:logs:log-stream
-  disco summary --provider aws -o json | jq '.by_type'
+  disco summary --providers aws -o json | jq '.by_type'
   disco summary --include-managed --top-types 25`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
 		defer func() { maybeStructuredError(summaryOutputFmt, rerr) }()
@@ -90,14 +90,10 @@ CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
 		if err != nil {
 			return err
 		}
-		var regions []string
-		if summaryRegion != "" {
-			regions = []string{summaryRegion}
-		}
 		rows, err := loadAllResourcesPaged(db, store.ResourceFilter{
-			Provider:         summaryProvider,
+			Providers:        summaryProviders,
 			ExcludeTypes:     summaryExcludeTypes,
-			Regions:          regions,
+			Regions:          summaryRegions,
 			DiscoveredBy:     scanID,
 			DiscoveredSince:  discoveredSince,
 			DiscoveredBefore: discoveredBefore,
@@ -454,8 +450,9 @@ func renderSummaryTable(rep summaryReport) error {
 }
 
 func init() {
-	summaryCmd.Flags().StringVarP(&summaryProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
-	summaryCmd.Flags().StringVarP(&summaryRegion, "region", "r", "", "Filter by region")
+	summaryCmd.Flags().StringSliceVarP(&summaryProviders, "providers", "p", nil, fmt.Sprintf("Filter by provider(s), comma-separated (%s)", providerListHint()))
+	_ = summaryCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
+	summaryCmd.Flags().StringSliceVarP(&summaryRegions, "regions", "r", nil, "Filter by region(s), comma-separated")
 	summaryCmd.Flags().StringSliceVar(&summaryExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	summaryCmd.Flags().StringVar(&summaryScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	summaryCmd.Flags().Var(&summaryDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
@@ -466,7 +463,7 @@ func init() {
 	_ = summaryCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
-	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --region folds globals in.")
+	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
 	summaryCmd.Flags().BoolVar(&summaryRequireResources, "require-resources", false, "Exit non-zero when 0 resources match (fail-closed gate against an empty / unscanned DB)")
 	summaryCmd.Flags().Uint64Var(&summaryMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources match (overrides --require-resources when both set)")
 	rootCmd.AddCommand(summaryCmd)

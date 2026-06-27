@@ -21,7 +21,7 @@ func init() { registerResolver(resolveComposerRelationships) }
 // security-meaningful pivots.
 func resolveComposerRelationships(p *project, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComposerEnv},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComposerEnv},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -32,7 +32,7 @@ func resolveComposerRelationships(p *project, st *store.Store) error {
 	}
 
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {

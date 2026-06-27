@@ -20,7 +20,7 @@ func init() {
 // from containerregistry_resolvers.go.
 func resolveCosmosRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeCosmosDatabaseAccount},
 		Limit: util.AllResources,
 	})

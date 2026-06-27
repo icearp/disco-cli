@@ -86,7 +86,7 @@ func init() {
 // list (PrefixListArn).
 func resolveNMCorePLAssocRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkManagerCoreNetworkPrefixListAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkManagerCoreNetworkPrefixListAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func nmCoreNetworkID(acctID, coreID string) string {
 // account. Tiny convenience wrapper to keep resolver bodies linear.
 func listNMResources(acct *account, st *store.Store, rtype string) ([]store.Resource, error) {
 	return st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{rtype},
 		Limit: util.AllResources,
 	})

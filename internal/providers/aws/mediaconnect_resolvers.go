@@ -41,7 +41,7 @@ func resolveMediaConnectBridgeChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range []string{TypeMediaConnectBridgeOutput, TypeMediaConnectBridgeSource} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -79,7 +79,7 @@ func mcBridgeARNFromChild(arn string) string {
 // parent flow via `{flowARN}/vpc-interface/{name}`.
 func resolveMediaConnectFlowVpcInterface(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaConnectFlowVpcInterface},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaConnectFlowVpcInterface},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -116,7 +116,7 @@ func resolveMediaConnectFlowVpcInterface(acct *account, st *store.Store) error {
 // the flow's, so the link must come from the flow side.
 func resolveMediaConnectFlowChildren(acct *account, st *store.Store) error {
 	flows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaConnectFlow},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaConnectFlow},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -186,7 +186,7 @@ func resolveMediaConnectFlowChildren(acct *account, st *store.Store) error {
 // shape, no Describe fan-out needed).
 func resolveMediaConnectBridgePlacement(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaConnectBridge}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaConnectBridge}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

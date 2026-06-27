@@ -31,7 +31,7 @@ func init() {
 // distribution-config / infrastructure-config / IAM execution role.
 func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeImageBuilderImagePipeline},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeImageBuilderImagePipeline},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 // profile via `InstanceProfileName` (bare name → canonical IAM ARN).
 func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeImageBuilderInfrastructureConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeImageBuilderInfrastructureConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) err
 // (ExecutionRole).
 func resolveImageBuilderLifecycleRole(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeImageBuilderLifecyclePolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeImageBuilderLifecyclePolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {

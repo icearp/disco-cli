@@ -36,7 +36,7 @@ func init() {
 // collaboration via `CollaborationArn`.
 func resolveCleanRoomsMembershipCollaboration(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCleanRoomsMembership}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCleanRoomsMembership}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -131,7 +131,7 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 // association to its underlying configured-table via `ConfiguredTableArn`.
 func resolveCleanRoomsConfiguredTableAssocToTable(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCleanRoomsConfiguredTableAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCleanRoomsConfiguredTableAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

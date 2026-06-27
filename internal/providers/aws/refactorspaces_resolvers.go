@@ -59,7 +59,7 @@ func resolveRefactorSpacesHierarchy(acct *account, st *store.Store) error {
 
 	// Application → Environment: strip `/application/{id}` tail.
 	appRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRefactorSpacesApplication}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRefactorSpacesApplication}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func resolveRefactorSpacesHierarchy(acct *account, st *store.Store) error {
 	}
 	// Service → Application: strip `/service/{id}` tail.
 	svcRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRefactorSpacesService}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRefactorSpacesService}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func resolveRefactorSpacesHierarchy(acct *account, st *store.Store) error {
 	}
 	// Route → Application: strip `/route/{id}` tail.
 	routeRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRefactorSpacesRoute}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRefactorSpacesRoute}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -42,7 +42,7 @@ func init() {
 // backend OriginEndpointArn (ALB/NLB or EC2 instance ARN). FK-safe.
 func resolveCloudFrontVpcOriginEndpoint(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontVpcOrigin}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontVpcOrigin}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func resolveCloudFrontRelationships(acct *account, st *store.Store) error {
 // default CloudFront certs are skipped.
 func resolveDistributionCertificates(acct *account, st *store.Store) error {
 	dists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -159,7 +159,7 @@ func resolveDistributionCertificates(acct *account, st *store.Store) error {
 // duplicate target IDs are deduplicated per distribution.
 func resolveDistributionPolicies(acct *account, st *store.Store) error {
 	dists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -270,7 +270,7 @@ func resolveDistributionPolicies(acct *account, st *store.Store) error {
 // origin access controls and origin access identities (OAIs) used by its origins.
 func resolveDistributionOrigins(acct *account, st *store.Store) error {
 	dists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -348,7 +348,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 // reconstruct the distribution ARN (the NativeID used by the distribution scanner).
 func resolveDistributionTenants(acct *account, st *store.Store) error {
 	tenants, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistributionTenant},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistributionTenant},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -380,7 +380,7 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 // the public keys it lists in KeyGroupConfig.Items[]. FK-safe via scannedIDSet.
 func resolveCloudFrontKeyGroupPublicKeys(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontKeyGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontKeyGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -427,7 +427,7 @@ func resolveCloudFrontKeyGroupPublicKeys(acct *account, st *store.Store) error {
 // Both edges are FK-safe via scannedIDSet — cross-account refs silently skip.
 func resolveCloudFrontRealtimeLogConfigTargets(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontRealtimeLogConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontRealtimeLogConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -485,7 +485,7 @@ func resolveCloudFrontRealtimeLogConfigTargets(acct *account, st *store.Store) e
 // streaming distribution to the S3 bucket it serves (S3Origin.DomainName).
 func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Store) error {
 	sds, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontStreamingDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontStreamingDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -530,7 +530,7 @@ func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Stor
 // NativeID is the parent distribution ARN (see scanCloudFrontMonitoringSubscriptions).
 func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Store) error {
 	subs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontMonitoringSubscription},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontMonitoringSubscription},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -561,7 +561,7 @@ func resolveCloudFrontMonitoringSubscriptionParent(acct *account, st *store.Stor
 // full ARN as NativeID — build a (bare-id → resourceID) lookup.
 func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontConnectionGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontConnectionGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -571,7 +571,7 @@ func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) err
 		return nil
 	}
 	anyLists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontAnycastIPList},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontAnycastIPList},
 		Limit: util.AllResources,
 	})
 	if err != nil {

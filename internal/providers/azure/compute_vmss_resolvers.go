@@ -28,7 +28,7 @@ func init() {
 // in the VMSS's stored attributes JSON.
 func resolveVMSSProximityGroupRelationships(sub *subscription, st *store.Store) error {
 	vmsses, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVMSS},
 		Limit:     util.AllResources,
@@ -65,7 +65,7 @@ func resolveVMSSProximityGroupRelationships(sub *subscription, st *store.Store) 
 // NativeID form: .../virtualMachineScaleSets/{vmss}/extensions/{ext}
 func resolveVMSSExtensionRelationships(sub *subscription, st *store.Store) error {
 	exts, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVMSSExtension},
 		Limit:     util.AllResources,
@@ -91,7 +91,7 @@ func resolveVMSSExtensionRelationships(sub *subscription, st *store.Store) error
 // NativeID form: .../virtualMachineScaleSets/{vmss}/virtualMachines/{instance}
 func resolveVMSSVMRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVMSSVM},
 		Limit:     util.AllResources,
@@ -117,7 +117,7 @@ func resolveVMSSVMRelationships(sub *subscription, st *store.Store) error {
 // NativeID form: .../virtualMachines/{instance}/extensions/{ext}
 func resolveVMSSVMExtensionRelationships(sub *subscription, st *store.Store) error {
 	exts, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVMSSVMExtension},
 		Limit:     util.AllResources,

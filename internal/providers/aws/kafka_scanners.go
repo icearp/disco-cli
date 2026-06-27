@@ -81,7 +81,7 @@ func scanKafkaClustersAndCollect(ctx context.Context, client kafkaAPI, acct *acc
 		return nil, t, i, err
 	}
 	rs, lerr := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeMSKCluster},
 		Regions:   []string{region},

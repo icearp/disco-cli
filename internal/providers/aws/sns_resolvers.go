@@ -22,7 +22,7 @@ func init() {
 // configured as its dead-letter target (parsed from RedrivePolicy).
 func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 	topics, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSNSTopic},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSNSTopic},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -155,7 +155,7 @@ func init() {
 // The role ARN is embedded in the instance profile's stored attributes.
 func resolveInstanceProfileRoles(acct *account, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMInstanceProfile},
 		Limit:     util.AllResources,
@@ -187,7 +187,7 @@ func resolveInstanceProfileRoles(acct *account, st *store.Store) error {
 func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 	// Role policies: parent may be a regular role or a service-linked role.
 	rolePolicies, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMRolePolicy},
 		Limit:     util.AllResources,
@@ -222,7 +222,7 @@ func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 		{TypeIAMGroupPolicy, TypeIAMGroup},
 	} {
 		policies, err := st.ListResources(store.ResourceFilter{
-			Provider:  "aws",
+			Providers: []string{"aws"},
 			AccountID: acct.ID,
 			Types:     []string{e.policyType},
 			Limit:     util.AllResources,
@@ -248,7 +248,7 @@ func resolveInlinePolicyParents(acct *account, st *store.Store) error {
 // NativeID encodes the user ARN as "{userARN}/access-key/{keyID}".
 func resolveAccessKeyUsers(acct *account, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMAccessKey},
 		Limit:     util.AllResources,
@@ -274,7 +274,7 @@ func resolveAccessKeyUsers(acct *account, st *store.Store) error {
 // the User.Arn field, present only when the device is assigned to a user.
 func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	devices, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMVirtualMFADevice},
 		Limit:     util.AllResources,
@@ -287,7 +287,7 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 	// — root has no IAM-user identity. Build the scanned-user set so we
 	// skip emit when target is absent, regardless of arn-shape mismatch.
 	users, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMUser},
 		Limit:     util.AllResources,
@@ -333,7 +333,7 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 // default filter would hide (so AdministratorAccess et al. become edge targets).
 func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeIAMPolicy},
 		IncludeManaged: true,
@@ -353,7 +353,7 @@ func resolveManagedPolicyAttachments(acct *account, st *store.Store) error {
 	// SLRs carry ManagedByProvider=true, so IncludeManaged is required or they drop
 	// out of the principal set entirely.
 	principals, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeIAMRole, TypeIAMServiceLinkedRole, TypeIAMUser, TypeIAMGroup},
 		IncludeManaged: true,
@@ -416,7 +416,7 @@ func (p *principalList) UnmarshalJSON(b []byte) error {
 // AssumeRolePolicyDocument is URL-encoded by the AWS SDK; decode before parsing.
 func resolveIAMRoleFederatedTrust(acct *account, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMRole, TypeIAMServiceLinkedRole},
 		Limit:     util.AllResources,
@@ -528,7 +528,7 @@ type policyStmt struct {
 // targets are skipped FK-safe.
 func resolveIAMPolicyResources(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeIAMPolicy, TypeIAMRolePolicy, TypeIAMUserPolicy, TypeIAMGroupPolicy},
 		IncludeManaged: true, // AWS-managed policy documents carry resource refs too
@@ -970,7 +970,7 @@ func classifyRDSResource(ref, acctID string, sets *policyResourceSets) (string, 
 // account. Used by resolvers that need FK-safe per-type membership lookup.
 func resourceIDSet(st *store.Store, accountID, rtype string) (map[string]struct{}, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: accountID,
 		Types:     []string{rtype},
 		Limit:     util.AllResources,
@@ -992,7 +992,7 @@ func resourceIDSet(st *store.Store, accountID, rtype string) (map[string]struct{
 // store — no per-user ListGroupsForUser fan-out.
 func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	users, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMUser},
 		Limit:     util.AllResources,
@@ -1005,7 +1005,7 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 	}
 	// GroupList holds group names (not ARNs), so index groups by name → resource ID.
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMGroup},
 		Limit:     util.AllResources,
@@ -1050,7 +1050,7 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 // as a graph node. ROADMAP R5.
 func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMRole, TypeIAMServiceLinkedRole},
 		Limit:     util.AllResources,
@@ -1217,7 +1217,7 @@ func isAllDigits(s string) bool {
 // because the rebuilt ResourceID uses our account, never the foreign one.
 func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 	principals, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMRole, TypeIAMUser},
 		Limit:     util.AllResources,
@@ -1230,7 +1230,7 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 	}
 
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMPolicy},
 		Limit:     util.AllResources,

@@ -23,7 +23,7 @@ func init() {
 // against a per-sub vault-name index.
 func resolveContainerRegistryRelationships(sub *subscription, st *store.Store) error {
 	registries, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeContainerRegistryRegistry},
 		Limit: util.AllResources,
 	})

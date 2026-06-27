@@ -27,7 +27,7 @@ func init() {
 // summary uses Id without ARN).
 func resolveSCARAttributeGroupAssocRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSCARAttributeGroupAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSCARAttributeGroupAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -43,7 +43,7 @@ func resolveSCARAttributeGroupAssocRefs(acct *account, st *store.Store) error {
 	// across SDK versions but `Id` is stable; attrs JSON of each AG carries
 	// `Id` from list summary.
 	agRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSCARAttributeGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSCARAttributeGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -90,7 +90,7 @@ func resolveSCARAttributeGroupAssocRefs(acct *account, st *store.Store) error {
 
 func resolveSCARResourceAssocApplication(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSCARResourceAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSCARResourceAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

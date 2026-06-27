@@ -25,7 +25,7 @@ func init() {
 // role (RoleArn).
 func resolveFISExperimentTemplateRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFISExperimentTemplate}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFISExperimentTemplate}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func resolveFISExperimentTemplateRefs(acct *account, st *store.Store) error {
 // and IAM role (RoleArn).
 func resolveFISTargetAccountConfigRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFISTargetAccountConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFISTargetAccountConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -73,7 +73,7 @@ type eventGridSubscriptionAttrs struct {
 // resolver) until a stored resource matches.
 func resolveEventGridRelationships(sub *subscription, st *store.Store) error {
 	subscriptions, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeEventGridEventSubscription},
 		Limit: util.AllResources,
 	})
@@ -81,7 +81,7 @@ func resolveEventGridRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	systemTopics, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeEventGridSystemTopic},
 		Limit: util.AllResources,
 	})
@@ -113,7 +113,7 @@ func resolveEventGridRelationships(sub *subscription, st *store.Store) error {
 // disco-ID lookup used by EventGrid + similar progressive-trim resolvers.
 func loadAzureNativeIDIndex(sub *subscription, st *store.Store) (map[string]string, error) {
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Limit: util.AllResources,
 	})
 	if err != nil {

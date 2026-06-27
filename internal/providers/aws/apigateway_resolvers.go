@@ -83,7 +83,7 @@ func init() {
 // scanned id sets.
 func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2VpcLink},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2VpcLink},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) err
 // user-pool ARNs are carried in ProviderARNs[]. Skip any with no ARNs.
 func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayAuthorizer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayAuthorizer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -178,7 +178,7 @@ func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
 // issuers (Auth0, Okta, ...) are skipped — no phantom edges.
 func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Authorizer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Authorizer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error 
 func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) error {
 	// v1 domains
 	v1, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeAPIGatewayDomainName, TypeAPIGatewayPrivateDomainName},
 		Limit: util.AllResources,
 	})
@@ -259,7 +259,7 @@ func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) er
 	}
 	// v2 domains
 	v2, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -294,7 +294,7 @@ func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) er
 // produce an attached-to→VpcLink edge (ConnectionID).
 func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error {
 	methods, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayMethod},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayMethod},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -356,7 +356,7 @@ func apigwLambdaInvokeARN(uri string) string {
 // Stage ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
 func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 	stages, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayStage},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayStage},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -418,7 +418,7 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 // Mapping ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
 func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Store) error {
 	mappings, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeAPIGatewayBasePathMapping, TypeAPIGatewayPrivateBasePathMapping},
 		Limit: util.AllResources,
 	})
@@ -478,7 +478,7 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 // Key ARN: arn:aws:apigateway:{region}::/usageplans/{planId}/keys/{keyId}
 func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlanKey},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlanKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -507,7 +507,7 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 // attached-to edge.
 func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
 	plans, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlan},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlan},
 		Limit: util.AllResources,
 	})
 	if err != nil {

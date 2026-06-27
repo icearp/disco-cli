@@ -27,7 +27,7 @@ func init() {
 // FK-safe.
 func resolveLexBotRole(acct *account, st *store.Store) error {
 	bots, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLexBot}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLexBot}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func resolveLexChildrenToBot(acct *account, st *store.Store) error {
 	}
 	for _, t := range []string{TypeLexBotAlias, TypeLexBotVersion, TypeLexResourcePolicy} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

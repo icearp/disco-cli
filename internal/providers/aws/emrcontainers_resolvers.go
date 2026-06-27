@@ -26,7 +26,7 @@ func init() {
 // its execution role.
 func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRContainersEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRContainersEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func resolveEMRCEndpointRefs(acct *account, st *store.Store) error {
 // security-configuration via SecurityConfigurationID.
 func resolveEMRCVirtualClusterToSecConfig(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRContainersVirtualCluster}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRContainersVirtualCluster}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func resolveEMRCVirtualClusterToSecConfig(acct *account, st *store.Store) error 
 		return nil
 	}
 	scRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEMRContainersSecurityConfig}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRContainersSecurityConfig}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

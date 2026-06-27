@@ -19,7 +19,7 @@ func init() {
 // (RepositoryMetadata.KmsKeyId; defaults to AWS-managed key when empty).
 func resolveCodeCommitRepoKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeCommitRepository}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeCommitRepository}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

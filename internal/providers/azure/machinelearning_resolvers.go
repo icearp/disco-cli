@@ -26,7 +26,7 @@ func init() {
 // does not scan, so no edge is emitted for it.)
 func resolveMachineLearningRelationships(sub *subscription, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeMachineLearningWorkspace},
 		Limit: util.AllResources,
 	})

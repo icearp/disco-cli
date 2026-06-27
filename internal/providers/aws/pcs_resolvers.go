@@ -25,7 +25,7 @@ func resolvePCSChildrenToCluster(acct *account, st *store.Store) error {
 	}
 	for _, ttyp := range []string{TypePCSComputeNodeGroup, TypePCSQueue} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp},
 			Limit: util.AllResources,
 		})
 		if err != nil {

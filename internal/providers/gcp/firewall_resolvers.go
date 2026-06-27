@@ -27,7 +27,7 @@ func init() { registerResolver(resolveFirewallRelationships) }
 // pattern from R4.1 is reusable for that follow-up.
 func resolveFirewallRelationships(p *project, st *store.Store) error {
 	fws, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeFirewall},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeFirewall},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func resolveFirewallRelationships(p *project, st *store.Store) error {
 	// in the same network. Linear scan acceptable — firewall counts and
 	// instance counts in a project are both modest.
 	insts, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeInstance},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {

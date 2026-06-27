@@ -31,7 +31,7 @@ func init() {
 // Plan, derived from properties.serverFarmId in the site's stored attributes JSON.
 func resolveSiteToServerFarm(sub *subscription, st *store.Store) error {
 	sites, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppServiceSite},
 		Limit: util.AllResources,
 	})
@@ -64,7 +64,7 @@ func resolveSiteToServerFarm(sub *subscription, st *store.Store) error {
 // App Service Environment, derived from properties.hostingEnvironmentProfile.id.
 func resolveSiteToHostingEnv(sub *subscription, st *store.Store) error {
 	sites, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppServiceSite},
 		Limit: util.AllResources,
 	})
@@ -99,7 +99,7 @@ func resolveSiteToHostingEnv(sub *subscription, st *store.Store) error {
 // parent web app, derived by stripping the /slots/{name} suffix from the slot NativeID.
 func resolveSlotToSite(sub *subscription, st *store.Store) error {
 	slots, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppServiceSiteSlot},
 		Limit: util.AllResources,
 	})
@@ -124,7 +124,7 @@ func resolveSlotToSite(sub *subscription, st *store.Store) error {
 // App Service Plan, derived from properties.serverFarmId in the slot's attributes JSON.
 func resolveSlotToServerFarm(sub *subscription, st *store.Store) error {
 	slots, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppServiceSiteSlot},
 		Limit: util.AllResources,
 	})
@@ -158,7 +158,7 @@ func resolveSlotToServerFarm(sub *subscription, st *store.Store) error {
 // properties.hostingEnvironmentProfile.id in the plan's attributes JSON.
 func resolveServerFarmToHostingEnv(sub *subscription, st *store.Store) error {
 	plans, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppServiceServerFarm},
 		Limit: util.AllResources,
 	})

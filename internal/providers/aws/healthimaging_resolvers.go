@@ -22,7 +22,7 @@ func init() {
 // LambdaAuthorizerArn directly.
 func resolveHealthImagingDatastoreRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeHealthImagingDatastore}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeHealthImagingDatastore}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

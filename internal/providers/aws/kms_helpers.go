@@ -35,7 +35,7 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 	}
 
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSKey},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -47,7 +47,7 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 	}
 
 	aliases, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -33,7 +33,7 @@ func init() {
 // ServerID, so we read it from attrs.
 func transferServerIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferServer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferServer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func transferServerIDIndex(acct *account, st *store.Store) (map[string]string, e
 // transferProfileIDIndex maps ProfileID → resource ID.
 func transferProfileIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferProfile},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferProfile},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -82,7 +82,7 @@ func transferProfileIDIndex(acct *account, st *store.Store) (map[string]string, 
 // local + partner profile (ProfileID via index).
 func resolveTransferAgreementRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferAgreement}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferAgreement}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func resolveTransferAgreementRefs(acct *account, st *store.Store) error {
 // user ARN shape: `arn:aws:transfer:r:a:user/{serverID}/{userName}`.
 func resolveTransferUserParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTransferUser}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferUser}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func resolveTransferServerLoggingRole(acct *account, st *store.Store) error {
 
 func resolveTransferRoleEdge(acct *account, st *store.Store, sourceType, fieldName string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

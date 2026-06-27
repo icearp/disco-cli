@@ -33,7 +33,7 @@ func init() {
 // scanner enrichment is needed.
 func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFSxFileSystem}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFSxFileSystem}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 	}
 	for _, t := range []string{TypeFSxVolume, TypeFSxStorageVirtualMachine, TypeFSxDataRepositoryAssociation} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -151,7 +151,7 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 // from via VolumeID.
 func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFSxSnapshot}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFSxSnapshot}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

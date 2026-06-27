@@ -29,7 +29,7 @@ func init() {
 // Both edges are case-insensitive on the ARM ID.
 func resolveContainerAppEnvironments(sub *subscription, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppContainersManagedEnvironment},
 		Limit: util.AllResources,
 	})
@@ -42,7 +42,7 @@ func resolveContainerAppEnvironments(sub *subscription, st *store.Store) error {
 	}
 
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppContainersContainerApp},
 		Limit: util.AllResources,
 	})
@@ -107,7 +107,7 @@ func resolveContainerAppEnvironments(sub *subscription, st *store.Store) error {
 // the leading subdomain against a per-sub registry-name index.
 func resolveContainerAppRegistries(sub *subscription, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAppContainersContainerApp},
 		Limit: util.AllResources,
 	})
@@ -115,7 +115,7 @@ func resolveContainerAppRegistries(sub *subscription, st *store.Store) error {
 		return err
 	}
 	registries, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeContainerRegistryRegistry},
 		Limit: util.AllResources,
 	})
@@ -176,7 +176,7 @@ func resolveContainerAppRegistries(sub *subscription, st *store.Store) error {
 // edges via properties.subnetIds[].id.
 func resolveContainerInstanceVNets(sub *subscription, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeContainerInstanceContainerGroup},
 		Limit: util.AllResources,
 	})

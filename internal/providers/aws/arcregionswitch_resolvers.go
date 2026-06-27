@@ -21,7 +21,7 @@ func init() {
 // Route 53 health check) live on GetPlan body — deferred enrichment.
 func resolveARCRegionSwitchRelationships(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeARCRegionSwitchPlan}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeARCRegionSwitchPlan}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

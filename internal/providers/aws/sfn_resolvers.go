@@ -29,7 +29,7 @@ func init() {
 // referenced from task states in the state-machine Definition.
 func resolveSFNRelationships(acct *account, st *store.Store) error {
 	sms, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSFNStateMachine},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSFNStateMachine},
 		Limit: util.AllResources,
 	})
 	if err != nil {

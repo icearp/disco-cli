@@ -98,7 +98,7 @@ func TestScanSQSQueues_PersistsQueuesAndArn(t *testing.T) {
 	// Verify resources landed and AttributesJSON includes the synthesized
 	// QueueUrl entry (added by the scanner alongside SDK attrs).
 	got, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", Types: []string{TypeSQSQueue}, Limit: 100,
+		Providers: []string{"aws"}, Types: []string{TypeSQSQueue}, Limit: 100,
 	})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)

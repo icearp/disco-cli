@@ -43,7 +43,7 @@ type beanstalkEnvAttrs struct {
 // id-set; cross-account / unscanned apps skip silently.
 func resolveBeanstalkEnvironmentTargets(acct *account, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBeanstalkEnvironment},
 		Limit:     util.AllResources,
@@ -58,7 +58,7 @@ func resolveBeanstalkEnvironmentTargets(acct *account, st *store.Store) error {
 	// Index applications by name (Beanstalk environments reference the
 	// app by name, not ARN).
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBeanstalkApplication},
 		Limit:     util.AllResources,

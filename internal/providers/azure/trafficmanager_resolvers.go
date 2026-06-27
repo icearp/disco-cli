@@ -26,7 +26,7 @@ func init() {
 // at (Public IP, App Service site, another Traffic Manager profile, etc.).
 func resolveTrafficManagerRelationships(sub *subscription, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkTrafficManagerProfile},
 		Limit: util.AllResources,
 	})
@@ -34,7 +34,7 @@ func resolveTrafficManagerRelationships(sub *subscription, st *store.Store) erro
 		return err
 	}
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID, Limit: util.AllResources,
+		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

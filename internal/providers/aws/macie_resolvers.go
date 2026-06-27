@@ -47,7 +47,7 @@ type macieAllowListAttrs struct {
 // scanned-bucket id set; cross-account bucket refs skip silently.
 func resolveMacieClassificationJobBuckets(acct *account, st *store.Store) error {
 	jobs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeMacieClassificationJob},
 		Limit: util.AllResources,
 	})
@@ -94,7 +94,7 @@ func resolveMacieClassificationJobBuckets(acct *account, st *store.Store) error 
 // S3 reference and skip. FK-safe via the scanned-bucket id set.
 func resolveMacieAllowListBucket(acct *account, st *store.Store) error {
 	lists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeMacieAllowList},
 		Limit: util.AllResources,
 	})
@@ -135,7 +135,7 @@ func resolveMacieAllowListBucket(acct *account, st *store.Store) error {
 
 func scannedBucketIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeS3Bucket},
 		Limit: util.AllResources,
 	})

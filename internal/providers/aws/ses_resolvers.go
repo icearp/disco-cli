@@ -45,7 +45,7 @@ type sesEmailIdentityAttrs struct {
 // (config sets are region-scoped and SES v2 enforces same-region).
 func resolveSESEmailIdentityConfigSet(acct *account, st *store.Store) error {
 	identities, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeSESEmailIdentity},
 		Limit:     util.AllResources,
@@ -124,7 +124,7 @@ type sesEventDestinationAttrs struct {
 // resource refs (per mission spec).
 func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 	dests, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSESConfigurationSetEventDestination},
 		Limit: util.AllResources,
 	})
@@ -236,7 +236,7 @@ func sesReceiptRuleSetName(nativeID string) string {
 //   - S3Action.KmsKeyArn → KMS key (via shared resolve helper)
 func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSESReceiptRule},
 		Limit: util.AllResources,
 	})

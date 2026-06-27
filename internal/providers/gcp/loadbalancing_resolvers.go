@@ -41,7 +41,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 	idByNative := make(map[string]string)
 	for _, t := range types {
 		rs, err := st.ListResources(store.ResourceFilter{
-			Provider: "gcp", AccountID: p.ID, Types: []string{t},
+			Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{t},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -68,7 +68,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 
 	// Forwarding rules → target / backendService.
 	frs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeForwardingRule},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeForwardingRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -93,7 +93,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 	// Target HTTP / HTTPS proxies → urlMap.
 	for _, t := range []string{TypeComputeTargetHTTPProxy, TypeComputeTargetHTTPSProxy} {
 		ps, err := st.ListResources(store.ResourceFilter{
-			Provider: "gcp", AccountID: p.ID, Types: []string{t},
+			Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{t},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -114,7 +114,7 @@ func resolveLoadBalancingRelationships(p *project, st *store.Store) error {
 
 	// URL maps → defaultService (BackendService or BackendBucket).
 	ums, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeURLMap},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeURLMap},
 		Limit: util.AllResources,
 	})
 	if err != nil {

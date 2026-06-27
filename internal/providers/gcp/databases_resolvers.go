@@ -25,7 +25,7 @@ func init() { registerResolver(resolveDatabasesRelationships) }
 // resolver picks up encryption per-cluster naturally.
 func resolveDatabasesRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 
 	// Bigtable cluster.
 	bcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeBigtableCluster},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBigtableCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 
 	// Firestore database.
 	fdbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeFirestoreDB},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeFirestoreDB},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -100,7 +100,7 @@ func resolveDatabasesRelationships(p *project, st *store.Store) error {
 
 	// Spanner database.
 	sdbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeSpannerDatabase},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeSpannerDatabase},
 		Limit: util.AllResources,
 	})
 	if err != nil {

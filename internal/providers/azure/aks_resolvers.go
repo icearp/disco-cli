@@ -16,7 +16,7 @@ func init() {
 
 func resolveAKSRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeContainerServiceManagedCluster},
 		Limit: util.AllResources,
 	})

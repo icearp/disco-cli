@@ -30,7 +30,7 @@ func init() { registerResolver(resolveSecretRelationships) }
 // roles/secretmanager.secretAccessor.
 func resolveSecretRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -45,7 +45,7 @@ func resolveSecretRelationships(p *project, st *store.Store) error {
 	}
 
 	secrets, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeSecret},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeSecret},
 		Limit: util.AllResources,
 	})
 	if err != nil {

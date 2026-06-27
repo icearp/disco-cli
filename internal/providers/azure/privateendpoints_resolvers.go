@@ -34,7 +34,7 @@ func init() {
 // PE edges automatically.
 func resolvePrivateEndpointRelationships(sub *subscription, st *store.Store) error {
 	pes, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkPrivateEndpoint},
 		Limit: util.AllResources,
 	})
@@ -46,7 +46,7 @@ func resolvePrivateEndpointRelationships(sub *subscription, st *store.Store) err
 	}
 
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID, Limit: util.AllResources,
+		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

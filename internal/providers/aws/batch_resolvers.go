@@ -51,7 +51,7 @@ type batchComputeEnvAttrs struct {
 // the nil-check on ComputeResources covers that path.
 func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error {
 	envs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBatchComputeEnvironment},
 		Limit:     util.AllResources,
@@ -152,7 +152,7 @@ type batchJobQueueAttrs struct {
 // graph consumers can reconstruct the dispatch priority.
 func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 	queues, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBatchJobQueue},
 		Limit:     util.AllResources,
@@ -220,7 +220,7 @@ type batchJobDefAttrs struct {
 // + ECS task-properties variant + EKS pod-properties variant deferred.
 func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 	defs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBatchJobDefinition},
 		Limit:     util.AllResources,
@@ -285,7 +285,7 @@ type batchQuotaShareAttrs struct {
 // set so cross-account or unscanned queues skip without dangling edges.
 func resolveBatchQuotaShareJobQueue(acct *account, st *store.Store) error {
 	shares, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBatchQuotaShare},
 		Limit:     util.AllResources,

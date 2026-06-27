@@ -25,7 +25,7 @@ func init() {
 // via NativeID `{secretARN}/policy` strip.
 func resolveSecretsManagerResourcePolicyToSecret(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSecretsManagerResourcePolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSecretsManagerResourcePolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func resolveSecretsManagerResourcePolicyToSecret(acct *account, st *store.Store)
 // (SecretID attr) and rotation-lambda (RotationLambdaARN attr).
 func resolveSecretsManagerRotationScheduleRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSecretsManagerRotationSchedule}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSecretsManagerRotationSchedule}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

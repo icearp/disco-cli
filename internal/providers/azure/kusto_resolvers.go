@@ -21,7 +21,7 @@ func init() {
 //   - cluster -[attached-to]-> VNet via virtualNetworkConfiguration.subnetId
 func resolveKustoRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeKustoCluster},
 		Limit: util.AllResources,
 	})

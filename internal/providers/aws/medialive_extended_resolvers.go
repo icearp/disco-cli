@@ -36,7 +36,7 @@ func resolveMediaLiveEBRuleTemplateGroup(acct *account, st *store.Store) error {
 // (bare ID) to its parent group via the SDK Id index.
 func resolveMediaLiveTemplateToGroup(acct *account, st *store.Store, childType, parentType string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func resolveMediaLiveTemplateToGroup(acct *account, st *store.Store, childType, 
 // every network referenced by NetworkSettings.InterfaceMappings[].NetworkID.
 func resolveMediaLiveClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveCluster}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveCluster}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

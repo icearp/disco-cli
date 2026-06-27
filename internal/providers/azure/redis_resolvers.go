@@ -21,7 +21,7 @@ func init() {
 // same VNet collapse to one edge per cache.
 func resolveRedisRelationships(sub *subscription, st *store.Store) error {
 	caches, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeRedisCache},
 		Limit: util.AllResources,
 	})

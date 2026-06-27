@@ -93,7 +93,7 @@ func resolveAppSyncAPIChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -132,7 +132,7 @@ func dynamoTableARN(region, acctID, name string) string {
 // corresponding edges. FK-safe.
 func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncDataSource},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncDataSource},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -221,7 +221,7 @@ func resolveAppSyncDataSourceTargets(acct *account, st *store.Store) error {
 // bare DataSourceName field.
 func appsyncDataSourceARNByName(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncDataSource},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncDataSource},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -252,7 +252,7 @@ func appsyncDataSourceARNByName(acct *account, st *store.Store) (map[string]stri
 // (Unit resolvers) or pipeline FunctionConfigurations[] (Pipeline resolvers).
 func resolveAppSyncResolverDataSource(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncResolver},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncResolver},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -315,7 +315,7 @@ func resolveAppSyncResolverDataSource(acct *account, st *store.Store) error {
 // DataSourceName.
 func resolveAppSyncFunctionDataSource(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncFunctionConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncFunctionConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -356,7 +356,7 @@ func resolveAppSyncFunctionDataSource(acct *account, st *store.Store) error {
 // already since the row's NativeID encodes it.
 func resolveAppSyncSourceAPIAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncSourceAPIAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncSourceAPIAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -397,7 +397,7 @@ func resolveAppSyncSourceAPIAssoc(acct *account, st *store.Store) error {
 // domain-name (via NativeID parse) and to the associated api (APIID attr).
 func resolveAppSyncDomainNameAPIAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncDomainNameAPIAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncDomainNameAPIAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -471,7 +471,7 @@ func init() {
 // Cognito user pool (UserPoolConfig.UserPoolId / per-region).
 func resolveAppSyncGraphQLAPIRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncGraphQLApi}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncGraphQLApi}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -576,7 +576,7 @@ func init() {
 // (CloudWatchLogsRoleArn), plus top-level WafWebACLArn.
 func resolveAppSyncEventAPIRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppSyncAPI}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppSyncAPI}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

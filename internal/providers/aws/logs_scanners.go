@@ -693,7 +693,7 @@ func scanLogsScheduledQueries(ctx context.Context, client cwlogsAPI, acct *accou
 // the given account and region, for use by per-log-group Phase 2 scanners.
 func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]store.Resource, error) {
 	return st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsLogGroup},
 		Regions:   []string{region},

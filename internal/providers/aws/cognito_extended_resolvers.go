@@ -80,7 +80,7 @@ func resolveCognitoUserPoolChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -107,7 +107,7 @@ func resolveCognitoUserPoolChildren(acct *account, st *store.Store) error {
 // (RoleArn). FK-safe.
 func resolveCognitoUserPoolGroupRole(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoUserPoolGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCognitoUserPoolGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -192,7 +192,7 @@ type cogUserPoolTargetSets struct {
 // All edges FK-safe.
 func resolveCognitoUserPoolRefs(acct *account, st *store.Store) error {
 	pools, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoUserPool},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCognitoUserPool},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -358,7 +358,7 @@ func emitCogCustomDomainEdge(st *store.Store, acct *account, p store.Resource, a
 // IAM roles named under `Roles` map values (auth/unauth role ARNs).
 func resolveCognitoIdentityPoolRoleAttachment(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoIdentityPoolRoleAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCognitoIdentityPoolRoleAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {

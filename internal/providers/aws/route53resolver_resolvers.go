@@ -40,7 +40,7 @@ func init() {
 // `ResourceId` (the VPC ID) so we rebuild the canonical EC2 VPC ARN here.
 func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverResolverConfig},
 		Limit: util.AllResources,
 	})
@@ -77,7 +77,7 @@ func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 // and the ResolverRule it activates.
 func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverResolverRuleAssociation},
 		Limit: util.AllResources,
 	})
@@ -127,7 +127,7 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 // outbound ResolverEndpoint that handles its queries.
 func resolveR53RResolverRuleEndpoint(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverResolverRule},
 		Limit: util.AllResources,
 	})
@@ -165,7 +165,7 @@ func resolveR53RResolverRuleEndpoint(acct *account, st *store.Store) error {
 // stream by ARN substring. FK-safe; cross-account or unscanned targets skip.
 func resolveR53RQueryLogConfigDestination(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverResolverQueryLoggingConfig},
 		Limit: util.AllResources,
 	})
@@ -228,7 +228,7 @@ func resolveR53RQueryLogConfigDestination(acct *account, st *store.Store) error 
 // to the VPC it protects. The SDK field is `VpcId` (lowercase d).
 func resolveR53RFirewallRuleGroupAssoc(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeRoute53ResolverFirewallRuleGroupAssociation},
 		Limit: util.AllResources,
 	})

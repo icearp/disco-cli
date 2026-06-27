@@ -62,7 +62,7 @@ type opensearchDomainAttrs struct {
 // and AWS-managed default keys (`alias/aws/*`) skip silently.
 func resolveOpenSearchDomainTargets(acct *account, st *store.Store) error {
 	domains, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeOpenSearchDomain},
 		Limit:     util.AllResources,

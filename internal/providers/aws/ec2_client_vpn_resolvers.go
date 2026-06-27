@@ -23,7 +23,7 @@ func init() {
 // resolveClientVPNEndpointRelationships links each Client VPN endpoint to its VPC.
 func resolveClientVPNEndpointRelationships(acct *account, st *store.Store) error {
 	eps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2ClientVPNEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2ClientVPNEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -51,7 +51,7 @@ func resolveClientVPNEndpointRelationships(acct *account, st *store.Store) error
 // association to its endpoint and subnet.
 func resolveClientVPNTargetNetworkAssociationRelationships(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2ClientVPNTargetNetworkAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2ClientVPNTargetNetworkAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

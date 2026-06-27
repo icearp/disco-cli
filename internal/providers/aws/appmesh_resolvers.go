@@ -79,7 +79,7 @@ func resolveAppMeshChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -116,7 +116,7 @@ func resolveAppMeshGatewayRouteParent(acct *account, st *store.Store) error {
 
 func resolveAppMeshGrandparent(acct *account, st *store.Store, childType, parentType string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{childType},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{childType},
 		Limit: util.AllResources,
 	})
 	if err != nil {

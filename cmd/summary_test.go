@@ -13,7 +13,7 @@ import (
 // resetSummaryFlags clears flag-attached + package-var state between tests;
 // rootCmd is shared so flags leak otherwise.
 func resetSummaryFlags() {
-	summaryProvider, summaryRegion = "", ""
+	summaryProviders, summaryRegions = nil, nil
 	summaryExcludeTypes = nil
 	summaryScanID = ""
 	summaryDiscoveredSince.reset()
@@ -95,7 +95,7 @@ func TestSummary_FilterByProvider(t *testing.T) {
 
 	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
-		cmd.SetArgs([]string{"summary", "--provider", "azure", "-o", "json"})
+		cmd.SetArgs([]string{"summary", "--providers", "azure", "-o", "json"})
 		return cmd.Execute()
 	})
 	if err != nil {

@@ -38,7 +38,7 @@ func init() {
 // segment. Mirrors resolveRDSIntegrationRefs in rds_resolvers.go.
 func resolveRedshiftIntegrationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRedshiftIntegration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftIntegration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ type redshiftClusterAttrs struct {
 // and AWS-managed default keys (`alias/aws/*`) skip silently.
 func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeRedshiftCluster},
 		Limit:     util.AllResources,
@@ -246,7 +246,7 @@ type redshiftSubnetGroupAttrs struct {
 // id sets.
 func resolveRedshiftSubnetGroupTargets(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeRedshiftSubnetGroup},
 		Limit:     util.AllResources,

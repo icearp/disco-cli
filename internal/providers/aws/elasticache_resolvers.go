@@ -31,7 +31,7 @@ func init() {
 // subnets (Subnets[].SubnetIdentifier).
 func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheSubnetGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheSubnetGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func resolveElastiCacheRelationships(acct *account, st *store.Store) error {
 // buildElastiCacheRGMap returns a map of ReplicationGroupID → store resource ID.
 func buildElastiCacheRGMap(acct *account, st *store.Store) (map[string]string, error) {
 	rgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -157,7 +157,7 @@ func buildElastiCacheRGMap(acct *account, st *store.Store) (map[string]string, e
 // buildElastiCacheSubnetGroupMap returns a map of CacheSubnetGroupName → store resource ID.
 func buildElastiCacheSubnetGroupMap(acct *account, st *store.Store) (map[string]string, error) {
 	sgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheSubnetGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheSubnetGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func buildElastiCacheSubnetGroupMap(acct *account, st *store.Store) (map[string]
 // buildElastiCacheParameterGroupMap returns a map of CacheParameterGroupName → store resource ID.
 func buildElastiCacheParameterGroupMap(acct *account, st *store.Store) (map[string]string, error) {
 	pgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheParameterGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheParameterGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -205,7 +205,7 @@ func buildElastiCacheParameterGroupMap(acct *account, st *store.Store) (map[stri
 // buildElastiCacheUserGroupMap returns a map of UserGroupID → store resource ID.
 func buildElastiCacheUserGroupMap(acct *account, st *store.Store) (map[string]string, error) {
 	ugs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheUserGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheUserGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func buildElastiCacheUserGroupMap(acct *account, st *store.Store) (map[string]st
 // replication group. Memcached clusters have no ReplicationGroupID and are skipped.
 func resolveClusterToReplicationGroup(acct *account, st *store.Store, rgMap map[string]string) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -262,7 +262,7 @@ func resolveClusterToReplicationGroup(acct *account, st *store.Store, rgMap map[
 // resolveClusterToSubnetGroup links each cache cluster to its subnet group.
 func resolveClusterToSubnetGroup(acct *account, st *store.Store, sgMap map[string]string) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -292,7 +292,7 @@ func resolveClusterToSubnetGroup(acct *account, st *store.Store, sgMap map[strin
 // resolveClusterToParameterGroup links each cache cluster to its parameter group.
 func resolveClusterToParameterGroup(acct *account, st *store.Store, pgMap map[string]string) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheCacheCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -325,7 +325,7 @@ func resolveClusterToParameterGroup(acct *account, st *store.Store, pgMap map[st
 // resolveReplicationGroupToSubnetGroup links each replication group to its subnet group.
 func resolveReplicationGroupToSubnetGroup(acct *account, st *store.Store, sgMap map[string]string) error {
 	rgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -355,7 +355,7 @@ func resolveReplicationGroupToSubnetGroup(acct *account, st *store.Store, sgMap 
 // resolveReplicationGroupToUserGroups links each replication group to its associated user groups.
 func resolveReplicationGroupToUserGroups(acct *account, st *store.Store, ugMap map[string]string) error {
 	rgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheReplicationGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -385,7 +385,7 @@ func resolveReplicationGroupToUserGroups(acct *account, st *store.Store, ugMap m
 // member replication groups in this account.
 func resolveGlobalRGToReplicationGroups(acct *account, st *store.Store, rgMap map[string]string) error {
 	grgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheGlobalReplicationGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheGlobalReplicationGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -420,7 +420,7 @@ func resolveGlobalRGToReplicationGroups(acct *account, st *store.Store, rgMap ma
 func resolveUserGroupToUsers(acct *account, st *store.Store) error {
 	// Build a map of UserID → store resource ID.
 	users, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheUser},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheUser},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -440,7 +440,7 @@ func resolveUserGroupToUsers(acct *account, st *store.Store) error {
 	}
 
 	ugs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheUserGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheUserGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -469,7 +469,7 @@ func resolveUserGroupToUsers(acct *account, st *store.Store) error {
 // resolveServerlessCacheToUserGroup links each serverless cache to its user group.
 func resolveServerlessCacheToUserGroup(acct *account, st *store.Store, ugMap map[string]string) error {
 	scs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeElastiCacheServerlessCache},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeElastiCacheServerlessCache},
 		Limit: util.AllResources,
 	})
 	if err != nil {

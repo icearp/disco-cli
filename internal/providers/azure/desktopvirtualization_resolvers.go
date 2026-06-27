@@ -44,7 +44,7 @@ func resolveDesktopVirtualizationRelationships(sub *subscription, st *store.Stor
 
 func resolveDVCAppGroupToHostPool(sub *subscription, st *store.Store, hostPoolByID map[string]string) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDVCApplicationGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -70,7 +70,7 @@ func resolveDVCAppGroupToHostPool(sub *subscription, st *store.Store, hostPoolBy
 
 func resolveDVCWorkspaceToAppGroup(sub *subscription, st *store.Store, appGroupByID map[string]string) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDVCWorkspace}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func resolveDVCWorkspaceToAppGroup(sub *subscription, st *store.Store, appGroupB
 
 func resolveDVCScalingPlanToHostPool(sub *subscription, st *store.Store, hostPoolByID map[string]string) error {
 	plans, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDVCScalingPlan}, Limit: util.AllResources,
 	})
 	if err != nil {

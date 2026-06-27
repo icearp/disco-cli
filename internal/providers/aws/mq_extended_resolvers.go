@@ -21,7 +21,7 @@ func init() {
 // (Configuration) — both stored as ARNs in attrs.
 func resolveMQConfigurationAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMQConfigurationAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQConfigurationAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

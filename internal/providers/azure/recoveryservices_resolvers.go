@@ -22,7 +22,7 @@ func init() {
 // name and matched against a per-sub vault-name index.
 func resolveRecoveryServicesRelationships(sub *subscription, st *store.Store) error {
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeRecoveryServicesVault},
 		Limit: util.AllResources,
 	})

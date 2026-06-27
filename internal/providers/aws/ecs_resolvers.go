@@ -41,7 +41,7 @@ func init() {
 
 func resolveECSRelationships(acct *account, st *store.Store) error {
 	services, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSService},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSService},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -106,7 +106,7 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 // task role and execution role.
 func resolveECSTaskDefinitionRelationships(acct *account, st *store.Store) error {
 	tds, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func resolveECSTaskDefinitionRelationships(acct *account, st *store.Store) error
 // awslogs log driver configuration).
 func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 	tds, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -211,7 +211,7 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 // ARN, or a bare parameter name (with or without a leading slash).
 func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 	tds, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSTaskDefinition},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -36,7 +36,7 @@ func init() {
 // `arn:aws:glue:{r}:{a}:database/{name}`.
 func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueTable},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueTable},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func glueRoleARN(acctID, roleField string) string {
 // emits role + S3 bucket edges.
 func resolveGlueJobRefs(acct *account, st *store.Store) error {
 	jobs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueJob},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueJob},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func resolveGlueJobRefs(acct *account, st *store.Store) error {
 // and DatabaseName fields and emits the corresponding edges.
 func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 	crawlers, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueCrawler},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueCrawler},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -221,7 +221,7 @@ type glueTableAttrs struct {
 // cross-account bucket refs skip.
 func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeGlueTable},
 		Limit:     util.AllResources,

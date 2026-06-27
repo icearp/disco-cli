@@ -22,7 +22,7 @@ func init() {
 
 func resolveVPNConnectionRelationships(acct *account, st *store.Store) error {
 	conns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPNConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPNConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func resolveVPNConnectionRelationships(acct *account, st *store.Store) error {
 // scanned set.
 func resolveVPNGatewayRoutePropagations(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -25,7 +25,7 @@ func init() {
 // to its route table and VPC.
 func resolveLocalGatewayRouteTableVPCAssociationRelationships(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRouteTableVPCAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRouteTableVPCAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func resolveLocalGatewayRouteTableVPCAssociationRelationships(acct *account, st 
 // to its route table and virtual interface group.
 func resolveLocalGatewayRouteTableVIGAssociationRelationships(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRouteTableVIGAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRouteTableVIGAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

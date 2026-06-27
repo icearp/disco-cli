@@ -613,7 +613,7 @@ func scanIAMVirtualMFADevices(ctx context.Context, client iamAPI, acct *account,
 // NativeID format: {userARN}/access-key/{keyID} — used by resolvers to link keys to users.
 func scanIAMAccessKeys(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
 	users, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeIAMUser},
 		Limit:     util.AllResources,

@@ -116,7 +116,7 @@ func lambdaStripQualifier(arn string) string {
 // image-package functions.
 func resolveLambdaRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -252,7 +252,7 @@ func emitLambdaSQSOrSNSEdge(st *store.Store, srcID, targetARN, acctID string, sq
 // function ARN.
 func resolveLambdaAliasRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -275,7 +275,7 @@ func resolveLambdaAliasRelationships(acct *account, st *store.Store) error {
 // function. The version NativeID is a qualified ARN ending in the version number.
 func resolveLambdaVersionRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaVersion},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaVersion},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -299,7 +299,7 @@ func resolveLambdaVersionRelationships(acct *account, st *store.Store) error {
 // qualifier is stripped to obtain the base function ARN.
 func resolveLambdaESMRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaESM},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaESM},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -381,7 +381,7 @@ func lambdaESMSourceType(arn string) string {
 // (SQS queue, SNS topic, EventBridge bus, Lambda function).
 func resolveLambdaEventInvokeConfigRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaEventInvokeConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaEventInvokeConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -481,7 +481,7 @@ func emitLambdaDestinationEdge(st *store.Store, srcID, destARN, acctID string, s
 // parent function. The NativeID is a qualified FunctionArn.
 func resolveLambdaFunctionURLRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaURL},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaURL},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -505,7 +505,7 @@ func resolveLambdaFunctionURLRelationships(acct *account, st *store.Store) error
 // CodeSigningConfigArn is extracted from the function's AttributesJSON.
 func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -539,7 +539,7 @@ func resolveLambdaCodeSigningConfigRelationships(acct *account, st *store.Store)
 // rather than blowing the FK on UpsertRelationship.
 func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 	fns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -583,7 +583,7 @@ func resolveLambdaLayerRelationships(acct *account, st *store.Store) error {
 // targets skip FK-safe.
 func resolveLambdaPermissionRelationships(acct *account, st *store.Store) error {
 	perms, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaPermission},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaPermission},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -719,7 +719,7 @@ func lambdaPermSourceArns(stmt lambdaPermStmt) []string {
 // is not edge-bearing — only the AttachedTo edge is emitted.
 func resolveLambdaLayerVersionPermissionRelationships(acct *account, st *store.Store) error {
 	perms, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaLayerVersionPermission},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaLayerVersionPermission},
 		Limit: util.AllResources,
 	})
 	if err != nil {

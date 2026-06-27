@@ -118,7 +118,7 @@ func resolveAPIGatewayV2APIChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -149,7 +149,7 @@ func resolveAPIGatewayV2GrandparentChildren(acct *account, st *store.Store) erro
 
 func resolveAPIGatewayV2GrandparentOne(acct *account, st *store.Store, childType, parentType string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func resolveAPIGatewayV2DomainChildren(acct *account, st *store.Store) error {
 	childTypes := []string{TypeAPIGatewayBasePathMappingV2, TypeAPIGatewayV2RoutingRule}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -211,7 +211,7 @@ func resolveAPIGatewayV2DomainChildren(acct *account, st *store.Store) error {
 // to its target API and stage by name.
 func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayBasePathMappingV2},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayBasePathMappingV2},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -269,7 +269,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 // backing integration.
 func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Route},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Route},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -327,7 +327,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 // their vpc-link (ConnectionID) and any CredentialsArn IAM role.
 func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Integration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Integration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -380,7 +380,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 // resolveAPIGatewayV2StageRefs links stage to its DeploymentID.
 func resolveAPIGatewayV2StageRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Stage},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayV2Stage},
 		Limit: util.AllResources,
 	})
 	if err != nil {

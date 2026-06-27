@@ -25,7 +25,7 @@ func init() {
 // ARN-bearing fields (only an enum Status), so it gets no resolver edges.
 func resolveARCZonalShiftRelationships(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeARCZonalShiftConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeARCZonalShiftConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(cfgs) == 0 {

@@ -41,7 +41,7 @@ func mediapackageARN(region, acct, kind, id string) string {
 // via ChannelID (rebuild ARN as `arn:aws:mediapackage:r:a:channels/{id}`).
 func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageOriginEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageOriginEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 // bucket, and the IAM role used to ingest from S3.
 func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageAsset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageAsset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 // packaging group via PackagingGroupID.
 func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackagePackagingConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackagePackagingConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func resolveMPV2ChildrenToChannelGroup(acct *account, st *store.Store) error {
 	}
 	// channel → channel-group: strip `/channel/{cn}` tail.
 	chRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageV2Channel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageV2Channel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func resolveMPV2ChildrenToChannelGroup(acct *account, st *store.Store) error {
 	}
 	// origin-endpoint → channel: strip `/originEndpoint/{en}` tail.
 	epRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageV2OriginEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageV2OriginEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -241,7 +241,7 @@ func resolveMPV2ChildrenToChannelGroup(acct *account, st *store.Store) error {
 	}
 	// channel-policy → channel: strip trailing `/policy`.
 	cpRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageV2ChannelPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageV2ChannelPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -257,7 +257,7 @@ func resolveMPV2ChildrenToChannelGroup(acct *account, st *store.Store) error {
 	}
 	// origin-endpoint-policy → origin-endpoint: strip trailing `/policy`.
 	oepRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaPackageV2OriginEndpointPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageV2OriginEndpointPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

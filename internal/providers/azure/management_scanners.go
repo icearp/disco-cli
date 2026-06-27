@@ -185,7 +185,7 @@ func recordTopHierarchy(st *store.Store, mgIndex, subIndex map[string]string, mg
 // scanned as a resource are skipped (no dangling parent).
 func resourceGroupParentPairs(st *store.Store, subIndex map[string]string) ([][2]string, error) {
 	rgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", Types: []string{TypeResourcesResourceGroup}, Limit: util.AllResources,
+		Providers: []string{"azure"}, Types: []string{TypeResourcesResourceGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return nil, err
@@ -267,7 +267,7 @@ func managementParentPairsWithClient(ctx context.Context, client *armmanagementg
 // the per-subscription nativeIDIndex helper, which scopes to one AccountID.
 func storeNativeIDIndex(st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", Types: []string{rtype}, Limit: util.AllResources,
+		Providers: []string{"azure"}, Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return nil, err

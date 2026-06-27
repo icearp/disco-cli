@@ -21,7 +21,7 @@ func init() {
 // / S3 sources skip via FK-safe lookup.
 func resolveCodeGuruReviewerAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeGuruReviewerRepositoryAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeGuruReviewerRepositoryAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

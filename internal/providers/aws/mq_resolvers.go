@@ -24,7 +24,7 @@ func init() {
 // index from scanned configurations to recover the ARN-keyed NativeID.
 func resolveMQRelationships(acct *account, st *store.Store) error {
 	brokers, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMQBroker},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQBroker},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -121,7 +121,7 @@ func resolveMQRelationships(acct *account, st *store.Store) error {
 // Brokers reference configurations by Id; the store keys by Arn.
 func mqConfigIndex(acct *account, st *store.Store) (map[string]string, error) {
 	configs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMQConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMQConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {

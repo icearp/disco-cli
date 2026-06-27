@@ -35,7 +35,7 @@ func init() {
 // DescribeRuleGroup body and emits a KMS edge.
 func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallRuleGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkFirewallRuleGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
 // carry CertificateArn refs.
 func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallTLSInspectionConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkFirewallTLSInspectionConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ type nfPolicyAttrs struct {
 // silently skipped.
 func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store) error {
 	firewalls, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeNetworkFirewallFirewall},
 		Limit: util.AllResources,
 	})
@@ -247,7 +247,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 // policy to the rule groups it references (stateless + stateful). FK-safe.
 func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeNetworkFirewallFirewallPolicy},
 		Limit: util.AllResources,
 	})
@@ -300,7 +300,7 @@ func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) e
 // resource types referenced from firewall attributes (policy, VPC, subnet).
 func networkFirewallFirewallTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeNetworkFirewallFirewallPolicy, TypeEC2VPC, TypeEC2Subnet},
 		Limit: util.AllResources,
 	})
@@ -316,7 +316,7 @@ func networkFirewallFirewallTargetIDSet(acct *account, st *store.Store) (map[str
 
 func networkFirewallRuleGroupIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeNetworkFirewallRuleGroup},
 		Limit: util.AllResources,
 	})

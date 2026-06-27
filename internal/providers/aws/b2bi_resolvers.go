@@ -28,7 +28,7 @@ func init() {
 // its instructions documents (InstructionsDocuments[].BucketName).
 func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeB2BICapability}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeB2BICapability}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 // `:profile/<id>` and `:capability/<id>` segments.
 func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeB2BIPartnership}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeB2BIPartnership}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 // log-group name; rebuild the ARN per region+acct via logGroupNativeIDFromName.
 func resolveB2BIProfileLogGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeB2BIProfile}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeB2BIProfile}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

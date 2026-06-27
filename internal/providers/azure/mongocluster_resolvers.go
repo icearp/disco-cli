@@ -21,7 +21,7 @@ func init() {
 // (a full Key Vault key URI).
 func resolveMongoClusterRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeMongoCluster},
 		Limit: util.AllResources,
 	})

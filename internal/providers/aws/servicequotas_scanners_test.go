@@ -102,7 +102,7 @@ func globalQuota(sc, qc, name string, value float64, adjustable bool) sqtypes.Se
 func listQuotaRows(t *testing.T, st *store.Store) []store.Resource {
 	t.Helper()
 	got, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", Types: []string{TypeServiceQuota}, IncludeManaged: true, Limit: 1000,
+		Providers: []string{"aws"}, Types: []string{TypeServiceQuota}, IncludeManaged: true, Limit: 1000,
 	})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)

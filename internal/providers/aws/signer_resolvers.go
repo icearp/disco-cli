@@ -19,7 +19,7 @@ func init() {
 // parent signing-profile via NativeID `{profileARN}/permission/{stID}` strip.
 func resolveSignerProfilePermissionToProfile(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSignerProfilePermission}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSignerProfilePermission}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

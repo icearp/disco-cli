@@ -63,7 +63,7 @@ func run() int {
 	defer st.Close()
 
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		IncludeManaged: true,
 		Limit:          1 << 30,
 	})

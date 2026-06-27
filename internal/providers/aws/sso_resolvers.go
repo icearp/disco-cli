@@ -47,7 +47,7 @@ type ssoInstanceIndex struct {
 
 func loadSSOInstanceIndex(acct *account, st *store.Store) (*ssoInstanceIndex, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOInstance},
 		Limit: util.AllResources,
 	})
@@ -92,7 +92,7 @@ func instanceArnFromPermissionSetArn(psArn string) string {
 // SSO instance to every permission-set provisioned under it.
 func resolveSSOPermissionSetInstance(acct *account, st *store.Store) error {
 	pSets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOPermissionSet},
 		Limit: util.AllResources,
 	})
@@ -142,7 +142,7 @@ type ssoAssignmentAttrs struct {
 // still produces consistent partial graph coverage.
 func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 	assigns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOAccountAssignment},
 		Limit: util.AllResources,
 	})
@@ -232,7 +232,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 // Center instance it is registered with via InstanceArn in the attrs.
 func resolveSSOApplicationInstance(acct *account, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOApplication},
 		Limit: util.AllResources,
 	})
@@ -271,7 +271,7 @@ func resolveSSOApplicationInstance(acct *account, st *store.Store) error {
 // InstanceArn → identity-store ID lookup.
 func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
 	assigns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOApplicationAssignment},
 		Limit: util.AllResources,
 	})
@@ -282,7 +282,7 @@ func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
 		return nil
 	}
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOApplication},
 		Limit: util.AllResources,
 	})
@@ -369,7 +369,7 @@ func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
 // "{instanceArn}/access-control-attribute-configuration".
 func resolveSSOAttrConfigInstance(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSSOInstanceAccessControlAttributeConfiguration},
 		Limit: util.AllResources,
 	})

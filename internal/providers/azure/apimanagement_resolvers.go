@@ -22,7 +22,7 @@ func init() {
 // under sub-resources and are deferred.
 func resolveAPIManagementRelationships(sub *subscription, st *store.Store) error {
 	services, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAPIManagementService},
 		Limit: util.AllResources,
 	})

@@ -33,7 +33,7 @@ func init() {
 // NativeID form: .../galleries/{gallery}/images/{image}
 func resolveGalleryImageRelationships(sub *subscription, st *store.Store) error {
 	images, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryImage},
 		Limit:     util.AllResources,
@@ -59,7 +59,7 @@ func resolveGalleryImageRelationships(sub *subscription, st *store.Store) error 
 // NativeID form: .../images/{image}/versions/{version}
 func resolveGalleryImageVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryImageVersion},
 		Limit:     util.AllResources,
@@ -85,7 +85,7 @@ func resolveGalleryImageVersionRelationships(sub *subscription, st *store.Store)
 // NativeID form: .../galleries/{gallery}/applications/{app}
 func resolveGalleryApplicationRelationships(sub *subscription, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryApplication},
 		Limit:     util.AllResources,
@@ -111,7 +111,7 @@ func resolveGalleryApplicationRelationships(sub *subscription, st *store.Store) 
 // NativeID form: .../applications/{app}/versions/{version}
 func resolveGalleryApplicationVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryApplicationVersion},
 		Limit:     util.AllResources,
@@ -138,7 +138,7 @@ func resolveGalleryApplicationVersionRelationships(sub *subscription, st *store.
 // NativeID form: .../galleries/{gallery}/inVMAccessControlProfiles/{profile}
 func resolveGalleryInVMACPRelationships(sub *subscription, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryInVMACP},
 		Limit:     util.AllResources,
@@ -164,7 +164,7 @@ func resolveGalleryInVMACPRelationships(sub *subscription, st *store.Store) erro
 // NativeID form: .../inVMAccessControlProfiles/{profile}/versions/{version}
 func resolveGalleryInVMACPVersionRelationships(sub *subscription, st *store.Store) error {
 	versions, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeGalleryInVMACPVersion},
 		Limit:     util.AllResources,

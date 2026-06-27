@@ -32,7 +32,7 @@ func resolveEFSRelationships(acct *account, st *store.Store) error {
 // resolveEFSFileSystemRelationships links each file system to its KMS key.
 func resolveEFSFileSystemRelationships(acct *account, st *store.Store) error {
 	fss, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEFSFileSystem},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEFSFileSystem},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func resolveEFSFileSystemRelationships(acct *account, st *store.Store) error {
 // (contains) and subnet (attached-to).
 func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 	mts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEFSMountTarget},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEFSMountTarget},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 // (contains). File system ID is extracted from the access point ARN.
 func resolveEFSAccessPointRelationships(acct *account, st *store.Store) error {
 	aps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEFSAccessPoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEFSAccessPoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {

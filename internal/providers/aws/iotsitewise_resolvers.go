@@ -63,7 +63,7 @@ func noopIoTSWHierarchy(_ *account, _ *store.Store) error {
 // instantiated from via `AssetModelID`.
 func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAsset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWAsset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 // or project via `Resource.Portal.ID` / `Resource.Project.ID`.
 func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAccessPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWAccessPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 // portal users access to IoT SiteWise resources (RoleArn).
 func resolveIoTSWPortalRole(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWPortal}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWPortal}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -217,7 +217,7 @@ type computationBindingValue struct {
 // (id) shape, FK-safe.
 func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWComputationModel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWComputationModel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -285,7 +285,7 @@ func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error 
 // Self-edges and unscanned refs are skipped FK-safe.
 func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWAssetModel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWAssetModel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -329,7 +329,7 @@ func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
 // "Kendra" but carries a Bedrock KB ARN) and its IAM role.
 func resolveIoTSWDatasetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWDataset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWDataset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -388,7 +388,7 @@ func resolveIoTSWDatasetRefs(acct *account, st *store.Store) error {
 // (GatewayPlatform.GreengrassV2.CoreDeviceThingName).
 func resolveIoTSWGatewayThing(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSWGateway}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSWGateway}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -398,7 +398,7 @@ func resolveIoTSWGatewayThing(acct *account, st *store.Store) error {
 	}
 	thingByNameRegion := map[string]string{}
 	thingRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTThing}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThing}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -33,7 +33,7 @@ type guardDutyMemberAttrs struct {
 // Detective + SSO assignment → org-account precedent.
 func resolveGuardDutyMemberOrgAccount(acct *account, st *store.Store) error {
 	members, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeGuardDutyMember},
 		Limit:     util.AllResources,
@@ -84,7 +84,7 @@ func resolveGuardDutyRelationships(acct *account, st *store.Store) error {
 // emits a uses edge to the S3 bucket when recognisable.
 func resolveGuardDutyIPSetLocation(acct *account, st *store.Store) error {
 	ipsets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGuardDutyIPSet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGuardDutyIPSet},
 		Limit: util.AllResources,
 	})
 	if err != nil {

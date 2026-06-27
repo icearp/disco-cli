@@ -34,7 +34,7 @@ func resolveR53RDNSSECConfigVPC(acct *account, st *store.Store) error {
 
 func r53rResolveVPCField(acct *account, st *store.Store, sourceType, fieldName string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func r53rResolveVPCField(acct *account, st *store.Store, sourceType, fieldName s
 // associated resource.
 func resolveR53RQueryLogAssocRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverQueryLoggingConfigAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverQueryLoggingConfigAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -121,7 +121,7 @@ func resolveR53RQueryLogAssocRefs(acct *account, st *store.Store) error {
 
 func r53rQueryLogConfigIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverQueryLoggingConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53ResolverResolverQueryLoggingConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {

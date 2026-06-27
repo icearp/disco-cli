@@ -26,7 +26,7 @@ func init() {
 // id-shape parser, mirroring the AutoScalingPlans resolver pattern.
 func resolveApplicationAutoScalingRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeApplicationAutoScalingScalingPolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationAutoScalingScalingPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {

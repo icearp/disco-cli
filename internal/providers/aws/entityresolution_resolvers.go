@@ -33,7 +33,7 @@ func init() {
 // GetMatchingWorkflow body that the scanner now fans out per row.
 func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEntityResolutionMatchingWorkflow}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEntityResolutionMatchingWorkflow}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func s3BucketFromS3URI(uri string) string {
 // dispatch by ARN substring.
 func resolveEntityResolutionPolicyStatementToParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEntityResolutionPolicyStatement}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEntityResolutionPolicyStatement}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

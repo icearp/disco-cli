@@ -21,7 +21,7 @@ func init() {
 // NativeID form: .../cloudServices/{service}/roles/{role}
 func resolveCloudServiceRoleRelationships(sub *subscription, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeCloudServiceRole},
 		Limit:     util.AllResources,
@@ -47,7 +47,7 @@ func resolveCloudServiceRoleRelationships(sub *subscription, st *store.Store) er
 // NativeID form: .../cloudServices/{service}/roleInstances/{instance}
 func resolveCloudServiceRoleInstanceRelationships(sub *subscription, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeCloudServiceRoleInstance},
 		Limit:     util.AllResources,

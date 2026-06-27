@@ -22,7 +22,7 @@ func init() {
 // can't be safely resolved to an ARN.
 func resolveSSMQuickSetupConfigManagerRoles(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMQuickSetupConfigurationManager}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMQuickSetupConfigurationManager}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

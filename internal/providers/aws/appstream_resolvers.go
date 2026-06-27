@@ -73,7 +73,7 @@ func init() {
 // credentials, not refs to disco-tracked resources.
 func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamDirectoryConfig}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamDirectoryConfig}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func resolveAppStreamDirectoryConfigCA(acct *account, st *store.Store) error {
 // look up FK-safe.
 func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamStack}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamStack}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func resolveAppStreamAppBlockBuilderRefs(acct *account, st *store.Store) error {
 // referenced AppStream directory-config. Targets all FK-safe.
 func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -262,7 +262,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 // app-block via `AppBlockArn`.
 func resolveAppStreamApplicationAppBlock(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamApplication}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamApplication}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -308,7 +308,7 @@ func appstreamStackARN(region, acct, name string) string {
 // fleet (FleetName, lookup by name) and application (ApplicationArn).
 func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamApplicationFleetAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamApplicationFleetAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -359,7 +359,7 @@ func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error
 // stack via `StackName` from the SDK shape.
 func resolveAppStreamEntitlementStack(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamEntitlement}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamEntitlement}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -399,7 +399,7 @@ func resolveAppStreamEntitlementStack(acct *account, st *store.Store) error {
 // rows to both stack and fleet by name.
 func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamStackFleetAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamStackFleetAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -451,7 +451,7 @@ func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 // skipped.
 func resolveAppStreamStackUserAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamStackUserAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamStackUserAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -492,7 +492,7 @@ func resolveAppStreamStackUserAssoc(acct *account, st *store.Store) error {
 // wires to stack + entitlement.
 func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamApplicationEntitlementAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamApplicationEntitlementAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -550,7 +550,7 @@ func init() {
 // also carry script S3 paths but they typically reuse the source bucket.
 func resolveAppStreamAppBlockS3(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppStreamAppBlock}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppStreamAppBlock}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

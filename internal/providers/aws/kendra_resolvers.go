@@ -26,7 +26,7 @@ func init() {
 // (ServerSideEncryptionConfiguration.KmsKeyId). DescribeIndex body shape.
 func resolveKendraIndexRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKendraIndex}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKendraIndex}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func resolveKendraChildToIndex(acct *account, st *store.Store) error {
 		{TypeKendraFaq, "/faq/"},
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{child.t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{child.t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

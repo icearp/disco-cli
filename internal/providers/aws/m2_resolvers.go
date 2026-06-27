@@ -22,7 +22,7 @@ func init() {
 // targets (EnvironmentID — looked up against a `lastSegment(envARN) → id` index).
 func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeM2Deployment}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeM2Deployment}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func resolveM2DeploymentRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	envRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeM2Environment}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeM2Environment}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

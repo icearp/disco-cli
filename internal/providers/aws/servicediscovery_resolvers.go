@@ -38,7 +38,7 @@ func sdNamespaceARN(region, acct, nsID string) string {
 // three namespace flavours.
 func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeServiceDiscoveryService},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeServiceDiscoveryService},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -98,7 +98,7 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 	}
 	for _, ttyp := range []string{TypeServiceDiscoveryPrivateDNSNamespace, TypeServiceDiscoveryPublicDNSNamespace} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -141,7 +141,7 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 // `arn:aws:servicediscovery:r:a:service/{sid}/instance/{iid}`.
 func resolveServiceDiscoveryInstanceService(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeServiceDiscoveryInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeServiceDiscoveryInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {

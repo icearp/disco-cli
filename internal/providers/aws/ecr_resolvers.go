@@ -25,7 +25,7 @@ func init() {
 // encryption uses AWS-owned keys that disco doesn't scan.
 func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 	repos, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeECRRepository},
 		Limit:     util.AllResources,
@@ -62,7 +62,7 @@ func resolveECRRepositoryRelationships(acct *account, st *store.Store) error {
 // stub-resource pass.
 func resolveECRReplicationConfiguration(acct *account, st *store.Store) error {
 	configs, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeECRReplicationConfiguration},
 		IncludeManaged: true,
@@ -75,7 +75,7 @@ func resolveECRReplicationConfiguration(acct *account, st *store.Store) error {
 		return nil
 	}
 	repos, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeECRRepository},
 		Limit:     util.AllResources,

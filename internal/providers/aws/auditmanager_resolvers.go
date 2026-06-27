@@ -43,7 +43,7 @@ type auditManagerAssessmentAttrs struct {
 // FK-safe via per-type id sets. Cross-account / unscanned targets skip.
 func resolveAuditManagerAssessmentTargets(acct *account, st *store.Store) error {
 	assessments, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeAuditManagerAssessment},
 		Limit:     util.AllResources,

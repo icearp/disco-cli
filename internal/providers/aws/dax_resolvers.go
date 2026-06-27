@@ -32,7 +32,7 @@ func daxARN(region, acct, kind, name string) string {
 // group, security groups, IAM role, and SNS notification topic.
 func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDAXCluster}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDAXCluster}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 // subnets.
 func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDAXSubnetGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDAXSubnetGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

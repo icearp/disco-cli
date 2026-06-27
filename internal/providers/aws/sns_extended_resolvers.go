@@ -27,7 +27,7 @@ func init() {
 // function or queue endpoint.
 func resolveSNSSubscriptionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSNSSubscription}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSNSSubscription}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func resolveSNSSubscriptionRefs(acct *account, st *store.Store) error {
 // parent topic via NativeID `{topicARN}/policy` strip.
 func resolveSNSTopicPolicyToTopic(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSNSTopicPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSNSTopicPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

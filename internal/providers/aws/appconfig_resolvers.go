@@ -80,7 +80,7 @@ func resolveAppConfigChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range directChildren {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -107,7 +107,7 @@ func resolveAppConfigChildren(acct *account, st *store.Store) error {
 
 func resolveAppConfigGrandparent(acct *account, st *store.Store, childType, parentType string, parentSet map[string]bool) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{childType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func resolveAppConfigGrandparent(acct *account, st *store.Store, childType, pare
 // service, dispatch table not worth the breadth.
 func resolveAppConfigExtensionAssociation(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppConfigExtensionAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppConfigExtensionAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

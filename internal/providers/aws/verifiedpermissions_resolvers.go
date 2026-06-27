@@ -32,7 +32,7 @@ func resolveVPChildToPolicyStore(acct *account, st *store.Store) error {
 		{TypeVerifiedPermissionsIdentitySource, "/identity-source/"},
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{child.t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{child.t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

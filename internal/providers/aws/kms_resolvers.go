@@ -33,7 +33,7 @@ func init() {
 // resource exists. Cross-account principals are FK-safe-skipped.
 func resolveKMSGrants(acct *account, st *store.Store) error {
 	grants, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSGrant},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSGrant},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func resolveKMSGrants(acct *account, st *store.Store) error {
 		return nil
 	}
 	principals, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeIAMRole, TypeIAMUser},
 		Limit: util.AllResources,
 	})
@@ -107,7 +107,7 @@ var kmsEncCtxARNDispatch = map[string]string{
 // service not scanned).
 func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 	grants, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKMSGrant},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKMSGrant},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -181,7 +181,7 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 // by rebuilding the key ARN from the alias's region.
 func resolveKMSAliases(acct *account, st *store.Store) error {
 	aliases, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeKMSAlias},
 		Limit:     util.AllResources,
@@ -190,7 +190,7 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 		return err
 	}
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeKMSKey},
 		Limit:     util.AllResources,

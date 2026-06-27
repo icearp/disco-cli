@@ -114,7 +114,7 @@ func connectAccountResourceARN(region, acctID, kind, id string) string {
 // is `{Queue: {...}}`, so we unmarshal under that key.
 func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 	queues, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectQueue},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectQueue},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 // DescribeRoutingProfileOutput, so attrs root is `{RoutingProfile: ...}`.
 func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 	profiles, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectRoutingProfile},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectRoutingProfile},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -246,7 +246,7 @@ func resolveConnectRoutingProfileRefs(acct *account, st *store.Store) error {
 // lambda function, lex bot, or wisdom assistant. FK-safe.
 func resolveConnectIntegrationAssociationTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectIntegrationAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectIntegrationAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -307,7 +307,7 @@ func resolveConnectIntegrationAssociationTarget(acct *account, st *store.Store) 
 // optional KMS encryption key. FK-safe.
 func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectInstanceStorageConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectInstanceStorageConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -410,7 +410,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 // scanner stores DescribeUserOutput so attrs root is `{"User": {...}}`.
 func resolveConnectUserRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectUser},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectUser},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -486,7 +486,7 @@ func resolveConnectUserRefs(acct *account, st *store.Store) error {
 // stores DescribeQuickConnectOutput so attrs root is `{"QuickConnect": {...}}`.
 func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectQuickConnect},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectQuickConnect},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -557,7 +557,7 @@ func resolveConnectQuickConnectRefs(acct *account, st *store.Store) error {
 // `{"TrafficDistributionGroup": {...}}`.
 func resolveConnectTrafficDistributionGroupInstance(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectTrafficDistributionGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectTrafficDistributionGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -617,7 +617,7 @@ func connectVersionParentARN(versionARN string) string {
 // version's ARN. FK-safe.
 func resolveConnectContactFlowVersionParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowVersion},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectContactFlowVersion},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -656,7 +656,7 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 		return err
 	}
 	versions, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleVersion},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleVersion},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -676,7 +676,7 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 		}
 	}
 	aliases, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectContactFlowModuleAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -716,7 +716,7 @@ func resolveConnectContactFlowModuleVersionAndAliasParent(acct *account, st *sto
 // by ARN segment. FK-safe.
 func resolveConnectPhoneNumberTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectPhoneNumber},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectPhoneNumber},
 		Limit: util.AllResources,
 	})
 	if err != nil {

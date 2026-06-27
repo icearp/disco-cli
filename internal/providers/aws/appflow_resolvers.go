@@ -26,7 +26,7 @@ func init() {
 // survives scrubbing and is readable here.
 func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppFlowConnectorProfile}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppFlowConnectorProfile}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func resolveAppFlowConnectorProfileRelationships(acct *account, st *store.Store)
 // (e.g. "S3", "Salesforce") plus a connector-profile name, not target ARNs.
 func resolveAppFlowRelationships(acct *account, st *store.Store) error {
 	flows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppFlowFlow},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppFlowFlow},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -49,7 +49,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 	}
 	for _, rtype := range []string{TypeWisdomAssistant, TypeWisdomKnowledgeBase} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -82,7 +82,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 
 func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype, parentType, fieldName, label string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func resolveWisdomVersionParent(acct *account, st *store.Store) error {
 			return err
 		}
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{p.ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{p.ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -211,7 +211,7 @@ func resolveWisdomVersionParent(acct *account, st *store.Store) error {
 // SDK shape: `AssociationData.KnowledgeBaseAssociation.KnowledgeBaseArn`.
 func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWisdomAssistantAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWisdomAssistantAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -22,7 +22,7 @@ func init() {
 // properties.parameters.customVirtualNetworkId.value.
 func resolveDatabricksRelationships(sub *subscription, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDatabricksWorkspace},
 		Limit: util.AllResources,
 	})
@@ -30,7 +30,7 @@ func resolveDatabricksRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	vnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkVirtualNetwork},
 		Limit: util.AllResources,
 	})

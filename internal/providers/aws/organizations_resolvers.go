@@ -34,7 +34,7 @@ func init() {
 // the scanner used (keyed by ARN) via an index rebuilt from the store.
 func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 	scps, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeOrganizationsSCP},
 		Limit:     util.AllResources,
@@ -92,7 +92,7 @@ func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[s
 	typeByID = map[string]string{}
 	for _, t := range []string{TypeOrganizationsOU, TypeOrganizationsAccount} {
 		rs, err := st.ListResources(store.ResourceFilter{
-			Provider:  "aws",
+			Providers: []string{"aws"},
 			AccountID: acct.ID,
 			Types:     []string{t},
 			Limit:     util.AllResources,
@@ -123,7 +123,7 @@ func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[s
 // edges coexist without conflict.
 func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 	orgs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeOrganization},
 		Limit:     util.AllResources,
@@ -207,7 +207,7 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 // account-scoped slice.
 func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error {
 	orgs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeOrganization},
 		Limit:     util.AllResources,

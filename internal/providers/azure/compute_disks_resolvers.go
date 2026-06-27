@@ -27,7 +27,7 @@ func init() {
 // the snapshot's stored attributes JSON.
 func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) error {
 	snapshots, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeSnapshot},
 		Limit:     util.AllResources,
@@ -77,7 +77,7 @@ func resolveSnapshotSourceRelationships(sub *subscription, st *store.Store) erro
 // properties.encryption.diskEncryptionSetId in the disk's stored attributes.
 func resolveDiskEncryptionSetRelationships(sub *subscription, st *store.Store) error {
 	disks, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeManagedDisk},
 		Limit:     util.AllResources,
@@ -118,7 +118,7 @@ func resolveDiskEncryptionSetRelationships(sub *subscription, st *store.Store) e
 // properties.creationData.sourceResourceId in the disk's stored attributes.
 func resolveDiskSourceRelationships(sub *subscription, st *store.Store) error {
 	disks, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeManagedDisk},
 		Limit:     util.AllResources,

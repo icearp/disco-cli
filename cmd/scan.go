@@ -140,15 +140,8 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// --dry-run resolves --if-older-than + provider selection without opening
 	// SDK clients or touching cloud APIs. Cron authors validate scheduling
 	// logic in CI without burning live API quota.
-	dryRun, _ := cmd.Flags().GetBool("dry-run")
-	output, _ := cmd.Flags().GetString("output")
-	// --output is scoped to --dry-run (a live scan reports via 'disco scans',
-	// not inline); reject it on a live run rather than silently ignoring it.
-	if !dryRun && output != "" && output != "table" {
-		return fmt.Errorf("--output %s applies only with --dry-run; query a live scan's result via 'disco scans -o %s'", output, output)
-	}
-	if dryRun {
-		return runScanDryRun(cmd, names, output)
+	if handled, err := handleScanDryRun(cmd, names); handled {
+		return err
 	}
 
 	// openWriteDB opens Postgres when DISCO_PG_DSN is set (the scan-worker
@@ -472,6 +465,23 @@ type dryRunDecision struct {
 	Provider  string `json:"provider"`
 	WouldScan bool   `json:"would_scan"`
 	Detail    string `json:"detail"`
+}
+
+// handleScanDryRun reads --dry-run / --output and validates their interaction.
+// handled=true means runScan should return err immediately: either the dry-run
+// plan ran, or --output was misused on a live scan. --output is scoped to
+// --dry-run (a live scan reports via 'disco scans'), so a non-default value
+// without --dry-run is rejected rather than silently ignored.
+func handleScanDryRun(cmd *cobra.Command, names []string) (handled bool, err error) {
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	output, _ := cmd.Flags().GetString("output")
+	if !dryRun {
+		if output != "" && output != "table" {
+			return true, fmt.Errorf("--output %s applies only with --dry-run; query a live scan's result via 'disco scans -o %s'", output, output)
+		}
+		return false, nil
+	}
+	return true, runScanDryRun(cmd, names, output)
 }
 
 // runScanDryRun reports "would scan" / "would skip" decisions per provider

@@ -15,7 +15,7 @@ func init() {
 
 func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeInstance},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -51,7 +51,7 @@ func resolveComputeInstanceRelationships(p *project, st *store.Store) error {
 
 func resolveSubnetworkRelationships(p *project, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeSubnet},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeSubnet},
 		Limit: util.AllResources,
 	})
 	if err != nil {

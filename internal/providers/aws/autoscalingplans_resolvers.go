@@ -25,7 +25,7 @@ func init() {
 // Lambda concurrency, etc.) skip without phantom edges.
 func resolveAutoScalingPlansRelationships(acct *account, st *store.Store) error {
 	plans, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAutoScalingPlansScalingPlan},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingPlansScalingPlan},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -35,7 +35,7 @@ func resolveAutoScalingPlansRelationships(acct *account, st *store.Store) error 
 		return nil
 	}
 	asgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAutoScalingGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {

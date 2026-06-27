@@ -44,7 +44,7 @@ func gaParentARN(arn, childSegment string) string {
 
 func resolveGlobalAcceleratorListenerParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorListener},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorListener},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -98,7 +98,7 @@ func gaEndpointDispatch(endpointID, region, acctID string) (typ, native string) 
 
 func resolveGlobalAcceleratorEndpointGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorEndpointGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorEndpointGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -160,7 +160,7 @@ func resolveGlobalAcceleratorEndpointGroupRefs(acct *account, st *store.Store) e
 
 func resolveGlobalAcceleratorCrossAccountAttachmentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorCrossAccountAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlobalAcceleratorCrossAccountAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {

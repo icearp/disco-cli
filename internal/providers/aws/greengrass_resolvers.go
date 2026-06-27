@@ -30,7 +30,7 @@ func init() {
 // create phantom edges.
 func resolveGGV2DeploymentTarget(acct *account, st *store.Store) error {
 	deps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeGreengrassV2Deployment},
 		Limit: util.AllResources,
 	})

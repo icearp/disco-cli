@@ -84,7 +84,7 @@ func ec2NIDSegmentParts(arn, kind string) []string {
 // parsing the NativeID `transit-gateway-route/{rtID}/{cidr}`.
 func resolveEC2TGWRouteParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayRoute}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayRoute}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func resolveEC2TGWRTBPropagation(acct *account, st *store.Store) error {
 // `<kind>/{rtID}/{attID}` — wires both endpoints (route-table + attachment).
 func resolveEC2TGWRTBJoin(acct *account, st *store.Store, sourceType, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -168,7 +168,7 @@ func resolveEC2TGWRTBJoin(acct *account, st *store.Store, sourceType, kind strin
 // `transit-gateway-multicast-domain-association/{domainID}/{attID}/{subnetID}`.
 func resolveEC2TGWMulticastDomainAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMulticastDomainAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMulticastDomainAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -227,7 +227,7 @@ func resolveEC2TGWMulticastGroup(acct *account, st *store.Store) error {
 
 func resolveEC2TGWMulticastGroupOne(acct *account, st *store.Store, sourceType, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func resolveEC2TGWMulticastGroupOne(acct *account, st *store.Store, sourceType, 
 // NativeID `local-gateway-route/{rtID}/{dest}`.
 func resolveEC2LocalGatewayRouteParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRoute}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayRoute}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -302,7 +302,7 @@ func resolveEC2LocalGatewayRouteParent(acct *account, st *store.Store) error {
 // via the `LocalGatewayVirtualInterfaceGroupID` SDK attribute.
 func resolveEC2LocalGatewayVIToVIG(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayVirtualInterface},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LocalGatewayVirtualInterface},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -352,7 +352,7 @@ func resolveEC2IPAMPoolCIDRToPool(acct *account, st *store.Store) error {
 
 func resolveEC2IPAMChildToPool(acct *account, st *store.Store, sourceType, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -385,7 +385,7 @@ func resolveEC2IPAMChildToPool(acct *account, st *store.Store, sourceType, kind 
 // parent prefix-list-resolver via the SDK `IpamPrefixListResolverID` attr.
 func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2IPAMPrefixListResolverTarget},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2IPAMPrefixListResolverTarget},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -443,7 +443,7 @@ func resolveEC2RouteServerPeerToEndpoint(acct *account, st *store.Store) error {
 
 func resolveEC2RouteServerAttrEdge(acct *account, st *store.Store, sourceType, fieldName, parentType, parentKind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -17,7 +17,7 @@ func init() { registerResolver(resolveArtifactRegistryRelationships) }
 // structured fields.
 func resolveArtifactRegistryRelationships(p *project, st *store.Store) error {
 	repos, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeArtifactRepository},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeArtifactRepository},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -27,7 +27,7 @@ func resolveArtifactRegistryRelationships(p *project, st *store.Store) error {
 		return nil
 	}
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {

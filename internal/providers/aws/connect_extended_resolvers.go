@@ -53,7 +53,7 @@ func init() {
 // FK-safe.
 func resolveConnectInstanceServiceRole(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectInstance}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectInstance}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func resolveConnectChildrenToInstance(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -161,7 +161,7 @@ func resolveConnectChildrenToInstance(acct *account, st *store.Store) error {
 // by stripping the trailing `/<verID>` from the version's NativeID.
 func resolveConnectViewVersionToView(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConnectViewVersion}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConnectViewVersion}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -209,7 +209,7 @@ func resolveConnectDataTableChildrenToTable(acct *account, st *store.Store) erro
 		{TypeConnectDataTableRecord, "/data-table-record/"},
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{c.ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{c.ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

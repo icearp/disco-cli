@@ -41,7 +41,7 @@ func resolveFunctionAppRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeKeyVaultVault},
 		Limit: util.AllResources,
 	})
@@ -102,7 +102,7 @@ func resolveFunctionAppRelationships(sub *subscription, st *store.Store) error {
 // AKS storage-class, etc.).
 func storageAccountNameIndex(sub *subscription, st *store.Store) (map[string]string, error) {
 	storage, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeStorageStorageAccount},
 		Limit: util.AllResources,
 	})

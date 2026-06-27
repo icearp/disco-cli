@@ -37,7 +37,7 @@ func init() {
 // glue:database via NativeID `table/{db}/{tbl}`.
 func resolveGlueTableToDatabase(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueTable}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueTable}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func resolveGlueTableOptimizerToTable(acct *account, st *store.Store) error {
 
 func resolveGlueTableSubchild(acct *account, st *store.Store, sourceType, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -126,7 +126,7 @@ func resolveGlueTableSubchild(acct *account, st *store.Store, sourceType, kind s
 // by stripping the trailing `/version/{vid}` from the NativeID.
 func resolveGlueSchemaVersionToSchema(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueSchemaVersion}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueSchemaVersion}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func resolveGlueSchemaVersionToSchema(acct *account, st *store.Store) error {
 // table named in `TargetTable`.
 func resolveGlueDataQualityRulesetTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDataQualityRuleset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueDataQualityRuleset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

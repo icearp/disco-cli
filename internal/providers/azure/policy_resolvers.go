@@ -29,7 +29,7 @@ func init() {
 // covered by the generic consumer resolver.
 func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 	assignments, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypePolicyAssignment},
 		Limit: util.AllResources,
 	})
@@ -40,7 +40,7 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 	// Per-sub lowercased index of every Azure resource — used both to resolve
 	// scope (any resource type) and to FK to policy-definition / policy-set-definition.
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID, Limit: util.AllResources,
+		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func resolvePolicyRelationships(sub *subscription, st *store.Store) error {
 	}
 	for _, acct := range defAccounts {
 		extra, berr := st.ListResources(store.ResourceFilter{
-			Provider: "azure", AccountID: acct,
+			Providers: []string{"azure"}, AccountID: acct,
 			Types:          []string{TypePolicyDefinition, TypePolicySetDefinition, TypeManagementGroup},
 			IncludeManaged: true,
 			Limit:          util.AllResources,

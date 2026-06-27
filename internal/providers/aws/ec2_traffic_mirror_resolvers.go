@@ -19,7 +19,7 @@ func init() {
 // resolveTrafficMirrorSessionRelationships links each session to its filter and target.
 func resolveTrafficMirrorSessionRelationships(acct *account, st *store.Store) error {
 	sessions, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorSession},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorSession},
 		Limit: util.AllResources,
 	})
 	if err != nil {

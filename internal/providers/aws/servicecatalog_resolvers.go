@@ -64,7 +64,7 @@ func init() {
 // associations reference portfolios by bare id (e.g. "port-abc123").
 func scPortfolioBareIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogPortfolio}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -92,7 +92,7 @@ func scPortfolioBareIDIndex(acct *account, st *store.Store) (map[string]string, 
 // product NativeID is the full ARN.
 func scProductBareIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogProduct}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -121,7 +121,7 @@ func scProductBareIDIndex(acct *account, st *store.Store) (map[string]string, er
 // otherwise unscanned targets skip silently.
 func resolveServiceCatalogPortfolioProductAssociations(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogPortfolioProductAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -186,7 +186,7 @@ func splitNativePath(s, marker string) []string {
 // provisioning artifact has no own type.
 func resolveServiceCatalogServiceActionAssociations(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogServiceActionAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ type servicecatalogProvisionedProductAttrs struct {
 // resource type, so the artifact reference is recorded only in attrs.
 func resolveServiceCatalogProvisionedProductRefs(acct *account, st *store.Store) error {
 	pps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogCloudFormationProvisionedProduct}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -276,7 +276,7 @@ func resolveServiceCatalogProvisionedProductRefs(acct *account, st *store.Store)
 // in the first path segment after `/portfolio-share/`.
 func resolveServiceCatalogPortfolioShares(acct *account, st *store.Store) error {
 	shares, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogPortfolioShare}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -321,7 +321,7 @@ type servicecatalogPrincipalAttrs struct {
 // skip the IAM edge.
 func resolveServiceCatalogPortfolioPrincipals(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogPortfolioPrincipalAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -394,7 +394,7 @@ func resolveServiceCatalogPortfolioPrincipals(acct *account, st *store.Store) er
 // carries a bare id with no type hint.
 func resolveServiceCatalogTagOptionAssociations(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeServiceCatalogTagOptionAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -447,7 +447,7 @@ func resolveServiceCatalogConstraints(acct *account, st *store.Store) error {
 		TypeServiceCatalogStackSetConstraint,
 	}
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: types, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -498,7 +498,7 @@ type servicecatalogPortfolioAttrs struct {
 // Cross-account / shared-portfolio products skip silently.
 func resolveServiceCatalogPortfolioProducts(acct *account, st *store.Store) error {
 	portfolios, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeServiceCatalogPortfolio},
 		Limit:     util.AllResources,

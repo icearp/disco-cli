@@ -26,7 +26,7 @@ func init() {
 // collapse to one edge per (namespace, vault).
 func resolveMessagingRelationships(sub *subscription, st *store.Store) error {
 	namespaces, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeEventHubNamespace, TypeServiceBusNamespace},
 		Limit: util.AllResources,
 	})
@@ -34,7 +34,7 @@ func resolveMessagingRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeKeyVaultVault},
 		Limit: util.AllResources,
 	})

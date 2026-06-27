@@ -41,7 +41,7 @@ func init() {
 // references on its own attrs. FK-safe per target type.
 func resolveWSWPortalRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWSWPortal}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWSWPortal}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func resolveWSWPortalRefs(acct *account, st *store.Store) error {
 // resolveWSWNetworkSettingsRefs wires network-settings → VPC + subnets + SGs.
 func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWSWNetworkSettings},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWSWNetworkSettings},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -194,7 +194,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 // Kinesis stream via `KinesisStreamArn`.
 func resolveWSWUserAccessLoggingKinesis(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWSWUserAccessLoggingSettings},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWSWUserAccessLoggingSettings},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -237,7 +237,7 @@ func resolveWSWUserAccessLoggingKinesis(acct *account, st *store.Store) error {
 // `portal/{a}`.
 func resolveWSWIdentityProviderPortal(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWSWIdentityProvider},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWSWIdentityProvider},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -301,7 +301,7 @@ func resolveWSWSettingsKMS(acct *account, st *store.Store) error {
 		TypeWSWUserSettings,
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

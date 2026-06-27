@@ -38,7 +38,7 @@ func kaLogStreamARNToGroupARN(s string) string {
 // Per-logging-option RoleARN does not exist in v2 (centralized on the parent).
 func resolveKAV2AppRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKAV2Application}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKAV2Application}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func wireKAChildren(acct *account, st *store.Store, parentType string, kids []st
 	}
 	for _, k := range kids {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{k.typ}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{k.typ}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

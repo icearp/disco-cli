@@ -19,7 +19,7 @@ func init() {
 // Classic ELBs without a VPC (EC2-Classic) produce no relationship.
 func resolveELBClassicRelationships(acct *account, st *store.Store) error {
 	lbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeELBClassicLoadBalancer},
 		Limit: util.AllResources,
 	})

@@ -28,7 +28,7 @@ func codeArtifactDomainARN(region, acct, name string) string {
 // EncryptionKey (4-shape KMS resolution).
 func resolveCodeArtifactDomainToKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeArtifactDomain}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeArtifactDomain}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func resolveCodeArtifactChildrenToDomain(acct *account, st *store.Store) error {
 	}
 	for _, t := range []string{TypeCodeArtifactRepository, TypeCodeArtifactPackageGroup} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

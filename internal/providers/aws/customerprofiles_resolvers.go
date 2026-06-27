@@ -31,7 +31,7 @@ func init() {
 // and SQS dead-letter queue (DeadLetterQueueUrl). GetDomain body shape.
 func resolveCPDomainRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCPDomain}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCPDomain}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func resolveCustomerProfilesChildrenToDomain(acct *account, st *store.Store) err
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

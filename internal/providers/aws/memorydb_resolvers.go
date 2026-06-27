@@ -35,7 +35,7 @@ func init() {
 // cluster names are unique per (account, region).
 func memDBNameIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ type memDBClusterTargetSets struct {
 // already carries.
 func resolveMemoryDBClusterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMemoryDBCluster}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMemoryDBCluster}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func emitMemDBSGEdges(st *store.Store, acct *account, r store.Resource, region s
 // resolveMemoryDBSubnetGroupRefs wires subnet-group → VPC + Subnets[].
 func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMemoryDBSubnetGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMemoryDBSubnetGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -269,7 +269,7 @@ func resolveMemoryDBSubnetGroupRefs(acct *account, st *store.Store) error {
 // (UserNames[] — name lookup against per-region user set).
 func resolveMemoryDBACLUsers(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMemoryDBACL}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMemoryDBACL}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

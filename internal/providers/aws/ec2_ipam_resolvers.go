@@ -36,7 +36,7 @@ func resolveIPAMRelationships(_ *account, _ *store.Store) error {
 // resolveIPAMScopeRelationships links each IPAM scope to its parent IPAM.
 func resolveIPAMScopeRelationships(acct *account, st *store.Store) error {
 	scopes, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2IPAMScope},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2IPAMScope},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -62,7 +62,7 @@ func resolveIPAMScopeRelationships(acct *account, st *store.Store) error {
 // resolveIPAMPoolRelationships links each IPAM pool to its owning scope.
 func resolveIPAMPoolRelationships(acct *account, st *store.Store) error {
 	pools, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2IPAMPool},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2IPAMPool},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -89,7 +89,7 @@ func resolveIPAMPoolRelationships(acct *account, st *store.Store) error {
 // to its parent IPAM and the resource discovery it references.
 func resolveIPAMResourceDiscoveryAssociationRelationships(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2IPAMResourceDiscoveryAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2IPAMResourceDiscoveryAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

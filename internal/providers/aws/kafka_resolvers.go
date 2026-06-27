@@ -46,7 +46,7 @@ type kafkaClusterAttrs struct {
 // skipped rather than blowing the FK constraint.
 func resolveKafkaRelationships(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeMSKCluster},
 		Limit: util.AllResources,
 	})
@@ -128,7 +128,7 @@ func resolveKafkaRelationships(acct *account, st *store.Store) error {
 // across subnet, security-group, and KMS key types so edge emit is FK-safe.
 func kafkaTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeEC2Subnet, TypeEC2SecurityGroup, TypeKMSKey},
 		Limit: util.AllResources,
 	})

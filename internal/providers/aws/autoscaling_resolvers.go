@@ -40,7 +40,7 @@ func init() {
 // each hang off their parent ASG via attached-to.
 func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAutoScalingGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -194,7 +194,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 
 func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instProfileIDs, sgIDs map[string]bool) error {
 	lcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAutoScalingLaunchConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAutoScalingLaunchConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -248,7 +248,7 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 		TypeAutoScalingWarmPool,
 	} {
 		rs, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ct},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ct},
 			Limit: util.AllResources,
 		})
 		if err != nil {

@@ -38,7 +38,7 @@ func s3filesFSARN(region, acct, fsID string) string {
 
 func resolveS3FilesFileSystemRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3FilesFileSystem}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3FilesFileSystem}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func resolveS3FilesAccessPointRefs(acct *account, st *store.Store) error {
 // parent file-system via FileSystemId field. FK-safe.
 func s3filesChildToFS(acct *account, st *store.Store, ttyp string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func resolveS3FilesMountTargetRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3FilesMountTarget}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3FilesMountTarget}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -193,7 +193,7 @@ func resolveS3FilesMountTargetRefs(acct *account, st *store.Store) error {
 // system via NativeID `<fsARN>/policy` suffix trim.
 func resolveS3FilesPolicyParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3FilesFileSystemPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3FilesFileSystemPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

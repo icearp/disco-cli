@@ -30,7 +30,7 @@ func init() {
 // current secret's ARN with PrimaryRegion.
 func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeSecretsManagerSecret},
 		Limit:     util.AllResources,
@@ -70,7 +70,7 @@ func resolveSecretsManagerReplication(acct *account, st *store.Store) error {
 // secrets without automatic rotation.
 func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeSecretsManagerSecret},
 		Limit:     util.AllResources,
@@ -98,7 +98,7 @@ func resolveSecretsManagerRotation(acct *account, st *store.Store) error {
 // case since disco doesn't scan AWS-managed keys.
 func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 	secrets, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeSecretsManagerSecret},
 		Limit:     util.AllResources,
@@ -107,7 +107,7 @@ func resolveSecretsManagerKMS(acct *account, st *store.Store) error {
 		return err
 	}
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeKMSKey},
 		Limit:     util.AllResources,

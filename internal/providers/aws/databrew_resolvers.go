@@ -87,7 +87,7 @@ func emitDataBrewEdge(st *store.Store, acct *account, srcID, tgtType, tgtARN str
 
 func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	jobs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewJob}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewJob}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSet
 
 func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	projects, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewProject}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewProject}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -155,7 +155,7 @@ func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTarge
 
 func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	recipes, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewRecipe}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewRecipe}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -178,7 +178,7 @@ func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTarget
 
 func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
 	schedules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewSchedule}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewSchedule}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func init() {
 // DataCatalogInputDefinition is skipped.
 func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewDataset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewDataset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 // via TargetArn (a databrew dataset ARN).
 func resolveDataBrewRulesetTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataBrewRuleset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataBrewRuleset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

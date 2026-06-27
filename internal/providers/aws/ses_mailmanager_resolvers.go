@@ -30,7 +30,7 @@ func init() {
 // — strip past the last `/` for the lookup key.
 func mmChildIDByID(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func mmChildIDByID(acct *account, st *store.Store, rtype string) (map[string]str
 // via RuleSetID + TrafficPolicyID attrs (added by GetIngressPoint enrichment).
 func resolveMMIngressPointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerIngressPoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSESMailManagerIngressPoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func resolveMMIngressPointRefs(acct *account, st *store.Store) error {
 // resolveMMArchiveKMS wires archive → KMS key (KmsKeyArn from GetArchive).
 func resolveMMArchiveKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerArchive}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSESMailManagerArchive}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func resolveMMArchiveKMS(acct *account, st *store.Store) error {
 // via AddonSubscriptionID — already present in ListAddonInstances summary.
 func resolveMMAddonInstanceToSubscription(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerAddonInstance}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSESMailManagerAddonInstance}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func resolveMMAddonInstanceToSubscription(acct *account, st *store.Store) error 
 		return nil
 	}
 	subRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSESMailManagerAddonSubscription}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSESMailManagerAddonSubscription}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

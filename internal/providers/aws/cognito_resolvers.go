@@ -27,7 +27,7 @@ func init() {
 // — so the pool ARN is derivable from the client's own ARN.
 func resolveCognitoAppClientRelationships(acct *account, st *store.Store) error {
 	clients, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoAppClient},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCognitoAppClient},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func resolveCognitoAppClientRelationships(acct *account, st *store.Store) error 
 //   - the user-pool app clients via CognitoIdentityProviders[].ClientID
 func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) error {
 	pools, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCognitoIdentityPool},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCognitoIdentityPool},
 		Limit: util.AllResources,
 	})
 	if err != nil {

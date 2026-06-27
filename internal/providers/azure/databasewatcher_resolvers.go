@@ -23,7 +23,7 @@ func init() {
 // resource to link to), so the ARM-ID match is the complete in-scope edge.
 func resolveDatabaseWatcherRelationships(sub *subscription, st *store.Store) error {
 	watchers, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDatabaseWatcher},
 		Limit: util.AllResources,
 	})

@@ -23,7 +23,7 @@ func init() {
 // notification channel map. ChatbotNotificationChannel keys are SNS topic ARNs.
 func resolveAIOpsRelationships(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAIOpsInvestigationGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAIOpsInvestigationGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {

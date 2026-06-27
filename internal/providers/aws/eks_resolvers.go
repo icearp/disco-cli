@@ -17,7 +17,7 @@ func init() {
 
 func resolveEKSRelationships(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEKSCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEKSCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {

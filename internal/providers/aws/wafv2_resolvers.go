@@ -21,7 +21,7 @@ func init() {
 // Statement.RuleGroupReferenceStatement and Statement.IPSetReferenceStatement.
 func resolveWAFv2Relationships(acct *account, st *store.Store) error {
 	acls, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWAFv2WebACL},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2WebACL},
 		Limit: util.AllResources,
 	})
 	if err != nil {

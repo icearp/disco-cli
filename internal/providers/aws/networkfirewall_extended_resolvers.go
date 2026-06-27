@@ -26,7 +26,7 @@ func init() {
 // parent firewall via NativeID `{firewallARN}/logging-configuration`.
 func resolveNFLoggingConfigToFirewall(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallLoggingConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkFirewallLoggingConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func resolveNFLoggingConfigToFirewall(acct *account, st *store.Store) error {
 // its firewall (FirewallArn), VPC (VpcID), and subnet (SubnetMapping.SubnetID).
 func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNetworkFirewallVpcEndpointAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNetworkFirewallVpcEndpointAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

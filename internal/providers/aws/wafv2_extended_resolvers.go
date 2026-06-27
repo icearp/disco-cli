@@ -29,7 +29,7 @@ func init() {
 // is a same-ARN identity match into the web-acl set.
 func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWAFv2LoggingConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2LoggingConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func resolveWAFv2LoggingConfigToWebACL(acct *account, st *store.Store) error {
 // dispatches by service segment of the ARN.
 func resolveWAFv2WebACLAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeWAFv2WebACLAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWAFv2WebACLAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -24,7 +24,7 @@ func init() {
 // index. Identity → MSI and private-endpoint edges resolve centrally.
 func resolveCognitiveServicesRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeCognitiveServicesAccount},
 		Limit: util.AllResources,
 	})
@@ -76,7 +76,7 @@ func resolveCognitiveServicesRelationships(sub *subscription, st *store.Store) e
 // a key/vault URI.
 func vaultNameIndex(sub *subscription, st *store.Store) (map[string]string, error) {
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeKeyVaultVault},
 		Limit: util.AllResources,
 	})

@@ -38,7 +38,7 @@ func init() {
 //     federation through a Glue connection)
 func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 	dbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDatabase},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueDatabase},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 // dispatch on the canonical ARN, FK-safe per scanned id-set.
 func resolveGlueIntegrationRefs(acct *account, st *store.Store) error {
 	ints, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueIntegration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueIntegration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func resolveGlueIntegrationRefs(acct *account, st *store.Store) error {
 // (the redshift cluster a federated catalog points at).
 func resolveGlueCatalogTargets(acct *account, st *store.Store) error {
 	cats, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueCatalog},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueCatalog},
 		Limit: util.AllResources,
 	})
 	if err != nil {

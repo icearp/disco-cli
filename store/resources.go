@@ -120,7 +120,7 @@ func (s *Store) UpsertResource(r *Resource) (int, error) {
 
 // ResourceFilter defines optional filters for ListResources.
 type ResourceFilter struct {
-	Provider     string
+	Providers    []string
 	AccountID    string
 	Types        []string
 	ExcludeTypes []string
@@ -170,8 +170,8 @@ type ResourceFilter struct {
 func (s *Store) ListResources(f ResourceFilter) ([]Resource, error) {
 	q := applyCurrentVersionPredicate(sq.Select(resourceSelectColumns()...).From("resources"))
 
-	if f.Provider != "" {
-		q = q.Where(sq.Eq{"provider": f.Provider})
+	if len(f.Providers) > 0 {
+		q = q.Where(sq.Eq{"provider": f.Providers})
 	}
 	if f.AccountID != "" {
 		q = q.Where(sq.Eq{"account_id": f.AccountID})
@@ -447,8 +447,8 @@ func (s *Store) DescendantsOf(parentID string, f ResourceFilter) ([]Resource, er
 			Where(sq.Gt{"hc.depth": 0}),
 	)
 
-	if f.Provider != "" {
-		q = q.Where(sq.Eq{"r.provider": f.Provider})
+	if len(f.Providers) > 0 {
+		q = q.Where(sq.Eq{"r.provider": f.Providers})
 	}
 	if len(f.Types) > 0 {
 		q = q.Where(sq.Eq{"r.type": f.Types})

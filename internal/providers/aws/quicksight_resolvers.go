@@ -27,7 +27,7 @@ func init() {
 // (NetworkInterfaces[].SubnetID) + security groups + IAM role.
 func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQuickSightVPCConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeQuickSightVPCConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -113,7 +113,7 @@ func resolveQuickSightVPCConnectionRefs(acct *account, st *store.Store) error {
 // `arn:aws:quicksight:r:a:dataset/{datasetID}/refresh-schedule/{id}`.
 func resolveQuickSightRefreshScheduleParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQuickSightRefreshSchedule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeQuickSightRefreshSchedule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -158,7 +158,7 @@ func init() {
 // union — skipped to avoid SDK-union JSON ambiguity.
 func resolveQSDataSourceRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeQuickSightDataSource}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeQuickSightDataSource}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

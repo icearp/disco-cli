@@ -28,7 +28,7 @@ type inspector2MemberAttrs struct {
 // Detective + SSO assignment → org-account precedent.
 func resolveInspector2MemberOrgAccount(acct *account, st *store.Store) error {
 	members, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeInspector2Member},
 		Limit:     util.AllResources,

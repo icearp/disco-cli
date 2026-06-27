@@ -38,7 +38,7 @@ type neptuneClusterAttrs struct {
 // type yet, mirroring DocumentDB choice).
 func resolveNeptuneClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeNeptuneCluster},
 		Limit:     util.AllResources,
@@ -105,7 +105,7 @@ type neptuneInstanceAttrs struct {
 // scanned clusters' Name. FK-safe via scanned-cluster index.
 func resolveNeptuneInstanceCluster(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeNeptuneInstance},
 		Limit:     util.AllResources,
@@ -118,7 +118,7 @@ func resolveNeptuneInstanceCluster(acct *account, st *store.Store) error {
 	}
 
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeNeptuneCluster},
 		Limit:     util.AllResources,

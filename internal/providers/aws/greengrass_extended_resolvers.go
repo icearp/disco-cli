@@ -50,7 +50,7 @@ func resolveGreengrassVersionsToParent(acct *account, st *store.Store) error {
 	}
 	for _, p := range pairs {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{p.child}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{p.child}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

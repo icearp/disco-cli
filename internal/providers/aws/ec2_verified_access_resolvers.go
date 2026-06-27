@@ -22,7 +22,7 @@ func init() {
 // resolveVerifiedAccessGroupRelationships links each Verified Access group to its instance.
 func resolveVerifiedAccessGroupRelationships(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -50,7 +50,7 @@ func resolveVerifiedAccessGroupRelationships(acct *account, st *store.Store) err
 // resolveVerifiedAccessEndpointRelationships links each endpoint to its group.
 func resolveVerifiedAccessEndpointRelationships(acct *account, st *store.Store) error {
 	eps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {

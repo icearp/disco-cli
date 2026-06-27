@@ -28,7 +28,7 @@ func init() {
 func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (string, bool, error) {
 	for _, dt := range []string{TypeDSMicrosoftAD, TypeDSSimpleAD} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{dt}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{dt}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return "", false, err
@@ -52,7 +52,7 @@ func pcacAdLookupDirectory(acct *account, st *store.Store, directoryID string) (
 // and security groups (via VpcInformation).
 func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePCAConnectorADConnector}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePCAConnectorADConnector}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 // (DirectoryID).
 func resolvePCACAdDirRegRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePCAConnectorADDirectoryRegistration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePCAConnectorADDirectoryRegistration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

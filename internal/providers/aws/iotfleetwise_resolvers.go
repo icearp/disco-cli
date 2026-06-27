@@ -55,7 +55,7 @@ func resolveIoTFWRefs(acct *account, st *store.Store) error {
 	// Resources that only reference the signal catalog.
 	for _, t := range []string{TypeIoTFWCampaign, TypeIoTFWFleet, TypeIoTFWStateTemplate} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -75,7 +75,7 @@ func resolveIoTFWRefs(acct *account, st *store.Store) error {
 
 	// Model manifest → signal catalog.
 	mmRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTFWModelManifest}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTFWModelManifest}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func resolveIoTFWRefs(acct *account, st *store.Store) error {
 
 	// Decoder manifest → model manifest.
 	dmRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTFWDecoderManifest}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTFWDecoderManifest}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func resolveIoTFWRefs(acct *account, st *store.Store) error {
 
 	// Vehicle → decoder + model manifest.
 	vRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTFWVehicle}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTFWVehicle}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

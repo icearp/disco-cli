@@ -21,7 +21,7 @@ func init() {
 // the lowercase 'v'), matched against a per-sub vault-name index.
 func resolveAutomationRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAutomationAccount},
 		Limit: util.AllResources,
 	})

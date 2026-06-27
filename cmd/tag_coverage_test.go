@@ -14,7 +14,8 @@ import (
 // resetTagCoverageFlags clears flag-attached + package-var state between
 // tag-coverage tests; required because rootCmd is shared.
 func resetTagCoverageFlags() {
-	tagCovProvider, tagCovType, tagCovRegion = "", "", ""
+	tagCovProviders, tagCovRegions = nil, nil
+	tagCovType = ""
 	tagCovExcludeTypes = nil
 	tagCovScanID = ""
 	tagCovDiscoveredSince.reset()

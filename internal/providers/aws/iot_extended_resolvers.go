@@ -20,7 +20,7 @@ func init() {
 // resources keyed by name.
 func iotByRegionName(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func iotByRegionName(acct *account, st *store.Store, rtype string) (map[string]s
 // skipped via FK-safe lookup.
 func resolveIoTSecurityProfileRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTSecurityProfile}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTSecurityProfile}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

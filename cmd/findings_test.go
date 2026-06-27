@@ -16,7 +16,7 @@ func resetFindingsFlags() {
 	findingsSeverity = ""
 	findingsCategory = ""
 	findingsType = ""
-	findingsProvider = ""
+	findingsProviders = nil
 	findingsFindingID = ""
 }
 

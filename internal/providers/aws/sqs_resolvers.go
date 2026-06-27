@@ -20,7 +20,7 @@ func init() {
 // dead-letter queue configured via RedrivePolicy.
 func resolveSQSQueueRelationships(acct *account, st *store.Store) error {
 	queues, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSQSQueue},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSQSQueue},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -31,7 +31,7 @@ type controlTowerBaselineAttrs struct {
 // sets; targets outside the scanned org tree skip silently.
 func resolveControlTowerBaselineTarget(acct *account, st *store.Store) error {
 	baselines, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeControlTowerEnabledBaseline},
 		Limit:     util.AllResources,

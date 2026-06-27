@@ -20,7 +20,7 @@ func init() {
 // (computeProfile.roles[].virtualNetworkProfile.subnet).
 func resolveHDInsightRelationships(sub *subscription, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeHDInsightCluster},
 		Limit: util.AllResources,
 	})

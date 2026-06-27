@@ -34,7 +34,7 @@ func rssNamespaceARN(region, acct, name string) string {
 // resolveRSSNamespaceRefs wires each namespace to its KMS key and IAM roles.
 func resolveRSSNamespaceRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRedshiftServerlessNamespace}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessNamespace}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -86,7 +86,7 @@ func resolveRSSNamespaceRefs(acct *account, st *store.Store) error {
 // network attachments (subnets, security groups).
 func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRedshiftServerlessWorkgroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessWorkgroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -156,7 +156,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 // KMS key used to encrypt it.
 func resolveRSSSnapshotRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRedshiftServerlessSnapshot}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessSnapshot}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

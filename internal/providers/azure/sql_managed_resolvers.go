@@ -26,7 +26,7 @@ func init() {
 // attributes JSON.
 func resolveMIToSubnet(sub *subscription, st *store.Store) error {
 	mis, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLManagedInstance},
 		Limit:     util.AllResources,
@@ -69,7 +69,7 @@ func resolveMIEncryptionProtectorToKey(sub *subscription, st *store.Store) error
 // from properties.sourceDatabaseId in the MDB's stored attributes JSON.
 func resolveManagedDatabaseToSource(sub *subscription, st *store.Store) error {
 	mdbs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLManagedDatabase},
 		Limit:     util.AllResources,
@@ -108,7 +108,7 @@ func resolveManagedDatabaseToSource(sub *subscription, st *store.Store) error {
 // label is only used for error-wrapping context (e.g. "server", "managedInstance").
 func resolveEPToKey(sub *subscription, st *store.Store, epType, keyType, label string) error {
 	eps, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{epType},
 		Limit:     util.AllResources,

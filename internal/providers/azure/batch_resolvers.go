@@ -25,7 +25,7 @@ func init() {
 // case-insensitively against per-sub NativeID indexes.
 func resolveBatchRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeBatchAccount},
 		Limit: util.AllResources,
 	})
@@ -77,7 +77,7 @@ func resolveBatchRelationships(sub *subscription, st *store.Store) error {
 // ID (case-insensitive) rather than a name or URI.
 func nativeIDIndex(sub *subscription, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{rtype},
 		Limit: util.AllResources,
 	})

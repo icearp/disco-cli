@@ -199,7 +199,7 @@ func gcpRegionFanoutScanIn[P any, T any](
 // — won't match in-project index.
 func buildSAEmailIndex(p *project, st *store.Store) (map[string]string, error) {
 	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
 		Limit: util.AllResources,
 	})
 	if err != nil {

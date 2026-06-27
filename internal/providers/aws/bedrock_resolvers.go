@@ -64,7 +64,7 @@ func init() {
 // dispatch on KnowledgeBaseConfiguration / StorageConfiguration variants.
 func resolveBedrockKBStorageRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockKnowledgeBase}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockKnowledgeBase}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -182,7 +182,7 @@ func resolveBedrockKBStorageRefs(acct *account, st *store.Store) error {
 // (ServerSideEncryptionConfiguration.KmsKeyArn) from GetDataSource.
 func resolveBedrockDataSourceRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockDataSource}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockDataSource}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -239,7 +239,7 @@ func resolveBedrockDataSourceRefs(acct *account, st *store.Store) error {
 // parent policy. NativeID shape: `{policyArn}:{ver}`; strip from the last `:`.
 func resolveBedrockARPolicyVersion(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAutomatedReasoningPolicyVersion}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAutomatedReasoningPolicyVersion}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -279,7 +279,7 @@ func bedrockGuardrailARN(region, acct, id string) string {
 // AgentSummary.GuardrailConfiguration.GuardrailIdentifier (ID or ARN form).
 func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
 	agents, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgent},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgent},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -323,7 +323,7 @@ func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
 // Strip trailing /{aliasID} and swap segment to recover the agent ARN.
 func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 	aliases, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -358,7 +358,7 @@ func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 // via the KnowledgeBaseID field on DataSourceSummary.
 func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
 	dss, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockDataSource},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockDataSource},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -410,7 +410,7 @@ func resolveBedrockPromptVersion(acct *account, st *store.Store) error {
 // prompt-version — both types use a {parentARN}:{version} NativeID.
 func resolveBedrockVersionParent(acct *account, st *store.Store, childType, parentType, label string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{childType},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{childType},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -446,7 +446,7 @@ func resolveBedrockVersionParent(acct *account, st *store.Store, childType, pare
 // the ARN.
 func loadBedrockFlowIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	flows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlow},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockFlow},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -475,7 +475,7 @@ func resolveBedrockFlowAlias(acct *account, st *store.Store) error {
 		return err
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlowAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockFlowAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -512,7 +512,7 @@ func resolveBedrockFlowVersion(acct *account, st *store.Store) error {
 		return err
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockFlowVersion},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockFlowVersion},
 		Limit: util.AllResources,
 	})
 	if err != nil {

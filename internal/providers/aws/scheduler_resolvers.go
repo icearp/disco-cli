@@ -30,7 +30,7 @@ func init() {
 // catalogue as EventBridge rules.
 func resolveSchedulerScheduleTargets(acct *account, st *store.Store) error {
 	schedules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSchedulerSchedule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSchedulerSchedule},
 		Limit: util.AllResources,
 	})
 	if err != nil {

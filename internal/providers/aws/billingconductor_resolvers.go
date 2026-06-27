@@ -38,7 +38,7 @@ func resolveBillingConductor(acct *account, st *store.Store) error {
 		return nil
 	}
 	clis, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeBillingConductorCustomLineItem},
 		IncludeManaged: true,

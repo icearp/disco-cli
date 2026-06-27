@@ -39,7 +39,7 @@ func resolveSFNChildrenToStateMachine(acct *account, st *store.Store) error {
 	}
 	for _, t := range []string{TypeSFNStateMachineAlias, TypeSFNStateMachineVersion} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

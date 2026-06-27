@@ -21,7 +21,7 @@ func init() {
 // have no KmsKeyIdentifier field and emit no edge.
 func resolveCassandraTableKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCassandraTable}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCassandraTable}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

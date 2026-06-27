@@ -80,7 +80,7 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 // the bucket ARN that was stored by the S3 bucket scanner.
 func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3BucketPolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3BucketPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 // access grants instances for this account. Each region has at most one.
 func buildAccessGrantsInstanceByRegion(acct *account, st *store.Store) (map[string]string, error) {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3AccessGrantsInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessGrantsInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -122,7 +122,7 @@ func buildAccessGrantsInstanceByRegion(acct *account, st *store.Store) (map[stri
 // per account per region).
 func resolveS3AccessGrantRelationships(acct *account, st *store.Store) error {
 	grants, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3AccessGrant},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessGrant},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func resolveS3AccessGrantRelationships(acct *account, st *store.Store) error {
 // the access grants instance in the same region.
 func resolveS3AccessGrantsLocationRelationships(acct *account, st *store.Store) error {
 	locations, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3AccessGrantsLocation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessGrantsLocation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func resolveS3AccessGrantsLocationRelationships(acct *account, st *store.Store) 
 // arn:aws:s3:::{bucket-name}.
 func resolveS3AccessPointRelationships(acct *account, st *store.Store) error {
 	aps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3AccessPoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessPoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -213,7 +213,7 @@ func resolveS3AccessPointRelationships(acct *account, st *store.Store) error {
 // stripping "/policy" gives the MRAP NativeID stored by the MRAP scanner.
 func resolveS3MRAPPolicyRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPointPolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPointPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {

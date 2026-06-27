@@ -27,7 +27,7 @@ func init() { registerResolver(resolveDNSRelationships) }
 //     queries them.
 func resolveDNSRelationships(p *project, st *store.Store) error {
 	frs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeForwardingRule},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeForwardingRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func resolveDNSRelationships(p *project, st *store.Store) error {
 	}
 
 	rrsets, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeDNSRecordSet},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeDNSRecordSet},
 		Limit: util.AllResources,
 	})
 	if err != nil {

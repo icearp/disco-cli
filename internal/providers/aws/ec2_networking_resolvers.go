@@ -111,7 +111,7 @@ var routeTargetRules = []routeTargetRule{
 // target unscanned.
 func resolveRouteTableRoutes(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -184,7 +184,7 @@ func hasPrefix(s, p string) bool { return len(s) >= len(p) && s[:len(p)] == p }
 // EC2-Classic SGs (no VpcId) are skipped — the platform is deprecated.
 func resolveSecurityGroupVPC(acct *account, st *store.Store) error {
 	sgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2SecurityGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2SecurityGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -211,7 +211,7 @@ func resolveSecurityGroupVPC(acct *account, st *store.Store) error {
 
 func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Subnet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Subnet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -236,7 +236,7 @@ func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 
 func resolveIGWRelationships(acct *account, st *store.Store) error {
 	igws, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2InternetGateway},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2InternetGateway},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -265,7 +265,7 @@ func resolveIGWRelationships(acct *account, st *store.Store) error {
 
 func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteTable},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -310,7 +310,7 @@ func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 
 func resolveNatGatewayRelationships(acct *account, st *store.Store) error {
 	ngws, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NatGateway},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NatGateway},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -343,7 +343,7 @@ func resolveNatGatewayRelationships(acct *account, st *store.Store) error {
 
 func resolveEIPRelationships(acct *account, st *store.Store) error {
 	eips, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2EIP},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2EIP},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -376,7 +376,7 @@ func resolveEIPRelationships(acct *account, st *store.Store) error {
 
 func resolveNetworkInterfaceRelationships(acct *account, st *store.Store) error {
 	enis, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInterface},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkInterface},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -420,7 +420,7 @@ func resolveNetworkInterfaceRelationships(acct *account, st *store.Store) error 
 
 func resolveNetworkACLRelationships(acct *account, st *store.Store) error {
 	nacls, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkACL},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkACL},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -465,7 +465,7 @@ func resolveNetworkACLRelationships(acct *account, st *store.Store) error {
 
 func resolveVPCEndpointRelationships(acct *account, st *store.Store) error {
 	eps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPCEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -491,7 +491,7 @@ func resolveVPCEndpointRelationships(acct *account, st *store.Store) error {
 // resolveCarrierGatewayRelationships links each carrier gateway to its VPC.
 func resolveCarrierGatewayRelationships(acct *account, st *store.Store) error {
 	cgws, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2CarrierGateway},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2CarrierGateway},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -518,7 +518,7 @@ func resolveCarrierGatewayRelationships(acct *account, st *store.Store) error {
 // resolveVPCEndpointServicePermissionsRelationships links each permission to its service.
 func resolveVPCEndpointServicePermissionsRelationships(acct *account, st *store.Store) error {
 	perms, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointServicePermissions},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointServicePermissions},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -544,7 +544,7 @@ func resolveVPCEndpointServicePermissionsRelationships(acct *account, st *store.
 
 func resolveVPCPeeringRelationships(acct *account, st *store.Store) error {
 	pcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCPeeringConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPCPeeringConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {

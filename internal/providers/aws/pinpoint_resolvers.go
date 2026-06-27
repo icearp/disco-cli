@@ -80,7 +80,7 @@ func resolvePinpointChannelApps(acct *account, st *store.Store) error {
 		TypePinpointApplicationSettings,
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: childTypes, Limit: util.AllResources,
 	})
 	if err != nil {
@@ -138,7 +138,7 @@ type pinpointCampaignAttrs struct {
 // template type. Templates are account-wide, so no region segmentation.
 func pinpointTemplateNameIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -160,7 +160,7 @@ func pinpointTemplateNameIndex(acct *account, st *store.Store, rtype string) (ma
 // templates resolve by name through a per-type index.
 func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 	camps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePinpointCampaign},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePinpointCampaign},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -241,7 +241,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 // have their own ARN as NativeID, so we read ApplicationID from attrs.
 func resolvePinpointSegments(acct *account, st *store.Store) error {
 	segs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePinpointSegment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePinpointSegment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -287,7 +287,7 @@ type pinpointEventStreamAttrs struct {
 // (DestinationStreamArn ARN prefix discriminates), and (3) the IAM role.
 func resolvePinpointEventStreams(acct *account, st *store.Store) error {
 	streams, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePinpointEventStream},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePinpointEventStream},
 		Limit: util.AllResources,
 	})
 	if err != nil {

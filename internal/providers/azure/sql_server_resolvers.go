@@ -39,7 +39,7 @@ func resolveServerEncryptionProtectorToKey(sub *subscription, st *store.Store) e
 // stored attributes JSON.
 func resolveDatabaseToElasticPool(sub *subscription, st *store.Store) error {
 	dbs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLDatabase},
 		Limit:     util.AllResources,
@@ -74,7 +74,7 @@ func resolveDatabaseToElasticPool(sub *subscription, st *store.Store) error {
 // properties.partnerServer in the link's stored attributes JSON.
 func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLReplicationLink},
 		Limit:     util.AllResources,
@@ -119,7 +119,7 @@ func resolveReplicationLinkToPartner(sub *subscription, st *store.Store) error {
 // in the failover group's stored attributes JSON.
 func resolveFailoverGroupToPartnerServer(sub *subscription, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLFailoverGroup},
 		Limit:     util.AllResources,
@@ -161,7 +161,7 @@ func resolveFailoverGroupToPartnerServer(sub *subscription, st *store.Store) err
 // stored attributes JSON.
 func resolveSyncGroupToSyncAgent(sub *subscription, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeSQLSyncGroup},
 		Limit:     util.AllResources,

@@ -40,7 +40,7 @@ func init() {
 // it auto-records into (AutoParticipantRecordingConfiguration.StorageConfigurationArn).
 func resolveIVSStageStorageConfig(acct *account, st *store.Store) error {
 	stages, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIVSStage}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIVSStage}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func resolveIVSStorageConfigS3(acct *account, st *store.Store) error {
 
 func resolveIVSS3Bucket(acct *account, st *store.Store, sourceType string, extract func([]byte) string, label string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -150,7 +150,7 @@ func resolveIVSS3Bucket(acct *account, st *store.Store, sourceType string, extra
 
 func resolveIVSChannelRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIVSChannel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIVSChannel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -206,7 +206,7 @@ func resolveIVSIngestConfigStage(acct *account, st *store.Store) error {
 // FK-safe lookup. `arnField` must be a top-level *string ARN attr.
 func resolveIVSAttrEdge(acct *account, st *store.Store, sourceType, targetType, arnField, kind string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{sourceType}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

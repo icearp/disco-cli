@@ -131,7 +131,7 @@ func iotARN(region, acctID, kind, id string) string {
 // and emits attached-to edges to the corresponding ThingType / BillingGroup.
 func resolveIoTThingRefs(acct *account, st *store.Store) error {
 	things, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTThing},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThing},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 // Emits parent → child contains via RecordHierarchyBatch (closure table).
 func resolveIoTThingGroupParent(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTThingGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThingGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -240,7 +240,7 @@ func resolveIoTThingGroupParent(acct *account, st *store.Store) error {
 // nested struct holding the Lambda ARN.
 func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTAuthorizer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTAuthorizer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -288,7 +288,7 @@ func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 // credentials for the underlying role.
 func resolveIoTRoleAliasRole(acct *account, st *store.Store) error {
 	aliases, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTRoleAlias},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTRoleAlias},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -329,7 +329,7 @@ func resolveIoTRoleAliasRole(acct *account, st *store.Store) error {
 // ProvisioningRoleArn — the IAM role IoT assumes during fleet provisioning.
 func resolveIoTProvisioningTemplateRole(acct *account, st *store.Store) error {
 	templates, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTProvisioningTemplate},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTProvisioningTemplate},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -366,7 +366,7 @@ func resolveIoTProvisioningTemplateRole(acct *account, st *store.Store) error {
 // custom Authorizer that gates device connections on this domain.
 func resolveIoTDomainConfigAuthorizer(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTDomainConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTDomainConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -411,7 +411,7 @@ func resolveIoTDomainConfigAuthorizer(acct *account, st *store.Store) error {
 // identity principals (no `:cert/` substring) skip the cert edge.
 func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTPolicyPrincipalAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTPolicyPrincipalAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -462,7 +462,7 @@ func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) err
 // IoT certificate ARN, to the corresponding Certificate resource.
 func resolveIoTThingPrincipalAttachmentRefs(acct *account, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTThingPrincipalAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTThingPrincipalAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -606,7 +606,7 @@ type iotTopicRuleTargetSets struct {
 // types — only populated branches emit edges.
 func resolveIoTTopicRuleActionRefs(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTTopicRule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTTopicRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -814,7 +814,7 @@ func iotCollectActionRoles(a iotTopicRuleAction) []string {
 // EnableIoTLogging.RoleArnForLogging → IAM role.
 func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 	actions, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTMitigationAction},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTMitigationAction},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -906,7 +906,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 // — IAM role IoT assumes to mint pre-signed S3 URLs for the job document.
 func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 	tpls, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTJobTemplate},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTJobTemplate},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -949,7 +949,7 @@ func resolveIoTJobTemplateRole(acct *account, st *store.Store) error {
 // RoleArn.
 func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) error {
 	cfgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTAccountAuditConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTAccountAuditConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -1022,7 +1022,7 @@ func init() {
 // scanned CA cert rows since CertificateId alone doesn't yield the ARN shape.
 func resolveIoTCertificateCA(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTCertificate}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTCertificate}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -1031,7 +1031,7 @@ func resolveIoTCertificateCA(acct *account, st *store.Store) error {
 		return nil
 	}
 	caRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTCACertificate}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTCACertificate}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

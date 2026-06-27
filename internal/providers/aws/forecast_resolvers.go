@@ -25,7 +25,7 @@ func init() {
 // DescribeDataset body that scanForecastDatasets fans out per row.
 func resolveForecastDatasetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeForecastDataset}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeForecastDataset}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func resolveForecastDatasetRefs(acct *account, st *store.Store) error {
 // than RecordHierarchyBatch — datasets exist independently of any group.
 func resolveForecastDatasetGroupMembers(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeForecastDatasetGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeForecastDatasetGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

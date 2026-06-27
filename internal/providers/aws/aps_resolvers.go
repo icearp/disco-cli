@@ -44,7 +44,7 @@ type apsWsAttrs struct {
 
 func resolveAPSWorkspaceTargets(acct *account, st *store.Store) error {
 	workspaces, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPSWorkspace},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPSWorkspace},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(workspaces) == 0 {
@@ -129,7 +129,7 @@ func loadAPSScraperIDs(acct *account, st *store.Store) (*apsScraperIDs, error) {
 
 func resolveAPSScraperTargets(acct *account, st *store.Store) error {
 	scrapers, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPSScraper},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPSScraper},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(scrapers) == 0 {

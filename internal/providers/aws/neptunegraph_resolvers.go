@@ -30,7 +30,7 @@ func neptuneGraphARN(region, acct, id string) string {
 // graph (SourceGraphID) and KMS key (KmsKeyIdentifier).
 func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNeptuneGraphGraphSnapshot}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNeptuneGraphGraphSnapshot}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 // the VPC it lives in.
 func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeNeptuneGraphPrivateGraphEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeNeptuneGraphPrivateGraphEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

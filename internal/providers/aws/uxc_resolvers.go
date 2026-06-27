@@ -22,7 +22,7 @@ func init() {
 // flagged ManagedByProvider=true at scan time.
 func resolveUXCAccountCustomizationToOrgAccount(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider:       "aws",
+		Providers:      []string{"aws"},
 		AccountID:      acct.ID,
 		Types:          []string{TypeUXCAccountCustomization},
 		IncludeManaged: true,

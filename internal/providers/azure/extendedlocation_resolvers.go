@@ -35,7 +35,7 @@ func resolveExtendedLocationConsumers(sub *subscription, st *store.Store) error 
 		return err
 	}
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID, Limit: util.AllResources,
+		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func resolveExtendedLocationConsumers(sub *subscription, st *store.Store) error 
 // AKS managed cluster.
 func resolveCustomLocationRelationships(sub *subscription, st *store.Store) error {
 	locations, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeCustomLocation},
 		Limit: util.AllResources,
 	})

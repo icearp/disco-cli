@@ -29,7 +29,7 @@ func init() { registerResolver(resolvePubSubRelationships) }
 // implicitly.
 func resolvePubSubRelationships(p *project, st *store.Store) error {
 	topics, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypePubSubTopic},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypePubSubTopic},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -41,7 +41,7 @@ func resolvePubSubRelationships(p *project, st *store.Store) error {
 	}
 
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func resolvePubSubRelationships(p *project, st *store.Store) error {
 	}
 
 	schemas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypePubSubSchema},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypePubSubSchema},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -93,7 +93,7 @@ func resolvePubSubRelationships(p *project, st *store.Store) error {
 
 	// Subscription → topic + dead-letter.
 	subs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypePubSubSubscription},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypePubSubSubscription},
 		Limit: util.AllResources,
 	})
 	if err != nil {

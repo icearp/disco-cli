@@ -47,7 +47,7 @@ func listOrARN(entry, region, acct, kind string) string {
 // occasionally ARNs).
 func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveInputSecurityGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveInputSecurityGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 // reference it via its Inputs[] list.
 func resolveMediaLiveSdiSourceRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveSdiSource}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveSdiSource}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func resolveMediaLiveSdiSourceRefs(acct *account, st *store.Store) error {
 // AssociatedClusterIDs[].
 func resolveMediaLiveNetworkRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveNetwork}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveNetwork}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

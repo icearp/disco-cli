@@ -564,7 +564,7 @@ func scanLambdaForeignLayers(ctx context.Context, client lambdaAPI, acct *accoun
 	// region only — region match guards against cross-region duplicate
 	// fan-out when scanning multiple regions).
 	rfilter := store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLambdaFunction},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLambdaFunction},
 		Regions: []string{region}, Limit: util.AllResources,
 	}
 	fns, err := st.ListResources(rfilter)

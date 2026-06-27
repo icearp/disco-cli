@@ -342,7 +342,7 @@ var skipResourceStatus = map[string]bool{
 // service-internal resources, and types not in cfnTypeMap silently skip.
 func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 	stacks, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeCloudFormationStack},
 		Limit: util.AllResources,
 	})
@@ -400,7 +400,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 // account+region.
 func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) error {
 	sets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeCloudFormationStackSet},
 		Limit: util.AllResources,
 	})
@@ -454,7 +454,7 @@ func cfnTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 		types = append(types, b.discoType)
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: types,
 		Limit: util.AllResources,
 	})
@@ -473,9 +473,9 @@ func cfnTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 // the one running the scan, so this is account-unfiltered intentionally.
 func cfnStackIDSet(st *store.Store) (map[string]bool, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws",
-		Types:    []string{TypeCloudFormationStack},
-		Limit:    util.AllResources,
+		Providers: []string{"aws"},
+		Types:     []string{TypeCloudFormationStack},
+		Limit:     util.AllResources,
 	})
 	if err != nil {
 		return nil, err

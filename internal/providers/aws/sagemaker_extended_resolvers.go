@@ -267,7 +267,7 @@ func loadSagemakerEdgeSets(acct *account, st *store.Store, types ...string) (*sa
 // listSources lists every resource of one type for the resolver's account.
 func listSources(acct *account, st *store.Store, rtype string) ([]store.Resource, error) {
 	return st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
 		Limit: util.AllResources,
 	})
 }

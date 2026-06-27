@@ -20,7 +20,7 @@ func init() {
 // the parent VNet is recovered with vnetIDFromSubnetID.
 func resolvePostgreSQLRelationships(sub *subscription, st *store.Store) error {
 	servers, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypePostgreSQLFlexibleServer},
 		Limit: util.AllResources,
 	})

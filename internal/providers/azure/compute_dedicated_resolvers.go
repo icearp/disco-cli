@@ -21,7 +21,7 @@ func init() {
 // NativeID form: .../hostGroups/{group}/hosts/{host}
 func resolveDedicatedHostRelationships(sub *subscription, st *store.Store) error {
 	hosts, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeDedicatedHost},
 		Limit:     util.AllResources,
@@ -48,7 +48,7 @@ func resolveDedicatedHostRelationships(sub *subscription, st *store.Store) error
 // NativeID form: .../capacityReservationGroups/{group}/capacityReservations/{reservation}
 func resolveCapacityReservationRelationships(sub *subscription, st *store.Store) error {
 	reservations, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeCapacityReservation},
 		Limit:     util.AllResources,

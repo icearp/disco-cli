@@ -78,7 +78,7 @@ var diagnosableTypes = []string{
 // without diag-settings permissions.
 func resolveDiagnosticSettings(ctx context.Context, sub *subscription, cred azcore.TokenCredential, st *store.Store) (int, error) {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: diagnosableTypes,
 		Limit: util.AllResources,
 	})
@@ -232,7 +232,7 @@ func emitDiagSettingEdges(st *store.Store, fromID string, ds *armmonitor.Diagnos
 // settings resolver to FK-check destination ARNs (workspace/storage/eventhub).
 func buildLowerIDIndex(st *store.Store, subID, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: subID,
+		Providers: []string{"azure"}, AccountID: subID,
 		Types: []string{rtype}, Limit: util.AllResources,
 	})
 	if err != nil {

@@ -49,7 +49,7 @@ func dxGatewayARN(acct, id string) string {
 // resolveDXConnectionToLag wires Connection → LAG via the `LagID` attr.
 func resolveDXConnectionToLag(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDirectConnectConnection}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDirectConnectConnection}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 	}
 	for _, vt := range viTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{vt}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{vt}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -171,7 +171,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 // TGW captured in `AssociatedGateway`.
 func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDirectConnectDirectConnectGatewayAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDirectConnectDirectConnectGatewayAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

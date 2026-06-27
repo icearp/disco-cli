@@ -46,7 +46,7 @@ func resolveIoTTwinMakerChildrenToWorkspace(acct *account, st *store.Store) erro
 		TypeIoTTwinMakerSyncJob,
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

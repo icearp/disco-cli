@@ -56,7 +56,7 @@ func init() {
 // resolveDeadlineFarmKMS wires farm → customer KMS key (KmsKeyArn).
 func resolveDeadlineFarmKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineFarm}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineFarm}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func resolveDeadlineFarmKMS(acct *account, st *store.Store) error {
 // resolveDeadlineLicenseEndpointVPC wires license-endpoint → VPC (VpcID).
 func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineLicenseEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineLicenseEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 // Center instance + application (IdentityCenter*Arn).
 func resolveDeadlineMonitorRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineMonitor}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineMonitor}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -217,7 +217,7 @@ func resolveDeadlineFarmChildren(acct *account, st *store.Store) error {
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -244,7 +244,7 @@ func resolveDeadlineFarmChildren(acct *account, st *store.Store) error {
 // queue. NativeID shape: `{queueARN}/queue-environment/{id}`.
 func resolveDeadlineQueueEnvParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineQueueEnvironment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineQueueEnvironment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -279,7 +279,7 @@ func resolveDeadlineQueueEnvParent(acct *account, st *store.Store) error {
 // `arn:aws:deadline:r:a:license-endpoint/{leID}/metered-product/{pid}`.
 func resolveDeadlineMeteredProductParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineMeteredProduct},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineMeteredProduct},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -332,7 +332,7 @@ func deadlineAssocComponents(arn, peerKind string) (queueARN, peerARN string) {
 // queue and fleet via NativeID parse.
 func resolveDeadlineQueueFleetAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineQueueFleetAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineQueueFleetAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -374,7 +374,7 @@ func resolveDeadlineQueueFleetAssoc(acct *account, st *store.Store) error {
 // queue and limit via NativeID parse.
 func resolveDeadlineQueueLimitAssoc(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDeadlineQueueLimitAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineQueueLimitAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {

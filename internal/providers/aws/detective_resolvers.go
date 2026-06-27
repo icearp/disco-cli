@@ -25,7 +25,7 @@ func init() {
 // tree is scanned.
 func resolveDetectiveOrgAdminRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDetectiveOrganizationAdmin}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDetectiveOrganizationAdmin}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ type detectiveMemberAttrs struct {
 // org account in resolveSSOAccountAssignments.
 func resolveDetectiveMemberOrgAccount(acct *account, st *store.Store) error {
 	members, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDetectiveMember},
 		Limit:     util.AllResources,

@@ -28,7 +28,7 @@ type bcmExportAttrs struct {
 // edges. Cross-account destinations skip silently via FK-safe id set.
 func resolveBCMDataExportsRelationships(acct *account, st *store.Store) error {
 	exports, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBCMDataExportsExport},
 		Limit:     util.AllResources,

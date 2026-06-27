@@ -25,7 +25,7 @@ func init() { registerResolver(resolveBinaryAuthorizationRelationships) }
 // follow-up.
 func resolveBinaryAuthorizationRelationships(p *project, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeBinAuthAttestor},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBinAuthAttestor},
 		Limit: util.AllResources,
 	})
 	if err != nil {

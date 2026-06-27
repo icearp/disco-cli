@@ -31,7 +31,7 @@ func resolveServerlessRelationships(p *project, st *store.Store) error {
 
 	// KMS index for function CMEK.
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -44,7 +44,7 @@ func resolveServerlessRelationships(p *project, st *store.Store) error {
 
 	// Cloud Functions.
 	fns, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCloudFunction},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudFunction},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -79,7 +79,7 @@ func resolveServerlessRelationships(p *project, st *store.Store) error {
 
 	// Cloud Run services.
 	runs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCloudRunSvc},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunSvc},
 		Limit: util.AllResources,
 	})
 	if err != nil {

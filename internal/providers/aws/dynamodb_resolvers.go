@@ -34,7 +34,7 @@ func init() {
 // absent when the table uses the default (AWS-owned) key.
 func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDynamoDBTable},
 		Limit:     util.AllResources,
@@ -66,7 +66,7 @@ func resolveDynamoDBTableRelationships(acct *account, st *store.Store) error {
 // enabled to its DynamoDB stream via LatestStreamArn.
 func resolveDynamoDBStreamRelationships(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDynamoDBTable},
 		Limit:     util.AllResources,
@@ -99,7 +99,7 @@ func resolveDynamoDBStreamRelationships(acct *account, st *store.Store) error {
 // matches the TableArn of an aws:dynamodb:table resource scanned in that region.
 func resolveDynamoDBGlobalTableRelationships(acct *account, st *store.Store) error {
 	gts, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDynamoDBGlobalTable},
 		Limit:     util.AllResources,

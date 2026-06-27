@@ -31,7 +31,7 @@ func init() {
 // Target ARNs are type-detected by ARN prefix (same pattern as lambdaESMSourceType).
 func resolveEventBridgeRelationships(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsRule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func eventBridgeTargetType(arn string) string {
 // scanned-connection id set — cross-account refs silently skip.
 func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) error {
 	dests, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsAPIDestination},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsAPIDestination},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func resolveEventBridgeAPIDestinationConnection(acct *account, st *store.Store) 
 		return nil
 	}
 	conns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func init() {
 // (CMEK) and DeadLetterConfig.Arn (SQS DLQ).
 func resolveEventBridgeBusRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsEventBus}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsEventBus}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func resolveEventBridgeBusRefs(acct *account, st *store.Store) error {
 // Secrets Manager auth secret (SecretArn).
 func resolveEventBridgeConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsConnection}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsConnection}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

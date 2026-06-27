@@ -39,7 +39,7 @@ func init() {
 
 func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -83,7 +83,7 @@ func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {
 // the underlying transport attachment.
 func resolveTGWConnectRelationships(acct *account, st *store.Store) error {
 	conns, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayConnect},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayConnect},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -111,7 +111,7 @@ func resolveTGWConnectRelationships(acct *account, st *store.Store) error {
 // resolveTGWConnectPeerRelationships links each Connect Peer to its Connect attachment.
 func resolveTGWConnectPeerRelationships(acct *account, st *store.Store) error {
 	peers, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayConnectPeer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayConnectPeer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func resolveTGWConnectPeerRelationships(acct *account, st *store.Store) error {
 // resolveTGWMulticastDomainRelationships links each multicast domain to its TGW.
 func resolveTGWMulticastDomainRelationships(acct *account, st *store.Store) error {
 	domains, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMulticastDomain},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMulticastDomain},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -167,7 +167,7 @@ func resolveTGWMulticastDomainRelationships(acct *account, st *store.Store) erro
 // resolveTGWRouteTableRelationships links each TGW route table to its TGW.
 func resolveTGWRouteTableRelationships(acct *account, st *store.Store) error {
 	rts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayRouteTable},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayRouteTable},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -195,7 +195,7 @@ func resolveTGWRouteTableRelationships(acct *account, st *store.Store) error {
 // resolveTGWVPCAttachmentRelationships links each TGW VPC attachment to its TGW and VPC.
 func resolveTGWVPCAttachmentRelationships(acct *account, st *store.Store) error {
 	atts, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayVPCAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayVPCAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -57,7 +57,7 @@ func init() {
 
 func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func dmsReplicationSubnetGroupARNFromName(region, acctID, name string) string {
 
 func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSReplicationInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSReplicationInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -179,7 +179,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 
 func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSReplicationSubnetGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSReplicationSubnetGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -234,7 +234,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 
 func resolveDMSReplicationTaskRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSReplicationTask},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSReplicationTask},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -286,7 +286,7 @@ func resolveDMSReplicationTaskRefs(acct *account, st *store.Store) error {
 
 func resolveDMSReplicationConfigRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSReplicationConfig},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSReplicationConfig},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -325,7 +325,7 @@ func resolveDMSReplicationConfigRefs(acct *account, st *store.Store) error {
 
 func resolveDMSDataMigrationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSDataMigration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSDataMigration},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -372,7 +372,7 @@ func resolveDMSDataMigrationRefs(acct *account, st *store.Store) error {
 
 func resolveDMSMigrationProjectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSMigrationProject},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSMigrationProject},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -429,7 +429,7 @@ func resolveDMSMigrationProjectRefs(acct *account, st *store.Store) error {
 
 func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSInstanceProfile},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSInstanceProfile},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -483,7 +483,7 @@ func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 
 func resolveDMSEventSubscriptionTopic(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDMSEventSubscription},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDMSEventSubscription},
 		Limit: util.AllResources,
 	})
 	if err != nil {

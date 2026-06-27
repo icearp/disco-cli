@@ -70,7 +70,7 @@ type glueTriggerAttrs struct {
 // and to the jobs / crawlers fired by its Actions[].
 func resolveGlueTriggerWorkflow(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueTrigger},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueTrigger},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(rows) == 0 {
@@ -162,7 +162,7 @@ type glueDevEndpointTargetSets struct {
 // SecurityGroupIDs[], and SecurityConfiguration name.
 func resolveGlueDevEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDevEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueDevEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(rows) == 0 {
@@ -286,7 +286,7 @@ type glueMLTAttrs struct {
 // InputRecordTables[] (database/table refs).
 func resolveGlueMLTransformRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueMLTransform},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueMLTransform},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(rows) == 0 {
@@ -366,7 +366,7 @@ func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, reg
 // PhysicalConnectionRequirements.{SubnetID, SecurityGroupIDList[]}.
 func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueConnection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueConnection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -425,7 +425,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 // `RegistryID.RegistryArn` (or RegistryName fallback).
 func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueSchema},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueSchema},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -491,7 +491,7 @@ type glueSecConfigAttrs struct {
 // EncryptionConfiguration sub-blocks and emits KMS edges.
 func resolveGlueSecurityConfigKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueSecurityConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueSecurityConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(rows) == 0 {
@@ -553,7 +553,7 @@ func emitGlueSecConfigKMSEdges(st *store.Store, acct *account, r store.Resource,
 // encryption (EncryptionAtRest.SseAwsKmsKeyID, ConnectionPasswordEncryption.AwsKmsKeyID).
 func resolveGlueDataCatalogEncryptionKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueDataCatalogEncryptionSettings},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueDataCatalogEncryptionSettings},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -621,7 +621,7 @@ type glueWorkflowNodeKind struct {
 // SDK Workflow struct as marshalled by mustJSON.
 func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueWorkflow},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueWorkflow},
 		Limit: util.AllResources,
 	})
 	if err != nil || len(rows) == 0 {
@@ -683,7 +683,7 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 // configuration to its parent SSO instance (InstanceArn).
 func resolveGlueIdentityCenterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeGlueIdentityCenterConfiguration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueIdentityCenterConfiguration},
 		Limit: util.AllResources,
 	})
 	if err != nil {

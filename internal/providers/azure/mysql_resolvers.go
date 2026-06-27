@@ -23,7 +23,7 @@ func init() {
 // Uses vnetNameFromKeyURI / vnetIDFromSubnetID helpers from sibling resolvers.
 func resolveMySQLRelationships(sub *subscription, st *store.Store) error {
 	servers, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeMySQLFlexibleServer},
 		Limit: util.AllResources,
 	})
@@ -31,7 +31,7 @@ func resolveMySQLRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeKeyVaultVault},
 		Limit: util.AllResources,
 	})

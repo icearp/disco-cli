@@ -20,7 +20,7 @@ func init() {
 // SNS topics that disco may have scanned; FK-safe via scanned topic id set.
 func resolveApplicationInsightsRelationships(acct *account, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeApplicationInsightsApplication},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationInsightsApplication},
 		Limit: util.AllResources,
 	})
 	if err != nil {

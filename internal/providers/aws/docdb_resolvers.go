@@ -39,7 +39,7 @@ type docdbClusterAttrs struct {
 // either; pattern can be lifted from there in a future iteration).
 func resolveDocDBClusterTargets(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDocDBCluster},
 		Limit:     util.AllResources,
@@ -108,7 +108,7 @@ type docdbInstanceAttrs struct {
 // pairing is naturally relational. FK-safe via scanned-cluster id set.
 func resolveDocDBInstanceCluster(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDocDBInstance},
 		Limit:     util.AllResources,
@@ -121,7 +121,7 @@ func resolveDocDBInstanceCluster(acct *account, st *store.Store) error {
 	}
 
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeDocDBCluster},
 		Limit:     util.AllResources,

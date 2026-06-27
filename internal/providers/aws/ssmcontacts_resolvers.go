@@ -25,7 +25,7 @@ func init() {
 // via ContactArn.
 func resolveSSMContactsChannelToContact(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMContactsContactChannel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMContactsContactChannel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func resolveSSMContactsChannelToContact(acct *account, st *store.Store) error {
 // ContactIDs.
 func resolveSSMContactsRotationContacts(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMContactsRotation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMContactsRotation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

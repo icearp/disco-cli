@@ -44,7 +44,7 @@ type athenaWorkGroupAttrs struct {
 // refs and AWS-managed default keys (`alias/aws/*`) skip silently.
 func resolveAthenaWorkgroupTargets(acct *account, st *store.Store) error {
 	wgs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeAthenaWorkgroup},
 		Limit:     util.AllResources,
@@ -112,7 +112,7 @@ type athenaDataCatalogAttrs struct {
 // behave like LAMBDA for the resolver.
 func resolveAthenaDataCatalogLambda(acct *account, st *store.Store) error {
 	cats, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeAthenaDataCatalog},
 		Limit:     util.AllResources,

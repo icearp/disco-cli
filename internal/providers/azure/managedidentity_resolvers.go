@@ -29,7 +29,7 @@ func init() {
 // principal-edge gap left by R3.2 without requiring an Entra ID scanner.
 func resolveManagedIdentityAssignmentPrincipals(sub *subscription, st *store.Store) error {
 	identities, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeManagedIdentityUserAssigned},
 		Limit: util.AllResources,
 	})
@@ -59,7 +59,7 @@ func resolveManagedIdentityAssignmentPrincipals(sub *subscription, st *store.Sto
 	}
 
 	assignments, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeAuthorizationRoleAssignment},
 		Limit: util.AllResources,
 	})
@@ -97,7 +97,7 @@ func resolveManagedIdentityAssignmentPrincipals(sub *subscription, st *store.Sto
 // verbatim will be picked up automatically.
 func resolveManagedIdentityConsumers(sub *subscription, st *store.Store) error {
 	identities, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeManagedIdentityUserAssigned},
 		Limit: util.AllResources,
 	})
@@ -113,7 +113,7 @@ func resolveManagedIdentityConsumers(sub *subscription, st *store.Store) error {
 	}
 
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID, Limit: util.AllResources,
+		Providers: []string{"azure"}, AccountID: sub.ID, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

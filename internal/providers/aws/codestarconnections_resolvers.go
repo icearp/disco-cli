@@ -25,7 +25,7 @@ func init() {
 // and KMS key (EncryptionKeyArn).
 func resolveCSCRepositoryLinkRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsRepositoryLink}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsRepositoryLink}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func resolveCSCRepositoryLinkRefs(acct *account, st *store.Store) error {
 // (RoleArn).
 func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsSyncConfiguration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsSyncConfiguration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func resolveCSCSyncConfigurationRefs(acct *account, st *store.Store) error {
 		return nil
 	}
 	linkRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsRepositoryLink}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsRepositoryLink}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

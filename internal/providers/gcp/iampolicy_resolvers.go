@@ -38,7 +38,7 @@ func init() {
 // follow-up resolver once the pool scanners ship.
 func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMPolicy},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -264,7 +264,7 @@ func projectFromSAEmail(email string) (string, bool) {
 // `primaryEmail` (from the admin/directory SDK serialization).
 func buildWorkspaceUserEmailIndex(st *store.Store) (map[string]string, error) {
 	users, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", Types: []string{TypeWorkspaceUser},
+		Providers: []string{"gcp"}, Types: []string{TypeWorkspaceUser},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -290,7 +290,7 @@ func buildWorkspaceUserEmailIndex(st *store.Store) (map[string]string, error) {
 // canonical email under cloudidentity/v1's Group.GroupKey shape.
 func buildCloudIdentityGroupEmailIndex(st *store.Store) (map[string]string, error) {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", Types: []string{TypeCloudIdentityGroup},
+		Providers: []string{"gcp"}, Types: []string{TypeCloudIdentityGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -318,7 +318,7 @@ func buildCloudIdentityGroupEmailIndex(st *store.Store) (map[string]string, erro
 // cross-project IAM edges without losing FK safety.
 func buildAllProjectSAEmailIndex(st *store.Store) (map[string]string, error) {
 	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", Types: []string{TypeIAMServiceAccount},
+		Providers: []string{"gcp"}, Types: []string{TypeIAMServiceAccount},
 		Limit: util.AllResources,
 	})
 	if err != nil {

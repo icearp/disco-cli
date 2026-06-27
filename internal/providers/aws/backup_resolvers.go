@@ -30,7 +30,7 @@ func resolveBackupRelationships(acct *account, st *store.Store) error {
 
 func resolveBackupVaults(acct *account, st *store.Store) error {
 	vaults, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeBackupVault, TypeBackupLogicallyAirGappedVault},
 		Limit:     util.AllResources,
@@ -62,7 +62,7 @@ func resolveBackupVaults(acct *account, st *store.Store) error {
 
 func resolveBackupSelections(acct *account, st *store.Store) error {
 	sels, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBackupSelection},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBackupSelection},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func init() {
 // {"BackupPlan":{"Rules":[{"TargetBackupVaultName":"..."}]}}.
 func resolveBackupPlanVaultRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBackupPlan}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBackupPlan}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

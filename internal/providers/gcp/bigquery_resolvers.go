@@ -24,7 +24,7 @@ func init() { registerResolver(resolveBigQueryRelationships) }
 // shape is dataset → dataset which is rare to query graph-style.
 func resolveBigQueryRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -39,7 +39,7 @@ func resolveBigQueryRelationships(p *project, st *store.Store) error {
 	}
 
 	dss, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeBQDataset},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBQDataset},
 		Limit: util.AllResources,
 	})
 	if err != nil {

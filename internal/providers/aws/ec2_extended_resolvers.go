@@ -93,7 +93,7 @@ func init() {
 // resolveEC2VolumeKMS links each EBS volume to the KMS key encrypting it.
 func resolveEC2VolumeKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Volume},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Volume},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -130,7 +130,7 @@ func resolveEC2VolumeKMS(acct *account, st *store.Store) error {
 // encryption-key refs (BlockDeviceMappings[].Ebs.KmsKeyID).
 func resolveEC2ImageKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Image},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -180,7 +180,7 @@ func resolveEC2ImageKMS(acct *account, st *store.Store) error {
 // attached-to → vpc.
 func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPNGateway},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPNGateway},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -226,7 +226,7 @@ func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 // parent network-interface (NetworkInterfaceID).
 func resolveEC2NetworkInterfacePermissionENI(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInterfacePermission},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkInterfacePermission},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -265,7 +265,7 @@ func resolveEC2NetworkInterfacePermissionENI(acct *account, st *store.Store) err
 // or NLB. Only one of the two fields is set per target.
 func resolveEC2TrafficMirrorTargetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorTarget},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorTarget},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -315,7 +315,7 @@ func resolveEC2TrafficMirrorTargetRefs(acct *account, st *store.Store) error {
 // TrafficMirrorFilterID.
 func resolveEC2TrafficMirrorFilterRuleParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorFilterRule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TrafficMirrorFilterRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -354,7 +354,7 @@ func resolveEC2TrafficMirrorFilterRuleParent(acct *account, st *store.Store) err
 // VerifiedAccessTrustProviders[] list and emits uses → trust-provider.
 func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VerifiedAccessInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -422,7 +422,7 @@ func clientVPNEndpointFromChildARN(arn string) string {
 // parent client-vpn-endpoint by parsing the synthetic child NativeID.
 func resolveEC2ClientVPNAuthorizationRuleEndpoint(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2ClientVPNAuthorizationRule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2ClientVPNAuthorizationRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -455,7 +455,7 @@ func resolveEC2ClientVPNAuthorizationRuleEndpoint(acct *account, st *store.Store
 // NativeID) and to the target subnet (TargetSubnet attr).
 func resolveEC2ClientVPNRouteRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2ClientVPNRoute},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2ClientVPNRoute},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -518,7 +518,7 @@ func networkInsightsTargetType(s string) (string, string) {
 // the underlying eni or instance row.
 func resolveEC2NetworkInsightsPathRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsPath},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsPath},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -569,7 +569,7 @@ func resolveEC2NetworkInsightsPathRefs(acct *account, st *store.Store) error {
 // placement group its instances land in (PlacementGroupArn).
 func resolveEC2CapacityReservationPlacementGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2CapacityReservation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2CapacityReservation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -609,7 +609,7 @@ func resolveEC2CapacityReservationPlacementGroup(acct *account, st *store.Store)
 // peerings FK-safe-skip).
 func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayPeeringAttachment},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayPeeringAttachment},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -666,7 +666,7 @@ func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error 
 // (SpotFleetRequestConfig.IamFleetRole).
 func resolveEC2SpotFleetIAM(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2SpotFleet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2SpotFleet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -710,7 +710,7 @@ func resolveEC2SpotFleetIAM(acct *account, st *store.Store) error {
 // and emits uses → launch-template.
 func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Fleet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Fleet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -761,7 +761,7 @@ func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 // transit gateway and to the middlebox attachments the policy meters.
 func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMeteringPolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2TransitGatewayMeteringPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -816,7 +816,7 @@ func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 // receives the events.
 func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointConnectionNotification},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2VPCEndpointConnectionNotification},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -879,7 +879,7 @@ func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.St
 // receives BGP status notifications.
 func resolveEC2RouteServerSNS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2RouteServer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2RouteServer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -918,7 +918,7 @@ func resolveEC2RouteServerSNS(acct *account, st *store.Store) error {
 // fleet to the individual capacity reservations it manages.
 func resolveEC2CapacityReservationFleetMembers(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2CapacityReservationFleet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2CapacityReservationFleet},
 		Limit: util.AllResources,
 	})
 	if err != nil {

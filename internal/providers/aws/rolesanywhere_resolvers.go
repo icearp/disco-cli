@@ -24,7 +24,7 @@ func init() {
 // (TrustAnchorArn).
 func resolveRACRLToTrustAnchor(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRolesAnywhereCRL}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRolesAnywhereCRL}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func resolveRACRLToTrustAnchor(acct *account, st *store.Store) error {
 // policies (ManagedPolicyArns).
 func resolveRAProfileRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRolesAnywhereProfile}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRolesAnywhereProfile}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

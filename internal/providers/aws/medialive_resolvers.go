@@ -34,7 +34,7 @@ func init() {
 // carry the parent's bare ID, not its full ARN.
 func medialiveByIDIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func medialiveByIDIndex(acct *account, st *store.Store, rtype string) (map[strin
 // + RoleArn and emits the corresponding edges.
 func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveChannel},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveChannel},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -119,7 +119,7 @@ func resolveMediaLiveChannelRefs(acct *account, st *store.Store) error {
 // SecurityGroups[] (string IDs) and emits uses edges to the named ISG.
 func resolveMediaLiveInputSecurityGroups(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveInput},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveInput},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -161,7 +161,7 @@ func resolveMediaLiveInputSecurityGroups(acct *account, st *store.Store) error {
 // its parent cluster via ClusterID.
 func resolveMediaLiveChannelPlacementGroupCluster(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveChannelPlacementGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveChannelPlacementGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -201,7 +201,7 @@ func resolveMediaLiveChannelPlacementGroupCluster(acct *account, st *store.Store
 // `arn:aws:medialive:r:a:multiplexprogram/{multiplexId}/{programName}`.
 func resolveMediaLiveMultiplexProgramParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaLiveMultiplexProgram},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaLiveMultiplexProgram},
 		Limit: util.AllResources,
 	})
 	if err != nil {

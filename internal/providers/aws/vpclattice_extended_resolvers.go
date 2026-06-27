@@ -25,7 +25,7 @@ func init() {
 // (log-group / S3 bucket / Firehose) via DestinationArn.
 func resolveVpcLatticeALSRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeVpcLatticeAccessLogSubscription}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeVpcLatticeAccessLogSubscription}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

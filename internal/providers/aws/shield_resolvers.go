@@ -46,7 +46,7 @@ type shieldProtectionGroupAttrs struct {
 // a single combined target id-set query.
 func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 	protections, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeShieldProtection},
 		Limit: util.AllResources,
 	})
@@ -93,7 +93,7 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 // protection set; deferred. FK-safe via a protection id-set lookup.
 func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeShieldProtectionGroup},
 		Limit: util.AllResources,
 	})
@@ -159,7 +159,7 @@ func classifyShieldProtectedResource(arn string) (rtype, nativeID string, ok boo
 
 func shieldProtectionTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{
 			TypeELBv2LoadBalancer,
 			TypeELBClassicLoadBalancer,
@@ -181,7 +181,7 @@ func shieldProtectionTargetIDSet(acct *account, st *store.Store) (map[string]boo
 
 func shieldProtectionIDSet(acct *account, st *store.Store) (map[string]bool, error) {
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeShieldProtection},
 		Limit: util.AllResources,
 	})

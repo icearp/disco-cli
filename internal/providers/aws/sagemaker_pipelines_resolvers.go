@@ -20,7 +20,7 @@ func init() {
 // is a bare `prod-xxx` id; rebuild the catalog ARN per region+acct.
 func resolveSageMakerProjectProduct(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSageMakerProject}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSageMakerProject}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

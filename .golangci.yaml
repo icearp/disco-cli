@@ -61,7 +61,7 @@ linters:
         linters: [tagliatelle]
       # disco JSON contracts use snake_case: store rows, snapshot manifest, Rego input,
       # `disco resources/summary/coverage -o json` output, persisted policy findings.
-      - path: cmd/(summary|coverage|diff|findings|history)\.go
+      - path: cmd/(summary|coverage|diff|findings|history|scan)\.go
         linters: [tagliatelle]
       - path: (internal/(coverage|policy|snapshot|serve)|store)/.*\.go
         linters: [tagliatelle]

@@ -65,7 +65,7 @@ func dsEmitAgents(srcID string, agentARNs []string, set map[string]bool, st *sto
 // resolveDataSyncLocationS3 wires location-s3 → S3 bucket, IAM role, agents.
 func resolveDataSyncLocationS3(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncLocationS3}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncLocationS3}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func resolveDataSyncLocationS3(acct *account, st *store.Store) error {
 // subnet, SGs.
 func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncLocationEFS}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncLocationEFS}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func resolveDataSyncLocationEFS(acct *account, st *store.Store) error {
 // resolveDataSyncLocationFSxOntap wires location-fsx-ontap → FSx FS, SVM, SGs.
 func resolveDataSyncLocationFSxOntap(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncLocationFSxONTAP}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncLocationFSxONTAP}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -292,7 +292,7 @@ func resolveDataSyncFSxSGs(acct *account, st *store.Store) error {
 		TypeDataSyncLocationFSxWindows,
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ltype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ltype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -335,7 +335,7 @@ func resolveDataSyncOnPremAgents(acct *account, st *store.Store) error {
 		TypeDataSyncLocationObjectStorage,
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ltype}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ltype}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -379,7 +379,7 @@ func init() {
 // subnet ARNs + SG ARNs.
 func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncAgent}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncAgent}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -455,7 +455,7 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 // per-location resolvers.
 func resolveDataSyncTaskRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeDataSyncTask}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDataSyncTask}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -30,7 +30,7 @@ func init() {
 // rebuild the gateway ARN as `arn:aws:bedrock-agentcore:r:a:gateway/{gatewayID}`.
 func resolveBACGatewayTargetParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreGatewayTarget},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreGatewayTarget},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -71,7 +71,7 @@ func resolveBACGatewayTargetParent(acct *account, st *store.Store) error {
 // runtime via the `AgentRuntimeArn` SDK field on the endpoint summary.
 func resolveBACRuntimeEndpointParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreRuntimeEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreRuntimeEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func resolveBACRuntimeEndpointParent(acct *account, st *store.Store) error {
 // `PolicyEngineID` bare-ID lookup against an engine ID index.
 func resolveBACPolicyEngine(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -148,7 +148,7 @@ func resolveBACPolicyEngine(acct *account, st *store.Store) error {
 // bacPolicyEngineIDIndex maps PolicyEngineID → resource ID for FK-safe lookup.
 func bacPolicyEngineIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicyEngine},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicyEngine},
 		Limit: util.AllResources,
 	})
 	if err != nil {

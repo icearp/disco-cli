@@ -28,7 +28,7 @@ func resolveJobsRelationships(p *project, st *store.Store) error {
 
 	// Cloud Run Jobs.
 	runJobs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCloudRunJob},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCloudRunJob},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func resolveJobsRelationships(p *project, st *store.Store) error {
 
 	// Batch Jobs.
 	batchJobs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeBatchJob},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeBatchJob},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -31,7 +31,7 @@ func mtSourceLocationARN(region, acct, name string) string {
 // `arn:aws:mediatailor:r:a:channel/{name}/policy`.
 func resolveMediaTailorChannelPolicyToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMediaTailorChannelPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaTailorChannelPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func resolveMediaTailorSourcesToSourceLocation(acct *account, st *store.Store) e
 	}
 	for _, t := range []string{TypeMediaTailorLiveSource, TypeMediaTailorVodSource} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err

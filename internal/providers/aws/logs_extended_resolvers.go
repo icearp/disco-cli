@@ -65,7 +65,7 @@ func resolveLogsMetricFilterParent(acct *account, st *store.Store) error {
 
 func resolveLogsChildToGroup(acct *account, st *store.Store, ctype, label string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func resolveLogsChildToGroup(acct *account, st *store.Store, ctype, label string
 // assumes edge.
 func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLogsSubscriptionFilter},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLogsSubscriptionFilter},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 // or firehose) and RoleArn.
 func resolveLogsDestinationTargets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLogsDestination},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLogsDestination},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -246,7 +246,7 @@ func resolveLogsDestinationTargets(acct *account, st *store.Store) error {
 // ARN (singleton per group); emit attached-to.
 func resolveLogsTransformerParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLogsTransformer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLogsTransformer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -275,7 +275,7 @@ func resolveLogsTransformerParent(acct *account, st *store.Store) error {
 // emits uses → log-group for each named group present in the local store.
 func resolveLogsQueryDefinitionLogGroups(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLogsQueryDefinition},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLogsQueryDefinition},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -18,7 +18,7 @@ func init() { registerResolver(resolveKMSRelationships) }
 // their respective scanners.
 func resolveKMSRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeKMSCryptoKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func resolveKMSRelationships(p *project, st *store.Store) error {
 	}
 
 	buckets, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeStorageBucket},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeStorageBucket},
 		Limit: util.AllResources,
 	})
 	if err != nil {

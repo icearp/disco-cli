@@ -31,7 +31,7 @@ func init() {
 // stored attributes JSON.
 func resolveVMAvailabilitySetRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVirtualMachine},
 		Limit:     util.AllResources,
@@ -68,7 +68,7 @@ func resolveVMAvailabilitySetRelationships(sub *subscription, st *store.Store) e
 // the VM's stored attributes JSON.
 func resolveVMProximityGroupRelationships(sub *subscription, st *store.Store) error {
 	vms, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVirtualMachine},
 		Limit:     util.AllResources,
@@ -105,7 +105,7 @@ func resolveVMProximityGroupRelationships(sub *subscription, st *store.Store) er
 // NativeID form: .../virtualMachines/{vm}/extensions/{ext}
 func resolveVMExtensionRelationships(sub *subscription, st *store.Store) error {
 	exts, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVMExtension},
 		Limit:     util.AllResources,
@@ -131,7 +131,7 @@ func resolveVMExtensionRelationships(sub *subscription, st *store.Store) error {
 // the image's stored attributes JSON.
 func resolveImageSourceVMRelationships(sub *subscription, st *store.Store) error {
 	images, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeImage},
 		Limit:     util.AllResources,
@@ -172,7 +172,7 @@ func resolveImageSourceVMRelationships(sub *subscription, st *store.Store) error
 // properties.source.id in the stored attributes JSON.
 func resolveRestorePointCollectionSourceRelationships(sub *subscription, st *store.Store) error {
 	rpcs, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeRestorePointCollection},
 		Limit:     util.AllResources,

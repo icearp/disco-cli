@@ -25,7 +25,7 @@ func init() {
 // and security groups. GetEnvironment body shape.
 func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMWAAEnvironment}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMWAAEnvironment}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

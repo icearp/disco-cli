@@ -19,7 +19,7 @@ func init() {
 // distribution bucket when the RevocationConfiguration references one.
 func resolveACMPCARelationships(acct *account, st *store.Store) error {
 	cas, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeACMPrivateCA},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeACMPrivateCA},
 		Limit: util.AllResources,
 	})
 	if err != nil {

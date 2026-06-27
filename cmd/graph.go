@@ -724,7 +724,8 @@ func mermaidNodeID(id string) string {
 }
 
 func init() {
-	graphCmd.PersistentFlags().StringVar(&graphProvider, "provider", "", "Disambiguate native ID by provider")
+	graphCmd.PersistentFlags().StringVarP(&graphProvider, "provider", "p", "", "Disambiguate the seed's native ID by provider")
+	_ = graphCmd.RegisterFlagCompletionFunc("provider", completeProviderNames)
 	graphCmd.PersistentFlags().StringVar(&graphType, "type", "", "Disambiguate native ID by resource type")
 	graphCmd.PersistentFlags().StringVar(&graphAccount, "account", "", "Disambiguate native ID by account/subscription/project")
 	graphCmd.Flags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only)")

@@ -22,7 +22,7 @@ func init() {
 // authorizer Lambda (IdentityProviderConfiguration.IdpLambdaArn).
 func resolveHealthLakeDatastoreRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeHealthLakeFHIRDatastore}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeHealthLakeFHIRDatastore}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

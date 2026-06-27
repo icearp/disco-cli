@@ -71,7 +71,7 @@ func init() {
 // ec2:vpc ARN for canonical lookup).
 func resolveVPCLatticeSNVA(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeServiceNetworkVpcAssociation},
 		Limit: util.AllResources,
 	})
@@ -120,7 +120,7 @@ func resolveVPCLatticeSNVA(acct *account, st *store.Store) error {
 // service-network and service (both by ARN — the SDK summary carries them).
 func resolveVPCLatticeSNSA(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeServiceNetworkServiceAssociation},
 		Limit: util.AllResources,
 	})
@@ -167,7 +167,7 @@ func resolveVPCLatticeSNSA(acct *account, st *store.Store) error {
 // service-network and resource-configuration.
 func resolveVPCLatticeSNRA(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeServiceNetworkResourceAssociation},
 		Limit: util.AllResources,
 	})
@@ -216,7 +216,7 @@ func resolveVPCLatticeSNRA(acct *account, st *store.Store) error {
 // handles that case naturally.
 func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeTargetGroup},
 		Limit: util.AllResources,
 	})
@@ -271,7 +271,7 @@ func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 // `/listener/...` suffix to recover the service ARN.
 func resolveVPCLatticeListenerService(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeListener},
 		Limit: util.AllResources,
 	})
@@ -304,7 +304,7 @@ func resolveVPCLatticeListenerService(acct *account, st *store.Store) error {
 // Strip the `/rule/...` suffix to recover the listener ARN.
 func resolveVPCLatticeRuleListener(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeRule},
 		Limit: util.AllResources,
 	})
@@ -352,7 +352,7 @@ func resolveVPCLatticeResourcePolicyParent(acct *account, st *store.Store) error
 // `:servicenetwork/...` for service-network.
 func resolveVPCLatticePolicyParent(acct *account, st *store.Store, rtype, suffix string) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{rtype},
 		Limit: util.AllResources,
 	})
@@ -405,7 +405,7 @@ func resolveVPCLatticePolicyParent(acct *account, st *store.Store, rtype, suffix
 // into canonical EC2 ARNs for lookup.
 func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeResourceGateway},
 		Limit: util.AllResources,
 	})
@@ -480,7 +480,7 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 // gateway list once, build an `id → ARN` index, then resolve.
 func resolveVPCLatticeResourceConfigurationGateway(acct *account, st *store.Store) error {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeResourceConfiguration},
 		Limit: util.AllResources,
 	})
@@ -517,7 +517,7 @@ func resolveVPCLatticeResourceConfigurationGateway(acct *account, st *store.Stor
 // shape `arn:aws:vpc-lattice:r:a:resourcegateway/{rgw-id}`.
 func vlResourceGatewayIDIndex(acct *account, st *store.Store) (map[string]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeVpcLatticeResourceGateway},
 		Limit: util.AllResources,
 	})
@@ -573,7 +573,7 @@ func init() {
 // domain ACM certificate (CertificateArn). GetService body shape.
 func resolveVPCLatticeServiceCert(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeVpcLatticeService}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeVpcLatticeService}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

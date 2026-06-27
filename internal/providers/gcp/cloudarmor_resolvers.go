@@ -23,7 +23,7 @@ func init() { registerResolver(resolveCloudArmorRelationships) }
 // CDN-fronted buckets is narrow vs. the LB-fronted services.
 func resolveCloudArmorRelationships(p *project, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeSecurityPolicy},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeSecurityPolicy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -38,7 +38,7 @@ func resolveCloudArmorRelationships(p *project, st *store.Store) error {
 	}
 
 	bss, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeBackendService},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeBackendService},
 		Limit: util.AllResources,
 	})
 	if err != nil {

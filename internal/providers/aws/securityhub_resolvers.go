@@ -35,7 +35,7 @@ func init() {
 // sets keyed on resource ID.
 func resolveSecurityHubProductSubscriptions(acct *account, st *store.Store) error {
 	subs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{TypeSecurityHubProductSubscription},
 		Limit: util.AllResources,
 	})
@@ -113,7 +113,7 @@ func parseSecurityHubProductSubscriptionARN(arn string) (vendor, product string,
 // guardduty detector, config recorder may have multiple instances).
 func scannedIDsByRegion(acct *account, st *store.Store, rtype string) (map[string][]string, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{rtype},
 		Limit: util.AllResources,
 	})
@@ -131,7 +131,7 @@ func scannedIDsByRegion(acct *account, st *store.Store, rtype string) (map[strin
 // scannedIDSet builds an id-set for one type, scoped to acct.
 func scannedIDSet(acct *account, st *store.Store, rtype string) (map[string]bool, error) {
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID,
+		Providers: []string{"aws"}, AccountID: acct.ID,
 		Types: []string{rtype},
 		Limit: util.AllResources,
 	})

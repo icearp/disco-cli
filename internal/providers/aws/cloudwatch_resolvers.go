@@ -37,7 +37,7 @@ func init() {
 // (FirehoseArn) and IAM role (RoleArn).
 func resolveCWMetricStreamRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudWatchMetricStream}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudWatchMetricStream}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func resolveCloudWatchRelationships(acct *account, st *store.Store) error {
 // InsufficientDataActions. Relationship: uses.
 func resolveAlarmSNSActions(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeCloudWatchAlarm, TypeCloudWatchCompositeAlarm},
 		Limit:     util.AllResources,
@@ -142,7 +142,7 @@ var alarmRuleTokenRe = regexp.MustCompile(`"([^"]+)"`)
 func resolveCompositeAlarmChildren(acct *account, st *store.Store) error {
 	// Load all known alarms (both types) once to build lookup maps.
 	all, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeCloudWatchAlarm, TypeCloudWatchCompositeAlarm},
 		Limit:     util.AllResources,
@@ -240,7 +240,7 @@ func resolveAlarmDimensions(acct *account, st *store.Store) error {
 		types = append(types, t)
 	}
 	targets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: types, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: types, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func resolveAlarmDimensions(acct *account, st *store.Store) error {
 	}
 
 	alarms, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudWatchAlarm},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudWatchAlarm},
 		Limit: util.AllResources,
 	})
 	if err != nil {

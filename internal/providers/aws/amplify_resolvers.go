@@ -25,14 +25,14 @@ func init() {
 // beyond the parent app (already wired via hierarchy closure at scan time).
 func resolveAmplifyRelationships(acct *account, st *store.Store) error {
 	apps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAmplifyApp},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAmplifyApp},
 		Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
 	}
 	branches, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAmplifyBranch},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAmplifyBranch},
 		Limit: util.AllResources,
 	})
 	if err != nil {

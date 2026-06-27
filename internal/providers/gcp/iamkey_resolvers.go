@@ -16,7 +16,7 @@ func init() { registerResolver(resolveIAMServiceAccountKeyRelationships) }
 // "/keys/{keyid}" suffix — no API call needed.
 func resolveIAMServiceAccountKeyRelationships(p *project, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMSAKey},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMSAKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -28,7 +28,7 @@ func resolveIAMServiceAccountKeyRelationships(p *project, st *store.Store) error
 
 	// Build a set of SA NativeIDs in this project so we can FK-check.
 	sas, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeIAMServiceAccount},
 		Limit: util.AllResources,
 	})
 	if err != nil {

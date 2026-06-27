@@ -23,7 +23,7 @@ func init() {
 // RecordHierarchyBatch (no resolver edge needed).
 func resolveDNSRelationships(sub *subscription, st *store.Store) error {
 	links, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDNSPrivateZoneVNetLink},
 		Limit: util.AllResources,
 	})
@@ -31,7 +31,7 @@ func resolveDNSRelationships(sub *subscription, st *store.Store) error {
 		return err
 	}
 	vnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkVirtualNetwork},
 		Limit: util.AllResources,
 	})

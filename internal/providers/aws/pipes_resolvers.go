@@ -47,7 +47,7 @@ func pipesARNType(arn string) string {
 // account/region segments).
 func resolvePipesPipeRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypePipesPipe}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypePipesPipe}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

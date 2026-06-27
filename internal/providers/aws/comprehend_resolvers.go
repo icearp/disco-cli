@@ -27,7 +27,7 @@ func init() {
 // its IAM data-access role, KMS keys, and VPC subnets/SGs.
 func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeComprehendDocumentClassifier}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeComprehendDocumentClassifier}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 // and the document-classifier exposed via ActiveModelArn.
 func resolveComprehendFlywheelRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeComprehendFlywheel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeComprehendFlywheel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -29,7 +29,7 @@ func init() {
 // Trim everything from `/consumer/` onward to recover the stream ARN.
 func resolveKinesisStreamConsumerToStream(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKinesisStreamConsumer}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKinesisStreamConsumer}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func resolveKinesisStreamConsumerToStream(acct *account, st *store.Store) error 
 // KMS encryption is enabled.
 func resolveKinesisStreamRelationships(acct *account, st *store.Store) error {
 	streams, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKinesisStream},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKinesisStream},
 		Limit: util.AllResources,
 	})
 	if err != nil {

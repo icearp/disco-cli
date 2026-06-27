@@ -43,7 +43,7 @@ type firehoseKMSWrapper struct {
 //   - KMS key used for destination encryption
 func resolveFirehoseDeliveryStreamRelationships(acct *account, st *store.Store) error {
 	streams, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeFirehoseDeliveryStream},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFirehoseDeliveryStream},
 		Limit: util.AllResources,
 	})
 	if err != nil {

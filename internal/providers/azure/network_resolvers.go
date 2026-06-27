@@ -24,7 +24,7 @@ func init() {
 
 func resolveSubnetVNetRelationships(sub *subscription, st *store.Store) error {
 	subnets, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkSubnet},
 		Limit: util.AllResources,
 	})
@@ -90,7 +90,7 @@ type agwTargetSets struct {
 
 func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) error {
 	gws, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkApplicationGateway},
 		Limit: util.AllResources,
 	})
@@ -122,7 +122,7 @@ func resolveApplicationGatewayRelationships(sub *subscription, st *store.Store) 
 func loadAGWTargetSets(sub *subscription, st *store.Store) (agwTargetSets, error) {
 	var sets agwTargetSets
 	pips, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkPublicIPAddress},
 		Limit: util.AllResources,
 	})

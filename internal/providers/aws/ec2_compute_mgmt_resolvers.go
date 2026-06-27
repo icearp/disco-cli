@@ -63,7 +63,7 @@ type instanceTargetSets struct {
 
 func resolveInstanceRelationships(acct *account, st *store.Store) error {
 	instances, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Instance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Instance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -110,7 +110,7 @@ func loadInstanceTargetSets(acct *account, st *store.Store) (instanceTargetSets,
 	// only; KeyPair NativeID uses KeyPairId so the ARN can't be rebuilt
 	// from the name alone.
 	keyPairs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2KeyPair},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func loadInstanceTargetSets(acct *account, st *store.Store) (instanceTargetSets,
 	// AMI id set from scanned images. Public/Marketplace/shared AMIs aren't
 	// scanned, so instance→AMI edges are FK-safe only for AMIs we own.
 	images, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2Image},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Image},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -241,7 +241,7 @@ func emitInstanceENIEdges(st *store.Store, acct *account, r store.Resource, regi
 // resolveSecurityGroupVPCAssociationRelationships links each SG VPC association to its SG and VPC.
 func resolveSecurityGroupVPCAssociationRelationships(acct *account, st *store.Store) error {
 	assocs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2SecurityGroupVPCAssociation},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2SecurityGroupVPCAssociation},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -276,7 +276,7 @@ func resolveSecurityGroupVPCAssociationRelationships(acct *account, st *store.St
 
 func resolveInstanceConnectEndpointRelationships(acct *account, st *store.Store) error {
 	ices, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2InstanceConnectEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2InstanceConnectEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {

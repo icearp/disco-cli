@@ -27,7 +27,7 @@ func init() {
 // service-linked channels carry an Amazon-service name in Location, skipped).
 func resolveCloudTrailChannelDestinations(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudTrailChannel}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudTrailChannel}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func resolveCloudTrailChannelDestinations(acct *account, st *store.Store) error 
 // Dispatch by ARN substring; FK-safe via per-target scannedIDSet.
 func resolveCloudTrailResourcePolicyToParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudTrailResourcePolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudTrailResourcePolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

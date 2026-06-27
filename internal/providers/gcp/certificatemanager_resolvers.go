@@ -31,7 +31,7 @@ func init() { registerResolver(resolveCertificateManagerRelationships) }
 //     SslCertificates resource) — separate older API not yet scanned.
 func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 	certs, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCertManagerCertificate},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCertManagerCertificate},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -45,7 +45,7 @@ func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 	// MapEntry → certificate.
 	if len(certIDByNative) > 0 {
 		entries, err := st.ListResources(store.ResourceFilter{
-			Provider: "gcp", AccountID: p.ID, Types: []string{TypeCertManagerMapEntry},
+			Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCertManagerMapEntry},
 			Limit: util.AllResources,
 		})
 		if err != nil {
@@ -72,7 +72,7 @@ func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 
 	// targetHttpsProxy → certificateMap.
 	maps, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeCertManagerMap},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeCertManagerMap},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -86,7 +86,7 @@ func resolveCertificateManagerRelationships(p *project, st *store.Store) error {
 		mapIDByNative[m.NativeID] = m.ID
 	}
 	proxies, err := st.ListResources(store.ResourceFilter{
-		Provider: "gcp", AccountID: p.ID, Types: []string{TypeComputeTargetHTTPSProxy},
+		Providers: []string{"gcp"}, AccountID: p.ID, Types: []string{TypeComputeTargetHTTPSProxy},
 		Limit: util.AllResources,
 	})
 	if err != nil {

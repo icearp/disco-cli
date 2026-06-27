@@ -20,7 +20,7 @@ func init() {
 // CertificateAuthorityArn.
 func resolveACMCertificateRelationships(acct *account, st *store.Store) error {
 	certs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeACMCertificate},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeACMCertificate},
 		Limit: util.AllResources,
 	})
 	if err != nil {

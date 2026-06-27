@@ -22,7 +22,7 @@ func init() {
 // matched case-insensitively against a per-sub Key Vault NativeID index.
 func resolveNetAppRelationships(sub *subscription, st *store.Store) error {
 	accounts, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetAppAccount},
 		Limit: util.AllResources,
 	})

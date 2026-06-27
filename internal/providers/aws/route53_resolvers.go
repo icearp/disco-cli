@@ -66,7 +66,7 @@ func resolveRoute53AliasRelationships(acct *account, st *store.Store) error {
 		return nil
 	}
 	records, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -130,7 +130,7 @@ func isS3WebsiteEndpoint(dns string) bool {
 func buildS3BucketNameIndex(acct *account, st *store.Store) (map[string]string, error) {
 	const arnPrefix = "arn:aws:s3:::"
 	rs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3Bucket},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3Bucket},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -167,7 +167,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 
 	// ELBv2 load balancers — scanner wraps response as {"lb": <LB>, "type": "..."}.
 	lbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeELBv2LoadBalancer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeELBv2LoadBalancer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -189,7 +189,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 
 	// CloudFront distributions — top-level DomainName.
 	dists, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudFrontDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -210,7 +210,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 	// APIGW v1 custom domains — DistributionDomainName (edge-optimized) +
 	// RegionalDomainName (regional). Either may be set.
 	v1, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainName},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainName},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -233,7 +233,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 
 	// APIGW v2 custom domains — DomainNameConfigurations[].APIGatewayDomainName.
 	v2, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayDomainNameV2},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -263,7 +263,7 @@ func buildAliasBackendIndex(acct *account, st *store.Store) (map[string]string, 
 // is the prefix up to the second slash after the ARN segment.
 func resolveRoute53Relationships(acct *account, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -309,7 +309,7 @@ func recordSetZoneARN(nativeID string) string {
 // NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/dnssec"
 func resolveRoute53DNSSECRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53DNSSEC},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53DNSSEC},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -352,7 +352,7 @@ func dnssecZoneARN(nativeID string) string {
 // NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/ksk/<name>"
 func resolveRoute53KSKRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53KeySigningKey},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53KeySigningKey},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -397,7 +397,7 @@ func kskDNSSECNativeID(nativeID string) string {
 // HealthCheckID is extracted from the record set's AttributesJSON.
 func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53RecordSet},
 		Limit: util.AllResources,
 	})
 	if err != nil {

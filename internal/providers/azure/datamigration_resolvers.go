@@ -20,7 +20,7 @@ func init() {
 // network placement.
 func resolveDataMigrationRelationships(sub *subscription, st *store.Store) error {
 	svcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDataMigrationService},
 		Limit: util.AllResources,
 	})

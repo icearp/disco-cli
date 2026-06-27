@@ -25,7 +25,7 @@ func init() {
 //     complete — no keyUrl-only fallback is needed.
 func resolveStorageCacheRelationships(sub *subscription, st *store.Store) error {
 	caches, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeStorageCacheCache},
 		Limit: util.AllResources,
 	})

@@ -23,7 +23,7 @@ func init() {
 // already present in ListDestinations summary — no Get fan-out needed).
 func resolveIoTWirelessDestinationRole(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTWirelessDestination}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTWirelessDestination}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func resolveIoTWirelessDestinationRole(acct *account, st *store.Store) error {
 // name → resource ID index).
 func resolveIoTWirelessDeviceToDestination(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTWirelessWirelessDevice}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTWirelessWirelessDevice}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func resolveIoTWirelessDeviceToDestination(acct *account, st *store.Store) error
 		return nil
 	}
 	destRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeIoTWirelessDestination}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeIoTWirelessDestination}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

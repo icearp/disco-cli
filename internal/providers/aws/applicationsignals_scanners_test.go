@@ -77,7 +77,7 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
 	want := applicationSignalsGroupingConfigurationNativeID(region, acct.ID)
-	rows, err := st.ListResources(store.ResourceFilter{Provider: "aws", AccountID: acct.ID, Types: []string{TypeApplicationSignalsGroupingConfiguration}, Limit: 100})
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationSignalsGroupingConfiguration}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestScanApplicationSignalsGroupingConfiguration_Empty(t *testing.T) {
 	if total != 0 || inserted != 0 {
 		t.Errorf("total=%d inserted=%d, want 0/0 (skip empty)", total, inserted)
 	}
-	rows, err := st.ListResources(store.ResourceFilter{Provider: "aws", AccountID: acct.ID, Types: []string{TypeApplicationSignalsGroupingConfiguration}, Limit: 100})
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationSignalsGroupingConfiguration}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}

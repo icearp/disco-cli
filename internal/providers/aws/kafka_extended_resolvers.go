@@ -56,7 +56,7 @@ func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 
 	// Cluster-policy: NativeID = `{clusterARN}/cluster-policy`.
 	cpRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMSKClusterPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMSKClusterPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 
 	// Batch-scram-secret: NativeID = `{clusterARN}/batch-scram-secret/{secretARN}`.
 	bsRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMSKBatchScramSecret}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMSKBatchScramSecret}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -100,7 +100,7 @@ func resolveMSKChildrenToCluster(acct *account, st *store.Store) error {
 // (TargetClusterArn) and the VPC it lives in (VpcID).
 func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMSKVpcConnection}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMSKVpcConnection}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func resolveMSKVpcConnectionRefs(acct *account, st *store.Store) error {
 // connects via KafkaClustersSummary[].AmazonMskCluster.MskClusterArn.
 func resolveMSKReplicatorRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeMSKReplicator}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMSKReplicator}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

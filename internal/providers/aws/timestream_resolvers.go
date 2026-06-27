@@ -61,7 +61,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 	}
 	for _, ttyp := range []string{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBInstance} {
 		rows, err := st.ListResources(store.ResourceFilter{
-			Provider: "aws", AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
 		})
 		if err != nil {
 			return err
@@ -128,7 +128,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 // CMK (KmsKeyID — present on the ListDatabases summary so no Describe needed).
 func resolveTSDatabaseKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamDatabase}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTimestreamDatabase}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func resolveTSDatabaseKMS(acct *account, st *store.Store) error {
 // (MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration).
 func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamTable}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTimestreamTable}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -225,7 +225,7 @@ func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 // fields land on the DescribeScheduledQuery body (scanner enriches per row).
 func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeTimestreamScheduledQuery}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTimestreamScheduledQuery}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

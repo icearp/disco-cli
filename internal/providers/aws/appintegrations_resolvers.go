@@ -24,7 +24,7 @@ func init() {
 // connection string — Salesforce, Zendesk, etc., not an AWS ARN).
 func resolveAppIntegrationsRelationships(acct *account, st *store.Store) error {
 	events, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeAppIntegrationsEventIntegration},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppIntegrationsEventIntegration},
 		Limit: util.AllResources,
 	})
 	if err != nil {

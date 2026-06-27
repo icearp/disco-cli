@@ -23,7 +23,7 @@ func init() {
 // they may not be scanned.
 func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 	lenses, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3StorageLens},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3StorageLens},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func resolveStorageLensRelationships(acct *account, st *store.Store) error {
 		return nil
 	}
 	buckets, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3Bucket},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3Bucket},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func init() {
 // non-scanned regions/accounts skip silently.
 func resolveS3MRAPRegionBuckets(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3MultiRegionAccessPoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

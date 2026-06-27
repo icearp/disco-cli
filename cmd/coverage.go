@@ -126,7 +126,7 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
 	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
-	coverageServicesCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
+	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
 	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
 	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "synthetic", "upstream-missing"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
@@ -137,7 +137,7 @@ func init() {
 	coverageRegionsCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
 	coverageRegionsCmd.Flags().StringSlice("regions", nil, "Filter diff output to listed regions; empty = no filter")
 	coverageRegionsCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
-	coverageRegionsCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
+	coverageRegionsCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
 	coverageRegionsCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageRegionsCmd.Flags().Bool("check-strict", false, "Exit 1 on any non-covered row (drift)")
 
@@ -164,11 +164,22 @@ func outputFormat(cmd *cobra.Command) string {
 	return v
 }
 
+// firstOrEmpty returns the first element of vals, or "" when empty. Shaped to
+// consume a pflag GetStringSlice (slice, error) result directly. Used where a
+// CLI flag is plural for surface consistency but only one value is meaningful
+// (the Azure coverage registry context is subscription-invariant).
+func firstOrEmpty(vals []string, _ error) string {
+	if len(vals) > 0 {
+		return vals[0]
+	}
+	return ""
+}
+
 func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	provNames, _ := cmd.Flags().GetStringSlice("providers")
 	regions, _ := cmd.Flags().GetStringSlice("regions")
 	profile, _ := cmd.Flags().GetString("profile")
-	subscription, _ := cmd.Flags().GetString("subscription")
+	subscription := firstOrEmpty(cmd.Flags().GetStringSlice("subscriptions"))
 	outputFmt := outputFormat(cmd)
 	defer func() { maybeStructuredError(outputFmt, rerr) }()
 	filter, _ := cmd.Flags().GetString("filter")
@@ -270,7 +281,7 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 	provNames, _ := cmd.Flags().GetStringSlice("providers")
 	regionFilter, _ := cmd.Flags().GetStringSlice("regions")
 	profile, _ := cmd.Flags().GetString("profile")
-	subscription, _ := cmd.Flags().GetString("subscription")
+	subscription := firstOrEmpty(cmd.Flags().GetStringSlice("subscriptions"))
 	timeout, _ := cmd.Flags().GetDuration("timeout")
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
 	outputFmt := outputFormat(cmd)

@@ -20,7 +20,7 @@ func init() {
 // optional collection-group (CollectionGroupName).
 func resolveOSSCollectionRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOSSCollection}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOSSCollection}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func resolveOSSCollectionRefs(acct *account, st *store.Store) error {
 		return err
 	}
 	groupRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOSSCollectionGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOSSCollectionGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func init() {
 // to its VPC + subnets + security groups. BatchGetVpcEndpoint body shape.
 func resolveOSSVpcEndpointRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeOSSVpcEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeOSSVpcEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

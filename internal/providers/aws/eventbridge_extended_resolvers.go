@@ -28,7 +28,7 @@ func init() {
 // resolveEBArchiveBus wires archive → source event-bus (EventSourceArn).
 func resolveEBArchiveBus(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsArchive}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsArchive}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func resolveEBArchiveBus(acct *account, st *store.Store) error {
 // and endpoint → IAM role (RoleArn).
 func resolveEBEndpointBuses(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsEndpoint}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsEndpoint}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func resolveEBEndpointBuses(acct *account, st *store.Store) error {
 // strip on `/policy` suffix.
 func resolveEBEventBusPolicyToBus(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEventsEventBusPolicy}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventsEventBusPolicy}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

@@ -37,7 +37,7 @@ func resolveLogsRelationships(acct *account, st *store.Store) error {
 // Delivery → DeliveryDestination: uses
 func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 	deliveries, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsDelivery},
 		Limit:     util.AllResources,
@@ -53,7 +53,7 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 	// format arn:aws:logs:{region}:{account}:delivery-source:{name}, so the
 	// name is the last colon-separated component of the NativeID (ARN).
 	sources, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsDeliverySource},
 		Limit:     util.AllResources,
@@ -77,7 +77,7 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 
 	// Build ARN→ID map for delivery destinations.
 	dests, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsDeliveryDest},
 		Limit:     util.AllResources,
@@ -121,7 +121,7 @@ func resolveLogsDeliveryLinks(acct *account, st *store.Store) error {
 // stream — via DeliveryDestinationConfiguration.DestinationResourceArn.
 func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
 	dests, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsDeliveryDest},
 		Limit:     util.AllResources,
@@ -199,7 +199,7 @@ func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
 // LogAnomalyDetector → LogGroup: uses
 func resolveLogsGroupAnomalyDetectors(acct *account, st *store.Store) error {
 	detectors, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsLogAnomalyDetector},
 		Limit:     util.AllResources,
@@ -215,7 +215,7 @@ func resolveLogsGroupAnomalyDetectors(acct *account, st *store.Store) error {
 	// (without trailing ":*"), matching what anomaly detectors store in
 	// LogGroupArnList.
 	groups, err := st.ListResources(store.ResourceFilter{
-		Provider:  "aws",
+		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsLogGroup},
 		Limit:     util.AllResources,

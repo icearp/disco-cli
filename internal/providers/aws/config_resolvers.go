@@ -35,7 +35,7 @@ func resolveConfigRelationships(acct *account, st *store.Store) error {
 
 func resolveConfigRecorders(acct *account, st *store.Store) error {
 	recs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConfigRecorder},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConfigRecorder},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -60,7 +60,7 @@ func resolveConfigRecorders(acct *account, st *store.Store) error {
 
 func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 	dcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConfigDeliveryChannel},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConfigDeliveryChannel},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -102,7 +102,7 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 
 func resolveConfigRules(acct *account, st *store.Store) error {
 	rules, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeConfigRule},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeConfigRule},
 		Limit: util.AllResources,
 	})
 	if err != nil {

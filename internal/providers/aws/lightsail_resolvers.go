@@ -67,7 +67,7 @@ func init() {
 // the region pins which row to resolve to since names aren't globally unique.
 func lightsailByNameIndex(acct *account, st *store.Store, rtype string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{rtype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -89,7 +89,7 @@ func lightsailByNameIndex(acct *account, st *store.Store, rtype string) (map[str
 // resource's bare Name.
 func resolveLightsailParentByNameField(acct *account, st *store.Store, ctype, parentType, fieldName, label string) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{ctype},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -147,7 +147,7 @@ func resolveLightsailLoadBalancerTLSCertParent(acct *account, st *store.Store) e
 // based on ResourceType.
 func resolveLightsailAlarmTarget(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLightsailAlarm},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLightsailAlarm},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -211,7 +211,7 @@ func resolveLightsailAlarmTarget(acct *account, st *store.Store) error {
 // excluded — it's the same physical row as the instance.
 func resolveLightsailInstanceDisks(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLightsailInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLightsailInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -278,7 +278,7 @@ func resolveLightsailStaticIPAttachedInstance(acct *account, st *store.Store) er
 // (attached SSL/TLS certs) and emits the corresponding edges.
 func resolveLightsailLoadBalancerRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLightsailLoadBalancer},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLightsailLoadBalancer},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -348,7 +348,7 @@ func resolveLightsailLoadBalancerRefs(acct *account, st *store.Store) error {
 // global resources but Origin.RegionName tells where the backend lives.
 func resolveLightsailDistributionOrigin(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLightsailDistribution},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLightsailDistribution},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -430,7 +430,7 @@ func resolveLightsailDistributionOrigin(acct *account, st *store.Store) error {
 // Lightsail-managed domain matching its DomainName, when one is registered.
 func resolveLightsailCertificateDomain(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeLightsailCertificate},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLightsailCertificate},
 		Limit: util.AllResources,
 	})
 	if err != nil {

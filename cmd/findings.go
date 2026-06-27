@@ -21,7 +21,7 @@ var (
 	findingsSeverity   string
 	findingsCategory   string
 	findingsType       string
-	findingsProvider   string
+	findingsProviders  []string
 	findingsFindingID  string
 )
 
@@ -79,7 +79,7 @@ or finding ID. Use 'disco findings runs' to list run IDs.`,
 			FindingID:  findingsFindingID,
 			Severity:   findingsSeverity,
 			Category:   findingsCategory,
-			Provider:   findingsProvider,
+			Providers:  findingsProviders,
 			Type:       findingsType,
 			Since:      since,
 		})
@@ -377,7 +377,8 @@ func init() {
 	_ = findingsListCmd.RegisterFlagCompletionFunc("severity", staticCompletion("low", "medium", "high", "critical"))
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVarP(&findingsType, "type", "t", "", "Filter by resource type")
-	findingsListCmd.Flags().StringVarP(&findingsProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))
+	findingsListCmd.Flags().StringSliceVarP(&findingsProviders, "providers", "p", nil, fmt.Sprintf("Filter by provider(s), comma-separated (%s)", providerListHint()))
+	_ = findingsListCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	findingsListCmd.Flags().StringVar(&findingsFindingID, "finding-id", "", "Filter by Rego rule id (e.g. waf-sec-ebs-encryption-at-rest)")
 
 	findingsRunsCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")

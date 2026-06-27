@@ -27,7 +27,7 @@ func init() {
 // `:contact-plan/`).
 func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMIncidentsResponsePlan}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMIncidentsResponsePlan}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func resolveSSMIResponsePlanRefs(acct *account, st *store.Store) error {
 // RegionMap[region].SseKmsKeyID.
 func resolveSSMIRSetKMS(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMIncidentsReplicationSet}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMIncidentsReplicationSet}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

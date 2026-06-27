@@ -92,7 +92,7 @@ func scanVMExtensions(ctx context.Context, sub *subscription, cred azcore.TokenC
 
 	// Load all VMs for this subscription from the store.
 	vms, err := st.ListResources(store.ResourceFilter{
-		Provider:  "azure",
+		Providers: []string{"azure"},
 		AccountID: sub.ID,
 		Types:     []string{TypeComputeVirtualMachine},
 		Limit:     util.AllResources,

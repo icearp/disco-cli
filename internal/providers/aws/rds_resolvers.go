@@ -63,7 +63,7 @@ func init() {
 // namespace) + KMS CMEK. SourceArn / TargetArn dispatch by ARN substring.
 func resolveRDSIntegrationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSIntegration}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSIntegration}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func resolveRDSIntegrationRefs(acct *account, st *store.Store) error {
 // and subnet group.
 func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 	dbs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBInstance},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBInstance},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -223,7 +223,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 // resolveDBClusterRelationships links each DB cluster to its subnet group.
 func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 	clusters, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -271,7 +271,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 // resolveDBSubnetGroupRelationships links each DB subnet group to its VPC.
 func resolveDBSubnetGroupRelationships(acct *account, st *store.Store) error {
 	sngs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBSubnetGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBSubnetGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -297,7 +297,7 @@ func resolveDBSubnetGroupRelationships(acct *account, st *store.Store) error {
 // resolveDBProxyRelationships links each DB proxy to its VPC.
 func resolveDBProxyRelationships(acct *account, st *store.Store) error {
 	proxies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBProxy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBProxy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -324,7 +324,7 @@ func resolveDBProxyRelationships(acct *account, st *store.Store) error {
 // Used by proxy endpoint and target group resolvers to locate their parent proxy.
 func buildProxyNameMap(acct *account, st *store.Store) (map[string]string, error) {
 	proxies, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBProxy},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBProxy},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -348,7 +348,7 @@ func buildProxyNameMap(acct *account, st *store.Store) (map[string]string, error
 // resolveDBProxyEndpointRelationships links each DB proxy endpoint to its parent proxy.
 func resolveDBProxyEndpointRelationships(acct *account, st *store.Store) error {
 	eps, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBProxyEndpoint},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBProxyEndpoint},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -382,7 +382,7 @@ func resolveDBProxyEndpointRelationships(acct *account, st *store.Store) error {
 // resolveDBProxyTargetGroupRelationships links each DB proxy target group to its parent proxy.
 func resolveDBProxyTargetGroupRelationships(acct *account, st *store.Store) error {
 	tgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBProxyTargetGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBProxyTargetGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -416,7 +416,7 @@ func resolveDBProxyTargetGroupRelationships(acct *account, st *store.Store) erro
 // resolveDBShardGroupRelationships links each DB shard group to its DB cluster.
 func resolveDBShardGroupRelationships(acct *account, st *store.Store) error {
 	sgs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSDBShardGroup},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSDBShardGroup},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -443,7 +443,7 @@ func resolveDBShardGroupRelationships(acct *account, st *store.Store) error {
 // resolveGlobalClusterRelationships links each global cluster to its member DB clusters.
 func resolveGlobalClusterRelationships(acct *account, st *store.Store) error {
 	gcs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeRDSGlobalCluster},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSGlobalCluster},
 		Limit: util.AllResources,
 	})
 	if err != nil {

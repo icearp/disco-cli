@@ -28,7 +28,7 @@ func init() {
 // resolveNetworkInsightsAnalysisRelationships links each analysis to its path.
 func resolveNetworkInsightsAnalysisRelationships(acct *account, st *store.Store) error {
 	analyses, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsAnalysis},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsAnalysis},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func resolveNetworkInsightsAnalysisRelationships(acct *account, st *store.Store)
 // to its access scope.
 func resolveNetworkInsightsAccessScopeAnalysisRelationships(acct *account, st *store.Store) error {
 	analyses, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsAccessScopeAnalysis},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2NetworkInsightsAccessScopeAnalysis},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func resolveNetworkInsightsAccessScopeAnalysisRelationships(acct *account, st *s
 
 func resolveFlowLogRelationships(acct *account, st *store.Store) error {
 	logs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2FlowLog},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2FlowLog},
 		Limit: util.AllResources,
 	})
 	if err != nil {

@@ -79,7 +79,7 @@ Getting started:
   disco scans                 # list scan runs; copy an ID for diff or --scan-id
   disco diff <old> latest     # drift between two scan runs`,
 	Example: `  disco scan                      # scan every configured/auto-detected provider
-  disco resources --provider aws -o json
+  disco resources --providers aws -o json
   disco summary                   # portfolio rollup
   disco graph <resource-id>       # walk relationships from a resource
   disco diff <old-scan-id> latest # what changed since an earlier scan`,

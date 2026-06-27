@@ -68,7 +68,7 @@ type ec2LaunchTemplateTargetSets struct {
 // FK-safe via scannedIDSet; refs to public AMIs / shared keys / etc. skip.
 func resolveEC2LaunchTemplateRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2LaunchTemplate}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2LaunchTemplate}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -128,7 +128,7 @@ func loadEC2LaunchTemplateTargetSets(acct *account, st *store.Store) (ec2LaunchT
 		return sets, err
 	}
 	kpRows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeEC2KeyPair}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2KeyPair}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return sets, err

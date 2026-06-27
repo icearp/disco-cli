@@ -46,7 +46,7 @@ func init() {
 // or ARN; map to in-region NativeID + emit `uses` edge. FK-safe.
 func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 	docs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMDocument},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMDocument},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -97,7 +97,7 @@ func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 // so the edge always points at the canonical key resource.
 func resolveSSMRelationships(acct *account, st *store.Store) error {
 	params, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMParameter},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMParameter},
 		Limit: util.AllResources,
 	})
 	if err != nil {
@@ -139,7 +139,7 @@ func resolveSSMRelationships(acct *account, st *store.Store) error {
 // to look up).
 func resolveSSMAssociationDocument(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMAssociation}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMAssociation}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func resolveSSMAssociationDocument(acct *account, st *store.Store) error {
 	}
 	docByNameRegion := map[string]string{}
 	docs, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMDocument}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMDocument}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func resolveSSMAssociationDocument(acct *account, st *store.Store) error {
 // maintenance-window via WindowID.
 func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTarget}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTarget}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 // edge.
 func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTask}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMMaintenanceWindowTask}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -311,7 +311,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 // (S3Destination.{BucketName, AWSKMSKeyARN}).
 func resolveSSMResourceDataSyncRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeSSMResourceDataSync}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMResourceDataSync}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

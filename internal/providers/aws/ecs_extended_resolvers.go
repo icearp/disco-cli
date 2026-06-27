@@ -35,7 +35,7 @@ func ecsCapacityProviderARN(region, acct, name string) string {
 // underlying Auto Scaling group via AutoScalingGroupProvider.AutoScalingGroupArn.
 func resolveECSCapacityProviderToASG(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSCapacityProvider}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSCapacityProvider}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func resolveECSCapacityProviderToASG(acct *account, st *store.Store) error {
 // and to each capacity-provider listed in CapacityProviders[].
 func resolveECSCCPARefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSClusterCapacityProviderAssociations}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSClusterCapacityProviderAssociations}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -136,7 +136,7 @@ func resolveECSCCPARefs(acct *account, st *store.Store) error {
 // service (ServiceArn) and task-definition (TaskDefinition).
 func resolveECSTaskSetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeECSTaskSet}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeECSTaskSet}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

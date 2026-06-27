@@ -33,7 +33,7 @@ func init() {
 // *.azurefd.net → Front Door, etc.), which is its own iteration.
 func resolveDNSRecordSetRelationships(sub *subscription, st *store.Store) error {
 	records, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeDNSRecordSet, TypeDNSPrivateRecordSet},
 		Limit: util.AllResources,
 	})
@@ -41,7 +41,7 @@ func resolveDNSRecordSetRelationships(sub *subscription, st *store.Store) error 
 		return err
 	}
 	pips, err := st.ListResources(store.ResourceFilter{
-		Provider: "azure", AccountID: sub.ID,
+		Providers: []string{"azure"}, AccountID: sub.ID,
 		Types: []string{TypeNetworkPublicIPAddress},
 		Limit: util.AllResources,
 	})

@@ -21,7 +21,7 @@ func init() {
 // worker configuration, and IAM service-execution role.
 func resolveKafkaConnectConnectorRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeKafkaConnectConnector}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeKafkaConnectConnector}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err

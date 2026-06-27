@@ -38,7 +38,7 @@ func init() {
 // emits FleetServiceRole (IAM) + VpcConfig (VPC, subnets, SGs).
 func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeBuildFleet}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildFleet}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 // EncryptionKey (KMS) and Bucket (S3).
 func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeBuildReportGroup}, Limit: util.AllResources,
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildReportGroup}, Limit: util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -225,7 +225,7 @@ type codeBuildTargetSets struct {
 // All edges FK-safe.
 func resolveCodeBuildProjectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
-		Provider: "aws", AccountID: acct.ID, Types: []string{TypeCodeBuildProject},
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildProject},
 		Limit: util.AllResources,
 	})
 	if err != nil {
