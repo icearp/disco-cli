@@ -43,7 +43,8 @@ disco
 │   ├── aws                   per-account, --regions, --profile, --skip-globals
 │   ├── azure                 per-subscription via DefaultAzureCredential
 │   └── gcp                   per-project fan-out across reachable projects
-├── list                      filter by --type, --provider, --region, --discovered-since
+├── resources                 filter by --type, --providers, --regions, --discovered-since
+│   └── show <id|name>        full record for one resolved resource
 ├── graph
 │   ├── blast <id>            reachability from a seed
 │   ├── path <A> <B>          shortest path between two resources
@@ -72,7 +73,8 @@ disco scan azure  --services azure:compute,azure:network
 disco scan gcp    --services gcp:compute,gcp:storage
 
 # Query
-disco resources  --type aws:ec2:instance --region us-east-1
+disco resources  --type aws:ec2:instance --regions us-east-1,us-west-2
+disco resources show i-0abc123 -o json
 disco graph <resource-id> --kinds contains --depth 2 --output dot
 disco coverage services --providers aws
 

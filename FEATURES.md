@@ -53,9 +53,11 @@ For the authoritative, live list of scanned resource types, run
 
 ## Query & reporting
 
-- **`resources`** — filter by `--type`, `--provider`, `--region`, `--discovered-since`,
-  and `--scan-id` / `--scan-as discovered|verified|any`. AWS-managed resources are
-  hidden by default, opt-in via `--include-managed`.
+- **`resources`** — filter by `--type`, `--providers`, `--regions` (both accept
+  one or more comma-separated values), `--discovered-since`, and `--scan-id` /
+  `--scan-as discovered|verified|any`. AWS-managed resources are hidden by
+  default, opt-in via `--include-managed`. **`resources show <id|native-id|name>`**
+  resolves and prints a single resource (same lookup as `graph` / `history`).
 - **`summary`** — portfolio rollup by provider / account / region / type with an
   as-of timestamp.
 - **`tag-coverage`** — per-tag-key coverage rate for cost-allocation hygiene;

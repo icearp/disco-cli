@@ -4,7 +4,7 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 ## Discover what's not yet covered
 
-`disco coverage --provider azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscription` to override.
+`disco coverage services --providers azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscriptions` to override.
 
 ## Adding a new type — 3 spots
 
