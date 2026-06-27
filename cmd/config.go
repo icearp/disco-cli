@@ -88,10 +88,8 @@ section is omitted.
 
 Refuses to overwrite an existing file unless --force. Refuses to write at
 all when --db-readonly is set (the global flag scopes the DB but disco
-treats config writes as part of the same trust boundary).
-
-Examples:
-  disco config init
+treats config writes as part of the same trust boundary).`,
+	Example: `  disco config init
   disco config init --force
   disco --config /etc/disco/config.yaml config init`,
 	RunE: runConfigInit,
@@ -111,7 +109,7 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 
 	// Refuse to clobber an existing file unless --force is set.
 	if _, err := os.Stat(path); err == nil && !configInitForce {
-		return fmt.Errorf("config file already exists: %s (use --force to overwrite)", path)
+		return fmt.Errorf("%s already exists; pass --force to overwrite", path)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

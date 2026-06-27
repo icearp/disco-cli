@@ -32,7 +32,7 @@ var (
 
 var summaryCmd = &cobra.Command{
 	Use:   "summary",
-	Short: "Portfolio rollup of discovered resources",
+	Short: "Summarize discovered resources (portfolio rollup)",
 	Args:  cobra.NoArgs,
 	Long: `Single-page rollup answering "what do we own?" — counts by provider,
 region, and top-N resource types, plus an as-of timestamp from the most
@@ -56,10 +56,8 @@ Output formats: table (default), markdown, csv, json, jsonl. JSON envelope shape
     "type_buckets_total": <int — distinct types pre --top-types truncation>
   }
 
-CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).
-
-Examples:
-  disco summary
+CSV and jsonl are long-form: dimension,value,count (one row/line per bucket).`,
+	Example: `  disco summary
   disco summary --exclude-types aws:logs:log-stream
   disco summary --provider aws -o json | jq '.by_type'
   disco summary --include-managed --top-types 25`,

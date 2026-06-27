@@ -33,11 +33,6 @@ leaves no partial archive at the output path. --db-readonly is allowed
 (the source DB is opened read-only). Output is silent on stdout; a
 single-line summary lands on stderr.
 
-Examples:
-  disco snapshot /tmp/audit-2026-q2.tar.xz
-  disco snapshot /tmp/audit-2026-q2.zip --force
-  disco --db-readonly snapshot /tmp/handoff.tgz
-
 ## Signing
 
 Pass --signing-payload <file> to write the canonical (RFC 8785-style
@@ -64,9 +59,10 @@ Canonical OpenSSL recipe end-to-end:
 
 Cosign/Sigstore-witnessed signing (transparency log inclusion) is a future
 follow-up. The plumbing here (canonical payload + ed25519 detached) closes
-the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.
-
-Signing example:
+the unsigned-manifest forgery gap reported in focus-group/SUMMARY.md F1.`,
+	Example: `  disco snapshot /tmp/audit-2026-q2.tar.xz
+  disco snapshot /tmp/audit-2026-q2.zip --force
+  disco --db-readonly snapshot /tmp/handoff.tgz
   disco snapshot /tmp/audit.tgz --signing-payload /tmp/audit.manifest.json`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {

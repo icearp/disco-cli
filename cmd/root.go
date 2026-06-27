@@ -146,15 +146,15 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		fmt.Sprintf("config file (default: %s)", tildify(filepath.Join(configDir(), "config.yaml"))))
+		fmt.Sprintf("Config file (default: %s)", tildify(filepath.Join(configDir(), "config.yaml"))))
 	rootCmd.PersistentFlags().String("db", "",
-		fmt.Sprintf("database path (default: %s)", tildify(filepath.Join(dataDir(), "disco.db"))))
+		fmt.Sprintf("Database path (default: %s)", tildify(filepath.Join(dataDir(), "disco.db"))))
 	// Register -v as --verbose BEFORE cobra lazily binds it to --version
 	// (InitDefaultVersionFlag skips -v when the shorthand is already taken).
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
-		"print diagnostic banners (config file path, etc.) on stderr")
+		"Print diagnostic banners (config file path, etc.) on stderr")
 	rootCmd.PersistentFlags().BoolVar(&dbReadOnly, "db-readonly", false,
-		"open the local DB read-only; rejects scan and any write path")
+		"Open the local DB read-only; rejects scan and any write path")
 	cobra.CheckErr(viper.BindPFlag("db", rootCmd.PersistentFlags().Lookup("db")))
 }
 

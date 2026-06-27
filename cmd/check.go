@@ -86,10 +86,8 @@ Exit codes: any reported finding gates the exit code at 1 by default,
 so 'disco check' plugs into CI without an extra flag. Pass --exit-zero
 to render findings without gating (inventory-only runs that should not
 fail the pipeline). Empty findings always exit 0; --severity / --tag
-filters that drop every finding likewise yield exit 0.
-
-Examples:
-  disco check --packs aws-waf
+filters that drop every finding likewise yield exit 0.`,
+	Example: `  disco check --packs aws-waf
   disco check --packs aws-waf --severity high
   disco check --rules ./policies --packs aws-waf -o sarif > findings.sarif
   disco check --rules ./policies --exit-zero            # render but never gate`,

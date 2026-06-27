@@ -52,10 +52,8 @@ Three invocation forms — pick by what you need to tune:
 --if-older-than gates any of the above on recency: skip (exit 0) when
 the latest complete scan for every targeted provider is younger than
 the supplied duration. Suitable for cron drivers that should run hourly
-but only re-scan if 6 h have elapsed.
-
-Examples:
-  disco scan aws
+but only re-scan if 6 h have elapsed.`,
+	Example: `  disco scan aws
   disco scan gcp
   disco scan                          # scans all configured providers
   disco scan --providers aws,gcp
@@ -564,15 +562,15 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	if _, ok := s.(providers.ServiceFilterer); ok {
 		example := serviceFilterExample(s)
 		subcmd.Flags().StringSlice("services", nil,
-			fmt.Sprintf("comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
+			fmt.Sprintf("Comma-separated %s services to scan (e.g. %s); omit to scan all", s.Name(), example))
 	}
 	if _, ok := s.(providers.RegionOverrider); ok {
 		subcmd.Flags().StringSlice("regions", nil,
-			"regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
+			"Regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
 	}
 	if _, ok := s.(providers.ProfileOverrider); ok {
 		subcmd.Flags().String("profile", "",
-			"named credential profile (e.g. a profile defined in ~/.aws/config)")
+			"Named credential profile (e.g. a profile defined in ~/.aws/config)")
 	}
 	if _, ok := s.(providers.RoleOverrider); ok {
 		subcmd.Flags().String("role-arn", "",
@@ -586,39 +584,39 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.RegionScopeToggler); ok {
 		subcmd.Flags().Bool("scope-regions", true,
-			"skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --scope-regions=false")
+			"Skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --scope-regions=false")
 	}
 	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
 		subcmd.Flags().Bool("include-service-quotas", false,
-			"also scan aws:servicequotas (account quota limits); skipped by default — slow and separate from resource discovery. Or select it explicitly with --services aws:servicequotas")
+			"Also scan aws:servicequotas (account quota limits); skipped by default — slow and separate from resource discovery. Or select it explicitly with --services aws:servicequotas")
 	}
 	if _, ok := s.(providers.SubscriptionOverrider); ok {
 		subcmd.Flags().StringSlice("subscriptions", nil,
-			"subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
+			"Subscription IDs to scan, comma-separated — pins the scan to exactly these and disables auto-enumeration; bypasses the config file's subscriptions: section")
 	}
 	if _, ok := s.(providers.GlobalsSkipper); ok {
 		subcmd.Flags().Bool("skip-globals", false,
-			"skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
+			"Skip services whose scope is account-wide (e.g. AWS IAM, Route53, CloudFront); regional services unaffected")
 	}
 	if _, ok := s.(providers.CredentialConfigOverrider); ok {
 		subcmd.Flags().String("credential-config", "",
-			"path to a credential-configuration file: a keyless GCP Workload Identity Federation cred-config (from 'gcloud iam workload-identity-pools create-cred-config') or a service-account key; overrides the config file")
+			"Path to a credential-configuration file: a keyless GCP Workload Identity Federation cred-config (from 'gcloud iam workload-identity-pools create-cred-config') or a service-account key; overrides the config file")
 	}
 }
 
 func init() {
-	scanCmd.Flags().StringSlice("providers", nil, "comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
+	scanCmd.Flags().StringSlice("providers", nil, "Comma-separated provider(s) to scan (e.g. aws,gcp); omit to scan all")
 	_ = scanCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
-	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
-	scanCmd.PersistentFlags().Bool("no-progress", false, "disable the animated progress spinner; per-service lines still print")
-	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
+	scanCmd.PersistentFlags().Bool("quiet", false, "Suppress per-service progress output; only print the final summary")
+	scanCmd.PersistentFlags().Bool("no-progress", false, "Disable the animated progress spinner; per-service lines still print")
+	scanCmd.PersistentFlags().String("resume", "", "Resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
 	scanCmd.PersistentFlags().Duration("if-older-than", 0,
-		"skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
+		"Skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
 	scanCmd.PersistentFlags().Bool("dry-run", false,
-		"resolve provider selection + --if-older-than and print 'would scan / would skip' decisions; no SDK clients constructed, no cloud APIs called")
+		"Resolve provider selection + --if-older-than and print 'would scan / would skip' decisions; no SDK clients constructed, no cloud APIs called")
 	scanCmd.PersistentFlags().Bool("fail-on-error", false,
-		"exit non-zero when a scan finishes partial (one or more services errored); default exit 0 on partial. SIGINT always exits 130")
+		"Exit non-zero when a scan finishes partial (one or more services errored); default exit 0 on partial. SIGINT always exits 130")
 
 	// Add one subcommand per registered provider so users can run e.g. "disco scan aws".
 	// providers.All() is populated by init()s in cmd/providers.go's blank imports,

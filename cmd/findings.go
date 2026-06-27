@@ -176,7 +176,7 @@ func renderFindings(fs []policy.Finding, format string) error {
 			[]string{"Finding", "Severity", "Resource", "Type", "Name", "Region", "Category", "Message"}, rows)
 	case "table", "":
 		if len(fs) == 0 {
-			_, _ = fmt.Fprintln(os.Stderr, "No findings.")
+			_, _ = fmt.Fprintln(os.Stderr, "No findings found.")
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -238,7 +238,7 @@ func renderCheckRuns(runs []store.CheckRun, format string) error {
 			[]string{"ID", "Started", "Finished", "Packs", "Rules", "Severity", "Resources", "Findings"}, rows)
 	case "table", "":
 		if len(runs) == 0 {
-			_, _ = fmt.Fprintln(os.Stderr, "No check runs recorded.")
+			_, _ = fmt.Fprintln(os.Stderr, "No check runs found.")
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -365,7 +365,7 @@ func init() {
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low, medium, high, critical)")
+	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low|medium|high|critical)")
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVarP(&findingsType, "type", "t", "", "Filter by resource type")
 	findingsListCmd.Flags().StringVarP(&findingsProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))

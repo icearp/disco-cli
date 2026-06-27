@@ -25,11 +25,9 @@ reported — the schema stores only the latest state of each resource.
 Scan IDs accept the same forms as every other scan-id consumer: a full ID,
 an 8-31-char prefix (as printed by 'disco scans'), or 'latest'.
 
-Examples:
-  disco diff <old-id> latest
-  disco diff <old-id> <new-id> -o json
-
 Run 'disco scans' to list scan IDs.`,
+	Example: `  disco diff <old-id> latest
+  disco diff <old-id> <new-id> -o json`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(diffOutputFmt, rerr) }()

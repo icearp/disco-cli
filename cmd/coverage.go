@@ -23,7 +23,7 @@ import (
 // Bare `disco coverage` prints help.
 var coverageCmd = &cobra.Command{
 	Use:   "coverage",
-	Short: "Drift detection: services / regions / resolvers (pick a subcommand)",
+	Short: "Detect drift in services / regions / resolvers (pick a subcommand)",
 	Long: `Drift detection across disco's static capabilities and the cloud's live API.
 
 Compares what disco knows how to scan — scanner emits, RegionNames lists,
@@ -55,10 +55,8 @@ Bucket model:
   - uncovered        upstream registry entry has no disco scanner.
   - synthetic        disco-only type (no upstream registry entry expected).
   - upstream-missing disco emits but upstream registry no longer publishes
-                     — drift signal. Surface via --check-strict for CI gating.
-
-Examples:
-  disco coverage services
+                     — drift signal. Surface via --check-strict for CI gating.`,
+	Example: `  disco coverage services
   disco coverage services --providers gcp
   disco coverage services --providers aws --filter uncovered
   disco coverage services --providers aws --regions us-east-1,us-west-2
@@ -83,10 +81,8 @@ Status values:
   covered  region appears in both static list and live API
   stale    static list has it but live API doesn't (region retired or typo)
   missing  live API has it but static list doesn't — refresh
-           internal/providers/<p>/regions.go
-
-Examples:
-  disco coverage regions
+           internal/providers/<p>/regions.go`,
+	Example: `  disco coverage regions
   disco coverage regions --providers aws --check-strict
   disco coverage regions --providers azure --regions eu-central-2`,
 	Args: cobra.NoArgs,
@@ -109,10 +105,8 @@ Candidate gap list for new resolvers.
 matches one of the named services.
 
 Implemented by AWS and Azure. --providers selects which (unset = all that
-support resolver auditing); naming a provider without auditing support errors.
-
-Examples:
-  disco coverage resolvers
+support resolver auditing); naming a provider without auditing support errors.`,
+	Example: `  disco coverage resolvers
   disco coverage resolvers --providers azure
   disco coverage resolvers --only-unannotated
   disco coverage resolvers --missing

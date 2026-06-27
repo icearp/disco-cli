@@ -44,7 +44,7 @@ var (
 
 var tagCoverageCmd = &cobra.Command{
 	Use:   "tag-coverage [key...]",
-	Short: "Per-tag coverage rate across discovered resources",
+	Short: "Report per-tag coverage across discovered resources",
 	Long: `Reports the fraction of resources carrying each tag key.
 
 Without arguments, walks every distinct tag key found in the DB and prints
@@ -54,10 +54,8 @@ absent-tag signal).
 
 Customer-managed resources only by default; --include-managed expands the
 denominator. Filter scope with --provider / --type / --region — useful for
-"tag coverage on EC2 instances only" rollups.
-
-Examples:
-  disco tag-coverage owner cost-center
+"tag coverage on EC2 instances only" rollups.`,
+	Example: `  disco tag-coverage owner cost-center
   disco tag-coverage --provider aws --type aws:ec2:instance
   disco tag-coverage -o json | jq '.[] | select(.coverage < 0.5)'`,
 	RunE: func(cmd *cobra.Command, args []string) (rerr error) {

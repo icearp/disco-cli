@@ -39,10 +39,8 @@ The RESOURCES column is rows the scan touched (insert + re-verify), not
 first-seen attribution. To split them, use:
   disco resources --scan-id <id> --scan-as discovered   # rows the scan first saw
   disco resources --scan-id <id> --scan-as verified     # rows the scan re-verified
-  disco resources --scan-id <id> --scan-as any          # both (default)
-
-Examples:
-  disco scans
+  disco resources --scan-id <id> --scan-as any          # both (default)`,
+	Example: `  disco scans
   disco scans show latest
   disco scans -o json | jq '.[].id'`,
 	RunE: func(_ *cobra.Command, _ []string) (rerr error) {
@@ -86,10 +84,8 @@ JSON envelope shape:
     "error":          "<string or null>",
     "resource_count": <int or null>,
     "meta":           {<arbitrary scan meta>}
-  }
-
-Examples:
-  disco scans show latest
+  }`,
+	Example: `  disco scans show latest
   disco scans show 29cdb173
   disco scans show latest -o json | jq '{id, status, resource_count}'`,
 	Args: cobra.ExactArgs(1),
@@ -159,7 +155,7 @@ func renderScans(scans []store.Scan, format string) error {
 		return renderMarkdownTable(os.Stdout, []string{"ID", "Started", "Finished", "Status", "Providers", "Resources"}, rows)
 	case "table", "":
 		if len(scans) == 0 {
-			_, _ = fmt.Fprintln(os.Stderr, "No scan runs recorded.")
+			_, _ = fmt.Fprintln(os.Stderr, "No scan runs found.")
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

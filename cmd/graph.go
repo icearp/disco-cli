@@ -63,10 +63,8 @@ ambiguous across providers, types, or accounts, pass --provider / --type /
 Subcommands:
   graph path <A> <B>   shortest path between two resources
   graph blast <id>     outbound reachability with per-distance rings
-  graph complete       dump every customer resource + connected managed
-
-Examples:
-  disco graph i-0abc123 --provider aws --depth 3
+  graph complete       dump every customer resource + connected managed`,
+	Example: `  disco graph i-0abc123 --provider aws --depth 3
   disco graph my-bucket-name --type aws:s3:bucket
   disco graph <32-hex-id> --kinds contains,attached-to -o dot | dot -Tpng > g.png
   disco graph blast sg-0abc --depth 2          # what touches that SG?
@@ -108,8 +106,8 @@ Examples:
 
 // graphPathCmd implements `disco graph path <from-id> <to-id>`.
 var graphPathCmd = &cobra.Command{
-	Use:   "path <from-id> <to-id>",
-	Short: "Shortest path between two resources",
+	Use:   "path <from-id|name> <to-id|name>",
+	Short: "Find the shortest path between two resources",
 	Long: `Find the shortest edge sequence between two resource identifiers using
 BFS over relationships. Honors --kinds / --direction / --exclude-types /
 --exclude-regions / --include-managed. Default --depth for path is 8.
@@ -179,7 +177,7 @@ within the configured constraints.`,
 // graphBlastCmd implements `disco graph blast <id>`.
 var graphBlastCmd = &cobra.Command{
 	Use:   "blast <name|native-id|resource-id>",
-	Short: "Outbound reachability (blast radius) from a seed",
+	Short: "Compute outbound reachability (blast radius) from a seed",
 	Long: `Walk all nodes reachable from the seed via outbound edges, grouping
 results by distance ring. Default kind-set excludes 'contains' so hierarchy
 fan-out does not dominate the radius. Default --depth for blast is 3.

@@ -29,10 +29,8 @@ Exit codes:
      and --pubkey supplied; archive unsigned and --require-signed unset).
   1  any failure: archive corrupt or truncated, manifest missing or
      malformed, db_sha256 mismatch, signature mismatch, pubkey mismatch,
-     unsupported format, or --require-signed set against an unsigned archive.
-
-Examples:
-  disco verify /tmp/audit-2026-q2.tar.xz
+     unsupported format, or --require-signed set against an unsigned archive.`,
+	Example: `  disco verify /tmp/audit-2026-q2.tar.xz
   disco verify /tmp/audit.tgz --signature /tmp/audit.sig --pubkey /tmp/k.pub`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
@@ -92,9 +90,9 @@ Examples:
 		_, _ = fmt.Fprintf(os.Stderr, "%s: %s (tool_version=%s, sha256=%s, scans=%d, generated_at=%s)\n",
 			prefix, path, m.ToolVersion, computed, len(m.Scans), m.GeneratedAt)
 		if m.ToolVersion == "dev" {
-			_, _ = fmt.Fprintln(os.Stderr, "WARN: tool_version=dev — snapshot was built without a release version stamp")
+			_, _ = fmt.Fprintln(os.Stderr, "warning: tool_version=dev — snapshot was built without a release version stamp")
 		} else if strings.HasSuffix(m.ToolVersion, "+dirty") {
-			_, _ = fmt.Fprintf(os.Stderr, "WARN: tool_version=%s — snapshot was built from a dirty worktree (pass --require-clean to fail closed)\n", m.ToolVersion)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: tool_version=%s — snapshot was built from a dirty worktree (pass --require-clean to fail closed)\n", m.ToolVersion)
 		}
 		return nil
 	},

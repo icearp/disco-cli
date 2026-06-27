@@ -84,7 +84,7 @@ func derefOr(p *string, dflt string) string {
 }
 
 var historyCmd = &cobra.Command{
-	Use:   "history <resource-id>",
+	Use:   "history <name|native-id|resource-id>",
 	Short: "Show a resource's version history (changes over time)",
 	Args:  cobra.ExactArgs(1),
 	Long: `Show every recorded version of a resource, oldest to newest.
@@ -92,10 +92,8 @@ var historyCmd = &cobra.Command{
 disco keeps a version chain per resource: re-scanning supersedes the previous
 row only when the resource's attributes change, so this is the change-over-time
 view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
-'disco graph').
-
-Examples:
-  disco history 1f3c0a9b2e4d5c6a7b8c9d0e1f2a3b4c
+'disco graph').`,
+	Example: `  disco history 1f3c0a9b2e4d5c6a7b8c9d0e1f2a3b4c
   disco resources --type azure:microsoft.quota:quota -o json | jq -r '.[0].id' | xargs disco history`,
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(historyOutputFmt, rerr) }()

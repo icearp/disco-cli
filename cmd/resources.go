@@ -79,10 +79,8 @@ var resourcesCmd = &cobra.Command{
 	Use:   "resources",
 	Short: "List discovered resources",
 	Args:  cobra.NoArgs,
-	Long: `List resources from the local database with optional filters.
-
-Examples:
-  disco resources
+	Long:  `List resources from the local database with optional filters.`,
+	Example: `  disco resources
   disco resources --provider aws --type aws:ec2:instance
   disco resources --discovered-since 2026-01-01 -o jsonl | jq -s 'length'
   disco resources --created-before 2025-01-01 -t aws:iam:user --include-managed -o json
@@ -245,10 +243,10 @@ func init() {
 	resourcesCmd.Flags().StringSliceVar(&resourcesExcludeTypes, "exclude-types", nil, "Comma-separated resource types to exclude (e.g. aws:logs:log-stream)")
 	resourcesCmd.Flags().StringVar(&resourcesScanID, "scan-id", "", "Restrict to one scan run; accepts a scan ID or 'latest'")
 	resourcesCmd.Flags().StringVar(&resourcesID, "id", "", "Lookup a single resource by primary-key ID (32-hex)")
-	resourcesCmd.Flags().Var(&resourcesDiscoveredSince, "discovered-since", "Show rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	resourcesCmd.Flags().Var(&resourcesDiscoveredBefore, "discovered-before", "Show rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
-	resourcesCmd.Flags().Var(&resourcesCreatedSince, "created-since", "Show rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
-	resourcesCmd.Flags().Var(&resourcesCreatedBefore, "created-before", "Show rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
+	resourcesCmd.Flags().Var(&resourcesDiscoveredSince, "discovered-since", "Restrict to rows first-seen by disco on or after this timestamp (RFC3339 or YYYY-MM-DD)")
+	resourcesCmd.Flags().Var(&resourcesDiscoveredBefore, "discovered-before", "Restrict to rows first-seen by disco strictly before this timestamp (pairs with --discovered-since for half-open [since, before) intervals)")
+	resourcesCmd.Flags().Var(&resourcesCreatedSince, "created-since", "Restrict to rows whose intrinsic CreateDate is on or after this timestamp (rows with no CreateDate are excluded)")
+	resourcesCmd.Flags().Var(&resourcesCreatedBefore, "created-before", "Restrict to rows whose intrinsic CreateDate is strictly before this timestamp (rows with no CreateDate are excluded)")
 	resourcesCmd.Flags().StringVarP(&resourcesRegion, "region", "r", "", "Filter by region")
 	resourcesCmd.Flags().StringVar(&resourcesStatus, "status", "", "Filter by status")
 	resourcesCmd.Flags().StringVar(&resourcesTagKey, "tag-key", "", "Filter by tag key (any value); composes with --tag-value as AND")
