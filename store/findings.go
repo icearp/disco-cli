@@ -76,7 +76,6 @@ func findingColumns(prefix string) []string {
 type FindingFilter struct {
 	CheckRunID string
 	FindingID  string
-	Severity   string
 	Category   string
 	Providers  []string
 	Type       string
@@ -183,9 +182,6 @@ func (s *Store) ListFindings(f FindingFilter) ([]StoredFinding, error) {
 	}
 	if f.FindingID != "" {
 		q = q.Where(sq.Eq{"findings.finding_id": f.FindingID})
-	}
-	if f.Severity != "" {
-		q = q.Where(sq.Eq{"findings.severity": f.Severity})
 	}
 	if f.Category != "" {
 		q = q.Where(sq.Eq{"findings.category": f.Category})

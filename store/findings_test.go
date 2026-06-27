@@ -53,22 +53,6 @@ func TestPersistCheckRun_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestListFindings_BySeverity(t *testing.T) {
-	st := openTestStore(t)
-	idHigh := seedRun(t, st, "high", 2)
-	idMed := seedRun(t, st, "medium", 5)
-	_ = idHigh
-	_ = idMed
-
-	rows, err := st.ListFindings(FindingFilter{Severity: "high"})
-	if err != nil {
-		t.Fatalf("ListFindings: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Errorf("severity=high: got %d, want 2", len(rows))
-	}
-}
-
 func TestListFindings_ByCheckRunID(t *testing.T) {
 	st := openTestStore(t)
 	idA := seedRun(t, st, "high", 2)
