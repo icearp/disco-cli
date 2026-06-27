@@ -4,7 +4,7 @@ import "testing"
 
 // TestSelectCredentialMode covers the GCP credential precedence: a
 // credential-config file (flag or config) wins, then the ECS/Fargate WIF env
-// bridge, then a legacy service-account key file, then ADC.
+// bridge, then ADC.
 func TestSelectCredentialMode(t *testing.T) {
 	const aud = "//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/aws"
 	const sa = "disco@proj.iam.gserviceaccount.com"
@@ -17,23 +17,23 @@ func TestSelectCredentialMode(t *testing.T) {
 		want   credentialMode
 	}{
 		{
-			name:   "credential_config_file wins over everything",
-			cfg:    providerCfg{CredentialConfigFile: "/cred.json", ServiceAccountFile: "/sa.json"},
+			name:   "credential_config_file wins over wif env",
+			cfg:    providerCfg{CredentialConfigFile: "/cred.json"},
 			wifAud: aud, wifSA: sa,
 			want: credModeFile,
 		},
 		{
 			name:   "wif env bridge when no cred-config file",
-			cfg:    providerCfg{ServiceAccountFile: "/sa.json"},
+			cfg:    providerCfg{},
 			wifAud: aud, wifSA: sa,
 			want: credModeWIFEnv,
 		},
 		{
-			name: "service_account_file when no cred-config and no complete wif env",
-			cfg:  providerCfg{ServiceAccountFile: "/sa.json"},
+			name: "adc when no cred-config and no complete wif env",
+			cfg:  providerCfg{},
 			// only half the WIF env contract present — must not select wif
 			wifAud: aud,
-			want:   credModeSAFile,
+			want:   credModeDefault,
 		},
 		{
 			name: "adc when nothing configured",

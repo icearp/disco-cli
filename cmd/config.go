@@ -39,11 +39,9 @@ gcp:
   # credential-configuration file produced by
   #   gcloud iam workload-identity-pools create-cred-config
   # No service-account key is downloaded or stored. Also accepts a plain
-  # service-account key file. Overridable per-scan with --credential-config.
+  # service-account key JSON file. Overridable per-scan with --credential-config.
+  # If omitted (and no WIF env below), Application Default Credentials are used.
   credential_config_file: ""
-  # Legacy: path to a service-account key JSON file. If all GCP credential
-  # options are omitted, Application Default Credentials are used.
-  service_account_file: ""
   # ECS / Fargate keyless bridge (env-only, advanced): when disco runs on AWS
   # ECS/Fargate and its task-role identity is reachable only via the container-
   # credentials endpoint, set these instead of a cred-config file:

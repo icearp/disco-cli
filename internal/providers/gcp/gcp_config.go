@@ -21,9 +21,6 @@ type providerCfg struct {
 	// option.WithCredentialsFile, which parses external_account and
 	// service_account JSON natively.
 	CredentialConfigFile string `mapstructure:"credential_config_file"`
-	// ServiceAccountFile is the legacy alias for a service-account key
-	// file. Also accepts a WIF cred-config. Kept for back-compat.
-	ServiceAccountFile string `mapstructure:"service_account_file"`
 }
 
 // projectCfg is one project entry in the config file.
@@ -93,7 +90,6 @@ type credentialMode string
 const (
 	credModeFile    credentialMode = "credential_config_file" // WIF cred-config or SA key file
 	credModeWIFEnv  credentialMode = "wif_env"                // ECS/Fargate programmatic bridge
-	credModeSAFile  credentialMode = "service_account_file"   // legacy SA key file
 	credModeDefault credentialMode = "adc"                    // Application Default Credentials
 )
 
@@ -106,8 +102,6 @@ func selectCredentialMode(cfg providerCfg, wifAudience, wifServiceAccount string
 		return credModeFile
 	case wifConfigured(wifAudience, wifServiceAccount):
 		return credModeWIFEnv
-	case cfg.ServiceAccountFile != "":
-		return credModeSAFile
 	default:
 		return credModeDefault
 	}
@@ -148,12 +142,6 @@ func clientOptions(ctx context.Context, cfg providerCfg) []option.ClientOption {
 		}
 		// Fall through to ADC on error so a misconfigured WIF env doesn't
 		// hard-fail a scan that could still authenticate another way.
-	case credModeSAFile:
-		// Legacy service-account key file (also accepts a WIF cred-config).
-		return []option.ClientOption{
-			option.WithCredentialsFile(cfg.ServiceAccountFile), //nolint:staticcheck // user-provided path; SA1019 deprecation does not apply here
-			option.WithScopes(scopes...),
-		}
 	}
 
 	// ADC: env GOOGLE_APPLICATION_CREDENTIALS → gcloud default → metadata server.
