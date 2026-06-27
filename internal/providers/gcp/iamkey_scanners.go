@@ -27,7 +27,7 @@ const maxConcurrentSAKeyFetches = 10
 
 // scanIAMServiceAccountKeys discovers IAM service account keys (user-managed
 // + system-managed) for every service account in a project. Each key becomes
-// a gcp:iam:service-account-key resource whose NativeID is the full key
+// a gcp:iam:key resource whose NativeID is the full key
 // resource name returned by the API. The phase-2 resolver derives a
 // key -[attached-to]-> service-account edge by stripping the "/keys/{id}"
 // suffix.

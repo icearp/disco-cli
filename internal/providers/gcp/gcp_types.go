@@ -27,7 +27,7 @@ const (
 	TypeCertManagerDNSAuth     = "gcp:certificatemanager:dns-authorization"
 	// Cloud DNS
 	TypeDNSManagedZone = "gcp:dns:managed-zone"
-	TypeDNSRecordSet   = "gcp:dns:record-set"
+	TypeDNSRecordSet   = "gcp:dns:resource-record-set"
 	// Cloud Functions / Cloud Run
 	TypeCloudFunction = "gcp:cloudfunctions:function"
 	TypeCloudRunSvc   = "gcp:run:service"
@@ -64,12 +64,12 @@ const (
 	// IAM
 	TypeIAMServiceAccount = "gcp:iam:service-account"
 	TypeIAMPolicy         = "gcp:iam:policy"
-	TypeIAMSAKey          = "gcp:iam:service-account-key"
+	TypeIAMSAKey          = "gcp:iam:key"
 	// Synthetic stub for cross-project IAM bindings whose member SA lives in a
 	// project not in scan scope (R5). NativeID = projects/<other>.
 	TypeIAMForeignProject = "gcp:iam:foreign-project"
 	// Cloud KMS
-	TypeKMSKeyRing   = "gcp:cloudkms:keyring"
+	TypeKMSKeyRing   = "gcp:cloudkms:key-ring"
 	TypeKMSCryptoKey = "gcp:cloudkms:crypto-key"
 	// Secret Manager
 	TypeSecret = "gcp:secretmanager:secret"

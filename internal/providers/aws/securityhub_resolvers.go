@@ -27,7 +27,7 @@ func init() {
 //
 //	aws/guardduty            → aws:guardduty:detector  (any in region)
 //	aws/macie                → aws:macie:session       (singleton, NativeID known)
-//	aws/config               → aws:config:recorder     (any in region)
+//	aws/config               → aws:config:configuration-recorder     (any in region)
 //
 // Self (aws/securityhub) skipped — no edge. Third-party vendors and AWS
 // products without a corresponding scanner (Inspector, IAM Access Analyzer,

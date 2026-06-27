@@ -21,7 +21,7 @@ func init() {
 // resolveDNSRecordSetRelationships derives DNS record-set -[uses]-> Public IP
 // edges. Walks both public and private A (IPv4) and AAAA (IPv6) record sets and
 // matches each record's address against a per-sub PIP index built from
-// `azure:microsoft.network:public-ip-address.properties.ipAddress` — a single
+// `azure:microsoft.network:public-ip-addresses.properties.ipAddress` — a single
 // version-agnostic field that holds the IPv6 address for IPv6 PIPs, so AAAA
 // resolves through the same index. Addresses are canonicalised via net.ParseIP
 // before keying so an IPv6 address written compressed in one place and expanded

@@ -176,7 +176,7 @@ func TestGraphBlast_PrincipalAutoFallback(t *testing.T) {
 		AttributesJSON: "{}", DiscoveredBy: scanID,
 	}
 	policy := &store.Resource{
-		Provider: "aws", AccountID: "111", Type: "aws:iam:policy",
+		Provider: "aws", AccountID: "111", Type: "aws:iam:managed-policy",
 		NativeID: "arn:aws:iam::111:policy/AdminPolicy", Name: &pName,
 		AttributesJSON: "{}", DiscoveredBy: scanID,
 	}
@@ -453,10 +453,10 @@ func TestPresetForResource(t *testing.T) {
 		{"aws:rds:instance", false, presetStorage},
 		{"aws:iam:role", false, presetIdentity},
 		{"gcp:bigquery:dataset", false, presetStorage},
-		{"azure:microsoft.authorization:role-definition", false, presetIdentity},
-		{"aws:ec2:vpc", false, presetPrimary}, // ec2 service segment hits primary
-		{"aws:iam:policy", true, presetMuted}, // managed wins over identity
-		{"weird", false, presetSecondary},     // no service segment
+		{"azure:microsoft.authorization:role-definitions", false, presetIdentity},
+		{"aws:ec2:vpc", false, presetPrimary},         // ec2 service segment hits primary
+		{"aws:iam:managed-policy", true, presetMuted}, // managed wins over identity
+		{"weird", false, presetSecondary},             // no service segment
 	}
 	for _, c := range cases {
 		r := &store.Resource{Type: c.typ, ManagedByProvider: c.managed}
@@ -484,12 +484,12 @@ func TestGraphCmd_Complete(t *testing.T) {
 	mName, mRegion := "managed-policy", "us-east-1"
 	nName, nRegion := "orphan-policy", "us-east-1"
 	managed := &store.Resource{
-		Provider: "aws", AccountID: "111", Type: "aws:iam:policy", NativeID: "arn:aws:iam::aws:policy/M",
+		Provider: "aws", AccountID: "111", Type: "aws:iam:managed-policy", NativeID: "arn:aws:iam::aws:policy/M",
 		Name: &mName, Region: &mRegion, AttributesJSON: "{}",
 		ManagedByProvider: true, DiscoveredBy: scanID,
 	}
 	orphan := &store.Resource{
-		Provider: "aws", AccountID: "111", Type: "aws:iam:policy", NativeID: "arn:aws:iam::aws:policy/N",
+		Provider: "aws", AccountID: "111", Type: "aws:iam:managed-policy", NativeID: "arn:aws:iam::aws:policy/N",
 		Name: &nName, Region: &nRegion, AttributesJSON: "{}",
 		ManagedByProvider: true, DiscoveredBy: scanID,
 	}
@@ -559,7 +559,7 @@ func TestGraphCmd_Complete_IncludeManaged(t *testing.T) {
 	}
 	nName := "orphan"
 	orphan := &store.Resource{
-		Provider: "aws", AccountID: "111", Type: "aws:iam:policy", NativeID: "arn:aws:iam::aws:policy/N",
+		Provider: "aws", AccountID: "111", Type: "aws:iam:managed-policy", NativeID: "arn:aws:iam::aws:policy/N",
 		Name: &nName, AttributesJSON: "{}", ManagedByProvider: true, DiscoveredBy: scanID,
 	}
 	if _, err := st.UpsertResources([]*store.Resource{orphan}); err != nil {

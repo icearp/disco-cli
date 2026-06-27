@@ -68,7 +68,7 @@ Providers make **per-service API calls** via each cloud's native Go SDK. No unif
 
 ### Resource type naming
 
-Namespaced lowercase: `aws:ec2:instance`, `azure:compute:virtual-machine`, `gcp:compute:instance`.
+Namespaced lowercase: `aws:ec2:instance`, `azure:microsoft.compute:virtual-machines`, `gcp:compute:instance`.
 
 ### Config and DB path
 

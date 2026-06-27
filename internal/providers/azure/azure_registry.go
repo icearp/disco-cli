@@ -184,7 +184,7 @@ func ListResolvers() []ResolverInfo {
 }
 
 // serviceSegment returns the middle segment of a disco type
-// ("azure:microsoft.compute:virtual-machine" -> "microsoft.compute"). Returns
+// ("azure:microsoft.compute:virtual-machines" -> "microsoft.compute"). Returns
 // "" for malformed inputs.
 func serviceSegment(discoType string) string {
 	parts := strings.SplitN(discoType, ":", 3)

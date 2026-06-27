@@ -198,7 +198,7 @@ Scanners modeling per-(acct,region) singleton parent with N child phases (Macie 
 
 ## Region-scoped FK-safe id sets
 
-When target NativeID not deterministic per (acct, region) (e.g. multiple `aws:guardduty:detector` rows per region; `aws:config:recorder` arbitrary name), use `scannedIDsByRegion(acct, st, type) → map[region][]resourceID` instead of flat id set. Singleton-per-region services (`aws:macie:session` via `macieSessionNativeID`) keep flat `scannedIDSet`. Both helpers in `securityhub_resolvers.go`. Same FK-safety guarantees as flat-set pattern; emits one edge per scanned target in region rather than guessing NativeID.
+When target NativeID not deterministic per (acct, region) (e.g. multiple `aws:guardduty:detector` rows per region; `aws:config:configuration-recorder` arbitrary name), use `scannedIDsByRegion(acct, st, type) → map[region][]resourceID` instead of flat id set. Singleton-per-region services (`aws:macie:session` via `macieSessionNativeID`) keep flat `scannedIDSet`. Both helpers in `securityhub_resolvers.go`. Same FK-safety guarantees as flat-set pattern; emits one edge per scanned target in region rather than guessing NativeID.
 
 ## Multi-phase scanner totals
 
@@ -228,7 +228,7 @@ Services referencing container images by image-URL (App Runner `ImageRepository.
 
 ## RDS-shaped engines: shared API vs dedicated API
 
-Neptune AND DocumentDB each have dedicated SDK service (`aws-sdk-go-v2/service/neptune` / `.../docdb`) with own scanners (`aws:neptune:*` / `aws:docdb:*` types). Neptune *also* surfaces via `rds:DescribeDBClusters` (`Engine=neptune`); DocumentDB does NOT (separate API endpoint). To prevent duplicate rows when scanning same physical Neptune cluster under both `aws:rds:cluster` AND `aws:neptune:cluster`, RDS scanner filters `Engine ∈ {neptune, docdb}` via `nonRDSEngines` in `rds_scanners.go`. Add engine to `nonRDSEngines` whenever adding dedicated scanner conflicting with shared RDS API. Verify by checking dedicated SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list AND probing `rds:DescribeDBClusters` behaviour in test account. (Both Neptune and DocDB *ARN prefixes* use `arn:aws:rds:` — historical artefact predating API split.)
+Neptune AND DocumentDB each have dedicated SDK service (`aws-sdk-go-v2/service/neptune` / `.../docdb`) with own scanners (`aws:neptune:*` / `aws:docdb:*` types). Neptune *also* surfaces via `rds:DescribeDBClusters` (`Engine=neptune`); DocumentDB does NOT (separate API endpoint). To prevent duplicate rows when scanning same physical Neptune cluster under both `aws:rds:db-cluster` AND `aws:neptune:db-cluster`, RDS scanner filters `Engine ∈ {neptune, docdb}` via `nonRDSEngines` in `rds_scanners.go`. Add engine to `nonRDSEngines` whenever adding dedicated scanner conflicting with shared RDS API. Verify by checking dedicated SDK's `api_op_CreateDBCluster.go` `Engine` valid-values list AND probing `rds:DescribeDBClusters` behaviour in test account. (Both Neptune and DocDB *ARN prefixes* use `arn:aws:rds:` — historical artefact predating API split.)
 
 ## List returns entry, Get rejects it
 

@@ -153,7 +153,7 @@ const (
 	TypeIAMGroup             = "aws:iam:group"
 	TypeIAMServiceLinkedRole = "aws:iam:service-linked-role"
 	// IAM — policies and credentials
-	TypeIAMPolicy      = "aws:iam:policy"
+	TypeIAMPolicy      = "aws:iam:managed-policy"
 	TypeIAMRolePolicy  = "aws:iam:role-policy"
 	TypeIAMUserPolicy  = "aws:iam:user-policy"
 	TypeIAMGroupPolicy = "aws:iam:group-policy"
@@ -232,7 +232,7 @@ const (
 	// Cognito (cognito_scanners.go, cognito_resolvers.go)
 	TypeCognitoUserPool     = "aws:cognito:user-pool"
 	TypeCognitoIdentityPool = "aws:cognito:identity-pool"
-	TypeCognitoAppClient    = "aws:cognito:app-client"
+	TypeCognitoAppClient    = "aws:cognito:user-pool-client"
 	// Cognito — extended (cognito_extended_scanners.go)
 	TypeCognitoUserPoolDomain                      = "aws:cognito:user-pool-domain"
 	TypeCognitoUserPoolGroup                       = "aws:cognito:user-pool-group"
@@ -389,7 +389,7 @@ const (
 	// API Gateway v2 (apigateway_scanners.go)
 	TypeAPIGatewayV2API                  = "aws:apigatewayv2:api"
 	TypeAPIGatewayV2Authorizer           = "aws:apigatewayv2:authorizer"
-	TypeAPIGatewayBasePathMappingV2      = "aws:apigatewayv2:base-path-mapping"
+	TypeAPIGatewayBasePathMappingV2      = "aws:apigatewayv2:api-mapping"
 	TypeAPIGatewayDomainNameV2           = "aws:apigatewayv2:domain-name"
 	TypeAPIGatewayV2Deployment           = "aws:apigatewayv2:deployment"
 	TypeAPIGatewayV2Integration          = "aws:apigatewayv2:integration"
@@ -451,11 +451,11 @@ const (
 	// Organizations (organizations_scanners.go)
 	TypeOrganization         = "aws:organizations:organization"
 	TypeOrganizationsAccount = "aws:organizations:account"
-	TypeOrganizationsOU      = "aws:organizations:ou"
-	TypeOrganizationsSCP     = "aws:organizations:scp"
+	TypeOrganizationsOU      = "aws:organizations:organizational-unit"
+	TypeOrganizationsSCP     = "aws:organizations:policy"
 	// ACM (acm_scanners.go)
 	TypeACMCertificate = "aws:acm:certificate"
-	TypeACMPrivateCA   = "aws:acm:private-ca"
+	TypeACMPrivateCA   = "aws:acm-pca:certificate-authority"
 	// Kinesis Data Streams (kinesis_scanners.go)
 	TypeKinesisStream = "aws:kinesis:stream"
 	// Firehose (firehose_scanners.go)
@@ -480,9 +480,9 @@ const (
 	TypeGuardDutyThreatIntelSet        = "aws:guardduty:threat-intel-set"
 	TypeGuardDutyTrustedEntitySet      = "aws:guardduty:trusted-entity-set"
 	// Config (config_scanners.go)
-	TypeConfigRecorder                    = "aws:config:recorder"
+	TypeConfigRecorder                    = "aws:config:configuration-recorder"
 	TypeConfigDeliveryChannel             = "aws:config:delivery-channel"
-	TypeConfigRule                        = "aws:config:rule"
+	TypeConfigRule                        = "aws:config:config-rule"
 	TypeConfigAggregationAuthorization    = "aws:config:aggregation-authorization"
 	TypeConfigConfigurationAggregator     = "aws:config:configuration-aggregator"
 	TypeConfigConformancePack             = "aws:config:conformance-pack"
@@ -491,10 +491,10 @@ const (
 	TypeConfigRemediationConfiguration    = "aws:config:remediation-configuration"
 	TypeConfigStoredQuery                 = "aws:config:stored-query"
 	// Backup (backup_scanners.go)
-	TypeBackupVault                   = "aws:backup:vault"
-	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-vault"
-	TypeBackupPlan                    = "aws:backup:plan"
-	TypeBackupSelection               = "aws:backup:selection"
+	TypeBackupVault                   = "aws:backup:backup-vault"
+	TypeBackupLogicallyAirGappedVault = "aws:backup:logically-air-gapped-backup-vault"
+	TypeBackupPlan                    = "aws:backup:backup-plan"
+	TypeBackupSelection               = "aws:backup:backup-selection"
 	TypeBackupFramework               = "aws:backup:framework"
 	TypeBackupReportPlan              = "aws:backup:report-plan"
 	TypeBackupRestoreTestingPlan      = "aws:backup:restore-testing-plan"
@@ -521,7 +521,7 @@ const (
 	// IAM Identity Center / Identity Store (sso_scanners.go, sso_resolvers.go)
 	TypeSSOInstance                                    = "aws:sso:instance"
 	TypeSSOPermissionSet                               = "aws:sso:permission-set"
-	TypeSSOAccountAssignment                           = "aws:sso:account-assignment"
+	TypeSSOAccountAssignment                           = "aws:sso:assignment"
 	TypeSSOApplication                                 = "aws:sso:application"
 	TypeSSOApplicationAssignment                       = "aws:sso:application-assignment"
 	TypeSSOInstanceAccessControlAttributeConfiguration = "aws:sso:instance-access-control-attribute-configuration"
@@ -801,8 +801,8 @@ const (
 	TypeImageBuilderWorkflow                  = "aws:imagebuilder:workflow"
 	// EMR (emr_scanners.go)
 	TypeEMRCluster              = "aws:emr:cluster"
-	TypeEMRInstanceFleet        = "aws:emr:instance-fleet"
-	TypeEMRInstanceGroup        = "aws:emr:instance-group"
+	TypeEMRInstanceFleet        = "aws:emr:instance-fleet-config"
+	TypeEMRInstanceGroup        = "aws:emr:instance-group-config"
 	TypeEMRSecurityConfig       = "aws:emr:security-configuration"
 	TypeEMRStep                 = "aws:emr:step"
 	TypeEMRStudio               = "aws:emr:studio"
@@ -1306,7 +1306,7 @@ const (
 	TypeAthenaDataCatalog = "aws:athena:datacatalog"
 	// Redshift (redshift_scanners.go, redshift_resolvers.go)
 	TypeRedshiftCluster               = "aws:redshift:cluster"
-	TypeRedshiftSubnetGroup           = "aws:redshift:subnet-group"
+	TypeRedshiftSubnetGroup           = "aws:redshift:cluster-subnet-group"
 	TypeRedshiftClusterParameterGroup = "aws:redshift:cluster-parameter-group"
 	TypeRedshiftEndpointAccess        = "aws:redshift:endpoint-access"
 	TypeRedshiftEndpointAuthorization = "aws:redshift:endpoint-authorization"
@@ -1316,22 +1316,22 @@ const (
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
-	TypeDocDBCluster                 = "aws:docdb:cluster"
-	TypeDocDBInstance                = "aws:docdb:instance"
+	TypeDocDBCluster                 = "aws:docdb:db-cluster"
+	TypeDocDBInstance                = "aws:docdb:db-instance"
 	TypeDocDBDBClusterParameterGroup = "aws:docdb:db-cluster-parameter-group"
 	TypeDocDBDBSubnetGroup           = "aws:docdb:db-subnet-group"
 	TypeDocDBEventSubscription       = "aws:docdb:event-subscription"
 	TypeDocDBGlobalCluster           = "aws:docdb:global-cluster"
 	// Neptune (neptune_scanners.go, neptune_resolvers.go)
-	TypeNeptuneCluster                 = "aws:neptune:cluster"
-	TypeNeptuneInstance                = "aws:neptune:instance"
+	TypeNeptuneCluster                 = "aws:neptune:db-cluster"
+	TypeNeptuneInstance                = "aws:neptune:db-instance"
 	TypeNeptuneDBClusterParameterGroup = "aws:neptune:db-cluster-parameter-group"
 	TypeNeptuneDBParameterGroup        = "aws:neptune:db-parameter-group"
 	TypeNeptuneDBSubnetGroup           = "aws:neptune:db-subnet-group"
 	TypeNeptuneEventSubscription       = "aws:neptune:event-subscription"
 	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)
 	TypeServiceCatalogPortfolio = "aws:servicecatalog:portfolio"
-	TypeServiceCatalogProduct   = "aws:servicecatalog:product"
+	TypeServiceCatalogProduct   = "aws:servicecatalog:cloud-formation-product"
 	// ServiceCatalog — extended (servicecatalog_extended_scanners.go)
 	TypeServiceCatalogAcceptedPortfolioShare           = "aws:servicecatalog:accepted-portfolio-share"
 	TypeServiceCatalogCloudFormationProvisionedProduct = "aws:servicecatalog:cloudformation-provisioned-product"
@@ -1400,7 +1400,7 @@ const (
 	// Lightsail (lightsail_scanners.go)
 	TypeLightsailInstance         = "aws:lightsail:instance"
 	TypeLightsailDatabase         = "aws:lightsail:database"
-	TypeLightsailContainerService = "aws:lightsail:container-service"
+	TypeLightsailContainerService = "aws:lightsail:container"
 	// Lightsail — extended (lightsail_extended_scanners.go)
 	TypeLightsailAlarm                      = "aws:lightsail:alarm"
 	TypeLightsailBucket                     = "aws:lightsail:bucket"

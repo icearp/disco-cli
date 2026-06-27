@@ -87,7 +87,7 @@ For per-location APIs supporting it (`cloudfunctions/v2`, `run/v2`, future Pub/S
 ## Synthetic NativeIDs
 
 Some GCP resources have no API-issued canonical name. Synthesize from parent resource path + natural key:
-- `gcp:dns:record-set` → `{zoneNativeID}/rrsets/{type}/{name}` — `(name, type)` is natural key (one zone can have A + AAAA for same hostname).
+- `gcp:dns:resource-record-set` → `{zoneNativeID}/rrsets/{type}/{name}` — `(name, type)` is natural key (one zone can have A + AAAA for same hostname).
 - `gcp:iam:policy` → `{scope}/policy` — IAM policy is JSON returned by `GetIamPolicy`, not real resource.
 Stable across rescans; matches synthetic-NativeID precedent in `store/CLAUDE.md`.
 

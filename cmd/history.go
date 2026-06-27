@@ -94,7 +94,7 @@ row only when the resource's attributes change, so this is the change-over-time
 view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
 'disco graph').`,
 	Example: `  disco history 1f3c0a9b2e4d5c6a7b8c9d0e1f2a3b4c
-  disco resources --type azure:microsoft.quota:quota -o json | jq -r '.[0].id' | xargs disco history`,
+  disco resources --type azure:microsoft.quota:quotas -o json | jq -r '.[0].id' | xargs disco history`,
 	RunE: func(_ *cobra.Command, args []string) (rerr error) {
 		defer func() { maybeStructuredError(historyOutputFmt, rerr) }()
 		db, err := openDB()

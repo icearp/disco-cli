@@ -68,7 +68,7 @@ type eventGridSubscriptionAttrs struct {
 //
 // Service Bus topic destination resourceIds carry the topic suffix (e.g.
 // `…/namespaces/foo/topics/bar`); the per-sub NativeID index already keys on
-// the namespace ARM ID for `azure:microsoft.servicebus:namespace`, so the
+// the namespace ARM ID for `azure:microsoft.servicebus:namespaces`, so the
 // resolver progressively trims `/`-segments from the right (precedent: PE
 // resolver) until a stored resource matches.
 func resolveEventGridRelationships(sub *subscription, st *store.Store) error {

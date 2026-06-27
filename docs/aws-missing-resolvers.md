@@ -63,7 +63,7 @@ new gaps as scanner coverage grows.
 | Source | Target | Resolution |
 |--------|--------|------------|
 | `aws:iam:service-linked-role` → `aws:iam:role` | audit hardening: skip refs equal to source NativeID (Phase A self-ARN suppression) |
-| `aws:iam:role` → `aws:iam:policy` | audit hardening: direction-blind diff — `policy → role` already emitted by `resolveManagedPolicyAttachments` |
+| `aws:iam:role` → `aws:iam:managed-policy` | audit hardening: direction-blind diff — `policy → role` already emitted by `resolveManagedPolicyAttachments` |
 | `aws:kms:grant` → `aws:kms:key` | audit hardening: direction-blind diff — `key → grant` hierarchy `contains` exists |
 | `aws:iam:instance-profile` → `aws:iam:role` | covered by `resolveInstanceProfileRoles`; surfaced as sample artifact, cleared on re-scan |
 | `aws:ec2:route-table` → IGW/NAT/TGW/peering/VPCE/instance | `resolveRouteTableRoutes` (`ec2_networking_resolvers.go`) walks `Routes[]` and dispatches per target field |
@@ -123,7 +123,7 @@ Tab-separated so the regenerate command can overwrite the block in place
 ```tsv
 disco_type	service
 aws:appflow:connector-profile	appflow
-aws:backup:plan	backup
+aws:backup:backup-plan	backup
 aws:batch:consumable-resource	batch
 aws:batch:scheduling-policy	batch
 aws:batch:service-environment	batch
@@ -216,7 +216,7 @@ aws:kendra:index	kendra
 aws:launch-wizard:deployment	launch-wizard
 aws:license-manager:license	license-manager
 aws:lightsail:bucket	lightsail
-aws:lightsail:container-service	lightsail
+aws:lightsail:container	lightsail
 aws:lightsail:database	lightsail
 aws:lightsail:domain	lightsail
 aws:lookout-equipment:inference-scheduler	lookout-equipment

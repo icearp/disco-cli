@@ -903,8 +903,8 @@ func TestReversedContainsEdges_DetectsAndIgnores(t *testing.T) {
 func TestRecordHierarchy_WritesRelationshipRow(t *testing.T) {
 	st := openTestStore(t)
 
-	parentID := insertResource(t, st, "azure", "sub", "azure:microsoft.resources:resource-group", "rg-1")
-	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-1")
+	parentID := insertResource(t, st, "azure", "sub", "azure:microsoft.resources:resource-groups", "rg-1")
+	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machines", "vm-1")
 
 	if err := st.RecordHierarchy(parentID, parentID); err != nil {
 		t.Fatalf("seed parent: %v", err)
@@ -932,7 +932,7 @@ func TestRecordHierarchy_SkipsMissingResource(t *testing.T) {
 	var warns []ScanWarning
 	st.OnWarn = func(w ScanWarning) { warns = append(warns, w) }
 
-	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machine", "vm-orphan")
+	childID := insertResource(t, st, "azure", "sub", "azure:microsoft.compute:virtual-machines", "vm-orphan")
 	missingParentID := "deadbeef00000000000000000000000a"
 
 	if err := st.RecordHierarchy(childID, missingParentID); err != nil {

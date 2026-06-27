@@ -65,11 +65,11 @@ func TestBuild_BucketAssignment(t *testing.T) {
 
 func TestBuild_DedupesEmits(t *testing.T) {
 	emits := []TypeDecl{
-		{Service: "iam", DiscoType: "aws:iam:policy"},
-		{Service: "iam", DiscoType: "aws:iam:policy"}, // duplicate (e.g. catalogue stub + GAAD scanner)
+		{Service: "iam", DiscoType: "aws:iam:managed-policy"},
+		{Service: "iam", DiscoType: "aws:iam:managed-policy"}, // duplicate (e.g. catalogue stub + GAAD scanner)
 	}
 	upstream := []UpstreamType{{Key: "AWS::IAM::ManagedPolicy", Service: "IAM"}}
-	aliases := map[string]string{"aws:iam:policy": "AWS::IAM::ManagedPolicy"}
+	aliases := map[string]string{"aws:iam:managed-policy": "AWS::IAM::ManagedPolicy"}
 
 	got := Build("aws", emits, aliases, nil, upstream)
 	covered := 0

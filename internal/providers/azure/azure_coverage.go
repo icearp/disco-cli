@@ -69,18 +69,19 @@ func (coverageProvider) Aliases() map[string]string {
 }
 
 // AlgorithmicKey is the fallback for disco types missing from the alias
-// map. Disco type "azure:microsoft.compute:virtual-machine" -> ARM key
-// "microsoft.compute/virtualmachine". Doesn't pluralise — alias map handles
-// the pluralisation correctly. Mostly exists so future types compile-check
-// without an alias entry.
+// map. Disco type "azure:microsoft.compute:galleries:images:versions" -> ARM
+// key "microsoft.compute/galleries/images/versions": strip kebab dashes (ARM
+// resource segments have no separators) and turn the disco ':' sub-resource
+// separators back into the ARM '/' hierarchy. Mostly exists so future types
+// compile-check without an alias entry.
 func (coverageProvider) AlgorithmicKey(discoType string) string {
 	parts := strings.SplitN(discoType, ":", 3)
 	if len(parts) != 3 {
 		return discoType
 	}
 	ns, kind := parts[1], parts[2]
-	// Strip kebab dashes; ARM uses no separators in resource segments.
 	kind = strings.ReplaceAll(kind, "-", "")
+	kind = strings.ReplaceAll(kind, ":", "/")
 	return ns + "/" + kind
 }
 

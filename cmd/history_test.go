@@ -18,7 +18,7 @@ func seedVersionChain(t *testing.T, st *store.Store) string {
 		t.Fatalf("CreateScan A: %v", err)
 	}
 	base := &store.Resource{
-		Provider: "azure", AccountID: "sub-1", Type: "azure:microsoft.quota:quota",
+		Provider: "azure", AccountID: "sub-1", Type: "azure:microsoft.quota:quotas",
 		NativeID:       "/subscriptions/sub-1/providers/Microsoft.Compute/locations/eastus/providers/Microsoft.Quota/quotas/cores",
 		AttributesJSON: `{"limit":100}`, DiscoveredBy: scanA,
 	}
