@@ -138,11 +138,11 @@ func (coverageProvider) AlgorithmicKey(discoType string) string {
 }
 
 // Discovery API endpoints. Public, unauthenticated; rate-limited but generous
-// for a one-shot enumeration.
-const (
-	discoveryListURL    = "https://www.googleapis.com/discovery/v1/apis"
-	discoveryFetchLimit = 8
-)
+// for a one-shot enumeration. discoveryListURL is a var so tests can point the
+// fetch at an httptest server (the per-API doc URLs come from the list response).
+var discoveryListURL = "https://www.googleapis.com/discovery/v1/apis"
+
+const discoveryFetchLimit = 8
 
 // Fetch enumerates first-party Google APIs via the Discovery API and returns
 // every resource collection encountered as an UpstreamType. Filtering is
@@ -180,10 +180,11 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 	}
 
 	var (
-		mu  sync.Mutex
-		out []coverage.UpstreamType
-		sem = semaphore.NewWeighted(discoveryFetchLimit)
-		wg  sync.WaitGroup
+		mu       sync.Mutex
+		out      []coverage.UpstreamType
+		firstErr error // guarded by mu
+		sem      = semaphore.NewWeighted(discoveryFetchLimit)
+		wg       sync.WaitGroup
 	)
 	for _, ref := range todo {
 		if err := sem.Acquire(ctx, 1); err != nil {
@@ -193,9 +194,15 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 			defer sem.Release(1)
 			doc, err := fetchDiscoveryDoc(ctx, client, ref.url)
 			if err != nil {
-				// Silent skip — partial fetch better than aborting the whole
-				// matrix on one transient HTTP failure. Surfaces as "missing"
-				// in the matrix for that API's types.
+				// A per-API doc failure would leave that API's types absent
+				// from the upstream set, falsely bucketing them upstream-missing.
+				// Record and propagate rather than silently degrade — the cmd
+				// layer turns this into a fatal "registry unreachable" (exit 2).
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("discovery doc %s: %w", ref.name, err)
+				}
+				mu.Unlock()
 				return
 			}
 			types := walkResourceCollections(ref.name, doc)
@@ -205,6 +212,9 @@ func (coverageProvider) Fetch(ctx context.Context, _ coverage.FetchOptions) ([]c
 		})
 	}
 	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
 
 	// Dedupe across versions by full upstream key — same API across v1/v2
 	// often reports the same resource collection twice. Service segment of

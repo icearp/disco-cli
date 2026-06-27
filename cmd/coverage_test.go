@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -47,9 +48,9 @@ func (f *fakeCoverageProvider) Emits() []coverage.TypeDecl     { return f.emits 
 func (f *fakeCoverageProvider) Aliases() map[string]string     { return nil }
 func (f *fakeCoverageProvider) AlgorithmicKey(_ string) string { return "" }
 
-// TestCoverage_StrictCannotAssessOnFetchFailure: registry-unreachable under
-// --check-strict surfaces a distinct "cannot assess" error rather than the
-// fleet-wide false-drift report (F9).
+// TestCoverage_StrictCannotAssessOnFetchFailure: a registry-unreachable fetch
+// under --check-strict surfaces the distinct "registry unreachable" error
+// rather than the fleet-wide false-drift report (F9).
 func TestCoverage_StrictCannotAssessOnFetchFailure(t *testing.T) {
 	name := "f9-cannot-assess"
 	coverage.Register(&fakeCoverageProvider{
@@ -67,8 +68,8 @@ func TestCoverage_StrictCannotAssessOnFetchFailure(t *testing.T) {
 	if err == nil {
 		t.Fatalf("want error, got nil")
 	}
-	if !strings.Contains(err.Error(), "cannot assess --check-strict") {
-		t.Errorf("want cannot-assess message, got: %v", err)
+	if !errors.Is(err, errCoverageRegistryUnreachable) {
+		t.Errorf("want errCoverageRegistryUnreachable, got: %v", err)
 	}
 	if strings.Contains(err.Error(), "upstream-missing rows present") {
 		t.Errorf("strict-gate fell through to drift message: %v", err)
@@ -99,24 +100,63 @@ func TestCoverage_StrictDriftStillFires(t *testing.T) {
 	}
 }
 
-// TestCoverage_NonStrictTolerantOnFetchFailure: without --check-strict, fetch
-// failures warn-and-continue without returning an error.
-func TestCoverage_NonStrictTolerantOnFetchFailure(t *testing.T) {
-	name := "f9-tolerant"
+// TestCoverage_NonStrictErrorsOnFetchFailure: even without --check-strict, a
+// fetch failure (e.g. expired/missing credentials) is fatal — proceeding with
+// an empty upstream would falsely bucket every emitted type as upstream-missing.
+func TestCoverage_NonStrictErrorsOnFetchFailure(t *testing.T) {
+	name := "f9-fatal"
 	coverage.Register(&fakeCoverageProvider{
 		name:     name,
 		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
-		fetchErr: errors.New("throttled"),
+		fetchErr: errors.New("ExpiredToken"),
 	})
 
 	resetCoverageFlags(t)
-	_, err := captureStdout(t, func() error {
+	out, err := captureStdout(t, func() error {
 		cmd := rootCmd
 		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--timeout", "1s", "--check-strict=false"})
 		return cmd.Execute()
 	})
-	if err != nil {
-		t.Errorf("non-strict should tolerate fetch failure, got: %v", err)
+	if err == nil {
+		t.Fatalf("non-strict fetch failure must error, got nil")
+	}
+	if !errors.Is(err, errCoverageRegistryUnreachable) {
+		t.Errorf("want errCoverageRegistryUnreachable, got: %v", err)
+	}
+	// No matrix should have been rendered to stdout before the error.
+	if strings.Contains(out, "upstream-missing") || strings.Contains(out, name+":ec2:instance") {
+		t.Errorf("a misleading matrix was rendered before the fatal error:\n%s", out)
+	}
+}
+
+// TestCoverage_FetchFailureJSONEnvelope: with -o json, a fetch failure emits the
+// structured {"error":...} envelope on stdout (via maybeStructuredError) so
+// machine consumers see the failure, not a false zero-coverage document.
+func TestCoverage_FetchFailureJSONEnvelope(t *testing.T) {
+	name := "f9-json"
+	coverage.Register(&fakeCoverageProvider{
+		name:     name,
+		emits:    []coverage.TypeDecl{{Service: "ec2", DiscoType: name + ":ec2:instance"}},
+		fetchErr: errors.New("ExpiredToken"),
+	})
+
+	resetCoverageFlags(t)
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--timeout", "1s", "-o", "json"})
+		return cmd.Execute()
+	})
+	if err == nil {
+		t.Fatalf("want error, got nil")
+	}
+	var env struct {
+		Error string `json:"error"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &env); jerr != nil {
+		t.Fatalf("stdout is not a JSON error envelope: %v\n%s", jerr, out)
+	}
+	if !strings.Contains(env.Error, "upstream registry unreachable") {
+		t.Errorf("envelope error = %q; want it to mention the unreachable registry", env.Error)
 	}
 }
 

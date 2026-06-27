@@ -135,7 +135,7 @@ func init() {
 	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "synthetic", "upstream-missing"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
-	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")
+	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift). A registry-fetch failure always exits 2, with or without this flag.")
 
 	// regions subcommand flags.
 	coverageRegionsCmd.Flags().StringSlice("providers", nil, fmt.Sprintf("Limit to listed providers (%s); empty = all registered", providerListHint()))
@@ -143,7 +143,7 @@ func init() {
 	coverageRegionsCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageRegionsCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
 	coverageRegionsCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
-	coverageRegionsCmd.Flags().Bool("check-strict", false, "Exit 1 on any non-covered row (drift)")
+	coverageRegionsCmd.Flags().Bool("check-strict", false, "Exit 1 on any non-covered row (drift). A region-list fetch failure always exits 2, with or without this flag.")
 
 	// resolvers subcommand flags.
 	coverageResolversCmd.Flags().StringSlice("providers", nil, "Limit to listed providers (aws only today); empty = aws")
@@ -155,11 +155,13 @@ func init() {
 	rootCmd.AddCommand(coverageCmd)
 }
 
-// errCoverageRegistryUnreachable signals --check-strict cannot assess drift
-// because at least one provider's upstream registry fetch failed. Mapped to
-// exit 2 in Execute() (vs exit 1 for genuine drift) so CI consumers can
-// distinguish transient registry failures from real drift signal.
-var errCoverageRegistryUnreachable = errors.New("cannot assess --check-strict: upstream registry unreachable for")
+// errCoverageRegistryUnreachable signals at least one provider's upstream
+// registry fetch failed (e.g. expired/missing credentials), so coverage cannot
+// be assessed. Always fatal — without it every emitted type would falsely
+// bucket as upstream-missing against an empty registry. Mapped to exit 2 in
+// Execute() (vs exit 1 for genuine drift) so CI can distinguish a transient
+// registry/credential failure from a real drift signal.
+var errCoverageRegistryUnreachable = errors.New("upstream registry unreachable for")
 
 // outputFormat resolves the --output flag (parent persistent flag) on the
 // invoking subcommand.
@@ -222,16 +224,23 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		upstream, err := p.Fetch(fetchCtx, opts)
 		cancel()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v (continuing with empty upstream)\n", p.Name(), err)
+			// A failed fetch (commonly expired/missing credentials) yields an
+			// empty upstream, which would falsely bucket every emitted type as
+			// upstream-missing. Skip the build and fail below rather than print
+			// a confidently-wrong matrix.
+			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v\n", p.Name(), err)
 			fetchFailures = append(fetchFailures, p.Name())
+			continue
 		}
 		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream)
 		m.Rows = filterRows(m.Rows, filter, services)
 		matrices = append(matrices, m)
 	}
 
-	if checkStrict && len(fetchFailures) > 0 {
-		return fmt.Errorf("%w: %s; retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+	// Fetch failure is always fatal (exit 2), independent of --check-strict,
+	// and returned before rendering so no misleading matrix is emitted.
+	if len(fetchFailures) > 0 {
+		return fmt.Errorf("%w: %s; check credentials, then retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
 	}
 
 	w := cmd.OutOrStdout()
@@ -342,8 +351,9 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 		rows = append(rows, diff...)
 	}
 
-	if checkStrict && len(fetchFailures) > 0 {
-		return fmt.Errorf("%w: %s; retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
+	// Fetch failure is always fatal (exit 2), independent of --check-strict.
+	if len(fetchFailures) > 0 {
+		return fmt.Errorf("%w: %s; check credentials, then retry or scope --providers", errCoverageRegistryUnreachable, strings.Join(fetchFailures, ", "))
 	}
 
 	if len(regionFilter) > 0 {
