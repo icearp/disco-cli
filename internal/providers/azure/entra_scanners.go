@@ -153,7 +153,7 @@ func scanEntra(ctx context.Context, subs []subscription, cred azcore.TokenCreden
 	tenantID, terr := tenantIDFromCred(ctx, cred)
 	if terr != nil {
 		st.ReportWarning(store.ScanWarning{
-			Provider: "azure", Service: "azure:microsoft.entra", Scope: "tenant",
+			Provider: "azure", Service: "azure:microsoft.entra", Scope: tenantScopeLabel(subs),
 			Message: "could not resolve tenant id: " + formatAzureError(terr),
 		})
 		return 0, 0, nil
@@ -432,6 +432,36 @@ func jsonOrEmpty(v any) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+// orgAttrs is the curated subset of a Microsoft Graph organization (tenant)
+// entity. Only the friendly displayName is needed for the scan scope label.
+type orgAttrs struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"displayName"`
+}
+
+// tenantDisplayName fetches the tenant's friendly display name from Microsoft
+// Graph's /organization endpoint (a single-element collection scoped to the
+// calling tenant). Best-effort: requires directory read access, so on any
+// failure the caller falls back to the tenant GUID for the scope label rather
+// than surfacing a warning — the Entra scanner already reports Graph
+// permission denials, and the GUID is an honest label on its own.
+func tenantDisplayName(ctx context.Context, cred tokenIssuer) (string, error) {
+	return tenantDisplayNameWithClient(ctx, newGraphClient(cred))
+}
+
+// tenantDisplayNameWithClient is the testable core — tests aim it at an
+// httptest-backed graphClient via the baseURL seam.
+func tenantDisplayNameWithClient(ctx context.Context, g *graphClient) (string, error) {
+	var page graphPage[orgAttrs]
+	if err := g.get(ctx, g.listURL("organization", []string{"id", "displayName"}), &page); err != nil {
+		return "", err
+	}
+	if len(page.Value) == 0 {
+		return "", fmt.Errorf("graph: /organization returned no rows")
+	}
+	return page.Value[0].DisplayName, nil
 }
 
 // tenantIDFromCred resolves the calling tenant by issuing a Graph token and

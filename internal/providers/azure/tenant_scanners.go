@@ -58,6 +58,7 @@ func runTenantServices(ctx context.Context, subs []subscription, cred azcore.Tok
 		return
 	}
 	allowed := tenantServiceFilterSet(filter)
+	scope := tenantScopeLabel(subs)
 	for _, svc := range registeredTenantServices {
 		if allowed != nil && !allowed[svc.name] {
 			continue
@@ -66,13 +67,13 @@ func runTenantServices(ctx context.Context, subs []subscription, cred azcore.Tok
 		total, _, err := svc.fn(ctx, subs, cred, st.WithUpsertCounters(&newC, &changedC), scanID)
 		if err != nil {
 			st.ReportError(store.ScanError{
-				Provider: "azure", Service: svc.name, Scope: "tenant",
+				Provider: "azure", Service: svc.name, Scope: scope,
 				Message: formatAzureError(err),
 			})
-			st.ReportService(svc.name, "tenant", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
+			st.ReportService(svc.name, scope, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
 			continue
 		}
-		st.ReportService(svc.name, "tenant", total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
+		st.ReportService(svc.name, scope, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
 	}
 }
 

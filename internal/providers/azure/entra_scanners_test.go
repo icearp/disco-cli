@@ -89,6 +89,58 @@ func TestTenantIDFromJWT(t *testing.T) {
 	}
 }
 
+// TestTenantDisplayName drives tenantDisplayName against an httptest server
+// returning the single-element /organization collection, plus the no-rows
+// degraded case.
+func TestTenantDisplayName(t *testing.T) {
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	var empty bool
+	mux.HandleFunc("/organization", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("$select") == "" {
+			t.Errorf("missing $select: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if empty {
+			_, _ = w.Write([]byte(`{"value":[]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"value":[{"id":"tid-1","displayName":"Contoso"}]}`))
+	})
+
+	g := &graphClient{cred: stubTokenIssuer{token: "x"}, http: srv.Client(), baseURL: srv.URL}
+	got, err := tenantDisplayNameWithClient(context.Background(), g)
+	if err != nil || got != "Contoso" {
+		t.Errorf("tenantDisplayName: got %q err %v; want \"Contoso\" nil", got, err)
+	}
+
+	empty = true
+	if _, err := tenantDisplayNameWithClient(context.Background(), g); err == nil {
+		t.Error("empty /organization: want error, got nil")
+	}
+}
+
+// TestTenantScopeLabel pins the "name, else GUID, else placeholder" fallback
+// ladder for the tenant-scope scan progress column.
+func TestTenantScopeLabel(t *testing.T) {
+	tests := []struct {
+		name string
+		subs []subscription
+		want string
+	}{
+		{name: "name preferred", subs: []subscription{{tenantID: "t-1", tenantName: "Contoso"}}, want: "Contoso"},
+		{name: "guid fallback", subs: []subscription{{tenantID: "t-1"}}, want: "t-1"},
+		{name: "placeholder when neither", subs: []subscription{{}}, want: "tenant"},
+		{name: "placeholder when empty", subs: nil, want: "tenant"},
+	}
+	for _, tt := range tests {
+		if got := tenantScopeLabel(tt.subs); got != tt.want {
+			t.Errorf("%s: tenantScopeLabel = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 // TestStrDeref verifies nil-safe behaviour.
 func TestStrDeref(t *testing.T) {
 	s := "hi"

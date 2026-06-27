@@ -149,8 +149,12 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 			Message: "resolve tenant id: " + formatAzureError(terr),
 		})
 	} else {
+		// Friendly tenant name is a separate best-effort Graph call; degrade to
+		// the GUID (left as empty tenantName) when directory read is unavailable.
+		tenantName, _ := tenantDisplayName(ctx, cred)
 		for i := range subs {
 			subs[i].tenantID = tenantID
+			subs[i].tenantName = tenantName
 		}
 	}
 
@@ -175,7 +179,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 	entraDone := make(chan struct{})
 	wg.Go(func() {
 		defer close(entraDone)
-		defer reportPanic(st, "entra", "tenant")
+		defer reportPanic(st, "entra", tenantScopeLabel(subs))
 		runTenantServices(ctx, subs, cred, s.serviceFilter, st, scanID)
 	})
 
@@ -468,6 +472,12 @@ type subscription struct {
 	// once per subscription. Empty when tenant resolution failed — callers must
 	// fall back to per-subscription behavior.
 	tenantID string
+	// tenantName is the tenant's friendly display name, resolved once in Scan
+	// via Microsoft Graph's /organization endpoint and stamped onto every
+	// subscription alongside tenantID. Best-effort: empty when Graph is
+	// unreachable / unauthorized, in which case tenant-scope rows label with
+	// the GUID instead. Display-only — never used as an account key.
+	tenantName string
 }
 
 // scopeLabel is the human-readable per-subscription scope shown in scan
@@ -480,6 +490,24 @@ func (s *subscription) scopeLabel() string {
 		return s.Name
 	}
 	return s.ID
+}
+
+// tenantScopeLabel renders the scope column for tenant-scope service rows
+// (Entra ID, management groups, built-in role/policy definitions). Mirrors
+// the per-subscription scopeLabel "friendly name, else GUID" shape: prefer the
+// tenant display name, fall back to the tenant GUID, and only as a last resort
+// the literal "tenant" placeholder when neither resolved (degraded mode). The
+// tenant identity is uniform across subs, so the first one is representative.
+func tenantScopeLabel(subs []subscription) string {
+	if len(subs) > 0 {
+		if subs[0].tenantName != "" {
+			return subs[0].tenantName
+		}
+		if subs[0].tenantID != "" {
+			return subs[0].tenantID
+		}
+	}
+	return "tenant"
 }
 
 // functionAppSettingsByDiscoID is a per-subscription sidecar populated by the
