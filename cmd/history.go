@@ -114,9 +114,9 @@ view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
 		if err != nil {
 			return fmt.Errorf("get resource versions: %w", err)
 		}
-		if len(versions) == 0 {
-			return fmt.Errorf("no version history for %q", target.ID)
-		}
+		// Zero rows is a valid query outcome, not a process failure: exit 0
+		// and emit the format's empty shape (machine formats get []/no lines;
+		// table prints a stderr note below) — same contract as resources/scans.
 		entries := historyEntries(versions)
 
 		switch historyOutputFmt {
@@ -151,6 +151,10 @@ view. Accepts a resource id, name, native id, or short-id prefix (same lookup as
 			}
 			return renderMarkdownTable(os.Stdout, historyColumns, rows)
 		case "table", "":
+			if len(entries) == 0 {
+				_, _ = fmt.Fprintln(os.Stderr, "No version history found.")
+				return nil
+			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			_, _ = fmt.Fprintln(w, "VERSION\tDISCOVERED AT\tVERIFIED AT\tVERIFIED BY\tCURRENT\tATTRIBUTES")
 			for _, e := range entries {

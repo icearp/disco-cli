@@ -46,7 +46,7 @@ var validRankdirs = map[string]bool{"LR": true, "RL": true, "TB": true, "BT": tr
 
 // graphOutputFormats is the set of values accepted by --output across all
 // graph subcommands. Kept in one place so help text stays in sync.
-var graphOutputFormats = []string{"table", "markdown", "csv", "json", "dot", "mermaid"}
+var graphOutputFormats = []string{"table", "markdown", "csv", "json", "jsonl", "dot", "mermaid"}
 
 var graphCmd = &cobra.Command{
 	Use:   "graph <name|native-id|resource-id>",
@@ -344,6 +344,10 @@ func renderGraph(g *store.GraphResult, blast bool) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(g)
+	case "jsonl":
+		// Single GraphResult on one unindented line, for shape parity with the
+		// other jsonl emitters so `jq -c` consumes either without branching.
+		return json.NewEncoder(os.Stdout).Encode(g)
 	case "csv":
 		return renderGraphCSV(g)
 	case "markdown", "md":
@@ -726,8 +730,8 @@ func init() {
 	graphCmd.Flags().IntVar(&graphDepth, "depth", 2, "Maximum BFS traversal depth (0 = seed only)")
 	graphCmd.PersistentFlags().StringSliceVar(&graphKinds, "kinds", nil, "Comma-separated edge kinds to traverse (default: all kinds)")
 	graphCmd.PersistentFlags().StringVar(&graphDirection, "direction", "both", "Edge direction: out, in, both")
-	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, dot, mermaid")
-	_ = graphCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "dot", "mermaid"))
+	graphCmd.PersistentFlags().StringVarP(&graphOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, dot, mermaid")
+	_ = graphCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl", "dot", "mermaid"))
 	graphCmd.PersistentFlags().BoolVar(&graphIncludeManaged, "include-managed", false, "Expand BFS through provider-managed nodes (default: terminal — included only when directly linked)")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeTypes, "exclude-types", nil, "Drop nodes whose type matches; literal or suffix-glob (e.g. 'aws:iam:*')")
 	graphCmd.PersistentFlags().StringSliceVar(&graphExcludeRegions, "exclude-regions", nil, "Drop nodes whose region matches exactly")

@@ -120,7 +120,9 @@ func runConfigInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 
-	fmt.Printf("Config written to %s\n", path)
+	// Success confirmation goes to stderr (matches snapshot/verify) so stdout
+	// stays clean for any future machine output.
+	fmt.Fprintf(os.Stderr, "Config written to %s\n", path)
 	return nil
 }
 

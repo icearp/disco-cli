@@ -43,6 +43,12 @@ func maybeStructuredError(format string, err error) {
 			Err string `json:"error"`
 		}{err.Error()})
 		structuredErrorEmitted = true
+		// "sarif" is deliberately excluded: SARIF is a rigid schema (runs[].
+		// results[], tool driver) and a bare {"error":"..."} object is NOT valid
+		// SARIF — emitting it would break strict consumers (e.g. GitHub code
+		// scanning). On error under -o sarif we leave stdout empty and let the
+		// non-zero exit + plaintext stderr (root.go) carry the failure, which is
+		// safe for SARIF readers (they get no malformed document).
 	}
 }
 

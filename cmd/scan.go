@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -140,8 +141,14 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// SDK clients or touching cloud APIs. Cron authors validate scheduling
 	// logic in CI without burning live API quota.
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	output, _ := cmd.Flags().GetString("output")
+	// --output is scoped to --dry-run (a live scan reports via 'disco scans',
+	// not inline); reject it on a live run rather than silently ignoring it.
+	if !dryRun && output != "" && output != "table" {
+		return fmt.Errorf("--output %s applies only with --dry-run; query a live scan's result via 'disco scans -o %s'", output, output)
+	}
 	if dryRun {
-		return runScanDryRun(cmd, names)
+		return runScanDryRun(cmd, names, output)
 	}
 
 	// openWriteDB opens Postgres when DISCO_PG_DSN is set (the scan-worker
@@ -458,13 +465,26 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 	return scope
 }
 
-// runScanDryRun prints "would scan" / "would skip" decisions per provider
+// dryRunDecision is one provider's would-scan/would-skip verdict. The ephemeral
+// scan plan a --dry-run computes is never persisted, so -o json is the only
+// machine-readable path to it (a live scan re-queries via 'disco scans').
+type dryRunDecision struct {
+	Provider  string `json:"provider"`
+	WouldScan bool   `json:"would_scan"`
+	Detail    string `json:"detail"`
+}
+
+// runScanDryRun reports "would scan" / "would skip" decisions per provider
 // without opening SDK clients or hitting cloud APIs. Reads the local DB
 // read-only to evaluate --if-older-than against latest complete scans.
-// Always exits 0 — pipeline operators are expected to read stdout to make
-// scheduling decisions, not the exit code.
-func runScanDryRun(cmd *cobra.Command, names []string) error {
+// Always exits 0 — pipeline operators read the decisions, not the exit code.
+func runScanDryRun(cmd *cobra.Command, names []string, output string) error {
+	if output != "" && output != "table" && output != "json" {
+		return fmt.Errorf("--output %q not supported for --dry-run (use table or json)", output)
+	}
 	d, _ := cmd.Flags().GetDuration("if-older-than")
+	decisions := make([]dryRunDecision, 0, len(names))
+
 	db, err := store.OpenReadOnly(defaultDBPath())
 	if err != nil {
 		// First-run UX: report decisions even without a DB. Recency gate
@@ -474,13 +494,13 @@ func runScanDryRun(cmd *cobra.Command, names []string) error {
 			if d > 0 {
 				detail = fmt.Sprintf("threshold %s, no DB on disk yet", d)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "would scan: %s (%s)\n", name, detail)
+			decisions = append(decisions, dryRunDecision{Provider: name, WouldScan: true, Detail: detail})
 		}
-		return nil
+		return renderDryRun(cmd, decisions, output)
 	}
 	defer func() { _ = db.Close() }()
 	for _, name := range names {
-		decision := "would scan"
+		wouldScan := true
 		detail := "no recency gate"
 		if d > 0 {
 			detail = fmt.Sprintf("threshold %s", d)
@@ -492,7 +512,7 @@ func runScanDryRun(cmd *cobra.Command, names []string) error {
 				if t, perr := time.Parse("2006-01-02 15:04:05", sc.StartedAt); perr == nil {
 					age := time.Since(t).Round(time.Second)
 					if t.After(time.Now().UTC().Add(-d)) {
-						decision = "would skip"
+						wouldScan = false
 						detail = fmt.Sprintf("latest=%s ago < %s", age, d)
 					} else {
 						detail = fmt.Sprintf("latest=%s ago >= %s", age, d)
@@ -500,7 +520,24 @@ func runScanDryRun(cmd *cobra.Command, names []string) error {
 				}
 			}
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s: %s (%s)\n", decision, name, detail)
+		decisions = append(decisions, dryRunDecision{Provider: name, WouldScan: wouldScan, Detail: detail})
+	}
+	return renderDryRun(cmd, decisions, output)
+}
+
+// renderDryRun emits the dry-run plan as prose (default) or a JSON array.
+func renderDryRun(cmd *cobra.Command, decisions []dryRunDecision, output string) error {
+	if output == "json" {
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(decisions)
+	}
+	for _, dec := range decisions {
+		verb := "would scan"
+		if !dec.WouldScan {
+			verb = "would skip"
+		}
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s: %s (%s)\n", verb, dec.Provider, dec.Detail)
 	}
 	return nil
 }
@@ -615,6 +652,9 @@ func init() {
 		"Skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")
 	scanCmd.PersistentFlags().Bool("dry-run", false,
 		"Resolve provider selection + --if-older-than and print 'would scan / would skip' decisions; no SDK clients constructed, no cloud APIs called")
+	scanCmd.PersistentFlags().StringP("output", "o", "table",
+		"Output format for --dry-run decisions: table or json (a live scan reports via 'disco scans', not inline)")
+	_ = scanCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "json"))
 	scanCmd.PersistentFlags().Bool("fail-on-error", false,
 		"Exit non-zero when a scan finishes partial (one or more services errored); default exit 0 on partial. SIGINT always exits 130")
 
