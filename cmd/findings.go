@@ -77,7 +77,6 @@ or finding ID. Use 'disco findings runs' to list run IDs.`,
 		rows, err := db.ListFindings(store.FindingFilter{
 			CheckRunID: resolved,
 			FindingID:  findingsFindingID,
-			Severity:   findingsSeverity,
 			Category:   findingsCategory,
 			Providers:  findingsProviders,
 			Type:       findingsType,
@@ -91,6 +90,11 @@ or finding ID. Use 'disco findings runs' to list run IDs.`,
 		for _, r := range rows {
 			out = append(out, storedFindingToFinding(r))
 		}
+		// --severity is a MINIMUM cutoff here, matching `disco check --severity`
+		// (reuses the same severityRank map) — not the exact match the store's
+		// FindingFilter.Severity does. Filter in-cmd so both commands give one
+		// consistent meaning on the same persisted findings.
+		out = filterBySeverity(out, findingsSeverity)
 		return renderFindings(out, findingsOutputFmt)
 	},
 }
@@ -373,7 +377,7 @@ func init() {
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
-	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low|medium|high|critical)")
+	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical (cutoff, matches 'disco check')")
 	_ = findingsListCmd.RegisterFlagCompletionFunc("severity", staticCompletion("low", "medium", "high", "critical"))
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVarP(&findingsType, "type", "t", "", "Filter by resource type")

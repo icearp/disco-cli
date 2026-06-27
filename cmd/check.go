@@ -159,18 +159,23 @@ filters that drop every finding likewise yield exit 0.`,
 			return err
 		}
 
-		if checkIncludeManaged {
-			fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
-		} else {
-			managed, mErr := db.CountManaged()
-			if mErr != nil {
-				// Non-fatal: fall back to the bare count rather than blocking
-				// the check on a hygiene-stat read.
+		// Progress chatter is opt-in via the global --verbose (default stderr-
+		// clean, per cmd/CLAUDE.md). The finding-count gate line below always
+		// prints — it explains a non-zero exit, not progress.
+		if verbose {
+			if checkIncludeManaged {
 				fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
 			} else {
-				fmt.Fprintf(os.Stderr,
-					"Evaluating %d customer-managed resource(s) (%d provider-managed excluded — pass --include-managed to evaluate all)\n",
-					len(resources), managed)
+				managed, mErr := db.CountManaged()
+				if mErr != nil {
+					// Non-fatal: fall back to the bare count rather than blocking
+					// the check on a hygiene-stat read.
+					fmt.Fprintf(os.Stderr, "Evaluating %d resource(s)\n", len(resources))
+				} else {
+					fmt.Fprintf(os.Stderr,
+						"Evaluating %d customer-managed resource(s) (%d provider-managed excluded — pass --include-managed to evaluate all)\n",
+						len(resources), managed)
+				}
 			}
 		}
 

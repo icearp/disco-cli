@@ -418,13 +418,7 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 		}
 	}
 	if _, ok := s.(providers.RegionScopeToggler); ok {
-		enabled := true
-		if cmd.Flags().Changed("scope-regions") {
-			enabled, _ = cmd.Flags().GetBool("scope-regions")
-		} else if viper.IsSet(s.Name() + ".scope_to_available_regions") {
-			enabled = viper.GetBool(s.Name() + ".scope_to_available_regions")
-		}
-		provScope["scope_to_available_regions"] = enabled
+		provScope["scope_to_available_regions"] = scopeRegionsEnabled(cmd, s.Name())
 	}
 	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
 		include := false
@@ -601,6 +595,25 @@ func renderWarnings(w io.Writer, warnings []store.ScanWarning, quiet bool) {
 	renderMessages(w, "Warnings", rows, quiet)
 }
 
+// scopeRegionsEnabled resolves the effective region-scoping setting for a
+// provider: default on, overridden by the explicit --scope-regions flag, then
+// the per-provider config key, and finally the negative --no-scope-regions
+// alias (mirrors --no-progress) which forces it off when set. Shared by the
+// scan-record scope builder and the SetRegionScope call so both stay in
+// lockstep.
+func scopeRegionsEnabled(cmd *cobra.Command, provider string) bool {
+	enabled := true
+	if cmd.Flags().Changed("scope-regions") {
+		enabled, _ = cmd.Flags().GetBool("scope-regions")
+	} else if viper.IsSet(provider + ".scope_to_available_regions") {
+		enabled = viper.GetBool(provider + ".scope_to_available_regions")
+	}
+	if noScope, _ := cmd.Flags().GetBool("no-scope-regions"); noScope {
+		enabled = false
+	}
+	return enabled
+}
+
 // registerScannerFlags adds the optional flags a provider's subcommand supports,
 // gated on the matching capability interface — keeps --help honest (no flags
 // listed that would be silently ignored). Extracted from init() to keep that
@@ -631,7 +644,9 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.RegionScopeToggler); ok {
 		subcmd.Flags().Bool("scope-regions", true,
-			"Skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --scope-regions=false")
+			"Skip services in regions where the cloud doesn't offer them (via the SSM global-infrastructure catalog); fail-open. Disable with --no-scope-regions")
+		subcmd.Flags().Bool("no-scope-regions", false,
+			"Disable region scoping (negative alias for --scope-regions=false; mirrors --no-progress)")
 	}
 	if _, ok := s.(providers.ServiceQuotasIncluder); ok {
 		subcmd.Flags().Bool("include-service-quotas", false,
@@ -712,14 +727,7 @@ func init() {
 				}
 			}
 			if rst, ok := s.(providers.RegionScopeToggler); ok {
-				// Default on; an explicit flag wins over the config key.
-				enabled := true
-				if cmd.Flags().Changed("scope-regions") {
-					enabled, _ = cmd.Flags().GetBool("scope-regions")
-				} else if viper.IsSet(s.Name() + ".scope_to_available_regions") {
-					enabled = viper.GetBool(s.Name() + ".scope_to_available_regions")
-				}
-				rst.SetRegionScope(enabled)
+				rst.SetRegionScope(scopeRegionsEnabled(cmd, s.Name()))
 			}
 			if sqi, ok := s.(providers.ServiceQuotasIncluder); ok {
 				// Default off; an explicit flag wins over the config key.

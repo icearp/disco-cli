@@ -29,7 +29,11 @@ var coverageCmd = &cobra.Command{
 Compares what disco knows how to scan — scanner emits, RegionNames lists,
 resolver EdgeDecls — against each cloud's authoritative source so newly-
 launched resource types, regions, or unannotated resolvers surface before
-they show up as silent gaps in scan output.`,
+they show up as silent gaps in scan output.
+
+This is scan-capability coverage (disco vs. the cloud's catalog). For tag-
+governance coverage — the fraction of already-discovered resources carrying
+each tag — see 'disco tag-coverage'.`,
 	Args: cobra.NoArgs,
 	Run: func(c *cobra.Command, _ []string) {
 		_ = c.Help()
@@ -211,7 +215,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	var matrices []coverage.Matrix
 	var fetchFailures []string
 	for _, p := range covProviders {
-		fmt.Fprintf(os.Stderr, "Fetching %s upstream registry...\n", p.Name())
+		if verbose {
+			fmt.Fprintf(os.Stderr, "Fetching %s upstream registry...\n", p.Name())
+		}
 		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		upstream, err := p.Fetch(fetchCtx, opts)
 		cancel()
@@ -318,7 +324,9 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 			fmt.Fprintf(os.Stderr, "  %s: scanner is not RegionNamer; skipping\n", p.Name())
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "Fetching %s region list...\n", p.Name())
+		if verbose {
+			fmt.Fprintf(os.Stderr, "Fetching %s region list...\n", p.Name())
+		}
 		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
 		live, err := rl.FetchRegions(fetchCtx, opts)
 		cancel()

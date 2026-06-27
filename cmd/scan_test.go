@@ -143,6 +143,41 @@ func TestEvaluateIfOlderThan_RunsWhenNoCompleteScan(t *testing.T) {
 // string wrapped in brackets that hug the value, right-padded to a fixed 8
 // chars so the #N counter and columns after it don't shift mid-scan. Padding
 // sits to the RIGHT of "]", never inside the brackets.
+// TestScopeRegionsEnabled pins the flag precedence: default on, --scope-regions
+// wins when set, and --no-scope-regions forces off even over an explicit
+// --scope-regions=true.
+func TestScopeRegionsEnabled(t *testing.T) {
+	newCmd := func() *cobra.Command {
+		c := &cobra.Command{Use: "x", Run: func(*cobra.Command, []string) {}}
+		c.Flags().Bool("scope-regions", true, "")
+		c.Flags().Bool("no-scope-regions", false, "")
+		return c
+	}
+
+	cases := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{"default on", nil, true},
+		{"explicit off", []string{"--scope-regions=false"}, false},
+		{"no-scope-regions off", []string{"--no-scope-regions"}, false},
+		{"no-scope-regions overrides explicit on", []string{"--scope-regions=true", "--no-scope-regions"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cmd := newCmd()
+			cmd.SetArgs(c.args)
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+			if got := scopeRegionsEnabled(cmd, "aws"); got != c.want {
+				t.Errorf("scopeRegionsEnabled(%v) = %v; want %v", c.args, got, c.want)
+			}
+		})
+	}
+}
+
 func TestElapsedField(t *testing.T) {
 	cases := []struct {
 		in   time.Duration

@@ -54,7 +54,11 @@ absent-tag signal).
 
 Customer-managed resources only by default; --include-managed expands the
 denominator. Filter scope with --providers / --type / --regions — useful for
-"tag coverage on EC2 instances only" rollups.`,
+"tag coverage on EC2 instances only" rollups.
+
+This is tag-governance coverage (a property of resources disco already
+discovered). For scan-capability coverage — what disco knows how to scan vs.
+what each cloud actually offers — see 'disco coverage'.`,
 	Example: `  disco tag-coverage owner cost-center
   disco tag-coverage --providers aws --type aws:ec2:instance
   disco tag-coverage -o json | jq '.[] | select(.coverage < 0.5)'`,
@@ -286,7 +290,7 @@ func init() {
 	tagCoverageCmd.Flags().StringVarP(&tagCovOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
 	_ = tagCoverageCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	tagCoverageCmd.Flags().BoolVar(&tagCovIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
-	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
+	tagCoverageCmd.Flags().BoolVar(&tagCovSkipGlobals, "exclude-global-region", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
 	tagCoverageCmd.Flags().BoolVar(&tagCovCaseInsensitive, "case-insensitive", false, "Fold tag keys to lower-case so 'environment' and 'Environment' aggregate into one row")
 	tagCoverageCmd.Flags().Float64Var(&tagCovMinCoverage, "min-coverage", 0,
 		"Coverage threshold in [0,1]; if any reported key falls below, exit non-zero (use --exit-zero to override)")

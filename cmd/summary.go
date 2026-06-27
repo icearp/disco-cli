@@ -463,7 +463,7 @@ func init() {
 	_ = summaryCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	summaryCmd.Flags().IntVar(&summaryTopTypes, "top-types", 10, "Number of top resource types to show (0 = all)")
 	summaryCmd.Flags().BoolVar(&summaryIncludeManaged, "include-managed", false, "Include provider-managed resources in the denominator")
-	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
+	summaryCmd.Flags().BoolVar(&summarySkipGlobals, "exclude-global-region", false, "Exclude rows whose region is \"global\". By default --regions folds globals in.")
 	summaryCmd.Flags().BoolVar(&summaryRequireResources, "require-resources", false, "Exit non-zero when 0 resources match (fail-closed gate against an empty / unscanned DB)")
 	summaryCmd.Flags().Uint64Var(&summaryMinResources, "min-resources", 0, "Exit non-zero when fewer than N resources match (overrides --require-resources when both set)")
 	rootCmd.AddCommand(summaryCmd)

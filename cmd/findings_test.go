@@ -157,25 +157,36 @@ func TestFindings_RunsJSON(t *testing.T) {
 	}
 }
 
+// TestFindings_BySeverity pins the cutoff (minimum) semantics of
+// `findings list --severity`, matching `disco check --severity`: the seed
+// finding is "high", so a "medium" cutoff includes it and a "critical" cutoff
+// excludes it.
 func TestFindings_BySeverity(t *testing.T) {
 	st := seedTestDB(t)
 	seedFindingRun(t, st)
-	resetFindingsFlags()
 
-	// existing seed is high; medium should return zero rows.
-	out, err := captureStdout(t, func() error {
-		cmd := rootCmd
-		cmd.SetArgs([]string{"findings", "list", "--severity", "medium", "-o", "json"})
-		return cmd.Execute()
-	})
-	if err != nil {
-		t.Fatalf("findings list: %v", err)
+	listSeverity := func(t *testing.T, sev string) []policy.Finding {
+		t.Helper()
+		resetFindingsFlags()
+		out, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs([]string{"findings", "list", "--severity", sev, "-o", "json"})
+			return cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("findings list --severity %s: %v", sev, err)
+		}
+		var fs []policy.Finding
+		if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
+			t.Fatalf("not JSON: %v\n%s", jerr, out)
+		}
+		return fs
 	}
-	var fs []policy.Finding
-	if jerr := json.Unmarshal([]byte(out), &fs); jerr != nil {
-		t.Fatalf("not JSON: %v\n%s", jerr, out)
+
+	if got := len(listSeverity(t, "medium")); got != 1 {
+		t.Errorf("severity>=medium: got %d, want 1 (cutoff includes the high seed)", got)
 	}
-	if len(fs) != 0 {
-		t.Errorf("severity=medium: got %d, want 0", len(fs))
+	if got := len(listSeverity(t, "critical")); got != 0 {
+		t.Errorf("severity>=critical: got %d, want 0 (cutoff excludes the high seed)", got)
 	}
 }

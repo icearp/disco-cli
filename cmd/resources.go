@@ -233,7 +233,74 @@ var resourcesCmd = &cobra.Command{
 	},
 }
 
+var (
+	resourcesShowProvider  string
+	resourcesShowType      string
+	resourcesShowAccount   string
+	resourcesShowOutputFmt string
+)
+
+var resourcesShowCmd = &cobra.Command{
+	Use:   "show <id|native-id|name>",
+	Short: "Show a single resource",
+	Args:  cobra.ExactArgs(1),
+	Long: `Resolve one resource and print its full record. The argument resolves the
+same way as 'disco graph' / 'disco history' — exact native-id or name, then a
+32-hex resource-ID prefix, then a substring match. Pass --provider / --type /
+--account to disambiguate when a seed matches more than one resource.`,
+	Example: `  disco resources show i-0abc123
+  disco resources show my-bucket --type aws:s3:bucket -o json
+  disco resources show 9f3c --provider aws`,
+	RunE: func(_ *cobra.Command, args []string) (rerr error) {
+		defer func() { maybeStructuredError(resourcesShowOutputFmt, rerr) }()
+		db, err := openDB()
+		if err != nil {
+			return fmt.Errorf("open database: %w", err)
+		}
+		defer func() { _ = db.Close() }()
+
+		r, err := db.ResolveResource(args[0], resourcesShowProvider, resourcesShowType, resourcesShowAccount)
+		if err != nil {
+			return err
+		}
+
+		switch resourcesShowOutputFmt {
+		case "json":
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(r)
+		case "jsonl":
+			return json.NewEncoder(os.Stdout).Encode(r)
+		case "csv":
+			w := csv.NewWriter(os.Stdout)
+			defer w.Flush()
+			if err := w.Write(resourcesColumns); err != nil {
+				return err
+			}
+			return w.Write(resourceRow(r))
+		case "markdown", "md":
+			return renderMarkdownTable(os.Stdout, resourcesMarkdownHeaders, [][]string{resourceRow(r)})
+		case "table", "":
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			for i, col := range resourcesColumns {
+				_, _ = fmt.Fprintf(w, "%s\t%s\n", col, resourceRow(r)[i])
+			}
+			return w.Flush()
+		default:
+			return fmt.Errorf("unknown --output format %q (supported: table, markdown, csv, json, jsonl)", resourcesShowOutputFmt)
+		}
+	},
+}
+
 func init() {
+	resourcesShowCmd.Flags().StringVarP(&resourcesShowProvider, "provider", "p", "", "Disambiguate the seed by provider")
+	_ = resourcesShowCmd.RegisterFlagCompletionFunc("provider", completeProviderNames)
+	resourcesShowCmd.Flags().StringVarP(&resourcesShowType, "type", "t", "", "Disambiguate the seed by resource type (e.g. aws:ec2:instance)")
+	resourcesShowCmd.Flags().StringVar(&resourcesShowAccount, "account", "", "Disambiguate the seed by account/subscription/project ID")
+	resourcesShowCmd.Flags().StringVarP(&resourcesShowOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl")
+	_ = resourcesShowCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
+	resourcesCmd.AddCommand(resourcesShowCmd)
+
 	resourcesCmd.Flags().StringSliceVarP(&resourcesProviders, "providers", "p", nil, fmt.Sprintf("Filter by provider(s), comma-separated (%s)", providerListHint()))
 	_ = resourcesCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	resourcesCmd.Flags().StringVarP(&resourcesType, "type", "t", "", "Filter by resource type (e.g. aws:ec2:instance)")
@@ -252,7 +319,7 @@ func init() {
 	_ = resourcesCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
 	resourcesCmd.Flags().Uint64Var(&resourcesLimit, "limit", 0, "Maximum number of results (0 = all; warning emitted on stderr if a positive --limit truncates)")
 	resourcesCmd.Flags().BoolVar(&resourcesIncludeManaged, "include-managed", false, "Include provider-managed resources (built-in roles, AWS-owned prefix lists, etc.)")
-	resourcesCmd.Flags().BoolVar(&resourcesSkipGlobals, "skip-globals", false, "Exclude rows whose region is \"global\" (IAM, Route53, CloudFront, tenant-scope Azure, org-scope GCP). By default --regions filters fold globals in.")
+	resourcesCmd.Flags().BoolVar(&resourcesSkipGlobals, "exclude-global-region", false, "Exclude rows whose region is \"global\" (IAM, Route53, CloudFront, tenant-scope Azure, org-scope GCP). By default --regions filters fold globals in.")
 	resourcesCmd.Flags().BoolVar(&resourcesRequireResources, "require-resources", false, "Exit non-zero when 0 rows are returned (fail-closed gate against an empty / unscanned DB)")
 	resourcesCmd.Flags().Uint64Var(&resourcesMinResources, "min-resources", 0, "Exit non-zero when fewer than N rows are returned (overrides --require-resources when both set)")
 	rootCmd.AddCommand(resourcesCmd)

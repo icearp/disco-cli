@@ -369,6 +369,46 @@ func resetResourcesFlags() {
 	resourcesIncludeManaged = false
 }
 
+// TestResourcesShow resolves a single resource by native-id (the same
+// ResolveResource path graph/history use) and asserts the JSON record carries
+// the resolved row, plus a type disambiguator narrowing the match.
+func TestResourcesShow(t *testing.T) {
+	seedTestDB(t)
+
+	show := func(t *testing.T, args ...string) map[string]any {
+		t.Helper()
+		resourcesShowProvider, resourcesShowType, resourcesShowAccount = "", "", ""
+		resourcesShowOutputFmt = "table"
+		out, err := captureStdout(t, func() error {
+			cmd := rootCmd
+			cmd.SetArgs(append([]string{"resources", "show"}, args...))
+			return cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("resources show %v: %v", args, err)
+		}
+		var r map[string]any
+		if jerr := json.Unmarshal([]byte(out), &r); jerr != nil {
+			t.Fatalf("not JSON: %v\n%s", jerr, out)
+		}
+		return r
+	}
+
+	r := show(t, "i-1", "-o", "json")
+	if r["native_id"] != "i-1" {
+		t.Errorf("native_id: got %v, want i-1", r["native_id"])
+	}
+	if r["type"] != "aws:ec2:instance" {
+		t.Errorf("type: got %v, want aws:ec2:instance", r["type"])
+	}
+
+	// --type disambiguates to the s3 row.
+	r = show(t, "b-1", "--type", "aws:s3:bucket", "-o", "json")
+	if r["type"] != "aws:s3:bucket" {
+		t.Errorf("disambiguated type: got %v, want aws:s3:bucket", r["type"])
+	}
+}
+
 // TestResourcesCmd_DefaultReturnsAll guards against silent 500-row truncation.
 // Seeds 600+ rows (well above the historical default cap) and asserts the
 // no-flag invocation returns every row.
