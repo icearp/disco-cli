@@ -237,23 +237,23 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 			return
 		}
 		suffix := serviceStatusSuffix(status, errCount)
-		_, _ = fmt.Fprintf(progressW, "  [%s] #%-3d %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
-			time.Since(start).Round(time.Second), n, nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
+		_, _ = fmt.Fprintf(progressW, "  %s #%-3d %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
+			elapsedField(time.Since(start)), n, nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
 		if quiet {
 			return
 		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %s: resolving relationships...\n",
-			time.Since(start).Round(time.Second), provider)
+		_, _ = fmt.Fprintf(progressW, "  %s %s: resolving relationships...\n",
+			elapsedField(time.Since(start)), provider)
 	}
 	db.OnResolveComplete = func(provider string, edges int) {
 		if quiet {
 			return
 		}
-		_, _ = fmt.Fprintf(progressW, "  [%s] %s: relationships resolved (%d edges)\n",
-			time.Since(start).Round(time.Second), provider, edges)
+		_, _ = fmt.Fprintf(progressW, "  %s %s: relationships resolved (%d edges)\n",
+			elapsedField(time.Since(start)), provider, edges)
 	}
 
 	// Fan-out + warning/error capture + total accumulation live in scanrun so
@@ -308,6 +308,15 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scan complete: %d resources (%d new, %d changed) in %s%s\n",
 		totalSeen, totalNew, totalChanged, time.Since(start).Round(time.Second), warnSuffix)
 	return nil
+}
+
+// elapsedField renders the scan-elapsed time as an 8-char-wide bracketed column
+// ("[45s]   ") so the #N counter and columns after it don't shift as the scan
+// runs. The brackets hug the natural Duration string; padding sits to the RIGHT
+// of "]". Values up to ~1h fit in 8 ("[10m23s]"); a scan past ~1h (e.g.
+// "[1h2m3s]" = 8, "[1h40m0s]" = 9) overflows by a char — rare, scans are minutes.
+func elapsedField(d time.Duration) string {
+	return fmt.Sprintf("%-8s", "["+d.Round(time.Second).String()+"]")
 }
 
 // serviceStatusSuffix renders the trailing annotation on a per-service scan

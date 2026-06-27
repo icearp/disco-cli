@@ -135,3 +135,34 @@ func TestEvaluateIfOlderThan_RunsWhenNoCompleteScan(t *testing.T) {
 		t.Fatalf("expected skip=false when no completed scan exists, got skip=true")
 	}
 }
+
+// TestElapsedField pins the scan progress timer column: the natural Duration
+// string wrapped in brackets that hug the value, right-padded to a fixed 8
+// chars so the #N counter and columns after it don't shift mid-scan. Padding
+// sits to the RIGHT of "]", never inside the brackets.
+func TestElapsedField(t *testing.T) {
+	cases := []struct {
+		in   time.Duration
+		want string
+	}{
+		{0, "[0s]    "},
+		{45 * time.Second, "[45s]   "},
+		{83 * time.Second, "[1m23s] "},
+		{623 * time.Second, "[10m23s]"},
+		{1500 * time.Millisecond, "[2s]    "}, // rounds to the nearest second
+	}
+	for _, c := range cases {
+		got := elapsedField(c.in)
+		if got != c.want {
+			t.Errorf("elapsedField(%v) = %q; want %q", c.in, got, c.want)
+		}
+		// Brackets hug the value (no pad before "]"); any spaces are trailing.
+		if !strings.HasPrefix(got, "[") || strings.Contains(got, " ]") {
+			t.Errorf("elapsedField(%v) = %q; padding must be outside the brackets", c.in, got)
+		}
+		// Sub-~1h values keep the column a stable 8 chars.
+		if c.in < time.Hour && len(got) != 8 {
+			t.Errorf("elapsedField(%v) = %q has len %d; want 8", c.in, got, len(got))
+		}
+	}
+}
