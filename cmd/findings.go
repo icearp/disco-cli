@@ -356,16 +356,25 @@ func intPtrOrDashI(p *int) string {
 }
 
 func init() {
-	findingsCmd.PersistentFlags().StringVarP(&findingsOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif (sarif on list only)")
-	// --output is a shared persistent flag, so its completion applies to both
-	// `findings list` and `findings runs`; offer only the common set. `sarif`
-	// is list-only and would error on `runs`, so it's omitted from the
-	// suggestions (it still works when typed on `findings list`).
-	_ = findingsCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl"))
+	// --output is declared per-subcommand (not shared persistent) so each
+	// command's completion matches exactly what it accepts: `list` and the
+	// bare `findings` alias take sarif; `runs` does not (renderCheckRuns
+	// errors on it). All three share findingsOutputFmt — only one runs at once.
+	const listOutputUsage = "Output format: table, markdown, csv, json, jsonl, sarif"
+	const runsOutputUsage = "Output format: table, markdown, csv, json, jsonl"
+	listOutputValues := []string{"table", "markdown", "csv", "json", "jsonl", "sarif"}
+	runsOutputValues := []string{"table", "markdown", "csv", "json", "jsonl"}
+	findingsCmd.Flags().StringVarP(&findingsOutputFmt, "output", "o", "table", listOutputUsage)
+	_ = findingsCmd.RegisterFlagCompletionFunc("output", staticCompletion(listOutputValues...))
+	findingsListCmd.Flags().StringVarP(&findingsOutputFmt, "output", "o", "table", listOutputUsage)
+	_ = findingsListCmd.RegisterFlagCompletionFunc("output", staticCompletion(listOutputValues...))
+	findingsRunsCmd.Flags().StringVarP(&findingsOutputFmt, "output", "o", "table", runsOutputUsage)
+	_ = findingsRunsCmd.RegisterFlagCompletionFunc("output", staticCompletion(runsOutputValues...))
 
 	findingsListCmd.Flags().StringVar(&findingsCheckRunID, "check-run-id", "", "Restrict to one check run; accepts an ID or 'latest' (default)")
 	findingsListCmd.Flags().Var(&findingsRunSince, "run-since", "Restrict to runs started on or after this timestamp (RFC3339 or YYYY-MM-DD)")
 	findingsListCmd.Flags().StringVar(&findingsSeverity, "severity", "", "Filter by exact severity (low|medium|high|critical)")
+	_ = findingsListCmd.RegisterFlagCompletionFunc("severity", staticCompletion("low", "medium", "high", "critical"))
 	findingsListCmd.Flags().StringVar(&findingsCategory, "category", "", "Filter by category (e.g. aws-waf)")
 	findingsListCmd.Flags().StringVarP(&findingsType, "type", "t", "", "Filter by resource type")
 	findingsListCmd.Flags().StringVarP(&findingsProvider, "provider", "p", "", fmt.Sprintf("Filter by provider (%s)", providerListHint()))

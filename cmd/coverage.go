@@ -128,6 +128,7 @@ func init() {
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageServicesCmd.Flags().String("subscription", "", "Azure subscription ID (--providers azure only); empty = autodetect")
 	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
+	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "synthetic", "upstream-missing"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift); exit 2 on transient registry-fetch failure")

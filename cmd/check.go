@@ -366,7 +366,9 @@ func renderCheckMarkdown(findings []policy.Finding) error {
 func init() {
 	checkCmd.Flags().StringSliceVar(&checkRulePaths, "rules", nil, "Rego policy file or directory (repeatable; directories walked for *.rego)")
 	checkCmd.Flags().StringSliceVar(&checkPacks, "packs", nil, "Comma-separated bundled OSS packs (available: aws-waf)")
+	_ = checkCmd.RegisterFlagCompletionFunc("packs", staticCompletion(policy.AvailablePacks()...))
 	checkCmd.Flags().StringVar(&checkSeverity, "severity", "", "Minimum severity to report: low|medium|high|critical")
+	_ = checkCmd.RegisterFlagCompletionFunc("severity", staticCompletion("low", "medium", "high", "critical"))
 	checkCmd.Flags().StringVarP(&checkOutputFmt, "output", "o", "table", "Output format: table, markdown, csv, json, jsonl, sarif")
 	_ = checkCmd.RegisterFlagCompletionFunc("output", staticCompletion("table", "markdown", "csv", "json", "jsonl", "sarif"))
 	checkCmd.Flags().BoolVar(&checkExitZero, "exit-zero", false, "Force exit 0 even when findings are reported (inventory mode; CI override)")
