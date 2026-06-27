@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/providers"
@@ -188,6 +187,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// summary line lands on stdout). --quiet silences the start/resume banners
 	// and per-service progress but keeps the final summary.
 	quiet, _ := cmd.Flags().GetBool("quiet")
+	noProgress, _ := cmd.Flags().GetBool("no-progress")
 	progressW := cmd.ErrOrStderr()
 	if resuming && !quiet {
 		cps, lerr := db.ListCheckpoints(scanID)
@@ -223,37 +223,41 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// reported via OnError); annotate the line with "(with errors)" so the user
 	// can scan output for trouble without grepping. Totals are accumulated by
 	// scanrun.RunScanners (single source of truth shared with the API driver).
-	// completed counts finished (service, scope) units so the progress line
-	// carries a monotonic "#N" — an honest momentum signal. A done/total
-	// fraction is intentionally omitted: the denominator (services × scopes)
-	// isn't reliably knowable up front (Azure subscriptions and GCP projects
-	// are discovered at scan time, and RegionNames covers all static regions,
-	// not the --regions subset). Atomic because RunScanners fans scanners out
-	// concurrently, so this closure is called from multiple goroutines.
-	var completed atomic.Int64
+	// p streams the permanent per-service / resolve lines and, on an interactive
+	// terminal, animates a spinner so a slow service or the resolve phase still
+	// shows liveness. No done/total fraction: the denominator (services × scopes)
+	// isn't knowable up front (Azure subscriptions and GCP projects are
+	// discovered at scan time), so the spinner reports elapsed + completed-unit
+	// count only — honest, not a fake %. The spinner is suppressed off-TTY (CI),
+	// under --no-progress, and under --quiet. incDone is atomic because
+	// RunScanners fans scanners out concurrently, so these closures run from
+	// multiple goroutines.
+	spinnerOn := !quiet && !noProgress && isTerminal(progressW)
+	p := newProgress(progressW, start, spinnerOn)
+	defer p.stop()
 	db.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
-		n := completed.Add(1)
+		p.incDone()
 		if quiet {
 			return
 		}
 		suffix := serviceStatusSuffix(status, errCount)
-		_, _ = fmt.Fprintf(progressW, "  %s #%-3d %-*s  %-*s  (%d total, %d new, %d changed)%s\n",
-			elapsedField(time.Since(start)), n, nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix)
+		p.line(fmt.Sprintf("  %s %-*s  %-*s  (%d total, %d new, %d changed)%s",
+			elapsedField(time.Since(start)), nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix))
 	}
 	// Print a message when the resolver phase starts and a summary when it finishes.
 	db.OnResolveStart = func(provider string) {
 		if quiet {
 			return
 		}
-		_, _ = fmt.Fprintf(progressW, "  %s %s: resolving relationships...\n",
-			elapsedField(time.Since(start)), provider)
+		p.line(fmt.Sprintf("  %s %s: resolving relationships...",
+			elapsedField(time.Since(start)), provider))
 	}
 	db.OnResolveComplete = func(provider string, edges int) {
 		if quiet {
 			return
 		}
-		_, _ = fmt.Fprintf(progressW, "  %s %s: relationships resolved (%d edges)\n",
-			elapsedField(time.Since(start)), provider, edges)
+		p.line(fmt.Sprintf("  %s %s: relationships resolved (%d edges)",
+			elapsedField(time.Since(start)), provider, edges))
 	}
 
 	// Fan-out + warning/error capture + total accumulation live in scanrun so
@@ -265,6 +269,10 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 	// deferred db.Close() still runs the WAL checkpoint+cleanup.
 	ctx := cmd.Context()
 	warnings, scanErrors, totalSeen, totalNew, totalChanged := scanrun.RunScanners(ctx, db, scanID, scanners)
+
+	// Stop the spinner and clear its transient line before any other writer
+	// touches stderr (warnings/errors below, summary on stdout).
+	p.stop()
 
 	// Render grouped warnings + errors blocks before the final summary line.
 	renderWarnings(progressW, warnings, quiet)
@@ -608,6 +616,7 @@ func init() {
 	_ = scanCmd.RegisterFlagCompletionFunc("providers", completeProviderNames)
 	// Persistent so subcommands (disco scan aws, etc.) inherit the flag.
 	scanCmd.PersistentFlags().Bool("quiet", false, "suppress per-service progress output; only print the final summary")
+	scanCmd.PersistentFlags().Bool("no-progress", false, "disable the animated progress spinner; per-service lines still print")
 	scanCmd.PersistentFlags().String("resume", "", "resume a previous scan: pass a scan ID, or 'latest' to pick the most recent incomplete scan")
 	scanCmd.PersistentFlags().Duration("if-older-than", 0,
 		"skip the scan (exit 0) when the latest complete scan for every targeted provider is younger than this duration (e.g. 1h, 24h)")

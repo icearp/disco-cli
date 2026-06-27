@@ -30,6 +30,7 @@ func newScanTestCmd(out, errOut *bytes.Buffer) *cobra.Command {
 	c.Flags().Duration("if-older-than", 0, "")
 	c.Flags().String("resume", "", "")
 	c.Flags().Bool("quiet", false, "")
+	c.Flags().Bool("no-progress", false, "")
 	c.Flags().Bool("fail-on-error", false, "")
 	c.SetOut(out)
 	c.SetErr(errOut)
@@ -37,10 +38,11 @@ func newScanTestCmd(out, errOut *bytes.Buffer) *cobra.Command {
 	return c
 }
 
-// TestRunScan_QuietGatesBanners pins the --quiet contract and the #N progress
-// counter: without --quiet the start banner + "#1" momentum marker hit stderr
-// and the summary hits stdout; with --quiet stderr carries neither banner nor
-// progress line, but the final summary still lands on stdout.
+// TestRunScan_QuietGatesBanners pins the --quiet contract. The test's stderr is
+// a *bytes.Buffer (not a TTY), so the spinner is off and the per-service line
+// prints plainly: without --quiet the start banner + that line hit stderr and
+// the summary hits stdout; with --quiet stderr carries neither banner nor
+// per-service line, but the final summary still lands on stdout.
 func TestRunScan_QuietGatesBanners(t *testing.T) {
 	seedTestDB(t) // sets viper "db" so openWriteDB targets the temp store
 	fake := stubScanner{name: "aws"}
@@ -53,8 +55,9 @@ func TestRunScan_QuietGatesBanners(t *testing.T) {
 	if !strings.Contains(errOut.String(), "started") {
 		t.Errorf("non-quiet: want start banner on stderr, got:\n%s", errOut.String())
 	}
-	if !strings.Contains(errOut.String(), "#1") {
-		t.Errorf("non-quiet: want '#1' progress counter on stderr, got:\n%s", errOut.String())
+	// The stub reports service "ec2" → a per-service progress line on stderr.
+	if !strings.Contains(errOut.String(), "ec2") || !strings.Contains(errOut.String(), "1 total") {
+		t.Errorf("non-quiet: want per-service progress line on stderr, got:\n%s", errOut.String())
 	}
 	if !strings.Contains(out.String(), "Scan complete") {
 		t.Errorf("non-quiet: want summary on stdout, got:\n%s", out.String())
@@ -67,7 +70,7 @@ func TestRunScan_QuietGatesBanners(t *testing.T) {
 	if err := runScan(c, []providers.Scanner{fake}); err != nil {
 		t.Fatalf("runScan --quiet: %v", err)
 	}
-	if strings.Contains(errOut.String(), "started") || strings.Contains(errOut.String(), "#") {
+	if strings.Contains(errOut.String(), "started") || strings.Contains(errOut.String(), "1 total") {
 		t.Errorf("--quiet should suppress banner + progress on stderr, got:\n%s", errOut.String())
 	}
 	if !strings.Contains(out.String(), "Scan complete") {
