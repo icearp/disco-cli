@@ -16,24 +16,31 @@ type stubOmics struct{ annErr error }
 func (s stubOmics) ListAnnotationStores(context.Context, *omics.ListAnnotationStoresInput, ...func(*omics.Options)) (*omics.ListAnnotationStoresOutput, error) {
 	return nil, s.annErr
 }
+
 func (stubOmics) ListConfigurations(context.Context, *omics.ListConfigurationsInput, ...func(*omics.Options)) (*omics.ListConfigurationsOutput, error) {
 	return &omics.ListConfigurationsOutput{}, nil
 }
+
 func (stubOmics) ListReferenceStores(context.Context, *omics.ListReferenceStoresInput, ...func(*omics.Options)) (*omics.ListReferenceStoresOutput, error) {
 	return &omics.ListReferenceStoresOutput{}, nil
 }
+
 func (stubOmics) ListRunGroups(context.Context, *omics.ListRunGroupsInput, ...func(*omics.Options)) (*omics.ListRunGroupsOutput, error) {
 	return &omics.ListRunGroupsOutput{}, nil
 }
+
 func (stubOmics) ListSequenceStores(context.Context, *omics.ListSequenceStoresInput, ...func(*omics.Options)) (*omics.ListSequenceStoresOutput, error) {
 	return &omics.ListSequenceStoresOutput{}, nil
 }
+
 func (stubOmics) ListVariantStores(context.Context, *omics.ListVariantStoresInput, ...func(*omics.Options)) (*omics.ListVariantStoresOutput, error) {
 	return &omics.ListVariantStoresOutput{}, nil
 }
+
 func (stubOmics) ListWorkflows(context.Context, *omics.ListWorkflowsInput, ...func(*omics.Options)) (*omics.ListWorkflowsOutput, error) {
 	return &omics.ListWorkflowsOutput{}, nil
 }
+
 func (stubOmics) ListWorkflowVersions(context.Context, *omics.ListWorkflowVersionsInput, ...func(*omics.Options)) (*omics.ListWorkflowVersionsOutput, error) {
 	return &omics.ListWorkflowVersionsOutput{}, nil
 }
