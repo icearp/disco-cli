@@ -32,6 +32,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::a4b::schedule":           a4bRetired,
 		"AWS::a4b::skillgroup":         a4bRetired,
 		"AWS::a4b::user":               a4bRetired,
+
+		// access-analyzer (Service Reference hyphenated spelling) duplicates the
+		// CFN-spelled AWS::AccessAnalyzer::Analyzer that disco already scans as
+		// aws:accessanalyzer:analyzer. Same physical resource, redundant catalog
+		// entry under a divergent service segment.
+		"AWS::access-analyzer::Analyzer": "duplicate: already scanned as aws:accessanalyzer:analyzer (CFN spelling AWS::AccessAnalyzer::Analyzer)",
 	}
 }
 

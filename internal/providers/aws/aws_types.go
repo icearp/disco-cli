@@ -1422,7 +1422,8 @@ const (
 	TypeBeanstalkApplication = "aws:elasticbeanstalk:application"
 	TypeBeanstalkEnvironment = "aws:elasticbeanstalk:environment"
 	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
-	TypeAccessAnalyzerAnalyzer = "aws:accessanalyzer:analyzer"
+	TypeAccessAnalyzerAnalyzer    = "aws:accessanalyzer:analyzer"
+	TypeAccessAnalyzerArchiveRule = "aws:accessanalyzer:archive-rule"
 	// ACM Private CA permissions (acmpca_scanners.go, acmpca_resolvers.go)
 	TypeACMPCAPermission = "aws:acm-pca:permission"
 	// CloudWatch AIOps investigation groups (aiops_scanners.go, aiops_resolvers.go)

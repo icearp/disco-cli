@@ -466,6 +466,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeACMPrivateCA:              "AWS::ACMPCA::CertificateAuthority",
 		// IAM Access Analyzer (CFN service segment "AccessAnalyzer" mixed-case).
 		TypeAccessAnalyzerAnalyzer: "AWS::AccessAnalyzer::Analyzer",
+		// Archive rules exist only in the Service Reference catalog, under the
+		// hyphenated "access-analyzer" service segment (CFN models them as a
+		// property of the Analyzer, not a standalone type).
+		TypeAccessAnalyzerArchiveRule: "AWS::access-analyzer::ArchiveRule",
 		// ACM Private CA — disco service segment "acm-pca" (kebab-case, hyphen
 		// would not survive the algorithmic Pascal-case conversion).
 		TypeACMPCAPermission: "AWS::ACMPCA::Permission",
