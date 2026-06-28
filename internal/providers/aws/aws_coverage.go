@@ -470,6 +470,10 @@ func (coverageProvider) Aliases() map[string]string {
 		// hyphenated "access-analyzer" service segment (CFN models them as a
 		// property of the Analyzer, not a standalone type).
 		TypeAccessAnalyzerArchiveRule: "AWS::access-analyzer::ArchiveRule",
+		// AI DevOps agent — agentspace/service/associations match algorithmically;
+		// only private-connection needs an alias (Service Reference spells the
+		// resource hyphenated; CFN spells it PascalCase as a separate dup key).
+		TypeAidevopsPrivateConnection: "AWS::aidevops::private-connection",
 		// ACM Private CA — disco service segment "acm-pca" (kebab-case, hyphen
 		// would not survive the algorithmic Pascal-case conversion).
 		TypeACMPCAPermission: "AWS::ACMPCA::Permission",

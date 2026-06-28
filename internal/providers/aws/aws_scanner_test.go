@@ -156,6 +156,7 @@ var expectedAWSServices = []string{
 	"aws:cloud9",
 	"aws:chime",
 	"aws:accessanalyzer",
+	"aws:aidevops",
 	"aws:aiops",
 	"aws:mq",
 	"aws:amplify",

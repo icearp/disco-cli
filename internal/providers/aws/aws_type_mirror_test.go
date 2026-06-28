@@ -12,6 +12,13 @@ import (
 // the comparison is on the hyphen-stripped, lower-cased forms. A new AWS type
 // that de-stutters, renames, or abbreviates its resource relative to upstream
 // (e.g. backup:vault for BackupVault, docdb:cluster for DBCluster) fails here.
+//
+// Hyphens are stripped on BOTH sides: CloudFormation resource names are
+// PascalCase with no hyphens (InvestigationGroup), but the Service Reference
+// catalog spells the same resources lower-cased and hyphenated
+// (investigation-group, private-connection). Both are valid alias targets, so
+// the comparison ignores hyphen placement — cosmetic separation, not a semantic
+// rename — while still catching abbreviation and de-stuttering.
 func TestAWSResourceMirrorsUpstream(t *testing.T) {
 	for disco, upstream := range (coverageProvider{}).Aliases() {
 		dp := strings.SplitN(disco, ":", 3)
@@ -19,7 +26,7 @@ func TestAWSResourceMirrorsUpstream(t *testing.T) {
 		if len(dp) != 3 || len(up) != 3 {
 			continue
 		}
-		if strings.ReplaceAll(dp[2], "-", "") != strings.ToLower(up[2]) {
+		if strings.ReplaceAll(dp[2], "-", "") != strings.ReplaceAll(strings.ToLower(up[2]), "-", "") {
 			t.Errorf("disco %q resource %q does not mirror upstream %q resource %q",
 				disco, dp[2], upstream, up[2])
 		}

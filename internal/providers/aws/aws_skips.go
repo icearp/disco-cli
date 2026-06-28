@@ -66,6 +66,11 @@ func (coverageProvider) Skips() map[string]string {
 		// SDK exposes no automation-rule list op; AutomationRule is modeled only in
 		// CloudFormation / the Service Reference, not callable per the SDK mandate.
 		"AWS::aco-automation::AutomationRule": "no SDK list op: automation rules are CFN/Service-Reference-only, not modeled in aws-sdk-go-v2",
+
+		// DevOpsAgent (CloudFormation spelling) duplicates the private connection
+		// disco scans as aws:aidevops:private-connection via the Service Reference
+		// spelling. CFN models only PrivateConnection for this service.
+		"AWS::DevOpsAgent::PrivateConnection": "duplicate: already scanned as aws:aidevops:private-connection (Service Reference spelling AWS::aidevops::private-connection)",
 	}
 }
 

@@ -1424,6 +1424,13 @@ const (
 	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
 	TypeAccessAnalyzerAnalyzer    = "aws:accessanalyzer:analyzer"
 	TypeAccessAnalyzerArchiveRule = "aws:accessanalyzer:archive-rule"
+	// AI DevOps agent (aidevops_scanners.go, aidevops_resolvers.go). Resource
+	// segments mirror the Service Reference catalog (the only catalog modelling
+	// agent-space / service / associations; CFN models only PrivateConnection).
+	TypeAidevopsAgentSpace        = "aws:aidevops:agentspace"
+	TypeAidevopsService           = "aws:aidevops:service"
+	TypeAidevopsAssociations      = "aws:aidevops:associations"
+	TypeAidevopsPrivateConnection = "aws:aidevops:private-connection"
 	// ACM Private CA permissions (acmpca_scanners.go, acmpca_resolvers.go)
 	TypeACMPCAPermission = "aws:acm-pca:permission"
 	// CloudWatch AIOps investigation groups (aiops_scanners.go, aiops_resolvers.go)
