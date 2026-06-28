@@ -904,7 +904,7 @@ func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
 // TestResolveIAMRoleCrossAccountTrust verifies that a role whose trust policy
 // names another AWS account (both bare-ID and ARN forms) yields one
 // cross-account-trust edge per distinct foreign principal, plus a single
-// foreign-account stub resource per distinct other account.
+// empty-attribute aws:iam:account placeholder per distinct other account.
 func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -933,7 +933,7 @@ func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
 	// Expect 2 distinct cross-account-trust edges (one per foreign account: 222 + 333).
-	// Both 333 principals target the same foreign-account stub, so the
+	// Both 333 principals target the same account placeholder, so the
 	// UNIQUE(from_id, to_id, kind) constraint collapses them to one edge.
 	// Wildcard, self, and Deny statements all skipped.
 	got := 0
@@ -945,18 +945,62 @@ func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 	if got != 2 {
 		t.Fatalf("expected 2 cross-account-trust edges, got %d (rels=%+v)", got, rels)
 	}
-	// Verify the stub resources exist (foreign accounts 222... and 333...).
+	// Each referenced account exists as an empty-attribute aws:iam:account
+	// placeholder at its self-node natural key, and the edge points at it.
 	for _, other := range []string{"222222222222", "333333333333"} {
-		stubID := store.ResourceID("aws", other, TypeIAMForeignAccount, "arn:aws:iam::"+other+":root")
-		if _, err := st.GetResource(stubID); err != nil {
-			t.Errorf("missing foreign-account stub for %s: %v", other, err)
+		wantID := store.ResourceID("aws", other, TypeIAMAccount, "arn:aws:iam::"+other+":root")
+		r, err := st.GetResource(wantID)
+		if err != nil {
+			t.Errorf("missing account placeholder for %s: %v", other, err)
+			continue
 		}
+		if r.AttributesJSON != "{}" {
+			t.Errorf("placeholder for %s: attributes = %q, want empty {}", other, r.AttributesJSON)
+		}
+		assertRelationship(t, rels, roleID, wantID, store.RelCrossAccountTrust)
 	}
+}
+
+// TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount verifies the
+// placeholder insert is FK-safe but non-destructive: when the referenced
+// account's self-node already exists fully populated (it was scanned), the
+// resolver leaves its attributes intact and still points the edge at it.
+func TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	const other = "222222222222"
+	// Seed the foreign account as an already-scanned, populated self-node.
+	populated := `{"SummaryMap":{"Users":5}}`
+	scannedID := upsertTestResource(t, st, "aws", other, TypeIAMAccount,
+		"arn:aws:iam::"+other+":root", "global", populated)
+
+	roleARN := "arn:aws:iam::" + testAccountID + ":role/cross-trusted"
+	trustDoc := `{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::` + other + `:root"},"Action":"sts:AssumeRole"}]}`
+	encoded := url.QueryEscape(trustDoc)
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", `{"AssumeRolePolicyDocument":"`+encoded+`"}`)
+
+	if err := resolveIAMRoleCrossAccountTrust(acct, st); err != nil {
+		t.Fatalf("resolveIAMRoleCrossAccountTrust: %v", err)
+	}
+
+	r, err := st.GetResource(scannedID)
+	if err != nil {
+		t.Fatalf("GetResource scanned account: %v", err)
+	}
+	if r.AttributesJSON != populated {
+		t.Errorf("scanned account clobbered: attributes = %q, want %q", r.AttributesJSON, populated)
+	}
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, roleID, scannedID, store.RelCrossAccountTrust)
 }
 
 // TestResolveIAMRoleCrossAccountTrust_SameAccountOnly verifies a role whose
 // trust policy only names its own account (or service principals, or wildcard)
-// produces no cross-account-trust edges and no foreign-account stubs.
+// produces no cross-account-trust edges and no account placeholders.
 func TestResolveIAMRoleCrossAccountTrust_SameAccountOnly(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

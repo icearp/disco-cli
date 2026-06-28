@@ -8,7 +8,7 @@ import (
 )
 
 // RenderMarkdown writes a per-provider markdown matrix (covered / uncovered /
-// synthetic / uncatalogued / upstream-missing). Suitable for `disco coverage
+// uncatalogued / upstream-missing). Suitable for `disco coverage
 // -o markdown` piped into docs/coverage.md or pasted into the README.
 func RenderMarkdown(w io.Writer, matrices []Matrix) error {
 	for i, m := range matrices {
@@ -29,10 +29,10 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		return err
 	}
 
-	covered, uncovered, synthetic, uncatalogued, missing := splitByBucket(m.Rows)
+	covered, uncovered, uncatalogued, missing := splitByBucket(m.Rows)
 
-	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Synthetic:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
-		len(covered), len(uncovered), len(synthetic), len(uncatalogued), len(missing))
+	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
+		len(covered), len(uncovered), len(uncatalogued), len(missing))
 	if _, err := io.WriteString(w, counts); err != nil {
 		return err
 	}
@@ -48,14 +48,6 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		if err := mdSection(w, "Uncovered (in upstream registry, no disco scanner)",
 			[]string{"Service", "Upstream key"}, uncovered, func(r Row) []string {
 				return []string{r.Service, r.UpstreamKey}
-			}); err != nil {
-			return err
-		}
-	}
-	if len(synthetic) > 0 {
-		if err := mdSection(w, "Synthetic (fabricated cross-scope stub — no upstream registry entry expected)",
-			[]string{"Service", "Disco type"}, synthetic, func(r Row) []string {
-				return []string{r.Service, r.DiscoType}
 			}); err != nil {
 			return err
 		}
@@ -79,15 +71,13 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 	return nil
 }
 
-func splitByBucket(rows []Row) (covered, uncovered, synthetic, uncatalogued, missing []Row) {
+func splitByBucket(rows []Row) (covered, uncovered, uncatalogued, missing []Row) {
 	for _, r := range rows {
 		switch r.Bucket {
 		case BucketCovered:
 			covered = append(covered, r)
 		case BucketUncovered:
 			uncovered = append(uncovered, r)
-		case BucketSynthetic:
-			synthetic = append(synthetic, r)
 		case BucketUncatalogued:
 			uncatalogued = append(uncatalogued, r)
 		case BucketUpstreamMissing:

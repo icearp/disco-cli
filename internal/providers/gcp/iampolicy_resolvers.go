@@ -5,18 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 )
 
 func init() {
 	registerResolver(resolveIAMPolicyRelationships)
-	// Synthetic stub for cross-project SA refs whose owning project is out of
-	// scan scope (R5). Pure disco bookkeeping — no upstream registry entry.
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignProject, Synthetic: true},
-	)
 }
 
 // resolveIAMPolicyRelationships walks each gcp:iam:policy resource's bindings
@@ -25,8 +19,10 @@ func init() {
 //   - same-project SA → `uses` edge (FK-checked via buildSAEmailIndex).
 //   - cross-project SA: if the SA exists in any other scanned project, emit a
 //     `cross-project-iam` edge directly to that SA. If the SA's project is not
-//     in scan scope, emit `cross-project-iam` to a synthetic
-//     gcp:iam:foreign-project stub representing the foreign project. R5.
+//     in scan scope, emit `cross-project-iam` to that project's self-node
+//     (gcp:cloudresourcemanager:project), insert-if-absented as an empty-
+//     attribute placeholder that version-populates if the project is later
+//     scanned. R5.
 //   - `user:{email}` → `uses` edge to a gcp:admin:user row when the
 //     Cloud Identity / Workspace Directory scanner has populated one with the
 //     same primary email.
@@ -99,30 +95,32 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	}
 
 	if len(foreignProjects) > 0 {
-		stubs := make([]*store.Resource, 0, len(foreignProjects))
+		// Empty-attribute placeholder at the project's real self-node natural
+		// key (account_id=native_id=<projectID>, matching gcp_hierarchy.go), so
+		// the cross-project-iam FK holds and the project version-populates if it
+		// is later scanned directly.
+		placeholders := make([]*store.Resource, 0, len(foreignProjects))
 		for proj := range foreignProjects {
-			nativeID := "projects/" + proj
 			name := proj
-			stubs = append(stubs, &store.Resource{
+			placeholders = append(placeholders, &store.Resource{
 				Provider:       "gcp",
-				Region:         regionGlobal,
 				AccountID:      proj,
-				Type:           TypeIAMForeignProject,
-				NativeID:       nativeID,
+				Type:           TypeProject,
+				NativeID:       proj,
 				Name:           &name,
-				AttributesJSON: fmt.Sprintf(`{"projectId":%q,"synthetic":true}`, proj),
+				AttributesJSON: "{}",
 				DiscoveredBy:   scanID,
 			})
 		}
-		if _, err := st.UpsertResources(stubs); err != nil {
-			return fmt.Errorf("upsert foreign-project stubs: %w", err)
+		if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+			return fmt.Errorf("insert referenced-project placeholders: %w", err)
 		}
 	}
 
 	for _, e := range pending {
 		toID := e.targetSAID
 		if toID == "" {
-			toID = store.ResourceID("gcp", e.projectID, TypeIAMForeignProject, "projects/"+e.projectID)
+			toID = store.ResourceID("gcp", e.projectID, TypeProject, e.projectID)
 		}
 		attrs := mustJSON(map[string]string{
 			"role":           e.role,
@@ -136,10 +134,10 @@ func resolveIAMPolicyRelationships(p *project, st *store.Store) error {
 	return nil
 }
 
-// pendingCross carries one cross-project SA member edge whose stub-target
-// (foreign-project) row may not yet exist when the binding is first walked.
+// pendingCross carries one cross-project SA member edge whose target project
+// self-node row may not yet exist when the binding is first walked.
 // targetSAID is set when the SA was found in another scanned project; empty
-// when only the foreign-project stub is the destination.
+// when the referenced project's self-node placeholder is the destination.
 type pendingCross struct {
 	fromID     string
 	role       string
@@ -201,7 +199,7 @@ func emitGroupMemberEdge(st *store.Store, fromID, role, member string, groupByEm
 
 // classifySAMember handles `serviceAccount:{email}` bindings. Same-project
 // matches emit a `uses` edge directly; cross-project matches accumulate into
-// pending so the foreign-project stubs can be upserted before edges fire.
+// pending so the referenced-project placeholders can be inserted before edges fire.
 // Non-SA members fall through silently.
 func classifySAMember(st *store.Store, saByEmail map[string]string, crossSAByEmail *map[string]string, foreignProjects map[string]struct{}, pending *[]pendingCross, fromID, role, member string) error {
 	email, ok := strings.CutPrefix(member, "serviceAccount:")

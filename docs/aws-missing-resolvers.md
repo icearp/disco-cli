@@ -202,7 +202,6 @@ aws:guardduty:detector	guardduty
 aws:guardduty:malware-protection-plan	guardduty
 aws:health-imaging:datastore	health-imaging
 aws:health-lake:fhir-datastore	health-lake
-aws:iam:foreign-account	iam
 aws:iam:instance-profile	iam
 aws:identitystore:group	identitystore
 aws:identitystore:group-membership	identitystore

@@ -25,9 +25,9 @@ type serviceEntry struct {
 }
 
 // extraEmits accumulates disco-type decls for code paths that do NOT flow
-// through registerService — namely resolver-side synthetic stubs (e.g.
-// cross-account-trust foreign-account, AWS-managed-policy catalogue stubs)
-// declared from the file that owns the upsert site.
+// through registerService — namely multi-file services that declare their
+// emits per-category file (EC2, IoT, Glue, SageMaker, Connect) from the file
+// that owns the upsert site rather than on one central serviceEntry.
 var extraEmits []coverage.TypeDecl
 
 // registerExtraEmits is for non-serviceEntry sources of disco types. Call

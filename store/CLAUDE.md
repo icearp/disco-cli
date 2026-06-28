@@ -25,7 +25,7 @@ Queries built with `squirrel` (`sq.Select(...).Where(...)`) — no string interp
 - `bounded-by` — IAM principal scoping by permission boundary (role/user → boundary policy). Distinct from `attached-to` (which would conflate boundary with normal policy attachment) and `uses` (which is runtime). Lets queries filter "all roles bounded by policy X".
 - `routes-to` — routing edges (route table → target)
 - `peer` — bidirectional peering (VPC peering)
-- `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` — R5 cross-tenant edges. Targets are synthetic stub resources (`aws:iam:foreign-account`, `azure:microsoft.resources:foreign-subscription`, `gcp:iam:foreign-project`) when foreign tenant out of scan scope.
+- `cross-account-trust` / `cross-sub-rbac` / `cross-project-iam` — R5 cross-tenant edges. Targets are the referenced **account / subscription / project self-node** (`aws:iam:account`, `azure:microsoft.resources:subscriptions`, `gcp:cloudresourcemanager:project`) — a real resource type, not a synthetic stub. When the foreign tenant is out of scan scope the resolver `InsertResourcesIfAbsent`s an empty-attribute placeholder at that self-node's natural key; if the account/sub/project is later scanned, its own scanner version-populates the row (the edge's `to_id` is the deterministic `root_id`, stable across the split). See "Reference-discovered placeholders" below.
 
 IAM principals (users/roles/groups, service accounts) are edge **destinations**: group→user is `contains`, user→access-key is `contains`, policy→user is `attached-to`, role→trust-policy is `assumes`. Outbound-only BFS from a principal returns seed-only — use DirBoth (or `cmd/graph` blast's auto-fallback) and include `contains` in `Kinds`.
 
@@ -65,7 +65,7 @@ SQL files in `migrations/` (SQLite) and `migrations/pg/` (Postgres) embedded at 
 
 ## `region = "global"` is the canonical non-regional sentinel
 
-Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope, plus resolver-side cross-tenant synthetic stubs (`aws:iam:foreign-account`, foreign-subscription, foreign-project) — carry `region = "global"`, not NULL. Each provider package exposes a package-level `regionGlobal *string` pointer (`internal/providers/<p>/<p>.go`); global scanners and stub-emitting resolvers set `Resource.Region = regionGlobal` directly on the literal. Single sentinel pointer per package keeps the call sites trivial.
+Resources scoped above any single region — AWS IAM/Route53/CloudFront/S3/Organizations/etc., Azure tenant-scope (Entra ID), GCP org/folder-scope — carry `region = "global"`, not NULL. Each provider package exposes a package-level `regionGlobal *string` pointer (`internal/providers/<p>/<p>.go`); global scanners set `Resource.Region = regionGlobal` directly on the literal. Single sentinel pointer per package keeps the call sites trivial. (Cross-tenant placeholders mirror whatever region the real self-node scanner uses — AWS account → `global`, Azure subscription / GCP project → unset, matching their scanners.)
 
 `ResourceFilter.Regions` exact-match filter folds "global" rows in by default — `--regions us-east-1` matches both us-east-1 AND global rows because users intuit a regional filter as "what's scoped to here", and globals sit logically in every region. `ResourceFilter.SkipGlobals=true` opts out (wired as `--exclude-global-region` on `disco resources` / `summary` / `tag-coverage`; the `--skip-globals` name is reserved for scan's service-discovery skip). The empty-Regions + SkipGlobals path emits `region != "global"` so callers can blanket-exclude globals without naming a region.
 
@@ -141,6 +141,27 @@ migration path to `uuid` column type when PG 18 ships is a single
 ## UpsertResources ON CONFLICT scope
 
 ON CONFLICT only updates: `name`, `status`, `tags`, `attributes`, `verified_at`, `verified_by`, `managed_by_provider`. Does **not** update `region`, `zone`, `account_name`, `discovered_at`. Set all fields on initial insert — second upsert can't patch. Adding a new mutable column = three edits: INSERT col list, VALUES placeholder, ON CONFLICT SET.
+
+## Reference-discovered placeholders (`InsertResourcesIfAbsent`)
+
+`InsertResourcesIfAbsent(resources)` runs **only** the first-discovery
+`INSERT … ON CONFLICT (provider,account_id,type,native_id) WHERE superseded_by
+IS NULL DO NOTHING` path — never the verify or version-split paths. It is the
+reference-discovery primitive: when a resolver sees a cross-tenant edge into an
+account/subscription/project outside scan scope, it inserts an empty-attribute
+(`{}`) row at that resource's **real self-node natural key** (so the edge's
+`to_id` — the deterministic `root_id` — has a stable FK target), then emits the
+edge. If that target is later scanned (this run or a future one), its own
+scanner calls `UpsertResources`, finds the placeholder as the current version,
+and version-splits it `{}`→populated; the placeholder is preserved in history
+and the edge keeps resolving across the split. The ON CONFLICT DO NOTHING makes
+it FK-safe but non-destructive — a populated row is never reduced back to `{}`,
+regardless of resolver-vs-scanner ordering. Do **not** use `UpsertResources`
+for placeholders: it would version-split a populated row down to `{}`. Sole
+callers today are the three cross-tenant resolvers (`resolveIAMRoleCrossAccountTrust`
++ `resolveOrganizationsManagementAccount` in aws, `resolveAuthorizationRelationships`
+in azure, `resolveIAMPolicyRelationships` in gcp). There is no synthetic stub
+type and no marker column — the version chain is the whole mechanism.
 
 ## FK constraint: resources require scan record
 

@@ -24,7 +24,7 @@ func init() {
 	registerResolver(
 		resolveOrganizationsManagementAccount,
 		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
-		EdgeDecl{TypeOrganization, TypeIAMForeignAccount, store.RelAttachedTo},
+		EdgeDecl{TypeOrganization, TypeIAMAccount, store.RelAttachedTo},
 	)
 }
 
@@ -200,11 +200,10 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 // identified by Organization.MasterAccountID. When the master account row is
 // already in the store (management-account scan), the edge points to the real
 // aws:organizations:account row. Otherwise (member-account scan, master not
-// scanned by this run) the resolver synthesizes an aws:iam:foreign-account
-// stub for the master account ID and points at it. The stub uses the same
-// shape as the IAM cross-account-trust resolver, so a later management scan
-// that upserts the real account row leaves the stub intact in its own
-// account-scoped slice.
+// scanned by this run) the resolver insert-if-absents an empty-attribute
+// aws:iam:account placeholder for the master account ID and points at it —
+// the same self-node natural key the IAM scanner / cross-account-trust resolver
+// use, so a later management scan version-populates the placeholder.
 func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error {
 	orgs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -250,22 +249,23 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 		return nil
 	}
 	if len(stubByAcct) > 0 {
-		stubs := make([]*store.Resource, 0, len(stubByAcct))
+		placeholders := make([]*store.Resource, 0, len(stubByAcct))
 		for other := range stubByAcct {
 			nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
 			name := other
-			stubs = append(stubs, &store.Resource{
+			placeholders = append(placeholders, &store.Resource{
 				Provider:       "aws",
 				AccountID:      other,
-				Type:           TypeIAMForeignAccount,
+				Type:           TypeIAMAccount,
 				NativeID:       nativeID,
 				Name:           &name,
-				AttributesJSON: fmt.Sprintf(`{"AccountId":%q,"Synthetic":true}`, other),
+				Region:         regionGlobal,
+				AttributesJSON: "{}",
 				DiscoveredBy:   orgs[0].DiscoveredBy,
 			})
 		}
-		if _, err := st.UpsertResources(stubs); err != nil {
-			return fmt.Errorf("upsert org master-account stubs: %w", err)
+		if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+			return fmt.Errorf("insert master-account placeholders: %w", err)
 		}
 	}
 	edgeAttrs := mustJSON(map[string]string{"role": "management"})
@@ -274,7 +274,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 		if p.realAccount {
 			toID = store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, arnByID[p.masterAcctID])
 		} else {
-			toID = store.ResourceID("aws", p.masterAcctID, TypeIAMForeignAccount,
+			toID = store.ResourceID("aws", p.masterAcctID, TypeIAMAccount,
 				fmt.Sprintf("arn:aws:iam::%s:root", p.masterAcctID))
 		}
 		if err := st.UpsertRelationship(p.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {

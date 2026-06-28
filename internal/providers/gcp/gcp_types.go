@@ -65,9 +65,6 @@ const (
 	TypeIAMServiceAccount = "gcp:iam:service-account"
 	TypeIAMPolicy         = "gcp:iam:policy"
 	TypeIAMSAKey          = "gcp:iam:key"
-	// Synthetic stub for cross-project IAM bindings whose member SA lives in a
-	// project not in scan scope (R5). NativeID = projects/<other>.
-	TypeIAMForeignProject = "gcp:iam:foreign-project"
 	// Cloud KMS
 	TypeKMSKeyRing   = "gcp:cloudkms:key-ring"
 	TypeKMSCryptoKey = "gcp:cloudkms:crypto-key"

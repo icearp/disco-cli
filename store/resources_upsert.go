@@ -191,3 +191,77 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 
 	return inserted, tx.Commit()
 }
+
+// InsertResourcesIfAbsent inserts each resource only when no current-version
+// row already holds its natural key, and otherwise leaves the existing row
+// untouched. Unlike UpsertResources it never runs the verify or version-split
+// paths — so a populated row is never reduced back to a placeholder's
+// attributes.
+//
+// This is the reference-discovery primitive: a resolver that sees an edge into
+// an account/subscription/project outside the current scan scope inserts an
+// empty-attribute row at that resource's real self-node natural key, so the
+// edge has a stable FK target (the deterministic root_id is identical whether
+// the row is the empty placeholder or later fully populated). When that target
+// is itself scanned — this run or a future one — its own scanner calls
+// UpsertResources, finds the placeholder as the current version, and
+// version-splits it to the populated form. The placeholder is preserved in
+// history; the edge keeps resolving across the split.
+//
+// Returns the count of rows actually inserted (placeholders that found their
+// natural key already occupied do not count).
+func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, err error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	for _, r := range resources {
+		if r.ID == "" {
+			r.ID = ResourceID(r.Provider, r.AccountID, r.Type, r.NativeID)
+		}
+		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
+		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
+	}
+
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, r := range resources {
+		if r.DiscoveredAt == "" {
+			r.DiscoveredAt = now
+		}
+		rowID := uuid.Must(uuid.NewV7()).String()
+		// ON CONFLICT DO NOTHING on the current-by-natural-key partial index:
+		// if the row already exists (placeholder racing its own scanner, or a
+		// prior run already populated it), this is a no-op — the populated form
+		// is never clobbered down to the placeholder's empty attributes.
+		res, err := tx.Exec(tx.Rebind(`
+			INSERT INTO resources
+				(id, root_id, provider, account_id, account_name, type, native_id,
+				 name, region, zone, status, tags, attributes,
+				 created_at, discovered_at, discovered_by,
+				 verified_at, verified_by, managed_by_provider)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+			        $14, $15, $16, $17, $18, $19)
+			ON CONFLICT (provider, account_id, type, native_id)
+			    WHERE superseded_by IS NULL
+			DO NOTHING`),
+			rowID, r.ID, r.Provider, r.AccountID, r.AccountName, r.Type, r.NativeID,
+			r.Name, r.Region, r.Zone, r.Status, r.TagsJSON, r.AttributesJSON,
+			r.CreatedAt, r.DiscoveredAt, r.DiscoveredBy,
+			now, r.DiscoveredBy, r.ManagedByProvider,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("insert-if-absent resource %s: %w", r.ID, err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			inserted++
+			if s.upsertNew != nil {
+				s.upsertNew.Add(1)
+			}
+		}
+	}
+
+	return inserted, tx.Commit()
+}

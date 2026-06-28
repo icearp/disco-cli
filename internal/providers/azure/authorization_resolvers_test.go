@@ -157,7 +157,8 @@ func TestResolveAuthorizationRelationships_MissingRoleDef(t *testing.T) {
 
 // TestResolveAuthorizationRelationships_CrossSubScope verifies that an
 // assignment whose Scope subscription differs from the assignment's owner sub
-// produces a cross-sub-rbac edge to a foreign-subscription stub. R5.
+// produces a cross-sub-rbac edge to the referenced subscription's self-node,
+// inserted as an empty-attribute placeholder when out of scope. R5.
 func TestResolveAuthorizationRelationships_CrossSubScope(t *testing.T) {
 	st := newTestStore(t)
 	sub := newTestSubscription("home-sub")
@@ -190,12 +191,61 @@ func TestResolveAuthorizationRelationships_CrossSubScope(t *testing.T) {
 	if cross == nil {
 		t.Fatalf("missing cross-sub-rbac edge, got: %+v", rels)
 	}
-	wantStub := store.ResourceID("azure", "other-sub", TypeForeignSubscription, "/subscriptions/other-sub")
-	if cross.ToID != wantStub {
-		t.Errorf("cross-sub-rbac target: got %q want %q", cross.ToID, wantStub)
+	wantID := store.ResourceID("azure", "other-sub", TypeSubscription, "/subscriptions/other-sub")
+	if cross.ToID != wantID {
+		t.Errorf("cross-sub-rbac target: got %q want %q", cross.ToID, wantID)
 	}
 	if cross.Attributes == nil {
 		t.Errorf("expected non-nil attrs on cross-sub-rbac edge")
+	}
+	// The referenced subscription exists as an empty-attribute self-node placeholder.
+	r, err := st.GetResource(wantID)
+	if err != nil {
+		t.Fatalf("GetResource subscription placeholder: %v", err)
+	}
+	if r.AttributesJSON != "{}" {
+		t.Errorf("placeholder attributes = %q, want empty {}", r.AttributesJSON)
+	}
+}
+
+// TestResolveAuthorizationRelationships_CrossSubScope_DoesNotClobber verifies
+// the cross-sub placeholder is FK-safe but non-destructive: a referenced
+// subscription that was already scanned (populated self-node) keeps its
+// attributes, and the edge still points at it.
+func TestResolveAuthorizationRelationships_CrossSubScope_DoesNotClobber(t *testing.T) {
+	st := newTestStore(t)
+	sub := newTestSubscription("home-sub")
+
+	populated := `{"subscriptionId":"other-sub","displayName":"Other"}`
+	scannedID := upsertTestResource(t, st, "azure", "other-sub", TypeSubscription, "/subscriptions/other-sub", "", populated)
+
+	asnNativeID := "/subscriptions/home-sub/providers/Microsoft.Authorization/roleAssignments/dddddddd-dddd-dddd-dddd-dddddddddddd"
+	asnAttrs := `{"properties":{"scope":"/subscriptions/other-sub/resourceGroups/RG","principalId":"33333333-3333-3333-3333-333333333333"}}`
+	asnID := upsertTestResource(t, st, "azure", sub.ID, TypeAuthorizationRoleAssignment, asnNativeID, "", asnAttrs)
+
+	if err := resolveAuthorizationRelationships(sub, st); err != nil {
+		t.Fatalf("resolveAuthorizationRelationships: %v", err)
+	}
+
+	r, err := st.GetResource(scannedID)
+	if err != nil {
+		t.Fatalf("GetResource scanned subscription: %v", err)
+	}
+	if r.AttributesJSON != populated {
+		t.Errorf("scanned subscription clobbered: attributes = %q, want %q", r.AttributesJSON, populated)
+	}
+	rels, err := st.RelationshipsFrom(asnID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	var found bool
+	for _, e := range rels {
+		if e.Kind == store.RelCrossSubRBAC && e.ToID == scannedID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("missing cross-sub-rbac edge to scanned subscription, got: %+v", rels)
 	}
 }
 

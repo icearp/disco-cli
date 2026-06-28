@@ -15,7 +15,7 @@ func init() {
 		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraUser, Kind: store.RelUses},
 		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraGroup, Kind: store.RelUses},
 		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeEntraServicePrincipal, Kind: store.RelUses},
-		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeForeignSubscription, Kind: store.RelCrossSubRBAC},
+		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeSubscription, Kind: store.RelCrossSubRBAC},
 		// scope can be any resource; the canonical scope-container levels:
 		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeSubscription, Kind: store.RelAttachedTo},
 		EdgeDecl{Source: TypeAuthorizationRoleAssignment, Target: TypeManagementGroup, Kind: store.RelAttachedTo},
@@ -27,8 +27,10 @@ func init() {
 //   - assignment -[uses]-> role-definition (via RoleDefinitionID)
 //   - assignment -[attached-to]-> scoped-resource (via Scope, when the scope
 //     matches a known resource in the local store and is in this subscription)
-//   - assignment -[cross-sub-rbac]-> foreign subscription stub (when Scope
-//     points at a subscription other than the assignment's owner sub) — R5
+//   - assignment -[cross-sub-rbac]-> the referenced subscription's self-node
+//     (when Scope points at a subscription other than the assignment's owner
+//     sub). Out-of-scope subs get an empty-attribute placeholder that
+//     version-populates if that subscription is later scanned — R5
 //
 // Principal edges (assignment -[uses]-> entra:user|group|service-principal)
 // are emitted when the assignment's PrincipalID matches an in-store Entra row.
@@ -89,9 +91,9 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 		return err
 	}
 
-	// Pre-pass: pre-upsert foreign-subscription stubs before emitting edges so the
-	// cross-sub-rbac FK on relationships.to_id holds.
-	if err := upsertForeignSubscriptionStubs(sub, assignments, st, scanID); err != nil {
+	// Pre-pass: insert placeholders for referenced out-of-scope subscriptions
+	// before emitting edges so the cross-sub-rbac FK on relationships.to_id holds.
+	if err := upsertForeignSubscriptionPlaceholders(sub, assignments, st, scanID); err != nil {
 		return err
 	}
 
@@ -146,10 +148,11 @@ func resolveAuthorizationRelationships(sub *subscription, st *store.Store) error
 		scope := *attrs.Properties.Scope
 
 		// Cross-sub edge: scope sub differs from assignment's owner sub. Edge
-		// targets foreign-subscription stub. Same-sub assignments fall through
-		// to the per-resource scope match below.
+		// targets the referenced subscription's self-node (placeholder when out
+		// of scope). Same-sub assignments fall through to the per-resource scope
+		// match below.
 		if other, ok := subscriptionFromScope(scope); ok && !strings.EqualFold(other, sub.ID) {
-			toID := store.ResourceID("azure", other, TypeForeignSubscription, "/subscriptions/"+other)
+			toID := store.ResourceID("azure", other, TypeSubscription, "/subscriptions/"+other)
 			edgeAttrs := mustJSON(map[string]string{
 				"scope":              scope,
 				"scope-subscription": other,
@@ -212,17 +215,23 @@ func ptrOr(p *string, fallback string) string {
 	return *p
 }
 
-// upsertForeignSubscriptionStubs collects distinct foreign subscription IDs
-// referenced by assignment scopes (a scope pointing at a subscription other than
-// the assignment's owner — R5 cross-sub RBAC) and pre-upserts a stub resource
-// for each, so the later cross-sub-rbac edge has a valid FK target.
-func upsertForeignSubscriptionStubs(sub *subscription, assignments []store.Resource, st *store.Store, scanID string) error {
+// upsertForeignSubscriptionPlaceholders collects distinct foreign subscription
+// IDs referenced by assignment scopes (a scope pointing at a subscription other
+// than the assignment's owner — R5 cross-sub RBAC) and insert-if-absents an
+// empty-attribute row at each subscription's real self-node natural key
+// (azure:microsoft.resources:subscriptions, /subscriptions/<guid>), so the
+// later cross-sub-rbac edge has a valid FK target. When that subscription is
+// itself scanned, scanSubscriptionResource version-populates the placeholder.
+func upsertForeignSubscriptionPlaceholders(sub *subscription, assignments []store.Resource, st *store.Store, scanID string) error {
 	foreignSubs := map[string]struct{}{}
 	for _, r := range assignments {
 		scope := assignmentScope(r)
 		if scope == "" {
 			continue
 		}
+		// subscriptionFromScope lowercases the guid — ARM IDs are
+		// case-insensitive but ResourceID hashes raw, so the placeholder must
+		// use the same (lowercased) form scanSubscriptionResource stores.
 		if other, ok := subscriptionFromScope(scope); ok && !strings.EqualFold(other, sub.ID) {
 			foreignSubs[other] = struct{}{}
 		}
@@ -230,23 +239,23 @@ func upsertForeignSubscriptionStubs(sub *subscription, assignments []store.Resou
 	if len(foreignSubs) == 0 {
 		return nil
 	}
-	stubs := make([]*store.Resource, 0, len(foreignSubs))
+	placeholders := make([]*store.Resource, 0, len(foreignSubs))
 	for other := range foreignSubs {
 		nativeID := "/subscriptions/" + other
 		name := other
-		stubs = append(stubs, &store.Resource{
+		placeholders = append(placeholders, &store.Resource{
 			Provider:       "azure",
 			AccountID:      other,
-			Type:           TypeForeignSubscription,
+			Type:           TypeSubscription,
 			NativeID:       nativeID,
 			Name:           &name,
 			Region:         regionGlobal,
-			AttributesJSON: fmt.Sprintf(`{"subscriptionId":%q,"synthetic":true}`, other),
+			AttributesJSON: "{}",
 			DiscoveredBy:   scanID,
 		})
 	}
-	if _, err := st.UpsertResources(stubs); err != nil {
-		return fmt.Errorf("upsert foreign-subscription stubs: %w", err)
+	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+		return fmt.Errorf("insert referenced-subscription placeholders: %w", err)
 	}
 	return nil
 }

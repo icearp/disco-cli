@@ -7,9 +7,6 @@ const (
 	// Resource Manager
 	TypeResourcesResourceGroup = "azure:microsoft.resources:resource-groups"
 	TypeSubscription           = "azure:microsoft.resources:subscriptions"
-	// Synthetic stub for cross-subscription RBAC scope targets that point at a
-	// subscription not in scan scope (R5). NativeID = /subscriptions/<guid>.
-	TypeForeignSubscription = "azure:microsoft.resources:foreign-subscription"
 	// Management Groups (tenant scope)
 	TypeManagementGroup = "azure:microsoft.management:management-groups"
 	// Service quota limits via the unified Microsoft.Quota proxy. One row per

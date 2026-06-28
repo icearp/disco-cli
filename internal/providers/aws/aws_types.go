@@ -164,9 +164,13 @@ const (
 	TypeIAMSAMLProvider      = "aws:iam:saml-provider"
 	TypeIAMServerCertificate = "aws:iam:server-certificate"
 	TypeIAMVirtualMFADevice  = "aws:iam:virtual-mfa-device"
-	// IAM — synthetic stub for cross-account trust principals (R5).
-	// One row per foreign account ID referenced by an IAM role trust policy. NativeID = arn:aws:iam::<acct>:root.
-	TypeIAMForeignAccount = "aws:iam:foreign-account"
+	// IAM — the AWS account itself (account-level posture: summary, aliases,
+	// password policy). NativeID = arn:aws:iam::<acct>:root. The IAM scanner
+	// populates one per scanned account; cross-account-trust / org-management
+	// resolvers insert an empty-attribute placeholder at this key for accounts
+	// they reference but that aren't in scan scope (it version-populates if that
+	// account is later scanned).
+	TypeIAMAccount = "aws:iam:account"
 	// Lambda
 	TypeLambdaFunction          = "aws:lambda:function"
 	TypeLambdaAlias             = "aws:lambda:alias"

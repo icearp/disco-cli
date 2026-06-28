@@ -59,8 +59,6 @@ type orgServiceEntry struct {
 // extraEmits accumulates disco-type decls for code paths that do NOT
 // flow through registerService / registerOrgService — namely:
 //   - hierarchy_scanners.go (called direct from gcp.go's scanHierarchy)
-//   - resolver-side synthetic stubs (e.g. TypeIAMForeignProject in
-//     iampolicy_resolvers.go).
 //
 // CollectEmits unions registeredServices + registeredOrgServices +
 // extraEmits and dedupes by DiscoType.

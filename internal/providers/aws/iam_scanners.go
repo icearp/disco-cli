@@ -24,6 +24,10 @@ func init() {
 			return scanIAM(ctx, acct, st, scanID)
 		},
 		emits: []coverage.TypeDecl{
+			// Account self-node. No CFN type and not an IAM "resource" in the
+			// Service Reference catalogue → Uncatalogued (auto-upgrades if a
+			// registry ever lists it). Edge-less posture row → Leaf.
+			{Service: "iam", DiscoType: TypeIAMAccount, Uncatalogued: true, Leaf: true},
 			{Service: "iam", DiscoType: TypeIAMUser},
 			{Service: "iam", DiscoType: TypeIAMGroup},
 			{Service: "iam", DiscoType: TypeIAMRole},
@@ -57,6 +61,9 @@ type iamAPI interface {
 	ListServerCertificates(context.Context, *iam.ListServerCertificatesInput, ...func(*iam.Options)) (*iam.ListServerCertificatesOutput, error)
 	ListVirtualMFADevices(context.Context, *iam.ListVirtualMFADevicesInput, ...func(*iam.Options)) (*iam.ListVirtualMFADevicesOutput, error)
 	ListAccessKeys(context.Context, *iam.ListAccessKeysInput, ...func(*iam.Options)) (*iam.ListAccessKeysOutput, error)
+	GetAccountSummary(context.Context, *iam.GetAccountSummaryInput, ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error)
+	ListAccountAliases(context.Context, *iam.ListAccountAliasesInput, ...func(*iam.Options)) (*iam.ListAccountAliasesOutput, error)
+	GetAccountPasswordPolicy(context.Context, *iam.GetAccountPasswordPolicyInput, ...func(*iam.Options)) (*iam.GetAccountPasswordPolicyOutput, error)
 }
 
 // scanIAM discovers all IAM resources. Phase 1 fans out the independent
@@ -79,6 +86,7 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 
 	// Phase 1: independent scanners in parallel.
 	g1, ctx1 := errgroup.WithContext(ctx)
+	g1.Go(func() error { tt, nn, e := scanIAMAccount(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error { tt, nn, e := scanIAMAuthDetails(ctx1, client, acct, st, scanID); add(tt, nn); return e })
 	g1.Go(func() error {
 		tt, nn, e := scanIAMInstanceProfiles(ctx1, client, acct, st, scanID)
@@ -105,6 +113,52 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	tt, nn, e := scanIAMAccessKeys(ctx, client, acct, st, scanID)
 	add(tt, nn)
 	return int(t.Load()), int(n.Load()), e
+}
+
+// scanIAMAccount upserts the account self-node (aws:iam:account) carrying
+// account-level posture: the IAM account summary, the account alias (if any),
+// and the password policy (absent when none is configured). One row per
+// scanned account, keyed NativeID = arn:aws:iam::<acct>:root — the same natural
+// key the cross-account-trust and org-management resolvers use for placeholder
+// rows, so an account first seen as a referenced foreign account
+// version-populates its empty placeholder when it later gets scanned directly.
+func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	summary, err := client.GetAccountSummary(ctx, &iam.GetAccountSummaryInput{})
+	if err != nil {
+		return 0, 0, skipIfAccessDenied(st, "iam:GetAccountSummary", acct.ID, "global", err)
+	}
+	aliases, err := client.ListAccountAliases(ctx, &iam.ListAccountAliasesInput{})
+	if err != nil {
+		return 0, 0, skipIfAccessDenied(st, "iam:ListAccountAliases", acct.ID, "global", err)
+	}
+
+	attrs := map[string]any{
+		"SummaryMap":     summary.SummaryMap,
+		"AccountAliases": aliases.AccountAliases,
+	}
+	// Password policy is absent on accounts that never configured one;
+	// NoSuchEntity is the expected default state, not a warning-worthy error.
+	if pw, perr := client.GetAccountPasswordPolicy(ctx, &iam.GetAccountPasswordPolicyInput{}); perr == nil {
+		attrs["PasswordPolicy"] = pw.PasswordPolicy
+	} else if !isAPIErrorCode(perr, "NoSuchEntity") {
+		return 0, 0, skipIfAccessDenied(st, "iam:GetAccountPasswordPolicy", acct.ID, "global", perr)
+	}
+
+	name := acct.ID
+	if len(aliases.AccountAliases) > 0 {
+		name = aliases.AccountAliases[0]
+	}
+	row := &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		Type:           TypeIAMAccount,
+		NativeID:       fmt.Sprintf("arn:aws:iam::%s:root", acct.ID),
+		Name:           &name,
+		Region:         regionGlobal,
+		AttributesJSON: mustJSON(attrs),
+		DiscoveredBy:   scanID,
+	}
+	return upsertBatch(st, []*store.Resource{row}, "iam account")
 }
 
 // scanIAMAuthDetails paginates iam:GetAccountAuthorizationDetails to upsert

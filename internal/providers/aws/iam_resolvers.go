@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strings"
 
-	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
 )
@@ -135,19 +134,13 @@ func init() {
 	)
 	registerResolver(
 		resolveIAMRoleCrossAccountTrust,
-		EdgeDecl{TypeIAMRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
-		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMForeignAccount, store.RelCrossAccountTrust},
+		EdgeDecl{TypeIAMRole, TypeIAMAccount, store.RelCrossAccountTrust},
+		EdgeDecl{TypeIAMServiceLinkedRole, TypeIAMAccount, store.RelCrossAccountTrust},
 	)
 	registerResolver(
 		resolveIAMPermissionBoundaries,
 		EdgeDecl{TypeIAMRole, TypeIAMPolicy, store.RelBoundedBy},
 		EdgeDecl{TypeIAMUser, TypeIAMPolicy, store.RelBoundedBy},
-	)
-	// Synthetic stub for cross-account trust principals whose owning account
-	// is out of scan scope (R5). Pure disco bookkeeping — no upstream
-	// CloudFormation resource type.
-	registerExtraEmits(
-		coverage.TypeDecl{Service: "iam", DiscoType: TypeIAMForeignAccount, Synthetic: true, Leaf: true},
 	)
 }
 
@@ -1044,10 +1037,12 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 
 // resolveIAMRoleCrossAccountTrust walks each role's AssumeRolePolicyDocument and
 // emits cross-account-trust edges for any Allow Statement Principal.AWS that
-// names a different AWS account. Foreign accounts are not in scan scope, so
-// we synthesize one aws:iam:foreign-account stub per distinct foreign account
-// so the FK on relationships.to_id holds and the foreign account is visible
-// as a graph node. ROADMAP R5.
+// names a different AWS account. When that account isn't in scan scope, we
+// insert-if-absent an empty-attribute aws:iam:account row at the account's
+// self-node natural key (arn:aws:iam::<acct>:root) so the FK on
+// relationships.to_id holds and the account is a real graph node. If that
+// account is later scanned, scanIAMAccount version-populates the placeholder.
+// ROADMAP R5.
 func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	roles, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -1109,27 +1104,27 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 		return nil
 	}
 
-	stubResources := make([]*store.Resource, 0, len(stubs))
+	placeholders := make([]*store.Resource, 0, len(stubs))
 	for other := range stubs {
 		nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
 		name := other
-		stubResources = append(stubResources, &store.Resource{
+		placeholders = append(placeholders, &store.Resource{
 			Provider:       "aws",
 			AccountID:      other,
-			Type:           TypeIAMForeignAccount,
+			Type:           TypeIAMAccount,
 			NativeID:       nativeID,
 			Name:           &name,
 			Region:         regionGlobal,
-			AttributesJSON: fmt.Sprintf(`{"AccountId":%q,"Synthetic":true}`, other),
+			AttributesJSON: "{}",
 			DiscoveredBy:   scanID,
 		})
 	}
-	if _, err := st.UpsertResources(stubResources); err != nil {
-		return fmt.Errorf("upsert foreign-account stubs: %w", err)
+	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+		return fmt.Errorf("insert referenced-account placeholders: %w", err)
 	}
 
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.acctID, TypeIAMForeignAccount, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
+		toID := store.ResourceID("aws", e.acctID, TypeIAMAccount, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
 		attrs := mustJSON(map[string]string{"principal": e.principal, "trust-account": e.acctID})
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossAccountTrust, "directed", &attrs); err != nil {
 			return fmt.Errorf("upsert cross-account-trust: %w", err)

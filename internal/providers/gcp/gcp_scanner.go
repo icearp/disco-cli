@@ -216,8 +216,8 @@ type project struct {
 func mustJSON(v any) string { return util.MustJSON(v) }
 
 // regionGlobal is the canonical Region pointer for non-regional GCP
-// resources (org/folder-scope services, IAM policy synth resources,
-// foreign-project stubs). Mirrors AWS / Azure regionGlobal; see
+// resources (org/folder-scope services, IAM policy synth resources).
+// Mirrors AWS / Azure regionGlobal; see
 // store/CLAUDE.md "region = \"global\" sentinel".
 var regionGlobal = func() *string { s := "global"; return &s }()
 

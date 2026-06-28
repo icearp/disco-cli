@@ -64,16 +64,3 @@ func TestCoverageFetch_AllDocsOKNoError(t *testing.T) {
 		t.Error("want at least one upstream type from the fetchable collection, got 0")
 	}
 }
-
-// TestSyntheticLimitedToCrossScopeStubs enforces the narrowed Synthetic
-// definition: only the fabricated foreign-project stub (resolver-upserted for
-// out-of-scope projects) may carry Synthetic: true. SDK-scanned types absent
-// from the Discovery API (e.g. gcp:iam:policy) must use Uncatalogued instead.
-func TestSyntheticLimitedToCrossScopeStubs(t *testing.T) {
-	allowed := map[string]bool{TypeIAMForeignProject: true}
-	for _, decl := range CollectEmits() {
-		if decl.Synthetic && !allowed[decl.DiscoType] {
-			t.Errorf("emits[%q] flagged Synthetic: true but is not a cross-scope stub — use Uncatalogued for SDK-scanned types absent from the registry", decl.DiscoType)
-		}
-	}
-}

@@ -270,9 +270,9 @@ var graphCompleteCmd = &cobra.Command{
 	Long: `Emit every resource in the store plus every relationship between them.
 
 Provider-managed resources (e.g. AWS-managed IAM policies, Azure built-in
-role definitions, GCP foreign-project stubs) are kept only when they have
-at least one edge to a customer-managed resource — orphan managed nodes
-drop out by default. Pass --include-managed to keep them all.
+role definitions) are kept only when they have at least one edge to a
+customer-managed resource — orphan managed nodes drop out by default. Pass
+--include-managed to keep them all.
 
 --depth, --kinds, and --direction are ignored (no seed, no BFS). Other
 filter flags (--exclude-types, --exclude-regions, --max-nodes, --max-edges)

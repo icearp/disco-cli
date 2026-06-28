@@ -20,13 +20,6 @@ import (
 type TypeDecl struct {
 	Service   string // disco's service segment (e.g. "ec2", "compute", "microsoft.compute")
 	DiscoType string // canonical disco type, e.g. "aws:ec2:instance"
-	// Synthetic marks a fabricated cross-scope stub: a placeholder row a
-	// resolver upserts (no SDK call) to anchor a real edge to an account/
-	// project that wasn't in scan scope (e.g. aws:iam:foreign-account,
-	// gcp:iam:foreign-project). Never catalogable upstream — routes
-	// unconditionally to BucketSynthetic. NOT for real resources disco scans;
-	// those use Uncatalogued.
-	Synthetic bool
 	// Uncatalogued marks a real resource disco scans via the SDK that no
 	// upstream registry (CFN/SR, ARM, Discovery) lists — e.g. aws:kms:grant,
 	// the Azure Entra identities. Suppresses the upstream-missing drift signal
@@ -127,7 +120,6 @@ type Bucket string
 const (
 	BucketCovered         Bucket = "covered"
 	BucketUncovered       Bucket = "uncovered"
-	BucketSynthetic       Bucket = "synthetic"
 	BucketUncatalogued    Bucket = "uncatalogued"
 	BucketUpstreamMissing Bucket = "upstream-missing"
 )
@@ -137,7 +129,7 @@ type Row struct {
 	Provider    string `json:"provider"`
 	Service     string `json:"service"`
 	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered)
-	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is synthetic
+	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is uncatalogued
 	Bucket      Bucket `json:"bucket"`
 }
 
@@ -197,9 +189,7 @@ func Names() []string {
 
 // Build assembles the coverage matrix for one provider. emits and upstream
 // are deduped by their canonical keys (DiscoType / UpstreamKey) before
-// matching. A disco-type marked Synthetic short-circuits to BucketSynthetic
-// regardless of upstream presence (a fabricated stub is never catalogable). A
-// non-synthetic disco-type whose alias resolves to a live upstream key is
+// matching. A disco-type whose alias resolves to a live upstream key is
 // covered; one whose key is absent falls through to BucketUncatalogued when it
 // is flagged Uncatalogued (an expected registry gap for a scanned resource),
 // otherwise to BucketUpstreamMissing — the drift signal called out in ROADMAP
@@ -236,16 +226,6 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	rows := make([]Row, 0, len(dedupedEmits)+len(upstream))
 
 	for _, t := range dedupedEmits {
-		if t.Synthetic {
-			rows = append(rows, Row{
-				Provider:  providerName,
-				Service:   t.Service,
-				DiscoType: t.DiscoType,
-				Bucket:    BucketSynthetic,
-			})
-			continue
-		}
-
 		upstreamKey, ok := aliases[t.DiscoType]
 		if !ok {
 			upstreamKey = algorithmic(t.DiscoType)
@@ -295,7 +275,7 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 
 	// Stable sort: bucket order, then service, then disco / upstream key.
 	bucketOrder := map[Bucket]int{
-		BucketCovered: 0, BucketUncovered: 1, BucketSynthetic: 2, BucketUncatalogued: 3, BucketUpstreamMissing: 4,
+		BucketCovered: 0, BucketUncovered: 1, BucketUncatalogued: 2, BucketUpstreamMissing: 3,
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if bucketOrder[rows[i].Bucket] != bucketOrder[rows[j].Bucket] {
