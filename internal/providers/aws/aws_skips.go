@@ -116,6 +116,10 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::appmesh-preview::virtualNode":    appmeshPreviewGone,
 		"AWS::appmesh-preview::virtualRouter":  appmeshPreviewGone,
 		"AWS::appmesh-preview::virtualService": appmeshPreviewGone,
+
+		// apigatewayv2 ManagedOverrides — a CFN-only convenience resource for
+		// editing API Gateway-managed stage/route/integration; no SDK list op.
+		"AWS::ApiGatewayV2::ApiGatewayManagedOverrides": "no SDK list op: CFN-only managed-overrides resource, not independently discoverable",
 	}
 }
 
