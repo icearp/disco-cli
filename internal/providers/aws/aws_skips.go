@@ -38,6 +38,14 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:accessanalyzer:analyzer. Same physical resource, redundant catalog
 		// entry under a divergent service segment.
 		"AWS::access-analyzer::Analyzer": "duplicate: already scanned as aws:accessanalyzer:analyzer (CFN spelling AWS::AccessAnalyzer::Analyzer)",
+
+		// account (AWS Account Management) — neither entry is a discoverable
+		// resource collection. The account entity itself is already modelled as
+		// the aws:iam:account self-node; accountInOrganization is the same account
+		// addressed via the org management context (org membership is covered by
+		// the organizations scanner), not a separate resource.
+		"AWS::account::account":               "duplicate: account entity modelled as the aws:iam:account self-node",
+		"AWS::account::accountInOrganization": "association: account's org membership, covered via the organizations scanner",
 	}
 }
 
