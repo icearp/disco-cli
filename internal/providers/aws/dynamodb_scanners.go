@@ -19,7 +19,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
 			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
-			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
+			// Streams are real (DescribeStream) but CFN has no
+			// AWS::DynamoDB::Stream type — a stream is a Table property.
+			{Service: "dynamodb", DiscoType: TypeDynamoDBStream, Synthetic: true},
 		},
 	})
 }

@@ -29,8 +29,10 @@ func init() {
 		fn:   scanAuditManager,
 		emits: []coverage.TypeDecl{
 			{Service: "auditmanager", DiscoType: TypeAuditManagerAssessment},
-			{Service: "auditmanager", DiscoType: TypeAuditManagerControl, Leaf: true},
-			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework, Leaf: true},
+			// CFN models only AWS::AuditManager::Assessment — Control and
+			// Framework are AWS-managed catalogue items with no CFN type.
+			{Service: "auditmanager", DiscoType: TypeAuditManagerControl, Leaf: true, Synthetic: true},
+			{Service: "auditmanager", DiscoType: TypeAuditManagerFramework, Leaf: true, Synthetic: true},
 		},
 	})
 }

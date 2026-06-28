@@ -17,7 +17,10 @@ func init() {
 			{Service: "securityhub", DiscoType: TypeSecurityHubHub, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubInsight, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
-			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription, Leaf: true},
+			// CFN's AWS::SecurityHub::Standard is the standard enablement and
+			// is covered by aws:securityhub:standard; the per-standards-
+			// subscription view disco scans has no distinct CFN type.
+			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription, Leaf: true, Synthetic: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAggregatorV2, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRule, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRuleV2, Leaf: true},

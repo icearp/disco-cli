@@ -6,6 +6,10 @@ Azure scanner conventions. Cross-provider rules: see `../CLAUDE.md`.
 
 `disco coverage services --providers azure --filter uncovered` — diff ARM Providers/List vs scanner `emits` decls (deduped via the alias map in `azure_coverage.go`, which inverts `azureAPITypeMap`). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits non-zero on any `upstream-missing` (alias-map drift). Subscription auto-detected; pass `--subscriptions` to override.
 
+**ARM `Providers/List` never enumerates proxy child types.** Deep child/proxy resourceTypes (e.g. `microsoft.sql/managedinstances/keys`, `…/managedinstances/databases/transparentdataencryption`, `microsoft.network/virtualnetworks/subnets`, `microsoft.sql/servers/devopsauditsettings`) are real, scannable ARM resources but absent from the registry view, so they'd false-flag as `upstream-missing`. Their emit decls carry `Synthetic: true` to bucket them as `synthetic` instead. (ARM is inconsistent — it *does* list some children like `managedinstances/vulnerabilityassessments`, which stay non-synthetic/covered; only flag the ones a live run shows missing.)
+
+**A clean `--check-strict` needs the preview RPs registered.** Three top-level RPs disco scans are absent until registered in the coverage subscription: `Microsoft.AzureLargeInstance`, `Microsoft.HardwareSecurityModules`, `Microsoft.OnlineExperimentation`. These are *not* synthetic (they're listable once registered); run `az provider register --namespace <RP>` for each so they bucket as `covered`.
+
 ## Adding a new type — 3 spots
 
 1. `azure_types.go`: `Type*` const **and** entry in `azureAPITypeMap` (lowercase ARM key like `microsoft.foo/bars`).

@@ -269,7 +269,6 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSSOInstance:          "AWS::SSO::Instance",
 		TypeSSOPermissionSet:     "AWS::SSO::PermissionSet",
 		TypeSSOAccountAssignment: "AWS::SSO::Assignment",
-		TypeIdentityStoreUser:    "AWS::IdentityStore::User",
 		TypeIdentityStoreGroup:   "AWS::IdentityStore::Group",
 		// MSK.
 		TypeMSKCluster:          "AWS::MSK::Cluster",
@@ -336,10 +335,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeControlTowerEnabledBaseline: "AWS::ControlTower::EnabledBaseline",
 		// Detective.
 		TypeDetectiveGraph: "AWS::Detective::Graph",
-		// AuditManager.
+		// AuditManager (Control/Framework are synthetic — no CFN type).
 		TypeAuditManagerAssessment: "AWS::AuditManager::Assessment",
-		TypeAuditManagerControl:    "AWS::AuditManager::Control",
-		TypeAuditManagerFramework:  "AWS::AuditManager::Framework",
 		// Backup.
 		TypeBackupVault:                      "AWS::Backup::BackupVault",
 		TypeBackupLogicallyAirGappedVault:    "AWS::Backup::LogicallyAirGappedBackupVault",
@@ -421,8 +418,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeInspector2CisScanConfiguration:          "AWS::InspectorV2::CisScanConfiguration",
 		TypeInspector2CodeSecurityIntegration:       "AWS::InspectorV2::CodeSecurityIntegration",
 		TypeInspector2CodeSecurityScanConfiguration: "AWS::InspectorV2::CodeSecurityScanConfiguration",
-		// Macie.
-		TypeMacieClassificationJob:    "AWS::Macie::ClassificationJob",
+		// Macie (ClassificationJob is synthetic — no CFN type).
 		TypeMacieAllowList:            "AWS::Macie::AllowList",
 		TypeMacieCustomDataIdentifier: "AWS::Macie::CustomDataIdentifier",
 		// LakeFormation / NetworkFirewall / OpenSearch / Organizations.
@@ -436,20 +432,19 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeOrganizationsOU:               "AWS::Organizations::OrganizationalUnit",
 		TypeOrganizationsSCP:              "AWS::Organizations::Policy",
 		// AppRunner / SES / Service Catalog / SecurityHub / Shield / SNS / SQS.
-		TypeAppRunnerService:                 "AWS::AppRunner::Service",
-		TypeAppRunnerVPCConnector:            "AWS::AppRunner::VpcConnector",
-		TypeSESEmailIdentity:                 "AWS::SES::EmailIdentity",
-		TypeSESConfigurationSet:              "AWS::SES::ConfigurationSet",
-		TypeServiceCatalogPortfolio:          "AWS::ServiceCatalog::Portfolio",
-		TypeServiceCatalogProduct:            "AWS::ServiceCatalog::CloudFormationProduct",
-		TypeSecurityHubHub:                   "AWS::SecurityHub::Hub",
-		TypeSecurityHubInsight:               "AWS::SecurityHub::Insight",
-		TypeSecurityHubProductSubscription:   "AWS::SecurityHub::ProductSubscription",
-		TypeSecurityHubStandardsSubscription: "AWS::SecurityHub::StandardsSubscription",
-		TypeShieldProtection:                 "AWS::Shield::Protection",
-		TypeShieldProtectionGroup:            "AWS::Shield::ProtectionGroup",
-		TypeSNSTopic:                         "AWS::SNS::Topic",
-		TypeSQSQueue:                         "AWS::SQS::Queue",
+		TypeAppRunnerService:               "AWS::AppRunner::Service",
+		TypeAppRunnerVPCConnector:          "AWS::AppRunner::VpcConnector",
+		TypeSESEmailIdentity:               "AWS::SES::EmailIdentity",
+		TypeSESConfigurationSet:            "AWS::SES::ConfigurationSet",
+		TypeServiceCatalogPortfolio:        "AWS::ServiceCatalog::Portfolio",
+		TypeServiceCatalogProduct:          "AWS::ServiceCatalog::CloudFormationProduct",
+		TypeSecurityHubHub:                 "AWS::SecurityHub::Hub",
+		TypeSecurityHubInsight:             "AWS::SecurityHub::Insight",
+		TypeSecurityHubProductSubscription: "AWS::SecurityHub::ProductSubscription",
+		TypeShieldProtection:               "AWS::Shield::Protection",
+		TypeShieldProtectionGroup:          "AWS::Shield::ProtectionGroup",
+		TypeSNSTopic:                       "AWS::SNS::Topic",
+		TypeSQSQueue:                       "AWS::SQS::Queue",
 		// Kinesis / Firehose / KMS.
 		TypeKinesisStream:          "AWS::Kinesis::Stream",
 		TypeFirehoseDeliveryStream: "AWS::KinesisFirehose::DeliveryStream",
