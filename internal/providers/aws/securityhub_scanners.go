@@ -17,9 +17,9 @@ func init() {
 			{Service: "securityhub", DiscoType: TypeSecurityHubHub, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubInsight, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubProductSubscription},
-			// CFN's AWS::SecurityHub::Standard is the standard enablement and
-			// is covered by aws:securityhub:standard; the per-standards-
-			// subscription view disco scans has no distinct CFN type.
+			// The per-standards-subscription view disco scans appears in neither
+			// CFN (which models the standard enablement as AWS::SecurityHub::
+			// Standard) nor the Service Reference catalog, so it stays synthetic.
 			{Service: "securityhub", DiscoType: TypeSecurityHubStandardsSubscription, Leaf: true, Synthetic: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAggregatorV2, Leaf: true},
 			{Service: "securityhub", DiscoType: TypeSecurityHubAutomationRule, Leaf: true},

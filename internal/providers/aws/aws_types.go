@@ -1378,7 +1378,7 @@ const (
 	TypeDataSyncLocationFSxWindows    = "aws:datasync:location-fsx-windows"
 	// Audit Manager (auditmanager_scanners.go, auditmanager_resolvers.go)
 	TypeAuditManagerAssessment = "aws:auditmanager:assessment"
-	TypeAuditManagerFramework  = "aws:auditmanager:framework"
+	TypeAuditManagerFramework  = "aws:auditmanager:assessment-framework"
 	TypeAuditManagerControl    = "aws:auditmanager:control"
 	// Control Tower (controltower_scanners.go, controltower_resolvers.go)
 	TypeControlTowerLandingZone     = "aws:controltower:landing-zone"

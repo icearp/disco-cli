@@ -38,11 +38,11 @@ func init() {
 		optIn: true,
 		fn:    scanServiceQuotas,
 		emits: []coverage.TypeDecl{
-			// Synthetic: there is no CloudFormation AWS::ServiceQuotas resource type,
-			// so the disco type must not fall into coverage's upstream-missing bucket
-			// (which would fail `disco coverage --check-strict`).
+			// CFN has no AWS::ServiceQuotas resource type, but the Service
+			// Reference catalog lists servicequotas/quota (ARN
+			// servicequotas:::${ServiceCode}/${QuotaCode}), so the union covers it.
 			// Leaf: quota limits are metadata — no resolver wires outbound edges.
-			{Service: "servicequotas", DiscoType: TypeServiceQuota, Synthetic: true, Leaf: true},
+			{Service: "servicequotas", DiscoType: TypeServiceQuota, Leaf: true},
 		},
 	})
 }

@@ -21,3 +21,10 @@ Coverage matrix engine for `disco coverage`. Per-provider impl in `internal/prov
 - Fetch all versions of each relevant API (v1+v2 expose different collections, e.g. cloudbuild Trigger in v1, Connection in v2). Dedupe by upstream key.
 - `singularize` strips trailing `s`/`ies` only — irregular plurals (Indexes→Index) need alias-map entry, not heuristic patches.
 - Discovery resource collection name → singular → PascalCase. Walk recurses through nested `resources` tree.
+
+## Per-provider upstream sources
+
+The "upstream registry" a provider diffs against is not one fixed API:
+
+- **AWS**: union of CloudFormation ListTypes (creds) ∪ the credential-free AWS Service Reference catalog (`internal/providers/aws/aws_servicereference.go`). Neither alone is complete — CFN omits SDK-real resources, SR omits CFN-modeled ones. `Fetch` appends both into one `[]UpstreamType`; `Build` dedupes case-insensitively. Detail: `internal/providers/aws/CLAUDE.md` §"Coverage upstream".
+- **Azure**: ARM provider/resource-type list. **GCP**: Discovery documents (see quirks above).

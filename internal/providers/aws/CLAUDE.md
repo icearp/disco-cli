@@ -218,6 +218,17 @@ Adding entries to `cfnTypeMap` (`cloudformation_resolvers.go`): full ARN for som
 
 `go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
 
+## Coverage upstream = CloudFormation ∪ Service Reference
+
+`coverageProvider.Fetch` (`aws_coverage.go`) returns the **union** of two catalogs, because neither is complete:
+
+- **CloudFormation ListTypes** (`Visibility=Public, Type=Resource`) — needs AWS creds; lists only resources with a CFN provider. Misses SDK-real resources like DynamoDB streams, AuditManager controls, IdentityStore users, Macie classification jobs, service quotas.
+- **AWS Service Reference** (`aws_servicereference.go`) — the credential-free public JSON form of the IAM Service Authorization Reference (`https://servicereference.us-east-1.amazonaws.com/`, ~451 services, ~2250 resource types). Supplies the CFN-absent reals above, but itself omits real CFN-modeled resources (e.g. SecurityHub `insight`, `delegated-admin`).
+
+Service Reference entries are synthesized into the same `AWS::<service>::<resource>` shape disco's `Aliases()` / `AlgorithmicKey` already target, so `coverage.Build` unions + dedupes the overlap case-insensitively with no extra machinery. Both fetches are **fatal on failure** (the `errCoverageRegistryUnreachable` → exit-2 contract) — the union requires both, so a partial fetch can't silently re-introduce false `upstream-missing`. SR service segments are lower-cased (`macie2`, `dynamodb`); where disco's segment differs from SR's (disco `macie` vs SR `macie2`) an explicit alias bridges it, otherwise the algorithmic key matches. `TestAWSResourceMirrorsUpstream` ratchets the resource-segment naming against the alias map.
+
+Latency: the SR fan-out is ~451 small credless GETs at concurrency 32, ~1.3s wall. Caching via the index `modified` stamps is a possible follow-up if it regresses.
+
 ## CFN type ≠ SDK op
 
 CloudFormation registry exposes resource types ahead of (or independent of) the SDK — e.g. `AWS::EC2::TransitGatewayMeteringPolicy` / `…MeteringPolicyEntry` exist in CFN with no `aws-sdk-go-v2/service/ec2` ops backing them. Per the per-service-API mandate in `internal/providers/CLAUDE.md`, disco scans only via SDK clients — CFN-only types are not scannable. Before scoping a scanner from a roadmap entry or coverage gap, `grep -r <FeatureName> $(go env GOMODCACHE)/github.com/aws/aws-sdk-go-v2/service/<svc>/` to confirm SDK support exists; if empty, defer rather than half-implementing via CFN.

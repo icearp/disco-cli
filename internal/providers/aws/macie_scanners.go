@@ -31,9 +31,10 @@ func init() {
 			// CloudFormation does model as AWS::Macie::Session (per-region
 			// enablement); synth NativeID since the API exposes no ARN.
 			{Service: "macie", DiscoType: TypeMacieSession, Leaf: true},
-			// Classification jobs are real but CFN models no
-			// AWS::Macie::ClassificationJob type.
-			{Service: "macie", DiscoType: TypeMacieClassificationJob, Synthetic: true},
+			// CFN models no AWS::Macie::ClassificationJob, but the Service
+			// Reference catalog lists macie2/ClassificationJob (aliased — disco's
+			// segment is "macie"), so the union covers it.
+			{Service: "macie", DiscoType: TypeMacieClassificationJob},
 			{Service: "macie", DiscoType: TypeMacieAllowList},
 			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier, Leaf: true},
 			{Service: "macie", DiscoType: TypeMacieFindingsFilter, Leaf: true},

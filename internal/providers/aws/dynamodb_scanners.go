@@ -19,9 +19,11 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "dynamodb", DiscoType: TypeDynamoDBTable},
 			{Service: "dynamodb", DiscoType: TypeDynamoDBGlobalTable},
-			// Streams are real (DescribeStream) but CFN has no
-			// AWS::DynamoDB::Stream type — a stream is a Table property.
-			{Service: "dynamodb", DiscoType: TypeDynamoDBStream, Synthetic: true},
+			// CFN has no AWS::DynamoDB::Stream type (a stream is a Table
+			// property there), but the Service Reference catalog lists
+			// dynamodb/stream, so the union covers it. The "dynamodb" service
+			// segment is canonical per IAM/SR despite the dynamodbstreams client.
+			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
 		},
 	})
 }

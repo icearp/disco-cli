@@ -16,7 +16,8 @@ import (
 func init() { coverage.Register(&coverageProvider{}) }
 
 // coverageProvider implements coverage.Provider for AWS. Upstream truth
-// source = CloudFormation ListTypes (Visibility=Public, Type=Resource).
+// source = CloudFormation ListTypes (Visibility=Public, Type=Resource) unioned
+// with the credential-free AWS Service Reference catalog (see Fetch).
 // Coverage truth source = CollectEmits() in aws_services.go, which unions
 // every registerService emits decl plus extraEmits from resolver-side
 // synthetic stubs.
@@ -418,9 +419,12 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeInspector2CisScanConfiguration:          "AWS::InspectorV2::CisScanConfiguration",
 		TypeInspector2CodeSecurityIntegration:       "AWS::InspectorV2::CodeSecurityIntegration",
 		TypeInspector2CodeSecurityScanConfiguration: "AWS::InspectorV2::CodeSecurityScanConfiguration",
-		// Macie (ClassificationJob is synthetic — no CFN type).
+		// Macie. ClassificationJob has no CFN type but the Service Reference
+		// catalog lists it under service "macie2" (disco's segment is "macie"),
+		// so it needs an explicit alias — the others match algorithmically.
 		TypeMacieAllowList:            "AWS::Macie::AllowList",
 		TypeMacieCustomDataIdentifier: "AWS::Macie::CustomDataIdentifier",
+		TypeMacieClassificationJob:    "AWS::macie2::ClassificationJob",
 		// LakeFormation / NetworkFirewall / OpenSearch / Organizations.
 		TypeLakeFormationResource:         "AWS::LakeFormation::Resource",
 		TypeNetworkFirewallFirewall:       "AWS::NetworkFirewall::Firewall",
@@ -662,9 +666,11 @@ func (coverageProvider) AlgorithmicKey(discoType string) string {
 	return "AWS::" + pascal(svc) + "::" + pascal(kind)
 }
 
-// Fetch pages CloudFormation ListTypes (Public, Resource) and returns every
-// AWS-prefixed type. Third-party (community / Hooks / Modules) types are
-// filtered out — they're not relevant to disco's coverage matrix.
+// Fetch returns the union of CloudFormation ListTypes (Public, Resource) and
+// the AWS Service Reference catalog. CFN supplies registry-modeled resources;
+// Service Reference supplies the SDK-real resources CFN omits. Third-party CFN
+// types (community / Hooks / Modules) are filtered out — not relevant to
+// disco's coverage matrix.
 func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
 	regions := opts.Regions
 	if len(regions) == 0 {
@@ -716,6 +722,19 @@ func (coverageProvider) Fetch(ctx context.Context, opts coverage.FetchOptions) (
 			}
 		}
 	}
+
+	// Union the credential-free AWS Service Reference catalog. CFN's registry
+	// only lists resources with a CloudFormation provider; Service Reference
+	// supplies the SDK-real resources CFN omits (DynamoDB streams, AuditManager
+	// controls, IdentityStore users, Macie classification jobs). Both fetches
+	// are fatal on failure — the union requires both, so a partial fetch can't
+	// silently re-introduce false upstream-missing rows. coverage.Build dedupes
+	// the overlap case-insensitively.
+	srTypes, err := fetchServiceReference(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("service reference fetch: %w", err)
+	}
+	out = append(out, srTypes...)
 	return out, nil
 }
 
