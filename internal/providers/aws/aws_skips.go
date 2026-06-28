@@ -120,6 +120,18 @@ func (coverageProvider) Skips() map[string]string {
 		// apigatewayv2 ManagedOverrides — a CFN-only convenience resource for
 		// editing API Gateway-managed stage/route/integration; no SDK list op.
 		"AWS::ApiGatewayV2::ApiGatewayManagedOverrides": "no SDK list op: CFN-only managed-overrides resource, not independently discoverable",
+
+		// app-integrations (Service Reference hyphenated spelling) — the three
+		// integration types duplicate the CFN AWS::AppIntegrations::* types disco
+		// already scans (aws:appintegrations:*). The "-association" types are
+		// per-parent link records (integration ↔ external client/target), not
+		// first-class discoverable resources.
+		"AWS::app-integrations::application":                   "duplicate: already scanned as aws:appintegrations:application (CFN spelling AWS::AppIntegrations::Application)",
+		"AWS::app-integrations::data-integration":              "duplicate: already scanned as aws:appintegrations:data-integration (CFN spelling AWS::AppIntegrations::DataIntegration)",
+		"AWS::app-integrations::event-integration":             "duplicate: already scanned as aws:appintegrations:event-integration (CFN spelling AWS::AppIntegrations::EventIntegration)",
+		"AWS::app-integrations::application-association":       "association: per-parent application↔resource link record, not a first-class resource",
+		"AWS::app-integrations::data-integration-association":  "association: per-parent data-integration↔client link record, not a first-class resource",
+		"AWS::app-integrations::event-integration-association": "association: per-parent event-integration↔client link record, not a first-class resource",
 	}
 }
 
