@@ -9,7 +9,7 @@ GCP scanner/resolver conventions. Cross-provider rules: `internal/providers/CLAU
 
 ## Discover what's not yet covered
 
-`disco coverage services --providers gcp --filter uncovered` — diff GCP Discovery API vs scanner emits. Works credless (Discovery is public). Other filters: `covered`, `synthetic`, `upstream-missing`. `--check-strict` exits 1 on `upstream-missing` rows (alias-map drift signal) — wire into CI to catch alias/scanner drift. A Discovery fetch failure — the top-level list **or any per-API doc** — is always fatal (exit 2 via the cmd layer's `errCoverageRegistryUnreachable`), so a dropped doc never silently undercounts the upstream and falsely flags that API's types as drift.
+`disco coverage services --providers gcp --filter uncovered` — diff GCP Discovery API vs scanner emits. Works credless (Discovery is public). Other filters: `covered`, `synthetic` (only the `gcp:iam:foreign-project` cross-scope stub), `uncatalogued` (SDK-scanned but absent from Discovery — none on GCP today: `gcp:iam:policy` lands `covered` because Discovery's `iam.googleapis.com/Policy` matches it), `upstream-missing`. `--check-strict` exits 1 on `upstream-missing` rows (alias-map drift signal) — wire into CI to catch alias/scanner drift. A Discovery fetch failure — the top-level list **or any per-API doc** — is always fatal (exit 2 via the cmd layer's `errCoverageRegistryUnreachable`), so a dropped doc never silently undercounts the upstream and falsely flags that API's types as drift.
 
 ## Scoping cheat-sheet
 

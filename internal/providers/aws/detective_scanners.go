@@ -18,7 +18,9 @@ func init() {
 		fn:   scanDetective,
 		emits: []coverage.TypeDecl{
 			{Service: "detective", DiscoType: TypeDetectiveGraph, Leaf: true},
-			{Service: "detective", DiscoType: TypeDetectiveMember, Synthetic: true},
+			// ListMembers returns real member accounts disco scans; neither CFN
+			// nor the Service Reference catalog models a detective member.
+			{Service: "detective", DiscoType: TypeDetectiveMember, Uncatalogued: true},
 			{Service: "detective", DiscoType: TypeDetectiveOrganizationAdmin},
 		},
 	})

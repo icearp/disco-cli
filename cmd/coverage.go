@@ -131,8 +131,8 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
-	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, upstream-missing")
-	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "synthetic", "upstream-missing"))
+	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, synthetic, uncatalogued, upstream-missing")
+	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "synthetic", "uncatalogued", "upstream-missing"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift). A registry-fetch failure always exits 2, with or without this flag.")
@@ -194,9 +194,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
 
 	switch filter {
-	case "all", "covered", "uncovered", "synthetic", "upstream-missing":
+	case "all", "covered", "uncovered", "synthetic", "uncatalogued", "upstream-missing":
 	default:
-		return fmt.Errorf("--filter must be one of all|covered|uncovered|synthetic|upstream-missing; got %q", filter)
+		return fmt.Errorf("--filter must be one of all|covered|uncovered|synthetic|uncatalogued|upstream-missing; got %q", filter)
 	}
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":

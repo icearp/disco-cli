@@ -20,9 +20,9 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "kms", DiscoType: TypeKMSKey},
 			{Service: "kms", DiscoType: TypeKMSAlias},
-			// KMS grants have no CloudFormation type — synthetic NativeID,
-			// disco-only resource.
-			{Service: "kms", DiscoType: TypeKMSGrant, Synthetic: true},
+			// KMS grants are real resources disco scans via ListGrants, but
+			// neither CFN nor the Service Reference catalog models them.
+			{Service: "kms", DiscoType: TypeKMSGrant, Uncatalogued: true},
 		},
 	})
 }

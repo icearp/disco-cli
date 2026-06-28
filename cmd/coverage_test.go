@@ -160,6 +160,46 @@ func TestCoverage_FetchFailureJSONEnvelope(t *testing.T) {
 	}
 }
 
+// TestCoverage_UncataloguedFilterPassesStrict: an Uncatalogued emit lands in the
+// uncatalogued bucket (not upstream-missing), so --check-strict stays clean and
+// --filter uncatalogued surfaces the row. Guards the WS2 bucket end to end.
+func TestCoverage_UncataloguedFilterPassesStrict(t *testing.T) {
+	name := "ws2-uncat"
+	coverage.Register(&fakeCoverageProvider{
+		name:  name,
+		emits: []coverage.TypeDecl{{Service: "kms", DiscoType: name + ":kms:grant", Uncatalogued: true}},
+		// No upstream entry — a synthetic-era flag would false-flag this as
+		// upstream-missing and trip --check-strict.
+	})
+
+	resetCoverageFlags(t)
+	out, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "services", "--providers", name, "--filter", "uncatalogued", "--check-strict", "--timeout", "1s"})
+		return cmd.Execute()
+	})
+	if err != nil {
+		t.Fatalf("uncatalogued row must not trip --check-strict: %v", err)
+	}
+	if !strings.Contains(out, name+":kms:grant") {
+		t.Errorf("--filter uncatalogued did not surface the uncatalogued row:\n%s", out)
+	}
+}
+
+// TestCoverage_RejectsUnknownFilter: an unrecognised --filter value errors
+// rather than silently returning every row.
+func TestCoverage_RejectsUnknownFilter(t *testing.T) {
+	resetCoverageFlags(t)
+	_, err := captureStdout(t, func() error {
+		cmd := rootCmd
+		cmd.SetArgs([]string{"coverage", "services", "--filter", "bogus", "--timeout", "1s"})
+		return cmd.Execute()
+	})
+	if err == nil || !strings.Contains(err.Error(), "--filter must be one of") {
+		t.Errorf("want --filter validation error, got %v", err)
+	}
+}
+
 // TestSelectedAuditors pins which providers expose resolver auditing to
 // `disco coverage resolvers`. AWS and Azure implement coverage.ResolverAuditor;
 // GCP does not. The registry is populated by the internal/providers/all blank

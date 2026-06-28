@@ -9,12 +9,17 @@ import (
 func TestBuild_BucketAssignment(t *testing.T) {
 	emits := []TypeDecl{
 		{Service: "ec2", DiscoType: "aws:ec2:instance"},
-		{Service: "kms", DiscoType: "aws:kms:grant", Synthetic: true},
+		{Service: "kms", DiscoType: "aws:iam:foreign-account", Synthetic: true},
 		{Service: "elasticloadbalancing", DiscoType: "aws:elasticloadbalancing:load-balancer"},
 		{Service: "phantom", DiscoType: "aws:phantom:thing"},
+		// Uncatalogued + no upstream key -> uncatalogued bucket, NOT upstream-missing.
+		{Service: "kms", DiscoType: "aws:kms:grant", Uncatalogued: true},
+		// Uncatalogued but its key IS in upstream -> auto-upgrades to covered.
+		{Service: "s3", DiscoType: "aws:s3:bucket", Uncatalogued: true},
 	}
 	aliases := map[string]string{
 		"aws:elasticloadbalancing:load-balancer": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+		"aws:s3:bucket":                          "AWS::S3::Bucket",
 	}
 	upstream := []UpstreamType{
 		{Key: "AWS::EC2::Instance", Service: "EC2"},
@@ -49,9 +54,10 @@ func TestBuild_BucketAssignment(t *testing.T) {
 	want := map[string]Bucket{
 		"aws:ec2:instance":                       BucketCovered,
 		"aws:elasticloadbalancing:load-balancer": BucketCovered,
-		"aws:kms:grant":                          BucketSynthetic,
+		"aws:iam:foreign-account":                BucketSynthetic,
 		"aws:phantom:thing":                      BucketUpstreamMissing,
-		"AWS::S3::Bucket":                        BucketUncovered,
+		"aws:kms:grant":                          BucketUncatalogued, // uncatalogued, no upstream key
+		"aws:s3:bucket":                          BucketCovered,      // uncatalogued but registry lists it -> covered
 	}
 	if len(buckets) != len(want) {
 		t.Fatalf("row count mismatch: got %d (%v), want %d", len(buckets), buckets, len(want))
@@ -88,7 +94,8 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 		Provider: "aws",
 		Rows: []Row{
 			{Provider: "aws", Service: "ec2", DiscoType: "aws:ec2:instance", UpstreamKey: "AWS::EC2::Instance", Bucket: BucketCovered},
-			{Provider: "aws", Service: "kms", DiscoType: "aws:kms:grant", Bucket: BucketSynthetic},
+			{Provider: "aws", Service: "iam", DiscoType: "aws:iam:foreign-account", Bucket: BucketSynthetic},
+			{Provider: "aws", Service: "kms", DiscoType: "aws:kms:grant", Bucket: BucketUncatalogued},
 			{Provider: "aws", Service: "s3", UpstreamKey: "AWS::S3::Bucket", Bucket: BucketUncovered},
 		},
 	}
@@ -97,7 +104,7 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	for _, want := range []string{"## AWS", "### Covered", "### Uncovered", "### Synthetic", "aws:ec2:instance", "AWS::S3::Bucket", "aws:kms:grant"} {
+	for _, want := range []string{"## AWS", "### Covered", "### Uncovered", "### Synthetic", "### Uncatalogued", "aws:ec2:instance", "AWS::S3::Bucket", "aws:iam:foreign-account", "aws:kms:grant"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("markdown missing %q\n%s", want, out)
 		}

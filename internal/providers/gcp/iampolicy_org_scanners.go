@@ -14,10 +14,9 @@ func init() {
 		name: "gcp:iam-policy-org",
 		fn:   scanIAMPoliciesOrg,
 		emits: []coverage.TypeDecl{
-			// IAM policy is a per-resource synthetic — no upstream Discovery
-			// resource collection (GetIamPolicy is a method on every parent
-			// scope, not its own resource).
-			{Service: "iam", DiscoType: TypeIAMPolicy, Synthetic: true},
+			// Discovery lists iam.googleapis.com/Policy, which the algorithmic
+			// key matches — covered, no flag needed.
+			{Service: "iam", DiscoType: TypeIAMPolicy},
 		},
 	})
 }

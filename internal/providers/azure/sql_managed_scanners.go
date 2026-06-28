@@ -14,21 +14,21 @@ import (
 )
 
 func init() {
-	// Synthetic flags mark proxy child types ARM Providers/List never
-	// enumerates as standalone resourceTypes (see azure/CLAUDE.md) — real
-	// resources, but absent from the upstream registry view.
+	// Uncatalogued flags mark proxy child types disco scans that ARM
+	// Providers/List never enumerates as standalone resourceTypes (see
+	// azure/CLAUDE.md) — real resources, but absent from the upstream registry.
 	registerExtraEmits(
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstance},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabase},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseSecAlert, Synthetic: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseTDE, Synthetic: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseSecAlert, Uncatalogued: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseTDE, Uncatalogued: true},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedDatabaseVA},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceAdmin},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceEP, Synthetic: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceKey, Synthetic: true},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstancePEC, Synthetic: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceEP, Uncatalogued: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceKey, Uncatalogued: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstancePEC, Uncatalogued: true},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedInstanceVA},
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedServerSecurityAlert, Synthetic: true},
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLManagedServerSecurityAlert, Uncatalogued: true},
 	)
 }
 

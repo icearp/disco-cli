@@ -8,8 +8,8 @@ import (
 )
 
 // RenderMarkdown writes a per-provider markdown matrix (covered / uncovered /
-// synthetic / upstream-missing). Suitable for `disco coverage -o markdown`
-// piped into docs/coverage.md or pasted into the README.
+// synthetic / uncatalogued / upstream-missing). Suitable for `disco coverage
+// -o markdown` piped into docs/coverage.md or pasted into the README.
 func RenderMarkdown(w io.Writer, matrices []Matrix) error {
 	for i, m := range matrices {
 		if i > 0 {
@@ -29,10 +29,10 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		return err
 	}
 
-	covered, uncovered, synthetic, missing := splitByBucket(m.Rows)
+	covered, uncovered, synthetic, uncatalogued, missing := splitByBucket(m.Rows)
 
-	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Synthetic:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
-		len(covered), len(uncovered), len(synthetic), len(missing))
+	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Synthetic:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
+		len(covered), len(uncovered), len(synthetic), len(uncatalogued), len(missing))
 	if _, err := io.WriteString(w, counts); err != nil {
 		return err
 	}
@@ -53,8 +53,16 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		}
 	}
 	if len(synthetic) > 0 {
-		if err := mdSection(w, "Synthetic / disco-only (no upstream registry entry expected)",
+		if err := mdSection(w, "Synthetic (fabricated cross-scope stub — no upstream registry entry expected)",
 			[]string{"Service", "Disco type"}, synthetic, func(r Row) []string {
+				return []string{r.Service, r.DiscoType}
+			}); err != nil {
+			return err
+		}
+	}
+	if len(uncatalogued) > 0 {
+		if err := mdSection(w, "Uncatalogued (disco scans it; no upstream registry catalogs it)",
+			[]string{"Service", "Disco type"}, uncatalogued, func(r Row) []string {
 				return []string{r.Service, r.DiscoType}
 			}); err != nil {
 			return err
@@ -71,7 +79,7 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 	return nil
 }
 
-func splitByBucket(rows []Row) (covered, uncovered, synthetic, missing []Row) {
+func splitByBucket(rows []Row) (covered, uncovered, synthetic, uncatalogued, missing []Row) {
 	for _, r := range rows {
 		switch r.Bucket {
 		case BucketCovered:
@@ -80,6 +88,8 @@ func splitByBucket(rows []Row) (covered, uncovered, synthetic, missing []Row) {
 			uncovered = append(uncovered, r)
 		case BucketSynthetic:
 			synthetic = append(synthetic, r)
+		case BucketUncatalogued:
+			uncatalogued = append(uncatalogued, r)
 		case BucketUpstreamMissing:
 			missing = append(missing, r)
 		}

@@ -18,9 +18,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			// Subscription-scoped core networking (VNets, NSGs, PublicIPs).
 			{Service: "microsoft.network", DiscoType: TypeNetworkVirtualNetwork},
-			// Synthetic: ARM Providers/List does not enumerate the
-			// virtualNetworks/subnets proxy child as a standalone resourceType.
-			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet, Synthetic: true},
+			// Uncatalogued: disco scans subnets, but ARM Providers/List does not
+			// enumerate the virtualNetworks/subnets proxy child as a standalone
+			// resourceType.
+			{Service: "microsoft.network", DiscoType: TypeNetworkSubnet, Uncatalogued: true},
 			{Service: "microsoft.network", DiscoType: TypeNetworkSecurityGroup},
 			{Service: "microsoft.network", DiscoType: TypeNetworkPublicIPAddress},
 			// Application Gateway (consolidated from former azure:applicationgateway).

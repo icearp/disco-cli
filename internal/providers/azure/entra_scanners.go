@@ -17,17 +17,17 @@ import (
 )
 
 func init() {
-	// Entra ID types come from Microsoft Graph — ARM Providers/List doesn't
-	// surface them, so they're synthetic from the coverage matrix
-	// perspective (no upstream ARM resource type).
+	// Entra ID types are real identities disco scans via Microsoft Graph, but
+	// ARM Providers/List doesn't surface them (Graph is not an ARM RP), so they
+	// are uncatalogued rather than synthetic.
 	registerTenantService(tenantServiceEntry{
 		name: "azure:microsoft.entra",
 		fn:   scanEntra,
 		emits: []coverage.TypeDecl{
-			{Service: "graph", DiscoType: TypeEntraUser, Synthetic: true},
-			{Service: "graph", DiscoType: TypeEntraGroup, Synthetic: true},
-			{Service: "graph", DiscoType: TypeEntraServicePrincipal, Synthetic: true},
-			{Service: "graph", DiscoType: TypeEntraApplication, Synthetic: true},
+			{Service: "graph", DiscoType: TypeEntraUser, Uncatalogued: true},
+			{Service: "graph", DiscoType: TypeEntraGroup, Uncatalogued: true},
+			{Service: "graph", DiscoType: TypeEntraServicePrincipal, Uncatalogued: true},
+			{Service: "graph", DiscoType: TypeEntraApplication, Uncatalogued: true},
 		},
 	})
 }

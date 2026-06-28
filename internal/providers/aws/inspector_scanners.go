@@ -15,7 +15,9 @@ func init() {
 		fn:   scanInspector2,
 		emits: []coverage.TypeDecl{
 			{Service: "inspectorv2", DiscoType: TypeInspector2Filter, Leaf: true},
-			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Synthetic: true},
+			// ListMembers returns real delegated-admin member accounts disco
+			// scans; neither CFN nor the Service Reference catalog models them.
+			{Service: "inspectorv2", DiscoType: TypeInspector2Member, Uncatalogued: true},
 			{Service: "inspectorv2", DiscoType: TypeInspector2CisScanConfiguration, Leaf: true},
 			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityIntegration, Leaf: true},
 			{Service: "inspectorv2", DiscoType: TypeInspector2CodeSecurityScanConfiguration, Leaf: true},

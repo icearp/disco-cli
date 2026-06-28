@@ -14,7 +14,9 @@ func init() {
 		name: "gcp:iam-policy",
 		fn:   scanIAMPolicies,
 		emits: []coverage.TypeDecl{
-			{Service: "iam", DiscoType: TypeIAMPolicy, Synthetic: true},
+			// Discovery lists iam.googleapis.com/Policy, which the algorithmic
+			// key matches — covered, no flag needed.
+			{Service: "iam", DiscoType: TypeIAMPolicy},
 		},
 	})
 }

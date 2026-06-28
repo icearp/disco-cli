@@ -24,9 +24,10 @@ func init() {
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerVulnAssessment},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerAuditingSettings},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerExtAuditingSettings},
-		// Synthetic: ARM Providers/List does not enumerate this proxy child
-		// (servers/devOpsAuditingSettings) as a standalone resourceType.
-		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDevOpsAuditSettings, Synthetic: true},
+		// Uncatalogued: disco scans this proxy child, but ARM Providers/List
+		// does not enumerate servers/devOpsAuditingSettings as a standalone
+		// resourceType.
+		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDevOpsAuditSettings, Uncatalogued: true},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLServerDNSAlias},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLSyncAgent},
 		coverage.TypeDecl{Service: "microsoft.sql", DiscoType: TypeSQLVirtualNetworkRule},
