@@ -131,8 +131,8 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
-	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, uncatalogued, upstream-missing")
-	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "uncatalogued", "upstream-missing"))
+	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, not-scannable, uncatalogued, upstream-missing")
+	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift). A registry-fetch failure always exits 2, with or without this flag.")
@@ -194,9 +194,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
 
 	switch filter {
-	case "all", "covered", "uncovered", "uncatalogued", "upstream-missing":
+	case "all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing":
 	default:
-		return fmt.Errorf("--filter must be one of all|covered|uncovered|uncatalogued|upstream-missing; got %q", filter)
+		return fmt.Errorf("--filter must be one of all|covered|uncovered|not-scannable|uncatalogued|upstream-missing; got %q", filter)
 	}
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":
@@ -232,7 +232,11 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 			fetchFailures = append(fetchFailures, p.Name())
 			continue
 		}
-		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream)
+		var skips map[string]string
+		if sk, ok := p.(coverage.Skipper); ok {
+			skips = sk.Skips()
+		}
+		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream, skips)
 		m.Rows = filterRows(m.Rows, filter, services)
 		matrices = append(matrices, m)
 	}
@@ -260,10 +264,10 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		}
 	case "csv":
 		cw := csv.NewWriter(w)
-		_ = cw.Write([]string{"provider", "service", "disco_type", "upstream_key", "bucket"})
+		_ = cw.Write([]string{"provider", "service", "disco_type", "upstream_key", "bucket", "reason"})
 		for _, m := range matrices {
 			for _, r := range m.Rows {
-				_ = cw.Write([]string{r.Provider, r.Service, r.DiscoType, r.UpstreamKey, string(r.Bucket)})
+				_ = cw.Write([]string{r.Provider, r.Service, r.DiscoType, r.UpstreamKey, string(r.Bucket), r.Reason})
 			}
 		}
 		cw.Flush()

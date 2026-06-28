@@ -29,10 +29,10 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		return err
 	}
 
-	covered, uncovered, uncatalogued, missing := splitByBucket(m.Rows)
+	covered, uncovered, notScannable, uncatalogued, missing := splitByBucket(m.Rows)
 
-	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
-		len(covered), len(uncovered), len(uncatalogued), len(missing))
+	counts := fmt.Sprintf("**Covered:** %d &nbsp;·&nbsp; **Uncovered:** %d &nbsp;·&nbsp; **Not-scannable:** %d &nbsp;·&nbsp; **Uncatalogued:** %d &nbsp;·&nbsp; **Upstream-missing:** %d\n\n",
+		len(covered), len(uncovered), len(notScannable), len(uncatalogued), len(missing))
 	if _, err := io.WriteString(w, counts); err != nil {
 		return err
 	}
@@ -48,6 +48,14 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		if err := mdSection(w, "Uncovered (in upstream registry, no disco scanner)",
 			[]string{"Service", "Upstream key"}, uncovered, func(r Row) []string {
 				return []string{r.Service, r.UpstreamKey}
+			}); err != nil {
+			return err
+		}
+	}
+	if len(notScannable) > 0 {
+		if err := mdSection(w, "Not-scannable (deliberately unscanned — sub-resource, ephemeral, no SDK, or duplicate)",
+			[]string{"Service", "Upstream key", "Reason"}, notScannable, func(r Row) []string {
+				return []string{r.Service, r.UpstreamKey, r.Reason}
 			}); err != nil {
 			return err
 		}
@@ -71,13 +79,15 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 	return nil
 }
 
-func splitByBucket(rows []Row) (covered, uncovered, uncatalogued, missing []Row) {
+func splitByBucket(rows []Row) (covered, uncovered, notScannable, uncatalogued, missing []Row) {
 	for _, r := range rows {
 		switch r.Bucket {
 		case BucketCovered:
 			covered = append(covered, r)
 		case BucketUncovered:
 			uncovered = append(uncovered, r)
+		case BucketNotScannable:
+			notScannable = append(notScannable, r)
 		case BucketUncatalogued:
 			uncatalogued = append(uncatalogued, r)
 		case BucketUpstreamMissing:

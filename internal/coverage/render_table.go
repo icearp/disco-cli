@@ -11,7 +11,7 @@ import (
 // shell.
 func RenderTable(w io.Writer, matrices []Matrix) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "PROVIDER\tSERVICE\tDISCO TYPE\tUPSTREAM KEY\tBUCKET"); err != nil {
+	if _, err := fmt.Fprintln(tw, "PROVIDER\tSERVICE\tDISCO TYPE\tUPSTREAM KEY\tBUCKET\tREASON"); err != nil {
 		return err
 	}
 	for _, m := range matrices {
@@ -24,7 +24,11 @@ func RenderTable(w io.Writer, matrices []Matrix) error {
 			if up == "" {
 				up = "-"
 			}
-			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", r.Provider, r.Service, disco, up, r.Bucket); err != nil {
+			reason := r.Reason
+			if reason == "" {
+				reason = "-"
+			}
+			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", r.Provider, r.Service, disco, up, r.Bucket, reason); err != nil {
 				return err
 			}
 		}

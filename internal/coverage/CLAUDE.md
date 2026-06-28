@@ -12,7 +12,8 @@ Coverage matrix engine for `disco coverage`. Per-provider impl in `internal/prov
 ## Bucket semantics
 
 - `covered` — disco emits + upstream registry has it.
-- `uncovered` — upstream has it, no disco scanner.
+- `uncovered` — upstream has it, no disco scanner, and not deliberately skipped. A genuine, actionable gap.
+- `not-scannable` — upstream has it, no disco scanner, but the provider declared the key in `Skips()` (the optional `coverage.Skipper` interface) because it is not independently discoverable: a CFN sub-resource/association type with no standalone List API, an ephemeral task/quote/report record, a preview service with no public SDK, or a duplicate of an already-scanned type. Carries a per-entry `Reason`. Checked only on the leftover-upstream (no-match) path, so a key gains a real scanner later simply by being emitted (it then buckets `covered`) — remove its skip entry in that same commit. Does NOT trip `--check-strict`. AWS declares these in `internal/providers/aws/aws_skips.go`.
 - `uncatalogued` — a **real resource disco scans** via the SDK that no upstream registry lists (e.g. `aws:kms:grant`, GuardDuty/Detective/Inspector members, Azure Entra identities + SQL/network proxy children). Checked only on the no-match path, so it **auto-upgrades to `covered`** if the registry later lists the key (this is why `gcp:iam:policy` lands `covered` — Discovery's `iam.googleapis.com/Policy` matches it). Does NOT trip `--check-strict`.
 - `upstream-missing` — disco emits but upstream registry doesn't list, and the type is not uncatalogued. Drift signal: alias-map typo, retired API, or scanner targeting obsolete type. `--check-strict` exits non-zero on any.
 

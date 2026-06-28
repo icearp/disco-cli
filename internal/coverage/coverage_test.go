@@ -39,7 +39,7 @@ func TestBuild_BucketAssignment(t *testing.T) {
 		return strings.ToUpper(parts[0]) + "::" + strings.ToUpper(parts[1]) + "::" + k
 	}
 
-	got := Build("aws", emits, aliases, algo, upstream)
+	got := Build("aws", emits, aliases, algo, upstream, nil)
 
 	buckets := map[string]Bucket{}
 	for _, r := range got.Rows {
@@ -75,7 +75,7 @@ func TestBuild_DedupesEmits(t *testing.T) {
 	upstream := []UpstreamType{{Key: "AWS::IAM::ManagedPolicy", Service: "IAM"}}
 	aliases := map[string]string{"aws:iam:managed-policy": "AWS::IAM::ManagedPolicy"}
 
-	got := Build("aws", emits, aliases, nil, upstream)
+	got := Build("aws", emits, aliases, nil, upstream, nil)
 	covered := 0
 	for _, r := range got.Rows {
 		if r.Bucket == BucketCovered {
@@ -84,6 +84,40 @@ func TestBuild_DedupesEmits(t *testing.T) {
 	}
 	if covered != 1 {
 		t.Fatalf("expected 1 covered row after dedup, got %d (%+v)", covered, got.Rows)
+	}
+}
+
+func TestBuild_NotScannableReclassifiesUncovered(t *testing.T) {
+	// No emits: every upstream entry is leftover. The skip map should pull the
+	// declared key into not-scannable (with its reason); the rest stay uncovered.
+	upstream := []UpstreamType{
+		{Key: "AWS::EC2::Route", Service: "EC2"},
+		{Key: "AWS::EC2::Instance", Service: "EC2"},
+	}
+	skips := map[string]string{
+		// Case-insensitive match: declare in CFN casing, upstream uses same.
+		"AWS::EC2::Route": "sub-resource: route lives inside a route table, no List API",
+	}
+
+	got := Build("aws", nil, nil, nil, upstream, skips)
+
+	byKey := map[string]Row{}
+	for _, r := range got.Rows {
+		byKey[r.UpstreamKey] = r
+	}
+	route, ok := byKey["AWS::EC2::Route"]
+	if !ok {
+		t.Fatalf("missing AWS::EC2::Route row: %+v", got.Rows)
+	}
+	if route.Bucket != BucketNotScannable {
+		t.Errorf("AWS::EC2::Route: got bucket %q, want %q", route.Bucket, BucketNotScannable)
+	}
+	if route.Reason != skips["AWS::EC2::Route"] {
+		t.Errorf("AWS::EC2::Route: got reason %q, want %q", route.Reason, skips["AWS::EC2::Route"])
+	}
+	// The undeclared key must remain a genuine uncovered gap, not be swallowed.
+	if inst := byKey["AWS::EC2::Instance"]; inst.Bucket != BucketUncovered {
+		t.Errorf("AWS::EC2::Instance: got bucket %q, want %q", inst.Bucket, BucketUncovered)
 	}
 }
 

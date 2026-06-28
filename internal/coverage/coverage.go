@@ -82,6 +82,17 @@ type ResolverInfo struct {
 	Services  []string `json:"services,omitempty"`
 }
 
+// Skipper is an optional interface a Provider may implement to declare upstream
+// resource keys it deliberately does not scan — CFN sub-resource/association
+// types with no standalone List API, ephemeral task/quote/report records,
+// preview services with no public SDK, or duplicates of an already-scanned type.
+// Each entry maps the upstream key to a one-line rationale. Build reclassifies
+// matching leftover-upstream rows from BucketUncovered to BucketNotScannable so
+// the uncovered bucket reflects genuine, actionable gaps only.
+type Skipper interface {
+	Skips() map[string]string // upstream-key -> rationale
+}
+
 // ResolverAuditor is an optional interface a Provider may implement to expose
 // its relationship-resolver registry to `disco coverage resolvers`. Keeping it
 // behind the registry (rather than a direct provider-package import in cmd) lets
@@ -120,6 +131,7 @@ type Bucket string
 const (
 	BucketCovered         Bucket = "covered"
 	BucketUncovered       Bucket = "uncovered"
+	BucketNotScannable    Bucket = "not-scannable"
 	BucketUncatalogued    Bucket = "uncatalogued"
 	BucketUpstreamMissing Bucket = "upstream-missing"
 )
@@ -128,9 +140,10 @@ const (
 type Row struct {
 	Provider    string `json:"provider"`
 	Service     string `json:"service"`
-	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered)
+	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered/not-scannable)
 	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is uncatalogued
 	Bucket      Bucket `json:"bucket"`
+	Reason      string `json:"reason,omitempty"` // populated only for not-scannable rows
 }
 
 // Matrix groups rows by provider for rendering.
@@ -195,9 +208,17 @@ func Names() []string {
 // otherwise to BucketUpstreamMissing — the drift signal called out in ROADMAP
 // G5. Because Uncatalogued is checked only after a failed match, such a type
 // auto-upgrades to covered if the registry later lists it.
-func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType) Matrix {
+// skips maps a (case-insensitive) upstream key to the reason disco deliberately
+// does not scan it; matching leftover-upstream entries become BucketNotScannable
+// instead of BucketUncovered. Pass nil when the provider declares no skips.
+func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType, skips map[string]string) Matrix {
 	if algorithmic == nil {
 		algorithmic = AlgorithmicUpstreamKey
+	}
+	// Normalise skip keys to the lowercased namespace Build matches in.
+	skipByKey := make(map[string]string, len(skips))
+	for k, reason := range skips {
+		skipByKey[strings.ToLower(k)] = reason
 	}
 	// De-dupe emits by DiscoType, preserving the first occurrence's Service.
 	dedupedEmits := make([]TypeDecl, 0, len(emits))
@@ -260,9 +281,20 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 		})
 	}
 
-	// Leftover upstream entries become uncovered rows.
+	// Leftover upstream entries become uncovered rows, unless the provider has
+	// declared the key deliberately not-scannable.
 	for k, u := range upstreamByKey {
 		if matched[k] {
+			continue
+		}
+		if reason, skip := skipByKey[k]; skip {
+			rows = append(rows, Row{
+				Provider:    providerName,
+				Service:     u.Service,
+				UpstreamKey: u.Key,
+				Bucket:      BucketNotScannable,
+				Reason:      reason,
+			})
 			continue
 		}
 		rows = append(rows, Row{
@@ -275,7 +307,7 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 
 	// Stable sort: bucket order, then service, then disco / upstream key.
 	bucketOrder := map[Bucket]int{
-		BucketCovered: 0, BucketUncovered: 1, BucketUncatalogued: 2, BucketUpstreamMissing: 3,
+		BucketCovered: 0, BucketUncovered: 1, BucketNotScannable: 2, BucketUncatalogued: 3, BucketUpstreamMissing: 4,
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		if bucketOrder[rows[i].Bucket] != bucketOrder[rows[j].Bucket] {
