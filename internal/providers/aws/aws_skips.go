@@ -83,6 +83,11 @@ func (coverageProvider) Skips() map[string]string {
 		// an SDK list op.
 		"AWS::airflow::environment": "duplicate: already scanned as aws:mwaa:environment (CFN spelling AWS::MWAA::Environment)",
 		"AWS::airflow::rbac-role":   "no SDK list op: Airflow-internal RBAC role (IAM policy reference), not a discoverable AWS resource",
+
+		// airflow-serverless — the workflow is already scanned as
+		// aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow).
+		// The Service Reference lists it under the hyphenated "airflow-serverless".
+		"AWS::airflow-serverless::Workflow": "duplicate: already scanned as aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow)",
 	}
 }
 
