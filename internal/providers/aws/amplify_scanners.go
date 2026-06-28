@@ -19,6 +19,9 @@ func init() {
 			{Service: "amplify", DiscoType: TypeAmplifyApp},
 			{Service: "amplify", DiscoType: TypeAmplifyBranch},
 			{Service: "amplify", DiscoType: TypeAmplifyDomain, Leaf: true},
+			// Webhook's only cross-resource ref is BranchName (no ARN); the
+			// branch edge is deferred — leaf, closure-wired to its app.
+			{Service: "amplify", DiscoType: TypeAmplifyWebhooks, Leaf: true},
 		},
 	})
 }
@@ -27,6 +30,7 @@ type amplifyAPI interface {
 	ListApps(context.Context, *amplify.ListAppsInput, ...func(*amplify.Options)) (*amplify.ListAppsOutput, error)
 	ListBranches(context.Context, *amplify.ListBranchesInput, ...func(*amplify.Options)) (*amplify.ListBranchesOutput, error)
 	ListDomainAssociations(context.Context, *amplify.ListDomainAssociationsInput, ...func(*amplify.Options)) (*amplify.ListDomainAssociationsOutput, error)
+	ListWebhooks(context.Context, *amplify.ListWebhooksInput, ...func(*amplify.Options)) (*amplify.ListWebhooksOutput, error)
 }
 
 func scanAmplify(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -35,8 +39,8 @@ func scanAmplify(ctx context.Context, acct *account, region string, st *store.St
 }
 
 // scanAmplifyAll runs phase 1 (ListApps) followed by per-app fan-out for
-// branches and domain associations. Branch and Domain rows are
-// hierarchy-closure-wired to their parent app.
+// branches, domain associations, and webhooks. Branch, Domain, and Webhook rows
+// are hierarchy-closure-wired to their parent app.
 func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	type appRef struct{ id, arn string }
 	var apps []appRef
@@ -163,6 +167,16 @@ func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, regio
 					mu.Unlock()
 				}
 			}
+			whRows, werr := listAmplifyWebhooksForApp(gctx, client, acct, region, scanID, app.id, st)
+			if werr != nil {
+				return werr
+			}
+			mu.Lock()
+			for _, r := range whRows {
+				childBatch = append(childBatch, r)
+				pairs = append(pairs, [2]string{r.ID, parentID})
+			}
+			mu.Unlock()
 			return nil
 		})
 	}
@@ -187,4 +201,46 @@ func scanAmplifyAll(ctx context.Context, client amplifyAPI, acct *account, regio
 		}
 	}
 	return total, inserted, nil
+}
+
+// listAmplifyWebhooksForApp returns the webhook rows for one app via manual
+// NextToken pagination (ListWebhooks has no SDK paginator). AccessDenied is
+// soft-skipped (returns the rows collected so far); the caller closure-wires
+// each webhook to its parent app.
+func listAmplifyWebhooksForApp(ctx context.Context, client amplifyAPI, acct *account, region, scanID, appID string, st *store.Store) ([]*store.Resource, error) {
+	var rows []*store.Resource
+	var token *string
+	for {
+		wp, werr := client.ListWebhooks(ctx, &amplify.ListWebhooksInput{AppId: &appID, NextToken: token})
+		if werr != nil {
+			if isAccessDenied(werr) {
+				_ = skipIfAccessDenied(st, "amplify:ListWebhooks", acct.ID, region, werr)
+				return rows, nil
+			}
+			return nil, fmt.Errorf("amplify:ListWebhooks %s: %w", appID, werr)
+		}
+		for _, w := range wp.Webhooks {
+			arn := sv(w.WebhookArn)
+			if arn == "" {
+				continue
+			}
+			name := sv(w.WebhookId)
+			rows = append(rows, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAmplifyWebhooks,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				CreatedAt:      tp(w.CreateTime),
+				AttributesJSON: mustJSON(w),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if wp.NextToken == nil {
+			return rows, nil
+		}
+		token = wp.NextToken
+	}
 }

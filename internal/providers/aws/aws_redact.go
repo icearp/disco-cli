@@ -55,6 +55,11 @@ func init() {
 		{Type: TypeIAMAccessKey, Attributes: []redact.Rule{
 			{Path: "SecretAccessKey", Mode: redact.RedactScalar},
 		}},
+		// Amplify webhook — WebhookUrl embeds a secret trigger token in its
+		// query string (…/webhooks?id=…&token=…); redact the whole URL.
+		{Type: TypeAmplifyWebhooks, Attributes: []redact.Rule{
+			{Path: "WebhookUrl", Mode: redact.RedactScalar},
+		}},
 		// CodeBuild — plaintext env vars (Type=PLAINTEXT carries values; the
 		// PARAMETER_STORE / SECRETS_MANAGER variants carry pointer refs which
 		// resolvers consume — preserve those).

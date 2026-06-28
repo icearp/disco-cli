@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
@@ -153,6 +154,22 @@ func TestRedact_CodeBuildProject_PlaintextEnv(t *testing.T) {
 		if em["Name"] == "" {
 			t.Errorf("Name clobbered")
 		}
+	}
+}
+
+func TestRedact_AmplifyWebhook_WebhookUrl(t *testing.T) {
+	wh := amplifytypes.Webhook{
+		WebhookId:  ptrStr("wh-1"),
+		WebhookArn: ptrStr("arn:aws:amplify:us-east-1:111122223333:apps/a/webhooks/wh-1"),
+		BranchName: ptrStr("main"),
+		WebhookUrl: ptrStr("https://webhooks.amplify.us-east-1.amazonaws.com/prod/webhooks?id=wh-1&token=SECRETTOKEN"),
+	}
+	got := applyAndDecode(t, TypeAmplifyWebhooks, wh)
+	if got["WebhookUrl"] != redact.Placeholder {
+		t.Errorf("WebhookUrl not redacted: %v", got["WebhookUrl"])
+	}
+	if got["BranchName"] != "main" {
+		t.Errorf("BranchName must stay clear: %v", got["BranchName"])
 	}
 }
 

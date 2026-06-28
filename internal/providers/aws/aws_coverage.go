@@ -474,6 +474,9 @@ func (coverageProvider) Aliases() map[string]string {
 		// only private-connection needs an alias (Service Reference spells the
 		// resource hyphenated; CFN spells it PascalCase as a separate dup key).
 		TypeAidevopsPrivateConnection: "AWS::aidevops::private-connection",
+		// Amplify webhooks — Service Reference only (CFN models no standalone
+		// webhook type); resource segment is plural to mirror the catalog.
+		TypeAmplifyWebhooks: "AWS::amplify::webhooks",
 		// ACM Private CA — disco service segment "acm-pca" (kebab-case, hyphen
 		// would not survive the algorithmic Pascal-case conversion).
 		TypeACMPCAPermission: "AWS::ACMPCA::Permission",

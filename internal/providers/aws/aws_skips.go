@@ -88,6 +88,15 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow).
 		// The Service Reference lists it under the hyphenated "airflow-serverless".
 		"AWS::airflow-serverless::Workflow": "duplicate: already scanned as aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow)",
+
+		// amplify — the Service Reference plural spellings duplicate the CFN
+		// singular types disco already scans (app/branch/domain). Jobs are
+		// deployment/build run records (ephemeral), not infrastructure. Webhooks
+		// are scanned (aws:amplify:webhooks).
+		"AWS::amplify::apps":     "duplicate: already scanned as aws:amplify:app (CFN spelling AWS::Amplify::App)",
+		"AWS::amplify::branches": "duplicate: already scanned as aws:amplify:branch (CFN spelling AWS::Amplify::Branch)",
+		"AWS::amplify::domains":  "duplicate: already scanned as aws:amplify:domain (CFN spelling AWS::Amplify::Domain)",
+		"AWS::amplify::jobs":     "ephemeral: deployment/build job-run records, not a persistent resource",
 	}
 }
 
