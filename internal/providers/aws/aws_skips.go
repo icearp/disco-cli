@@ -46,6 +46,11 @@ func (coverageProvider) Skips() map[string]string {
 		// the organizations scanner), not a separate resource.
 		"AWS::account::account":               "duplicate: account entity modelled as the aws:iam:account self-node",
 		"AWS::account::accountInOrganization": "association: account's org membership, covered via the organizations scanner",
+
+		// acm — ACM's CloudFormation namespace is "CertificateManager", which
+		// disco already scans as aws:acm:certificate. The Service Reference lists
+		// the same resource under the short "acm" service segment.
+		"AWS::acm::certificate": "duplicate: already scanned as aws:acm:certificate (CFN spelling AWS::CertificateManager::Certificate)",
 	}
 }
 
