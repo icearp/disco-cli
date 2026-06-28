@@ -51,6 +51,16 @@ func (coverageProvider) Skips() map[string]string {
 		// disco already scans as aws:acm:certificate. The Service Reference lists
 		// the same resource under the short "acm" service segment.
 		"AWS::acm::certificate": "duplicate: already scanned as aws:acm:certificate (CFN spelling AWS::CertificateManager::Certificate)",
+
+		// acm-pca / ACMPCA (Private CA). The CA itself is already scanned as
+		// aws:acm-pca:certificate-authority (CFN AWS::ACMPCA::CertificateAuthority);
+		// the hyphenated Service Reference spelling is the duplicate. Issued
+		// certificates have no list API (GetCertificate needs both CA and cert
+		// ARN), and CertificateAuthorityActivation is the CFN-only association
+		// that installs the signed cert chain on a CA, not a standalone resource.
+		"AWS::acm-pca::certificate-authority":         "duplicate: already scanned as aws:acm-pca:certificate-authority (CFN spelling AWS::ACMPCA::CertificateAuthority)",
+		"AWS::ACMPCA::Certificate":                    "no list API: issued private-CA certificates are not enumerable (GetCertificate requires CA ARN + cert ARN)",
+		"AWS::ACMPCA::CertificateAuthorityActivation": "association: installs the signed cert chain on a CA (ImportCertificateAuthorityCertificate), not a standalone resource",
 	}
 }
 
