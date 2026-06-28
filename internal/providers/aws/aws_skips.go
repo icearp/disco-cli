@@ -71,6 +71,11 @@ func (coverageProvider) Skips() map[string]string {
 		// disco scans as aws:aidevops:private-connection via the Service Reference
 		// spelling. CFN models only PrivateConnection for this service.
 		"AWS::DevOpsAgent::PrivateConnection": "duplicate: already scanned as aws:aidevops:private-connection (Service Reference spelling AWS::aidevops::private-connection)",
+
+		// aiops — disco already scans aws:aiops:investigation-group, covered via
+		// the CFN spelling AWS::AIOps::InvestigationGroup. The Service Reference
+		// lists the same resource hyphenated under the lowercase service segment.
+		"AWS::aiops::investigation-group": "duplicate: already scanned as aws:aiops:investigation-group (CFN spelling AWS::AIOps::InvestigationGroup)",
 	}
 }
 
