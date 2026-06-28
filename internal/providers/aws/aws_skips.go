@@ -105,7 +105,20 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::amplifyuibuilder::FormResource":       "duplicate: already scanned as aws:amplify-ui-builder:form (CFN spelling AWS::AmplifyUIBuilder::Form)",
 		"AWS::amplifyuibuilder::ThemeResource":      "duplicate: already scanned as aws:amplify-ui-builder:theme (CFN spelling AWS::AmplifyUIBuilder::Theme)",
 		"AWS::amplifyuibuilder::CodegenJobResource": "ephemeral: async code-generation job-run record, not a persistent resource",
+
+		// appmesh-preview — the deprecated App Mesh preview API namespace. No
+		// aws-sdk-go-v2 client exists for it; GA App Mesh is the separate appmesh
+		// service. Nothing to scan via the preview namespace.
+		"AWS::appmesh-preview::mesh":           appmeshPreviewGone,
+		"AWS::appmesh-preview::route":          appmeshPreviewGone,
+		"AWS::appmesh-preview::gatewayRoute":   appmeshPreviewGone,
+		"AWS::appmesh-preview::virtualGateway": appmeshPreviewGone,
+		"AWS::appmesh-preview::virtualNode":    appmeshPreviewGone,
+		"AWS::appmesh-preview::virtualRouter":  appmeshPreviewGone,
+		"AWS::appmesh-preview::virtualService": appmeshPreviewGone,
 	}
 }
+
+const appmeshPreviewGone = "no SDK: appmesh-preview is the deprecated App Mesh preview API namespace (no aws-sdk-go-v2 client; GA App Mesh is the separate appmesh service)"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
