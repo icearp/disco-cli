@@ -76,6 +76,13 @@ func (coverageProvider) Skips() map[string]string {
 		// the CFN spelling AWS::AIOps::InvestigationGroup. The Service Reference
 		// lists the same resource hyphenated under the lowercase service segment.
 		"AWS::aiops::investigation-group": "duplicate: already scanned as aws:aiops:investigation-group (CFN spelling AWS::AIOps::InvestigationGroup)",
+
+		// airflow (MWAA) — the environment is already scanned as aws:mwaa:environment
+		// (CFN AWS::MWAA::Environment). rbac-role is an Airflow-internal RBAC role
+		// addressable in IAM policies (airflow:role ARNs), not an AWS resource with
+		// an SDK list op.
+		"AWS::airflow::environment": "duplicate: already scanned as aws:mwaa:environment (CFN spelling AWS::MWAA::Environment)",
+		"AWS::airflow::rbac-role":   "no SDK list op: Airflow-internal RBAC role (IAM policy reference), not a discoverable AWS resource",
 	}
 }
 
