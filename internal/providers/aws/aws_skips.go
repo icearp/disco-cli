@@ -61,6 +61,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::acm-pca::certificate-authority":         "duplicate: already scanned as aws:acm-pca:certificate-authority (CFN spelling AWS::ACMPCA::CertificateAuthority)",
 		"AWS::ACMPCA::Certificate":                    "no list API: issued private-CA certificates are not enumerable (GetCertificate requires CA ARN + cert ARN)",
 		"AWS::ACMPCA::CertificateAuthorityActivation": "association: installs the signed cert chain on a CA (ImportCertificateAuthorityCertificate), not a standalone resource",
+
+		// aco-automation — no public aws-sdk-go-v2 client, and Compute Optimizer's
+		// SDK exposes no automation-rule list op; AutomationRule is modeled only in
+		// CloudFormation / the Service Reference, not callable per the SDK mandate.
+		"AWS::aco-automation::AutomationRule": "no SDK list op: automation rules are CFN/Service-Reference-only, not modeled in aws-sdk-go-v2",
 	}
 }
 
