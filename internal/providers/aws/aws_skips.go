@@ -97,6 +97,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::amplify::branches": "duplicate: already scanned as aws:amplify:branch (CFN spelling AWS::Amplify::Branch)",
 		"AWS::amplify::domains":  "duplicate: already scanned as aws:amplify:domain (CFN spelling AWS::Amplify::Domain)",
 		"AWS::amplify::jobs":     "ephemeral: deployment/build job-run records, not a persistent resource",
+
+		// amplifyuibuilder — the Service Reference "...Resource"-suffixed spellings
+		// duplicate the CFN types disco already scans (component/form/theme).
+		// CodegenJob is an async code-generation run record (ephemeral).
+		"AWS::amplifyuibuilder::ComponentResource":  "duplicate: already scanned as aws:amplify-ui-builder:component (CFN spelling AWS::AmplifyUIBuilder::Component)",
+		"AWS::amplifyuibuilder::FormResource":       "duplicate: already scanned as aws:amplify-ui-builder:form (CFN spelling AWS::AmplifyUIBuilder::Form)",
+		"AWS::amplifyuibuilder::ThemeResource":      "duplicate: already scanned as aws:amplify-ui-builder:theme (CFN spelling AWS::AmplifyUIBuilder::Theme)",
+		"AWS::amplifyuibuilder::CodegenJobResource": "ephemeral: async code-generation job-run record, not a persistent resource",
 	}
 }
 
