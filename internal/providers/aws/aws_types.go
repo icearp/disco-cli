@@ -862,6 +862,7 @@ const (
 	TypeDAXSubnetGroup    = "aws:dax:subnet-group"
 	// CodeStarConnections (codestarconnections_scanners.go)
 	TypeCodeStarConnectionsConnection        = "aws:codestar-connections:connection"
+	TypeCodeStarConnectionsHost              = "aws:codestar-connections:host"
 	TypeCodeStarConnectionsRepositoryLink    = "aws:codestar-connections:repository-link"
 	TypeCodeStarConnectionsSyncConfiguration = "aws:codestar-connections:sync-configuration"
 	// CodePipeline (codepipeline_scanners.go)

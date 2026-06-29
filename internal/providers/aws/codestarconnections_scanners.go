@@ -16,6 +16,7 @@ func init() {
 		fn:   scanCodeStarConnections,
 		emits: []coverage.TypeDecl{
 			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsConnection, Leaf: true},
+			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsHost},
 			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsRepositoryLink},
 			{Service: "codestar-connections", DiscoType: TypeCodeStarConnectionsSyncConfiguration},
 		},
@@ -24,6 +25,7 @@ func init() {
 
 type codeStarConnectionsAPI interface {
 	ListConnections(context.Context, *codestarconnections.ListConnectionsInput, ...func(*codestarconnections.Options)) (*codestarconnections.ListConnectionsOutput, error)
+	ListHosts(context.Context, *codestarconnections.ListHostsInput, ...func(*codestarconnections.Options)) (*codestarconnections.ListHostsOutput, error)
 	ListRepositoryLinks(context.Context, *codestarconnections.ListRepositoryLinksInput, ...func(*codestarconnections.Options)) (*codestarconnections.ListRepositoryLinksOutput, error)
 	ListSyncConfigurations(context.Context, *codestarconnections.ListSyncConfigurationsInput, ...func(*codestarconnections.Options)) (*codestarconnections.ListSyncConfigurationsOutput, error)
 }
@@ -36,6 +38,13 @@ func scanCodeStarConnections(ctx context.Context, acct *account, region string, 
 	client := codestarconnections.NewFromConfig(acct.cfg, func(o *codestarconnections.Options) { o.Region = region })
 
 	t, i, ferr := scanCSCConnections(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanCSCHosts(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -89,6 +98,42 @@ func scanCSCConnections(ctx context.Context, client codeStarConnectionsAPI, acct
 	}
 	t, i, err := upsertBatch(st, batch, "codestar-connections connections")
 	return t, i, err
+}
+
+// scanCSCHosts discovers CodeConnections hosts — the install endpoints for
+// self-managed SCM providers (GitHub Enterprise Server, GitLab self-managed,
+// Bitbucket Data Center). A host installed inside a private network carries a
+// VpcConfiguration wired by resolveCSCHostNetwork.
+func scanCSCHosts(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListHosts(ctx, &codestarconnections.ListHostsInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "codestar-connections:ListHosts", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("codestar-connections:ListHosts: %w", err)
+		}
+		for _, h := range out.Hosts {
+			arn := sv(h.HostArn)
+			if arn == "" {
+				continue
+			}
+			status := sv(h.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCodeStarConnectionsHost, NativeID: arn,
+				Name: h.Name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "codestar-connections hosts")
 }
 
 func scanCSCRepositoryLinks(ctx context.Context, client codeStarConnectionsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

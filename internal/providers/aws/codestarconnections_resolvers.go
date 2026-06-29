@@ -19,6 +19,82 @@ func init() {
 		EdgeDecl{TypeCodeStarConnectionsSyncConfiguration, TypeCodeStarConnectionsRepositoryLink, store.RelAttachedTo},
 		EdgeDecl{TypeCodeStarConnectionsSyncConfiguration, TypeIAMRole, store.RelUses},
 	)
+	registerResolver(
+		resolveCSCHostNetwork,
+		EdgeDecl{TypeCodeStarConnectionsHost, TypeEC2VPC, store.RelAttachedTo},
+		EdgeDecl{TypeCodeStarConnectionsHost, TypeEC2Subnet, store.RelAttachedTo},
+		EdgeDecl{TypeCodeStarConnectionsHost, TypeEC2SecurityGroup, store.RelUses},
+	)
+}
+
+// resolveCSCHostNetwork wires a self-managed-SCM host to the VPC, subnets and
+// security groups of its VpcConfiguration (present only when the host is
+// installed inside a private network), all FK-safe.
+func resolveCSCHostNetwork(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeStarConnectionsHost}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
+	if err != nil {
+		return err
+	}
+	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VpcConfiguration *struct {
+				VpcID            *string  `json:"VpcId"`
+				SubnetIDs        []string `json:"SubnetIds"`
+				SecurityGroupIDs []string `json:"SecurityGroupIds"`
+			} `json:"VpcConfiguration"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.VpcConfiguration == nil {
+			continue
+		}
+		region := sv(r.Region)
+		if err := cscHostNetEdge(st, acct.ID, r.ID, vpcSet, region, "vpc", sv(attrs.VpcConfiguration.VpcID), TypeEC2VPC, store.RelAttachedTo); err != nil {
+			return err
+		}
+		for _, sn := range attrs.VpcConfiguration.SubnetIDs {
+			if err := cscHostNetEdge(st, acct.ID, r.ID, subnetSet, region, "subnet", sn, TypeEC2Subnet, store.RelAttachedTo); err != nil {
+				return err
+			}
+		}
+		for _, sg := range attrs.VpcConfiguration.SecurityGroupIDs {
+			if err := cscHostNetEdge(st, acct.ID, r.ID, sgSet, region, "security-group", sg, TypeEC2SecurityGroup, store.RelUses); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// cscHostNetEdge emits one FK-safe edge from a host to the EC2 resource named by
+// rawID; skips empty refs and unscanned targets.
+func cscHostNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, region, kind, rawID, tgtType, edgeKind string) error {
+	if rawID == "" {
+		return nil
+	}
+	tgtID := store.ResourceID("aws", acctID, tgtType, ec2ARN(region, acctID, kind, rawID))
+	if !tgtSet[tgtID] {
+		return nil
+	}
+	if err := st.UpsertRelationship(srcID, tgtID, edgeKind, "directed", nil); err != nil {
+		return fmt.Errorf("upsert csc host→%s: %w", kind, err)
+	}
+	return nil
 }
 
 // resolveCSCRepositoryLinkRefs wires repository-link → connection (ConnectionArn)

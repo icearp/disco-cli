@@ -342,6 +342,9 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeChimeVoiceConnector:                      "AWS::chime::voice-connector",
 		TypeChimeVoiceProfileDomain:                  "AWS::chime::voice-profile-domain",
 		TypeChimeVoiceProfile:                        "AWS::chime::voice-profile",
+		// CodeStar Connections — host has no CFN twin; its only upstream spelling
+		// is the hyphenated SR key, which the algorithmic key would strip.
+		TypeCodeStarConnectionsHost: "AWS::codestar-connections::Host",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",
@@ -807,6 +810,7 @@ var serviceRenames = map[string]string{
 	"acm":               "certificatemanager",   // SR acm ↔ CFN CertificateManager
 	"devopsagent":       "aidevops",             // CFN DevOpsAgent ↔ SR aidevops
 	"aoss":              "opensearchserverless", // SR aoss ↔ CFN OpenSearchServerless
+	"codeconnections":   "codestarconnections",  // SR codeconnections ↔ scanned aws:codestar-connections (AWS renamed the service)
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
