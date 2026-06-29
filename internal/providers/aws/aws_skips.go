@@ -317,6 +317,12 @@ func (coverageProvider) Skips() map[string]string {
 		// property, not independently listable.
 		"AWS::cassandra::stream": "no list API: Keyspaces CDC streams have no list op in the keyspaces SDK",
 
+		// ce (Cost Explorer) — billingview is the Cost Explorer service spelling of
+		// the same billing view disco already scans as aws:billing:billing-view
+		// (billing:ListBillingViews). Cross-service duplicate the canonicalizer
+		// can't bridge (ce vs billing).
+		"AWS::ce::billingview": "duplicate: billing views scanned as aws:billing:billing-view (billing:ListBillingViews)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
