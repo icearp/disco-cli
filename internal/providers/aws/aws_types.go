@@ -842,6 +842,7 @@ const (
 	TypeImageBuilderComponent                 = "aws:imagebuilder:component"
 	TypeImageBuilderContainerRecipe           = "aws:imagebuilder:container-recipe"
 	TypeImageBuilderDistributionConfiguration = "aws:imagebuilder:distribution-configuration"
+	TypeImageBuilderImage                     = "aws:imagebuilder:image"
 	TypeImageBuilderImagePipeline             = "aws:imagebuilder:image-pipeline"
 	TypeImageBuilderImageRecipe               = "aws:imagebuilder:image-recipe"
 	TypeImageBuilderInfrastructureConfig      = "aws:imagebuilder:infrastructure-configuration"

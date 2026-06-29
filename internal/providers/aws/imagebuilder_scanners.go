@@ -18,6 +18,7 @@ func init() {
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderComponent, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderContainerRecipe, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderDistributionConfiguration, Leaf: true},
+			{Service: "imagebuilder", DiscoType: TypeImageBuilderImage, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderImagePipeline},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderImageRecipe, Leaf: true},
 			{Service: "imagebuilder", DiscoType: TypeImageBuilderInfrastructureConfig},
@@ -31,6 +32,7 @@ type imageBuilderAPI interface {
 	ListComponents(context.Context, *imagebuilder.ListComponentsInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListComponentsOutput, error)
 	ListContainerRecipes(context.Context, *imagebuilder.ListContainerRecipesInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListContainerRecipesOutput, error)
 	ListDistributionConfigurations(context.Context, *imagebuilder.ListDistributionConfigurationsInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListDistributionConfigurationsOutput, error)
+	ListImages(context.Context, *imagebuilder.ListImagesInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListImagesOutput, error)
 	ListImagePipelines(context.Context, *imagebuilder.ListImagePipelinesInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListImagePipelinesOutput, error)
 	ListImageRecipes(context.Context, *imagebuilder.ListImageRecipesInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListImageRecipesOutput, error)
 	ListInfrastructureConfigurations(context.Context, *imagebuilder.ListInfrastructureConfigurationsInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListInfrastructureConfigurationsOutput, error)
@@ -48,6 +50,7 @@ func scanImageBuilder(ctx context.Context, acct *account, region string, st *sto
 		func() (int, int, error) { return scanIBComponents(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIBContainerRecipes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIBDistributionConfigs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanIBImages(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIBImagePipelines(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIBImageRecipes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIBInfrastructureConfigs(ctx, client, acct, region, st, scanID) },
@@ -155,6 +158,41 @@ func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct
 		}
 	}
 	return upsertBatch(st, batch, "imagebuilder distribution-configurations")
+}
+
+// scanIBImages discovers self-owned ImageBuilder image-version lines (the
+// AWS::ImageBuilder::Image resource). ListImages returns summary entries; the
+// per-build refs (recipe / infrastructure / distribution config) live on
+// GetImage, so this is a summary-only Leaf scanner.
+func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := imagebuilder.NewListImagesPaginator(client, &imagebuilder.ListImagesInput{Owner: types.OwnershipSelf})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "imagebuilder:ListImages", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("imagebuilder:ListImages: %w", perr)
+		}
+		for _, im := range out.ImageVersionList {
+			arn := sv(im.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(im.Name)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeImageBuilderImage, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(im), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "imagebuilder images")
 }
 
 func scanIBImagePipelines(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

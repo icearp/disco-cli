@@ -100,7 +100,6 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEC2KeyPair:                                  "AWS::EC2::KeyPair",
 		TypeEC2LaunchTemplate:                           "AWS::EC2::LaunchTemplate",
 		TypeEC2PlacementGroup:                           "AWS::EC2::PlacementGroup",
-		TypeEC2Image:                                    "AWS::ImageBuilder::Image",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",
