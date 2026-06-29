@@ -424,7 +424,7 @@ func (coverageProvider) Skips() map[string]string {
 		// codeguru-reviewer — the repository association is scanned; a code-review is
 		// an analysis run.
 		"AWS::codeguru-reviewer::association": "duplicate: scanned as aws:code-guru-reviewer:repository-association (CFN twin AWS::CodeGuruReviewer::RepositoryAssociation)",
-		"AWS::codeguru-reviewer::codereview": "analysis run: a CodeGuru Reviewer code-review execution, not infrastructure (the repository-association is the resource)",
+		"AWS::codeguru-reviewer::codereview":  "analysis run: a CodeGuru Reviewer code-review execution, not infrastructure (the repository-association is the resource)",
 
 		// codeguru-security — a scan is a code-analysis job (findings + state); the
 		// account-level configuration is the durable state.
@@ -447,6 +447,17 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::codepipeline::stage":      "nested config: a stage embedded in aws:codepipeline:pipeline's definition (no independent list op)",
 		"AWS::codepipeline::action":     "nested config: an action embedded in a pipeline stage (no independent list op)",
 		"AWS::codepipeline::actiontype": "catalog: ListActionTypes is dominated by AWS/ThirdParty provider action-type definitions; custom action types are a niche extensibility mechanism, not core inventory",
+
+		// cognito — end-user accounts / memberships are application data (PII,
+		// unbounded), a principal-tag map is nested config, the webacl is a WAF
+		// association, and Cognito Sync is a deprecated service.
+		"AWS::Cognito::UserPoolUser":                  "application data: Cognito end-user accounts (unbounded, PII); the user pool is the resource (aws:cognito:user-pool)",
+		"AWS::Cognito::UserPoolUserToGroupAttachment": "application data: end-user group membership within a user pool, not infrastructure",
+		"AWS::Cognito::IdentityPoolPrincipalTag":      "nested config: a principal-tag attribute map per identity pool / provider (GetPrincipalTagAttributeMap), not an independent resource",
+		"AWS::cognito-idp::webacl":                    "association: a WAF web ACL (scanned as aws:wafv2:web-acl) associated with a user pool",
+		"AWS::cognito-sync::dataset":                  "deprecated service: Cognito Sync (replaced by AWS AppSync); datasets are end-user sync data",
+		"AWS::cognito-sync::identity":                 "deprecated service: Cognito Sync (replaced by AWS AppSync); end-user identities",
+		"AWS::cognito-sync::identitypool":             "deprecated service: Cognito Sync (replaced by AWS AppSync); the identity pool is scanned as aws:cognito:identity-pool",
 
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
