@@ -509,6 +509,23 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::connect::use-case":                        "sub-resource: a use binding of an integration-association (ListUseCases requires the association id), not a first-class resource",
 		"AWS::connect::ai-agent":                        "no connect SDK list op: Connect AI agents are a Wisdom / Amazon Q in Connect construct (qconnect SDK), not the connect SDK",
 
+		// controlcatalog — the Control Catalog is AWS's global reference catalog of
+		// available controls / common-controls / domains / objectives (read-only
+		// AWS-published reference data), not account-specific resources.
+		"AWS::controlcatalog::common-control": controlCatalog,
+		"AWS::controlcatalog::control":        controlCatalog,
+		"AWS::controlcatalog::domain":         controlCatalog,
+		"AWS::controlcatalog::objective":      controlCatalog,
+
+		// controltower — Baseline is the catalog of AWS-defined available baselines
+		// (ListBaselines reference data); the account resource is the enabled
+		// baseline, scanned as aws:controltower:enabled-baseline.
+		"AWS::controltower::Baseline": "AWS-managed catalog: the available-baseline reference list; enabled baselines are scanned as aws:controltower:enabled-baseline",
+
+		// cur — the Cost & Usage report is scanned as aws:cur:report-definition
+		// (CFN twin AWS::CUR::ReportDefinition); "cur::cur" is the IAM spelling.
+		"AWS::cur::cur": "duplicate: the Cost & Usage report is scanned as aws:cur:report-definition (CFN twin AWS::CUR::ReportDefinition)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
@@ -633,3 +650,5 @@ const comprehendJob = "ephemeral: an async Comprehend batch-inference job-run re
 const connectWildcard = "IAM policy wildcard ARN pattern: a wildcard resource form used in IAM authorization, not a discoverable resource"
 
 const connectView = "IAM ARN qualification of the scanned aws:connect:view / aws:connect:view-version (managed/customer/qualified ARN spellings of the same View resources)"
+
+const controlCatalog = "AWS-managed reference catalog: the Control Catalog lists AWS-published available controls/domains/objectives, not account-specific resources"
