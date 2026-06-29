@@ -170,6 +170,7 @@ var expectedAWSServices = []string{
 	"aws:arc-region-switch",
 	"aws:arc-zonal-shift",
 	"aws:backupgateway",
+	"aws:bcmdashboards",
 	"aws:bcmdataexports",
 	"aws:bcmpricingcalculator",
 	"aws:billing",

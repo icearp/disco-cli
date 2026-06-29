@@ -347,9 +347,12 @@ func (coverageProvider) Aliases() map[string]string {
 		// gateway + virtual-machine are Service-Reference-only (CFN models just the
 		// hypervisor); SR uses the hyphenated "backup-gateway" service segment, which
 		// the algorithmic key (no hyphen) can't reproduce, so alias both explicitly.
-		TypeBackupGatewayGateway:             "AWS::backup-gateway::gateway",
-		TypeBackupGatewayVirtualMachine:      "AWS::backup-gateway::virtualmachine",
-		TypeBCMDataExportsExport:             "AWS::BCMDataExports::Export",
+		TypeBackupGatewayGateway:        "AWS::backup-gateway::gateway",
+		TypeBackupGatewayVirtualMachine: "AWS::backup-gateway::virtualmachine",
+		TypeBCMDataExportsExport:        "AWS::BCMDataExports::Export",
+		// bcm-dashboards exists only in the hyphenated Service Reference catalog.
+		TypeBCMDashboardsDashboard:           "AWS::bcm-dashboards::dashboard",
+		TypeBCMDashboardsScheduledReport:     "AWS::bcm-dashboards::scheduled-report",
 		TypeBcmPricingCalculatorBillScenario: "AWS::BcmPricingCalculator::BillScenario",
 		// bill-estimate + workload-estimate exist only in the hyphenated Service
 		// Reference catalog (no CloudFormation type), so alias to the exact SR key.

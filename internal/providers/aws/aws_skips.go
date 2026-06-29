@@ -228,6 +228,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// bcm — CloudFormation files the Billing & Cost Management dashboard under
+		// the "BCM" service while the Service Reference uses "bcm-dashboards";
+		// disco scans it once as aws:bcmdashboards:dashboard (covering the SR key).
+		"AWS::BCM::Dashboard": "duplicate: BCM dashboard scanned as aws:bcmdashboards:dashboard (CFN files it under BCM, SR under bcm-dashboards)",
+
 		// bcm-data-exports — billingview is the same AWS billing-view resource the
 		// IAM Service Reference also lists under the billing and ce prefixes; disco
 		// scans it once as aws:billing:billing-view (covering AWS::billing::billingview).

@@ -513,6 +513,9 @@ const (
 	TypeBackupGatewayVirtualMachine = "aws:backupgateway:virtual-machine"
 	// BCM Data Exports (bcmdataexports_scanners.go)
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
+	// BCM Dashboards (bcmdashboards_scanners.go)
+	TypeBCMDashboardsDashboard       = "aws:bcmdashboards:dashboard"
+	TypeBCMDashboardsScheduledReport = "aws:bcmdashboards:scheduled-report"
 	// BCM Pricing Calculator (bcmpricingcalculator_scanners.go)
 	TypeBcmPricingCalculatorBillScenario     = "aws:bcmpricingcalculator:bill-scenario"
 	TypeBcmPricingCalculatorBillEstimate     = "aws:bcmpricingcalculator:bill-estimate"
