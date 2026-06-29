@@ -730,6 +730,9 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDSQLCluster: "AWS::DSQL::Cluster",
 		// DocDBElastic — disco "doc-db-elastic" segment vs CFN "DocDBElastic".
 		TypeDocDBElasticCluster: "AWS::DocDBElastic::Cluster",
+		// cluster-snapshot is Service-Reference-only (no CFN twin); its hyphenated
+		// SR key won't match the algorithmic PascalCase key, so alias it directly.
+		TypeDocDBElasticClusterSnapshot: "AWS::docdb-elastic::cluster-snapshot",
 		// DLM — disco "dlm" segment vs CFN "DLM".
 		TypeDLMLifecyclePolicy: "AWS::DLM::LifecyclePolicy",
 		// CUR — disco "cur" segment vs CFN "CUR".

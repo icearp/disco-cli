@@ -15,6 +15,59 @@ func init() {
 		EdgeDecl{TypeDocDBElasticCluster, TypeEC2Subnet, store.RelAttachedTo},
 		EdgeDecl{TypeDocDBElasticCluster, TypeEC2SecurityGroup, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveDocDBElasticSnapshotRefs,
+		EdgeDecl{TypeDocDBElasticClusterSnapshot, TypeDocDBElasticCluster, store.RelAttachedTo},
+		EdgeDecl{TypeDocDBElasticClusterSnapshot, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveDocDBElasticSnapshotRefs wires each cluster snapshot to its source
+// cluster (FK-safe — snapshots outlive deleted clusters) and to the KMS key
+// that encrypts it. The GetClusterSnapshot body carries ClusterArn / KmsKeyId.
+func resolveDocDBElasticSnapshotRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDocDBElasticClusterSnapshot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeDocDBElasticCluster)
+	if err != nil {
+		return err
+	}
+	idx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ClusterArn *string `json:"ClusterArn"`
+			KmsKeyID   *string `json:"KmsKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if c := sv(attrs.ClusterArn); c != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeDocDBElasticCluster, c)
+			if clusterSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert docdb-elastic snapshot→cluster: %w", err)
+				}
+			}
+		}
+		if ref := sv(attrs.KmsKeyID); ref != "" {
+			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert docdb-elastic snapshot→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveDocDBElasticClusterRefs wires each elastic cluster to its CMEK,

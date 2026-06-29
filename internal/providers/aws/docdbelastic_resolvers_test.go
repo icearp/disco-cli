@@ -29,3 +29,37 @@ func TestResolveDocDBElasticClusterRefs(t *testing.T) {
 	assertRelationship(t, rels, cID, snID, store.RelAttachedTo)
 	assertRelationship(t, rels, cID, sgID, store.RelAttachedTo)
 }
+
+func TestResolveDocDBElasticSnapshotRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	clARN := "arn:aws:docdb-elastic:us-east-1:" + testAccountID + ":cluster/c1"
+	snapARN := "arn:aws:docdb-elastic:us-east-1:" + testAccountID + ":cluster-snapshot/s1"
+	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-de"
+	attrs := `{"ClusterArn":"` + clARN + `","KmsKeyId":"` + keyARN + `"}`
+
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeDocDBElasticCluster, clARN, testRegion, "{}")
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeDocDBElasticClusterSnapshot, snapARN, testRegion, attrs)
+
+	if err := resolveDocDBElasticSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveDocDBElasticSnapshotRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, cID, store.RelAttachedTo)
+	assertRelationship(t, rels, sID, kID, store.RelUses)
+}
+
+func TestResolveDocDBElasticSnapshotRefs_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	snapARN := "arn:aws:docdb-elastic:us-east-1:" + testAccountID + ":cluster-snapshot/s1"
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeDocDBElasticClusterSnapshot, snapARN, testRegion, "{}")
+	if err := resolveDocDBElasticSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveDocDBElasticSnapshotRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(sID); len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}

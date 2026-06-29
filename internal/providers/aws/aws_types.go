@@ -1069,7 +1069,8 @@ const (
 	// DSQL (dsql_scanners.go)
 	TypeDSQLCluster = "aws:dsql:cluster"
 	// DocDBElastic (docdbelastic_scanners.go)
-	TypeDocDBElasticCluster = "aws:doc-db-elastic:cluster"
+	TypeDocDBElasticCluster         = "aws:doc-db-elastic:cluster"
+	TypeDocDBElasticClusterSnapshot = "aws:doc-db-elastic:cluster-snapshot"
 	// DLM (dlm_scanners.go)
 	TypeDLMLifecyclePolicy = "aws:dlm:lifecycle-policy"
 	// CUR (cur_scanners.go)
