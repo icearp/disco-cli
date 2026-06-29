@@ -120,6 +120,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEC2SecondarySubnet:                          "AWS::ec2::secondary-subnet",
 		TypeECSContainerInstance:                        "AWS::ecs::container-instance",
 		TypeEKSAnywhereSubscription:                     "AWS::eks::eks-anywhere-subscription",
+		TypeElastiCacheReservedInstance:                 "AWS::elasticache::reserved-instance",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",

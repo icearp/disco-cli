@@ -26,6 +26,9 @@ func init() {
 			{Service: "elasticache", DiscoType: TypeElastiCacheSubnetGroup},
 			{Service: "elasticache", DiscoType: TypeElastiCacheUser, Leaf: true},
 			{Service: "elasticache", DiscoType: TypeElastiCacheUserGroup},
+			{Service: "elasticache", DiscoType: TypeElastiCacheReservedInstance, Leaf: true},
+			{Service: "elasticache", DiscoType: TypeElastiCacheServerlessCacheSnapshot},
+			{Service: "elasticache", DiscoType: TypeElastiCacheSnapshot},
 		},
 	})
 }
@@ -42,6 +45,9 @@ type elasticacheAPI interface {
 	DescribeCacheSubnetGroups(context.Context, *elasticache.DescribeCacheSubnetGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeCacheSubnetGroupsOutput, error)
 	DescribeUsers(context.Context, *elasticache.DescribeUsersInput, ...func(*elasticache.Options)) (*elasticache.DescribeUsersOutput, error)
 	DescribeUserGroups(context.Context, *elasticache.DescribeUserGroupsInput, ...func(*elasticache.Options)) (*elasticache.DescribeUserGroupsOutput, error)
+	DescribeReservedCacheNodes(context.Context, *elasticache.DescribeReservedCacheNodesInput, ...func(*elasticache.Options)) (*elasticache.DescribeReservedCacheNodesOutput, error)
+	DescribeServerlessCacheSnapshots(context.Context, *elasticache.DescribeServerlessCacheSnapshotsInput, ...func(*elasticache.Options)) (*elasticache.DescribeServerlessCacheSnapshotsOutput, error)
+	DescribeSnapshots(context.Context, *elasticache.DescribeSnapshotsInput, ...func(*elasticache.Options)) (*elasticache.DescribeSnapshotsOutput, error)
 	ListTagsForResource(context.Context, *elasticache.ListTagsForResourceInput, ...func(*elasticache.Options)) (*elasticache.ListTagsForResourceOutput, error)
 }
 
@@ -58,6 +64,9 @@ func scanElastiCache(ctx context.Context, acct *account, region string, st *stor
 		scanElastiCacheSubnetGroups,
 		scanElastiCacheUsers,
 		scanElastiCacheUserGroups,
+		scanElastiCacheReservedNodes,
+		scanElastiCacheServerlessSnapshots,
+		scanElastiCacheSnapshots,
 	} {
 		tt, nn, err := scan(ctx, client, acct, region, st, scanID)
 		if err != nil {

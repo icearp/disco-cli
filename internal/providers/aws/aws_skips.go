@@ -719,6 +719,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::eks::dashboard":     "no SDK: no aws-sdk-go-v2 eks op backs the EKS dashboard",
 		"AWS::eks-auth::cluster":  "duplicate: scanned as aws:eks:cluster (eks:DescribeCluster)",
 
+		// elasticache — SecurityGroupIngress is a rule embedded in a cache security
+		// group; the SR `cluster` is the cache cluster disco scans as cache-cluster.
+		"AWS::ElastiCache::SecurityGroupIngress": "sub-resource: an ingress rule of a cache security group, no standalone List API",
+		"AWS::elasticache::cluster":              "duplicate: scanned as aws:elasticache:cache-cluster (DescribeCacheClusters)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

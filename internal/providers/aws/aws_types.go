@@ -306,6 +306,10 @@ const (
 	TypeEKSNodegroup              = "aws:eks:nodegroup"
 	TypeEKSPodIdentityAssociation = "aws:eks:pod-identity-association"
 	TypeEKSAnywhereSubscription   = "aws:eks:eks-anywhere-subscription"
+
+	TypeElastiCacheReservedInstance        = "aws:elasticache:reserved-instance"
+	TypeElastiCacheServerlessCacheSnapshot = "aws:elasticache:serverlesscachesnapshot"
+	TypeElastiCacheSnapshot                = "aws:elasticache:snapshot"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
 	TypeELBClassicLoadBalancer = "aws:elasticloadbalancing:load-balancer"
 	// ELBv2 (elb_scanners.go, elb_resolvers.go)

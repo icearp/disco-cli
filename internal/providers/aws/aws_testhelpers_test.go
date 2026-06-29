@@ -68,6 +68,28 @@ func upsertTestResource(t *testing.T, st *store.Store, provider, accountID, rtyp
 	return store.ResourceID(provider, accountID, rtype, nativeID)
 }
 
+// upsertTestResourceNamed is upsertTestResource with an explicit Name set, for
+// resolvers that build a name-keyed index (account fixed to testAccountID).
+func upsertTestResourceNamed(t *testing.T, st *store.Store, rtype, nativeID, region, attrsJSON, name string) string {
+	t.Helper()
+	r := &store.Resource{
+		Provider:       "aws",
+		AccountID:      testAccountID,
+		Type:           rtype,
+		NativeID:       nativeID,
+		Name:           &name,
+		AttributesJSON: attrsJSON,
+		DiscoveredBy:   testScanID,
+	}
+	if region != "" {
+		r.Region = &region
+	}
+	if _, err := st.UpsertResource(r); err != nil {
+		t.Fatalf("upsertTestResourceNamed %s/%s: %v", rtype, nativeID, err)
+	}
+	return store.ResourceID("aws", testAccountID, rtype, nativeID)
+}
+
 // newTestAccount returns a minimal account struct for use in resolver tests.
 func newTestAccount(id string) *account {
 	return &account{ID: id, Name: "Test Account", Regions: []string{"us-east-1"}}
