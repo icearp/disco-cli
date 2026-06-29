@@ -477,6 +477,11 @@ func (coverageProvider) Aliases() map[string]string {
 		// Amplify webhooks — Service Reference only (CFN models no standalone
 		// webhook type); resource segment is plural to mirror the catalog.
 		TypeAmplifyWebhooks: "AWS::amplify::webhooks",
+		// AWS Artifact — Service Reference only (not in the CloudFormation
+		// registry); the algorithmic key strips the hyphen (CustomerAgreement),
+		// so the hyphenated SR key needs an explicit alias. (report matches
+		// algorithmically; agreement is skipped.)
+		TypeArtifactCustomerAgreement: "AWS::artifact::customer-agreement",
 		// ACM Private CA — disco service segment "acm-pca" (kebab-case, hyphen
 		// would not survive the algorithmic Pascal-case conversion).
 		TypeACMPCAPermission: "AWS::ACMPCA::Permission",
