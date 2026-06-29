@@ -459,6 +459,21 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::cognito-sync::identity":                 "deprecated service: Cognito Sync (replaced by AWS AppSync); end-user identities",
 		"AWS::cognito-sync::identitypool":             "deprecated service: Cognito Sync (replaced by AWS AppSync); the identity pool is scanned as aws:cognito:identity-pool",
 
+		// comprehend — the *-detection-job / *-classification-job types are async
+		// batch-inference run records (ephemeral); flywheel-dataset is training data
+		// registered to a flywheel (content). The durable models (document-classifier,
+		// entity-recognizer), inference endpoints and flywheels are scanned.
+		"AWS::comprehend::document-classification-job":      comprehendJob,
+		"AWS::comprehend::dominant-language-detection-job":  comprehendJob,
+		"AWS::comprehend::entities-detection-job":           comprehendJob,
+		"AWS::comprehend::events-detection-job":             comprehendJob,
+		"AWS::comprehend::key-phrases-detection-job":        comprehendJob,
+		"AWS::comprehend::pii-entities-detection-job":       comprehendJob,
+		"AWS::comprehend::sentiment-detection-job":          comprehendJob,
+		"AWS::comprehend::targeted-sentiment-detection-job": comprehendJob,
+		"AWS::comprehend::topics-detection-job":             comprehendJob,
+		"AWS::comprehend::flywheel-dataset":                 "content: a labeled training dataset registered to a flywheel, not infrastructure",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
@@ -577,3 +592,5 @@ const bedrockEphemeralJob = "ephemeral: Bedrock async-invoke / flow-execution / 
 const bedrockResourcePolicyNoList = "no list API: Bedrock resource-based policy has only GetResourcePolicy (no list op)"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
+
+const comprehendJob = "ephemeral: an async Comprehend batch-inference job-run record, not a persistent resource"

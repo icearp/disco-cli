@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
@@ -15,6 +16,9 @@ func init() {
 		fn:   scanComprehend,
 		emits: []coverage.TypeDecl{
 			{Service: "comprehend", DiscoType: TypeComprehendDocumentClassifier},
+			{Service: "comprehend", DiscoType: TypeComprehendEntityRecognizer},
+			{Service: "comprehend", DiscoType: TypeComprehendDocumentClassifierEndpoint},
+			{Service: "comprehend", DiscoType: TypeComprehendEntityRecognizerEndpoint},
 			{Service: "comprehend", DiscoType: TypeComprehendFlywheel},
 		},
 	})
@@ -22,14 +26,31 @@ func init() {
 
 type comprehendAPI interface {
 	ListDocumentClassifiers(context.Context, *comprehend.ListDocumentClassifiersInput, ...func(*comprehend.Options)) (*comprehend.ListDocumentClassifiersOutput, error)
+	ListEntityRecognizers(context.Context, *comprehend.ListEntityRecognizersInput, ...func(*comprehend.Options)) (*comprehend.ListEntityRecognizersOutput, error)
+	ListEndpoints(context.Context, *comprehend.ListEndpointsInput, ...func(*comprehend.Options)) (*comprehend.ListEndpointsOutput, error)
 	ListFlywheels(context.Context, *comprehend.ListFlywheelsInput, ...func(*comprehend.Options)) (*comprehend.ListFlywheelsOutput, error)
 }
 
-// scanComprehend discovers Comprehend document classifiers and flywheels.
+// scanComprehend discovers Comprehend document classifiers, entity recognizers,
+// real-time inference endpoints and flywheels.
 func scanComprehend(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := comprehend.NewFromConfig(acct.cfg, func(o *comprehend.Options) { o.Region = region })
 
 	t, i, ferr := scanComprehendDocumentClassifiers(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanComprehendEntityRecognizers(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanComprehendEndpoints(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -80,6 +101,85 @@ func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI
 		nextToken = out.NextToken
 	}
 	return upsertBatch(st, batch, "comprehend document-classifiers")
+}
+
+func scanComprehendEntityRecognizers(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListEntityRecognizers(ctx, &comprehend.ListEntityRecognizersInput{NextToken: nextToken})
+		if err != nil {
+			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "comprehend:ListEntityRecognizers", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("comprehend:ListEntityRecognizers: %w", err)
+		}
+		for _, e := range out.EntityRecognizerPropertiesList {
+			arn := sv(e.EntityRecognizerArn)
+			if arn == "" {
+				continue
+			}
+			status := string(e.Status)
+			label := arn
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeComprehendEntityRecognizer, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "comprehend entity-recognizers")
+}
+
+// scanComprehendEndpoints lists real-time inference endpoints and splits them by
+// the model they front: a ModelArn containing ":entity-recognizer/" is an
+// entity-recognizer-endpoint, otherwise a document-classifier-endpoint.
+func scanComprehendEndpoints(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListEndpoints(ctx, &comprehend.ListEndpointsInput{NextToken: nextToken})
+		if err != nil {
+			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
+				return 0, 0, nil
+			}
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "comprehend:ListEndpoints", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("comprehend:ListEndpoints: %w", err)
+		}
+		for _, e := range out.EndpointPropertiesList {
+			arn := sv(e.EndpointArn)
+			if arn == "" {
+				continue
+			}
+			etype := TypeComprehendDocumentClassifierEndpoint
+			if strings.Contains(sv(e.ModelArn), ":entity-recognizer/") {
+				etype = TypeComprehendEntityRecognizerEndpoint
+			}
+			status := string(e.Status)
+			label := arn
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: etype, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "comprehend endpoints")
 }
 
 func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -345,6 +345,11 @@ func (coverageProvider) Aliases() map[string]string {
 		// CodeStar Connections — host has no CFN twin; its only upstream spelling
 		// is the hyphenated SR key, which the algorithmic key would strip.
 		TypeCodeStarConnectionsHost: "AWS::codestar-connections::Host",
+		// Comprehend — entity-recognizer and the inference endpoints have no CFN
+		// twin; their only upstream spelling is the hyphenated Service Reference key.
+		TypeComprehendEntityRecognizer:           "AWS::comprehend::entity-recognizer",
+		TypeComprehendDocumentClassifierEndpoint: "AWS::comprehend::document-classifier-endpoint",
+		TypeComprehendEntityRecognizerEndpoint:   "AWS::comprehend::entity-recognizer-endpoint",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",

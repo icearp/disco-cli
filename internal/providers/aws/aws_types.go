@@ -985,8 +985,11 @@ const (
 	// Detective extras (detective_extended_scanners.go)
 	TypeDetectiveOrganizationAdmin = "aws:detective:organization-admin"
 	// Comprehend (comprehend_scanners.go)
-	TypeComprehendDocumentClassifier = "aws:comprehend:document-classifier"
-	TypeComprehendFlywheel           = "aws:comprehend:flywheel"
+	TypeComprehendDocumentClassifier         = "aws:comprehend:document-classifier"
+	TypeComprehendEntityRecognizer           = "aws:comprehend:entity-recognizer"
+	TypeComprehendDocumentClassifierEndpoint = "aws:comprehend:document-classifier-endpoint"
+	TypeComprehendEntityRecognizerEndpoint   = "aws:comprehend:entity-recognizer-endpoint"
+	TypeComprehendFlywheel                   = "aws:comprehend:flywheel"
 	// Budgets (budgets_scanners.go)
 	TypeBudgetsBudget        = "aws:budgets:budget"
 	TypeBudgetsBudgetsAction = "aws:budgets:budgets-action"
