@@ -699,6 +699,18 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ecr-public::repository": "duplicate: scanned as aws:ecr:public-repository (ecr-public:DescribeRepositories)",
 		"AWS::ecr-public::registry":   "singleton: the account-level Public ECR registry container; disco scans its repositories, not the registry (matches the unmaterialized private ECR registry)",
 
+		// ecs — express-gateway service has no List op (only Create/Delete/
+		// Describe/Update), so it can't be enumerated; the *-deployment types are
+		// ephemeral rollout records; the *-revision types are historical config
+		// versions with no List op; primary-task-set is the primary designation of
+		// a task set disco already scans (aws:ecs:task-set).
+		"AWS::ECS::ExpressGatewayService": "no list API: only Create/Delete/Describe/Update ops — express-gateway services can't be enumerated",
+		"AWS::ECS::PrimaryTaskSet":        "sub-resource: the primary designation of a service's task set, scanned as aws:ecs:task-set",
+		"AWS::ecs::service-deployment":    "ephemeral: a service deployment rollout record, not a persistent resource",
+		"AWS::ecs::daemon-deployment":     "ephemeral: a daemon deployment rollout record, not a persistent resource",
+		"AWS::ecs::service-revision":      "no list API: a historical service-config revision, only DescribeServiceRevisions per ARN",
+		"AWS::ecs::daemon-revision":       "no list API: a historical daemon-config revision, only DescribeDaemonRevisions per ARN",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
