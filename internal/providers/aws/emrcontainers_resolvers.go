@@ -19,6 +19,62 @@ func init() {
 		resolveEMRCVirtualClusterToSecConfig,
 		EdgeDecl{TypeEMRContainersVirtualCluster, TypeEMRContainersSecurityConfig, store.RelUses},
 	)
+	registerResolver(
+		resolveEMRCJobTemplateRefs,
+		EdgeDecl{TypeEMRContainersJobTemplate, TypeIAMRole, store.RelUses},
+		EdgeDecl{TypeEMRContainersJobTemplate, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveEMRCJobTemplateRefs wires each job template to its execution role
+// (JobTemplateData.ExecutionRoleArn) and KMS key (KmsKeyArn).
+func resolveEMRCJobTemplateRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEMRContainersJobTemplate}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
+	if err != nil {
+		return err
+	}
+	kms, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyArn       *string `json:"KmsKeyArn"`
+			JobTemplateData *struct {
+				ExecutionRoleArn *string `json:"ExecutionRoleArn"`
+			} `json:"JobTemplateData"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.JobTemplateData != nil {
+			if role := sv(attrs.JobTemplateData.ExecutionRoleArn); role != "" {
+				tgtID := store.ResourceID("aws", acct.ID, TypeIAMRole, role)
+				if roleSet[tgtID] {
+					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+						return fmt.Errorf("upsert emr-c job-template→role: %w", err)
+					}
+				}
+			}
+		}
+		if ref := sv(attrs.KmsKeyArn); ref != "" {
+			if keyID, ok := kms.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert emr-c job-template→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveEMRCEndpointRefs wires each managed endpoint to its parent virtual

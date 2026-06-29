@@ -17,6 +17,7 @@ func init() {
 			{Service: "emr-containers", DiscoType: TypeEMRContainersVirtualCluster},
 			{Service: "emr-containers", DiscoType: TypeEMRContainersEndpoint},
 			{Service: "emr-containers", DiscoType: TypeEMRContainersSecurityConfig, Leaf: true},
+			{Service: "emr-containers", DiscoType: TypeEMRContainersJobTemplate},
 		},
 	})
 }
@@ -25,6 +26,7 @@ type emrContainersAPI interface {
 	ListVirtualClusters(context.Context, *emrcontainers.ListVirtualClustersInput, ...func(*emrcontainers.Options)) (*emrcontainers.ListVirtualClustersOutput, error)
 	ListManagedEndpoints(context.Context, *emrcontainers.ListManagedEndpointsInput, ...func(*emrcontainers.Options)) (*emrcontainers.ListManagedEndpointsOutput, error)
 	ListSecurityConfigurations(context.Context, *emrcontainers.ListSecurityConfigurationsInput, ...func(*emrcontainers.Options)) (*emrcontainers.ListSecurityConfigurationsOutput, error)
+	ListJobTemplates(context.Context, *emrcontainers.ListJobTemplatesInput, ...func(*emrcontainers.Options)) (*emrcontainers.ListJobTemplatesOutput, error)
 }
 
 // scanEMRContainers discovers EMR-on-EKS virtual clusters, their managed
@@ -52,7 +54,42 @@ func scanEMRContainers(ctx context.Context, acct *account, region string, st *st
 	}
 	total += t
 	inserted += i
+
+	t, i, ferr = scanEMRCJobTemplates(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanEMRCJobTemplates discovers reusable EMR-on-EKS job templates (account-wide).
+func scanEMRCJobTemplates(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := emrcontainers.NewListJobTemplatesPaginator(client, &emrcontainers.ListJobTemplatesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		page, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return 0, 0, skipIfAccessDenied(st, "emr-containers:ListJobTemplates", acct.ID, region, perr)
+			}
+			return 0, 0, fmt.Errorf("emr-containers:ListJobTemplates: %w", perr)
+		}
+		for _, jt := range page.Templates {
+			arn := sv(jt.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeEMRContainersJobTemplate, NativeID: arn,
+				Name: jt.Name, Region: &region, CreatedAt: tp(jt.CreatedAt),
+				TagsJSON: mapTagsJSON(jt.Tags), AttributesJSON: mustJSON(jt), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "emr-containers job-templates")
 }
 
 func scanEMRCVirtualClusters(ctx context.Context, client emrContainersAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

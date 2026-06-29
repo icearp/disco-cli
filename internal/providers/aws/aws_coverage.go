@@ -121,6 +121,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeECSContainerInstance:                        "AWS::ecs::container-instance",
 		TypeEKSAnywhereSubscription:                     "AWS::eks::eks-anywhere-subscription",
 		TypeElastiCacheReservedInstance:                 "AWS::elasticache::reserved-instance",
+		TypeEMRContainersJobTemplate:                    "AWS::emr-containers::jobTemplate",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",
@@ -855,6 +856,7 @@ var serviceRenames = map[string]string{
 	"cognitoidentity":   "cognito",              // SR cognito-identity (identity pools) ↔ unified CFN/scanned Cognito
 	"cognitoidp":        "cognito",              // SR cognito-idp (user pools) ↔ unified CFN/scanned Cognito
 	"elasticfilesystem": "efs",                  // SR elasticfilesystem ↔ CFN EFS / scanned aws:efs
+	"elasticmapreduce":  "emr",                  // SR elasticmapreduce ↔ CFN EMR / scanned aws:emr
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

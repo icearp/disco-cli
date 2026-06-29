@@ -887,6 +887,7 @@ const (
 	TypeEMRContainersVirtualCluster = "aws:emr-containers:virtual-cluster"
 	TypeEMRContainersEndpoint       = "aws:emr-containers:endpoint"
 	TypeEMRContainersSecurityConfig = "aws:emr-containers:security-configuration"
+	TypeEMRContainersJobTemplate    = "aws:emr-containers:job-template"
 	// DeviceFarm (devicefarm_scanners.go)
 	TypeDeviceFarmProject           = "aws:devicefarm:project"
 	TypeDeviceFarmDevicePool        = "aws:devicefarm:device-pool"

@@ -745,6 +745,22 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::elasticloadbalancing::targetgroup":       "duplicate: scanned as aws:elasticloadbalancingv2:target-group",
 		"AWS::elasticloadbalancing::truststore":        "duplicate: scanned as aws:elasticloadbalancingv2:trust-store",
 
+		// emr / emr-containers / emr-serverless — cluster + studio collapse onto
+		// aws:emr via the elasticmapreduce→emr serviceRename. The rest:
+		"AWS::elasticmapreduce::editor":             "no SDK: the EMR Notebooks editor is deprecated (superseded by EMR Studio); no list op",
+		"AWS::elasticmapreduce::notebook-execution": "ephemeral: a notebook run record, not a persistent resource",
+		"AWS::EMR::WALWorkspace":                    "no SDK: no aws-sdk-go-v2 emr op backs the HBase WAL workspace (CFN-only)",
+		"AWS::emr-containers::jobRun":               "ephemeral: an EMR-on-EKS job run, not a persistent resource",
+		"AWS::emr-containers::managedEndpoint":      "duplicate: scanned as aws:emr-containers:endpoint (ListManagedEndpoints)",
+		"AWS::emr-serverless::jobRun":               "ephemeral: an EMR Serverless job run, not a persistent resource",
+		"AWS::emr-serverless::session":              "ephemeral: an EMR Serverless interactive session, not a persistent resource",
+
+		// elastictranscoder — discontinued service (end of support 2025); the
+		// aws-sdk-go-v2 elastictranscoder module is not vendored.
+		"AWS::elastictranscoder::job":      "no SDK: Elastic Transcoder is discontinued; SDK module not vendored",
+		"AWS::elastictranscoder::pipeline": "no SDK: Elastic Transcoder is discontinued; SDK module not vendored",
+		"AWS::elastictranscoder::preset":   "no SDK: Elastic Transcoder is discontinued; SDK module not vendored",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
