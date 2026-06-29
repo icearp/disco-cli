@@ -373,6 +373,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBedrockBlueprint:             "AWS::bedrock::blueprint",
 		TypeBedrockDataAutomationProject: "AWS::bedrock::data-automation-project",
 		TypeBedrockDataAutomationLibrary: "AWS::bedrock::data-automation-library",
+		// AgentCore system code-interpreter exists only in the Service Reference
+		// (CFN models CodeInterpreterCustom but no plain CodeInterpreter); the
+		// system browser does have a CFN twin so it needs no alias.
+		TypeBedrockAgentCoreCodeInterpreter: "AWS::bedrock-agentcore::code-interpreter",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

@@ -1235,8 +1235,10 @@ const (
 	TypeGreengrassGroupVersion                  = "aws:greengrass:group-version"
 	// BedrockAgentCore (bedrockagentcore_scanners.go)
 	TypeBedrockAgentCoreAPIKeyCredentialProvider = "aws:bedrockagentcore:api-key-credential-provider"
+	TypeBedrockAgentCoreBrowser                  = "aws:bedrockagentcore:browser"
 	TypeBedrockAgentCoreBrowserCustom            = "aws:bedrockagentcore:browser-custom"
 	TypeBedrockAgentCoreBrowserProfile           = "aws:bedrockagentcore:browser-profile"
+	TypeBedrockAgentCoreCodeInterpreter          = "aws:bedrockagentcore:code-interpreter"
 	TypeBedrockAgentCoreCodeInterpreterCustom    = "aws:bedrockagentcore:code-interpreter-custom"
 	TypeBedrockAgentCoreEvaluator                = "aws:bedrockagentcore:evaluator"
 	TypeBedrockAgentCoreGateway                  = "aws:bedrockagentcore:gateway"

@@ -8,6 +8,7 @@ import (
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
 	bac "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol"
+	bactypes "github.com/aws/aws-sdk-go-v2/service/bedrockagentcorecontrol/types"
 )
 
 func init() {
@@ -16,8 +17,10 @@ func init() {
 		fn:   scanBedrockAgentCore,
 		emits: []coverage.TypeDecl{
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreAPIKeyCredentialProvider, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowser, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserCustom, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserProfile, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreter, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreterCustom, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreEvaluator, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreGateway, Leaf: true},
@@ -166,29 +169,42 @@ func scanBACOauth2Creds(ctx context.Context, client bedrockAgentCoreAPI, acct *a
 	return upsertBatch(st, batch, "bedrockagentcore oauth2-credential-providers")
 }
 
+// scanBACBrowsers lists both CUSTOM browsers (customer-created) as
+// aws:bedrockagentcore:browser-custom and SYSTEM browsers (the AWS built-in
+// browser tools, e.g. aws.browser.v1) as aws:bedrockagentcore:browser with
+// ManagedByProvider set — the two are distinct upstream resource types.
 func scanBACBrowsers(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bac.NewListBrowsersPaginator(client, &bac.ListBrowsersInput{})
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrockagentcore:ListBrowsers", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("bedrockagentcore:ListBrowsers: %w", perr)
+	for _, rt := range []bactypes.ResourceType{bactypes.ResourceTypeCustom, bactypes.ResourceTypeSystem} {
+		dtype := TypeBedrockAgentCoreBrowserCustom
+		managed := false
+		if rt == bactypes.ResourceTypeSystem {
+			dtype = TypeBedrockAgentCoreBrowser
+			managed = true
 		}
-		for _, b := range out.BrowserSummaries {
-			arn := sv(b.BrowserArn)
-			if arn == "" {
-				continue
+		pager := bac.NewListBrowsersPaginator(client, &bac.ListBrowsersInput{Type: rt})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "bedrockagentcore:ListBrowsers", acct.ID, region, perr)
+					return upsertBatch(st, batch, "bedrockagentcore browsers")
+				}
+				return 0, 0, fmt.Errorf("bedrockagentcore:ListBrowsers: %w", perr)
 			}
-			label := sv(b.BrowserId)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockAgentCoreBrowserCustom, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
+			for _, b := range out.BrowserSummaries {
+				arn := sv(b.BrowserArn)
+				if arn == "" {
+					continue
+				}
+				label := sv(b.BrowserId)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: dtype, NativeID: arn,
+					Name: &label, Region: &region, ManagedByProvider: managed,
+					AttributesJSON: mustJSON(b), CreatedAt: tp(b.CreatedAt), DiscoveredBy: scanID,
+				})
+			}
 		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore browsers")
@@ -225,29 +241,42 @@ func scanBACBrowserProfiles(ctx context.Context, client bedrockAgentCoreAPI, acc
 	return upsertBatch(st, batch, "bedrockagentcore browser-profiles")
 }
 
+// scanBACCodeInterpreters lists CUSTOM code interpreters as
+// aws:bedrockagentcore:code-interpreter-custom and SYSTEM ones (the AWS built-in
+// interpreter, e.g. aws.codeinterpreter.v1) as aws:bedrockagentcore:code-
+// interpreter with ManagedByProvider set.
 func scanBACCodeInterpreters(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bac.NewListCodeInterpretersPaginator(client, &bac.ListCodeInterpretersInput{})
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrockagentcore:ListCodeInterpreters", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("bedrockagentcore:ListCodeInterpreters: %w", perr)
+	for _, rt := range []bactypes.ResourceType{bactypes.ResourceTypeCustom, bactypes.ResourceTypeSystem} {
+		dtype := TypeBedrockAgentCoreCodeInterpreterCustom
+		managed := false
+		if rt == bactypes.ResourceTypeSystem {
+			dtype = TypeBedrockAgentCoreCodeInterpreter
+			managed = true
 		}
-		for _, c := range out.CodeInterpreterSummaries {
-			arn := sv(c.CodeInterpreterArn)
-			if arn == "" {
-				continue
+		pager := bac.NewListCodeInterpretersPaginator(client, &bac.ListCodeInterpretersInput{Type: rt})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "bedrockagentcore:ListCodeInterpreters", acct.ID, region, perr)
+					return upsertBatch(st, batch, "bedrockagentcore code-interpreters")
+				}
+				return 0, 0, fmt.Errorf("bedrockagentcore:ListCodeInterpreters: %w", perr)
 			}
-			label := sv(c.CodeInterpreterId)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockAgentCoreCodeInterpreterCustom, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
+			for _, c := range out.CodeInterpreterSummaries {
+				arn := sv(c.CodeInterpreterArn)
+				if arn == "" {
+					continue
+				}
+				label := sv(c.CodeInterpreterId)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: dtype, NativeID: arn,
+					Name: &label, Region: &region, ManagedByProvider: managed,
+					AttributesJSON: mustJSON(c), CreatedAt: tp(c.CreatedAt), DiscoveredBy: scanID,
+				})
+			}
 		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore code-interpreters")
