@@ -185,6 +185,7 @@ var expectedAWSServices = []string{
 	"aws:bedrockagentcore",
 	"aws:datasync",
 	"aws:dataexchange",
+	"aws:datapipeline",
 	"aws:datazone",
 	"aws:deadline",
 	"aws:dms",

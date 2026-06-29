@@ -1232,6 +1232,8 @@ const (
 	TypePinpointInAppTemplate = "aws:pinpoint:in-app-template"
 	TypePinpointPushTemplate  = "aws:pinpoint:push-template"
 	TypePinpointSmsTemplate   = "aws:pinpoint:sms-template"
+	// DataPipeline (datapipeline_scanners.go)
+	TypeDataPipelinePipeline = "aws:datapipeline:pipeline"
 	// DataExchange (dataexchange_scanners.go)
 	TypeDataExchangeDataSets     = "aws:dataexchange:data-sets"
 	TypeDataExchangeDataGrants   = "aws:dataexchange:data-grants"

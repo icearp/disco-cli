@@ -468,6 +468,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.4
 	github.com/aws/aws-sdk-go-v2/service/cloudsearch v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/dataexchange v1.42.7
+	github.com/aws/aws-sdk-go-v2/service/datapipeline v1.31.6
 )
 
 require (
