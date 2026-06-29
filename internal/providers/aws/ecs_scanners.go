@@ -64,6 +64,13 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 	inserted += nn
 
 	tt, nn, err = scanECSExtended(ctx, client, acct, region, st, scanID, clusterARNs)
+	if err != nil {
+		return total, inserted, err
+	}
+	total += tt
+	inserted += nn
+
+	tt, nn, err = scanECSComputeExtra(ctx, client, acct, region, st, scanID, clusterARNs)
 	total += tt
 	inserted += nn
 	return total, inserted, err

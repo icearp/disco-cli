@@ -342,6 +342,10 @@ const (
 	TypeECSCapacityProvider                    = "aws:ecs:capacity-provider"
 	TypeECSClusterCapacityProviderAssociations = "aws:ecs:cluster-capacity-provider-associations"
 	TypeECSTaskSet                             = "aws:ecs:task-set"
+	TypeECSContainerInstance                   = "aws:ecs:container-instance"
+	TypeECSTask                                = "aws:ecs:task"
+	TypeECSDaemon                              = "aws:ecs:daemon"
+	TypeECSDaemonTaskDefinition                = "aws:ecs:daemon-task-definition"
 	// ECR
 	TypeECRRepository                 = "aws:ecr:repository"
 	TypeECRPublicRepository           = "aws:ecr:public-repository"
