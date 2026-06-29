@@ -220,6 +220,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::backup-search::searchJob":       "ephemeral: async backup-metadata search job record, not a persistent resource",
 		"AWS::backup-search::searchExportJob": "ephemeral: async backup-search export job record, not a persistent resource",
 
+		// batch — job and service-job are execution records (ListJobs/ListServiceJobs
+		// require a jobQueue + status, per-queue fan-out), ephemeral. job-definition-
+		// revision is the versioned spelling of the ACTIVE job definitions disco
+		// already scans as aws:batch:job-definition (each row is a name:revision).
+		"AWS::batch::job":                     "ephemeral: Batch job execution record (per-queue ListJobs), not a persistent resource",
+		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
+		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
