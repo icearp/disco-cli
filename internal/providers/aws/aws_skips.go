@@ -600,6 +600,14 @@ func (coverageProvider) Skips() map[string]string {
 		// launch templates are scanned.)
 		"AWS::drs::JobResource": "ephemeral: a recovery/drill job-run record, not a persistent resource",
 
+		// ds / ds-data — the generic "directory" resource is the same Directory
+		// Service directory disco scans by type as aws:directory-service:microsoft-ad
+		// and :simple-ad (DescribeDirectories). ds is the IAM/SR service spelling
+		// for Directory Service; ds-data is the Directory Service Data API that
+		// manages users/groups inside that same directory.
+		"AWS::ds::directory":      "duplicate: a Directory Service directory, scanned by type as aws:directory-service:{microsoft-ad,simple-ad}",
+		"AWS::ds-data::directory": "duplicate: the Directory Service Data API addresses the same directory scanned as aws:directory-service:{microsoft-ad,simple-ad}",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
