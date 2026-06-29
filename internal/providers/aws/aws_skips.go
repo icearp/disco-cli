@@ -248,6 +248,17 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::bedrock::model-invocation-job":                  bedrockEphemeralJob,
 		"AWS::bedrock::resource-policy":                       bedrockResourcePolicyNoList,
 		"AWS::Bedrock::ResourcePolicy":                        bedrockResourcePolicyNoList,
+		// prompt-router + default-prompt-router are the SR split (custom vs AWS-
+		// default) of the prompt routers disco already scans, custom + default,
+		// as aws:bedrock:intelligent-prompt-router (ListPromptRouters). The
+		// canonical deduper can't bridge intelligentpromptrouter↔promptrouter.
+		"AWS::bedrock::prompt-router":         "duplicate: all prompt routers (custom + AWS-default) scanned as aws:bedrock:intelligent-prompt-router",
+		"AWS::bedrock::default-prompt-router": "duplicate: AWS-default prompt routers scanned as aws:bedrock:intelligent-prompt-router (ManagedByProvider)",
+		// guardrail-profile (cross-region guardrail profile) and system-tool
+		// (AWS-provided agent tool) have no list op in the bedrock / bedrockagent
+		// SDKs — not independently enumerable.
+		"AWS::bedrock::guardrail-profile": "no list API: cross-region guardrail profile has no list op in the bedrock SDK",
+		"AWS::bedrock::system-tool":       "no list API: AWS-provided agent system tool has no list op in the bedrock SDK",
 
 		// bcm — CloudFormation files the Billing & Cost Management dashboard under
 		// the "BCM" service while the Service Reference uses "bcm-dashboards";
