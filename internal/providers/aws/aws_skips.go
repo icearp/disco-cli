@@ -191,6 +191,30 @@ func (coverageProvider) Skips() map[string]string {
 		// agreements (aws:artifact:customer-agreement) and reports are listable.
 		"AWS::artifact::agreement": "no list API: AWS-published agreement template referenced by customer-agreement.AgreementArn; artifact SDK has no agreement list op",
 
+		// aws-marketplace — an e-commerce catalog/billing domain, not security
+		// infrastructure. The listable seller-catalog entities (Entity/Product/
+		// Offer/Listing/OfferSet/PurchaseOption via marketplacecatalog ListEntities,
+		// OwnershipType=SELF) carry no resource-graph edges and are populated only
+		// for seller accounts; deliberately out of disco's inventory scope. The
+		// remaining rows are abstract IAM groupings, console views, billing
+		// artifacts, or have no list op.
+		"AWS::aws-marketplace::Entity":                marketplaceCatalogOOS,
+		"AWS::aws-marketplace::Product":               marketplaceCatalogOOS,
+		"AWS::aws-marketplace::Offer":                 marketplaceCatalogOOS,
+		"AWS::aws-marketplace::OfferSet":              marketplaceCatalogOOS,
+		"AWS::aws-marketplace::Listing":               marketplaceCatalogOOS,
+		"AWS::aws-marketplace::PurchaseOption":        marketplaceCatalogOOS,
+		"AWS::aws-marketplace::ChangeSet":             "out-of-scope: marketplacecatalog change-set request workflow (ListChangeSets), seller e-commerce, not infrastructure",
+		"AWS::aws-marketplace::AllListings":           "permission-only: abstract IAM wildcard grouping (All*), not a discoverable resource",
+		"AWS::aws-marketplace::AllPurchaseOptions":    "permission-only: abstract IAM wildcard grouping (All*), not a discoverable resource",
+		"AWS::aws-marketplace::Dashboard":             "console-only: AWS Marketplace console dashboard view, not a resource",
+		"AWS::aws-marketplace::SellerDashboard":       "console-only: AWS Marketplace seller console dashboard view, not a resource",
+		"AWS::aws-marketplace::DeploymentParameter":   "no list API: marketplacedeployment exposes only PutDeploymentParameter (write-only), no list/get op",
+		"AWS::aws-marketplace::Assessment":            "no list API: AWS Marketplace seller verification artifact, no SDK list op",
+		"AWS::aws-marketplace::VerificationEvidence":  "no list API: AWS Marketplace seller verification evidence, no SDK list op",
+		"AWS::aws-marketplace::InvoiceSubmissionTask": "billing: AWS Marketplace seller invoicing task, not infrastructure",
+		"AWS::aws-marketplace::IssuedTaxInvoice":      "billing: AWS Marketplace issued tax-invoice document, not infrastructure",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
@@ -264,5 +288,7 @@ const appmeshPreviewGone = "no SDK: appmesh-preview is the deprecated App Mesh p
 const appStudioNoSDK = "no SDK: AWS App Studio (low-code app builder) is console-first; no aws-sdk-go-v2 client exists"
 
 const appTestRetired = "service retired: AWS Mainframe Modernization Application Testing deprecated by AWS (no longer available; aws-sdk-go-v2 client deprecated)"
+
+const marketplaceCatalogOOS = "out-of-scope: AWS Marketplace seller e-commerce catalog entity (marketplacecatalog ListEntities, OwnershipType=SELF); not security infrastructure, no resource-graph edges"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
