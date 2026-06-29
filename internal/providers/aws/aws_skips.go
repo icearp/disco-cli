@@ -594,6 +594,15 @@ func (coverageProvider) Skips() map[string]string {
 		// channel itself is scanned as aws:devops-guru:notification-channel.
 		"AWS::devops-guru::topic": "reference: the SNS topic backing a notification channel (modelled as aws:sns:topic)",
 
+		// directconnect — the Service Reference uses the IAM-ARN resource-type
+		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
+		// resources disco already scans under their CloudFormation spellings. The
+		// canonicalizer can't bridge the abbreviation, so collapse them by hand.
+		"AWS::directconnect::dxcon":      "duplicate: SR abbreviation for a connection (aws:directconnect:connection)",
+		"AWS::directconnect::dxlag":      "duplicate: SR abbreviation for a LAG (aws:directconnect:lag)",
+		"AWS::directconnect::dxvif":      "duplicate: SR abbreviation for a virtual interface (aws:directconnect:{private,public,transit}-virtual-interface)",
+		"AWS::directconnect::dx-gateway": "duplicate: SR abbreviation for a Direct Connect gateway (aws:directconnect:direct-connect-gateway)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
