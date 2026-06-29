@@ -23,6 +23,9 @@ type stubBAC struct {
 	endpoints      map[string][]bactypes.HarnessEndpoint
 	registries     []bactypes.RegistrySummary
 	records        map[string][]bactypes.RegistryRecordSummary
+	managers       []bactypes.PaymentManagerSummary
+	connectors     map[string][]bactypes.PaymentConnectorSummary
+	credProviders  []bactypes.PaymentCredentialProviderItem
 }
 
 //nolint:revive // method name must match the SDK op (ListApiKeyCredentialProviders) to satisfy bedrockAgentCoreAPI.
@@ -118,6 +121,18 @@ func (s *stubBAC) ListRegistryRecords(_ context.Context, in *bac.ListRegistryRec
 
 func (s *stubBAC) ListPolicyGenerations(_ context.Context, _ *bac.ListPolicyGenerationsInput, _ ...func(*bac.Options)) (*bac.ListPolicyGenerationsOutput, error) {
 	return &bac.ListPolicyGenerationsOutput{}, nil
+}
+
+func (s *stubBAC) ListPaymentManagers(_ context.Context, _ *bac.ListPaymentManagersInput, _ ...func(*bac.Options)) (*bac.ListPaymentManagersOutput, error) {
+	return &bac.ListPaymentManagersOutput{PaymentManagers: s.managers}, nil
+}
+
+func (s *stubBAC) ListPaymentConnectors(_ context.Context, in *bac.ListPaymentConnectorsInput, _ ...func(*bac.Options)) (*bac.ListPaymentConnectorsOutput, error) {
+	return &bac.ListPaymentConnectorsOutput{PaymentConnectors: s.connectors[sv(in.PaymentManagerId)]}, nil
+}
+
+func (s *stubBAC) ListPaymentCredentialProviders(_ context.Context, _ *bac.ListPaymentCredentialProvidersInput, _ ...func(*bac.Options)) (*bac.ListPaymentCredentialProvidersOutput, error) {
+	return &bac.ListPaymentCredentialProvidersOutput{CredentialProviders: s.credProviders}, nil
 }
 
 // SYSTEM browsers/code-interpreters bucket as the managed built-in type; CUSTOM

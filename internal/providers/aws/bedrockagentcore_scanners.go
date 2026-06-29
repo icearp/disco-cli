@@ -35,6 +35,9 @@ func init() {
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreMemory, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreOAuth2CredentialProvider, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreOnlineEvaluationConfig, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentManager},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentConnector},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePaymentCredentialProvider, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicy},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicyEngine, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRuntime, Leaf: true},
@@ -67,6 +70,9 @@ type bedrockAgentCoreAPI interface {
 	ListRegistries(context.Context, *bac.ListRegistriesInput, ...func(*bac.Options)) (*bac.ListRegistriesOutput, error)
 	ListRegistryRecords(context.Context, *bac.ListRegistryRecordsInput, ...func(*bac.Options)) (*bac.ListRegistryRecordsOutput, error)
 	ListPolicyGenerations(context.Context, *bac.ListPolicyGenerationsInput, ...func(*bac.Options)) (*bac.ListPolicyGenerationsOutput, error)
+	ListPaymentManagers(context.Context, *bac.ListPaymentManagersInput, ...func(*bac.Options)) (*bac.ListPaymentManagersOutput, error)
+	ListPaymentConnectors(context.Context, *bac.ListPaymentConnectorsInput, ...func(*bac.Options)) (*bac.ListPaymentConnectorsOutput, error)
+	ListPaymentCredentialProviders(context.Context, *bac.ListPaymentCredentialProvidersInput, ...func(*bac.Options)) (*bac.ListPaymentCredentialProvidersOutput, error)
 }
 
 func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -107,6 +113,13 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 	total += t
 	inserted += i
 
+	managerIDs, t, i, ferr := scanBACPaymentManagers(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gwIDs) },
 		func() (int, int, error) { return scanBACRuntimeEndpoints(ctx, client, acct, region, st, scanID, rtIDs) },
@@ -130,6 +143,12 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 		},
 		func() (int, int, error) {
 			return scanBACRegistryRecords(ctx, client, acct, region, st, scanID, registryIDs)
+		},
+		func() (int, int, error) {
+			return scanBACPaymentConnectors(ctx, client, acct, region, st, scanID, managerIDs)
+		},
+		func() (int, int, error) {
+			return scanBACPaymentCredentialProviders(ctx, client, acct, region, st, scanID)
 		},
 	} {
 		t, i, ferr := phase()
