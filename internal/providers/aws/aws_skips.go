@@ -158,6 +158,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::appsync::type":  "sub-resource: GraphQL schema type within an API (per-apiId/format ListTypes); the schema is scanned as aws:appsync:graphql-schema",
 		"AWS::appsync::field": "sub-resource: GraphQL field within a type; no SDK list op, captured in aws:appsync:graphql-schema",
 
+		// aps cluster — a CFN-only Amazon Managed Prometheus resource; the amp
+		// SDK has no cluster op (only workspace/scraper/rule-groups-namespace/
+		// anomaly-detector), so it is not scannable per the per-service-API mandate.
+		"AWS::aps::cluster": "no SDK op: CFN-only APS cluster, amp SDK exposes no List/Describe cluster operation",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
