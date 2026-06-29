@@ -400,6 +400,14 @@ func (coverageProvider) Skips() map[string]string {
 		// content, mirroring how ECR scans repositories but not individual images.
 		"AWS::codeartifact::package": "content within repository: packages are software artifacts stored in aws:codeartifact:repository (unbounded content, not infrastructure — mirrors ECR repositories-not-images)",
 
+		// codebuild — builds / batches / reports are execution run-history (the
+		// project + report-group configs are the resources); sandbox is an
+		// ephemeral interactive debug session.
+		"AWS::codebuild::build":       "execution history: a build run of aws:codebuild:project (unbounded runtime events, not infrastructure)",
+		"AWS::codebuild::build-batch": "execution history: a batch build run of aws:codebuild:project (unbounded runtime events, not infrastructure)",
+		"AWS::codebuild::report":      "execution output: a test/coverage report produced by a build run; aws:codebuild:report-group is the resource",
+		"AWS::codebuild::sandbox":     "ephemeral: an interactive CodeBuild sandbox debug session, not durable infrastructure",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
