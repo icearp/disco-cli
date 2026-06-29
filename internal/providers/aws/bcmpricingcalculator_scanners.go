@@ -28,10 +28,18 @@ func isMigrationRequiredIAMDeny(err error) bool {
 	return isAccessDeniedWithMessage(err, "Migrate the policies in your account to use the new IAM actions")
 }
 
+// AWS BCM Pricing Calculator is account-global — the SDK endpoint resolves
+// only via us-east-1 (mirrors aws:billing / aws:ce).
+const bcmPricingCalculatorRegion = "us-east-1"
+
 func init() {
 	registerService(serviceEntry{
-		name: "aws:bcmpricingcalculator",
-		fn:   scanBcmPricingCalculator,
+		name:   "aws:bcmpricingcalculator",
+		global: true,
+		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+			client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = bcmPricingCalculatorRegion })
+			return scanBcmPricingCalculator(ctx, client, acct, st, scanID)
+		},
 		emits: []coverage.TypeDecl{
 			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillScenario, Leaf: true},
 			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillEstimate, Leaf: true},
@@ -48,10 +56,11 @@ type bcmPricingCalculatorAPI interface {
 }
 
 // bcmPricingCalculatorNativeID synthesizes the canonical ARN for a pricing-
-// calculator artifact (the SDK summaries carry only an Id):
-// arn:aws:bcm-pricing-calculator:{region}:{acct}:{kind}/{id}.
-func bcmPricingCalculatorNativeID(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:bcm-pricing-calculator:%s:%s:%s/%s", region, acct, kind, id)
+// calculator artifact (the SDK summaries carry only an Id). The service is
+// account-global, so the ARN's region segment is empty:
+// arn:aws:bcm-pricing-calculator::{acct}:{kind}/{id}.
+func bcmPricingCalculatorNativeID(acct, kind, id string) string {
+	return fmt.Sprintf("arn:aws:bcm-pricing-calculator::%s:%s/%s", acct, kind, id)
 }
 
 // bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
@@ -72,8 +81,8 @@ func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error 
 	}
 }
 
-func scanBcmPricingCalculator(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = region })
+func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	region := bcmPricingCalculatorRegion
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
 			return scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID)
@@ -113,8 +122,8 @@ func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricin
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorBillScenario,
-				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "bill-scenario", id),
-				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(s.CreatedAt),
+				NativeID: bcmPricingCalculatorNativeID(acct.ID, "bill-scenario", id),
+				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(s.CreatedAt),
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
@@ -140,8 +149,8 @@ func scanBcmPricingCalculatorBillEstimates(ctx context.Context, client bcmPricin
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorBillEstimate,
-				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "bill-estimate", id),
-				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(e.CreatedAt),
+				NativeID: bcmPricingCalculatorNativeID(acct.ID, "bill-estimate", id),
+				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(e.CreatedAt),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
 		}
@@ -167,8 +176,8 @@ func scanBcmPricingCalculatorWorkloadEstimates(ctx context.Context, client bcmPr
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorWorkloadEstimate,
-				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "workload-estimate", id),
-				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(e.CreatedAt),
+				NativeID: bcmPricingCalculatorNativeID(acct.ID, "workload-estimate", id),
+				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(e.CreatedAt),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
 		}
