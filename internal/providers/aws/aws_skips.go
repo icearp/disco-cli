@@ -228,6 +228,10 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// bugbust — CodeGuru BugBust (gamified bug-fixing events) has no
+		// aws-sdk-go-v2 client and the service has been retired by AWS.
+		"AWS::bugbust::Event": "service retired: CodeGuru BugBust has no aws-sdk-go-v2 client (service discontinued)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
