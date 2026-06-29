@@ -589,6 +589,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::devicefarm::testgrid-session": "ephemeral: a Selenium test-grid session run (per testgrid-project), not persistent infrastructure",
 		"AWS::devicefarm::upload":           "content: an uploaded app/test package within a project, not infrastructure",
 
+		// devops-guru — topic is the SNS topic an account registers as a DevOps
+		// Guru notification channel; it is modelled as aws:sns:topic, and the
+		// channel itself is scanned as aws:devops-guru:notification-channel.
+		"AWS::devops-guru::topic": "reference: the SNS topic backing a notification channel (modelled as aws:sns:topic)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
