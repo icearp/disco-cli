@@ -331,6 +331,13 @@ func (coverageProvider) Skips() map[string]string {
 		// second type.
 		"AWS::cloud9::environment": "duplicate: cloud9 environments scanned as aws:cloud9:environment-ec2 (CFN EnvironmentEC2 spelling)",
 
+		// chatbot — the SR generic `ChatbotConfiguration` is the umbrella over the
+		// specific channel configs disco already scans as
+		// aws:chatbot:slack-channel-configuration / microsoft-teams-channel-
+		// configuration (matching the CFN per-platform types). The only subset not
+		// covered is Chime webhook configs, tied to the discontinued Amazon Chime.
+		"AWS::chatbot::ChatbotConfiguration": "duplicate: chatbot channel configs scanned as aws:chatbot:{slack,microsoft-teams}-channel-configuration (Chime-webhook subset tied to discontinued Amazon Chime)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
