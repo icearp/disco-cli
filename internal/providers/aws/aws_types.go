@@ -768,6 +768,8 @@ const (
 	TypeDMSReplicationTask        = "aws:dms:replication-task"
 	// Deadline (deadline_scanners.go)
 	TypeDeadlineFarm                  = "aws:deadline:farm"
+	TypeDeadlineBudget                = "aws:deadline:budget"
+	TypeDeadlineVolume                = "aws:deadline:volume"
 	TypeDeadlineFleet                 = "aws:deadline:fleet"
 	TypeDeadlineLicenseEndpoint       = "aws:deadline:license-endpoint"
 	TypeDeadlineLimit                 = "aws:deadline:limit"

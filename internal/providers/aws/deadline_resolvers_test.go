@@ -39,6 +39,35 @@ func TestResolveDeadlineFarmChildren(t *testing.T) {
 	assertRelationship(t, rels, queueID, farmID, store.RelAttachedTo)
 }
 
+func TestResolveDeadlineVolumeFleet(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
+	fleetARN := farmARN + "/fleet/fleet-1"
+	fleetID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineFleet, fleetARN, testRegion, "{}")
+	volARN := farmARN + "/volume/vol-1"
+	volID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineVolume, volARN, testRegion, `{"FleetId":"fleet-1"}`)
+
+	if err := resolveDeadlineVolumeFleet(acct, st); err != nil {
+		t.Fatalf("resolveDeadlineVolumeFleet: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(volID)
+	assertRelationship(t, rels, volID, fleetID, store.RelAttachedTo)
+}
+
+func TestResolveDeadlineVolumeFleet_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
+	volID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineVolume, farmARN+"/volume/vol-1", testRegion, "{}")
+	if err := resolveDeadlineVolumeFleet(acct, st); err != nil {
+		t.Fatalf("resolveDeadlineVolumeFleet: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(volID); len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}
+
 func TestResolveDeadlineQueueEnvParent(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

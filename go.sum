@@ -564,8 +564,8 @@ github.com/aws/aws-sdk-go-v2/service/datazone v1.63.0 h1:+EisO2mhulxxArOkvotVWX5
 github.com/aws/aws-sdk-go-v2/service/datazone v1.63.0/go.mod h1:PxcZBDs1Dg8c2S1Hs5sdgkBHpWBBxg5Lf2pS1Lbyr10=
 github.com/aws/aws-sdk-go-v2/service/dax v1.30.2 h1:4+h9xIQyCF8FsC3qPlM5I9gzADHDfxvp+R+9cP1etYI=
 github.com/aws/aws-sdk-go-v2/service/dax v1.30.2/go.mod h1:+0NMbNrYBuMneycjX4G4MvIMkS8HswcyV17jSUVd7u4=
-github.com/aws/aws-sdk-go-v2/service/deadline v1.33.0 h1:QP0UMAPMIQwTn2xfMrC6W5e1BYyCTpgPk/+qmSYveAk=
-github.com/aws/aws-sdk-go-v2/service/deadline v1.33.0/go.mod h1:6Og1X28Y9bRoE4BiPb4FYrM93TaoiM8e/iTzErx7rU4=
+github.com/aws/aws-sdk-go-v2/service/deadline v1.33.1 h1:ZVivz5AAiytCdaodtc9+60mh2coocRgWHviXb28OV2I=
+github.com/aws/aws-sdk-go-v2/service/deadline v1.33.1/go.mod h1:6Og1X28Y9bRoE4BiPb4FYrM93TaoiM8e/iTzErx7rU4=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.5 h1:DHjy6KZUEJ86sH5xfla4DyVloKkqGc6AaDau87xgjgs=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.5/go.mod h1:w3cEDE6OaZ9cat34wqEynJQwZI3BHGjrpNhD0zBlg44=
 github.com/aws/aws-sdk-go-v2/service/devopsagent v1.8.0 h1:QTvLFien+FOz8MGvRjLM4D3JkcX6tKM7TNpXbsCabbI=

@@ -567,6 +567,12 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:detective:member (MemberDetail carries Status/InvitedTime).
 		"AWS::Detective::MemberInvitation": "duplicate: the membership created by an invitation is scanned as aws:detective:member (ListMembers, with invitation status/time)",
 
+		// deadline — a job is a submitted render-job run and a worker is a running
+		// fleet node; both are ephemeral runtime, not persistent infrastructure.
+		// Budgets and volumes are scanned.
+		"AWS::deadline::job":    "ephemeral: a submitted render-job run (per farm/queue), not persistent infrastructure",
+		"AWS::deadline::worker": "ephemeral: a running fleet worker node (per farm/fleet), not persistent infrastructure",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-

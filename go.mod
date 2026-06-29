@@ -249,7 +249,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.7
 	github.com/aws/aws-sdk-go-v2/service/datazone v1.63.0
 	github.com/aws/aws-sdk-go-v2/service/dax v1.30.2
-	github.com/aws/aws-sdk-go-v2/service/deadline v1.33.0
+	github.com/aws/aws-sdk-go-v2/service/deadline v1.33.1
 	github.com/aws/aws-sdk-go-v2/service/detective v1.39.5
 	github.com/aws/aws-sdk-go-v2/service/devopsagent v1.8.0
 	github.com/aws/aws-sdk-go-v2/service/devopsguru v1.41.7

@@ -18,6 +18,12 @@ func init() {
 		EdgeDecl{TypeDeadlineStorageProfile, TypeDeadlineFarm, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueFleetAssociation, TypeDeadlineFarm, store.RelAttachedTo},
 		EdgeDecl{TypeDeadlineQueueLimitAssociation, TypeDeadlineFarm, store.RelAttachedTo},
+		EdgeDecl{TypeDeadlineBudget, TypeDeadlineFarm, store.RelAttachedTo},
+		EdgeDecl{TypeDeadlineVolume, TypeDeadlineFarm, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveDeadlineVolumeFleet,
+		EdgeDecl{TypeDeadlineVolume, TypeDeadlineFleet, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveDeadlineQueueEnvParent,
@@ -214,6 +220,8 @@ func resolveDeadlineFarmChildren(acct *account, st *store.Store) error {
 		TypeDeadlineStorageProfile,
 		TypeDeadlineQueueFleetAssociation,
 		TypeDeadlineQueueLimitAssociation,
+		TypeDeadlineBudget,
+		TypeDeadlineVolume,
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
@@ -235,6 +243,45 @@ func resolveDeadlineFarmChildren(acct *account, st *store.Store) error {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert deadline %s→farm: %w", ctype, err)
 			}
+		}
+	}
+	return nil
+}
+
+// resolveDeadlineVolumeFleet wires each storage volume to the fleet it is
+// attached to (FleetId). The fleet shares the volume's parent farm ARN.
+func resolveDeadlineVolumeFleet(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDeadlineVolume}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	fleetSet, err := scannedIDSet(acct, st, TypeDeadlineFleet)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			FleetID *string `json:"FleetId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		fleetID := sv(attrs.FleetID)
+		farmARN := deadlineFarmARNFromChild(r.NativeID)
+		if fleetID == "" || farmARN == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeDeadlineFleet, farmARN+"/fleet/"+fleetID)
+		if !fleetSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert deadline volume→fleet: %w", err)
 		}
 	}
 	return nil

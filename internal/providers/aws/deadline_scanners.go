@@ -15,6 +15,8 @@ func init() {
 		fn:   scanDeadline,
 		emits: []coverage.TypeDecl{
 			{Service: "deadline", DiscoType: TypeDeadlineFarm},
+			{Service: "deadline", DiscoType: TypeDeadlineBudget},
+			{Service: "deadline", DiscoType: TypeDeadlineVolume},
 			{Service: "deadline", DiscoType: TypeDeadlineFleet},
 			{Service: "deadline", DiscoType: TypeDeadlineLicenseEndpoint},
 			{Service: "deadline", DiscoType: TypeDeadlineLimit},
@@ -41,12 +43,15 @@ type deadlineAPI interface {
 	ListQueueFleetAssociations(context.Context, *deadline.ListQueueFleetAssociationsInput, ...func(*deadline.Options)) (*deadline.ListQueueFleetAssociationsOutput, error)
 	ListQueueLimitAssociations(context.Context, *deadline.ListQueueLimitAssociationsInput, ...func(*deadline.Options)) (*deadline.ListQueueLimitAssociationsOutput, error)
 	ListStorageProfiles(context.Context, *deadline.ListStorageProfilesInput, ...func(*deadline.Options)) (*deadline.ListStorageProfilesOutput, error)
+	ListBudgets(context.Context, *deadline.ListBudgetsInput, ...func(*deadline.Options)) (*deadline.ListBudgetsOutput, error)
+	ListVolumes(context.Context, *deadline.ListVolumesInput, ...func(*deadline.Options)) (*deadline.ListVolumesOutput, error)
 }
 
-// dlFarmRef carries (farmId, farmARN) and per-farm queueRef list across phases.
+// dlFarmRef carries (farmId, farmARN) and per-farm queue/fleet IDs across phases.
 type dlFarmRef struct {
-	id, arn string
-	queues  []dlQueueRef
+	id, arn  string
+	queues   []dlQueueRef
+	fleetIDs []string
 }
 
 type dlQueueRef struct {
@@ -77,6 +82,7 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 			func() (int, int, error) {
 				return scanDeadlineStorageProfiles(ctx, client, acct, region, st, scanID, fr)
 			},
+			func() (int, int, error) { return scanDeadlineBudgets(ctx, client, acct, region, st, scanID, fr) },
 			func() (int, int, error) { return scanDeadlineQueues(ctx, client, acct, region, st, scanID, fr) },
 			func() (int, int, error) {
 				return scanDeadlineQueueFleetAssociations(ctx, client, acct, region, st, scanID, fr)
@@ -95,6 +101,15 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 		// Per-(farm, queue) phase.
 		for _, qr := range fr.queues {
 			t, i, perr := scanDeadlineQueueEnvironments(ctx, client, acct, region, st, scanID, fr, qr)
+			if perr != nil {
+				return total, inserted, perr
+			}
+			total += t
+			inserted += i
+		}
+		// Per-(farm, fleet) phase: ListVolumes requires both FarmId and FleetId.
+		for _, fleetID := range fr.fleetIDs {
+			t, i, perr := scanDeadlineVolumes(ctx, client, acct, region, st, scanID, fr, fleetID)
 			if perr != nil {
 				return total, inserted, perr
 			}
@@ -183,6 +198,7 @@ func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, 
 			if id == "" {
 				continue
 			}
+			fr.fleetIDs = append(fr.fleetIDs, id)
 			arn := fmt.Sprintf("%s/fleet/%s", fr.arn, id)
 			label := sv(f.DisplayName)
 			if label == "" {
