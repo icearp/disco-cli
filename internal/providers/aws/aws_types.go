@@ -551,6 +551,8 @@ const (
 	// CloudHSM (cloudhsm_scanners.go, cloudhsm_resolvers.go)
 	TypeCloudHSMCluster = "aws:cloudhsm:cluster"
 	TypeCloudHSMBackup  = "aws:cloudhsm:backup"
+	// CloudSearch (cloudsearch_scanners.go)
+	TypeCloudSearchDomain = "aws:cloudsearch:domain"
 	// IAM Identity Center / Identity Store (sso_scanners.go, sso_resolvers.go)
 	TypeSSOInstance                                    = "aws:sso:instance"
 	TypeSSOPermissionSet                               = "aws:sso:permission-set"

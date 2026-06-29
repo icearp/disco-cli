@@ -57,6 +57,7 @@ var expectedAWSServices = []string{
 	"aws:cloudformation",
 	"aws:clouddirectory",
 	"aws:cloudhsm",
+	"aws:cloudsearch",
 	"aws:sso-admin",
 	"aws:shield",
 	"aws:macie",

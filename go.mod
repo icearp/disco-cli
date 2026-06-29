@@ -466,6 +466,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/chimesdkvoice v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/clouddirectory v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.4
+	github.com/aws/aws-sdk-go-v2/service/cloudsearch v1.33.5
 )
 
 require (
@@ -484,7 +485,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.30 // indirect
-	github.com/aws/aws-sdk-go-v2/service/cloudsearch v1.33.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.6 // indirect
