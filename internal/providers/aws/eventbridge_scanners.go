@@ -23,6 +23,7 @@ func init() {
 			{Service: "events", DiscoType: TypeEventsArchive},
 			{Service: "events", DiscoType: TypeEventsEndpoint},
 			{Service: "events", DiscoType: TypeEventsEventBusPolicy},
+			{Service: "events", DiscoType: TypeEventsEventSource, Leaf: true},
 		},
 	})
 }
@@ -39,6 +40,7 @@ type eventbridgeAPI interface {
 	ListArchives(context.Context, *eventbridge.ListArchivesInput, ...func(*eventbridge.Options)) (*eventbridge.ListArchivesOutput, error)
 	ListEndpoints(context.Context, *eventbridge.ListEndpointsInput, ...func(*eventbridge.Options)) (*eventbridge.ListEndpointsOutput, error)
 	DescribeEventBus(context.Context, *eventbridge.DescribeEventBusInput, ...func(*eventbridge.Options)) (*eventbridge.DescribeEventBusOutput, error)
+	ListEventSources(context.Context, *eventbridge.ListEventSourcesInput, ...func(*eventbridge.Options)) (*eventbridge.ListEventSourcesOutput, error)
 }
 
 // scanEventBridge discovers EventBridge event buses and rules in one region.
@@ -58,7 +60,47 @@ func scanEventBridge(ctx context.Context, acct *account, region string, st *stor
 	}
 	total += t
 	inserted += i
+	t, i, ferr = scanEventBridgeEventSources(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanEventBridgeEventSources discovers SaaS partner event sources offered to
+// the account (ListEventSources, manual NextToken — no SDK paginator). A partner
+// event bus is created from one; the source itself is Leaf.
+func scanEventBridgeEventSources(ctx context.Context, client eventbridgeAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var token *string
+	var batch []*store.Resource
+	for {
+		out, perr := client.ListEventSources(ctx, &eventbridge.ListEventSourcesInput{NextToken: token})
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return 0, 0, skipIfAccessDenied(st, "events:ListEventSources", acct.ID, region, perr)
+			}
+			return 0, 0, fmt.Errorf("events:ListEventSources: %w", perr)
+		}
+		for _, s := range out.EventSources {
+			arn := sv(s.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeEventsEventSource, NativeID: arn,
+				Name: s.Name, Region: &region, Status: sp(string(s.State)),
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil {
+			break
+		}
+		token = out.NextToken
+	}
+	return upsertBatch(st, batch, "events event-sources")
 }
 
 // scanEventBridgeAll holds the testable scan body.

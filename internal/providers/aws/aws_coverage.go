@@ -123,6 +123,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeElastiCacheReservedInstance:                 "AWS::elasticache::reserved-instance",
 		TypeEMRContainersJobTemplate:                    "AWS::emr-containers::jobTemplate",
 		TypeOpenSearchDataSource:                        "AWS::es::datasource",
+		TypeEventsEventSource:                           "AWS::events::event-source",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",

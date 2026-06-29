@@ -779,6 +779,35 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::elemental-support-cases::case":        "out of scope: support-case content, not an infrastructure resource",
 		"AWS::entityresolution::ProviderService":    "catalog: AWS's read-only list of third-party data provider services, not an account resource",
 
+		// events (EventBridge) — event-source IS scanned (aws:events:event-source).
+		// rule-on-*-event-bus are the SR's per-bus spellings of aws:events:rule;
+		// replay is an ephemeral archive-replay run; alias/key/create-snapshot/
+		// reboot-instance/stop-instance/terminate-instance are IAM-policy resource
+		// spellings of built-in EC2 target actions, not enumerable resources.
+		"AWS::events::rule-on-custom-event-bus":  "duplicate: scanned as aws:events:rule (ListRules per bus)",
+		"AWS::events::rule-on-default-event-bus": "duplicate: scanned as aws:events:rule (ListRules on the default bus)",
+		"AWS::events::replay":                    "ephemeral: an archive-replay run, not a persistent resource",
+		"AWS::events::alias":                     "not a resource: an IAM-policy resource spelling, no list API",
+		"AWS::events::key":                       "not a resource: an IAM-policy resource spelling, no list API",
+		"AWS::events::create-snapshot":           "not a resource: a built-in EC2 target action, not an enumerable resource",
+		"AWS::events::reboot-instance":           "not a resource: a built-in EC2 target action, not an enumerable resource",
+		"AWS::events::stop-instance":             "not a resource: a built-in EC2 target action, not an enumerable resource",
+		"AWS::events::terminate-instance":        "not a resource: a built-in EC2 target action, not an enumerable resource",
+		"AWS::eventsbilltoaws::approve":          "not a resource: a billing-flow IAM action, not an enumerable resource",
+		"AWS::eventsbilltoaws::info":             "not a resource: a billing-flow IAM action, not an enumerable resource",
+
+		// evidently — CloudWatch Evidently is discontinued (closed 2024); the
+		// aws-sdk-go-v2 evidently module is not a disco dependency.
+		"AWS::evidently::Experiment": "no SDK: CloudWatch Evidently is discontinued; SDK module not vendored",
+		"AWS::evidently::Feature":    "no SDK: CloudWatch Evidently is discontinued; SDK module not vendored",
+		"AWS::evidently::Launch":     "no SDK: CloudWatch Evidently is discontinued; SDK module not vendored",
+		"AWS::evidently::Project":    "no SDK: CloudWatch Evidently is discontinued; SDK module not vendored",
+		"AWS::evidently::Segment":    "no SDK: CloudWatch Evidently is discontinued; SDK module not vendored",
+
+		// execute-api — the API Gateway invoke-endpoint ARN patterns, not resources.
+		"AWS::execute-api::execute-api-domain":  "not a resource: the API Gateway invoke-endpoint ARN pattern, not an enumerable resource",
+		"AWS::execute-api::execute-api-general": "not a resource: the API Gateway invoke-endpoint ARN pattern, not an enumerable resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
