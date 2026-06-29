@@ -620,6 +620,70 @@ func (coverageProvider) Skips() map[string]string {
 		// snapshot disco scans via the EC2 DescribeSnapshots API as aws:ec2:snapshot.
 		"AWS::ebs::snapshot": "duplicate: EBS snapshots are scanned as aws:ec2:snapshot (DescribeSnapshots)",
 
+		// ec2 — CFN association/property types: a relationship or sub-field of a
+		// parent resource, no standalone List API. disco models these as edges or
+		// embedded attributes on the parent.
+		"AWS::EC2::EIPAssociation":                       "sub-resource: an EIP↔instance/ENI association, modelled as an edge from the EIP",
+		"AWS::EC2::EnclaveCertificateIamRoleAssociation": "sub-resource: an ACM-cert↔IAM-role association for Nitro Enclaves, no standalone List API",
+		"AWS::EC2::GatewayRouteTableAssociation":         "sub-resource: a gateway↔route-table association, embedded in the route table",
+		"AWS::EC2::IpPoolRouteTableAssociation":          "sub-resource: an IP-pool↔route-table association, no standalone List API",
+		"AWS::EC2::NetworkAclEntry":                      "sub-resource: a NACL rule, embedded in the network-acl Entries[]",
+		"AWS::EC2::NetworkInterfaceAttachment":           "sub-resource: an ENI↔instance attachment, modelled as an edge from the ENI",
+		"AWS::EC2::Route":                                "sub-resource: a route-table route, embedded in the route table Routes[]",
+		"AWS::EC2::RouteServerAssociation":               "sub-resource: a route-server↔VPC association, no standalone List API",
+		"AWS::EC2::RouteServerPropagation":               "sub-resource: a route-server↔route-table propagation, no standalone List API",
+		"AWS::EC2::SecurityGroupEgress":                  "sub-resource: a security-group egress rule, embedded in the security-group IpPermissionsEgress[]",
+		"AWS::EC2::SecurityGroupIngress":                 "sub-resource: a security-group ingress rule, embedded in the security-group IpPermissions[]",
+		"AWS::EC2::SubnetCidrBlock":                      "sub-resource: an IPv6 CIDR block on a subnet, embedded in the subnet",
+		"AWS::EC2::SubnetNetworkAclAssociation":          "sub-resource: a subnet↔NACL association, modelled as an edge",
+		"AWS::EC2::SubnetRouteTableAssociation":          "sub-resource: a subnet↔route-table association, embedded in the route table Associations[]",
+		"AWS::EC2::VPCCidrBlock":                         "sub-resource: a secondary CIDR block on a VPC, embedded in the VPC",
+		"AWS::EC2::VPCDHCPOptionsAssociation":            "sub-resource: a VPC↔DHCP-options association, modelled as an edge",
+		"AWS::EC2::VPCGatewayAttachment":                 "sub-resource: an internet/VPN-gateway↔VPC attachment, modelled as an edge",
+		"AWS::EC2::VPNConnectionRoute":                   "sub-resource: a static route on a VPN connection, embedded in the vpn-connection",
+		"AWS::EC2::VPNGatewayRoutePropagation":           "sub-resource: a VPN-gateway↔route-table propagation, embedded in the route table",
+		"AWS::EC2::VolumeAttachment":                     "sub-resource: a volume↔instance attachment, modelled as an edge from the volume",
+		"AWS::ec2::security-group-rule":                  "sub-resource: a security-group rule, embedded in the security-group IpPermissions[]",
+		"AWS::ec2::subnet-cidr-reservation":              "sub-resource: a CIDR reservation within a subnet, no standalone Describe API",
+		"AWS::ec2::verified-access-endpoint-target":      "sub-resource: a target of a verified-access endpoint, embedded in the endpoint",
+		"AWS::ec2::verified-access-policy":               "sub-resource: a policy attached to a verified-access group/endpoint, embedded in the parent",
+		"AWS::ec2::vpc-endpoint-connection":              "sub-resource: a consumer connection to a VPC endpoint service, modelled as an edge",
+
+		// ec2 — CFN-only types with no aws-sdk-go-v2 op (per the per-service-API mandate, CFN-only types are not scannable).
+		"AWS::EC2::TransitGatewayMeteringPolicyEntry": "no SDK: a CFN-only sub-resource of the metering policy with no aws-sdk-go-v2 ec2 op",
+		"AWS::EC2::SqlHaStandbyDetectedInstance":      "no SDK: a CFN-only detection record with no aws-sdk-go-v2 ec2 op",
+
+		// ec2 — ephemeral task/quote/report records, not persistent resources.
+		"AWS::ec2::capacity-reservation-cancellation-quote": "ephemeral: a one-shot cancellation quote, not a persistent resource",
+		"AWS::ec2::declarative-policies-report":             "ephemeral: a generated declarative-policies report, not a persistent resource",
+		"AWS::ec2::image-usage-report":                      "ephemeral: a generated AMI usage report, not a persistent resource",
+		"AWS::ec2::export-image-task":                       "ephemeral: an in-progress AMI-export task record, not a persistent resource",
+		"AWS::ec2::export-instance-task":                    "ephemeral: an in-progress instance-export task record, not a persistent resource",
+		"AWS::ec2::import-image-task":                       "ephemeral: an in-progress AMI-import task record, not a persistent resource",
+		"AWS::ec2::import-snapshot-task":                    "ephemeral: an in-progress snapshot-import task record, not a persistent resource",
+		"AWS::ec2::mac-modification-task":                   "ephemeral: an in-progress dedicated-host MAC-modification task record, not a persistent resource",
+		"AWS::ec2::replace-root-volume-task":                "ephemeral: an in-progress root-volume-replacement task record, not a persistent resource",
+
+		// ec2 — services AWS has retired; no resources remain to scan.
+		"AWS::ec2::elastic-gpu":       "retired: Amazon Elastic Graphics was discontinued by AWS",
+		"AWS::ec2::elastic-inference": "retired: Amazon Elastic Inference was discontinued by AWS (April 2024)",
+
+		// ec2 — a read-only catalog of sample VPN device configurations, not account resources.
+		"AWS::ec2::vpn-connection-device-type": "catalog: AWS's read-only list of supported VPN device types, not an account resource",
+
+		// ec2 — cross-service / abbreviation duplicates the canonicalizer can't bridge.
+		// Same physical resource disco already scans under another type.
+		"AWS::ec2::elastic-ip":            "duplicate: scanned as aws:ec2:eip (AWS::EC2::EIP)",
+		"AWS::ec2::fleet":                 "duplicate: scanned as aws:ec2:ec2-fleet (AWS::EC2::EC2Fleet)",
+		"AWS::ec2::dedicated-host":        "duplicate: scanned as aws:ec2:host (AWS::EC2::Host)",
+		"AWS::ec2::vpc-flow-log":          "duplicate: scanned as aws:ec2:flow-log (AWS::EC2::FlowLog)",
+		"AWS::ec2::spot-fleet-request":    "duplicate: scanned as aws:ec2:spot-fleet (AWS::EC2::SpotFleet)",
+		"AWS::ec2::ipam-pool-allocation":  "duplicate: scanned as aws:ec2:ipam-allocation (AWS::EC2::IPAMAllocation)",
+		"AWS::ec2::group":                 "duplicate: the SR ec2:group ARN is a resource-groups group, scanned as aws:resource-groups:group",
+		"AWS::ec2::role":                  "duplicate: the SR ec2:role ARN is an IAM role, scanned as aws:iam:role",
+		"AWS::ec2::certificate":           "duplicate: the SR ec2:certificate ARN is an ACM certificate, scanned as aws:acm:certificate",
+		"AWS::ec2::license-configuration": "duplicate: the SR ec2:license-configuration ARN is a License Manager config, scanned as aws:license-manager:license-configuration",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
