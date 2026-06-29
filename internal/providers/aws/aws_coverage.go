@@ -351,6 +351,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBackupGatewayVirtualMachine:      "AWS::backup-gateway::virtualmachine",
 		TypeBCMDataExportsExport:             "AWS::BCMDataExports::Export",
 		TypeBcmPricingCalculatorBillScenario: "AWS::BcmPricingCalculator::BillScenario",
+		// bill-estimate + workload-estimate exist only in the hyphenated Service
+		// Reference catalog (no CloudFormation type), so alias to the exact SR key.
+		TypeBcmPricingCalculatorBillEstimate:     "AWS::bcm-pricing-calculator::bill-estimate",
+		TypeBcmPricingCalculatorWorkloadEstimate: "AWS::bcm-pricing-calculator::workload-estimate",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

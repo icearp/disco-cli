@@ -514,7 +514,9 @@ const (
 	// BCM Data Exports (bcmdataexports_scanners.go)
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
 	// BCM Pricing Calculator (bcmpricingcalculator_scanners.go)
-	TypeBcmPricingCalculatorBillScenario = "aws:bcmpricingcalculator:bill-scenario"
+	TypeBcmPricingCalculatorBillScenario     = "aws:bcmpricingcalculator:bill-scenario"
+	TypeBcmPricingCalculatorBillEstimate     = "aws:bcmpricingcalculator:bill-estimate"
+	TypeBcmPricingCalculatorWorkloadEstimate = "aws:bcmpricingcalculator:workload-estimate"
 	// Billing (billing_scanners.go, billing_resolvers.go)
 	TypeBillingView = "aws:billing:billing-view"
 	// Billing Conductor (billingconductor_scanners.go, billingconductor_resolvers.go)

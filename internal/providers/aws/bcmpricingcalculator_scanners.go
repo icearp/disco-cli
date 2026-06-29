@@ -34,6 +34,8 @@ func init() {
 		fn:   scanBcmPricingCalculator,
 		emits: []coverage.TypeDecl{
 			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillScenario, Leaf: true},
+			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorBillEstimate, Leaf: true},
+			{Service: "bcmpricingcalculator", DiscoType: TypeBcmPricingCalculatorWorkloadEstimate, Leaf: true},
 		},
 	})
 }
@@ -41,69 +43,135 @@ func init() {
 // bcmPricingCalculatorAPI is the narrow surface scanBcmPricingCalculator uses.
 type bcmPricingCalculatorAPI interface {
 	ListBillScenarios(context.Context, *bcmpricingcalculator.ListBillScenariosInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListBillScenariosOutput, error)
+	ListBillEstimates(context.Context, *bcmpricingcalculator.ListBillEstimatesInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListBillEstimatesOutput, error)
+	ListWorkloadEstimates(context.Context, *bcmpricingcalculator.ListWorkloadEstimatesInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListWorkloadEstimatesOutput, error)
 }
 
-// bcmPricingCalculatorBillScenarioNativeID synthesizes the bill-scenario
-// ARN. The SDK summary only carries an Id; the canonical AWS ARN for the
-// resource is `arn:aws:bcm-pricing-calculator:{region}:{acct}:bill-scenario/{id}`.
-func bcmPricingCalculatorBillScenarioNativeID(region, acct, id string) string {
-	return fmt.Sprintf("arn:aws:bcm-pricing-calculator:%s:%s:bill-scenario/%s", region, acct, id)
+// bcmPricingCalculatorNativeID synthesizes the canonical ARN for a pricing-
+// calculator artifact (the SDK summaries carry only an Id):
+// arn:aws:bcm-pricing-calculator:{region}:{acct}:{kind}/{id}.
+func bcmPricingCalculatorNativeID(region, acct, kind, id string) string {
+	return fmt.Sprintf("arn:aws:bcm-pricing-calculator:%s:%s:%s/%s", region, acct, kind, id)
+}
+
+// bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
+// value a phase should return: the markServiceDisabled sentinel for account-
+// level not-enabled / payer-only states (halts the scanner), nil for the
+// migration-required IAM deny and the soft access-denied skip (the orchestrator
+// continues to the next phase), or a wrapped fatal error otherwise.
+func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error {
+	switch {
+	case isCostExplorerNotEnabled(perr), isPayerAccountOnly(perr):
+		return markServiceDisabled(perr)
+	case isMigrationRequiredIAMDeny(perr):
+		return nil
+	case isAccessDenied(perr):
+		return skipIfAccessDenied(st, op, acctID, region, perr)
+	default:
+		return fmt.Errorf("%s: %w", op, perr)
+	}
 }
 
 func scanBcmPricingCalculator(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = region })
-	return scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID)
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanBcmPricingCalculatorBillEstimates(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanBcmPricingCalculatorWorkloadEstimates(ctx, client, acct, region, st, scanID)
+		},
+	} {
+		t, i, ferr := phase()
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+	return total, inserted, nil
 }
 
-func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := bcmpricingcalculator.NewListBillScenariosPaginator(client, &bcmpricingcalculator.ListBillScenariosInput{})
 	var rows []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
-			if isCostExplorerNotEnabled(perr) {
-				return total, inserted, markServiceDisabled(perr)
-			}
-			if isPayerAccountOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
-			}
-			if isMigrationRequiredIAMDeny(perr) {
-				return total, inserted, nil
-			}
-			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "bcmpricingcalculator:ListBillScenarios", acct.ID, region, perr)
-			}
-			return total, inserted, fmt.Errorf("bcmpricingcalculator:ListBillScenarios: %w", perr)
+			return 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListBillScenarios", acct.ID, region, perr)
 		}
 		for _, s := range out.Items {
 			id := sv(s.Id)
 			if id == "" {
 				continue
 			}
-			arn := bcmPricingCalculatorBillScenarioNativeID(region, acct.ID, id)
 			name := sv(s.Name)
 			status := string(s.Status)
 			rows = append(rows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBcmPricingCalculatorBillScenario,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				CreatedAt:      tp(s.CreatedAt),
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeBcmPricingCalculatorBillScenario,
+				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "bill-scenario", id),
+				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(s.CreatedAt),
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
 	}
-	if len(rows) == 0 {
-		return 0, 0, nil
+	return upsertBatch(st, rows, "bcmpricingcalculator bill-scenarios")
+}
+
+func scanBcmPricingCalculatorBillEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := bcmpricingcalculator.NewListBillEstimatesPaginator(client, &bcmpricingcalculator.ListBillEstimatesInput{})
+	var rows []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			return 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListBillEstimates", acct.ID, region, perr)
+		}
+		for _, e := range out.Items {
+			id := sv(e.Id)
+			if id == "" {
+				continue
+			}
+			name := sv(e.Name)
+			status := string(e.Status)
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeBcmPricingCalculatorBillEstimate,
+				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "bill-estimate", id),
+				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(e.CreatedAt),
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
 	}
-	n, uerr := st.UpsertResources(rows)
-	if uerr != nil {
-		return total, inserted, fmt.Errorf("upsert bcmpricingcalculator bill scenarios: %w", uerr)
+	return upsertBatch(st, rows, "bcmpricingcalculator bill-estimates")
+}
+
+func scanBcmPricingCalculatorWorkloadEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := bcmpricingcalculator.NewListWorkloadEstimatesPaginator(client, &bcmpricingcalculator.ListWorkloadEstimatesInput{})
+	var rows []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			return 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListWorkloadEstimates", acct.ID, region, perr)
+		}
+		for _, e := range out.Items {
+			id := sv(e.Id)
+			if id == "" {
+				continue
+			}
+			name := sv(e.Name)
+			status := string(e.Status)
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeBcmPricingCalculatorWorkloadEstimate,
+				NativeID: bcmPricingCalculatorNativeID(region, acct.ID, "workload-estimate", id),
+				Name:     &name, Region: &region, Status: &status, CreatedAt: tp(e.CreatedAt),
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
 	}
-	return len(rows), n, nil
+	return upsertBatch(st, rows, "bcmpricingcalculator workload-estimates")
 }

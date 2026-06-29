@@ -228,6 +228,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// bcm-data-exports — billingview is the same AWS billing-view resource the
+		// IAM Service Reference also lists under the billing and ce prefixes; disco
+		// scans it once as aws:billing:billing-view (covering AWS::billing::billingview).
+		// table is AWS's published catalog of exportable table schemas
+		// (COST_AND_USAGE_REPORT, …) with no ARN — not a user resource.
+		"AWS::bcm-data-exports::billingview": "duplicate: AWS billing view catalogued under multiple IAM prefixes; scanned as aws:billing:billing-view",
+		"AWS::bcm-data-exports::table":       "no ARN: AWS-published catalog of exportable table schemas (ListTables), not a user resource",
+
 		// braket — SearchDevices only supports the deviceArn filter (no match-all),
 		// so the AWS/partner quantum-device catalog can't be enumerated without
 		// already knowing the ARNs; jobs and quantum-tasks are execution records.

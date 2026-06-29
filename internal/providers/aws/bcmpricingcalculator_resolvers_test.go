@@ -9,7 +9,7 @@ func TestResolveBcmPricingCalculatorRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	arn := bcmPricingCalculatorBillScenarioNativeID(testRegion, acct.ID, "scenario-x")
+	arn := bcmPricingCalculatorNativeID(testRegion, acct.ID, "bill-scenario", "scenario-x")
 	bID := upsertTestResource(t, st, "aws", acct.ID, TypeBcmPricingCalculatorBillScenario, arn, testRegion, "{}")
 
 	if err := resolveBcmPricingCalculatorRelationships(acct, st); err != nil {
