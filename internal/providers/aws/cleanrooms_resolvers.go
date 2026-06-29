@@ -19,6 +19,8 @@ func init() {
 		EdgeDecl{TypeCleanRoomsAnalysisTemplate, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsCollaboration, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsConfiguredAudienceModelAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
+		EdgeDecl{TypeCleanRoomsConfiguredAudienceModelAssociation, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsIDMappingTable, TypeCleanRoomsMembership, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsIDMappingTable, TypeCleanRoomsCollaboration, store.RelAttachedTo},
 		EdgeDecl{TypeCleanRoomsIDNamespaceAssociation, TypeCleanRoomsMembership, store.RelAttachedTo},
@@ -29,6 +31,10 @@ func init() {
 	registerResolver(
 		resolveCleanRoomsConfiguredTableAssocToTable,
 		EdgeDecl{TypeCleanRoomsConfiguredTableAssociation, TypeCleanRoomsConfiguredTable, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveCleanRoomsConfiguredAudienceModelAssocToModel,
+		EdgeDecl{TypeCleanRoomsConfiguredAudienceModelAssociation, TypeCleanRoomsMLConfiguredAudienceModel, store.RelUses},
 	)
 }
 
@@ -87,6 +93,7 @@ func resolveCleanRoomsChildToMembership(acct *account, st *store.Store) error {
 	childTypes := []string{
 		TypeCleanRoomsAnalysisTemplate,
 		TypeCleanRoomsConfiguredTableAssociation,
+		TypeCleanRoomsConfiguredAudienceModelAssociation,
 		TypeCleanRoomsIDMappingTable,
 		TypeCleanRoomsIDNamespaceAssociation,
 		TypeCleanRoomsPrivacyBudgetTemplate,
@@ -161,6 +168,46 @@ func resolveCleanRoomsConfiguredTableAssocToTable(acct *account, st *store.Store
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cr cta→table: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveCleanRoomsConfiguredAudienceModelAssocToModel wires each configured-
+// audience-model-association to the cleanrooms-ml configured-audience-model it
+// references via `ConfiguredAudienceModelArn` (cross-service, FK-safe).
+func resolveCleanRoomsConfiguredAudienceModelAssocToModel(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCleanRoomsConfiguredAudienceModelAssociation},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	modelSet, err := scannedIDSet(acct, st, TypeCleanRoomsMLConfiguredAudienceModel)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ConfiguredAudienceModelArn *string `json:"ConfiguredAudienceModelArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.ConfiguredAudienceModelArn)
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeCleanRoomsMLConfiguredAudienceModel, arn)
+		if !modelSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cr camassoc→cam: %w", err)
 		}
 	}
 	return nil

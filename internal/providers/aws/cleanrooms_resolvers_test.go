@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	cleanroomstypes "github.com/aws/aws-sdk-go-v2/service/cleanrooms/types"
 )
 
 func TestResolveCleanRoomsMembershipCollaboration(t *testing.T) {
@@ -53,4 +55,61 @@ func TestResolveCleanRoomsConfiguredTableAssocToTable(t *testing.T) {
 	}
 	rels, _ := st.RelationshipsFrom(aID)
 	assertRelationship(t, rels, aID, tID, store.RelAttachedTo)
+}
+
+func TestResolveCleanRoomsConfiguredAudienceModelAssoc(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	mARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:membership/m1", testRegion, acct.ID)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeCleanRoomsMembership, mARN, testRegion, "{}")
+	camARN := fmt.Sprintf("arn:aws:cleanrooms-ml:%s:%s:configured-audience-model/cam1", testRegion, acct.ID)
+	camID := upsertTestResource(t, st, "aws", acct.ID, TypeCleanRoomsMLConfiguredAudienceModel, camARN, testRegion, "{}")
+
+	assocARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:membership/m1/configuredaudiencemodelassociation/a1", testRegion, acct.ID)
+	attrsB, err := json.Marshal(cleanroomstypes.ConfiguredAudienceModelAssociationSummary{
+		Arn: &assocARN, MembershipArn: &mARN, ConfiguredAudienceModelArn: &camARN,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeCleanRoomsConfiguredAudienceModelAssociation, assocARN, testRegion, string(attrsB))
+
+	if err := resolveCleanRoomsChildToMembership(acct, st); err != nil {
+		t.Fatalf("child→membership: %v", err)
+	}
+	if err := resolveCleanRoomsConfiguredAudienceModelAssocToModel(acct, st); err != nil {
+		t.Fatalf("assoc→model: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(assocID)
+	assertRelationship(t, rels, assocID, mID, store.RelAttachedTo)
+	assertRelationship(t, rels, assocID, camID, store.RelUses)
+}
+
+// An association whose ConfiguredAudienceModelArn points at an unscanned model
+// and whose MembershipArn is empty emits no edge.
+func TestResolveCleanRoomsConfiguredAudienceModelAssoc_NoEdge(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	assocARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:membership/m1/configuredaudiencemodelassociation/a1", testRegion, acct.ID)
+	missing := fmt.Sprintf("arn:aws:cleanrooms-ml:%s:%s:configured-audience-model/never", testRegion, acct.ID)
+	attrsB, err := json.Marshal(cleanroomstypes.ConfiguredAudienceModelAssociationSummary{
+		Arn: &assocARN, ConfiguredAudienceModelArn: &missing,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeCleanRoomsConfiguredAudienceModelAssociation, assocARN, testRegion, string(attrsB))
+
+	if err := resolveCleanRoomsChildToMembership(acct, st); err != nil {
+		t.Fatalf("child→membership: %v", err)
+	}
+	if err := resolveCleanRoomsConfiguredAudienceModelAssocToModel(acct, st); err != nil {
+		t.Fatalf("assoc→model: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(assocID)
+	if len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
 }

@@ -18,6 +18,7 @@ func init() {
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsCollaboration, Leaf: true},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTable, Leaf: true},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredTableAssociation},
+			{Service: "cleanrooms", DiscoType: TypeCleanRoomsConfiguredAudienceModelAssociation},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDMappingTable},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsIDNamespaceAssociation},
 			{Service: "cleanrooms", DiscoType: TypeCleanRoomsMembership},
@@ -32,6 +33,7 @@ type cleanRoomsAPI interface {
 	ListMemberships(context.Context, *cleanrooms.ListMembershipsInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListMembershipsOutput, error)
 	ListAnalysisTemplates(context.Context, *cleanrooms.ListAnalysisTemplatesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListAnalysisTemplatesOutput, error)
 	ListConfiguredTableAssociations(context.Context, *cleanrooms.ListConfiguredTableAssociationsInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListConfiguredTableAssociationsOutput, error)
+	ListConfiguredAudienceModelAssociations(context.Context, *cleanrooms.ListConfiguredAudienceModelAssociationsInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListConfiguredAudienceModelAssociationsOutput, error)
 	ListIdMappingTables(context.Context, *cleanrooms.ListIdMappingTablesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListIdMappingTablesOutput, error)
 	ListIdNamespaceAssociations(context.Context, *cleanrooms.ListIdNamespaceAssociationsInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListIdNamespaceAssociationsOutput, error)
 	ListPrivacyBudgetTemplates(context.Context, *cleanrooms.ListPrivacyBudgetTemplatesInput, ...func(*cleanrooms.Options)) (*cleanrooms.ListPrivacyBudgetTemplatesOutput, error)
@@ -64,6 +66,9 @@ func scanCleanRooms(ctx context.Context, acct *account, region string, st *store
 			func() (int, int, error) { return scanCRAnalysisTemplates(ctx, client, acct, region, st, scanID, mid) },
 			func() (int, int, error) {
 				return scanCRConfiguredTableAssociations(ctx, client, acct, region, st, scanID, mid)
+			},
+			func() (int, int, error) {
+				return scanCRConfiguredAudienceModelAssociations(ctx, client, acct, region, st, scanID, mid)
 			},
 			func() (int, int, error) {
 				return scanCRIdMappingTables(ctx, client, acct, region, st, scanID, mid)
@@ -247,6 +252,39 @@ func scanCRConfiguredTableAssociations(ctx context.Context, client cleanRoomsAPI
 		}
 	}
 	return upsertBatch(st, batch, "cleanrooms configured-table-associations")
+}
+
+func scanCRConfiguredAudienceModelAssociations(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID, memberID string) (int, int, error) {
+	mid := memberID
+	pager := cleanrooms.NewListConfiguredAudienceModelAssociationsPaginator(client, &cleanrooms.ListConfiguredAudienceModelAssociationsInput{MembershipIdentifier: &mid})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "cleanrooms:ListConfiguredAudienceModelAssociations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("cleanrooms:ListConfiguredAudienceModelAssociations: %w", perr)
+		}
+		for _, a := range out.ConfiguredAudienceModelAssociationSummaries {
+			arn := sv(a.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.Name)
+			if label == "" {
+				label = sv(a.Id)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCleanRoomsConfiguredAudienceModelAssociation, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(a),
+				CreatedAt: tp(a.CreateTime), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "cleanrooms configured-audience-model-associations")
 }
 
 func scanCRIdMappingTables(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID, memberID string) (int, int, error) {
