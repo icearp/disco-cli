@@ -170,6 +170,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::arc-zonal-shift::ALB": "duplicate: an Application Load Balancer (aws:elbv2:load-balancer) that ARC zonal shift can act on, not a distinct resource",
 		"AWS::arc-zonal-shift::NLB": "duplicate: a Network Load Balancer (aws:elbv2:load-balancer) that ARC zonal shift can act on, not a distinct resource",
 
+		// athena session — an interactive Athena-for-Spark session: ephemeral
+		// compute that idle-terminates. ListSessions requires a WorkGroup (per-
+		// workgroup fan-out) and the workgroup itself is scanned as
+		// aws:athena:work-group.
+		"AWS::athena::session": "ephemeral: interactive Athena-for-Spark session (idle-terminated); ListSessions needs a WorkGroup, scanned as aws:athena:work-group",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
