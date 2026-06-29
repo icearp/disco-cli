@@ -20,6 +20,8 @@ func init() {
 			{Service: "bedrock", DiscoType: TypeBedrockAutomatedReasoningPolicyVersion},
 			{Service: "bedrock", DiscoType: TypeBedrockIntelligentPromptRouter, Leaf: true},
 			{Service: "bedrock", DiscoType: TypeBedrockApplicationInferenceProfile, Leaf: true},
+			{Service: "bedrock", DiscoType: TypeBedrockInferenceProfile, Leaf: true},
+			{Service: "bedrock", DiscoType: TypeBedrockFoundationModel, Leaf: true},
 			{Service: "bedrock", DiscoType: TypeBedrockEnforcedGuardrailConfiguration, Leaf: true},
 			{Service: "bedrock", DiscoType: TypeBedrockAgent},
 			{Service: "bedrock", DiscoType: TypeBedrockAgentAlias},
@@ -56,6 +58,7 @@ type bedrockAPI interface {
 	ListPromptRouters(context.Context, *bedrock.ListPromptRoutersInput, ...func(*bedrock.Options)) (*bedrock.ListPromptRoutersOutput, error)
 	ListInferenceProfiles(context.Context, *bedrock.ListInferenceProfilesInput, ...func(*bedrock.Options)) (*bedrock.ListInferenceProfilesOutput, error)
 	ListEnforcedGuardrailsConfiguration(context.Context, *bedrock.ListEnforcedGuardrailsConfigurationInput, ...func(*bedrock.Options)) (*bedrock.ListEnforcedGuardrailsConfigurationOutput, error)
+	ListFoundationModels(context.Context, *bedrock.ListFoundationModelsInput, ...func(*bedrock.Options)) (*bedrock.ListFoundationModelsOutput, error)
 }
 
 func scanBedrock(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

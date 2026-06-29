@@ -46,6 +46,9 @@ func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account
 		func() (int, int, error) {
 			return scanBedrockEnforcedGuardrails(ctx, client, acct, region, st, scanID)
 		},
+		func() (int, int, error) {
+			return scanBedrockFoundationModels(ctx, client, acct, region, st, scanID)
+		},
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -309,8 +312,10 @@ func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *acco
 	return len(batch), n, nil
 }
 
-// scanBedrockInferenceProfiles emits only APPLICATION-type profiles —
-// SYSTEM_DEFINED profiles are managed by AWS and listed separately.
+// scanBedrockInferenceProfiles emits APPLICATION profiles (customer-created) as
+// aws:bedrock:application-inference-profile and SYSTEM_DEFINED profiles (the
+// AWS-managed cross-region routing catalog) as aws:bedrock:inference-profile
+// with ManagedByProvider set.
 func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := bedrock.NewListInferenceProfilesPaginator(client, &bedrock.ListInferenceProfilesInput{})
 	var batch []*store.Resource
@@ -327,9 +332,6 @@ func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *
 			return 0, 0, fmt.Errorf("bedrock:ListInferenceProfiles: %w", perr)
 		}
 		for _, p := range out.InferenceProfileSummaries {
-			if string(p.Type) != "APPLICATION" {
-				continue
-			}
 			arn := sv(p.InferenceProfileArn)
 			if arn == "" {
 				continue
@@ -338,16 +340,24 @@ func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *
 			if label == "" {
 				label = sv(p.InferenceProfileId)
 			}
+			rtype := TypeBedrockApplicationInferenceProfile
+			managed := false
+			if string(p.Type) != "APPLICATION" {
+				// SYSTEM_DEFINED — AWS-managed cross-region routing profile.
+				rtype = TypeBedrockInferenceProfile
+				managed = true
+			}
 			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBedrockApplicationInferenceProfile,
-				NativeID:       arn,
-				Name:           &label,
-				Region:         &region,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              rtype,
+				NativeID:          arn,
+				Name:              &label,
+				Region:            &region,
+				ManagedByProvider: managed,
+				AttributesJSON:    mustJSON(p),
+				DiscoveredBy:      scanID,
 			})
 		}
 	}
@@ -359,6 +369,46 @@ func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *
 		return 0, 0, fmt.Errorf("upsert bedrock inference-profiles: %w", uerr)
 	}
 	return len(batch), n, nil
+}
+
+// scanBedrockFoundationModels mirrors the AWS catalog of available foundation
+// models (ListFoundationModels — a single call, no pagination). Flagged
+// ManagedByProvider: it's an AWS-owned catalog, hidden from default queries.
+func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	out, err := client.ListFoundationModels(ctx, &bedrock.ListFoundationModelsInput{})
+	if err != nil {
+		if isSCPExplicitDeny(err) {
+			return 0, 0, nil
+		}
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "bedrock:ListFoundationModels", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("bedrock:ListFoundationModels: %w", err)
+	}
+	var batch []*store.Resource
+	for _, m := range out.ModelSummaries {
+		arn := sv(m.ModelArn)
+		if arn == "" {
+			continue
+		}
+		label := sv(m.ModelName)
+		if label == "" {
+			label = sv(m.ModelId)
+		}
+		batch = append(batch, &store.Resource{
+			Provider:          "aws",
+			AccountID:         acct.ID,
+			AccountName:       &acct.Name,
+			Type:              TypeBedrockFoundationModel,
+			NativeID:          arn,
+			Name:              &label,
+			Region:            &region,
+			ManagedByProvider: true,
+			AttributesJSON:    mustJSON(m),
+			DiscoveredBy:      scanID,
+		})
+	}
+	return upsertBatch(st, batch, "bedrock foundation-models")
 }
 
 func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -365,6 +365,9 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeBedrockProvisionedModel:         "AWS::bedrock::provisioned-model",
 		TypeBedrockCustomModelDeployment:    "AWS::bedrock::custom-model-deployment",
 		TypeBedrockMarketplaceModelEndpoint: "AWS::bedrock::bedrock-marketplace-model-endpoint",
+		// foundation-model + system-defined inference-profile catalogs are SR-only.
+		TypeBedrockFoundationModel:  "AWS::bedrock::foundation-model",
+		TypeBedrockInferenceProfile: "AWS::bedrock::inference-profile",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

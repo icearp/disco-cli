@@ -1293,6 +1293,9 @@ const (
 	TypeBedrockIntelligentPromptRouter         = "aws:bedrock:intelligent-prompt-router"
 	TypeBedrockApplicationInferenceProfile     = "aws:bedrock:application-inference-profile"
 	TypeBedrockEnforcedGuardrailConfiguration  = "aws:bedrock:enforced-guardrail-configuration"
+	// Bedrock — Catalogs (bedrock_foundation_scanners.go)
+	TypeBedrockFoundationModel  = "aws:bedrock:foundation-model"
+	TypeBedrockInferenceProfile = "aws:bedrock:inference-profile"
 	// Bedrock — Models (bedrock_models_scanners.go)
 	TypeBedrockCustomModel              = "aws:bedrock:custom-model"
 	TypeBedrockImportedModel            = "aws:bedrock:imported-model"
