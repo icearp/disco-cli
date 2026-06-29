@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -17,6 +19,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsSLO, Leaf: true},
 			{Service: "applicationsignals", DiscoType: TypeApplicationSignalsGroupingConfiguration, Leaf: true},
+			// Upstream catalogs Application Signals services under "cloudwatch".
+			{Service: "cloudwatch", DiscoType: TypeCloudWatchService, Leaf: true},
 		},
 	})
 }
@@ -24,6 +28,25 @@ func init() {
 type applicationSignalsAPI interface {
 	ListServiceLevelObjectives(context.Context, *applicationsignals.ListServiceLevelObjectivesInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListServiceLevelObjectivesOutput, error)
 	ListGroupingAttributeDefinitions(context.Context, *applicationsignals.ListGroupingAttributeDefinitionsInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListGroupingAttributeDefinitionsOutput, error)
+	ListServices(context.Context, *applicationsignals.ListServicesInput, ...func(*applicationsignals.Options)) (*applicationsignals.ListServicesOutput, error)
+}
+
+// applicationSignalsServiceNativeID synthesizes a stable NativeID for an
+// Application Signals service. The SDK exposes no ARN — a service is identified
+// by its required KeyAttributes map (Type/Name/Environment/…). Sorting the map
+// into "k=v" pairs keeps the NativeID stable across scans regardless of Go's
+// map-iteration order.
+func applicationSignalsServiceNativeID(region, acct string, keyAttrs map[string]string) string {
+	keys := make([]string, 0, len(keyAttrs))
+	for k := range keyAttrs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, k+"="+keyAttrs[k])
+	}
+	return fmt.Sprintf("arn:aws:application-signals:%s:%s:service/%s", region, acct, strings.Join(pairs, ";"))
 }
 
 // applicationSignalsGroupingConfigurationNativeID synthesizes the singleton
@@ -44,7 +67,61 @@ func scanApplicationSignals(ctx context.Context, acct *account, region string, s
 	if err != nil {
 		return sloTotal + gcTotal, sloInserted + gcInserted, err
 	}
-	return sloTotal + gcTotal, sloInserted + gcInserted, nil
+	svcTotal, svcInserted, err := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
+	if err != nil {
+		return sloTotal + gcTotal + svcTotal, sloInserted + gcInserted + svcInserted, err
+	}
+	return sloTotal + gcTotal + svcTotal, sloInserted + gcInserted + svcInserted, nil
+}
+
+// scanApplicationSignalsServices lists the Application Signals services
+// discovered in the trailing 24h. ListServices requires a time window and
+// returns only services with telemetry in that window, so a service quiet for
+// longer than the window will not appear — an inherent API limitation. Services
+// carry no ARN; the NativeID is synthesized from their KeyAttributes.
+func scanApplicationSignalsServices(ctx context.Context, client applicationSignalsAPI, acct *account, region string, st *store.Store, scanID string, now time.Time) (total, inserted int, err error) {
+	start := now.Add(-24 * time.Hour)
+	in := &applicationsignals.ListServicesInput{
+		StartTime: &start,
+		EndTime:   &now,
+	}
+	p := applicationsignals.NewListServicesPaginator(client, in)
+	for p.HasMorePages() {
+		page, perr := p.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "applicationsignals:ListServices", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("applicationsignals:ListServices: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(page.ServiceSummaries))
+		for _, s := range page.ServiceSummaries {
+			if len(s.KeyAttributes) == 0 {
+				continue
+			}
+			name := s.KeyAttributes["Name"]
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeCloudWatchService,
+				NativeID:       applicationSignalsServiceNativeID(region, acct.ID, s.KeyAttributes),
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(s),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, uerr := st.UpsertResources(batch)
+			if uerr != nil {
+				return total, inserted, fmt.Errorf("upsert applicationsignals services: %w", uerr)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
+	return total, inserted, nil
 }
 
 // scanApplicationSignalsGroupingConfiguration upserts the singleton

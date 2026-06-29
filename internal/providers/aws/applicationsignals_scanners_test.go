@@ -17,8 +17,23 @@ type stubApplicationSignals struct {
 	sloIdx        int
 	groupingPages []*applicationsignals.ListGroupingAttributeDefinitionsOutput
 	groupingIdx   int
+	servicePages  []*applicationsignals.ListServicesOutput
+	serviceIdx    int
 	sloErr        error
 	groupingErr   error
+	serviceErr    error
+}
+
+func (s *stubApplicationSignals) ListServices(_ context.Context, _ *applicationsignals.ListServicesInput, _ ...func(*applicationsignals.Options)) (*applicationsignals.ListServicesOutput, error) {
+	if s.serviceErr != nil {
+		return nil, s.serviceErr
+	}
+	if s.serviceIdx >= len(s.servicePages) {
+		return &applicationsignals.ListServicesOutput{}, nil
+	}
+	out := s.servicePages[s.serviceIdx]
+	s.serviceIdx++
+	return out, nil
 }
 
 func (s *stubApplicationSignals) ListServiceLevelObjectives(_ context.Context, _ *applicationsignals.ListServiceLevelObjectivesInput, _ ...func(*applicationsignals.Options)) (*applicationsignals.ListServiceLevelObjectivesOutput, error) {
@@ -83,6 +98,63 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 	}
 	if len(rows) != 1 || rows[0].NativeID != want {
 		t.Errorf("rows=%+v, want one row with NativeID %s", rows, want)
+	}
+}
+
+func TestApplicationSignalsServiceNativeID_StableAcrossMapOrder(t *testing.T) {
+	a := applicationSignalsServiceNativeID("us-east-1", "111111111111", map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
+	b := applicationSignalsServiceNativeID("us-east-1", "111111111111", map[string]string{"Name": "checkout", "Environment": "prod", "Type": "Service"})
+	if a != b {
+		t.Errorf("native id not stable across map order:\n a=%q\n b=%q", a, b)
+	}
+	want := "arn:aws:application-signals:us-east-1:111111111111:service/Environment=prod;Name=checkout;Type=Service"
+	if a != want {
+		t.Errorf("native id = %q, want %q", a, want)
+	}
+}
+
+func TestScanApplicationSignalsServices_Populated(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := testRegion
+
+	stub := &stubApplicationSignals{
+		servicePages: []*applicationsignals.ListServicesOutput{{
+			ServiceSummaries: []applicationsignalstypes.ServiceSummary{{
+				KeyAttributes: map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"},
+			}},
+		}},
+	}
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	total, inserted, err := scanApplicationSignalsServices(context.Background(), stub, acct, region, st, testScanID, now)
+	if err != nil {
+		t.Fatalf("scanApplicationSignalsServices: %v", err)
+	}
+	if total != 1 || inserted != 1 {
+		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
+	}
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCloudWatchService}, Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	want := applicationSignalsServiceNativeID(region, acct.ID, map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
+	if len(rows) != 1 || rows[0].NativeID != want {
+		t.Errorf("rows=%+v, want one row with NativeID %s", rows, want)
+	}
+}
+
+func TestScanApplicationSignalsServices_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	stub := &stubApplicationSignals{}
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	total, inserted, err := scanApplicationSignalsServices(context.Background(), stub, acct, testRegion, st, testScanID, now)
+	if err != nil {
+		t.Fatalf("scanApplicationSignalsServices: %v", err)
+	}
+	if total != 0 || inserted != 0 {
+		t.Errorf("total=%d inserted=%d, want 0/0 (no services)", total, inserted)
 	}
 }
 

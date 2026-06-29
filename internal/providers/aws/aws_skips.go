@@ -388,6 +388,12 @@ func (coverageProvider) Skips() map[string]string {
 		// channel it ingests into is scanned as aws:cloudtrail:channel.
 		"AWS::cloudtrail-data::channel": "duplicate: the ingestion channel is scanned as aws:cloudtrail:channel; cloudtraildata SDK exposes only PutAuditEvents",
 
+		// cloudwatch — the unified-console branding of Application Signals + a
+		// CFN-only alarm variant + a no-list dataset.
+		"AWS::cloudwatch::slo":      "duplicate: the SLO is scanned as aws:applicationsignals:service-level-objective (cloudwatch is the unified-console branding of the same resource)",
+		"AWS::cloudwatch::dataset":  "no list API: cloudwatch SDK exposes only GetDataset (by id); datasets cannot be enumerated",
+		"AWS::CloudWatch::LogAlarm": "no SDK list op: a CFN-only alarm variant; DescribeAlarms returns only metric/composite alarms (scanned as aws:cloudwatch:alarm / composite-alarm)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-

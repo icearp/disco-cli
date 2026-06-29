@@ -417,6 +417,9 @@ const (
 	TypeCloudWatchInsightRule     = "aws:cloudwatch:insight-rule"
 	TypeCloudWatchMetricStream    = "aws:cloudwatch:metric-stream"
 	TypeCloudWatchOTelEnrichment  = "aws:cloudwatch:otel-enrichment"
+	// CloudWatch Application Signals services — catalogued by upstream under
+	// cloudwatch, scanned via the applicationsignals SDK (applicationsignals_scanners.go).
+	TypeCloudWatchService = "aws:cloudwatch:service"
 	// Cloud9 (cloud9_scanners.go)
 	TypeCloud9EnvironmentEC2 = "aws:cloud9:environment-ec2"
 	// Chime (chime_scanners.go)
