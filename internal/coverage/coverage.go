@@ -225,10 +225,17 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	if algorithmic == nil {
 		algorithmic = AlgorithmicUpstreamKey
 	}
-	// Normalise skip keys to the lowercased namespace Build matches in.
+	// Normalise skip keys to the lowercased namespace Build matches in. Also
+	// index by canonical identity so one skip entry covers a key's cross-catalog
+	// twin (CFN PascalCase vs SR hyphenated) — same collapse the duplicate path
+	// uses, so a skip declared under either spelling matches the other.
 	skipByKey := make(map[string]string, len(skips))
+	skipByCanon := make(map[string]string, len(skips))
 	for k, reason := range skips {
 		skipByKey[strings.ToLower(k)] = reason
+		if canonical != nil {
+			skipByCanon[canonical(k)] = reason
+		}
 	}
 	// De-dupe emits by DiscoType, preserving the first occurrence's Service.
 	dedupedEmits := make([]TypeDecl, 0, len(emits))
@@ -307,7 +314,11 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 		if matched[k] {
 			continue
 		}
-		if reason, skip := skipByKey[k]; skip {
+		reason, skip := skipByKey[k]
+		if !skip && canonical != nil {
+			reason, skip = skipByCanon[canonical(u.Key)]
+		}
+		if skip {
 			rows = append(rows, Row{
 				Provider:    providerName,
 				Service:     u.Service,

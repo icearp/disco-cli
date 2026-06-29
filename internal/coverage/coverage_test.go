@@ -197,3 +197,38 @@ func TestCanonicalDuplicateMatching(t *testing.T) {
 		t.Errorf("AWS::amplify::jobs bucket = %q; want uncovered", jobsBucket)
 	}
 }
+
+// A skip declared under one catalog's spelling (SR hyphenated) must also mark
+// the cross-catalog twin (CFN PascalCase) not-scannable via canonical matching,
+// so each divergent service needs only one skip entry.
+func TestSkipMatchesCanonicalTwin(t *testing.T) {
+	skips := map[string]string{
+		"AWS::aws-external-anthropic::workspace": "no SDK: external-partner prefix",
+	}
+	upstream := []UpstreamType{
+		{Key: "AWS::AWSExternalAnthropic::Workspace", Service: "AWSExternalAnthropic"}, // CFN twin
+	}
+	canon := func(k string) string {
+		p := strings.SplitN(k, "::", 3)
+		if len(p) != 3 {
+			return strings.ToLower(k)
+		}
+		strip := func(s string) string { return strings.ReplaceAll(strings.ToLower(s), "-", "") }
+		return strip(p[1]) + "::" + strip(p[2])
+	}
+
+	got := Build("aws", nil, nil, nil, upstream, skips, canon)
+
+	var row *Row
+	for i := range got.Rows {
+		if got.Rows[i].UpstreamKey == "AWS::AWSExternalAnthropic::Workspace" {
+			row = &got.Rows[i]
+		}
+	}
+	if row == nil {
+		t.Fatal("no row for the CFN twin")
+	}
+	if row.Bucket != BucketNotScannable {
+		t.Errorf("CFN twin bucket = %q; want not-scannable", row.Bucket)
+	}
+}
