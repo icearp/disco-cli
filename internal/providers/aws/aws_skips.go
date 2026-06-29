@@ -228,6 +228,13 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// braket — SearchDevices only supports the deviceArn filter (no match-all),
+		// so the AWS/partner quantum-device catalog can't be enumerated without
+		// already knowing the ARNs; jobs and quantum-tasks are execution records.
+		"AWS::braket::device":       "no enumerate API: SearchDevices only supports the deviceArn filter; the device catalog can't be listed without known ARNs",
+		"AWS::braket::job":          "ephemeral: Braket hybrid-job execution record, not a persistent resource",
+		"AWS::braket::quantum-task": "ephemeral: Braket quantum-task execution record, not a persistent resource",
+
 		// billing — the aws-sdk-go-v2/service/billing client exposes only billing
 		// views (ListBillingViews); there is no list/describe op for contract
 		// (AWS private-pricing agreements), so it cannot be enumerated.

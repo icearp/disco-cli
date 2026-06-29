@@ -452,8 +452,6 @@ github.com/aws/aws-sdk-go-v2/service/backupgateway v1.27.5 h1:GTzNtie4PlwMNSwYcj
 github.com/aws/aws-sdk-go-v2/service/backupgateway v1.27.5/go.mod h1:+zZOYc2rX3Lyoi51XMEekZBVaR9cI9wC22euwL4m5BA=
 github.com/aws/aws-sdk-go-v2/service/batch v1.66.0 h1:t3q4PaCfNb9t/A1VYi2TxsQNiBoqulzMP+nWJgvApU0=
 github.com/aws/aws-sdk-go-v2/service/batch v1.66.0/go.mod h1:PcfGh6couv2ZOZSSdPqbkXM+RuUrwpxeLqSQC3x7ofc=
-github.com/aws/aws-sdk-go-v2/service/bcmdashboards v1.3.7 h1:RGyXaapjrxrS9nH3uBy6BQI3oEyOVdblRiAIaEmmeJ0=
-github.com/aws/aws-sdk-go-v2/service/bcmdashboards v1.3.7/go.mod h1:IxZs+Sij/jMJyBiteV5brml1zxZkbg434xkiKGneJr0=
 github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.16.7 h1:EP1Xx/sZn+/RrO6+JsCWaIxGiIjEId/k8XJ+BHb2lGc=
 github.com/aws/aws-sdk-go-v2/service/bcmdataexports v1.16.7/go.mod h1:QUQeg4Z6CY52SFrLYKyogutoRcP2w8n55swG9Vg0log=
 github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator v1.11.7 h1:v6l2tOtPXzqjJF7EO1EtmwkNA+QLgb3e4rsKk57aSYw=
