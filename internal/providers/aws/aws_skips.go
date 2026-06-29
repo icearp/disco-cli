@@ -474,6 +474,18 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::comprehend::topics-detection-job":             comprehendJob,
 		"AWS::comprehend::flywheel-dataset":                 "content: a labeled training dataset registered to a flywheel, not infrastructure",
 
+		// computeoptimizer — the Compute Optimizer SDK exposes only Get*Recommendations
+		// ops; AutomationRule is modeled in CloudFormation / Service Reference only.
+		"AWS::ComputeOptimizer::AutomationRule": "no SDK list op: Compute Optimizer automation rules are CFN/Service-Reference-only (SDK exposes only Get*Recommendations)",
+
+		// config — the Connector resource is CFN/Service-Reference-only; the
+		// configservice SDK exposes no connector list/describe op.
+		"AWS::config::Connector": "no SDK list op: AWS Config connectors are CFN/Service-Reference-only, not modeled in aws-sdk-go-v2 configservice",
+
+		// consoleapp (AWS Console Mobile Application) — no aws-sdk-go-v2 client
+		// exists; device identities are per-user mobile-device registrations.
+		"AWS::consoleapp::DeviceIdentity": "no SDK: AWS Console Mobile Application has no aws-sdk-go-v2 client; device identities are per-user mobile registrations",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
