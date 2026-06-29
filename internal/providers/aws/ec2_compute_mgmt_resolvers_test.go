@@ -47,6 +47,41 @@ func TestResolveInstanceRelationships(t *testing.T) {
 	assertRelationship(t, rels, instID, volID, store.RelAttachedTo)
 }
 
+func TestResolveSnapshotRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+
+	volID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume,
+		ec2ARN(region, acct.ID, "volume", "vol-444"), region, "{}")
+	keyARN := "arn:aws:kms:" + region + ":" + acct.ID + ":key/k-snap"
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, region, "{}")
+	snapARN := ec2ARN(region, acct.ID, "snapshot", "snap-1")
+	attrs := `{"VolumeId":"vol-444","KmsKeyId":"` + keyARN + `"}`
+	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Snapshot, snapARN, region, attrs)
+
+	if err := resolveSnapshotRelationships(acct, st); err != nil {
+		t.Fatalf("resolveSnapshotRelationships: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(snapID)
+	assertRelationship(t, rels, snapID, volID, store.RelAttachedTo)
+	assertRelationship(t, rels, snapID, kID, store.RelUses)
+}
+
+func TestResolveSnapshotRelationships_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount("123456789012")
+	region := "us-east-1"
+	snapARN := ec2ARN(region, acct.ID, "snapshot", "snap-1")
+	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Snapshot, snapARN, region, "{}")
+	if err := resolveSnapshotRelationships(acct, st); err != nil {
+		t.Fatalf("empty: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(snapID); len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}
+
 // TestResolveInstanceRelationships_KeyPair verifies instance→key-pair edge
 // via the region+name index (key pair NativeID is by KeyPairId, instance
 // carries KeyName only).

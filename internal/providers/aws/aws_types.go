@@ -9,6 +9,7 @@ const (
 	TypeEC2Image                   = "aws:ec2:image"
 	TypeEC2SecurityGroup           = "aws:ec2:security-group"
 	TypeEC2Volume                  = "aws:ec2:volume"
+	TypeEC2Snapshot                = "aws:ec2:snapshot"
 	TypeEC2LaunchTemplate          = "aws:ec2:launch-template"
 	TypeEC2KeyPair                 = "aws:ec2:key-pair"
 	TypeEC2PlacementGroup          = "aws:ec2:placement-group"

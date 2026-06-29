@@ -616,6 +616,10 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::dynamodb::import": "ephemeral: a one-time table import job from S3, not a persistent resource",
 		"AWS::dynamodb::index":  "sub-resource: a table secondary index, embedded in DescribeTable, not independently listable",
 
+		// ebs — the EBS direct-read API's "snapshot" resource is the same EBS
+		// snapshot disco scans via the EC2 DescribeSnapshots API as aws:ec2:snapshot.
+		"AWS::ebs::snapshot": "duplicate: EBS snapshots are scanned as aws:ec2:snapshot (DescribeSnapshots)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

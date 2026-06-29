@@ -47,6 +47,7 @@ type ec2API interface {
 	DescribeFlowLogs(context.Context, *ec2.DescribeFlowLogsInput, ...func(*ec2.Options)) (*ec2.DescribeFlowLogsOutput, error)
 	DescribeHosts(context.Context, *ec2.DescribeHostsInput, ...func(*ec2.Options)) (*ec2.DescribeHostsOutput, error)
 	DescribeImages(context.Context, *ec2.DescribeImagesInput, ...func(*ec2.Options)) (*ec2.DescribeImagesOutput, error)
+	DescribeSnapshots(context.Context, *ec2.DescribeSnapshotsInput, ...func(*ec2.Options)) (*ec2.DescribeSnapshotsOutput, error)
 	DescribeInstanceConnectEndpoints(context.Context, *ec2.DescribeInstanceConnectEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error)
 	DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
 	DescribeInternetGateways(context.Context, *ec2.DescribeInternetGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeInternetGatewaysOutput, error)

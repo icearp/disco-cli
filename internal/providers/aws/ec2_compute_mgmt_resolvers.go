@@ -30,6 +30,60 @@ func init() {
 		EdgeDecl{TypeEC2SecurityGroupVPCAssociation, TypeEC2SecurityGroup, store.RelAttachedTo},
 		EdgeDecl{TypeEC2SecurityGroupVPCAssociation, TypeEC2VPC, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveSnapshotRelationships,
+		EdgeDecl{TypeEC2Snapshot, TypeEC2Volume, store.RelAttachedTo},
+		EdgeDecl{TypeEC2Snapshot, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveSnapshotRelationships wires each EBS snapshot to its source volume
+// (FK-safe — snapshots outlive deleted volumes) and to the KMS key that
+// encrypts it.
+func resolveSnapshotRelationships(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Snapshot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	volSet, err := scannedIDSet(acct, st, TypeEC2Volume)
+	if err != nil {
+		return err
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			VolumeID *string `json:"VolumeId"`
+			KmsKeyID *string `json:"KmsKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		region := sv(r.Region)
+		if v := sv(attrs.VolumeID); v != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeEC2Volume, ec2ARN(region, acct.ID, "volume", v))
+			if volSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ec2 snapshot→volume: %w", err)
+				}
+			}
+		}
+		if ref := sv(attrs.KmsKeyID); ref != "" {
+			if keyID, ok := kmsIdx.resolveKMSKeyID(ref, region, acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert ec2 snapshot→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // instanceAttrs captures the fields we need from an EC2 instance's JSON blob.

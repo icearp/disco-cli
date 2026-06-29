@@ -19,6 +19,7 @@ func init() {
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2LaunchTemplate},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2PlacementGroup, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Image},
+		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Snapshot},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Host, Leaf: true},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2SpotFleet},
 		coverage.TypeDecl{Service: "ec2", DiscoType: TypeEC2Fleet},
@@ -45,6 +46,9 @@ func scanEC2ComputeMgmt(ctx context.Context, client ec2API, acct *account, regio
 		},
 		func(ctx context.Context) (int, int, error) { return scanVolumes(ctx, client, acct, region, st, scanID) },
 		func(ctx context.Context) (int, int, error) { return scanImages(ctx, client, acct, region, st, scanID) },
+		func(ctx context.Context) (int, int, error) {
+			return scanSnapshots(ctx, client, acct, region, st, scanID)
+		},
 		func(ctx context.Context) (int, int, error) {
 			return scanLaunchTemplates(ctx, client, acct, region, st, scanID)
 		},
@@ -191,6 +195,38 @@ func scanImages(ctx context.Context, client ec2API, acct *account, region string
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(img.Tags),
 					AttributesJSON: mustJSON(img),
+					DiscoveredBy:   scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanSnapshots discovers self-owned EBS snapshots in the region. Public/shared
+// snapshots are intentionally skipped — unbounded set and not "ours" to audit
+// (same ownership-filter rationale as scanImages). DescribeSnapshots is the EC2
+// API, so this also covers the AWS::ebs::snapshot Service Reference spelling.
+func scanSnapshots(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return ec2PageScan(
+		ctx, "ec2:DescribeSnapshots", acct, region, st,
+		ec2.NewDescribeSnapshotsPaginator(client, &ec2.DescribeSnapshotsInput{OwnerIds: []string{"self"}}),
+		func(page *ec2.DescribeSnapshotsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, snap := range page.Snapshots {
+				status := string(snap.State)
+				out = append(out, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeEC2Snapshot,
+					NativeID:       ec2ARN(region, acct.ID, "snapshot", sv(snap.SnapshotId)),
+					Name:           ec2TagName(snap.Tags),
+					Region:         &region,
+					Status:         &status,
+					CreatedAt:      tp(snap.StartTime),
+					TagsJSON:       awsTagsJSON(snap.Tags),
+					AttributesJSON: mustJSON(snap),
 					DiscoveredBy:   scanID,
 				})
 			}
