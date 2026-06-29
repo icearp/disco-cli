@@ -19,6 +19,8 @@ func init() {
 			{Service: "datazone", DiscoType: TypeDataZoneProject},
 			{Service: "datazone", DiscoType: TypeDataZoneProjectProfile},
 			{Service: "datazone", DiscoType: TypeDataZoneProjectMembership},
+			{Service: "datazone", DiscoType: TypeDataZoneGroupProfile},
+			{Service: "datazone", DiscoType: TypeDataZoneUserProfile, Leaf: true},
 			{Service: "datazone", DiscoType: TypeDataZoneEnvironment},
 			{Service: "datazone", DiscoType: TypeDataZoneEnvironmentProfile},
 			{Service: "datazone", DiscoType: TypeDataZoneEnvironmentActions},
@@ -40,6 +42,8 @@ type dataZoneAPI interface {
 	ListProjects(context.Context, *datazone.ListProjectsInput, ...func(*datazone.Options)) (*datazone.ListProjectsOutput, error)
 	ListProjectProfiles(context.Context, *datazone.ListProjectProfilesInput, ...func(*datazone.Options)) (*datazone.ListProjectProfilesOutput, error)
 	ListProjectMemberships(context.Context, *datazone.ListProjectMembershipsInput, ...func(*datazone.Options)) (*datazone.ListProjectMembershipsOutput, error)
+	SearchGroupProfiles(context.Context, *datazone.SearchGroupProfilesInput, ...func(*datazone.Options)) (*datazone.SearchGroupProfilesOutput, error)
+	SearchUserProfiles(context.Context, *datazone.SearchUserProfilesInput, ...func(*datazone.Options)) (*datazone.SearchUserProfilesOutput, error)
 	ListEnvironments(context.Context, *datazone.ListEnvironmentsInput, ...func(*datazone.Options)) (*datazone.ListEnvironmentsOutput, error)
 	ListEnvironmentProfiles(context.Context, *datazone.ListEnvironmentProfilesInput, ...func(*datazone.Options)) (*datazone.ListEnvironmentProfilesOutput, error)
 	ListEnvironmentActions(context.Context, *datazone.ListEnvironmentActionsInput, ...func(*datazone.Options)) (*datazone.ListEnvironmentActionsOutput, error)
@@ -80,6 +84,12 @@ func scanDataZone(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) { return scanDataZoneProjects(ctx, client, acct, region, st, scanID, domains) },
 		func() (int, int, error) {
 			return scanDataZoneProjectMemberships(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) {
+			return scanDataZoneGroupProfiles(ctx, client, acct, region, st, scanID, domains)
+		},
+		func() (int, int, error) {
+			return scanDataZoneUserProfiles(ctx, client, acct, region, st, scanID, domains)
 		},
 		func() (int, int, error) {
 			return scanDataZoneEnvironmentProfiles(ctx, client, acct, region, st, scanID, domains)

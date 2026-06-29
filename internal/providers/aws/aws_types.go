@@ -1244,6 +1244,8 @@ const (
 	TypeDataZoneProject                           = "aws:datazone:project"
 	TypeDataZoneProjectProfile                    = "aws:datazone:project-profile"
 	TypeDataZoneProjectMembership                 = "aws:datazone:project-membership"
+	TypeDataZoneGroupProfile                      = "aws:datazone:group-profile"
+	TypeDataZoneUserProfile                       = "aws:datazone:user-profile"
 	TypeDataZoneEnvironment                       = "aws:datazone:environment"
 	TypeDataZoneEnvironmentProfile                = "aws:datazone:environment-profile"
 	TypeDataZoneEnvironmentActions                = "aws:datazone:environment-actions"

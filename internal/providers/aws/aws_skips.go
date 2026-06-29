@@ -549,6 +549,15 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::datasync::discoveryjob":  "no SDK op: AWS removed DataSync Discovery; aws-sdk-go-v2 has no ListDiscoveryJobs/DescribeDiscoveryJob",
 		"AWS::datasync::taskexecution": "ephemeral: a task-execution is a single run of a DataSync task, not a persistent resource",
 
+		// datazone — FormType is a catalog metadata-form schema (SearchTypes), a
+		// definition not infrastructure. Owner and PolicyGrant are per-entity
+		// association records (ListEntityOwners/ListPolicyGrants both require an
+		// EntityType+EntityIdentifier), not first-class resources. Group/user
+		// profiles ARE scanned.
+		"AWS::DataZone::FormType":    "metadata schema: a catalog metadata-form-type definition (SearchTypes), config not a resource",
+		"AWS::DataZone::Owner":       "association: a per-entity owner record (ListEntityOwners requires EntityType+EntityIdentifier), not a first-class resource",
+		"AWS::DataZone::PolicyGrant": "association: a per-entity managed-policy grant (ListPolicyGrants requires EntityType+EntityIdentifier), not a first-class resource",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
