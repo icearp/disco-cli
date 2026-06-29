@@ -18,6 +18,14 @@ func (s *stubBackupGateway) ListHypervisors(_ context.Context, _ *backupgateway.
 	return &backupgateway.ListHypervisorsOutput{Hypervisors: s.hyps}, nil
 }
 
+func (s *stubBackupGateway) ListGateways(_ context.Context, _ *backupgateway.ListGatewaysInput, _ ...func(*backupgateway.Options)) (*backupgateway.ListGatewaysOutput, error) {
+	return &backupgateway.ListGatewaysOutput{}, nil
+}
+
+func (s *stubBackupGateway) ListVirtualMachines(_ context.Context, _ *backupgateway.ListVirtualMachinesInput, _ ...func(*backupgateway.Options)) (*backupgateway.ListVirtualMachinesOutput, error) {
+	return &backupgateway.ListVirtualMachinesOutput{}, nil
+}
+
 func TestScanBackupGatewayHypervisors(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

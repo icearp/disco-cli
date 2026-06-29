@@ -508,7 +508,9 @@ const (
 	TypeBackupLegalHold               = "aws:backup:legal-hold"
 	TypeBackupRecoveryPoint           = "aws:backup:recovery-point"
 	// Backup Gateway (backupgateway_scanners.go)
-	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
+	TypeBackupGatewayHypervisor     = "aws:backupgateway:hypervisor"
+	TypeBackupGatewayGateway        = "aws:backupgateway:gateway"
+	TypeBackupGatewayVirtualMachine = "aws:backupgateway:virtual-machine"
 	// BCM Data Exports (bcmdataexports_scanners.go)
 	TypeBCMDataExportsExport = "aws:bcmdataexports:export"
 	// BCM Pricing Calculator (bcmpricingcalculator_scanners.go)

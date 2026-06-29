@@ -339,11 +339,16 @@ func (coverageProvider) Aliases() map[string]string {
 		// AuditManager (Control/Framework are synthetic — no CFN type).
 		TypeAuditManagerAssessment: "AWS::AuditManager::Assessment",
 		// Backup.
-		TypeBackupVault:                      "AWS::Backup::BackupVault",
-		TypeBackupLogicallyAirGappedVault:    "AWS::Backup::LogicallyAirGappedBackupVault",
-		TypeBackupPlan:                       "AWS::Backup::BackupPlan",
-		TypeBackupSelection:                  "AWS::Backup::BackupSelection",
-		TypeBackupGatewayHypervisor:          "AWS::BackupGateway::Hypervisor",
+		TypeBackupVault:                   "AWS::Backup::BackupVault",
+		TypeBackupLogicallyAirGappedVault: "AWS::Backup::LogicallyAirGappedBackupVault",
+		TypeBackupPlan:                    "AWS::Backup::BackupPlan",
+		TypeBackupSelection:               "AWS::Backup::BackupSelection",
+		TypeBackupGatewayHypervisor:       "AWS::BackupGateway::Hypervisor",
+		// gateway + virtual-machine are Service-Reference-only (CFN models just the
+		// hypervisor); SR uses the hyphenated "backup-gateway" service segment, which
+		// the algorithmic key (no hyphen) can't reproduce, so alias both explicitly.
+		TypeBackupGatewayGateway:             "AWS::backup-gateway::gateway",
+		TypeBackupGatewayVirtualMachine:      "AWS::backup-gateway::virtualmachine",
 		TypeBCMDataExportsExport:             "AWS::BCMDataExports::Export",
 		TypeBcmPricingCalculatorBillScenario: "AWS::BcmPricingCalculator::BillScenario",
 		// Batch.
