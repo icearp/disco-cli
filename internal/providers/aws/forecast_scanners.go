@@ -16,6 +16,12 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "forecast", DiscoType: TypeForecastDataset},
 			{Service: "forecast", DiscoType: TypeForecastDatasetGroup},
+			{Service: "forecast", DiscoType: TypeForecastPredictor},
+			{Service: "forecast", DiscoType: TypeForecastForecast},
+			{Service: "forecast", DiscoType: TypeForecastExplainability},
+			{Service: "forecast", DiscoType: TypeForecastMonitor},
+			{Service: "forecast", DiscoType: TypeForecastWhatIfAnalysis},
+			{Service: "forecast", DiscoType: TypeForecastWhatIfForecast},
 		},
 	})
 }
@@ -25,6 +31,12 @@ type forecastAPI interface {
 	ListDatasetGroups(context.Context, *forecast.ListDatasetGroupsInput, ...func(*forecast.Options)) (*forecast.ListDatasetGroupsOutput, error)
 	DescribeDataset(context.Context, *forecast.DescribeDatasetInput, ...func(*forecast.Options)) (*forecast.DescribeDatasetOutput, error)
 	DescribeDatasetGroup(context.Context, *forecast.DescribeDatasetGroupInput, ...func(*forecast.Options)) (*forecast.DescribeDatasetGroupOutput, error)
+	ListPredictors(context.Context, *forecast.ListPredictorsInput, ...func(*forecast.Options)) (*forecast.ListPredictorsOutput, error)
+	ListForecasts(context.Context, *forecast.ListForecastsInput, ...func(*forecast.Options)) (*forecast.ListForecastsOutput, error)
+	ListExplainabilities(context.Context, *forecast.ListExplainabilitiesInput, ...func(*forecast.Options)) (*forecast.ListExplainabilitiesOutput, error)
+	ListMonitors(context.Context, *forecast.ListMonitorsInput, ...func(*forecast.Options)) (*forecast.ListMonitorsOutput, error)
+	ListWhatIfAnalyses(context.Context, *forecast.ListWhatIfAnalysesInput, ...func(*forecast.Options)) (*forecast.ListWhatIfAnalysesOutput, error)
+	ListWhatIfForecasts(context.Context, *forecast.ListWhatIfForecastsInput, ...func(*forecast.Options)) (*forecast.ListWhatIfForecastsOutput, error)
 }
 
 // scanForecast discovers Forecast datasets and dataset groups.
@@ -44,6 +56,22 @@ func scanForecast(ctx context.Context, acct *account, region string, st *store.S
 	}
 	total += t
 	inserted += i
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanForecastPredictors(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanForecastForecasts(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanForecastExplainabilities(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanForecastMonitors(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanForecastWhatIfAnalyses(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanForecastWhatIfForecasts(ctx, client, acct, region, st, scanID) },
+	} {
+		t, i, ferr = phase()
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
 	return total, inserted, nil
 }
 

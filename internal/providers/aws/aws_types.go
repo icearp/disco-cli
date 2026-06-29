@@ -1019,8 +1019,14 @@ const (
 	TypeGreengrassV2ComponentVersion = "aws:greengrass-v2:component-version"
 	TypeGreengrassV2Deployment       = "aws:greengrass-v2:deployment"
 	// Forecast (forecast_scanners.go)
-	TypeForecastDataset      = "aws:forecast:dataset"
-	TypeForecastDatasetGroup = "aws:forecast:dataset-group"
+	TypeForecastDataset        = "aws:forecast:dataset"
+	TypeForecastDatasetGroup   = "aws:forecast:dataset-group"
+	TypeForecastPredictor      = "aws:forecast:predictor"
+	TypeForecastForecast       = "aws:forecast:forecast"
+	TypeForecastExplainability = "aws:forecast:explainability"
+	TypeForecastMonitor        = "aws:forecast:monitor"
+	TypeForecastWhatIfAnalysis = "aws:forecast:what-if-analysis"
+	TypeForecastWhatIfForecast = "aws:forecast:what-if-forecast"
 	// FIS (fis_scanners.go)
 	TypeFISExperimentTemplate         = "aws:fis:experiment-template"
 	TypeFISTargetAccountConfiguration = "aws:fis:target-account-configuration"

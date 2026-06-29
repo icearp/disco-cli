@@ -834,6 +834,17 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::frauddetector::detector-version": "version: a config version of the scanned aws:frauddetector:detector",
 		"AWS::frauddetector::model-version":    "version: a config version of the scanned aws:frauddetector:model",
 
+		// forecast — predictor / forecast / explainability / monitor / what-if-*
+		// are scanned. algorithm is an AWS catalog; endpoint has no forecast SDK op;
+		// the *Job / *Export types are ephemeral run records.
+		"AWS::forecast::algorithm":                  "catalog: AWS's read-only list of Forecast algorithms, not an account resource",
+		"AWS::forecast::endpoint":                   "no SDK: no aws-sdk-go-v2 forecast op backs a Forecast endpoint",
+		"AWS::forecast::datasetImportJob":           "ephemeral: a dataset import job run, not a persistent resource",
+		"AWS::forecast::explainabilityExport":       "ephemeral: an explainability export job run, not a persistent resource",
+		"AWS::forecast::forecastExport":             "ephemeral: a forecast export job run, not a persistent resource",
+		"AWS::forecast::predictorBacktestExportJob": "ephemeral: a predictor backtest export job run, not a persistent resource",
+		"AWS::forecast::whatIfForecastExport":       "ephemeral: a what-if forecast export job run, not a persistent resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
