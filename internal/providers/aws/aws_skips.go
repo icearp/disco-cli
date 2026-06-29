@@ -158,6 +158,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::appsync::type":  "sub-resource: GraphQL schema type within an API (per-apiId/format ListTypes); the schema is scanned as aws:appsync:graphql-schema",
 		"AWS::appsync::field": "sub-resource: GraphQL field within a type; no SDK list op, captured in aws:appsync:graphql-schema",
 
+		// apptest — AWS Mainframe Modernization Application Testing has been
+		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
+		// client marks every symbol deprecated, so the service is not scannable.
+		"AWS::apptest::TestCase":          appTestRetired,
+		"AWS::apptest::TestConfiguration": appTestRetired,
+		"AWS::apptest::TestRun":           appTestRetired,
+		"AWS::apptest::TestSuite":         appTestRetired,
+
 		// apprunner webacl — the WAFv2 web-ACL association for a service
 		// (AssociateWebAcl); the web-ACL is scanned under aws:wafv2:web-acl and
 		// App Runner exposes no op to enumerate the associations.
@@ -221,5 +229,7 @@ const amplifyBackendConfig = "no list API: per-app Amplify Gen1 backend configur
 const appmeshPreviewGone = "no SDK: appmesh-preview is the deprecated App Mesh preview API namespace (no aws-sdk-go-v2 client; GA App Mesh is the separate appmesh service)"
 
 const appStudioNoSDK = "no SDK: AWS App Studio (low-code app builder) is console-first; no aws-sdk-go-v2 client exists"
+
+const appTestRetired = "service retired: AWS Mainframe Modernization Application Testing deprecated by AWS (no longer available; aws-sdk-go-v2 client deprecated)"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
