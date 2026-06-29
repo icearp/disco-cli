@@ -761,6 +761,24 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::elastictranscoder::pipeline": "no SDK: Elastic Transcoder is discontinued; SDK module not vendored",
 		"AWS::elastictranscoder::preset":   "no SDK: Elastic Transcoder is discontinued; SDK module not vendored",
 
+		// es / Elasticsearch — disco scans OpenSearch (the renamed Elasticsearch
+		// Service) via the opensearch SDK: domains as aws:opensearch:domain,
+		// applications as aws:opensearchservice:application. es:datasource IS scanned
+		// (aws:opensearchservice:data-source). The es_role / opensearchservice_role
+		// entries are IAM service-linked roles scanned via aws:iam:role.
+		"AWS::Elasticsearch::Domain":      "duplicate: scanned as aws:opensearch:domain (opensearch:DescribeDomain)",
+		"AWS::es::domain":                 "duplicate: scanned as aws:opensearch:domain (opensearch:DescribeDomain)",
+		"AWS::es::application":            "duplicate: scanned as aws:opensearchservice:application (opensearch:ListApplications)",
+		"AWS::es::es_role":                "duplicate: the Elasticsearch service-linked IAM role, scanned via aws:iam:role",
+		"AWS::es::opensearchservice_role": "duplicate: the OpenSearch service-linked IAM role, scanned via aws:iam:role",
+
+		// elemental / entityresolution — niche/retired or catalog/out-of-scope.
+		"AWS::elemental-appliances-software::quote": "not a resource: a sales quote for Elemental appliances, no list API",
+		"AWS::elemental-inference::dictionary":      "no SDK: Elemental Inference is retired; no aws-sdk-go-v2 module",
+		"AWS::ElementalInference::Dictionary":       "no SDK: Elemental Inference is retired; no aws-sdk-go-v2 module",
+		"AWS::elemental-support-cases::case":        "out of scope: support-case content, not an infrastructure resource",
+		"AWS::entityresolution::ProviderService":    "catalog: AWS's read-only list of third-party data provider services, not an account resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

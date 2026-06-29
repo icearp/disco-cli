@@ -1059,6 +1059,7 @@ const (
 	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// OpenSearch extras (opensearch_extended_scanners.go)
 	TypeOpenSearchApplication = "aws:opensearchservice:application"
+	TypeOpenSearchDataSource  = "aws:opensearchservice:data-source"
 	// NovaAct (novaact_scanners.go)
 	TypeNovaActWorkflowDefinition = "aws:nova-act:workflow-definition"
 	// NotificationsContacts (notificationscontacts_scanners.go)

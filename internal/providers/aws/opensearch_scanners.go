@@ -19,6 +19,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "opensearchservice", DiscoType: TypeOpenSearchDomain},
 			{Service: "opensearchservice", DiscoType: TypeOpenSearchApplication, Leaf: true},
+			{Service: "opensearchservice", DiscoType: TypeOpenSearchDataSource},
 		},
 	})
 }
@@ -29,6 +30,7 @@ type opensearchAPI interface {
 	ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error)
 	DescribeDomain(context.Context, *opensearch.DescribeDomainInput, ...func(*opensearch.Options)) (*opensearch.DescribeDomainOutput, error)
 	ListApplications(context.Context, *opensearch.ListApplicationsInput, ...func(*opensearch.Options)) (*opensearch.ListApplicationsOutput, error)
+	ListDataSources(context.Context, *opensearch.ListDataSourcesInput, ...func(*opensearch.Options)) (*opensearch.ListDataSourcesOutput, error)
 }
 
 // scanOpenSearch discovers OpenSearch (and legacy Elasticsearch — same SDK)
@@ -44,7 +46,11 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 		return t, i, ferr
 	}
 	t2, i2, ferr := scanOpenSearchApplications(ctx, client, acct, region, st, scanID)
-	return t + t2, i + i2, ferr
+	if ferr != nil {
+		return t + t2, i + i2, ferr
+	}
+	t3, i3, ferr := scanOpenSearchDataSources(ctx, client, acct, region, st, scanID)
+	return t + t2 + t3, i + i2 + i3, ferr
 }
 
 // scanOpenSearchDomains holds the testable scan body.
