@@ -39,7 +39,7 @@ func TestBuild_BucketAssignment(t *testing.T) {
 		return strings.ToUpper(parts[0]) + "::" + strings.ToUpper(parts[1]) + "::" + k
 	}
 
-	got := Build("aws", emits, aliases, algo, upstream, nil)
+	got := Build("aws", emits, aliases, algo, upstream, nil, nil)
 
 	buckets := map[string]Bucket{}
 	for _, r := range got.Rows {
@@ -75,7 +75,7 @@ func TestBuild_DedupesEmits(t *testing.T) {
 	upstream := []UpstreamType{{Key: "AWS::IAM::ManagedPolicy", Service: "IAM"}}
 	aliases := map[string]string{"aws:iam:managed-policy": "AWS::IAM::ManagedPolicy"}
 
-	got := Build("aws", emits, aliases, nil, upstream, nil)
+	got := Build("aws", emits, aliases, nil, upstream, nil, nil)
 	covered := 0
 	for _, r := range got.Rows {
 		if r.Bucket == BucketCovered {
@@ -99,7 +99,7 @@ func TestBuild_NotScannableReclassifiesUncovered(t *testing.T) {
 		"AWS::EC2::Route": "sub-resource: route lives inside a route table, no List API",
 	}
 
-	got := Build("aws", nil, nil, nil, upstream, skips)
+	got := Build("aws", nil, nil, nil, upstream, skips, nil)
 
 	byKey := map[string]Row{}
 	for _, r := range got.Rows {
@@ -139,5 +139,61 @@ func TestRenderMarkdown_HasSections(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("markdown missing %q\n%s", want, out)
 		}
+	}
+}
+
+// TestCanonicalDuplicateMatching: when a provider supplies a CanonicalKey, an
+// unmatched upstream key whose canonical identity equals an already-covered
+// key's identity is reclassified as a covered cross-catalog duplicate (carrying
+// a "duplicate of …" Reason) rather than left as an actionable uncovered gap.
+func TestCanonicalDuplicateMatching(t *testing.T) {
+	emits := []TypeDecl{{Service: "amplify", DiscoType: "aws:amplify:app"}}
+	aliases := map[string]string{"aws:amplify:app": "AWS::Amplify::App"}
+	upstream := []UpstreamType{
+		{Key: "AWS::Amplify::App", Service: "Amplify"},  // CFN spelling — disco covers it
+		{Key: "AWS::amplify::apps", Service: "amplify"}, // SR twin — must collapse, not be a gap
+		{Key: "AWS::amplify::jobs", Service: "amplify"}, // genuinely uncovered, no covered twin
+	}
+	// Minimal canonical: lowercase, strip "::"-segment hyphens, singularize res.
+	canon := func(k string) string {
+		p := strings.SplitN(k, "::", 3)
+		if len(p) != 3 {
+			return strings.ToLower(k)
+		}
+		res := strings.ToLower(p[2])
+		res = strings.TrimSuffix(res, "s")
+		return strings.ToLower(p[1]) + "::" + res
+	}
+
+	got := Build("aws", emits, aliases, nil, upstream, nil, canon)
+
+	var dupRow *Row
+	for i := range got.Rows {
+		r := &got.Rows[i]
+		if r.UpstreamKey == "AWS::amplify::apps" {
+			dupRow = r
+		}
+		if r.Bucket == BucketUncovered && r.UpstreamKey == "AWS::amplify::apps" {
+			t.Errorf("SR twin AWS::amplify::apps left uncovered; want covered duplicate")
+		}
+	}
+	if dupRow == nil {
+		t.Fatal("no row for AWS::amplify::apps")
+	}
+	if dupRow.Bucket != BucketCovered {
+		t.Errorf("AWS::amplify::apps bucket = %q; want covered", dupRow.Bucket)
+	}
+	if !strings.HasPrefix(dupRow.Reason, "duplicate of ") {
+		t.Errorf("AWS::amplify::apps Reason = %q; want \"duplicate of …\"", dupRow.Reason)
+	}
+	// The genuine gap must remain uncovered (no false collapse).
+	var jobsBucket Bucket
+	for _, r := range got.Rows {
+		if r.UpstreamKey == "AWS::amplify::jobs" {
+			jobsBucket = r.Bucket
+		}
+	}
+	if jobsBucket != BucketUncovered {
+		t.Errorf("AWS::amplify::jobs bucket = %q; want uncovered", jobsBucket)
 	}
 }

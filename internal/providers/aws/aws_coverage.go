@@ -677,6 +677,80 @@ func (coverageProvider) AlgorithmicKey(discoType string) string {
 	return "AWS::" + pascal(svc) + "::" + pascal(kind)
 }
 
+// canonService normalizes a service segment: lowercase, hyphens/underscores
+// stripped, then a serviceRenames bridge for the few services CFN and the
+// Service Reference name differently beyond case/hyphen. Services are NOT
+// de-pluralized — many legitimately end in "s" (aidevops, logs, ecs, sns),
+// and CFN/SR agree on the plural ("Logs"↔"logs"), so stripping it would
+// desync the two spellings.
+func canonService(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "_", "")
+	if r, ok := serviceRenames[s]; ok {
+		s = r
+	}
+	return s
+}
+
+// canonResource normalizes a resource segment: lowercase, hyphens/underscores
+// stripped, de-pluralized, and the Service-Reference "Resource" suffix removed
+// when a non-empty stem remains (so "Resources" stays "resource", never
+// collapses to ""). Singularization is intentionally crude — it only has to be
+// *consistent* across the two spellings of one resource, not linguistically
+// correct, since the result is an internal matching identity, never displayed.
+func canonResource(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "-", "")
+	s = strings.ReplaceAll(s, "_", "")
+	switch {
+	case strings.HasSuffix(s, "ies"): // policies → policy
+		s = s[:len(s)-3] + "y"
+	case strings.HasSuffix(s, "sses"), // addresses → address
+		strings.HasSuffix(s, "ches"), // branches → branch
+		strings.HasSuffix(s, "shes"), // meshes → mesh
+		strings.HasSuffix(s, "xes"),  // boxes → box
+		strings.HasSuffix(s, "zes"):  // quizzes → quiz
+		s = s[:len(s)-2]
+	case strings.HasSuffix(s, "ss"):
+		// keep — "access", "address" are not plurals.
+	case strings.HasSuffix(s, "s"):
+		s = s[:len(s)-1]
+	}
+	if stem := strings.TrimSuffix(s, "resource"); stem != "" && stem != s {
+		s = stem
+	}
+	return s
+}
+
+// serviceRenames bridges the few services CloudFormation and the Service
+// Reference name differently beyond mere case/hyphen (CFN "MWAA" vs SR
+// "airflow"). Keyed and valued in canonService form (lowercase, no hyphens).
+// Extend as the A→Z buildout surfaces more genuine renames — the canonicalizer
+// handles every other case.
+var serviceRenames = map[string]string{
+	"airflow":           "mwaa",               // SR airflow ↔ CFN MWAA
+	"airflowserverless": "mwaaserverless",     // SR airflow-serverless ↔ CFN MWAAServerless
+	"acm":               "certificatemanager", // SR acm ↔ CFN CertificateManager
+	"devopsagent":       "aidevops",           // CFN DevOpsAgent ↔ SR aidevops
+}
+
+// CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
+// identity so a CloudFormation spelling and its Service-Reference twin collapse
+// to one resource (e.g. AWS::Amplify::App and AWS::amplify::apps both →
+// "amplify::app"). coverage.Build uses it to treat an uncovered upstream key as
+// covered when its identity matches an already-covered key — the cross-catalog
+// duplicate case. The covered-vs-leftover asymmetry (one side is a disco-emitted
+// alias target, the other an unmatched catalog entry) is what scopes the merge;
+// `coverage services --filter duplicate` surfaces every collapse for audit.
+func (coverageProvider) CanonicalKey(upstreamKey string) string {
+	parts := strings.SplitN(upstreamKey, "::", 3)
+	if len(parts) != 3 {
+		return strings.ToLower(upstreamKey)
+	}
+	return canonService(parts[1]) + "::" + canonResource(parts[2])
+}
+
 // Fetch returns the union of CloudFormation ListTypes (Public, Resource) and
 // the AWS Service Reference catalog. CFN supplies registry-modeled resources;
 // Service Reference supplies the SDK-real resources CFN omits. Third-party CFN

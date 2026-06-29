@@ -131,8 +131,8 @@ func init() {
 	coverageServicesCmd.Flags().StringSlice("regions", nil, "Regions for the upstream registry call (CFN ListTypes per region, union); empty = SDK default (us-east-1)")
 	coverageServicesCmd.Flags().String("profile", "", "AWS profile name (--providers aws only)")
 	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "Azure subscription ID(s) for the registry context (--providers azure only); first is used, empty = autodetect")
-	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, not-scannable, uncatalogued, upstream-missing")
-	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing"))
+	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: all, covered, uncovered, not-scannable, uncatalogued, upstream-missing, duplicate")
+	_ = coverageServicesCmd.RegisterFlagCompletionFunc("filter", staticCompletion("all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing", "duplicate"))
 	coverageServicesCmd.Flags().StringSlice("services", nil, "Limit rows to listed services (matched against the row's service segment)")
 	coverageServicesCmd.Flags().Duration("timeout", 60*time.Second, "Per-provider live-fetch timeout")
 	coverageServicesCmd.Flags().Bool("check-strict", false, "Exit 1 on upstream-missing rows (drift). A registry-fetch failure always exits 2, with or without this flag.")
@@ -194,9 +194,9 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 	checkStrict, _ := cmd.Flags().GetBool("check-strict")
 
 	switch filter {
-	case "all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing":
+	case "all", "covered", "uncovered", "not-scannable", "uncatalogued", "upstream-missing", "duplicate":
 	default:
-		return fmt.Errorf("--filter must be one of all|covered|uncovered|not-scannable|uncatalogued|upstream-missing; got %q", filter)
+		return fmt.Errorf("--filter must be one of all|covered|uncovered|not-scannable|uncatalogued|upstream-missing|duplicate; got %q", filter)
 	}
 	switch outputFmt {
 	case "markdown", "md", "table", "json", "jsonl", "csv":
@@ -236,7 +236,11 @@ func runCoverageServices(cmd *cobra.Command, _ []string) (rerr error) {
 		if sk, ok := p.(coverage.Skipper); ok {
 			skips = sk.Skips()
 		}
-		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream, skips)
+		var canonical func(string) string
+		if ck, ok := p.(coverage.CanonicalKeyer); ok {
+			canonical = ck.CanonicalKey
+		}
+		m := coverage.Build(p.Name(), p.Emits(), p.Aliases(), p.AlgorithmicKey, upstream, skips, canonical)
 		m.Rows = filterRows(m.Rows, filter, services)
 		matrices = append(matrices, m)
 	}
@@ -704,10 +708,17 @@ func filterRows(rows []coverage.Row, filter string, services []string) []coverag
 	for _, s := range services {
 		allowedSvc[strings.ToLower(s)] = true
 	}
+	// "duplicate" is a cross-cut, not a bucket: the canonical-twin rows Build
+	// emits as covered with a "duplicate of …" reason. Surfaced for auditing the
+	// SR↔CFN merges before trusting them to hide a gap.
 	wantBucket := coverage.Bucket(filter)
 	out := rows[:0]
 	for _, r := range rows {
-		if filter != "all" && r.Bucket != wantBucket {
+		if filter == "duplicate" {
+			if r.Bucket != coverage.BucketCovered || r.Reason == "" {
+				continue
+			}
+		} else if filter != "all" && r.Bucket != wantBucket {
 			continue
 		}
 		if len(allowedSvc) > 0 && !allowedSvc[strings.ToLower(r.Service)] {

@@ -93,6 +93,16 @@ type Skipper interface {
 	Skips() map[string]string // upstream-key -> rationale
 }
 
+// CanonicalKeyer is an optional interface a Provider may implement to collapse
+// the same physical resource spelled differently across two upstream catalogs
+// (AWS's CloudFormation ∪ Service Reference union). It maps an upstream key to a
+// catalog-agnostic identity; Build treats an unmatched upstream key as covered
+// when its identity equals an already-covered key's identity (the cross-catalog
+// duplicate case). No impl → no canonical dedup (Azure/GCP single-catalog).
+type CanonicalKeyer interface {
+	CanonicalKey(upstreamKey string) string
+}
+
 // ResolverAuditor is an optional interface a Provider may implement to expose
 // its relationship-resolver registry to `disco coverage resolvers`. Keeping it
 // behind the registry (rather than a direct provider-package import in cmd) lets
@@ -143,7 +153,7 @@ type Row struct {
 	DiscoType   string `json:"disco_type,omitempty"`   // empty when row is upstream-only (uncovered/not-scannable)
 	UpstreamKey string `json:"upstream_key,omitempty"` // empty when row is uncatalogued
 	Bucket      Bucket `json:"bucket"`
-	Reason      string `json:"reason,omitempty"` // populated only for not-scannable rows
+	Reason      string `json:"reason,omitempty"` // not-scannable rationale, or "duplicate of <key>" on a cross-catalog twin
 }
 
 // Matrix groups rows by provider for rendering.
@@ -211,7 +221,7 @@ func Names() []string {
 // skips maps a (case-insensitive) upstream key to the reason disco deliberately
 // does not scan it; matching leftover-upstream entries become BucketNotScannable
 // instead of BucketUncovered. Pass nil when the provider declares no skips.
-func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType, skips map[string]string) Matrix {
+func Build(providerName string, emits []TypeDecl, aliases map[string]string, algorithmic func(string) string, upstream []UpstreamType, skips map[string]string, canonical func(string) string) Matrix {
 	if algorithmic == nil {
 		algorithmic = AlgorithmicUpstreamKey
 	}
@@ -244,6 +254,11 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 	// "uncovered" rows after walking emits.
 	matched := make(map[string]bool, len(upstream))
 
+	// coveredCanon maps each covered upstream key's canonical identity back to
+	// its raw key, so a leftover key whose identity collides is reclassified as
+	// a cross-catalog duplicate of the covered spelling rather than uncovered.
+	coveredCanon := map[string]string{}
+
 	rows := make([]Row, 0, len(dedupedEmits)+len(upstream))
 
 	for _, t := range dedupedEmits {
@@ -254,6 +269,11 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 		lookup := strings.ToLower(upstreamKey)
 		if u, hit := upstreamByKey[lookup]; hit {
 			matched[lookup] = true
+			if canonical != nil {
+				if c := canonical(u.Key); c != "" {
+					coveredCanon[c] = u.Key
+				}
+			}
 			rows = append(rows, Row{
 				Provider:    providerName,
 				Service:     t.Service,
@@ -296,6 +316,18 @@ func Build(providerName string, emits []TypeDecl, aliases map[string]string, alg
 				Reason:      reason,
 			})
 			continue
+		}
+		if canonical != nil {
+			if orig, dup := coveredCanon[canonical(u.Key)]; dup {
+				rows = append(rows, Row{
+					Provider:    providerName,
+					Service:     u.Service,
+					UpstreamKey: u.Key,
+					Bucket:      BucketCovered,
+					Reason:      "duplicate of " + orig,
+				})
+				continue
+			}
 		}
 		rows = append(rows, Row{
 			Provider:    providerName,

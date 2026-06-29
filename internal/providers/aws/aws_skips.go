@@ -33,12 +33,6 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::a4b::skillgroup":         a4bRetired,
 		"AWS::a4b::user":               a4bRetired,
 
-		// access-analyzer (Service Reference hyphenated spelling) duplicates the
-		// CFN-spelled AWS::AccessAnalyzer::Analyzer that disco already scans as
-		// aws:accessanalyzer:analyzer. Same physical resource, redundant catalog
-		// entry under a divergent service segment.
-		"AWS::access-analyzer::Analyzer": "duplicate: already scanned as aws:accessanalyzer:analyzer (CFN spelling AWS::AccessAnalyzer::Analyzer)",
-
 		// account (AWS Account Management) — neither entry is a discoverable
 		// resource collection. The account entity itself is already modelled as
 		// the aws:iam:account self-node; accountInOrganization is the same account
@@ -47,18 +41,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::account::account":               "duplicate: account entity modelled as the aws:iam:account self-node",
 		"AWS::account::accountInOrganization": "association: account's org membership, covered via the organizations scanner",
 
-		// acm — ACM's CloudFormation namespace is "CertificateManager", which
-		// disco already scans as aws:acm:certificate. The Service Reference lists
-		// the same resource under the short "acm" service segment.
-		"AWS::acm::certificate": "duplicate: already scanned as aws:acm:certificate (CFN spelling AWS::CertificateManager::Certificate)",
-
-		// acm-pca / ACMPCA (Private CA). The CA itself is already scanned as
-		// aws:acm-pca:certificate-authority (CFN AWS::ACMPCA::CertificateAuthority);
-		// the hyphenated Service Reference spelling is the duplicate. Issued
-		// certificates have no list API (GetCertificate needs both CA and cert
-		// ARN), and CertificateAuthorityActivation is the CFN-only association
-		// that installs the signed cert chain on a CA, not a standalone resource.
-		"AWS::acm-pca::certificate-authority":         "duplicate: already scanned as aws:acm-pca:certificate-authority (CFN spelling AWS::ACMPCA::CertificateAuthority)",
+		// acm-pca / ACMPCA (Private CA). Issued certificates have no list API
+		// (GetCertificate needs both CA and cert ARN), and
+		// CertificateAuthorityActivation is the CFN-only association that installs
+		// the signed cert chain on a CA, not a standalone resource. (The CA itself
+		// is scanned; its duplicate spelling collapses via canonical matching.)
 		"AWS::ACMPCA::Certificate":                    "no list API: issued private-CA certificates are not enumerable (GetCertificate requires CA ARN + cert ARN)",
 		"AWS::ACMPCA::CertificateAuthorityActivation": "association: installs the signed cert chain on a CA (ImportCertificateAuthorityCertificate), not a standalone resource",
 
@@ -67,43 +54,20 @@ func (coverageProvider) Skips() map[string]string {
 		// CloudFormation / the Service Reference, not callable per the SDK mandate.
 		"AWS::aco-automation::AutomationRule": "no SDK list op: automation rules are CFN/Service-Reference-only, not modeled in aws-sdk-go-v2",
 
-		// DevOpsAgent (CloudFormation spelling) duplicates the private connection
-		// disco scans as aws:aidevops:private-connection via the Service Reference
-		// spelling. CFN models only PrivateConnection for this service.
-		"AWS::DevOpsAgent::PrivateConnection": "duplicate: already scanned as aws:aidevops:private-connection (Service Reference spelling AWS::aidevops::private-connection)",
+		// airflow (MWAA) — rbac-role is an Airflow-internal RBAC role addressable
+		// in IAM policies (airflow:role ARNs), not an AWS resource with an SDK list
+		// op. (The environment's duplicate spelling collapses via canonical
+		// matching against aws:mwaa:environment.)
+		"AWS::airflow::rbac-role": "no SDK list op: Airflow-internal RBAC role (IAM policy reference), not a discoverable AWS resource",
 
-		// aiops — disco already scans aws:aiops:investigation-group, covered via
-		// the CFN spelling AWS::AIOps::InvestigationGroup. The Service Reference
-		// lists the same resource hyphenated under the lowercase service segment.
-		"AWS::aiops::investigation-group": "duplicate: already scanned as aws:aiops:investigation-group (CFN spelling AWS::AIOps::InvestigationGroup)",
+		// amplify — jobs are deployment/build run records (ephemeral), not
+		// infrastructure. (apps/branches/domains duplicate spellings collapse via
+		// canonical matching; webhooks are scanned as aws:amplify:webhooks.)
+		"AWS::amplify::jobs": "ephemeral: deployment/build job-run records, not a persistent resource",
 
-		// airflow (MWAA) — the environment is already scanned as aws:mwaa:environment
-		// (CFN AWS::MWAA::Environment). rbac-role is an Airflow-internal RBAC role
-		// addressable in IAM policies (airflow:role ARNs), not an AWS resource with
-		// an SDK list op.
-		"AWS::airflow::environment": "duplicate: already scanned as aws:mwaa:environment (CFN spelling AWS::MWAA::Environment)",
-		"AWS::airflow::rbac-role":   "no SDK list op: Airflow-internal RBAC role (IAM policy reference), not a discoverable AWS resource",
-
-		// airflow-serverless — the workflow is already scanned as
-		// aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow).
-		// The Service Reference lists it under the hyphenated "airflow-serverless".
-		"AWS::airflow-serverless::Workflow": "duplicate: already scanned as aws:mwaa-serverless:workflow (CFN spelling AWS::MWAAServerless::Workflow)",
-
-		// amplify — the Service Reference plural spellings duplicate the CFN
-		// singular types disco already scans (app/branch/domain). Jobs are
-		// deployment/build run records (ephemeral), not infrastructure. Webhooks
-		// are scanned (aws:amplify:webhooks).
-		"AWS::amplify::apps":     "duplicate: already scanned as aws:amplify:app (CFN spelling AWS::Amplify::App)",
-		"AWS::amplify::branches": "duplicate: already scanned as aws:amplify:branch (CFN spelling AWS::Amplify::Branch)",
-		"AWS::amplify::domains":  "duplicate: already scanned as aws:amplify:domain (CFN spelling AWS::Amplify::Domain)",
-		"AWS::amplify::jobs":     "ephemeral: deployment/build job-run records, not a persistent resource",
-
-		// amplifyuibuilder — the Service Reference "...Resource"-suffixed spellings
-		// duplicate the CFN types disco already scans (component/form/theme).
-		// CodegenJob is an async code-generation run record (ephemeral).
-		"AWS::amplifyuibuilder::ComponentResource":  "duplicate: already scanned as aws:amplify-ui-builder:component (CFN spelling AWS::AmplifyUIBuilder::Component)",
-		"AWS::amplifyuibuilder::FormResource":       "duplicate: already scanned as aws:amplify-ui-builder:form (CFN spelling AWS::AmplifyUIBuilder::Form)",
-		"AWS::amplifyuibuilder::ThemeResource":      "duplicate: already scanned as aws:amplify-ui-builder:theme (CFN spelling AWS::AmplifyUIBuilder::Theme)",
+		// amplifyuibuilder — CodegenJob is an async code-generation run record
+		// (ephemeral). (component/form/theme "...Resource" spellings collapse via
+		// canonical matching.)
 		"AWS::amplifyuibuilder::CodegenJobResource": "ephemeral: async code-generation job-run record, not a persistent resource",
 
 		// appmesh-preview — the deprecated App Mesh preview API namespace. No
@@ -121,14 +85,10 @@ func (coverageProvider) Skips() map[string]string {
 		// editing API Gateway-managed stage/route/integration; no SDK list op.
 		"AWS::ApiGatewayV2::ApiGatewayManagedOverrides": "no SDK list op: CFN-only managed-overrides resource, not independently discoverable",
 
-		// app-integrations (Service Reference hyphenated spelling) — the three
-		// integration types duplicate the CFN AWS::AppIntegrations::* types disco
-		// already scans (aws:appintegrations:*). The "-association" types are
-		// per-parent link records (integration ↔ external client/target), not
-		// first-class discoverable resources.
-		"AWS::app-integrations::application":                   "duplicate: already scanned as aws:appintegrations:application (CFN spelling AWS::AppIntegrations::Application)",
-		"AWS::app-integrations::data-integration":              "duplicate: already scanned as aws:appintegrations:data-integration (CFN spelling AWS::AppIntegrations::DataIntegration)",
-		"AWS::app-integrations::event-integration":             "duplicate: already scanned as aws:appintegrations:event-integration (CFN spelling AWS::AppIntegrations::EventIntegration)",
+		// app-integrations — the "-association" types are per-parent link records
+		// (integration ↔ external client/target), not first-class discoverable
+		// resources. (The application/data-integration/event-integration duplicate
+		// spellings collapse via canonical matching against aws:appintegrations:*.)
 		"AWS::app-integrations::application-association":       "association: per-parent application↔resource link record, not a first-class resource",
 		"AWS::app-integrations::data-integration-association":  "association: per-parent data-integration↔client link record, not a first-class resource",
 		"AWS::app-integrations::event-integration-association": "association: per-parent event-integration↔client link record, not a first-class resource",
