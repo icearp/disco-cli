@@ -215,6 +215,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::aws-marketplace::InvoiceSubmissionTask": "billing: AWS Marketplace seller invoicing task, not infrastructure",
 		"AWS::aws-marketplace::IssuedTaxInvoice":      "billing: AWS Marketplace issued tax-invoice document, not infrastructure",
 
+		// backup-search — both rows are async job records (searches over backup
+		// metadata + their export jobs), not persistent resources.
+		"AWS::backup-search::searchJob":       "ephemeral: async backup-metadata search job record, not a persistent resource",
+		"AWS::backup-search::searchExportJob": "ephemeral: async backup-search export job record, not a persistent resource",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
