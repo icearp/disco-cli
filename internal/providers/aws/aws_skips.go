@@ -228,6 +228,27 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// bedrock — async invocations, flow executions, agent sessions, and the
+		// whole *-job family are execution/history records, not persistent
+		// resources (the jobs produce custom-model / imported-model rows, which
+		// disco does scan). ResourcePolicy is a resource-based policy with only a
+		// Get op (no list).
+		"AWS::bedrock::async-invoke":                          bedrockEphemeralJob,
+		"AWS::bedrock::flow-execution":                        bedrockEphemeralJob,
+		"AWS::bedrock::session":                               bedrockEphemeralJob,
+		"AWS::bedrock::advanced-prompt-optimization-job":      bedrockEphemeralJob,
+		"AWS::bedrock::blueprint-optimization-invocation":     bedrockEphemeralJob,
+		"AWS::bedrock::data-automation-invocation-job":        bedrockEphemeralJob,
+		"AWS::bedrock::data-automation-library-ingestion-job": bedrockEphemeralJob,
+		"AWS::bedrock::evaluation-job":                        bedrockEphemeralJob,
+		"AWS::bedrock::model-evaluation-job":                  bedrockEphemeralJob,
+		"AWS::bedrock::model-copy-job":                        bedrockEphemeralJob,
+		"AWS::bedrock::model-customization-job":               bedrockEphemeralJob,
+		"AWS::bedrock::model-import-job":                      bedrockEphemeralJob,
+		"AWS::bedrock::model-invocation-job":                  bedrockEphemeralJob,
+		"AWS::bedrock::resource-policy":                       bedrockResourcePolicyNoList,
+		"AWS::Bedrock::ResourcePolicy":                        bedrockResourcePolicyNoList,
+
 		// bcm — CloudFormation files the Billing & Cost Management dashboard under
 		// the "BCM" service while the Service Reference uses "bcm-dashboards";
 		// disco scans it once as aws:bcmdashboards:dashboard (covering the SR key).
@@ -342,5 +363,9 @@ const appTestRetired = "service retired: AWS Mainframe Modernization Application
 const marketplaceCatalogOOS = "out-of-scope: AWS Marketplace seller e-commerce catalog entity (marketplacecatalog ListEntities, OwnershipType=SELF); not security infrastructure, no resource-graph edges"
 
 const bedrockMantleNoSDK = "no SDK: bedrock-mantle has no aws-sdk-go-v2/service/bedrockmantle module (not in the public Go SDK)"
+
+const bedrockEphemeralJob = "ephemeral: Bedrock async-invoke / flow-execution / session / *-job execution record, not a persistent resource"
+
+const bedrockResourcePolicyNoList = "no list API: Bedrock resource-based policy has only GetResourcePolicy (no list op)"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
