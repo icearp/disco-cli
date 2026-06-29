@@ -17,6 +17,12 @@ type stubBAC struct {
 	systemBrowsers []bactypes.BrowserSummary
 	customCI       []bactypes.CodeInterpreterSummary
 	systemCI       []bactypes.CodeInterpreterSummary
+	bundles        []bactypes.ConfigurationBundleSummary
+	datasets       []bactypes.DatasetSummary
+	harnesses      []bactypes.HarnessSummary
+	endpoints      map[string][]bactypes.HarnessEndpoint
+	registries     []bactypes.RegistrySummary
+	records        map[string][]bactypes.RegistryRecordSummary
 }
 
 //nolint:revive // method name must match the SDK op (ListApiKeyCredentialProviders) to satisfy bedrockAgentCoreAPI.
@@ -84,6 +90,34 @@ func (s *stubBAC) ListAgentRuntimeEndpoints(_ context.Context, _ *bac.ListAgentR
 
 func (s *stubBAC) ListWorkloadIdentities(_ context.Context, _ *bac.ListWorkloadIdentitiesInput, _ ...func(*bac.Options)) (*bac.ListWorkloadIdentitiesOutput, error) {
 	return &bac.ListWorkloadIdentitiesOutput{}, nil
+}
+
+func (s *stubBAC) ListConfigurationBundles(_ context.Context, _ *bac.ListConfigurationBundlesInput, _ ...func(*bac.Options)) (*bac.ListConfigurationBundlesOutput, error) {
+	return &bac.ListConfigurationBundlesOutput{Bundles: s.bundles}, nil
+}
+
+func (s *stubBAC) ListDatasets(_ context.Context, _ *bac.ListDatasetsInput, _ ...func(*bac.Options)) (*bac.ListDatasetsOutput, error) {
+	return &bac.ListDatasetsOutput{Datasets: s.datasets}, nil
+}
+
+func (s *stubBAC) ListHarnesses(_ context.Context, _ *bac.ListHarnessesInput, _ ...func(*bac.Options)) (*bac.ListHarnessesOutput, error) {
+	return &bac.ListHarnessesOutput{Harnesses: s.harnesses}, nil
+}
+
+func (s *stubBAC) ListHarnessEndpoints(_ context.Context, in *bac.ListHarnessEndpointsInput, _ ...func(*bac.Options)) (*bac.ListHarnessEndpointsOutput, error) {
+	return &bac.ListHarnessEndpointsOutput{Endpoints: s.endpoints[sv(in.HarnessId)]}, nil
+}
+
+func (s *stubBAC) ListRegistries(_ context.Context, _ *bac.ListRegistriesInput, _ ...func(*bac.Options)) (*bac.ListRegistriesOutput, error) {
+	return &bac.ListRegistriesOutput{Registries: s.registries}, nil
+}
+
+func (s *stubBAC) ListRegistryRecords(_ context.Context, in *bac.ListRegistryRecordsInput, _ ...func(*bac.Options)) (*bac.ListRegistryRecordsOutput, error) {
+	return &bac.ListRegistryRecordsOutput{RegistryRecords: s.records[sv(in.RegistryId)]}, nil
+}
+
+func (s *stubBAC) ListPolicyGenerations(_ context.Context, _ *bac.ListPolicyGenerationsInput, _ ...func(*bac.Options)) (*bac.ListPolicyGenerationsOutput, error) {
+	return &bac.ListPolicyGenerationsOutput{}, nil
 }
 
 // SYSTEM browsers/code-interpreters bucket as the managed built-in type; CUSTOM

@@ -377,6 +377,12 @@ func (coverageProvider) Aliases() map[string]string {
 		// (CFN models CodeInterpreterCustom but no plain CodeInterpreter); the
 		// system browser does have a CFN twin so it needs no alias.
 		TypeBedrockAgentCoreCodeInterpreter: "AWS::bedrock-agentcore::code-interpreter",
+		// registry, registry-record, harness-endpoint and policy-generation exist
+		// only in the Service Reference (no CFN type); alias to the exact SR keys.
+		TypeBedrockAgentCoreRegistry:         "AWS::bedrock-agentcore::registry",
+		TypeBedrockAgentCoreRegistryRecord:   "AWS::bedrock-agentcore::registry-record",
+		TypeBedrockAgentCoreHarnessEndpoint:  "AWS::bedrock-agentcore::harness-endpoint",
+		TypeBedrockAgentCorePolicyGeneration: "AWS::bedrock-agentcore::policy-generation",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

@@ -22,7 +22,14 @@ func init() {
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreBrowserProfile, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreter, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreCodeInterpreterCustom, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreConfigurationBundle, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreDataset, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreEvaluator, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreHarness, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreHarnessEndpoint},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCorePolicyGeneration},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRegistry, Leaf: true},
+			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreRegistryRecord},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreGateway, Leaf: true},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreGatewayTarget},
 			{Service: "bedrockagentcore", DiscoType: TypeBedrockAgentCoreMemory, Leaf: true},
@@ -53,6 +60,13 @@ type bedrockAgentCoreAPI interface {
 	ListAgentRuntimes(context.Context, *bac.ListAgentRuntimesInput, ...func(*bac.Options)) (*bac.ListAgentRuntimesOutput, error)
 	ListAgentRuntimeEndpoints(context.Context, *bac.ListAgentRuntimeEndpointsInput, ...func(*bac.Options)) (*bac.ListAgentRuntimeEndpointsOutput, error)
 	ListWorkloadIdentities(context.Context, *bac.ListWorkloadIdentitiesInput, ...func(*bac.Options)) (*bac.ListWorkloadIdentitiesOutput, error)
+	ListConfigurationBundles(context.Context, *bac.ListConfigurationBundlesInput, ...func(*bac.Options)) (*bac.ListConfigurationBundlesOutput, error)
+	ListDatasets(context.Context, *bac.ListDatasetsInput, ...func(*bac.Options)) (*bac.ListDatasetsOutput, error)
+	ListHarnesses(context.Context, *bac.ListHarnessesInput, ...func(*bac.Options)) (*bac.ListHarnessesOutput, error)
+	ListHarnessEndpoints(context.Context, *bac.ListHarnessEndpointsInput, ...func(*bac.Options)) (*bac.ListHarnessEndpointsOutput, error)
+	ListRegistries(context.Context, *bac.ListRegistriesInput, ...func(*bac.Options)) (*bac.ListRegistriesOutput, error)
+	ListRegistryRecords(context.Context, *bac.ListRegistryRecordsInput, ...func(*bac.Options)) (*bac.ListRegistryRecordsOutput, error)
+	ListPolicyGenerations(context.Context, *bac.ListPolicyGenerationsInput, ...func(*bac.Options)) (*bac.ListPolicyGenerationsOutput, error)
 }
 
 func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -79,6 +93,20 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 	total += t
 	inserted += i
 
+	harnessIDs, t, i, ferr := scanBACHarnesses(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	registryIDs, t, i, ferr := scanBACRegistries(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanBACGatewayTargets(ctx, client, acct, region, st, scanID, gwIDs) },
 		func() (int, int, error) { return scanBACRuntimeEndpoints(ctx, client, acct, region, st, scanID, rtIDs) },
@@ -91,7 +119,18 @@ func scanBedrockAgentCore(ctx context.Context, acct *account, region string, st 
 		func() (int, int, error) { return scanBACMemories(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBACOnlineEvalConfigs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanBACPolicies(ctx, client, acct, region, st, scanID, engineIDs) },
+		func() (int, int, error) {
+			return scanBACPolicyGenerations(ctx, client, acct, region, st, scanID, engineIDs)
+		},
 		func() (int, int, error) { return scanBACWorkloadIdentities(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACConfigurationBundles(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanBACDatasets(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanBACHarnessEndpoints(ctx, client, acct, region, st, scanID, harnessIDs)
+		},
+		func() (int, int, error) {
+			return scanBACRegistryRecords(ctx, client, acct, region, st, scanID, registryIDs)
+		},
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {

@@ -22,6 +22,159 @@ func init() {
 		resolveBACPolicyEngine,
 		EdgeDecl{TypeBedrockAgentCorePolicy, TypeBedrockAgentCorePolicyEngine, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveBACPolicyGenerationEngine,
+		EdgeDecl{TypeBedrockAgentCorePolicyGeneration, TypeBedrockAgentCorePolicyEngine, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveBACHarnessEndpointParent,
+		EdgeDecl{TypeBedrockAgentCoreHarnessEndpoint, TypeBedrockAgentCoreHarness, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveBACRegistryRecordParent,
+		EdgeDecl{TypeBedrockAgentCoreRegistryRecord, TypeBedrockAgentCoreRegistry, store.RelAttachedTo},
+	)
+}
+
+// resolveBACPolicyGenerationEngine wires each policy-generation to its parent
+// policy-engine via the bare PolicyEngineId, reusing the engine ID index.
+func resolveBACPolicyGenerationEngine(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCorePolicyGeneration},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := bacPolicyEngineIDIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			PolicyEngineID *string `json:"PolicyEngineId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		eid := sv(attrs.PolicyEngineID)
+		if eid == "" {
+			continue
+		}
+		tgtID, ok := idx[eid]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bac policy-generation→engine: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveBACHarnessEndpointParent wires each harness-endpoint to its parent
+// harness via the bare HarnessId, FK-safe against a harness ID index.
+func resolveBACHarnessEndpointParent(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreHarnessEndpoint},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := bacHarnessIDIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			HarnessID *string `json:"HarnessId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		hid := sv(attrs.HarnessID)
+		if hid == "" {
+			continue
+		}
+		tgtID, ok := idx[hid]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bac harness-endpoint→harness: %w", err)
+		}
+	}
+	return nil
+}
+
+// bacHarnessIDIndex maps HarnessId → resource ID for FK-safe lookup.
+func bacHarnessIDIndex(acct *account, st *store.Store) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreHarness},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	for _, r := range rows {
+		var attrs struct {
+			HarnessID *string `json:"HarnessId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.HarnessID); id != "" {
+			idx[id] = r.ID
+		}
+	}
+	return idx, nil
+}
+
+// resolveBACRegistryRecordParent wires each registry-record to its parent
+// registry via the RegistryArn SDK field (the registry's NativeID).
+func resolveBACRegistryRecordParent(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeBedrockAgentCoreRegistryRecord},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	rgSet, err := scannedIDSet(acct, st, TypeBedrockAgentCoreRegistry)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			RegistryArn *string `json:"RegistryArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.RegistryArn)
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeBedrockAgentCoreRegistry, arn)
+		if !rgSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert bac registry-record→registry: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveBACGatewayTargetParent wires each gateway-target to its parent
