@@ -1564,8 +1564,10 @@ const (
 	TypeLightsailLoadBalancerTLSCertificate = "aws:lightsail:load-balancer-tls-certificate"
 	TypeLightsailStaticIP                   = "aws:lightsail:static-ip"
 	// Elastic Beanstalk (elasticbeanstalk_scanners.go, elasticbeanstalk_resolvers.go)
-	TypeBeanstalkApplication = "aws:elasticbeanstalk:application"
-	TypeBeanstalkEnvironment = "aws:elasticbeanstalk:environment"
+	TypeBeanstalkApplication        = "aws:elasticbeanstalk:application"
+	TypeBeanstalkEnvironment        = "aws:elasticbeanstalk:environment"
+	TypeBeanstalkApplicationVersion = "aws:elasticbeanstalk:application-version"
+	TypeBeanstalkPlatform           = "aws:elasticbeanstalk:platform"
 	// IAM Access Analyzer (accessanalyzer_scanners.go, accessanalyzer_resolvers.go)
 	TypeAccessAnalyzerAnalyzer    = "aws:accessanalyzer:analyzer"
 	TypeAccessAnalyzerArchiveRule = "aws:accessanalyzer:archive-rule"

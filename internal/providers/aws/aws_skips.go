@@ -724,6 +724,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ElastiCache::SecurityGroupIngress": "sub-resource: an ingress rule of a cache security group, no standalone List API",
 		"AWS::elasticache::cluster":              "duplicate: scanned as aws:elasticache:cache-cluster (DescribeCacheClusters)",
 
+		// elasticbeanstalk — configuration templates are embedded in the application
+		// (names in ConfigurationTemplates[]); solution stacks are an AWS catalog.
+		"AWS::elasticbeanstalk::configurationtemplate": "sub-resource: a named config template embedded in the application, no standalone list API",
+		"AWS::elasticbeanstalk::solutionstack":         "catalog: AWS's read-only list of available Beanstalk solution stacks, not an account resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

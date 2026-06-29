@@ -16,6 +16,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplication},
 			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkEnvironment, Leaf: true},
+			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkApplicationVersion},
+			{Service: "elasticbeanstalk", DiscoType: TypeBeanstalkPlatform, Leaf: true},
 		},
 	})
 }
@@ -25,6 +27,8 @@ func init() {
 type elasticbeanstalkAPI interface {
 	DescribeApplications(context.Context, *elasticbeanstalk.DescribeApplicationsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeApplicationsOutput, error)
 	DescribeEnvironments(context.Context, *elasticbeanstalk.DescribeEnvironmentsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeEnvironmentsOutput, error)
+	DescribeApplicationVersions(context.Context, *elasticbeanstalk.DescribeApplicationVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeApplicationVersionsOutput, error)
+	ListPlatformVersions(context.Context, *elasticbeanstalk.ListPlatformVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.ListPlatformVersionsOutput, error)
 }
 
 // scanElasticBeanstalk discovers Beanstalk applications and environments
@@ -32,32 +36,27 @@ type elasticbeanstalkAPI interface {
 // in a single call (no pagination — small per-account quota). Environments
 // use manual NextToken pagination (no SDK paginator). Per-phase
 // AccessDenied tolerated. Application versions, configuration templates,
-// configuration option settings, and platform versions deferred —
-// versions explode in volume on long-lived apps; configurations are
-// declarative metadata better expressed via CFN stack edges (Beanstalk
-// owns an underlying CFN stack per environment, already covered by
-// aws:cloudformation:stack scanner).
+// application versions, and custom platform versions. Configuration templates
+// are skipped (sub-resource: names embedded in the application's
+// ConfigurationTemplates[], no standalone list API); solution stacks are an AWS
+// catalog (aws_skips.go). The AWS-managed platform catalogue is excluded by
+// filtering ListPlatformVersions to PlatformOwner=self (custom platforms only).
 func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticbeanstalk.NewFromConfig(acct.cfg, func(o *elasticbeanstalk.Options) { o.Region = region })
 
-	{
-		t, i, ferr := scanBeanstalkApplications(ctx, client, acct, region, st, scanID)
+	for _, scan := range []func(context.Context, elasticbeanstalkAPI, *account, string, *store.Store, string) (int, int, error){
+		scanBeanstalkApplications,
+		scanBeanstalkEnvironments,
+		scanBeanstalkApplicationVersions,
+		scanBeanstalkPlatforms,
+	} {
+		t, i, ferr := scan(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
 		total += t
 		inserted += i
 	}
-
-	{
-		t, i, ferr := scanBeanstalkEnvironments(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
 	return total, inserted, nil
 }
 
