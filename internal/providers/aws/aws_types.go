@@ -1071,6 +1071,14 @@ const (
 	// DocDBElastic (docdbelastic_scanners.go)
 	TypeDocDBElasticCluster         = "aws:doc-db-elastic:cluster"
 	TypeDocDBElasticClusterSnapshot = "aws:doc-db-elastic:cluster-snapshot"
+	// DRS / Elastic Disaster Recovery (drs_scanners.go). The "-resource" suffix
+	// mirrors the AWS Service Reference resource-type names (SourceServerResource,
+	// …); DRS has no CloudFormation twin to mirror without it.
+	TypeDRSSourceServerResource                     = "aws:drs:source-server-resource"
+	TypeDRSRecoveryInstanceResource                 = "aws:drs:recovery-instance-resource"
+	TypeDRSSourceNetworkResource                    = "aws:drs:source-network-resource"
+	TypeDRSReplicationConfigurationTemplateResource = "aws:drs:replication-configuration-template-resource"
+	TypeDRSLaunchConfigurationTemplateResource      = "aws:drs:launch-configuration-template-resource"
 	// DLM (dlm_scanners.go)
 	TypeDLMLifecyclePolicy = "aws:dlm:lifecycle-policy"
 	// CUR (cur_scanners.go)

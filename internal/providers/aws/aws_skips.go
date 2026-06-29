@@ -594,6 +594,12 @@ func (coverageProvider) Skips() map[string]string {
 		// channel itself is scanned as aws:devops-guru:notification-channel.
 		"AWS::devops-guru::topic": "reference: the SNS topic backing a notification channel (modelled as aws:sns:topic)",
 
+		// drs (Elastic Disaster Recovery) — JobResource is an ephemeral
+		// recovery/drill job-run record, not persistent infrastructure. (The
+		// source servers, recovery instances, source networks, and replication /
+		// launch templates are scanned.)
+		"AWS::drs::JobResource": "ephemeral: a recovery/drill job-run record, not a persistent resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

@@ -190,6 +190,7 @@ var expectedAWSServices = []string{
 	"aws:datazone",
 	"aws:deadline",
 	"aws:dms",
+	"aws:drs",
 	"aws:greengrass",
 	"aws:mediaconnect",
 	"aws:medialive",
