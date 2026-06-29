@@ -1089,6 +1089,11 @@ const (
 	TypeAppConfigExtension                  = "aws:appconfig:extension"
 	TypeAppConfigExtensionAssociation       = "aws:appconfig:extension-association"
 	TypeAppConfigHostedConfigurationVersion = "aws:appconfig:hosted-configuration-version"
+	// AppFabric (appfabric_scanners.go, appfabric_resolvers.go)
+	TypeAppFabricAppBundle            = "aws:appfabric:app-bundle"
+	TypeAppFabricAppAuthorization     = "aws:appfabric:app-authorization"
+	TypeAppFabricIngestion            = "aws:appfabric:ingestion"
+	TypeAppFabricIngestionDestination = "aws:appfabric:ingestion-destination"
 	// SMSVoice v2 (smsvoice_scanners.go)
 	TypeSMSVoiceConfigurationSet     = "aws:sms-voice:configuration-set"
 	TypeSMSVoiceOptOutList           = "aws:sms-voice:opt-out-list"
