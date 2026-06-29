@@ -120,6 +120,25 @@ func (coverageProvider) Skips() map[string]string {
 		// not a listable resource — no SDK op enumerates it.
 		"AWS::aoss::Dashboards": "no SDK list op: OpenSearch Serverless Dashboards is a collection's web endpoint, not a discoverable resource",
 
+		// application-signals — the SR `slo` is the lowercase abbreviation of the
+		// CFN `ServiceLevelObjective` disco already scans as
+		// aws:applicationsignals:service-level-objective; the canonicalizer can't
+		// fold an abbreviation to its expansion, so skip it as a duplicate.
+		"AWS::application-signals::slo": "duplicate: SR abbreviation of ServiceLevelObjective, scanned as aws:applicationsignals:service-level-objective",
+		// Discovery is the CFN-only singleton that onboards an account to
+		// Application Signals (creates the service-linked role); no list/describe
+		// op enumerates it.
+		"AWS::ApplicationSignals::Discovery": "no list API: CFN-only account-enablement singleton (onboards Application Signals), not a discoverable resource",
+		// instrumentationConfig is ephemeral dynamic-instrumentation (breakpoint /
+		// probe) config carrying an ExpiresAt; ListInstrumentationConfigurations
+		// requires (Environment, Service, InstrumentationType) per call, only
+		// enumerable via a per-service fan-out off the metrics-window ListServices
+		// API — operational telemetry, not inventoried infrastructure.
+		"AWS::application-signals::instrumentationConfig": "ephemeral: dynamic-instrumentation breakpoint/probe config (ExpiresAt); needs per-(environment,service,type) fan-out off the metrics-window ListServices, not standalone inventory",
+		// application-signals-mcp is the Application Signals MCP server offering —
+		// a Model Context Protocol endpoint, not an AWS account resource; no SDK.
+		"AWS::application-signals-mcp::mcp-server": "no SDK: Application Signals MCP server offering, not a discoverable account resource",
+
 		// apprunner webacl — the WAFv2 web-ACL association for a service
 		// (AssociateWebAcl); the web-ACL is scanned under aws:wafv2:web-acl and
 		// App Runner exposes no op to enumerate the associations.
