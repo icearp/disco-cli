@@ -228,6 +228,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
+		// so none of its types are scannable under disco's per-service-SDK mandate.
+		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
+		"AWS::bedrock-mantle::customized-model": bedrockMantleNoSDK,
+		"AWS::bedrock-mantle::reservation":      bedrockMantleNoSDK,
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
@@ -303,5 +309,7 @@ const appStudioNoSDK = "no SDK: AWS App Studio (low-code app builder) is console
 const appTestRetired = "service retired: AWS Mainframe Modernization Application Testing deprecated by AWS (no longer available; aws-sdk-go-v2 client deprecated)"
 
 const marketplaceCatalogOOS = "out-of-scope: AWS Marketplace seller e-commerce catalog entity (marketplacecatalog ListEntities, OwnershipType=SELF); not security infrastructure, no resource-graph edges"
+
+const bedrockMantleNoSDK = "no SDK: bedrock-mantle has no aws-sdk-go-v2/service/bedrockmantle module (not in the public Go SDK)"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
