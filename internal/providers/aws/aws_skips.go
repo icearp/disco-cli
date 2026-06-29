@@ -10,7 +10,12 @@ package aws
 //     (it is a field of a parent resource, often already an edge/attribute).
 //   - ephemeral:     a task/quote/report/job-run record, not a persistent resource.
 //   - no SDK:        a preview/private service with no public aws-sdk-go-v2 client.
-//   - duplicate:     the same physical resource disco already scans under another type.
+//   - duplicate:     the same physical resource disco already scans under another
+//     type. NOTE: most duplicates collapse automatically via canonical-identity
+//     matching (CanonicalKey in aws_coverage.go) — do NOT hand-write them here.
+//     Only the cases the canonicalizer can't detect need an entry (e.g. the
+//     apigateway IAM prefix that fronts both v1 and v2, or the cross-service
+//     account↔iam:account self-node modelling).
 //
 // Keys match upstream case-insensitively (CloudFormation `AWS::EC2::Route` or
 // the Service Reference lowercase `AWS::ec2::export-image-task` shape). Entries
