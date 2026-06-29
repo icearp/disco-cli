@@ -19,8 +19,7 @@ func init() {
 }
 
 // bedrockDataAutomationAPI is the narrow bedrockdataautomation surface used by
-// the data-automation scanners. None of the three List ops are paginated by the
-// SDK — they use manual NextToken loops.
+// the data-automation scanners.
 type bedrockDataAutomationAPI interface {
 	ListBlueprints(context.Context, *bda.ListBlueprintsInput, ...func(*bda.Options)) (*bda.ListBlueprintsOutput, error)
 	ListDataAutomationProjects(context.Context, *bda.ListDataAutomationProjectsInput, ...func(*bda.Options)) (*bda.ListDataAutomationProjectsOutput, error)
@@ -73,9 +72,9 @@ func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI,
 	var batch []*store.Resource
 	for _, owner := range []bdatypes.ResourceOwner{bdatypes.ResourceOwnerAccount, bdatypes.ResourceOwnerService} {
 		managed := owner == bdatypes.ResourceOwnerService
-		var token *string
-		for {
-			out, perr := client.ListBlueprints(ctx, &bda.ListBlueprintsInput{ResourceOwner: owner, NextToken: token})
+		pager := bda.NewListBlueprintsPaginator(client, &bda.ListBlueprintsInput{ResourceOwner: owner})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				// Soft-skip stops this owner pass but preserves rows already
 				// accumulated from the other owner (the fall-through upsert).
@@ -99,9 +98,6 @@ func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI,
 					AttributesJSON:    mustJSON(b), CreatedAt: tp(b.CreationTime), DiscoveredBy: scanID,
 				})
 			}
-			if token = out.NextToken; token == nil {
-				break
-			}
 		}
 	}
 	return upsertBatch(st, batch, "bedrock blueprints")
@@ -113,9 +109,9 @@ func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI,
 // ResourceOwner but defaults to ACCOUNT).
 func scanBedrockDataAutomationProjects(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListDataAutomationProjects(ctx, &bda.ListDataAutomationProjectsInput{NextToken: token})
+	pager := bda.NewListDataAutomationProjectsPaginator(client, &bda.ListDataAutomationProjectsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if e := bedrockDAListErr(st, "bedrockdataautomation:ListDataAutomationProjects", acct.ID, region, perr); e != nil {
 				return 0, 0, e
@@ -136,18 +132,15 @@ func scanBedrockDataAutomationProjects(ctx context.Context, client bedrockDataAu
 				AttributesJSON: mustJSON(p), CreatedAt: tp(p.CreationTime), DiscoveredBy: scanID,
 			})
 		}
-		if token = out.NextToken; token == nil {
-			break
-		}
 	}
 	return upsertBatch(st, batch, "bedrock data-automation-projects")
 }
 
 func scanBedrockDataAutomationLibraries(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListDataAutomationLibraries(ctx, &bda.ListDataAutomationLibrariesInput{NextToken: token})
+	pager := bda.NewListDataAutomationLibrariesPaginator(client, &bda.ListDataAutomationLibrariesInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if e := bedrockDAListErr(st, "bedrockdataautomation:ListDataAutomationLibraries", acct.ID, region, perr); e != nil {
 				return 0, 0, e
@@ -166,9 +159,6 @@ func scanBedrockDataAutomationLibraries(ctx context.Context, client bedrockDataA
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(l), CreatedAt: tp(l.CreationTime), DiscoveredBy: scanID,
 			})
-		}
-		if token = out.NextToken; token == nil {
-			break
 		}
 	}
 	return upsertBatch(st, batch, "bedrock data-automation-libraries")

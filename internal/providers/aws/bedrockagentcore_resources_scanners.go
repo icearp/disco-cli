@@ -10,14 +10,13 @@ import (
 
 // This file holds the AgentCore resource scanners added after the initial set
 // (configuration bundles, datasets, harnesses + endpoints, registries + records,
-// policy generations). None of these List ops have an SDK paginator, so each
-// uses a manual NextToken loop. All store list summaries, which carry no secrets.
+// policy generations). All store list summaries, which carry no secrets.
 
 func scanBACConfigurationBundles(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := bac.NewListConfigurationBundlesPaginator(client, &bac.ListConfigurationBundlesInput{})
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListConfigurationBundles(ctx, &bac.ListConfigurationBundlesInput{NextToken: token})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			return bacListSkip(st, batch, "bedrockagentcore:ListConfigurationBundles", "configuration-bundles", acct.ID, region, perr)
 		}
@@ -37,18 +36,15 @@ func scanBACConfigurationBundles(ctx context.Context, client bedrockAgentCoreAPI
 				CreatedAt: tp(b.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
-		if token = out.NextToken; token == nil {
-			break
-		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore configuration-bundles")
 }
 
 func scanBACDatasets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := bac.NewListDatasetsPaginator(client, &bac.ListDatasetsInput{})
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListDatasets(ctx, &bac.ListDatasetsInput{NextToken: token})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			return bacListSkip(st, batch, "bedrockagentcore:ListDatasets", "datasets", acct.ID, region, perr)
 		}
@@ -69,20 +65,17 @@ func scanBACDatasets(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 				CreatedAt: tp(d.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
-		if token = out.NextToken; token == nil {
-			break
-		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore datasets")
 }
 
 // scanBACHarnesses lists harnesses and returns their IDs for the endpoint fan-out.
 func scanBACHarnesses(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	pager := bac.NewListHarnessesPaginator(client, &bac.ListHarnessesInput{})
 	var ids []string
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListHarnesses(ctx, &bac.ListHarnessesInput{NextToken: token})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			t, i, e := bacListSkip(st, batch, "bedrockagentcore:ListHarnesses", "harnesses", acct.ID, region, perr)
 			return ids, t, i, e
@@ -107,9 +100,6 @@ func scanBACHarnesses(ctx context.Context, client bedrockAgentCoreAPI, acct *acc
 				CreatedAt: tp(h.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
-		if token = out.NextToken; token == nil {
-			break
-		}
 	}
 	t, i, e := upsertBatch(st, batch, "bedrockagentcore harnesses")
 	return ids, t, i, e
@@ -122,9 +112,9 @@ func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 	var batch []*store.Resource
 	for _, hid := range harnessIDs {
 		id := hid
-		var token *string
-		for {
-			out, perr := client.ListHarnessEndpoints(ctx, &bac.ListHarnessEndpointsInput{HarnessId: &id, NextToken: token})
+		pager := bac.NewListHarnessEndpointsPaginator(client, &bac.ListHarnessEndpointsInput{HarnessId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
 					break
@@ -148,9 +138,6 @@ func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 					CreatedAt: tp(e.CreatedAt), DiscoveredBy: scanID,
 				})
 			}
-			if token = out.NextToken; token == nil {
-				break
-			}
 		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore harness-endpoints")
@@ -158,11 +145,11 @@ func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 
 // scanBACRegistries lists registries and returns their IDs for the record fan-out.
 func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	pager := bac.NewListRegistriesPaginator(client, &bac.ListRegistriesInput{})
 	var ids []string
 	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListRegistries(ctx, &bac.ListRegistriesInput{NextToken: token})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			t, i, e := bacListSkip(st, batch, "bedrockagentcore:ListRegistries", "registries", acct.ID, region, perr)
 			return ids, t, i, e
@@ -187,9 +174,6 @@ func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 				CreatedAt: tp(rg.CreatedAt), DiscoveredBy: scanID,
 			})
 		}
-		if token = out.NextToken; token == nil {
-			break
-		}
 	}
 	t, i, e := upsertBatch(st, batch, "bedrockagentcore registries")
 	return ids, t, i, e
@@ -202,9 +186,9 @@ func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acc
 	var batch []*store.Resource
 	for _, rgid := range registryIDs {
 		id := rgid
-		var token *string
-		for {
-			out, perr := client.ListRegistryRecords(ctx, &bac.ListRegistryRecordsInput{RegistryId: &id, NextToken: token})
+		pager := bac.NewListRegistryRecordsPaginator(client, &bac.ListRegistryRecordsInput{RegistryId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
 					break
@@ -228,9 +212,6 @@ func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acc
 					CreatedAt: tp(rec.CreatedAt), DiscoveredBy: scanID,
 				})
 			}
-			if token = out.NextToken; token == nil {
-				break
-			}
 		}
 	}
 	return upsertBatch(st, batch, "bedrockagentcore registry-records")
@@ -245,9 +226,9 @@ func scanBACPolicyGenerations(ctx context.Context, client bedrockAgentCoreAPI, a
 	var batch []*store.Resource
 	for _, eid := range engineIDs {
 		id := eid
-		var token *string
-		for {
-			out, perr := client.ListPolicyGenerations(ctx, &bac.ListPolicyGenerationsInput{PolicyEngineId: &id, NextToken: token})
+		pager := bac.NewListPolicyGenerationsPaginator(client, &bac.ListPolicyGenerationsInput{PolicyEngineId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
 					break
@@ -270,9 +251,6 @@ func scanBACPolicyGenerations(ctx context.Context, client bedrockAgentCoreAPI, a
 					Name: &label, Region: &region, Status: &status, AttributesJSON: mustJSON(g),
 					CreatedAt: tp(g.CreatedAt), DiscoveredBy: scanID,
 				})
-			}
-			if token = out.NextToken; token == nil {
-				break
 			}
 		}
 	}
