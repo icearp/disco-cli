@@ -139,6 +139,12 @@ func (coverageProvider) Skips() map[string]string {
 		// a Model Context Protocol endpoint, not an AWS account resource; no SDK.
 		"AWS::application-signals-mcp::mcp-server": "no SDK: Application Signals MCP server offering, not a discoverable account resource",
 
+		// appstudio — AWS App Studio (low-code app builder) is console-first; no
+		// aws-sdk-go-v2 client exists, so none of its resources are scannable.
+		"AWS::appstudio::application": appStudioNoSDK,
+		"AWS::appstudio::connector":   appStudioNoSDK,
+		"AWS::appstudio::instance":    appStudioNoSDK,
+
 		// apprunner webacl — the WAFv2 web-ACL association for a service
 		// (AssociateWebAcl); the web-ACL is scanned under aws:wafv2:web-acl and
 		// App Runner exposes no op to enumerate the associations.
@@ -200,5 +206,7 @@ const apigatewayNoSDK = "no SDK op: API Gateway Portal/Product/private-domain re
 const amplifyBackendConfig = "no list API: per-app Amplify Gen1 backend configuration (GetBackend requires AppId); config of the aws:amplify:app already scanned, not an independently-ARN'd resource"
 
 const appmeshPreviewGone = "no SDK: appmesh-preview is the deprecated App Mesh preview API namespace (no aws-sdk-go-v2 client; GA App Mesh is the separate appmesh service)"
+
+const appStudioNoSDK = "no SDK: AWS App Studio (low-code app builder) is console-first; no aws-sdk-go-v2 client exists"
 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
