@@ -323,6 +323,14 @@ func (coverageProvider) Skips() map[string]string {
 		// can't bridge (ce vs billing).
 		"AWS::ce::billingview": "duplicate: billing views scanned as aws:billing:billing-view (billing:ListBillingViews)",
 
+		// cloud9 — the SR generic `environment` is the umbrella over the EC2
+		// environments disco already scans as aws:cloud9:environment-ec2 (CFN models
+		// only EnvironmentEC2; the scanner filters DescribeEnvironments to EC2 type).
+		// Cloud9 is closed to new customers (2024-07-31); the SSH-environment subset
+		// the generic also covers is a deprecated-service edge case not worth a
+		// second type.
+		"AWS::cloud9::environment": "duplicate: cloud9 environments scanned as aws:cloud9:environment-ec2 (CFN EnvironmentEC2 spelling)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
