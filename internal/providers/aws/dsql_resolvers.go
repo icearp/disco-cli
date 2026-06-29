@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"codeberg.org/icearp/disco/internal/util"
 	"codeberg.org/icearp/disco/store"
@@ -13,6 +14,53 @@ func init() {
 		resolveDSQLClusterKMS,
 		EdgeDecl{TypeDSQLCluster, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		resolveDSQLStreamCluster,
+		EdgeDecl{TypeDSQLStream, TypeDSQLCluster, store.RelAttachedTo},
+	)
+}
+
+// resolveDSQLStreamCluster wires each DSQL stream to its source cluster. The
+// stream carries the bare ClusterIdentifier, so clusters are indexed by the
+// identifier embedded in their ARN (…:cluster/{identifier}).
+func resolveDSQLStreamCluster(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDSQLStream}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusters, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDSQLCluster}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	clusterByID := make(map[string]string, len(clusters))
+	for _, c := range clusters {
+		if _, id, ok := strings.Cut(c.NativeID, ":cluster/"); ok && id != "" {
+			clusterByID[id] = c.ID
+		}
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ClusterIdentifier *string `json:"ClusterIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if cid := sv(attrs.ClusterIdentifier); cid != "" {
+			if tgtID, ok := clusterByID[cid]; ok {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert dsql stream→cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveDSQLClusterKMS wires each Aurora DSQL cluster to its CMEK via

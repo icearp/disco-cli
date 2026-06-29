@@ -33,3 +33,32 @@ func TestResolveDSQLClusterKMS_NoEncryption(t *testing.T) {
 		t.Fatalf("empty: %v", err)
 	}
 }
+
+func TestResolveDSQLStreamCluster(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	clusterARN := "arn:aws:dsql:us-east-1:" + testAccountID + ":cluster/abc123"
+	streamARN := "arn:aws:dsql:us-east-1:" + testAccountID + ":cluster/abc123/stream/s-1"
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeDSQLCluster, clusterARN, testRegion, "{}")
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeDSQLStream, streamARN, testRegion, `{"ClusterIdentifier":"abc123"}`)
+
+	if err := resolveDSQLStreamCluster(acct, st); err != nil {
+		t.Fatalf("resolveDSQLStreamCluster: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(sID)
+	assertRelationship(t, rels, sID, cID, store.RelAttachedTo)
+}
+
+func TestResolveDSQLStreamCluster_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	streamARN := "arn:aws:dsql:us-east-1:" + testAccountID + ":cluster/abc123/stream/s-1"
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeDSQLStream, streamARN, testRegion, "{}")
+	if err := resolveDSQLStreamCluster(acct, st); err != nil {
+		t.Fatalf("empty: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(sID); len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}

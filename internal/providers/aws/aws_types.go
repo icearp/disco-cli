@@ -1068,6 +1068,7 @@ const (
 	TypeElementalInferenceFeed = "aws:elemental-inference:feed"
 	// DSQL (dsql_scanners.go)
 	TypeDSQLCluster = "aws:dsql:cluster"
+	TypeDSQLStream  = "aws:dsql:stream"
 	// DocDBElastic (docdbelastic_scanners.go)
 	TypeDocDBElasticCluster         = "aws:doc-db-elastic:cluster"
 	TypeDocDBElasticClusterSnapshot = "aws:doc-db-elastic:cluster-snapshot"
