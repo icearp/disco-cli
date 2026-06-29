@@ -228,6 +228,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::batch::service-job":             "ephemeral: Batch service-job execution record (per-queue ListServiceJobs), not a persistent resource",
 		"AWS::batch::job-definition-revision": "duplicate: a revision of aws:batch:job-definition (already scanned per ACTIVE revision)",
 
+		// billing — the aws-sdk-go-v2/service/billing client exposes only billing
+		// views (ListBillingViews); there is no list/describe op for contract
+		// (AWS private-pricing agreements), so it cannot be enumerated.
+		"AWS::billing::contract": "no list API: billing client has no list/describe op for private-pricing contracts",
+
 		// bugbust — CodeGuru BugBust (gamified bug-fixing events) has no
 		// aws-sdk-go-v2 client and the service has been retired by AWS.
 		"AWS::bugbust::Event": "service retired: CodeGuru BugBust has no aws-sdk-go-v2 client (service discontinued)",
