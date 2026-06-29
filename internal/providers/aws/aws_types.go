@@ -85,6 +85,9 @@ const (
 	TypeEC2VerifiedAccessGroup         = "aws:ec2:verified-access-group"
 	TypeEC2VerifiedAccessEndpoint      = "aws:ec2:verified-access-endpoint"
 	// EC2 — Local Gateway (ec2_local_gateway_scanners.go)
+	TypeEC2LocalGateway                         = "aws:ec2:local-gateway"
+	TypeEC2CoipPool                             = "aws:ec2:coip-pool"
+	TypeEC2OutpostLag                           = "aws:ec2:outpost-lag"
 	TypeEC2LocalGatewayRouteTable               = "aws:ec2:local-gateway-route-table"
 	TypeEC2LocalGatewayRoute                    = "aws:ec2:local-gateway-route"
 	TypeEC2LocalGatewayVirtualInterface         = "aws:ec2:local-gateway-virtual-interface"
