@@ -163,6 +163,13 @@ func (coverageProvider) Skips() map[string]string {
 		// anomaly-detector), so it is not scannable per the per-service-API mandate.
 		"AWS::aps::cluster": "no SDK op: CFN-only APS cluster, amp SDK exposes no List/Describe cluster operation",
 
+		// arc-zonal-shift ALB/NLB — these "resource types" are the Application and
+		// Network Load Balancers disco already inventories as aws:elbv2:load-balancer.
+		// ARC zonal shift acts on them (ListManagedResources reports per-LB zonal-
+		// shift state); it is a capability view of an existing LB, not a new resource.
+		"AWS::arc-zonal-shift::ALB": "duplicate: an Application Load Balancer (aws:elbv2:load-balancer) that ARC zonal shift can act on, not a distinct resource",
+		"AWS::arc-zonal-shift::NLB": "duplicate: a Network Load Balancer (aws:elbv2:load-balancer) that ARC zonal shift can act on, not a distinct resource",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
