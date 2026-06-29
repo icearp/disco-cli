@@ -381,6 +381,13 @@ func (coverageProvider) Skips() map[string]string {
 		// can't bridge.
 		"AWS::cloudfront-keyvaluestore::key-value-store": "duplicate: scanned as aws:cloudfront:key-value-store (cloudfront:ListKeyValueStores)",
 
+		// cloudshell — interactive browser shell; no aws-sdk-go-v2 client and no
+		// list API for environments (they are per-user ephemeral sessions).
+		"AWS::cloudshell::Environment": "no SDK: CloudShell is an interactive per-user session, no aws-sdk-go-v2 client or environment list API",
+		// cloudtrail-data — the data-plane ingestion API (PutAuditEvents only); the
+		// channel it ingests into is scanned as aws:cloudtrail:channel.
+		"AWS::cloudtrail-data::channel": "duplicate: the ingestion channel is scanned as aws:cloudtrail:channel; cloudtraildata SDK exposes only PutAuditEvents",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
