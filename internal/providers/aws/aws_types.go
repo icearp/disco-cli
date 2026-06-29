@@ -505,6 +505,8 @@ const (
 	TypeBackupRestoreTestingPlan      = "aws:backup:restore-testing-plan"
 	TypeBackupRestoreTestingSelection = "aws:backup:restore-testing-selection"
 	TypeBackupTieringConfiguration    = "aws:backup:tiering-configuration"
+	TypeBackupLegalHold               = "aws:backup:legal-hold"
+	TypeBackupRecoveryPoint           = "aws:backup:recovery-point"
 	// Backup Gateway (backupgateway_scanners.go)
 	TypeBackupGatewayHypervisor = "aws:backupgateway:hypervisor"
 	// BCM Data Exports (bcmdataexports_scanners.go)

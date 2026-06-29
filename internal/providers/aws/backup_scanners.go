@@ -24,6 +24,10 @@ func init() {
 			{Service: "backup", DiscoType: TypeBackupRestoreTestingPlan, Leaf: true},
 			{Service: "backup", DiscoType: TypeBackupRestoreTestingSelection, Leaf: true},
 			{Service: "backup", DiscoType: TypeBackupTieringConfiguration, Leaf: true},
+			{Service: "backup", DiscoType: TypeBackupLegalHold, Leaf: true},
+			// recovery-point references its vault, KMS key, and the role AWS Backup
+			// assumed to create it.
+			{Service: "backup", DiscoType: TypeBackupRecoveryPoint},
 		},
 	})
 }
@@ -39,6 +43,8 @@ type backupAPI interface {
 	ListRestoreTestingPlans(context.Context, *backup.ListRestoreTestingPlansInput, ...func(*backup.Options)) (*backup.ListRestoreTestingPlansOutput, error)
 	ListRestoreTestingSelections(context.Context, *backup.ListRestoreTestingSelectionsInput, ...func(*backup.Options)) (*backup.ListRestoreTestingSelectionsOutput, error)
 	ListTieringConfigurations(context.Context, *backup.ListTieringConfigurationsInput, ...func(*backup.Options)) (*backup.ListTieringConfigurationsOutput, error)
+	ListLegalHolds(context.Context, *backup.ListLegalHoldsInput, ...func(*backup.Options)) (*backup.ListLegalHoldsOutput, error)
+	ListRecoveryPointsByBackupVault(context.Context, *backup.ListRecoveryPointsByBackupVaultInput, ...func(*backup.Options)) (*backup.ListRecoveryPointsByBackupVaultOutput, error)
 }
 
 // scanBackup discovers AWS Backup vaults, plans, and per-plan selections.
@@ -54,6 +60,12 @@ func scanBackup(ctx context.Context, acct *account, region string, st *store.Sto
 	total += t
 	inserted += i
 	t, i, ferr = scanBackupExtended(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	t, i, ferr = scanBackupHoldsAndRecoveryPoints(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}

@@ -57,6 +57,14 @@ func (s *stubBackup) ListTieringConfigurations(_ context.Context, _ *backup.List
 	return &backup.ListTieringConfigurationsOutput{}, nil
 }
 
+func (s *stubBackup) ListLegalHolds(_ context.Context, _ *backup.ListLegalHoldsInput, _ ...func(*backup.Options)) (*backup.ListLegalHoldsOutput, error) {
+	return &backup.ListLegalHoldsOutput{}, nil
+}
+
+func (s *stubBackup) ListRecoveryPointsByBackupVault(_ context.Context, _ *backup.ListRecoveryPointsByBackupVaultInput, _ ...func(*backup.Options)) (*backup.ListRecoveryPointsByBackupVaultOutput, error) {
+	return &backup.ListRecoveryPointsByBackupVaultOutput{}, nil
+}
+
 func TestScanBackup_VaultVariantSplit(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
