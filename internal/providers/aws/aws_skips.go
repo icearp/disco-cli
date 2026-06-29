@@ -185,11 +185,20 @@ func (coverageProvider) Skips() map[string]string {
 		// integration), not an AWS service with an aws-sdk-go-v2 client; nothing to scan.
 		"AWS::aws-external-anthropic::workspace": "no SDK: external-partner (Anthropic) IAM service prefix, no aws-sdk-go-v2 client",
 
+		// appconfig configuration — the deployed/rendered configuration returned by
+		// the deprecated GetConfiguration (and appconfigdata GetLatestConfiguration);
+		// no ListConfigurations op. The stored config is scanned as
+		// aws:appconfig:hosted-configuration-version.
+		"AWS::appconfig::configuration": "no list API: rendered config retrieval (GetConfiguration, deprecated); the stored config is aws:appconfig:hosted-configuration-version",
+
 		// artifact agreement — the underlying AWS-published agreement template a
 		// customer-agreement is based on (referenced by its AgreementArn). The
 		// artifact SDK has no ListAgreements/GetAgreement op; only customer
 		// agreements (aws:artifact:customer-agreement) and reports are listable.
 		"AWS::artifact::agreement": "no list API: AWS-published agreement template referenced by customer-agreement.AgreementArn; artifact SDK has no agreement list op",
+		// artifact compliance-inquiry — an on-demand compliance-info request action,
+		// not a stored resource; the artifact SDK has no list/get op for it.
+		"AWS::artifact::compliance-inquiry": "no list API: an on-demand compliance-inquiry action, not a discoverable resource",
 
 		// aws-marketplace — an e-commerce catalog/billing domain, not security
 		// infrastructure. The listable seller-catalog entities (Entity/Product/
