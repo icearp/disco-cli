@@ -311,6 +311,12 @@ func (coverageProvider) Skips() map[string]string {
 		// (budgetsaction vs budgetaction).
 		"AWS::budgets::budgetAction": "duplicate: budget actions scanned as aws:budgets:budgets-action (CFN BudgetsAction spelling)",
 
+		// cassandra (Keyspaces) — CDC streams have no enumerate API: the keyspaces
+		// SDK exposes only ListKeyspaces/ListTables/ListTypes (no ListStreams), and
+		// there is no keyspacesstreams control client. Stream config is a per-table
+		// property, not independently listable.
+		"AWS::cassandra::stream": "no list API: Keyspaces CDC streams have no list op in the keyspaces SDK",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
