@@ -394,6 +394,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::cloudwatch::dataset":  "no list API: cloudwatch SDK exposes only GetDataset (by id); datasets cannot be enumerated",
 		"AWS::CloudWatch::LogAlarm": "no SDK list op: a CFN-only alarm variant; DescribeAlarms returns only metric/composite alarms (scanned as aws:cloudwatch:alarm / composite-alarm)",
 
+		// codeartifact — packages are software artifacts (npm/pypi/maven) stored in
+		// a repository: content, not infrastructure. The repository is the resource
+		// (scanned as aws:codeartifact:repository); per-package rows are unbounded
+		// content, mirroring how ECR scans repositories but not individual images.
+		"AWS::codeartifact::package": "content within repository: packages are software artifacts stored in aws:codeartifact:repository (unbounded content, not infrastructure — mirrors ECR repositories-not-images)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
