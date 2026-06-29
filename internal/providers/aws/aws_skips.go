@@ -92,8 +92,25 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::app-integrations::application-association":       "association: per-parent application↔resource link record, not a first-class resource",
 		"AWS::app-integrations::data-integration-association":  "association: per-parent data-integration↔client link record, not a first-class resource",
 		"AWS::app-integrations::event-integration-association": "association: per-parent event-integration↔client link record, not a first-class resource",
+
+		// amplifybackend (Amplify Gen1 backend management) — has no list-all API;
+		// every op (GetBackend, GetBackendConfig, ...) requires an AppId, and the
+		// returned api/auth/storage/config/backend/environment are configuration of
+		// the aws:amplify:app already scanned, not independently-ARN'd resources
+		// (cf. the rejected aws:s3:bucket-encryption). Jobs and tokens are ephemeral.
+		"AWS::amplifybackend::backend":         amplifyBackendConfig,
+		"AWS::amplifybackend::created-backend": amplifyBackendConfig,
+		"AWS::amplifybackend::environment":     amplifyBackendConfig,
+		"AWS::amplifybackend::api":             amplifyBackendConfig,
+		"AWS::amplifybackend::auth":            amplifyBackendConfig,
+		"AWS::amplifybackend::storage":         amplifyBackendConfig,
+		"AWS::amplifybackend::config":          amplifyBackendConfig,
+		"AWS::amplifybackend::job":             "ephemeral: Amplify backend job-run records, not a persistent resource",
+		"AWS::amplifybackend::token":           "ephemeral: short-lived Amplify backend CLI auth token, not a resource",
 	}
 }
+
+const amplifyBackendConfig = "no list API: per-app Amplify Gen1 backend configuration (GetBackend requires AppId); config of the aws:amplify:app already scanned, not an independently-ARN'd resource"
 
 const appmeshPreviewGone = "no SDK: appmesh-preview is the deprecated App Mesh preview API namespace (no aws-sdk-go-v2 client; GA App Mesh is the separate appmesh service)"
 
