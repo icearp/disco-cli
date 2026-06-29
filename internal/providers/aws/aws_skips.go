@@ -729,6 +729,22 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::elasticbeanstalk::configurationtemplate": "sub-resource: a named config template embedded in the application, no standalone list API",
 		"AWS::elasticbeanstalk::solutionstack":         "catalog: AWS's read-only list of available Beanstalk solution stacks, not an account resource",
 
+		// elasticloadbalancing — the Service Reference lists the IAM-ARN resource-type
+		// spellings (listener/app, loadbalancer/net/, targetgroup, ...). disco scans
+		// every ELBv2 resource under the elasticloadbalancingv2 service segment, and
+		// the classic LB under aws:elasticloadbalancing:load-balancer. app/net/gwy are
+		// the application/network/gateway flavors of one disco type.
+		"AWS::elasticloadbalancing::listener-rule/app": "duplicate: scanned as aws:elasticloadbalancingv2:listener-rule",
+		"AWS::elasticloadbalancing::listener-rule/net": "duplicate: scanned as aws:elasticloadbalancingv2:listener-rule",
+		"AWS::elasticloadbalancing::listener/app":      "duplicate: scanned as aws:elasticloadbalancingv2:listener",
+		"AWS::elasticloadbalancing::listener/gwy":      "duplicate: scanned as aws:elasticloadbalancingv2:listener",
+		"AWS::elasticloadbalancing::listener/net":      "duplicate: scanned as aws:elasticloadbalancingv2:listener",
+		"AWS::elasticloadbalancing::loadbalancer/app/": "duplicate: scanned as aws:elasticloadbalancingv2:load-balancer",
+		"AWS::elasticloadbalancing::loadbalancer/gwy/": "duplicate: scanned as aws:elasticloadbalancingv2:load-balancer",
+		"AWS::elasticloadbalancing::loadbalancer/net/": "duplicate: scanned as aws:elasticloadbalancingv2:load-balancer",
+		"AWS::elasticloadbalancing::targetgroup":       "duplicate: scanned as aws:elasticloadbalancingv2:target-group",
+		"AWS::elasticloadbalancing::truststore":        "duplicate: scanned as aws:elasticloadbalancingv2:trust-store",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
