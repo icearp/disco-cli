@@ -4,6 +4,7 @@ import (
 	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	cloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -17,7 +18,7 @@ import (
 
 // awsTag is the set of AWS SDK tag types that carry Key and Value string pointers.
 type awsTag interface {
-	acmtypes.Tag | cfntypes.Tag | cloudfronttypes.Tag | ec2types.Tag | ecrtypes.Tag | ecstypes.Tag | elasticachetypes.Tag | firehosetypes.Tag | iamtypes.Tag | kinesistypes.Tag | rdstypes.Tag | route53types.Tag
+	acmtypes.Tag | cfntypes.Tag | cloudfronttypes.Tag | cloudhsmv2types.Tag | ec2types.Tag | ecrtypes.Tag | ecstypes.Tag | elasticachetypes.Tag | firehosetypes.Tag | iamtypes.Tag | kinesistypes.Tag | rdstypes.Tag | route53types.Tag
 }
 
 // awsTagsJSON converts any AWS SDK tag slice to a JSON-encoded {key:value} map.
@@ -35,6 +36,8 @@ func awsTagsJSON[T awsTag](tags []T) *string {
 		case cfntypes.Tag:
 			k, v = tt.Key, tt.Value
 		case cloudfronttypes.Tag:
+			k, v = tt.Key, tt.Value
+		case cloudhsmv2types.Tag:
 			k, v = tt.Key, tt.Value
 		case ec2types.Tag:
 			k, v = tt.Key, tt.Value

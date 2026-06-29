@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
+	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
@@ -170,6 +171,20 @@ func TestRedact_AmplifyWebhook_WebhookUrl(t *testing.T) {
 	}
 	if got["BranchName"] != "main" {
 		t.Errorf("BranchName must stay clear: %v", got["BranchName"])
+	}
+}
+
+func TestRedact_CloudHSMCluster_PreCoPassword(t *testing.T) {
+	c := cloudhsmv2types.Cluster{
+		ClusterId:     ptrStr("cluster-abc"),
+		PreCoPassword: ptrStr("super-secret"),
+	}
+	got := applyAndDecode(t, TypeCloudHSMCluster, c)
+	if got["ClusterId"] != "cluster-abc" {
+		t.Errorf("ClusterId clobbered: %v", got["ClusterId"])
+	}
+	if got["PreCoPassword"] != redact.Placeholder {
+		t.Errorf("PreCoPassword not redacted: %v", got["PreCoPassword"])
 	}
 }
 

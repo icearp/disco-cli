@@ -538,6 +538,9 @@ const (
 	TypeCloudFormationResourceScan      = "aws:cloudformation:resource-scan"
 	TypeCloudFormationType              = "aws:cloudformation:type"
 	TypeCloudFormationTypeHook          = "aws:cloudformation:type-hook"
+	// CloudHSM (cloudhsm_scanners.go, cloudhsm_resolvers.go)
+	TypeCloudHSMCluster = "aws:cloudhsm:cluster"
+	TypeCloudHSMBackup  = "aws:cloudhsm:backup"
 	// IAM Identity Center / Identity Store (sso_scanners.go, sso_resolvers.go)
 	TypeSSOInstance                                    = "aws:sso:instance"
 	TypeSSOPermissionSet                               = "aws:sso:permission-set"

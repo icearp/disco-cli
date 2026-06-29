@@ -19,6 +19,10 @@ func init() {
 		{Type: TypeLambdaFunction, Attributes: []redact.Rule{
 			{Path: "Environment.Variables.*", Mode: redact.RedactScalar},
 		}},
+		// CloudHSM cluster — PreCoPassword is the initial crypto-officer password.
+		{Type: TypeCloudHSMCluster, Attributes: []redact.Rule{
+			{Path: "PreCoPassword", Mode: redact.RedactScalar},
+		}},
 		// EC2 — UserData (init scripts often carry secrets), key material.
 		{Type: TypeEC2Instance, Attributes: []redact.Rule{
 			{Path: "UserData", Mode: redact.RedactScalar},
