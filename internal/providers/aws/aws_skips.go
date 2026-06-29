@@ -181,6 +181,10 @@ func (coverageProvider) Skips() map[string]string {
 		// The assessment is scanned as aws:auditmanager:assessment.
 		"AWS::auditmanager::assessmentControlSet": "sub-resource: control set within an aws:auditmanager:assessment (GetAssessment body), no standalone list API",
 
+		// aws-external-anthropic — an external-partner IAM service prefix (Anthropic
+		// integration), not an AWS service with an aws-sdk-go-v2 client; nothing to scan.
+		"AWS::aws-external-anthropic::workspace": "no SDK: external-partner (Anthropic) IAM service prefix, no aws-sdk-go-v2 client",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
