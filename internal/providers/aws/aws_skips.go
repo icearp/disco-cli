@@ -603,6 +603,18 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::directconnect::dxvif":      "duplicate: SR abbreviation for a virtual interface (aws:directconnect:{private,public,transit}-virtual-interface)",
 		"AWS::directconnect::dx-gateway": "duplicate: SR abbreviation for a Direct Connect gateway (aws:directconnect:direct-connect-gateway)",
 
+		// dlm — the Service Reference 'policy' is the IAM-ARN abbreviation for a
+		// Data Lifecycle Manager lifecycle policy, already scanned as the CFN
+		// spelling aws:dlm:lifecycle-policy.
+		"AWS::dlm::policy": "duplicate: SR abbreviation for a lifecycle policy (aws:dlm:lifecycle-policy)",
+
+		// dms — premigration assessment run records of a replication task: an
+		// assessment run is a point-in-time evaluation, and an individual
+		// assessment is one check within that run. Both are ephemeral run records,
+		// not persistent infrastructure. (The replication task itself is scanned.)
+		"AWS::dms::ReplicationTaskAssessmentRun":        "ephemeral: a premigration assessment run of a replication task, not a persistent resource",
+		"AWS::dms::ReplicationTaskIndividualAssessment": "ephemeral: one check within a replication-task assessment run, not a persistent resource",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
