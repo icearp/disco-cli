@@ -711,6 +711,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ecs::service-revision":      "no list API: a historical service-config revision, only DescribeServiceRevisions per ARN",
 		"AWS::ecs::daemon-revision":       "no list API: a historical daemon-config revision, only DescribeDaemonRevisions per ARN",
 
+		// eks — access-policy is AWS's read-only catalog of cluster access policies
+		// (associated via access-entries, not an account resource); dashboard has no
+		// aws-sdk-go-v2 eks op; the eks-auth service references the same clusters
+		// disco scans as aws:eks:cluster.
+		"AWS::eks::access-policy": "catalog: AWS's read-only list of EKS cluster access policies, not an account resource",
+		"AWS::eks::dashboard":     "no SDK: no aws-sdk-go-v2 eks op backs the EKS dashboard",
+		"AWS::eks-auth::cluster":  "duplicate: scanned as aws:eks:cluster (eks:DescribeCluster)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

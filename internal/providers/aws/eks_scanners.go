@@ -50,6 +50,13 @@ func scanEKS(ctx context.Context, acct *account, region string, st *store.Store,
 	}
 	total += t
 	inserted += i
+
+	t, i, ferr = scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
 }
 

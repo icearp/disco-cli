@@ -305,6 +305,7 @@ const (
 	TypeEKSIdentityProviderConfig = "aws:eks:identity-provider-config"
 	TypeEKSNodegroup              = "aws:eks:nodegroup"
 	TypeEKSPodIdentityAssociation = "aws:eks:pod-identity-association"
+	TypeEKSAnywhereSubscription   = "aws:eks:eks-anywhere-subscription"
 	// Classic ELB (elb_classic_scanners.go, elb_classic_resolvers.go)
 	TypeELBClassicLoadBalancer = "aws:elasticloadbalancing:load-balancer"
 	// ELBv2 (elb_scanners.go, elb_resolvers.go)
