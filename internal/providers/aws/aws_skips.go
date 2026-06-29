@@ -120,6 +120,11 @@ func (coverageProvider) Skips() map[string]string {
 		// not a listable resource — no SDK op enumerates it.
 		"AWS::aoss::Dashboards": "no SDK list op: OpenSearch Serverless Dashboards is a collection's web endpoint, not a discoverable resource",
 
+		// apprunner webacl — the WAFv2 web-ACL association for a service
+		// (AssociateWebAcl); the web-ACL is scanned under aws:wafv2:web-acl and
+		// App Runner exposes no op to enumerate the associations.
+		"AWS::apprunner::webacl": "association: WAFv2 web-ACL association of an App Runner service; the web-ACL is scanned as aws:wafv2:web-acl",
+
 		// apigateway — the SR lists v1 (REST) and v2 (HTTP/WebSocket) resources
 		// under the one shared "apigateway" IAM prefix, so the v2 entries below are
 		// the same physical resources disco already scans as aws:apigatewayv2:*

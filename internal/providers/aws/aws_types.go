@@ -1393,6 +1393,7 @@ const (
 	TypeAppRunnerAutoScalingConfiguration   = "aws:apprunner:auto-scaling-configuration"
 	TypeAppRunnerObservabilityConfiguration = "aws:apprunner:observability-configuration"
 	TypeAppRunnerVpcIngressConnection       = "aws:apprunner:vpc-ingress-connection"
+	TypeAppRunnerConnection                 = "aws:apprunner:connection"
 	// Batch (batch_scanners.go, batch_resolvers.go)
 	TypeBatchComputeEnvironment = "aws:batch:compute-environment"
 	TypeBatchJobQueue           = "aws:batch:job-queue"

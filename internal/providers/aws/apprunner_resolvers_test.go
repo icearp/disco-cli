@@ -18,7 +18,12 @@ const (
 	testARAccessRole    = "AppRunnerECRAccessRole"
 	testARKMSKeyID      = "ddddeeee-ffff-0000-1111-222233334444"
 	testARRepo          = "myapp"
+	testARConnName      = "github-conn"
 )
+
+func arConnectionARN() string {
+	return fmt.Sprintf("arn:aws:apprunner:%s:%s:connection/%s/abcd1234", testRegion, testAccountID, testARConnName)
+}
 
 func arServiceARN() string {
 	return fmt.Sprintf("arn:aws:apprunner:%s:%s:service/%s/%s", testRegion, testAccountID, testARServiceName, testARServiceID)
@@ -50,17 +55,19 @@ func TestResolveAppRunnerServiceTargets(t *testing.T) {
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion,
 		fmt.Sprintf(`{"KeyId":%q,"Arn":%q}`, testARKMSKeyID, keyARN))
 
+	srcConnID := upsertTestResource(t, st, "aws", acct.ID, TypeAppRunnerConnection, arConnectionARN(), testRegion, "{}")
+
 	imageID := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:latest", testAccountID, testRegion, testARRepo)
 	svcAttrs := fmt.Sprintf(`{
 		"ServiceArn":%q,"ServiceName":%q,"Status":"RUNNING",
 		"InstanceConfiguration":{"InstanceRoleArn":%q},
 		"NetworkConfiguration":{"EgressConfiguration":{"EgressType":"VPC","VpcConnectorArn":%q}},
 		"SourceConfiguration":{
-			"AuthenticationConfiguration":{"AccessRoleArn":%q},
+			"AuthenticationConfiguration":{"AccessRoleArn":%q,"ConnectionArn":%q},
 			"ImageRepository":{"ImageIdentifier":%q,"ImageRepositoryType":"ECR"}
 		},
 		"EncryptionConfiguration":{"KmsKey":%q}
-	}`, arServiceARN(), testARServiceName, instRoleARN, arConnectorARN(), accessRoleARN, imageID, keyARN)
+	}`, arServiceARN(), testARServiceName, instRoleARN, arConnectorARN(), accessRoleARN, arConnectionARN(), imageID, keyARN)
 	svcID := upsertTestResource(t, st, "aws", acct.ID, TypeAppRunnerService, arServiceARN(), testRegion, svcAttrs)
 
 	if err := resolveAppRunnerServiceTargets(acct, st); err != nil {
@@ -75,6 +82,30 @@ func TestResolveAppRunnerServiceTargets(t *testing.T) {
 	assertRelationship(t, rels, svcID, accessRoleID, store.RelAssumes)
 	assertRelationship(t, rels, svcID, repoID, store.RelUses)
 	assertRelationship(t, rels, svcID, kID, store.RelUses)
+	assertRelationship(t, rels, svcID, srcConnID, store.RelUses)
+}
+
+// TestResolveAppRunnerServiceConnection_Unscanned: a ConnectionArn pointing at a
+// connection disco didn't scan emits no edge (FK-safe) and doesn't panic on a
+// service with minimal attrs.
+func TestResolveAppRunnerServiceConnection_Unscanned(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	svcAttrs := fmt.Sprintf(`{"ServiceArn":%q,"ServiceName":%q,"SourceConfiguration":{"AuthenticationConfiguration":{"ConnectionArn":%q}}}`,
+		arServiceARN(), testARServiceName, arConnectionARN())
+	svcID := upsertTestResource(t, st, "aws", acct.ID, TypeAppRunnerService, arServiceARN(), testRegion, svcAttrs)
+
+	if err := resolveAppRunnerServiceTargets(acct, st); err != nil {
+		t.Fatalf("resolveAppRunnerServiceTargets: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(svcID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("expected no edges for unscanned connection, got %d", len(rels))
+	}
 }
 
 // TestResolveAppRunnerVPCConnectorTargets verifies vpc-connector →

@@ -22,6 +22,10 @@ func init() {
 			{Service: "apprunner", DiscoType: TypeAppRunnerAutoScalingConfiguration, Leaf: true},
 			{Service: "apprunner", DiscoType: TypeAppRunnerObservabilityConfiguration, Leaf: true},
 			{Service: "apprunner", DiscoType: TypeAppRunnerVpcIngressConnection},
+			// Connection has no outbound refs of its own (it's a credential link
+			// to a source-code provider); the service→connection edge lives on the
+			// service resolver.
+			{Service: "apprunner", DiscoType: TypeAppRunnerConnection, Leaf: true},
 		},
 	})
 }
@@ -35,17 +39,17 @@ type apprunnerAPI interface {
 	ListAutoScalingConfigurations(context.Context, *apprunner.ListAutoScalingConfigurationsInput, ...func(*apprunner.Options)) (*apprunner.ListAutoScalingConfigurationsOutput, error)
 	ListObservabilityConfigurations(context.Context, *apprunner.ListObservabilityConfigurationsInput, ...func(*apprunner.Options)) (*apprunner.ListObservabilityConfigurationsOutput, error)
 	ListVpcIngressConnections(context.Context, *apprunner.ListVpcIngressConnectionsInput, ...func(*apprunner.Options)) (*apprunner.ListVpcIngressConnectionsOutput, error)
+	ListConnections(context.Context, *apprunner.ListConnectionsInput, ...func(*apprunner.Options)) (*apprunner.ListConnectionsOutput, error)
 }
 
-// scanAppRunner discovers App Runner services and VPC connectors in one
-// region. Two phases. Phase 1: ListServices (paginator, skeleton) →
-// fan-out DescribeService for full body (NetworkConfiguration,
-// SourceConfiguration, EncryptionConfiguration, InstanceConfiguration).
-// Phase 2: ListVpcConnectors (paginator, full body — Subnets, SecurityGroups).
-// Per-phase + per-item AccessDenied tolerated. Auto-scaling configurations,
-// observability configurations, custom domains, and connections deferred —
-// each is a separate sub-resource group with limited graph value beyond
-// the service rows themselves.
+// scanAppRunner discovers App Runner resources in one region across several
+// phases: ListServices (paginator, skeleton) → fan-out DescribeService for full
+// body (NetworkConfiguration, SourceConfiguration, EncryptionConfiguration,
+// InstanceConfiguration); ListVpcConnectors (full body — Subnets, SecurityGroups);
+// auto-scaling configurations; observability configurations; VPC ingress
+// connections; and source-provider connections. Per-phase + per-item
+// AccessDenied tolerated. Custom domains deferred (per-service sub-resource with
+// limited graph value beyond the service rows themselves).
 func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apprunner.NewFromConfig(acct.cfg, func(o *apprunner.Options) { o.Region = region })
 
@@ -94,6 +98,59 @@ func scanAppRunner(ctx context.Context, acct *account, region string, st *store.
 		inserted += i
 	}
 
+	{
+		t, i, ferr := scanAppRunnerConnections(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	return total, inserted, nil
+}
+
+// scanAppRunnerConnections lists source-code provider connections (GitHub /
+// Bitbucket links, account-scoped per region). NativeID = ConnectionArn.
+func scanAppRunnerConnections(ctx context.Context, client apprunnerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := apprunner.NewListConnectionsPaginator(client, &apprunner.ListConnectionsInput{})
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return total, inserted, skipIfAccessDenied(st, "apprunner:ListConnections", acct.ID, region, perr)
+			}
+			return total, inserted, fmt.Errorf("apprunner:ListConnections: %w", perr)
+		}
+		batch := make([]*store.Resource, 0, len(out.ConnectionSummaryList))
+		for _, c := range out.ConnectionSummaryList {
+			arn := sv(c.ConnectionArn)
+			if arn == "" {
+				continue
+			}
+			name := sv(c.ConnectionName)
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeAppRunnerConnection,
+				NativeID:       arn,
+				Name:           &name,
+				Region:         &region,
+				CreatedAt:      tp(c.CreatedAt),
+				AttributesJSON: mustJSON(c),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert apprunner connections: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+	}
 	return total, inserted, nil
 }
 

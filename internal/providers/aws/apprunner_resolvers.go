@@ -16,6 +16,7 @@ func init() {
 		EdgeDecl{TypeAppRunnerService, TypeIAMRole, store.RelAssumes},
 		EdgeDecl{TypeAppRunnerService, TypeECRRepository, store.RelUses},
 		EdgeDecl{TypeAppRunnerService, TypeKMSKey, store.RelUses},
+		EdgeDecl{TypeAppRunnerService, TypeAppRunnerConnection, store.RelUses},
 	)
 	registerResolver(
 		resolveAppRunnerVPCConnectorTargets,
@@ -84,6 +85,7 @@ type apprunnerServiceAttrs struct {
 	SourceConfiguration *struct {
 		AuthenticationConfiguration *struct {
 			AccessRoleArn *string `json:"AccessRoleArn"`
+			ConnectionArn *string `json:"ConnectionArn"`
 		} `json:"AuthenticationConfiguration"`
 		ImageRepository *struct {
 			ImageIdentifier *string `json:"ImageIdentifier"`
@@ -106,10 +108,11 @@ type apprunnerServiceAttrs struct {
 // apprunnerServiceTargetSets bundles FK-safe id sets + KMS index for the
 // AppRunner service resolver helpers.
 type apprunnerServiceTargetSets struct {
-	connectorIDs map[string]struct{}
-	roleIDs      map[string]struct{}
-	repoIDs      map[string]struct{}
-	kmsIdx       *kmsResolveIndex
+	connectorIDs  map[string]struct{}
+	roleIDs       map[string]struct{}
+	repoIDs       map[string]struct{}
+	connectionIDs map[string]struct{}
+	kmsIdx        *kmsResolveIndex
 }
 
 func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
@@ -150,6 +153,30 @@ func resolveAppRunnerServiceTargets(acct *account, st *store.Store) error {
 		if err := emitAppRunnerKMSEdge(st, acct, s, region, attrs, sets); err != nil {
 			return err
 		}
+		if err := emitAppRunnerConnectionEdge(st, acct, s, attrs, sets); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitAppRunnerConnectionEdge wires a service → source-provider connection
+// (uses) via SourceConfiguration.AuthenticationConfiguration.ConnectionArn.
+// FK-safe via the scanned connection id set.
+func emitAppRunnerConnectionEdge(st *store.Store, acct *account, s store.Resource, attrs apprunnerServiceAttrs, sets apprunnerServiceTargetSets) error {
+	if attrs.SourceConfiguration == nil || attrs.SourceConfiguration.AuthenticationConfiguration == nil {
+		return nil
+	}
+	connArn := sv(attrs.SourceConfiguration.AuthenticationConfiguration.ConnectionArn)
+	if connArn == "" {
+		return nil
+	}
+	cID := store.ResourceID("aws", acct.ID, TypeAppRunnerConnection, connArn)
+	if _, ok := sets.connectionIDs[cID]; !ok {
+		return nil
+	}
+	if err := st.UpsertRelationship(s.ID, cID, store.RelUses, "directed", nil); err != nil {
+		return fmt.Errorf("upsert apprunner service→connection: %w", err)
 	}
 	return nil
 }
@@ -164,6 +191,9 @@ func loadAppRunnerServiceTargetSets(acct *account, st *store.Store) (apprunnerSe
 		return sets, err
 	}
 	if sets.repoIDs, err = resourceIDSet(st, acct.ID, TypeECRRepository); err != nil {
+		return sets, err
+	}
+	if sets.connectionIDs, err = resourceIDSet(st, acct.ID, TypeAppRunnerConnection); err != nil {
 		return sets, err
 	}
 	if sets.kmsIdx, err = loadKMSResolveIndex(acct, st); err != nil {
