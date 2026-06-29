@@ -56,6 +56,8 @@ type ec2API interface {
 	DescribeIpv6Pools(context.Context, *ec2.DescribeIpv6PoolsInput, ...func(*ec2.Options)) (*ec2.DescribeIpv6PoolsOutput, error)
 	DescribeTransitGatewayPolicyTables(context.Context, *ec2.DescribeTransitGatewayPolicyTablesInput, ...func(*ec2.Options)) (*ec2.DescribeTransitGatewayPolicyTablesOutput, error)
 	DescribeTransitGatewayRouteTableAnnouncements(context.Context, *ec2.DescribeTransitGatewayRouteTableAnnouncementsInput, ...func(*ec2.Options)) (*ec2.DescribeTransitGatewayRouteTableAnnouncementsOutput, error)
+	DescribeIpamPolicies(context.Context, *ec2.DescribeIpamPoliciesInput, ...func(*ec2.Options)) (*ec2.DescribeIpamPoliciesOutput, error)
+	DescribeIpamExternalResourceVerificationTokens(context.Context, *ec2.DescribeIpamExternalResourceVerificationTokensInput, ...func(*ec2.Options)) (*ec2.DescribeIpamExternalResourceVerificationTokensOutput, error)
 	DescribeInstanceConnectEndpoints(context.Context, *ec2.DescribeInstanceConnectEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error)
 	DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
 	DescribeInternetGateways(context.Context, *ec2.DescribeInternetGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeInternetGatewaysOutput, error)

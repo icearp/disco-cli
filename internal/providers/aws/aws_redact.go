@@ -27,6 +27,11 @@ func init() {
 		{Type: TypeEC2Instance, Attributes: []redact.Rule{
 			{Path: "UserData", Mode: redact.RedactScalar},
 		}},
+		// EC2 IPAM external-resource verification token — TokenValue is the
+		// secret proof-of-ownership value presented to AWS.
+		{Type: TypeEC2IpamExternalResourceVerificationToken, Attributes: []redact.Rule{
+			{Path: "TokenValue", Mode: redact.RedactScalar},
+		}},
 		{Type: TypeEC2LaunchTemplate, Attributes: []redact.Rule{
 			{Path: "LaunchTemplateData.UserData", Mode: redact.RedactScalar},
 		}},

@@ -72,6 +72,20 @@ func TestRedact_EC2Instance_UserData(t *testing.T) {
 	}
 }
 
+func TestRedact_EC2IpamVerificationToken_TokenValue(t *testing.T) {
+	got := applyAndDecode(t, TypeEC2IpamExternalResourceVerificationToken, map[string]any{
+		"IpamId":     "ipam-aaa",
+		"TokenName":  "my-token",
+		"TokenValue": "super-secret-proof",
+	})
+	if got["TokenValue"] != redact.Placeholder {
+		t.Errorf("TokenValue not redacted: %v", got["TokenValue"])
+	}
+	if got["TokenName"] != "my-token" {
+		t.Errorf("TokenName clobbered: %v", got["TokenName"])
+	}
+}
+
 func TestRedact_EC2KeyPair_KeyMaterial(t *testing.T) {
 	got := applyAndDecode(t, TypeEC2KeyPair, map[string]any{
 		"KeyName":     "k1",
