@@ -826,6 +826,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::fsx::association": "duplicate: scanned as aws:fsx:data-repository-association (DescribeDataRepositoryAssociations)",
 		"AWS::fsx::task":        "ephemeral: a data-repository task run, not a persistent resource",
 
+		// frauddetector — model / external-model / rule are scanned. batch-import
+		// and batch-prediction are ephemeral job runs; detector-version and
+		// model-version are config versions of the scanned detector / model.
+		"AWS::frauddetector::batch-import":     "ephemeral: a batch import job run, not a persistent resource",
+		"AWS::frauddetector::batch-prediction": "ephemeral: a batch prediction job run, not a persistent resource",
+		"AWS::frauddetector::detector-version": "version: a config version of the scanned aws:frauddetector:detector",
+		"AWS::frauddetector::model-version":    "version: a config version of the scanned aws:frauddetector:model",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

@@ -21,6 +21,9 @@ func init() {
 			{Service: "frauddetector", DiscoType: TypeFraudDetectorList, Leaf: true},
 			{Service: "frauddetector", DiscoType: TypeFraudDetectorOutcome, Leaf: true},
 			{Service: "frauddetector", DiscoType: TypeFraudDetectorVariable, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorModel, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorExternalModel, Leaf: true},
+			{Service: "frauddetector", DiscoType: TypeFraudDetectorRule},
 		},
 	})
 }
@@ -33,6 +36,9 @@ type fraudDetectorAPI interface {
 	GetListsMetadata(context.Context, *frauddetector.GetListsMetadataInput, ...func(*frauddetector.Options)) (*frauddetector.GetListsMetadataOutput, error)
 	GetOutcomes(context.Context, *frauddetector.GetOutcomesInput, ...func(*frauddetector.Options)) (*frauddetector.GetOutcomesOutput, error)
 	GetVariables(context.Context, *frauddetector.GetVariablesInput, ...func(*frauddetector.Options)) (*frauddetector.GetVariablesOutput, error)
+	GetModels(context.Context, *frauddetector.GetModelsInput, ...func(*frauddetector.Options)) (*frauddetector.GetModelsOutput, error)
+	GetExternalModels(context.Context, *frauddetector.GetExternalModelsInput, ...func(*frauddetector.Options)) (*frauddetector.GetExternalModelsOutput, error)
+	GetRules(context.Context, *frauddetector.GetRulesInput, ...func(*frauddetector.Options)) (*frauddetector.GetRulesOutput, error)
 }
 
 func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -50,6 +56,9 @@ func scanFraudDetector(ctx context.Context, acct *account, region string, st *st
 		func() (int, int, error) { return scanFDLists(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDOutcomes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFDVariables(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFDModels(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFDExternalModels(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFDRules(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {

@@ -127,6 +127,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeFSxFileCache:                                "AWS::fsx::file-cache",
 		TypeFMSAppsList:                                 "AWS::fms::applications-list",
 		TypeFMSProtocolsList:                            "AWS::fms::protocols-list",
+		TypeFraudDetectorExternalModel:                  "AWS::frauddetector::external-model",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",
