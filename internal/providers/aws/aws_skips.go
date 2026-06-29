@@ -352,6 +352,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::cleanrooms-ml::audiencegenerationjob":    "ephemeral: audience-generation job-run record, not a persistent resource",
 		"AWS::cleanrooms-ml::TrainedModelInferenceJob": "ephemeral: trained-model inference job-run record, not a persistent resource",
 
+		// cloudfront — the SR short `origin-access-identity` is the same legacy OAI
+		// disco scans as aws:cloudfront:cloud-front-origin-access-identity (CFN
+		// CloudFrontOriginAccessIdentity spelling). Canonical dedup can't bridge the
+		// dropped "cloud-front-" prefix.
+		"AWS::cloudfront::origin-access-identity": "duplicate: legacy OAI scanned as aws:cloudfront:cloud-front-origin-access-identity (CFN CloudFrontOriginAccessIdentity spelling)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,

@@ -299,6 +299,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCloudFrontResponseHeadersPolicy:      "AWS::CloudFront::ResponseHeadersPolicy",
 		TypeCloudFrontVpcOrigin:                  "AWS::CloudFront::VpcOrigin",
 		TypeCloudFrontMonitoringSubscription:     "AWS::CloudFront::MonitoringSubscription",
+		// field-level-encryption config/profile are Service-Reference-only (CFN does
+		// not model FLE) — alias to the exact SR key.
+		TypeCloudFrontFieldLevelEncryptionConfig:  "AWS::cloudfront::field-level-encryption-config",
+		TypeCloudFrontFieldLevelEncryptionProfile: "AWS::cloudfront::field-level-encryption-profile",
 		// Route 53.
 		TypeRoute53HostedZone:     "AWS::Route53::HostedZone",
 		TypeRoute53RecordSet:      "AWS::Route53::RecordSet",

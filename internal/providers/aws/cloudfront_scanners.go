@@ -35,6 +35,8 @@ type cloudfrontAPI interface {
 	ListRealtimeLogConfigs(context.Context, *cloudfront.ListRealtimeLogConfigsInput, ...func(*cloudfront.Options)) (*cloudfront.ListRealtimeLogConfigsOutput, error)
 	ListResponseHeadersPolicies(context.Context, *cloudfront.ListResponseHeadersPoliciesInput, ...func(*cloudfront.Options)) (*cloudfront.ListResponseHeadersPoliciesOutput, error)
 	ListVpcOrigins(context.Context, *cloudfront.ListVpcOriginsInput, ...func(*cloudfront.Options)) (*cloudfront.ListVpcOriginsOutput, error)
+	ListFieldLevelEncryptionConfigs(context.Context, *cloudfront.ListFieldLevelEncryptionConfigsInput, ...func(*cloudfront.Options)) (*cloudfront.ListFieldLevelEncryptionConfigsOutput, error)
+	ListFieldLevelEncryptionProfiles(context.Context, *cloudfront.ListFieldLevelEncryptionProfilesInput, ...func(*cloudfront.Options)) (*cloudfront.ListFieldLevelEncryptionProfilesOutput, error)
 	GetMonitoringSubscription(context.Context, *cloudfront.GetMonitoringSubscriptionInput, ...func(*cloudfront.Options)) (*cloudfront.GetMonitoringSubscriptionOutput, error)
 	ListTagsForResource(context.Context, *cloudfront.ListTagsForResourceInput, ...func(*cloudfront.Options)) (*cloudfront.ListTagsForResourceOutput, error)
 }
@@ -67,6 +69,8 @@ func init() {
 			{Service: "cloudfront", DiscoType: TypeCloudFrontResponseHeadersPolicy, Leaf: true},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontVpcOrigin},
 			{Service: "cloudfront", DiscoType: TypeCloudFrontMonitoringSubscription},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontFieldLevelEncryptionConfig},
+			{Service: "cloudfront", DiscoType: TypeCloudFrontFieldLevelEncryptionProfile},
 		},
 	})
 }
@@ -134,6 +138,12 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontFieldLevelEncryptionConfigs(ctx, acct, client, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanCloudFrontFieldLevelEncryptionProfiles(ctx, acct, client, st, scanID)
 		},
 	)
 }
@@ -1143,6 +1153,100 @@ func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client cloudfr
 					NativeID:       sv(v.Arn),
 					Name:           v.Name,
 					AttributesJSON: mustJSON(v),
+					DiscoveredBy:   scanID,
+				})
+			}
+			if len(batch) > 0 {
+				n, err := st.UpsertResources(batch)
+				if err != nil {
+					return 0, 0, err
+				}
+				return len(batch), n, nil
+			}
+			return 0, 0, nil
+		},
+	)
+}
+
+// --- Field-Level Encryption ---
+
+// scanCloudFrontFieldLevelEncryptionConfigs discovers FLE configs. The summary
+// carries the profile references (ContentTypeProfileConfig / QueryArgProfileConfig)
+// the resolver wires to FLE profiles.
+func scanCloudFrontFieldLevelEncryptionConfigs(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+	return cfMarkerScan(
+		ctx, "cloudfront:ListFieldLevelEncryptionConfigs", st,
+		func(ctx context.Context, marker *string) (*cloudfront.ListFieldLevelEncryptionConfigsOutput, *string, error) {
+			out, err := client.ListFieldLevelEncryptionConfigs(ctx, &cloudfront.ListFieldLevelEncryptionConfigsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.FieldLevelEncryptionList == nil {
+				return out, nil, nil
+			}
+			return out, out.FieldLevelEncryptionList.NextMarker, nil
+		},
+		func(out *cloudfront.ListFieldLevelEncryptionConfigsOutput) (int, int, error) {
+			if out.FieldLevelEncryptionList == nil {
+				return 0, 0, nil
+			}
+			var batch []*store.Resource
+			for _, s := range out.FieldLevelEncryptionList.Items {
+				batch = append(batch, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Region:         regionGlobal,
+					Type:           TypeCloudFrontFieldLevelEncryptionConfig,
+					NativeID:       sv(s.Id),
+					CreatedAt:      tp(s.LastModifiedTime),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				})
+			}
+			if len(batch) > 0 {
+				n, err := st.UpsertResources(batch)
+				if err != nil {
+					return 0, 0, err
+				}
+				return len(batch), n, nil
+			}
+			return 0, 0, nil
+		},
+	)
+}
+
+// scanCloudFrontFieldLevelEncryptionProfiles discovers FLE profiles (the public-
+// key/field-pattern mapping configs FLE configs reference).
+func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+	return cfMarkerScan(
+		ctx, "cloudfront:ListFieldLevelEncryptionProfiles", st,
+		func(ctx context.Context, marker *string) (*cloudfront.ListFieldLevelEncryptionProfilesOutput, *string, error) {
+			out, err := client.ListFieldLevelEncryptionProfiles(ctx, &cloudfront.ListFieldLevelEncryptionProfilesInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.FieldLevelEncryptionProfileList == nil {
+				return out, nil, nil
+			}
+			return out, out.FieldLevelEncryptionProfileList.NextMarker, nil
+		},
+		func(out *cloudfront.ListFieldLevelEncryptionProfilesOutput) (int, int, error) {
+			if out.FieldLevelEncryptionProfileList == nil {
+				return 0, 0, nil
+			}
+			var batch []*store.Resource
+			for _, s := range out.FieldLevelEncryptionProfileList.Items {
+				batch = append(batch, &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Region:         regionGlobal,
+					Type:           TypeCloudFrontFieldLevelEncryptionProfile,
+					NativeID:       sv(s.Id),
+					Name:           s.Name,
+					CreatedAt:      tp(s.LastModifiedTime),
+					AttributesJSON: mustJSON(s),
 					DiscoveredBy:   scanID,
 				})
 			}
