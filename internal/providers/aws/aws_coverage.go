@@ -854,6 +854,7 @@ var serviceRenames = map[string]string{
 	"codeconnections":   "codestarconnections",  // SR codeconnections ↔ scanned aws:codestar-connections (AWS renamed the service)
 	"cognitoidentity":   "cognito",              // SR cognito-identity (identity pools) ↔ unified CFN/scanned Cognito
 	"cognitoidp":        "cognito",              // SR cognito-idp (user pools) ↔ unified CFN/scanned Cognito
+	"elasticfilesystem": "efs",                  // SR elasticfilesystem ↔ CFN EFS / scanned aws:efs
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
