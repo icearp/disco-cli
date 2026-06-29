@@ -11,6 +11,8 @@ const (
 	TypeEC2Volume                  = "aws:ec2:volume"
 	TypeEC2Snapshot                = "aws:ec2:snapshot"
 	TypeEC2ReservedInstances       = "aws:ec2:reserved-instances"
+	TypeEC2SpotInstanceRequest     = "aws:ec2:spot-instances-request"
+	TypeEC2InstanceEventWindow     = "aws:ec2:instance-event-window"
 	TypeEC2HostReservation         = "aws:ec2:host-reservation"
 	TypeEC2CapacityBlock           = "aws:ec2:capacity-block"
 	TypeEC2FpgaImage               = "aws:ec2:fpga-image"

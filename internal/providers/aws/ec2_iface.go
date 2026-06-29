@@ -61,6 +61,8 @@ type ec2API interface {
 	DescribeLocalGateways(context.Context, *ec2.DescribeLocalGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeLocalGatewaysOutput, error)
 	DescribeCoipPools(context.Context, *ec2.DescribeCoipPoolsInput, ...func(*ec2.Options)) (*ec2.DescribeCoipPoolsOutput, error)
 	DescribeOutpostLags(context.Context, *ec2.DescribeOutpostLagsInput, ...func(*ec2.Options)) (*ec2.DescribeOutpostLagsOutput, error)
+	DescribeSpotInstanceRequests(context.Context, *ec2.DescribeSpotInstanceRequestsInput, ...func(*ec2.Options)) (*ec2.DescribeSpotInstanceRequestsOutput, error)
+	DescribeInstanceEventWindows(context.Context, *ec2.DescribeInstanceEventWindowsInput, ...func(*ec2.Options)) (*ec2.DescribeInstanceEventWindowsOutput, error)
 	DescribeInstanceConnectEndpoints(context.Context, *ec2.DescribeInstanceConnectEndpointsInput, ...func(*ec2.Options)) (*ec2.DescribeInstanceConnectEndpointsOutput, error)
 	DescribeInstances(context.Context, *ec2.DescribeInstancesInput, ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
 	DescribeInternetGateways(context.Context, *ec2.DescribeInternetGatewaysInput, ...func(*ec2.Options)) (*ec2.DescribeInternetGatewaysOutput, error)

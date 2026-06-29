@@ -113,6 +113,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEC2LocalGateway:                             "AWS::ec2::local-gateway",
 		TypeEC2CoipPool:                                 "AWS::ec2::coip-pool",
 		TypeEC2OutpostLag:                               "AWS::ec2::outpost-lag",
+		TypeEC2SpotInstanceRequest:                      "AWS::ec2::spot-instances-request",
+		TypeEC2InstanceEventWindow:                      "AWS::ec2::instance-event-window",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",
