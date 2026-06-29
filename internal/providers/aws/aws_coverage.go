@@ -729,10 +729,11 @@ func canonResource(s string) string {
 // Extend as the A→Z buildout surfaces more genuine renames — the canonicalizer
 // handles every other case.
 var serviceRenames = map[string]string{
-	"airflow":           "mwaa",               // SR airflow ↔ CFN MWAA
-	"airflowserverless": "mwaaserverless",     // SR airflow-serverless ↔ CFN MWAAServerless
-	"acm":               "certificatemanager", // SR acm ↔ CFN CertificateManager
-	"devopsagent":       "aidevops",           // CFN DevOpsAgent ↔ SR aidevops
+	"airflow":           "mwaa",                 // SR airflow ↔ CFN MWAA
+	"airflowserverless": "mwaaserverless",       // SR airflow-serverless ↔ CFN MWAAServerless
+	"acm":               "certificatemanager",   // SR acm ↔ CFN CertificateManager
+	"devopsagent":       "aidevops",             // CFN DevOpsAgent ↔ SR aidevops
+	"aoss":              "opensearchserverless", // SR aoss ↔ CFN OpenSearchServerless
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

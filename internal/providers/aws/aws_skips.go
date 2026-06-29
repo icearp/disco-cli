@@ -107,6 +107,13 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::amplifybackend::config":          amplifyBackendConfig,
 		"AWS::amplifybackend::job":             "ephemeral: Amplify backend job-run records, not a persistent resource",
 		"AWS::amplifybackend::token":           "ephemeral: short-lived Amplify backend CLI auth token, not a resource",
+
+		// aoss (OpenSearch Serverless, SR/IAM spelling) — Collection and
+		// CollectionGroup collapse via canonical matching to the covered
+		// aws:opensearchserverless:* types (serviceRenames aoss→opensearchserverless).
+		// Dashboards is a collection's web endpoint (collection.dashboardEndpoint),
+		// not a listable resource — no SDK op enumerates it.
+		"AWS::aoss::Dashboards": "no SDK list op: OpenSearch Serverless Dashboards is a collection's web endpoint, not a discoverable resource",
 	}
 }
 
