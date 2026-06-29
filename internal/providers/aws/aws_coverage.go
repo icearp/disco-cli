@@ -368,6 +368,11 @@ func (coverageProvider) Aliases() map[string]string {
 		// foundation-model + system-defined inference-profile catalogs are SR-only.
 		TypeBedrockFoundationModel:  "AWS::bedrock::foundation-model",
 		TypeBedrockInferenceProfile: "AWS::bedrock::inference-profile",
+		// Bedrock Data Automation (bedrockdataautomation SDK). blueprint is SR-only;
+		// project + library also exist as CFN twins that collapse canonically.
+		TypeBedrockBlueprint:             "AWS::bedrock::blueprint",
+		TypeBedrockDataAutomationProject: "AWS::bedrock::data-automation-project",
+		TypeBedrockDataAutomationLibrary: "AWS::bedrock::data-automation-library",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",

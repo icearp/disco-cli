@@ -7,6 +7,7 @@ import (
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
+	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
 )
 
 func init() {
@@ -76,5 +77,10 @@ func scanBedrock(ctx context.Context, acct *account, region string, st *store.St
 	if e3 != nil {
 		return t1 + t2, i1 + i2, e3
 	}
-	return t1 + t2 + t3, i1 + i2 + i3, nil
+	bdaClient := bda.NewFromConfig(acct.cfg, func(o *bda.Options) { o.Region = region })
+	t4, i4, e4 := scanBedrockDataAutomation(ctx, bdaClient, acct, region, st, scanID)
+	if e4 != nil {
+		return t1 + t2 + t3, i1 + i2 + i3, e4
+	}
+	return t1 + t2 + t3 + t4, i1 + i2 + i3 + i4, nil
 }

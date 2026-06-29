@@ -1296,6 +1296,10 @@ const (
 	// Bedrock — Catalogs (bedrock_foundation_scanners.go)
 	TypeBedrockFoundationModel  = "aws:bedrock:foundation-model"
 	TypeBedrockInferenceProfile = "aws:bedrock:inference-profile"
+	// Bedrock — Data Automation (bedrock_dataautomation_scanners.go)
+	TypeBedrockBlueprint             = "aws:bedrock:blueprint"
+	TypeBedrockDataAutomationProject = "aws:bedrock:data-automation-project"
+	TypeBedrockDataAutomationLibrary = "aws:bedrock:data-automation-library"
 	// Bedrock — Models (bedrock_models_scanners.go)
 	TypeBedrockCustomModel              = "aws:bedrock:custom-model"
 	TypeBedrockImportedModel            = "aws:bedrock:imported-model"

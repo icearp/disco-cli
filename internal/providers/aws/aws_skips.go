@@ -259,6 +259,10 @@ func (coverageProvider) Skips() map[string]string {
 		// SDKs — not independently enumerable.
 		"AWS::bedrock::guardrail-profile": "no list API: cross-region guardrail profile has no list op in the bedrock SDK",
 		"AWS::bedrock::system-tool":       "no list API: AWS-provided agent system tool has no list op in the bedrock SDK",
+		// data-automation-profile is the cross-region invocation profile passed to
+		// InvokeDataAutomationAsync — neither the bedrockdataautomation control nor
+		// runtime SDK exposes a list op for it.
+		"AWS::bedrock::data-automation-profile": "no list API: data-automation invocation profile has no list op in the bedrockdataautomation SDK",
 
 		// bcm — CloudFormation files the Billing & Cost Management dashboard under
 		// the "BCM" service while the Service Reference uses "bcm-dashboards";
