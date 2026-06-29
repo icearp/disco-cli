@@ -176,6 +176,11 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:athena:work-group.
 		"AWS::athena::session": "ephemeral: interactive Athena-for-Spark session (idle-terminated); ListSessions needs a WorkGroup, scanned as aws:athena:work-group",
 
+		// auditmanager assessmentControlSet — a control set nested within an
+		// assessment, returned inside GetAssessment's body; no standalone list op.
+		// The assessment is scanned as aws:auditmanager:assessment.
+		"AWS::auditmanager::assessmentControlSet": "sub-resource: control set within an aws:auditmanager:assessment (GetAssessment body), no standalone list API",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.
