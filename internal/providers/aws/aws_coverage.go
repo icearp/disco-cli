@@ -859,6 +859,7 @@ var serviceRenames = map[string]string{
 	"cognitoidp":        "cognito",              // SR cognito-idp (user pools) ↔ unified CFN/scanned Cognito
 	"elasticfilesystem": "efs",                  // SR elasticfilesystem ↔ CFN EFS / scanned aws:efs
 	"elasticmapreduce":  "emr",                  // SR elasticmapreduce ↔ CFN EMR / scanned aws:emr
+	"firehose":          "kinesisfirehose",      // SR firehose ↔ CFN KinesisFirehose / scanned aws:firehose
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

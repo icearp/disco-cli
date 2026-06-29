@@ -808,6 +808,18 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::execute-api::execute-api-domain":  "not a resource: the API Gateway invoke-endpoint ARN pattern, not an enumerable resource",
 		"AWS::execute-api::execute-api-general": "not a resource: the API Gateway invoke-endpoint ARN pattern, not an enumerable resource",
 
+		// fis — actions are an AWS catalog; experiments are ephemeral runs (the
+		// experiment-template is the persistent resource, already scanned); the
+		// safety lever is an account-level singleton config.
+		"AWS::fis::action":       "catalog: AWS's read-only list of available fault-injection actions, not an account resource",
+		"AWS::fis::experiment":   "ephemeral: a fault-injection experiment run, not a persistent resource (the template is scanned)",
+		"AWS::fis::safety-lever": "singleton: the account-level FIS safety lever, a managed config toggle not an enumerable resource",
+
+		// finspace-api / freertos — not a resource / no SDK.
+		"AWS::finspace-api::credential": "not a resource: a FinSpace API credential, not an enumerable resource",
+		"AWS::freertos::configuration":  "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
+		"AWS::freertos::subscription":   "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
