@@ -263,6 +263,18 @@ func (coverageProvider) Skips() map[string]string {
 		// InvokeDataAutomationAsync — neither the bedrockdataautomation control nor
 		// runtime SDK exposes a list op for it.
 		"AWS::bedrock::data-automation-profile": "no list API: data-automation invocation profile has no list op in the bedrockdataautomation SDK",
+		// AgentCore resource-policy has only GetResourcePolicy (resourceArn input);
+		// token-vault has only GetTokenVault/SetTokenVaultCMK — both singletons with
+		// no list op. ab-test / batch-evaluate / recommendation / web-search /
+		// workload-identity-directory have no op of any verb in the control or
+		// runtime SDK (built-in tools / ephemeral evaluation actions).
+		"AWS::BedrockAgentCore::ResourcePolicy":               "no list API: AgentCore resource-policy has only GetResourcePolicy (resourceArn input)",
+		"AWS::bedrock-agentcore::token-vault":                 "no list API: AgentCore token vault has only GetTokenVault/SetTokenVaultCMK (per-account singleton)",
+		"AWS::bedrock-agentcore::ab-test":                     "no SDK: no list/get op in the bedrockagentcore control or runtime SDK",
+		"AWS::bedrock-agentcore::batch-evaluate":              "no SDK: ephemeral evaluation action, no list/get op in the bedrockagentcore SDK",
+		"AWS::bedrock-agentcore::recommendation":              "no SDK: no list/get op in the bedrockagentcore control or runtime SDK",
+		"AWS::bedrock-agentcore::web-search":                  "no SDK: built-in tool, no list/get op in the bedrockagentcore SDK",
+		"AWS::bedrock-agentcore::workload-identity-directory": "no SDK: no list/get op for the workload-identity directory in the bedrockagentcore SDK",
 
 		// bcm — CloudFormation files the Billing & Cost Management dashboard under
 		// the "BCM" service while the Service Reference uses "bcm-dashboards";
