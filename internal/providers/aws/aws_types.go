@@ -201,6 +201,7 @@ const (
 	TypeDynamoDBTable       = "aws:dynamodb:table"
 	TypeDynamoDBGlobalTable = "aws:dynamodb:global-table"
 	TypeDynamoDBStream      = "aws:dynamodb:stream"
+	TypeDynamoDBBackup      = "aws:dynamodb:backup"
 	// EFS (efs_scanners.go, efs_resolvers.go)
 	TypeEFSFileSystem  = "aws:efs:file-system"
 	TypeEFSMountTarget = "aws:efs:mount-target"

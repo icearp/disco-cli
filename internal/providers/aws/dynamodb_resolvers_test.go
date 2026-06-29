@@ -115,3 +115,32 @@ func TestResolveDynamoDBStreamRelationships_NoStream(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveDynamoDBBackupRelationships(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	tableARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Orders"
+	backupARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Orders/backup/01234567890123-abcdef12"
+	tableID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBTable, tableARN, testRegion, "{}")
+	backupID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBBackup, backupARN, testRegion, `{"TableArn":"`+tableARN+`"}`)
+
+	if err := resolveDynamoDBBackupRelationships(acct, st); err != nil {
+		t.Fatalf("resolveDynamoDBBackupRelationships: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(backupID)
+	assertRelationship(t, rels, backupID, tableID, store.RelAttachedTo)
+}
+
+func TestResolveDynamoDBBackupRelationships_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	backupARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Orders/backup/01234567890123-abcdef12"
+	backupID := upsertTestResource(t, st, "aws", testAccountID, TypeDynamoDBBackup, backupARN, testRegion, "{}")
+	if err := resolveDynamoDBBackupRelationships(acct, st); err != nil {
+		t.Fatalf("empty: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(backupID); len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}

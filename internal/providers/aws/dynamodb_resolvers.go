@@ -17,7 +17,10 @@ func resolveDynamoDBAll(acct *account, st *store.Store) error {
 	if err := resolveDynamoDBStreamRelationships(acct, st); err != nil {
 		return err
 	}
-	return resolveDynamoDBGlobalTableRelationships(acct, st)
+	if err := resolveDynamoDBGlobalTableRelationships(acct, st); err != nil {
+		return err
+	}
+	return resolveDynamoDBBackupRelationships(acct, st)
 }
 
 func init() {
@@ -26,7 +29,43 @@ func init() {
 		EdgeDecl{TypeDynamoDBTable, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeDynamoDBTable, TypeDynamoDBStream, store.RelContains},
 		EdgeDecl{TypeDynamoDBGlobalTable, TypeDynamoDBTable, store.RelContains},
+		EdgeDecl{TypeDynamoDBBackup, TypeDynamoDBTable, store.RelAttachedTo},
 	)
+}
+
+// resolveDynamoDBBackupRelationships wires each backup to its source table
+// (FK-safe — backups outlive deleted tables) via BackupSummary.TableArn.
+func resolveDynamoDBBackupRelationships(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDynamoDBBackup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	tableSet, err := scannedIDSet(acct, st, TypeDynamoDBTable)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			TableArn *string `json:"TableArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if t := sv(attrs.TableArn); t != "" {
+			tgtID := store.ResourceID("aws", acct.ID, TypeDynamoDBTable, t)
+			if tableSet[tgtID] {
+				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert dynamodb backup→table: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveDynamoDBTableRelationships links each table to its KMS key when a

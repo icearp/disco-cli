@@ -24,6 +24,7 @@ func init() {
 			// dynamodb/stream, so the union covers it. The "dynamodb" service
 			// segment is canonical per IAM/SR despite the dynamodbstreams client.
 			{Service: "dynamodb", DiscoType: TypeDynamoDBStream},
+			{Service: "dynamodb", DiscoType: TypeDynamoDBBackup},
 		},
 	})
 }
@@ -35,6 +36,7 @@ type dynamodbAPI interface {
 	DescribeTable(context.Context, *dynamodb.DescribeTableInput, ...func(*dynamodb.Options)) (*dynamodb.DescribeTableOutput, error)
 	ListGlobalTables(context.Context, *dynamodb.ListGlobalTablesInput, ...func(*dynamodb.Options)) (*dynamodb.ListGlobalTablesOutput, error)
 	DescribeGlobalTable(context.Context, *dynamodb.DescribeGlobalTableInput, ...func(*dynamodb.Options)) (*dynamodb.DescribeGlobalTableOutput, error)
+	ListBackups(context.Context, *dynamodb.ListBackupsInput, ...func(*dynamodb.Options)) (*dynamodb.ListBackupsOutput, error)
 }
 
 // dynamodbStreamsAPI is the narrow set of DynamoDB Streams operations called by
@@ -60,7 +62,45 @@ func scanDynamoDB(ctx context.Context, acct *account, region string, st *store.S
 		func(ctx context.Context) (int, int, error) {
 			return scanDynamoDBStreams(ctx, streamsClient, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDynamoDBBackups(ctx, client, acct, region, st, scanID)
+		},
 	)
+}
+
+// scanDynamoDBBackups discovers on-demand DynamoDB table backups. ListBackups
+// paginates via ExclusiveStartBackupArn / LastEvaluatedBackupArn (no SDK
+// paginator type). On-demand and system (PITR) backups are both returned.
+func scanDynamoDBBackups(ctx context.Context, client dynamodbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var startARN *string
+	for {
+		out, err := client.ListBackups(ctx, &dynamodb.ListBackupsInput{ExclusiveStartBackupArn: startARN})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "dynamodb:ListBackups", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("dynamodb:ListBackups: %w", err)
+		}
+		for _, b := range out.BackupSummaries {
+			arn := sv(b.BackupArn)
+			if arn == "" {
+				continue
+			}
+			status := string(b.BackupStatus)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeDynamoDBBackup, NativeID: arn,
+				Name: b.BackupName, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+			})
+		}
+		if out.LastEvaluatedBackupArn == nil || *out.LastEvaluatedBackupArn == "" {
+			break
+		}
+		startARN = out.LastEvaluatedBackupArn
+	}
+	return upsertBatch(st, batch, "dynamodb backups")
 }
 
 // scanDynamoDBTables discovers DynamoDB tables in one region. ListTables returns

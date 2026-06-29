@@ -608,6 +608,14 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ds::directory":      "duplicate: a Directory Service directory, scanned by type as aws:directory-service:{microsoft-ad,simple-ad}",
 		"AWS::ds-data::directory": "duplicate: the Directory Service Data API addresses the same directory scanned as aws:directory-service:{microsoft-ad,simple-ad}",
 
+		// dynamodb — export/import are point-in-time data-movement job records
+		// (the durable artifact is the S3 object, not a DynamoDB resource), and
+		// index is a global/local secondary index embedded in DescribeTable, not
+		// independently listable. On-demand backups are scanned (aws:dynamodb:backup).
+		"AWS::dynamodb::export": "ephemeral: a point-in-time table export job to S3, not a persistent resource",
+		"AWS::dynamodb::import": "ephemeral: a one-time table import job from S3, not a persistent resource",
+		"AWS::dynamodb::index":  "sub-resource: a table secondary index, embedded in DescribeTable, not independently listable",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
