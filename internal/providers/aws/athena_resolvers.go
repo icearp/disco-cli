@@ -19,6 +19,57 @@ func init() {
 		resolveAthenaDataCatalogLambda,
 		EdgeDecl{TypeAthenaDataCatalog, TypeLambdaFunction, store.RelUses},
 	)
+	registerResolver(
+		resolveAthenaSavedQueryWorkgroup,
+		EdgeDecl{TypeAthenaNamedQuery, TypeAthenaWorkgroup, store.RelAttachedTo},
+		EdgeDecl{TypeAthenaPreparedStatement, TypeAthenaWorkgroup, store.RelAttachedTo},
+	)
+}
+
+// resolveAthenaSavedQueryWorkgroup wires named queries and prepared statements
+// to their owning workgroup. Both NativeIDs embed the workgroup ARN as a prefix
+// ({workgroupARN}/named-query/{id}, {workgroupARN}/prepared-statement/{name}),
+// so the parent is recovered by truncation. FK-safe.
+func resolveAthenaSavedQueryWorkgroup(acct *account, st *store.Store) error {
+	wgSet, err := scannedIDSet(acct, st, TypeAthenaWorkgroup)
+	if err != nil {
+		return err
+	}
+	if len(wgSet) == 0 {
+		return nil
+	}
+	for _, pair := range []struct {
+		childType, sep string
+	}{
+		{TypeAthenaNamedQuery, "/named-query/"},
+		{TypeAthenaPreparedStatement, "/prepared-statement/"},
+	} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{pair.childType},
+			Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			// LastIndex, not Index: a workgroup legitimately named "named-query"
+			// would put the separator in the NativeID twice; the true boundary is
+			// the last one (the suffix is a UUID / slash-free statement name).
+			i := strings.LastIndex(r.NativeID, pair.sep)
+			if i < 0 {
+				continue
+			}
+			wgARN := r.NativeID[:i]
+			tgtID := store.ResourceID("aws", acct.ID, TypeAthenaWorkgroup, wgARN)
+			if !wgSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert athena saved-query→workgroup: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // athenaWorkGroupAttrs mirrors the verbatim WorkGroup fields used by the

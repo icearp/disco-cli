@@ -134,3 +134,45 @@ func TestResolveAthenaDataCatalogLambda_HiveDualFn(t *testing.T) {
 	assertRelationship(t, rels, catID, metaID, store.RelUses)
 	assertRelationship(t, rels, catID, recID, store.RelUses)
 }
+
+func TestResolveAthenaSavedQueryWorkgroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	wgARN := athenaWorkGroupARN(testRegion, testAccountID, "analytics")
+	wgID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, wgARN, testRegion, "{}")
+
+	nqARN := wgARN + "/named-query/q-1"
+	nqID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaNamedQuery, nqARN, testRegion, "{}")
+	psARN := wgARN + "/prepared-statement/stmt1"
+	psID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaPreparedStatement, psARN, testRegion, "{}")
+
+	if err := resolveAthenaSavedQueryWorkgroup(acct, st); err != nil {
+		t.Fatalf("resolveAthenaSavedQueryWorkgroup: %v", err)
+	}
+	for _, src := range []string{nqID, psID} {
+		rels, _ := st.RelationshipsFrom(src)
+		assertRelationship(t, rels, src, wgID, store.RelAttachedTo)
+	}
+}
+
+// Saved queries whose workgroup is unscanned emit no edge.
+func TestResolveAthenaSavedQueryWorkgroup_NoEdge(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	// A different workgroup exists so the resolver runs.
+	upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, athenaWorkGroupARN(testRegion, testAccountID, "real"), testRegion, "{}")
+
+	goneWG := athenaWorkGroupARN(testRegion, testAccountID, "gone")
+	nqARN := goneWG + "/named-query/q-1"
+	nqID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaNamedQuery, nqARN, testRegion, "{}")
+
+	if err := resolveAthenaSavedQueryWorkgroup(acct, st); err != nil {
+		t.Fatalf("resolveAthenaSavedQueryWorkgroup: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(nqID)
+	if len(rels) != 0 {
+		t.Errorf("emitted %d edges, want 0", len(rels))
+	}
+}

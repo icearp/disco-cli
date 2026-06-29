@@ -1368,8 +1368,10 @@ const (
 	TypeGlueMLTransform = "aws:glue:ml-transform"
 	TypeGlueDevEndpoint = "aws:glue:dev-endpoint"
 	// Athena (athena_scanners.go, athena_resolvers.go)
-	TypeAthenaWorkgroup   = "aws:athena:workgroup"
-	TypeAthenaDataCatalog = "aws:athena:datacatalog"
+	TypeAthenaWorkgroup         = "aws:athena:workgroup"
+	TypeAthenaDataCatalog       = "aws:athena:datacatalog"
+	TypeAthenaNamedQuery        = "aws:athena:named-query"
+	TypeAthenaPreparedStatement = "aws:athena:prepared-statement"
 	// Redshift (redshift_scanners.go, redshift_resolvers.go)
 	TypeRedshiftCluster               = "aws:redshift:cluster"
 	TypeRedshiftSubnetGroup           = "aws:redshift:cluster-subnet-group"

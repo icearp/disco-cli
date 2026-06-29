@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
@@ -20,6 +21,8 @@ func init() {
 			{Service: "athena", DiscoType: TypeAthenaWorkgroup},
 			{Service: "athena", DiscoType: TypeAthenaDataCatalog},
 			{Service: "athena", DiscoType: TypeAthenaCapacityReservation, Leaf: true},
+			{Service: "athena", DiscoType: TypeAthenaNamedQuery},
+			{Service: "athena", DiscoType: TypeAthenaPreparedStatement},
 		},
 	})
 }
@@ -32,24 +35,31 @@ type athenaAPI interface {
 	ListDataCatalogs(context.Context, *athena.ListDataCatalogsInput, ...func(*athena.Options)) (*athena.ListDataCatalogsOutput, error)
 	GetDataCatalog(context.Context, *athena.GetDataCatalogInput, ...func(*athena.Options)) (*athena.GetDataCatalogOutput, error)
 	ListCapacityReservations(context.Context, *athena.ListCapacityReservationsInput, ...func(*athena.Options)) (*athena.ListCapacityReservationsOutput, error)
+	ListNamedQueries(context.Context, *athena.ListNamedQueriesInput, ...func(*athena.Options)) (*athena.ListNamedQueriesOutput, error)
+	BatchGetNamedQuery(context.Context, *athena.BatchGetNamedQueryInput, ...func(*athena.Options)) (*athena.BatchGetNamedQueryOutput, error)
+	ListPreparedStatements(context.Context, *athena.ListPreparedStatementsInput, ...func(*athena.Options)) (*athena.ListPreparedStatementsOutput, error)
+	BatchGetPreparedStatement(context.Context, *athena.BatchGetPreparedStatementInput, ...func(*athena.Options)) (*athena.BatchGetPreparedStatementOutput, error)
 }
 
 func athenaCapacityReservationARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:athena:%s:%s:capacity-reservation/%s", region, accountID, name)
 }
 
-// scanAthena discovers Athena workgroups and data catalogs in one region.
-// Two phases run sequentially. Each phase: List (paginator, name-only) →
-// fan-out Get for full body (errgroup + fanoutMed). Named queries +
-// prepared statements deferred — saved-SQL artefacts, not graph nodes.
+// scanAthena discovers Athena workgroups, data catalogs, capacity reservations,
+// and each workgroup's saved (named) queries + prepared statements, in one
+// region. Workgroup/catalog phases List (paginator, name-only) → fan-out Get for
+// the full body (errgroup + fanoutMed); the saved-query phases reuse the
+// workgroup names to drive per-workgroup List + BatchGet.
 func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
 
+	var wgNames []string
 	{
-		t, i, ferr := scanAthenaWorkGroups(ctx, client, acct, region, st, scanID)
+		t, i, names, ferr := scanAthenaWorkGroups(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
+		wgNames = names
 		total += t
 		inserted += i
 	}
@@ -65,6 +75,24 @@ func scanAthena(ctx context.Context, acct *account, region string, st *store.Sto
 
 	{
 		t, i, ferr := scanAthenaCapacityReservations(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Saved-SQL artefacts run last: a named-query / prepared-statement fetch
+	// error must not blank the higher-value workgroup / catalog / capacity rows.
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanAthenaNamedQueries(ctx, client, acct, region, st, scanID, wgNames)
+		},
+		func() (int, int, error) {
+			return scanAthenaPreparedStatements(ctx, client, acct, region, st, scanID, wgNames)
+		},
+	} {
+		t, i, ferr := phase()
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -131,17 +159,16 @@ func athenaDataCatalogARN(region, accountID, name string) string {
 	return fmt.Sprintf("arn:aws:athena:%s:%s:datacatalog/%s", region, accountID, name)
 }
 
-func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, names []string, err error) {
 	pager := athena.NewListWorkGroupsPaginator(client, &athena.ListWorkGroupsInput{})
-	var names []string
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "athena:ListWorkGroups", acct.ID, region, perr)
-				return 0, 0, nil
+				return 0, 0, nil, nil
 			}
-			return 0, 0, fmt.Errorf("athena:ListWorkGroups: %w", perr)
+			return 0, 0, nil, fmt.Errorf("athena:ListWorkGroups: %w", perr)
 		}
 		for _, w := range out.WorkGroups {
 			if w.Name != nil {
@@ -150,7 +177,7 @@ func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, 
 		}
 	}
 	if len(names) == 0 {
-		return 0, 0, nil
+		return 0, 0, nil, nil
 	}
 
 	sem := semaphore.NewWeighted(fanoutMed)
@@ -161,7 +188,7 @@ func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, name := range names {
 		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+			return 0, 0, names, err
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
@@ -198,16 +225,115 @@ func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, 
 		})
 	}
 	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+		return 0, 0, names, werr
 	}
 	if len(batch) == 0 {
-		return 0, 0, nil
+		return 0, 0, names, nil
 	}
 	n, uerr := st.UpsertResources(batch)
 	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert athena workgroups: %w", uerr)
+		return 0, 0, names, fmt.Errorf("upsert athena workgroups: %w", uerr)
 	}
-	return len(batch), n, nil
+	return len(batch), n, names, nil
+}
+
+// scanAthenaNamedQueries lists each workgroup's saved (named) queries and
+// batch-fetches their bodies. Named queries carry no AWS-issued ARN; synthesize
+// {workgroupARN}/named-query/{id}.
+func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string) (total, inserted int, err error) {
+	var batch []*store.Resource
+	for _, wg := range workgroups {
+		var ids []string
+		pager := athena.NewListNamedQueriesPaginator(client, &athena.ListNamedQueriesInput{WorkGroup: &wg})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "athena:ListNamedQueries", acct.ID, region, perr)
+					break
+				}
+				return 0, 0, fmt.Errorf("athena:ListNamedQueries: %w", perr)
+			}
+			ids = append(ids, out.NamedQueryIds...)
+		}
+		for chunk := range slices.Chunk(ids, 50) {
+			out, derr := client.BatchGetNamedQuery(ctx, &athena.BatchGetNamedQueryInput{NamedQueryIds: chunk})
+			if derr != nil {
+				if isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "athena:BatchGetNamedQuery", acct.ID, region, derr)
+					break
+				}
+				return 0, 0, fmt.Errorf("athena:BatchGetNamedQuery: %w", derr)
+			}
+			for _, q := range out.NamedQueries {
+				id := sv(q.NamedQueryId)
+				if id == "" {
+					continue
+				}
+				arn := athenaWorkGroupARN(region, acct.ID, wg) + "/named-query/" + id
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeAthenaNamedQuery, NativeID: arn,
+					Name: q.Name, Region: &region,
+					AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "athena named-queries")
+}
+
+// scanAthenaPreparedStatements lists each workgroup's prepared statements and
+// batch-fetches their bodies. NativeID {workgroupARN}/prepared-statement/{name}.
+func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string) (total, inserted int, err error) {
+	var batch []*store.Resource
+	for _, wg := range workgroups {
+		var names []string
+		pager := athena.NewListPreparedStatementsPaginator(client, &athena.ListPreparedStatementsInput{WorkGroup: &wg})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					_ = skipIfAccessDenied(st, "athena:ListPreparedStatements", acct.ID, region, perr)
+					break
+				}
+				return 0, 0, fmt.Errorf("athena:ListPreparedStatements: %w", perr)
+			}
+			for _, s := range out.PreparedStatements {
+				if s.StatementName != nil {
+					names = append(names, *s.StatementName)
+				}
+			}
+		}
+		// BatchGetPreparedStatement accepts up to 256 names/call (vs 50 for
+		// BatchGetNamedQuery).
+		for chunk := range slices.Chunk(names, 256) {
+			out, derr := client.BatchGetPreparedStatement(ctx, &athena.BatchGetPreparedStatementInput{
+				PreparedStatementNames: chunk, WorkGroup: &wg,
+			})
+			if derr != nil {
+				if isAccessDenied(derr) {
+					_ = skipIfAccessDenied(st, "athena:BatchGetPreparedStatement", acct.ID, region, derr)
+					break
+				}
+				return 0, 0, fmt.Errorf("athena:BatchGetPreparedStatement: %w", derr)
+			}
+			for _, s := range out.PreparedStatements {
+				name := sv(s.StatementName)
+				if name == "" {
+					continue
+				}
+				arn := athenaWorkGroupARN(region, acct.ID, wg) + "/prepared-statement/" + name
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeAthenaPreparedStatement, NativeID: arn,
+					Name: s.StatementName, Region: &region,
+					AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "athena prepared-statements")
 }
 
 func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
