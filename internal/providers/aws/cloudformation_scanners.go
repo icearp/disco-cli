@@ -22,6 +22,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "cloudformation", DiscoType: TypeCloudFormationStack},
 			{Service: "cloudformation", DiscoType: TypeCloudFormationStackSet},
+			{Service: "cloudformation", DiscoType: TypeCloudFormationGeneratedTemplate, Leaf: true},
+			{Service: "cloudformation", DiscoType: TypeCloudFormationResourceScan, Leaf: true},
+			{Service: "cloudformation", DiscoType: TypeCloudFormationType, Leaf: true},
+			{Service: "cloudformation", DiscoType: TypeCloudFormationTypeHook, Leaf: true},
 		},
 	})
 }
@@ -35,6 +39,9 @@ type cloudformationAPI interface {
 	ListStackSets(context.Context, *cloudformation.ListStackSetsInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackSetsOutput, error)
 	ListStackInstances(context.Context, *cloudformation.ListStackInstancesInput, ...func(*cloudformation.Options)) (*cloudformation.ListStackInstancesOutput, error)
 	DescribeStackSet(context.Context, *cloudformation.DescribeStackSetInput, ...func(*cloudformation.Options)) (*cloudformation.DescribeStackSetOutput, error)
+	ListGeneratedTemplates(context.Context, *cloudformation.ListGeneratedTemplatesInput, ...func(*cloudformation.Options)) (*cloudformation.ListGeneratedTemplatesOutput, error)
+	ListResourceScans(context.Context, *cloudformation.ListResourceScansInput, ...func(*cloudformation.Options)) (*cloudformation.ListResourceScansOutput, error)
+	ListTypes(context.Context, *cloudformation.ListTypesInput, ...func(*cloudformation.Options)) (*cloudformation.ListTypesOutput, error)
 }
 
 // scanCloudFormation runs two phases per region:
@@ -62,6 +69,25 @@ func scanCloudFormation(ctx context.Context, acct *account, region string, st *s
 
 	{
 		t, i, ferr := scanCloudFormationStackSets(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanCloudFormationGeneratedTemplates(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanCloudFormationResourceScans(ctx, client, acct, region, st, scanID)
+		},
+		func() (int, int, error) {
+			return scanCloudFormationRegistryTypes(ctx, client, acct, region, st, scanID)
+		},
+	} {
+		t, i, ferr := phase()
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -317,4 +343,104 @@ func isStackValidationError(err error) bool {
 		return ae.ErrorCode() == "ValidationError"
 	}
 	return false
+}
+
+// scanCloudFormationGeneratedTemplates discovers IaC generator templates
+// (ListGeneratedTemplates), the persistent templates produced from a resource
+// scan.
+func scanCloudFormationGeneratedTemplates(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	pager := cloudformation.NewListGeneratedTemplatesPaginator(client, &cloudformation.ListGeneratedTemplatesInput{})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "cloudformation:ListGeneratedTemplates", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("cloudformation:ListGeneratedTemplates: %w", err)
+		}
+		for _, s := range out.Summaries {
+			id := sv(s.GeneratedTemplateId)
+			if id == "" {
+				continue
+			}
+			status := string(s.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCloudFormationGeneratedTemplate, NativeID: id,
+				Name: s.GeneratedTemplateName, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(s), CreatedAt: tp(s.CreationTime), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "cloudformation generated-templates")
+}
+
+// scanCloudFormationResourceScans discovers account resource scans
+// (ListResourceScans), the inventory scans the IaC generator runs over existing
+// resources.
+func scanCloudFormationResourceScans(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	pager := cloudformation.NewListResourceScansPaginator(client, &cloudformation.ListResourceScansInput{})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "cloudformation:ListResourceScans", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("cloudformation:ListResourceScans: %w", err)
+		}
+		for _, s := range out.ResourceScanSummaries {
+			id := sv(s.ResourceScanId)
+			if id == "" {
+				continue
+			}
+			status := string(s.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCloudFormationResourceScan, NativeID: id,
+				Region: &region, Status: &status,
+				AttributesJSON: mustJSON(s), CreatedAt: tp(s.StartTime), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "cloudformation resource-scans")
+}
+
+// scanCloudFormationRegistryTypes discovers the account's registered CFN
+// registry types (ListTypes, Visibility=PRIVATE — the account's own private
+// types plus activated public ones; PUBLIC would pull the entire global
+// catalogue). RESOURCE/MODULE types emit as aws:cloudformation:type, HOOK types
+// as aws:cloudformation:type-hook.
+func scanCloudFormationRegistryTypes(ctx context.Context, client cloudformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	pager := cloudformation.NewListTypesPaginator(client, &cloudformation.ListTypesInput{
+		Visibility: cfntypes.VisibilityPrivate,
+	})
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "cloudformation:ListTypes", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("cloudformation:ListTypes: %w", err)
+		}
+		for _, s := range out.TypeSummaries {
+			arn := sv(s.TypeArn)
+			if arn == "" {
+				continue
+			}
+			rtype := TypeCloudFormationType
+			if s.Type == cfntypes.RegistryTypeHook {
+				rtype = TypeCloudFormationTypeHook
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: rtype, NativeID: arn,
+				Name: s.TypeName, Region: &region,
+				AttributesJSON: mustJSON(s), CreatedAt: tp(s.LastUpdated), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "cloudformation registry-types")
 }

@@ -321,9 +321,15 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeS3MultiRegionAccessPointPolicy: "AWS::S3::MultiRegionAccessPointPolicy",
 		TypeS3StorageLens:                  "AWS::S3::StorageLens",
 		TypeS3StorageLensGroup:             "AWS::S3::StorageLensGroup",
-		// CloudFormation.
-		TypeCloudFormationStack:    "AWS::CloudFormation::Stack",
-		TypeCloudFormationStackSet: "AWS::CloudFormation::StackSet",
+		// CloudFormation. generated-template/resource-scan/type/type-hook are
+		// Service-Reference-only (the CFN registry leg has no matching twin) — alias
+		// to the exact SR keys.
+		TypeCloudFormationStack:             "AWS::CloudFormation::Stack",
+		TypeCloudFormationStackSet:          "AWS::CloudFormation::StackSet",
+		TypeCloudFormationGeneratedTemplate: "AWS::cloudformation::generatedtemplate",
+		TypeCloudFormationResourceScan:      "AWS::cloudformation::resourcescan",
+		TypeCloudFormationType:              "AWS::cloudformation::type",
+		TypeCloudFormationTypeHook:          "AWS::cloudformation::typeHook",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",

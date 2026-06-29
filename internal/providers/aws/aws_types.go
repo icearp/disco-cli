@@ -532,8 +532,12 @@ const (
 	// Braket (braket_scanners.go, braket_resolvers.go)
 	TypeBraketSpendingLimit = "aws:braket:spending-limit"
 	// CloudFormation (cloudformation_scanners.go, cloudformation_resolvers.go)
-	TypeCloudFormationStack    = "aws:cloudformation:stack"
-	TypeCloudFormationStackSet = "aws:cloudformation:stack-set"
+	TypeCloudFormationStack             = "aws:cloudformation:stack"
+	TypeCloudFormationStackSet          = "aws:cloudformation:stack-set"
+	TypeCloudFormationGeneratedTemplate = "aws:cloudformation:generated-template"
+	TypeCloudFormationResourceScan      = "aws:cloudformation:resource-scan"
+	TypeCloudFormationType              = "aws:cloudformation:type"
+	TypeCloudFormationTypeHook          = "aws:cloudformation:type-hook"
 	// IAM Identity Center / Identity Store (sso_scanners.go, sso_resolvers.go)
 	TypeSSOInstance                                    = "aws:sso:instance"
 	TypeSSOPermissionSet                               = "aws:sso:permission-set"

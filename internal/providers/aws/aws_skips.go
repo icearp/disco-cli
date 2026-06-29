@@ -365,6 +365,33 @@ func (coverageProvider) Skips() map[string]string {
 		// can't bridge.
 		"AWS::cloudfront-keyvaluestore::key-value-store": "duplicate: scanned as aws:cloudfront:key-value-store (cloudfront:ListKeyValueStores)",
 
+		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
+		// as aws:cloudformation:type / type-hook; their versions, default-version
+		// pointers, activations, configs and the publisher identity are sub-
+		// resources / attributes / singletons of those, not independently listable.
+		"AWS::CloudFormation::ResourceVersion":        "sub-resource: a registered type's version (the type + its DefaultVersionId are scanned as aws:cloudformation:type)",
+		"AWS::CloudFormation::ModuleVersion":          "sub-resource: a registered module's version (the type is scanned as aws:cloudformation:type)",
+		"AWS::CloudFormation::HookVersion":            "sub-resource: a registered hook's version (the hook is scanned as aws:cloudformation:type-hook)",
+		"AWS::CloudFormation::ResourceDefaultVersion": "attribute: the default-version pointer is TypeSummary.DefaultVersionId on the scanned aws:cloudformation:type",
+		"AWS::CloudFormation::ModuleDefaultVersion":   "attribute: the default-version pointer is TypeSummary.DefaultVersionId on the scanned aws:cloudformation:type",
+		"AWS::CloudFormation::HookDefaultVersion":     "attribute: the default-version pointer is TypeSummary.DefaultVersionId on the scanned aws:cloudformation:type-hook",
+		"AWS::CloudFormation::PublicTypeVersion":      "sub-resource: a published public version of a registered type (enumerable only per-type via ListTypeVersions); the type is scanned as aws:cloudformation:type",
+		"AWS::CloudFormation::TypeActivation":         "duplicate: an activated public type is scanned as aws:cloudformation:type (Visibility=PRIVATE includes activated types)",
+		"AWS::CloudFormation::HookTypeConfig":         "config: per-account hook configuration (BatchDescribeTypeConfigurations), not a standalone resource",
+		"AWS::CloudFormation::Publisher":              "no list API: per-account publisher identity (DescribePublisher only)",
+		"AWS::CloudFormation::GuardHook":              "duplicate: created Guard hooks are scanned as aws:cloudformation:type-hook (HOOK registry type)",
+		"AWS::CloudFormation::LambdaHook":             "duplicate: created Lambda hooks are scanned as aws:cloudformation:type-hook (HOOK registry type)",
+		// CFN template primitives — constructs declared inside a stack template,
+		// not independently discoverable AWS resources.
+		"AWS::CloudFormation::CustomResource":      "template primitive: a Lambda/SNS-backed custom resource declared in a stack, no standalone list API",
+		"AWS::CloudFormation::Macro":               "no list API: a template transform macro, deployed via a stack with no ListMacros op",
+		"AWS::CloudFormation::WaitCondition":       "template primitive: a provisioning-time wait condition, not a standalone resource",
+		"AWS::CloudFormation::WaitConditionHandle": "template primitive: a provisioning-time wait-condition handle, not a standalone resource",
+		// changeset is an ephemeral pending-change preview (auto-expires); stackset-
+		// target is the OU/account a stack-set deploys to (an association).
+		"AWS::cloudformation::changeset":       "ephemeral: a pending-change preview (per-stack ListChangeSets), auto-expires; not deployed infrastructure",
+		"AWS::cloudformation::stackset-target": "association: the OU/account a stack-set deploys to, not a standalone resource",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
