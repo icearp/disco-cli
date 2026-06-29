@@ -684,6 +684,21 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ec2::certificate":           "duplicate: the SR ec2:certificate ARN is an ACM certificate, scanned as aws:acm:certificate",
 		"AWS::ec2::license-configuration": "duplicate: the SR ec2:license-configuration ARN is a License Manager config, scanned as aws:license-manager:license-configuration",
 
+		// ec2-instance-connect — the Service Reference lists the EC2 instances and
+		// instance-connect endpoints disco already scans under aws:ec2:* (this
+		// service only grants the SendSSHPublicKey action against them; the
+		// resources themselves are EC2's).
+		"AWS::ec2-instance-connect::instance":                  "duplicate: scanned as aws:ec2:instance (DescribeInstances)",
+		"AWS::ec2-instance-connect::instance-connect-endpoint": "duplicate: scanned as aws:ec2:instance-connect-endpoint (DescribeInstanceConnectEndpoints)",
+
+		// ecr-public — disco scans Public ECR repositories under the ecr service
+		// (aws:ecr:public-repository, matching the CFN AWS::ECR::PublicRepository
+		// type). The account-level registry container is not materialized as a
+		// standalone resource (it carries only catalog metadata), mirroring the
+		// private ECR registry which disco models via config rows, not a registry row.
+		"AWS::ecr-public::repository": "duplicate: scanned as aws:ecr:public-repository (ecr-public:DescribeRepositories)",
+		"AWS::ecr-public::registry":   "singleton: the account-level Public ECR registry container; disco scans its repositories, not the registry (matches the unmaterialized private ECR registry)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
