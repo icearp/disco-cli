@@ -860,6 +860,10 @@ const (
 	TypeCleanRoomsMLConfiguredModelAlgorithm            = "aws:cleanrooms-ml:configured-model-algorithm"
 	TypeCleanRoomsMLConfiguredModelAlgorithmAssociation = "aws:cleanrooms-ml:configured-model-algorithm-association"
 	TypeCleanRoomsMLTrainingDataset                     = "aws:cleanrooms-ml:training-dataset"
+	TypeCleanRoomsMLAudienceModel                       = "aws:cleanrooms-ml:audience-model"
+	TypeCleanRoomsMLConfiguredAudienceModel             = "aws:cleanrooms-ml:configured-audience-model"
+	TypeCleanRoomsMLMLInputChannel                      = "aws:cleanrooms-ml:ml-input-channel"
+	TypeCleanRoomsMLTrainedModel                        = "aws:cleanrooms-ml:trained-model"
 	// Chatbot (chatbot_scanners.go)
 	TypeChatbotCustomAction                       = "aws:chatbot:custom-action"
 	TypeChatbotSlackChannelConfiguration          = "aws:chatbot:slack-channel-configuration"

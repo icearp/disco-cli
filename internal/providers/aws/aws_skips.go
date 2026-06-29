@@ -345,6 +345,13 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::cases::Case":        "out-of-scope: support-case records are per-domain operational content, not infrastructure (the Cases domain/template/field/layout config is scanned)",
 		"AWS::cases::RelatedItem": "out-of-scope: items attached to a support case (per-case content), not an infrastructure resource",
 
+		// cleanrooms-ml — audience-generation and trained-model-inference jobs are
+		// async run records (ephemeral), not persistent resources. The audience
+		// models, configured audience models, ML input channels and trained models
+		// they produce are scanned.
+		"AWS::cleanrooms-ml::audiencegenerationjob":    "ephemeral: audience-generation job-run record, not a persistent resource",
+		"AWS::cleanrooms-ml::TrainedModelInferenceJob": "ephemeral: trained-model inference job-run record, not a persistent resource",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,

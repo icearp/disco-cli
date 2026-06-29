@@ -579,6 +579,12 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCleanRoomsMLConfiguredModelAlgorithm:            "AWS::CleanRoomsML::ConfiguredModelAlgorithm",
 		TypeCleanRoomsMLConfiguredModelAlgorithmAssociation: "AWS::CleanRoomsML::ConfiguredModelAlgorithmAssociation",
 		TypeCleanRoomsMLTrainingDataset:                     "AWS::CleanRoomsML::TrainingDataset",
+		// audience-model/configured-audience-model/ml-input-channel/trained-model
+		// are Service-Reference-only (no CFN twin) — alias to the exact SR key.
+		TypeCleanRoomsMLAudienceModel:           "AWS::cleanrooms-ml::audiencemodel",
+		TypeCleanRoomsMLConfiguredAudienceModel: "AWS::cleanrooms-ml::configuredaudiencemodel",
+		TypeCleanRoomsMLMLInputChannel:          "AWS::cleanrooms-ml::MLInputChannel",
+		TypeCleanRoomsMLTrainedModel:            "AWS::cleanrooms-ml::TrainedModel",
 		// CE — disco "ce" segment vs CFN "CE".
 		TypeCEAnomalyMonitor:      "AWS::CE::AnomalyMonitor",
 		TypeCEAnomalySubscription: "AWS::CE::AnomalySubscription",
