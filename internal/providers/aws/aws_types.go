@@ -857,6 +857,14 @@ const (
 	TypeEMRContainersVirtualCluster = "aws:emr-containers:virtual-cluster"
 	TypeEMRContainersEndpoint       = "aws:emr-containers:endpoint"
 	TypeEMRContainersSecurityConfig = "aws:emr-containers:security-configuration"
+	// DeviceFarm (devicefarm_scanners.go)
+	TypeDeviceFarmProject           = "aws:devicefarm:project"
+	TypeDeviceFarmDevicePool        = "aws:devicefarm:device-pool"
+	TypeDeviceFarmNetworkProfile    = "aws:devicefarm:network-profile"
+	TypeDeviceFarmInstanceProfile   = "aws:devicefarm:instance-profile"
+	TypeDeviceFarmDeviceInstance    = "aws:devicefarm:device-instance"
+	TypeDeviceFarmVPCEConfiguration = "aws:devicefarm:vpce-configuration"
+	TypeDeviceFarmTestGridProject   = "aws:devicefarm:testgrid-project"
 	// DevOpsGuru (devopsguru_scanners.go)
 	TypeDevOpsGuruNotificationChannel            = "aws:devops-guru:notification-channel"
 	TypeDevOpsGuruResourceCollection             = "aws:devops-guru:resource-collection"

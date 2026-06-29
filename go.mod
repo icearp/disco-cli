@@ -469,6 +469,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cloudsearch v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/dataexchange v1.42.7
 	github.com/aws/aws-sdk-go-v2/service/datapipeline v1.31.6
+	github.com/aws/aws-sdk-go-v2/service/devicefarm v1.39.6
 )
 
 require (

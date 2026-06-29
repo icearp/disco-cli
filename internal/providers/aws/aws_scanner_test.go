@@ -88,6 +88,7 @@ var expectedAWSServices = []string{
 	"aws:emr",
 	"aws:emr-containers",
 	"aws:devops-guru",
+	"aws:devicefarm",
 	"aws:dax",
 	"aws:codestar-connections",
 	"aws:codepipeline",

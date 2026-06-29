@@ -359,6 +359,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeDataExchangeDataSets:     "AWS::dataexchange::data-sets",
 		TypeDataExchangeDataGrants:   "AWS::dataexchange::data-grants",
 		TypeDataExchangeEventActions: "AWS::dataexchange::event-actions",
+		// DeviceFarm — the internal "TestGrid" capital is invisible to the
+		// algorithmic PascalCase key (it yields "TestgridProject"); alias to the
+		// hyphenated Service Reference spelling so both upstream twins resolve.
+		TypeDeviceFarmTestGridProject: "AWS::devicefarm::testgrid-project",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",

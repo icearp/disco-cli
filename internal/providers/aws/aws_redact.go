@@ -70,6 +70,11 @@ func init() {
 		{Type: TypeCodeBuildProject, Attributes: []redact.Rule{
 			{Path: "Environment.EnvironmentVariables[*].Value", Mode: redact.RedactScalar},
 		}},
+		// Device Farm project — EnvironmentVariables are plaintext key/value pairs
+		// injected into test runs, a common place for API keys / test creds.
+		{Type: TypeDeviceFarmProject, Attributes: []redact.Rule{
+			{Path: "EnvironmentVariables[*].Value", Mode: redact.RedactScalar},
+		}},
 	}
 	for _, r := range rules {
 		redact.Register(r)

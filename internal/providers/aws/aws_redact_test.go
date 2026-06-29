@@ -8,6 +8,7 @@ import (
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
+	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -152,6 +153,28 @@ func TestRedact_CodeBuildProject_PlaintextEnv(t *testing.T) {
 			t.Errorf("Value not redacted: %v", em)
 		}
 		// Names preserved.
+		if em["Name"] == "" {
+			t.Errorf("Name clobbered")
+		}
+	}
+}
+
+func TestRedact_DeviceFarmProject_EnvVariables(t *testing.T) {
+	proj := dftypes.Project{
+		Name: ptrStr("p1"),
+		Arn:  ptrStr("arn:aws:devicefarm:us-west-2:111122223333:project:PROJ-1"),
+		EnvironmentVariables: []dftypes.EnvironmentVariable{
+			{Name: ptrStr("API_KEY"), Value: ptrStr("super-secret")},
+			{Name: ptrStr("TOKEN"), Value: ptrStr("another-secret")},
+		},
+	}
+	got := applyAndDecode(t, TypeDeviceFarmProject, proj)
+	envs := got["EnvironmentVariables"].([]any)
+	for _, e := range envs {
+		em := e.(map[string]any)
+		if em["Value"] != redact.Placeholder {
+			t.Errorf("Value not redacted: %v", em)
+		}
 		if em["Name"] == "" {
 			t.Errorf("Name clobbered")
 		}

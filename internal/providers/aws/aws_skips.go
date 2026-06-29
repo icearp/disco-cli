@@ -573,6 +573,22 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::deadline::job":    "ephemeral: a submitted render-job run (per farm/queue), not persistent infrastructure",
 		"AWS::deadline::worker": "ephemeral: a running fleet worker node (per farm/fleet), not persistent infrastructure",
 
+		// devicefarm — device is AWS's global catalog of test devices (reference
+		// data, not account resources). run/job/suite/test/sample/artifact/session
+		// and testgrid-session are the ephemeral test-run hierarchy. upload is the
+		// uploaded app/test package content. Projects, pools, profiles, device
+		// instances, VPCE configs and test-grid projects are scanned.
+		"AWS::devicefarm::device":           "AWS-managed catalog: the global list of available test devices, not account resources",
+		"AWS::devicefarm::run":              deviceFarmRun,
+		"AWS::devicefarm::job":              deviceFarmRun,
+		"AWS::devicefarm::suite":            deviceFarmRun,
+		"AWS::devicefarm::test":             deviceFarmRun,
+		"AWS::devicefarm::sample":           deviceFarmRun,
+		"AWS::devicefarm::artifact":         deviceFarmRun,
+		"AWS::devicefarm::session":          "ephemeral: a remote-access session to a device (per project), not persistent infrastructure",
+		"AWS::devicefarm::testgrid-session": "ephemeral: a Selenium test-grid session run (per testgrid-project), not persistent infrastructure",
+		"AWS::devicefarm::upload":           "content: an uploaded app/test package within a project, not infrastructure",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
@@ -703,3 +719,5 @@ const controlCatalog = "AWS-managed reference catalog: the Control Catalog lists
 const dataExchangeContent = "content: versioned data within a data set (revisions/assets, like S3 object versions/objects), enumerated within the scanned aws:dataexchange:data-set"
 
 const dataExchangeEntitled = "consumer subscription: entitled data is another account's published product you subscribe to (marketplace), not an owned resource"
+
+const deviceFarmRun = "ephemeral: part of the Device Farm test-run hierarchy (run→job→suite→test with samples/artifacts), not persistent infrastructure"
