@@ -305,6 +305,12 @@ func (coverageProvider) Skips() map[string]string {
 		// aws-sdk-go-v2 client and the service has been retired by AWS.
 		"AWS::bugbust::Event": "service retired: CodeGuru BugBust has no aws-sdk-go-v2 client (service discontinued)",
 
+		// budgets — the SR singular `budgetAction` is the same resource disco
+		// already scans as aws:budgets:budgets-action (matching the CFN
+		// `BudgetsAction` spelling); canonical dedup can't bridge the extra 's'
+		// (budgetsaction vs budgetaction).
+		"AWS::budgets::budgetAction": "duplicate: budget actions scanned as aws:budgets:budgets-action (CFN BudgetsAction spelling)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
