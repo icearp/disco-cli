@@ -69,5 +69,9 @@ func scanBedrock(ctx context.Context, acct *account, region string, st *store.St
 	if e2 != nil {
 		return t1, i1, e2
 	}
-	return t1 + t2, i1 + i2, nil
+	t3, i3, e3 := scanBedrockModels(ctx, bclient, acct, region, st, scanID)
+	if e3 != nil {
+		return t1 + t2, i1 + i2, e3
+	}
+	return t1 + t2 + t3, i1 + i2 + i3, nil
 }

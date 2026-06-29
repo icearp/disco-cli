@@ -1293,6 +1293,12 @@ const (
 	TypeBedrockIntelligentPromptRouter         = "aws:bedrock:intelligent-prompt-router"
 	TypeBedrockApplicationInferenceProfile     = "aws:bedrock:application-inference-profile"
 	TypeBedrockEnforcedGuardrailConfiguration  = "aws:bedrock:enforced-guardrail-configuration"
+	// Bedrock — Models (bedrock_models_scanners.go)
+	TypeBedrockCustomModel              = "aws:bedrock:custom-model"
+	TypeBedrockImportedModel            = "aws:bedrock:imported-model"
+	TypeBedrockProvisionedModel         = "aws:bedrock:provisioned-model"
+	TypeBedrockCustomModelDeployment    = "aws:bedrock:custom-model-deployment"
+	TypeBedrockMarketplaceModelEndpoint = "aws:bedrock:bedrock-marketplace-model-endpoint"
 	// Glue — Schema (glue_schema_scanners.go)
 	TypeGlueRegistry              = "aws:glue:registry"
 	TypeGlueSchema                = "aws:glue:schema"

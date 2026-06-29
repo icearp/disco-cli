@@ -358,6 +358,13 @@ func (coverageProvider) Aliases() map[string]string {
 		// Reference catalog (no CloudFormation type), so alias to the exact SR key.
 		TypeBcmPricingCalculatorBillEstimate:     "AWS::bcm-pricing-calculator::bill-estimate",
 		TypeBcmPricingCalculatorWorkloadEstimate: "AWS::bcm-pricing-calculator::workload-estimate",
+		// Bedrock models exist only in the Service Reference catalog (no CFN type),
+		// so alias to the exact SR keys.
+		TypeBedrockCustomModel:              "AWS::bedrock::custom-model",
+		TypeBedrockImportedModel:            "AWS::bedrock::imported-model",
+		TypeBedrockProvisionedModel:         "AWS::bedrock::provisioned-model",
+		TypeBedrockCustomModelDeployment:    "AWS::bedrock::custom-model-deployment",
+		TypeBedrockMarketplaceModelEndpoint: "AWS::bedrock::bedrock-marketplace-model-endpoint",
 		// Batch.
 		TypeBatchComputeEnvironment: "AWS::Batch::ComputeEnvironment",
 		TypeBatchJobQueue:           "AWS::Batch::JobQueue",
