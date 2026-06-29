@@ -558,6 +558,15 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::DataZone::Owner":       "association: a per-entity owner record (ListEntityOwners requires EntityType+EntityIdentifier), not a first-class resource",
 		"AWS::DataZone::PolicyGrant": "association: a per-entity managed-policy grant (ListPolicyGrants requires EntityType+EntityIdentifier), not a first-class resource",
 
+		// dax — DAX has no "application" resource; aws-sdk-go-v2 exposes only
+		// clusters / parameter-groups / subnet-groups (all scanned).
+		"AWS::dax::application": "not a resource: DAX has no application; the SDK exposes only cluster/parameter-group/subnet-group, all scanned",
+
+		// detective — a member invitation is the act of adding a member to a
+		// behavior graph; the resulting membership is scanned as
+		// aws:detective:member (MemberDetail carries Status/InvitedTime).
+		"AWS::Detective::MemberInvitation": "duplicate: the membership created by an invitation is scanned as aws:detective:member (ListMembers, with invitation status/time)",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
