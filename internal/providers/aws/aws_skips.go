@@ -441,6 +441,13 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::codewhisperer::customization": "no SDK: CodeWhisperer was rebranded to Amazon Q Developer; no aws-sdk-go-v2 module, bearer auth",
 		"AWS::codewhisperer::profile":       "no SDK: CodeWhisperer was rebranded to Amazon Q Developer; no aws-sdk-go-v2 module, bearer auth",
 
+		// codepipeline — stages and actions are nested in the pipeline definition
+		// (no ListStages/ListActions op; GetPipeline returns pipeline.stages[].actions[]);
+		// action-types are the provider catalog.
+		"AWS::codepipeline::stage":      "nested config: a stage embedded in aws:codepipeline:pipeline's definition (no independent list op)",
+		"AWS::codepipeline::action":     "nested config: an action embedded in a pipeline stage (no independent list op)",
+		"AWS::codepipeline::actiontype": "catalog: ListActionTypes is dominated by AWS/ThirdParty provider action-type definitions; custom action types are a niche extensibility mechanism, not core inventory",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
