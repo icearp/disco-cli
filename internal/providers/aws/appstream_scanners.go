@@ -24,6 +24,11 @@ func init() {
 			{Service: "appstream", DiscoType: TypeAppStreamEntitlement},
 			{Service: "appstream", DiscoType: TypeAppStreamFleet},
 			{Service: "appstream", DiscoType: TypeAppStreamImageBuilder},
+			// Image is a resolver target (fleet / image-builder → image). Its own
+			// outbound refs (BaseImageArn / ImageBuilderName) point at an
+			// AWS-managed PUBLIC base or an often-deleted builder — provenance left
+			// deliberately unwired, so image is not a resolver source — leaf.
+			{Service: "appstream", DiscoType: TypeAppStreamImage, Leaf: true},
 			{Service: "appstream", DiscoType: TypeAppStreamStack},
 			{Service: "appstream", DiscoType: TypeAppStreamStackFleetAssociation},
 			{Service: "appstream", DiscoType: TypeAppStreamStackUserAssociation},
@@ -41,6 +46,7 @@ type appStreamAPI interface {
 	DescribeEntitlements(context.Context, *appstream.DescribeEntitlementsInput, ...func(*appstream.Options)) (*appstream.DescribeEntitlementsOutput, error)
 	DescribeFleets(context.Context, *appstream.DescribeFleetsInput, ...func(*appstream.Options)) (*appstream.DescribeFleetsOutput, error)
 	DescribeImageBuilders(context.Context, *appstream.DescribeImageBuildersInput, ...func(*appstream.Options)) (*appstream.DescribeImageBuildersOutput, error)
+	DescribeImages(context.Context, *appstream.DescribeImagesInput, ...func(*appstream.Options)) (*appstream.DescribeImagesOutput, error)
 	DescribeStacks(context.Context, *appstream.DescribeStacksInput, ...func(*appstream.Options)) (*appstream.DescribeStacksOutput, error)
 	DescribeUsers(context.Context, *appstream.DescribeUsersInput, ...func(*appstream.Options)) (*appstream.DescribeUsersOutput, error)
 	DescribeUserStackAssociations(context.Context, *appstream.DescribeUserStackAssociationsInput, ...func(*appstream.Options)) (*appstream.DescribeUserStackAssociationsOutput, error)
@@ -103,6 +109,7 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 		func() (int, int, error) { return scanASDirectoryConfigs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanASFleets(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanASImageBuilders(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanASImages(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, stackNames)
 		},
@@ -191,6 +198,41 @@ func scanASAppBlockBuilders(ctx context.Context, client appStreamAPI, acct *acco
 		}
 	}
 	return upsertBatch(st, batch, "appstream app-block-builders")
+}
+
+// scanASImages lists customer (PRIVATE) AppStream images. PUBLIC base images
+// are AWS-managed and unbounded (mirrors the AMI Owners=["self"] convention);
+// SHARED images belong to other accounts. NativeID = Arn.
+func scanASImages(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := appstream.NewDescribeImagesPaginator(client, &appstream.DescribeImagesInput{Type: astypes.VisibilityTypePrivate})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "appstream:DescribeImages", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("appstream:DescribeImages: %w", perr)
+		}
+		for _, img := range out.Images {
+			arn := sv(img.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(img.Name)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamImage, NativeID: arn,
+				Name: &label, Region: &region, CreatedAt: tp(img.CreatedTime),
+				AttributesJSON: mustJSON(img), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "appstream images")
 }
 
 func scanASApplications(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

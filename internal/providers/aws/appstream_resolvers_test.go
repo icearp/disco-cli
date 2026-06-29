@@ -167,3 +167,37 @@ func TestResolveAppStreamStackAccessEndpoints(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(sID)
 	assertRelationship(t, rels, sID, vID, store.RelUses)
 }
+
+func TestResolveAppStreamImageRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	imgARN := fmt.Sprintf("arn:aws:appstream:%s:%s:image/my-image", testRegion, acct.ID)
+	imgID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamImage, imgARN, testRegion, "{}")
+
+	fleetARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F1", testRegion, acct.ID)
+	fleetID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamFleet, fleetARN, testRegion,
+		fmt.Sprintf(`{"ImageArn":%q}`, imgARN))
+
+	ibARN := fmt.Sprintf("arn:aws:appstream:%s:%s:image-builder/IB1", testRegion, acct.ID)
+	ibID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamImageBuilder, ibARN, testRegion,
+		fmt.Sprintf(`{"ImageArn":%q}`, imgARN))
+
+	// A fleet on an AWS-managed PUBLIC base image disco did not scan → no edge.
+	pubFleetARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F2", testRegion, acct.ID)
+	pubFleetID := upsertTestResource(t, st, "aws", acct.ID, TypeAppStreamFleet, pubFleetARN, testRegion,
+		fmt.Sprintf(`{"ImageArn":%q}`, "arn:aws:appstream:"+testRegion+"::image/AWS-Base-Image"))
+
+	if err := resolveAppStreamImageRefs(acct, st); err != nil {
+		t.Fatalf("resolveAppStreamImageRefs: %v", err)
+	}
+	frels, _ := st.RelationshipsFrom(fleetID)
+	assertRelationship(t, frels, fleetID, imgID, store.RelUses)
+	ibrels, _ := st.RelationshipsFrom(ibID)
+	assertRelationship(t, ibrels, ibID, imgID, store.RelUses)
+
+	pubRels, _ := st.RelationshipsFrom(pubFleetID)
+	if len(pubRels) != 0 {
+		t.Errorf("fleet on unscanned PUBLIC base image emitted %d edges, want 0", len(pubRels))
+	}
+}

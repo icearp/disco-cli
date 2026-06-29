@@ -34,6 +34,11 @@ func init() {
 		EdgeDecl{TypeAppStreamApplication, TypeAppStreamAppBlock, store.RelUses},
 	)
 	registerResolver(
+		resolveAppStreamImageRefs,
+		EdgeDecl{TypeAppStreamFleet, TypeAppStreamImage, store.RelUses},
+		EdgeDecl{TypeAppStreamImageBuilder, TypeAppStreamImage, store.RelUses},
+	)
+	registerResolver(
 		resolveAppStreamApplicationFleetAssoc,
 		EdgeDecl{TypeAppStreamApplicationFleetAssociation, TypeAppStreamFleet, store.RelAttachedTo},
 		EdgeDecl{TypeAppStreamApplicationFleetAssociation, TypeAppStreamApplication, store.RelAttachedTo},
@@ -291,6 +296,47 @@ func resolveAppStreamApplicationAppBlock(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert appstream application→app-block: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveAppStreamImageRefs wires fleet → image and image-builder → image (uses)
+// via each source's ImageArn. FK-safe via the scanned image id set, so an
+// ImageArn pointing at an AWS-managed PUBLIC base image (unscanned) drops
+// silently. Both source types carry a top-level ImageArn, so one walk covers both.
+func resolveAppStreamImageRefs(acct *account, st *store.Store) error {
+	imgSet, err := scannedIDSet(acct, st, TypeAppStreamImage)
+	if err != nil {
+		return err
+	}
+	if len(imgSet) == 0 {
+		return nil
+	}
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeAppStreamFleet, TypeAppStreamImageBuilder}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ImageArn *string `json:"ImageArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.ImageArn)
+		if arn == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeAppStreamImage, arn)
+		if !imgSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return fmt.Errorf("upsert appstream %s→image: %w", r.Type, err)
 		}
 	}
 	return nil
