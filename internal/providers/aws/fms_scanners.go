@@ -32,6 +32,8 @@ func init() {
 			{Service: "fms", DiscoType: TypeFMSNotificationChannel, Leaf: true},
 			{Service: "fms", DiscoType: TypeFMSPolicy, Leaf: true},
 			{Service: "fms", DiscoType: TypeFMSResourceSet, Leaf: true},
+			{Service: "fms", DiscoType: TypeFMSAppsList, Leaf: true},
+			{Service: "fms", DiscoType: TypeFMSProtocolsList, Leaf: true},
 		},
 	})
 }
@@ -40,6 +42,8 @@ type fmsAPI interface {
 	GetNotificationChannel(context.Context, *fms.GetNotificationChannelInput, ...func(*fms.Options)) (*fms.GetNotificationChannelOutput, error)
 	ListPolicies(context.Context, *fms.ListPoliciesInput, ...func(*fms.Options)) (*fms.ListPoliciesOutput, error)
 	ListResourceSets(context.Context, *fms.ListResourceSetsInput, ...func(*fms.Options)) (*fms.ListResourceSetsOutput, error)
+	ListAppsLists(context.Context, *fms.ListAppsListsInput, ...func(*fms.Options)) (*fms.ListAppsListsOutput, error)
+	ListProtocolsLists(context.Context, *fms.ListProtocolsListsInput, ...func(*fms.Options)) (*fms.ListProtocolsListsOutput, error)
 }
 
 // scanFMS discovers Firewall Manager policies, resource sets, and the
@@ -53,6 +57,8 @@ func scanFMS(ctx context.Context, acct *account, _ string, st *store.Store, scan
 		func() (int, int, error) { return scanFMSPolicies(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFMSResourceSets(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanFMSNotificationChannel(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFMSAppsLists(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFMSProtocolsLists(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {

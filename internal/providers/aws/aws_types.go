@@ -1725,6 +1725,8 @@ const (
 	TypeFMSNotificationChannel = "aws:fms:notification-channel"
 	TypeFMSPolicy              = "aws:fms:policy"
 	TypeFMSResourceSet         = "aws:fms:resource-set"
+	TypeFMSAppsList            = "aws:fms:applications-list"
+	TypeFMSProtocolsList       = "aws:fms:protocols-list"
 	// KafkaConnect (kafkaconnect_scanners.go).
 	TypeKafkaConnectConnector           = "aws:kafka-connect:connector"
 	TypeKafkaConnectCustomPlugin        = "aws:kafka-connect:custom-plugin"
