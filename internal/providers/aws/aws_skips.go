@@ -145,6 +145,19 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::appstudio::connector":   appStudioNoSDK,
 		"AWS::appstudio::instance":    appStudioNoSDK,
 
+		// appsync — SR spells three resources disco already scans under their CFN
+		// names: domain→aws:appsync:domain-name, function→function-configuration,
+		// mergedApiAssociation→source-api-association (one association, viewed from
+		// the merged-API side). The canonicalizer can't fold these word-drops.
+		"AWS::appsync::domain":               "duplicate: SR spelling of DomainName, scanned as aws:appsync:domain-name",
+		"AWS::appsync::function":             "duplicate: SR spelling of FunctionConfiguration, scanned as aws:appsync:function-configuration",
+		"AWS::appsync::mergedApiAssociation": "duplicate: the SourceApiAssociation viewed from the merged API, scanned as aws:appsync:source-api-association",
+		// type/field are GraphQL schema constructs, not infrastructure — the whole
+		// schema is already captured as aws:appsync:graphql-schema. ListTypes needs
+		// apiId+format per call; there is no ListFields op at all.
+		"AWS::appsync::type":  "sub-resource: GraphQL schema type within an API (per-apiId/format ListTypes); the schema is scanned as aws:appsync:graphql-schema",
+		"AWS::appsync::field": "sub-resource: GraphQL field within a type; no SDK list op, captured in aws:appsync:graphql-schema",
+
 		// apprunner webacl — the WAFv2 web-ACL association for a service
 		// (AssociateWebAcl); the web-ACL is scanned under aws:wafv2:web-acl and
 		// App Runner exposes no op to enumerate the associations.
