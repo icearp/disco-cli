@@ -338,6 +338,13 @@ func (coverageProvider) Skips() map[string]string {
 		// covered is Chime webhook configs, tied to the discontinued Amazon Chime.
 		"AWS::chatbot::ChatbotConfiguration": "duplicate: chatbot channel configs scanned as aws:chatbot:{slack,microsoft-teams}-channel-configuration (Chime-webhook subset tied to discontinued Amazon Chime)",
 
+		// cases (Amazon Connect Cases) — Case and RelatedItem are per-domain
+		// support-ticket content (operational data fetched via SearchCases with a
+		// domainId), not infrastructure. disco scans the Cases domain/template/
+		// field/layout/case-rule configuration, not the case contents.
+		"AWS::cases::Case":        "out-of-scope: support-case records are per-domain operational content, not infrastructure (the Cases domain/template/field/layout config is scanned)",
+		"AWS::cases::RelatedItem": "out-of-scope: items attached to a support case (per-case content), not an infrastructure resource",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
