@@ -539,6 +539,16 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::dataexchange::entitled-assets":    dataExchangeEntitled,
 		"AWS::dataexchange::jobs":               "ephemeral: import/export job-run records, not a persistent resource",
 
+		// datasync — every location is scanned under its typed form
+		// (aws:datasync:location-{s3,efs,nfs,smb,object-storage,fsx-*,hdfs,azure-blob})
+		// via ListLocations + per-type Describe, so the generic "location" is an
+		// umbrella. DataSync Discovery (storagesystem/discoveryjob) was removed by
+		// AWS — the aws-sdk-go-v2 client has no such ops. taskexecution is a run.
+		"AWS::datasync::location":      "umbrella: every DataSync location is scanned under its typed form (aws:datasync:location-*) via ListLocations + per-type Describe",
+		"AWS::datasync::storagesystem": "no SDK op: AWS removed DataSync Discovery; aws-sdk-go-v2 has no ListStorageSystems/DescribeStorageSystem",
+		"AWS::datasync::discoveryjob":  "no SDK op: AWS removed DataSync Discovery; aws-sdk-go-v2 has no ListDiscoveryJobs/DescribeDiscoveryJob",
+		"AWS::datasync::taskexecution": "ephemeral: a task-execution is a single run of a DataSync task, not a persistent resource",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
