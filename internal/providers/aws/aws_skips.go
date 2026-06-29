@@ -185,6 +185,12 @@ func (coverageProvider) Skips() map[string]string {
 		// integration), not an AWS service with an aws-sdk-go-v2 client; nothing to scan.
 		"AWS::aws-external-anthropic::workspace": "no SDK: external-partner (Anthropic) IAM service prefix, no aws-sdk-go-v2 client",
 
+		// artifact agreement — the underlying AWS-published agreement template a
+		// customer-agreement is based on (referenced by its AgreementArn). The
+		// artifact SDK has no ListAgreements/GetAgreement op; only customer
+		// agreements (aws:artifact:customer-agreement) and reports are listable.
+		"AWS::artifact::agreement": "no list API: AWS-published agreement template referenced by customer-agreement.AgreementArn; artifact SDK has no agreement list op",
+
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
 		// client marks every symbol deprecated, so the service is not scannable.

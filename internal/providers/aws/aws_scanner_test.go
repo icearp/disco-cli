@@ -175,6 +175,7 @@ var expectedAWSServices = []string{
 	"aws:billing",
 	"aws:appstream",
 	"aws:appsync",
+	"aws:artifact",
 	"aws:bedrock",
 	"aws:bedrockagentcore",
 	"aws:datasync",

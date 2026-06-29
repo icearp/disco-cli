@@ -666,6 +666,9 @@ const (
 	TypeAppSyncGraphQLSchema            = "aws:appsync:graphql-schema"
 	TypeAppSyncSourceAPIAssociation     = "aws:appsync:source-api-association"
 	TypeAppSyncResolver                 = "aws:appsync:resolver"
+	// AWS Artifact (artifact_scanners.go)
+	TypeArtifactCustomerAgreement = "aws:artifact:customer-agreement"
+	TypeArtifactReport            = "aws:artifact:report"
 	// QuickSight (quicksight_scanners.go)
 	TypeQuickSightActionConnector   = "aws:quicksight:action-connector"
 	TypeQuickSightAnalysis          = "aws:quicksight:analysis"
