@@ -417,6 +417,30 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::codecatalyst::connections":                  "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials",
 		"AWS::codecatalyst::identity-center-applications": "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials",
 
+		// codedeploy — an instance is a deployment-execution target (ListDeploymentInstances
+		// is deprecated for ListDeploymentTargets); the EC2 instance is scanned as aws:ec2:instance.
+		"AWS::codedeploy::instance": "execution target: a deployment's instance (ListDeploymentInstances is deprecated); the EC2 instance is scanned as aws:ec2:instance",
+
+		// codeguru-reviewer — the repository association is scanned; a code-review is
+		// an analysis run.
+		"AWS::codeguru-reviewer::association": "duplicate: scanned as aws:code-guru-reviewer:repository-association (CFN twin AWS::CodeGuruReviewer::RepositoryAssociation)",
+		"AWS::codeguru-reviewer::codereview": "analysis run: a CodeGuru Reviewer code-review execution, not infrastructure (the repository-association is the resource)",
+
+		// codeguru-security — a scan is a code-analysis job (findings + state); the
+		// account-level configuration is the durable state.
+		"AWS::codeguru-security::ScanName": "analysis run: a CodeGuru Security scan is a code-analysis job (findings + state), not infrastructure",
+
+		// codestar — AWS CodeStar (classic project service) was retired July 2024;
+		// the SDK is frozen and the service accepts no new projects.
+		"AWS::CodeStar::GitHubRepository": "service retired: AWS CodeStar (classic) was discontinued July 2024; SDK frozen, no new projects",
+		"AWS::codestar::project":          "service retired: AWS CodeStar (classic) was discontinued July 2024; SDK frozen, no new projects",
+		"AWS::codestar::user":             "service retired: AWS CodeStar (classic) was discontinued July 2024; SDK frozen, no new projects",
+
+		// codewhisperer — rebranded to Amazon Q Developer; there is no
+		// aws-sdk-go-v2/service/codewhisperer module, and Q uses bearer auth.
+		"AWS::codewhisperer::customization": "no SDK: CodeWhisperer was rebranded to Amazon Q Developer; no aws-sdk-go-v2 module, bearer auth",
+		"AWS::codewhisperer::profile":       "no SDK: CodeWhisperer was rebranded to Amazon Q Developer; no aws-sdk-go-v2 module, bearer auth",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
