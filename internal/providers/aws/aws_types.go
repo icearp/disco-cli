@@ -1066,6 +1066,11 @@ const (
 	TypeCleanRoomsIDNamespaceAssociation             = "aws:cleanrooms:id-namespace-association"
 	TypeCleanRoomsMembership                         = "aws:cleanrooms:membership"
 	TypeCleanRoomsPrivacyBudgetTemplate              = "aws:cleanrooms:privacy-budget-template"
+	// CloudDirectory (clouddirectory_scanners.go)
+	TypeCloudDirectoryDirectory         = "aws:clouddirectory:directory"
+	TypeCloudDirectoryDevelopmentSchema = "aws:clouddirectory:development-schema"
+	TypeCloudDirectoryPublishedSchema   = "aws:clouddirectory:published-schema"
+	TypeCloudDirectoryAppliedSchema     = "aws:clouddirectory:applied-schema"
 	// AppConfig (appconfig_scanners.go)
 	TypeAppConfigApplication                = "aws:appconfig:application"
 	TypeAppConfigConfigurationProfile       = "aws:appconfig:configuration-profile"

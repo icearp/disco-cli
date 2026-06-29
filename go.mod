@@ -460,6 +460,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/artifact v1.16.6
 	github.com/aws/aws-sdk-go-v2/service/bcmdashboards v1.3.7
 	github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation v1.16.7
+	github.com/aws/aws-sdk-go-v2/service/clouddirectory v1.31.6
 )
 
 require (

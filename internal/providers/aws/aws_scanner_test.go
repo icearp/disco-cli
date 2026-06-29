@@ -55,6 +55,7 @@ var expectedAWSServices = []string{
 	"aws:notifications",
 	"aws:cleanrooms",
 	"aws:cloudformation",
+	"aws:clouddirectory",
 	"aws:sso-admin",
 	"aws:shield",
 	"aws:macie",
