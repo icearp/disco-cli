@@ -20,6 +20,8 @@ func init() {
 			{Service: "fsx", DiscoType: TypeFSxStorageVirtualMachine},
 			{Service: "fsx", DiscoType: TypeFSxVolume},
 			{Service: "fsx", DiscoType: TypeFSxS3AccessPointAttachment, Leaf: true},
+			{Service: "fsx", DiscoType: TypeFSxBackup},
+			{Service: "fsx", DiscoType: TypeFSxFileCache},
 		},
 	})
 }
@@ -31,6 +33,8 @@ type fsxAPI interface {
 	DescribeStorageVirtualMachines(context.Context, *fsx.DescribeStorageVirtualMachinesInput, ...func(*fsx.Options)) (*fsx.DescribeStorageVirtualMachinesOutput, error)
 	DescribeVolumes(context.Context, *fsx.DescribeVolumesInput, ...func(*fsx.Options)) (*fsx.DescribeVolumesOutput, error)
 	DescribeS3AccessPointAttachments(context.Context, *fsx.DescribeS3AccessPointAttachmentsInput, ...func(*fsx.Options)) (*fsx.DescribeS3AccessPointAttachmentsOutput, error)
+	DescribeBackups(context.Context, *fsx.DescribeBackupsInput, ...func(*fsx.Options)) (*fsx.DescribeBackupsOutput, error)
+	DescribeFileCaches(context.Context, *fsx.DescribeFileCachesInput, ...func(*fsx.Options)) (*fsx.DescribeFileCachesOutput, error)
 }
 
 // scanFSx discovers six FSx resource types: file systems, data-repository
@@ -51,6 +55,8 @@ func scanFSx(ctx context.Context, acct *account, region string, st *store.Store,
 		func() (int, int, error) {
 			return scanFSxS3AccessPointAttachments(ctx, client, acct, region, st, scanID)
 		},
+		func() (int, int, error) { return scanFSxBackups(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanFSxFileCaches(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {

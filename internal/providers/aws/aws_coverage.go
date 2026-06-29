@@ -124,6 +124,7 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEMRContainersJobTemplate:                    "AWS::emr-containers::jobTemplate",
 		TypeOpenSearchDataSource:                        "AWS::es::datasource",
 		TypeEventsEventSource:                           "AWS::events::event-source",
+		TypeFSxFileCache:                                "AWS::fsx::file-cache",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",

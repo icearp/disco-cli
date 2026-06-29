@@ -820,6 +820,12 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::freertos::configuration":  "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
 		"AWS::freertos::subscription":   "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
 
+		// fsx — backup + file-cache are scanned; association is the SR spelling of
+		// the data-repository-association disco scans; task is an ephemeral
+		// data-repository task run.
+		"AWS::fsx::association": "duplicate: scanned as aws:fsx:data-repository-association (DescribeDataRepositoryAssociations)",
+		"AWS::fsx::task":        "ephemeral: a data-repository task run, not a persistent resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The

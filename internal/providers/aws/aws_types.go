@@ -1883,6 +1883,8 @@ const (
 	TypeFSxStorageVirtualMachine     = "aws:fsx:storage-virtual-machine"
 	TypeFSxVolume                    = "aws:fsx:volume"
 	TypeFSxS3AccessPointAttachment   = "aws:fsx:s3-access-point-attachment"
+	TypeFSxBackup                    = "aws:fsx:backup"
+	TypeFSxFileCache                 = "aws:fsx:file-cache"
 	// LakeFormation (lakeformation_scanners.go).
 	TypeLakeFormationDataCellsFilter      = "aws:lakeformation:data-cells-filter"
 	TypeLakeFormationDataLakeSettings     = "aws:lakeformation:data-lake-settings"
