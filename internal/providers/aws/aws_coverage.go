@@ -350,6 +350,9 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeComprehendEntityRecognizer:           "AWS::comprehend::entity-recognizer",
 		TypeComprehendDocumentClassifierEndpoint: "AWS::comprehend::document-classifier-endpoint",
 		TypeComprehendEntityRecognizerEndpoint:   "AWS::comprehend::entity-recognizer-endpoint",
+		// Connect — authentication-profile has no CFN twin; its only upstream
+		// spelling is the hyphenated Service Reference key.
+		TypeConnectAuthenticationProfile: "AWS::connect::authentication-profile",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",

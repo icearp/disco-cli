@@ -486,6 +486,29 @@ func (coverageProvider) Skips() map[string]string {
 		// exists; device identities are per-user mobile-device registrations.
 		"AWS::consoleapp::DeviceIdentity": "no SDK: AWS Console Mobile Application has no aws-sdk-go-v2 client; device identities are per-user mobile registrations",
 
+		// connect — the wildcard-* types are IAM-policy wildcard ARN patterns; the
+		// view variants are IAM ARN qualifications of the scanned View/ViewVersion;
+		// contacts/evaluations/files are runtime interaction data; hierarchy-group
+		// and legacy-phone-number are duplicates; ai-agent is a Wisdom/Q construct.
+		"AWS::connect::wildcard-agent-status":           connectWildcard,
+		"AWS::connect::wildcard-contact-flow":           connectWildcard,
+		"AWS::connect::wildcard-legacy-phone-number":    connectWildcard,
+		"AWS::connect::wildcard-phone-number":           connectWildcard,
+		"AWS::connect::wildcard-queue":                  connectWildcard,
+		"AWS::connect::wildcard-quick-connect":          connectWildcard,
+		"AWS::connect::aws-managed-view":                connectView,
+		"AWS::connect::customer-managed-view":           connectView,
+		"AWS::connect::customer-managed-view-version":   connectView,
+		"AWS::connect::qualified-aws-managed-view":      connectView,
+		"AWS::connect::qualified-customer-managed-view": connectView,
+		"AWS::connect::contact":                         "runtime: a contact (call/chat/task interaction), unbounded runtime data, not infrastructure",
+		"AWS::connect::contact-evaluation":              "runtime: a per-contact evaluation-form submission, not infrastructure",
+		"AWS::connect::attached-file":                   "content: a file attached to a contact/case, not infrastructure",
+		"AWS::connect::hierarchy-group":                 "duplicate: scanned as aws:connect:user-hierarchy-group (ListUserHierarchyGroups)",
+		"AWS::connect::legacy-phone-number":             "duplicate: legacy ARN form of a phone number, scanned as aws:connect:phone-number",
+		"AWS::connect::use-case":                        "sub-resource: a use binding of an integration-association (ListUseCases requires the association id), not a first-class resource",
+		"AWS::connect::ai-agent":                        "no connect SDK list op: Connect AI agents are a Wisdom / Amazon Q in Connect construct (qconnect SDK), not the connect SDK",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
@@ -606,3 +629,7 @@ const bedrockResourcePolicyNoList = "no list API: Bedrock resource-based policy 
 const a4bRetired = "service retired: Alexa for Business no longer supported by AWS (SDK client retired)"
 
 const comprehendJob = "ephemeral: an async Comprehend batch-inference job-run record, not a persistent resource"
+
+const connectWildcard = "IAM policy wildcard ARN pattern: a wildcard resource form used in IAM authorization, not a discoverable resource"
+
+const connectView = "IAM ARN qualification of the scanned aws:connect:view / aws:connect:view-version (managed/customer/qualified ARN spellings of the same View resources)"

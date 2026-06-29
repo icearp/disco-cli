@@ -649,6 +649,9 @@ const (
 	TypeConnectViewVersion    = "aws:connect:view-version"
 	TypeConnectWorkspace      = "aws:connect:workspace"
 	TypeConnectPrompt         = "aws:connect:prompt"
+	// Connect — extra per-instance leaf resources (connect_extra_scanners.go)
+	TypeConnectVocabulary            = "aws:connect:vocabulary"
+	TypeConnectAuthenticationProfile = "aws:connect:authentication-profile"
 	// Connect — DataTable (connect_datatable_scanners.go)
 	TypeConnectDataTable          = "aws:connect:data-table"
 	TypeConnectDataTableAttribute = "aws:connect:data-table-attribute"

@@ -53,6 +53,9 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 		func(ctx context.Context) (int, int, error) {
 			return scanConnectDataTable(ctx, client, instances, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanConnectExtra(ctx, client, instances, acct, region, st, scanID)
+		},
 	)
 }
 
