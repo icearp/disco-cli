@@ -114,8 +114,59 @@ func (coverageProvider) Skips() map[string]string {
 		// Dashboards is a collection's web endpoint (collection.dashboardEndpoint),
 		// not a listable resource — no SDK op enumerates it.
 		"AWS::aoss::Dashboards": "no SDK list op: OpenSearch Serverless Dashboards is a collection's web endpoint, not a discoverable resource",
+
+		// apigateway — the SR lists v1 (REST) and v2 (HTTP/WebSocket) resources
+		// under the one shared "apigateway" IAM prefix, so the v2 entries below are
+		// the same physical resources disco already scans as aws:apigatewayv2:*
+		// (the canonicalizer can't collapse these: the prefix is genuinely both v1
+		// and v2, not a 1:1 service rename).
+		"AWS::apigateway::Api":                  apigatewayV2Dup,
+		"AWS::apigateway::Apis":                 apigatewayV2Dup,
+		"AWS::apigateway::ApiMapping":           apigatewayV2Dup,
+		"AWS::apigateway::ApiMappings":          apigatewayV2Dup,
+		"AWS::apigateway::Integration":          apigatewayV2Dup,
+		"AWS::apigateway::Integrations":         apigatewayV2Dup,
+		"AWS::apigateway::IntegrationResponse":  apigatewayV2Dup,
+		"AWS::apigateway::IntegrationResponses": apigatewayV2Dup,
+		"AWS::apigateway::Route":                apigatewayV2Dup,
+		"AWS::apigateway::Routes":               apigatewayV2Dup,
+		"AWS::apigateway::RouteResponse":        apigatewayV2Dup,
+		"AWS::apigateway::RouteResponses":       apigatewayV2Dup,
+		"AWS::apigateway::RoutingRule":          apigatewayV2Dup,
+
+		// apigateway sub-properties — fields of a parent resource (stage, method,
+		// route), retrieved within the parent's body; no standalone List API.
+		"AWS::apigateway::AccessLogSettings":     "sub-resource: stage access-log config, a field of aws:apigatewayv2:stage, not standalone",
+		"AWS::apigateway::AuthorizersCache":      "sub-resource: per-stage authorizer cache (FlushStageAuthorizersCache), not a discoverable resource",
+		"AWS::apigateway::Cors":                  "sub-resource: CORS config on a v2 API/route, a parent field, not standalone",
+		"AWS::apigateway::MethodResponse":        "sub-resource: response of an aws:apigateway:method (GetMethodResponse needs the full method key), no list API",
+		"AWS::apigateway::RouteRequestParameter": "sub-resource: request-parameter field of a v2 route, not standalone",
+		"AWS::apigateway::RouteSettings":         "sub-resource: per-route settings on a v2 stage, a parent field, not standalone",
+		"AWS::apigateway::Tags":                  "sub-resource: resource tags are attributes of the tagged resource, not a discoverable resource",
+
+		// apigateway operation outputs — Get* results (export/SDK/template
+		// generation), not persistent resources.
+		"AWS::apigateway::ExportedAPI":   "operation output: GetExport result (an exported API definition), not a persistent resource",
+		"AWS::apigateway::ModelTemplate": "operation output: GetModelTemplate result (a model's mapping template), not a persistent resource",
+		"AWS::apigateway::Sdk":           "operation output: GetSdk result (a generated client SDK), not a persistent resource",
+		"AWS::apigateway::Template":      "operation output: API export template, not a persistent resource",
+
+		// apigateway Portal / Product / private-domain feature — modeled only in
+		// CloudFormation / the Service Reference; no aws-sdk-go-v2 apigateway op
+		// enumerates them, so they are not scannable per the SDK mandate.
+		"AWS::apigateway::Portal":                  apigatewayNoSDK,
+		"AWS::apigateway::PortalProduct":           apigatewayNoSDK,
+		"AWS::apigateway::ProductPage":             apigatewayNoSDK,
+		"AWS::apigateway::ProductRestEndpointPage": apigatewayNoSDK,
+		"AWS::apigateway::PrivateDomainName":       apigatewayNoSDK,
+		"AWS::apigateway::PrivateBasePathMapping":  apigatewayNoSDK,
+		"AWS::apigateway::PrivateBasePathMappings": apigatewayNoSDK,
 	}
 }
+
+const apigatewayV2Dup = "duplicate: API Gateway v2 resource scanned as aws:apigatewayv2:* (the SR lists v1 and v2 under the shared apigateway IAM prefix)"
+
+const apigatewayNoSDK = "no SDK op: API Gateway Portal/Product/private-domain resource modeled only in CloudFormation/Service Reference, not in aws-sdk-go-v2"
 
 const amplifyBackendConfig = "no list API: per-app Amplify Gen1 backend configuration (GetBackend requires AppId); config of the aws:amplify:app already scanned, not an independently-ARN'd resource"
 
