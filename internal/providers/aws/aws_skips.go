@@ -408,6 +408,15 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::codebuild::report":      "execution output: a test/coverage report produced by a build run; aws:codebuild:report-group is the resource",
 		"AWS::codebuild::sandbox":     "ephemeral: an interactive CodeBuild sandbox debug session, not durable infrastructure",
 
+		// codecatalyst — authenticates via AWS Builder ID personal access tokens
+		// (smithy bearer auth), not the account's SigV4 IAM credentials disco scans
+		// with; spaces/projects/connections are Builder-ID org constructs, not
+		// AWS-account resources reachable from acct.cfg.
+		"AWS::codecatalyst::space":                        "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials; spaces are Builder-ID org constructs",
+		"AWS::codecatalyst::project":                      "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials; projects live under a Builder-ID space",
+		"AWS::codecatalyst::connections":                  "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials",
+		"AWS::codecatalyst::identity-center-applications": "different auth: CodeCatalyst uses AWS Builder ID bearer tokens, not the account's SigV4 credentials",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
