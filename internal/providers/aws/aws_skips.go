@@ -358,6 +358,13 @@ func (coverageProvider) Skips() map[string]string {
 		// dropped "cloud-front-" prefix.
 		"AWS::cloudfront::origin-access-identity": "duplicate: legacy OAI scanned as aws:cloudfront:cloud-front-origin-access-identity (CFN CloudFrontOriginAccessIdentity spelling)",
 
+		// cloudfront-keyvaluestore — the same key-value store disco scans under the
+		// cloudfront service (aws:cloudfront:key-value-store, via cloudfront:
+		// ListKeyValueStores). The Service Reference files it under its own
+		// data-plane service segment; cross-segment duplicate the canonicalizer
+		// can't bridge.
+		"AWS::cloudfront-keyvaluestore::key-value-store": "duplicate: scanned as aws:cloudfront:key-value-store (cloudfront:ListKeyValueStores)",
+
 		// bedrock-mantle — no aws-sdk-go-v2/service/bedrockmantle module exists,
 		// so none of its types are scannable under disco's per-service-SDK mandate.
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
