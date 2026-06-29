@@ -353,6 +353,12 @@ func (coverageProvider) Aliases() map[string]string {
 		// Connect — authentication-profile has no CFN twin; its only upstream
 		// spelling is the hyphenated Service Reference key.
 		TypeConnectAuthenticationProfile: "AWS::connect::authentication-profile",
+		// DataExchange — the disco types mirror the plural Service Reference keys.
+		// CFN's singular twins (AWS::DataExchange::DataSet, ::Revision) collapse
+		// into these via canonical-identity dedup, so coverage stays clean.
+		TypeDataExchangeDataSets:     "AWS::dataexchange::data-sets",
+		TypeDataExchangeDataGrants:   "AWS::dataexchange::data-grants",
+		TypeDataExchangeEventActions: "AWS::dataexchange::event-actions",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",

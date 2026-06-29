@@ -526,6 +526,19 @@ func (coverageProvider) Skips() map[string]string {
 		// (CFN twin AWS::CUR::ReportDefinition); "cur::cur" is the IAM spelling.
 		"AWS::cur::cur": "duplicate: the Cost & Usage report is scanned as aws:cur:report-definition (CFN twin AWS::CUR::ReportDefinition)",
 
+		// dataexchange — revisions/assets are versioned content within a data set
+		// (like S3 object versions/objects, ListDataSetRevisions/ListRevisionAssets
+		// require parent ids); entitled-* are consumer-side marketplace
+		// subscriptions to other accounts' data, not owned resources; jobs are
+		// import/export run records. Owned data-sets, data-grants and event-actions
+		// are scanned.
+		"AWS::dataexchange::revisions":          dataExchangeContent,
+		"AWS::dataexchange::assets":             dataExchangeContent,
+		"AWS::dataexchange::entitled-data-sets": dataExchangeEntitled,
+		"AWS::dataexchange::entitled-revisions": dataExchangeEntitled,
+		"AWS::dataexchange::entitled-assets":    dataExchangeEntitled,
+		"AWS::dataexchange::jobs":               "ephemeral: import/export job-run records, not a persistent resource",
+
 		// cloudformation — the registered types (RESOURCE/MODULE/HOOK) are scanned
 		// as aws:cloudformation:type / type-hook; their versions, default-version
 		// pointers, activations, configs and the publisher identity are sub-
@@ -652,3 +665,7 @@ const connectWildcard = "IAM policy wildcard ARN pattern: a wildcard resource fo
 const connectView = "IAM ARN qualification of the scanned aws:connect:view / aws:connect:view-version (managed/customer/qualified ARN spellings of the same View resources)"
 
 const controlCatalog = "AWS-managed reference catalog: the Control Catalog lists AWS-published available controls/domains/objectives, not account-specific resources"
+
+const dataExchangeContent = "content: versioned data within a data set (revisions/assets, like S3 object versions/objects), enumerated within the scanned aws:dataexchange:data-set"
+
+const dataExchangeEntitled = "consumer subscription: entitled data is another account's published product you subscribe to (marketplace), not an owned resource"

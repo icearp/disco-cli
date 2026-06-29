@@ -1232,6 +1232,10 @@ const (
 	TypePinpointInAppTemplate = "aws:pinpoint:in-app-template"
 	TypePinpointPushTemplate  = "aws:pinpoint:push-template"
 	TypePinpointSmsTemplate   = "aws:pinpoint:sms-template"
+	// DataExchange (dataexchange_scanners.go)
+	TypeDataExchangeDataSets     = "aws:dataexchange:data-sets"
+	TypeDataExchangeDataGrants   = "aws:dataexchange:data-grants"
+	TypeDataExchangeEventActions = "aws:dataexchange:event-actions"
 	// DataZone (datazone_scanners.go)
 	TypeDataZoneDomain                            = "aws:datazone:domain"
 	TypeDataZoneDomainUnit                        = "aws:datazone:domain-unit"
