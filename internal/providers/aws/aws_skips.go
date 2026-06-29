@@ -347,6 +347,13 @@ func (coverageProvider) Skips() map[string]string {
 		// covered is Chime webhook configs, tied to the discontinued Amazon Chime.
 		"AWS::chatbot::ChatbotConfiguration": "duplicate: chatbot channel configs scanned as aws:chatbot:{slack,microsoft-teams}-channel-configuration (Chime-webhook subset tied to discontinued Amazon Chime)",
 
+		// chime — channel is a messaging data-plane resource: ListChannels
+		// requires a ChimeBearer (an AppInstanceUser identity to act as), which a
+		// control-plane inventory scanner has no basis to assume. meeting has no
+		// list API (ListAttendees needs a MeetingId) and meetings are ephemeral.
+		"AWS::chime::channel": "data-plane: ListChannels requires a ChimeBearer AppInstanceUser identity, out of scope for control-plane inventory",
+		"AWS::chime::meeting": "no list API: meetings are ephemeral; the SDK exposes only Create/Get/Delete + ListAttendees(MeetingId)",
+
 		// cases (Amazon Connect Cases) — Case and RelatedItem are per-domain
 		// support-ticket content (operational data fetched via SearchCases with a
 		// domainId), not infrastructure. disco scans the Cases domain/template/

@@ -420,7 +420,17 @@ const (
 	// Cloud9 (cloud9_scanners.go)
 	TypeCloud9EnvironmentEC2 = "aws:cloud9:environment-ec2"
 	// Chime (chime_scanners.go)
-	TypeChimeAppInstance = "aws:chime:app-instance"
+	TypeChimeAppInstance                         = "aws:chime:app-instance"
+	TypeChimeAppInstanceBot                      = "aws:chime:app-instance-bot"
+	TypeChimeAppInstanceUser                     = "aws:chime:app-instance-user"
+	TypeChimeChannelFlow                         = "aws:chime:channel-flow"
+	TypeChimeMediaPipeline                       = "aws:chime:media-pipeline"
+	TypeChimeMediaInsightsPipelineConfiguration  = "aws:chime:media-insights-pipeline-configuration"
+	TypeChimeMediaPipelineKinesisVideoStreamPool = "aws:chime:media-pipeline-kinesis-video-stream-pool"
+	TypeChimeSipMediaApplication                 = "aws:chime:sip-media-application"
+	TypeChimeVoiceConnector                      = "aws:chime:voice-connector"
+	TypeChimeVoiceProfileDomain                  = "aws:chime:voice-profile-domain"
+	TypeChimeVoiceProfile                        = "aws:chime:voice-profile"
 	// ACM account-config (acm_scanners.go)
 	TypeACMAccount = "aws:acm:account"
 	// CloudWatch Logs (logs_scanners.go)

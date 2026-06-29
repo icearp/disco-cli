@@ -330,6 +330,18 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCloudFormationResourceScan:      "AWS::cloudformation::resourcescan",
 		TypeCloudFormationType:              "AWS::cloudformation::type",
 		TypeCloudFormationTypeHook:          "AWS::cloudformation::typeHook",
+		// Chime — these Chime-SDK-v2 resources are Service-Reference-only (no CFN
+		// twin), and their hyphenated SR resource names don't match the algorithmic
+		// PascalCase key, so alias each to its exact SR key. (app-instance/-bot/-user
+		// match via their CFN twins and need no alias.)
+		TypeChimeChannelFlow:                         "AWS::chime::channel-flow",
+		TypeChimeMediaPipeline:                       "AWS::chime::media-pipeline",
+		TypeChimeMediaInsightsPipelineConfiguration:  "AWS::chime::media-insights-pipeline-configuration",
+		TypeChimeMediaPipelineKinesisVideoStreamPool: "AWS::chime::media-pipeline-kinesis-video-stream-pool",
+		TypeChimeSipMediaApplication:                 "AWS::chime::sip-media-application",
+		TypeChimeVoiceConnector:                      "AWS::chime::voice-connector",
+		TypeChimeVoiceProfileDomain:                  "AWS::chime::voice-profile-domain",
+		TypeChimeVoiceProfile:                        "AWS::chime::voice-profile",
 		// CloudTrail.
 		TypeCloudTrailTrail:          "AWS::CloudTrail::Trail",
 		TypeCloudTrailEventDataStore: "AWS::CloudTrail::EventDataStore",
