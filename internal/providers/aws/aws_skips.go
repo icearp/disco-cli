@@ -262,6 +262,8 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::bedrock-mantle::project":          bedrockMantleNoSDK,
 		"AWS::bedrock-mantle::customized-model": bedrockMantleNoSDK,
 		"AWS::bedrock-mantle::reservation":      bedrockMantleNoSDK,
+		// CloudFormation's concatenated spelling of the same no-SDK service.
+		"AWS::BedrockMantle::Project": bedrockMantleNoSDK,
 
 		// apptest — AWS Mainframe Modernization Application Testing has been
 		// deprecated by AWS ("no longer available for use"); the aws-sdk-go-v2
