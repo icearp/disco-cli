@@ -106,6 +106,8 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeEC2FpgaImage:                                "AWS::ec2::fpga-image",
 		TypeEC2PublicIpv4Pool:                           "AWS::ec2::ipv4pool-ec2",
 		TypeEC2Ipv6Pool:                                 "AWS::ec2::ipv6pool-ec2",
+		TypeEC2TransitGatewayPolicyTable:                "AWS::ec2::transit-gateway-policy-table",
+		TypeEC2TransitGatewayRouteTableAnnouncement:     "AWS::ec2::transit-gateway-route-table-announcement",
 		TypeEC2Host:                                     "AWS::EC2::Host",
 		TypeEC2SpotFleet:                                "AWS::EC2::SpotFleet",
 		TypeEC2Fleet:                                    "AWS::EC2::EC2Fleet",

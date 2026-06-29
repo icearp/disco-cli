@@ -61,6 +61,9 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2Inventory(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanEC2TGWExtra(ctx, client, acct, region, st, scanID)
+		},
 	)
 }
 
