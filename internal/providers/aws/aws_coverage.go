@@ -973,6 +973,24 @@ func (coverageProvider) Aliases() map[string]string {
 		// alias both to the exact SR keys.
 		TypeSocialMessagingWaba:          "AWS::social-messaging::waba",
 		TypeSocialMessagingPhoneNumberID: "AWS::social-messaging::phone-number-id",
+		// Telco Network Builder — every resource segment is hyphenated under the
+		// single-word "tnb" service, so the PascalCase algorithmic key (hyphens
+		// stripped) can't reproduce the Service Reference keys; alias each.
+		TypeTnbFunctionInstance: "AWS::tnb::function-instance",
+		TypeTnbFunctionPackage:  "AWS::tnb::function-package",
+		TypeTnbNetworkInstance:  "AWS::tnb::network-instance",
+		TypeTnbNetworkPackage:   "AWS::tnb::network-package",
+		TypeTnbNetworkOperation: "AWS::tnb::network-operation",
+		// Translate — parallel-data is hyphenated under the single-word
+		// "translate" service; alias to the exact SR key.
+		TypeTranslateParallelData: "AWS::translate::parallel-data",
+		// Transfer — host-key is hyphenated; alias to the exact SR key.
+		TypeTransferHostKey: "AWS::transfer::host-key",
+		// Timestream for InfluxDB — db-parameter-group has no CloudFormation twin,
+		// so it carries the SR's own hyphenated "timestream-influxdb" service
+		// segment, which the algorithmic key can't reproduce; alias to the SR key.
+		// (db-cluster / db-instance collapse to the influx-db-* types via Skips().)
+		TypeTimestreamInfluxDBParameterGroup: "AWS::timestream-influxdb::db-parameter-group",
 	}
 }
 

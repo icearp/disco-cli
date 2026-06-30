@@ -906,6 +906,7 @@ const (
 	TypeTransferAgreement   = "aws:transfer:agreement"
 	TypeTransferCertificate = "aws:transfer:certificate"
 	TypeTransferConnector   = "aws:transfer:connector"
+	TypeTransferHostKey     = "aws:transfer:host-key"
 	TypeTransferProfile     = "aws:transfer:profile"
 	TypeTransferServer      = "aws:transfer:server"
 	TypeTransferUser        = "aws:transfer:user"
@@ -2072,6 +2073,11 @@ const (
 	TypeTimestreamInfluxDBInstance = "aws:timestream:influx-db-instance"
 	TypeTimestreamScheduledQuery   = "aws:timestream:scheduled-query"
 	TypeTimestreamTable            = "aws:timestream:table"
+	// DB parameter group has no CloudFormation twin (only InfluxDBCluster /
+	// InfluxDBInstance are CFN-modeled), so it carries the Service Reference's
+	// own "timestream-influxdb" service segment to match the SR key directly
+	// (db-cluster / db-instance collapse to the influx-db-* types via Skips()).
+	TypeTimestreamInfluxDBParameterGroup = "aws:timestream-influxdb:db-parameter-group"
 	// DataBrew (databrew_scanners.go).
 	TypeDataBrewDataset  = "aws:databrew:dataset"
 	TypeDataBrewJob      = "aws:databrew:job"
@@ -2202,4 +2208,41 @@ const (
 	// hyphenated Service Reference key "social-messaging".
 	TypeSocialMessagingWaba          = "aws:social-messaging:waba"
 	TypeSocialMessagingPhoneNumberID = "aws:social-messaging:phone-number-id"
+
+	// Textract (textract_scanners.go, textract_resolvers.go).
+	TypeTextractAdapter        = "aws:textract:adapter"
+	TypeTextractAdapterVersion = "aws:textract:adapter-version"
+
+	// WorkSpaces Thin Client (thinclient_scanners.go, thinclient_resolvers.go).
+	// The disco service segment "thinclient" mirrors the IAM/Service-Reference
+	// service key; the SDK module is "workspacesthinclient".
+	TypeThinClientDevice      = "aws:thinclient:device"
+	TypeThinClientEnvironment = "aws:thinclient:environment"
+	TypeThinClientSoftwareSet = "aws:thinclient:softwareset"
+
+	// Telco Network Builder (tnb_scanners.go, tnb_resolvers.go). All resource
+	// segments are hyphenated, so each carries a Service Reference alias.
+	TypeTnbFunctionInstance = "aws:tnb:function-instance"
+	TypeTnbFunctionPackage  = "aws:tnb:function-package"
+	TypeTnbNetworkInstance  = "aws:tnb:network-instance"
+	TypeTnbNetworkPackage   = "aws:tnb:network-package"
+	TypeTnbNetworkOperation = "aws:tnb:network-operation"
+
+	// Transcribe (transcribe_scanners.go). These resources are addressed by
+	// name (no AWS-issued ARN), so NativeIDs are synthesized.
+	TypeTranscribeCallAnalyticsCategory = "aws:transcribe:call-analytics-category"
+	TypeTranscribeLanguageModel         = "aws:transcribe:language-model"
+	TypeTranscribeVocabulary            = "aws:transcribe:vocabulary"
+	TypeTranscribeVocabularyFilter      = "aws:transcribe:vocabulary-filter"
+	TypeTranscribeMedicalVocabulary     = "aws:transcribe:medical-vocabulary"
+
+	// Translate (translate_scanners.go). parallel-data is hyphenated under the
+	// single-word "translate" service, so it carries a Service Reference alias.
+	TypeTranslateParallelData = "aws:translate:parallel-data"
+	TypeTranslateTerminology  = "aws:translate:terminology"
+
+	// Trusted Advisor (trustedadvisor_scanners.go). The Service Reference key is
+	// plural ("checks"), mirrored as the plural resource segment. Checks are an
+	// AWS-published catalog (ManagedByProvider).
+	TypeTrustedAdvisorChecks = "aws:trustedadvisor:checks"
 )

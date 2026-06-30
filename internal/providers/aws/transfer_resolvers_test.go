@@ -68,3 +68,31 @@ func TestResolveTransferServerLoggingRole(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(sID)
 	assertRelationship(t, rels, sID, rID, store.RelAssumes)
 }
+
+func TestResolveTransferHostKeyParent(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	sARN := fmt.Sprintf("arn:aws:transfer:%s:%s:server/s-1", testRegion, acct.ID)
+	sID := upsertTestResource(t, st, "aws", acct.ID, TypeTransferServer, sARN, testRegion, `{"ServerId":"s-1"}`)
+	hkARN := fmt.Sprintf("arn:aws:transfer:%s:%s:host-key/s-1/hostkey-1", testRegion, acct.ID)
+	hkID := upsertTestResource(t, st, "aws", acct.ID, TypeTransferHostKey, hkARN, testRegion, `{"HostKeyId":"hostkey-1"}`)
+	if err := resolveTransferHostKeyParent(acct, st); err != nil {
+		t.Fatalf("resolveTransferHostKeyParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(hkID)
+	assertRelationship(t, rels, hkID, sID, store.RelAttachedTo)
+}
+
+func TestResolveTransferHostKeyParent_NoMatch(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	hkARN := fmt.Sprintf("arn:aws:transfer:%s:%s:host-key/s-missing/hostkey-1", testRegion, acct.ID)
+	hkID := upsertTestResource(t, st, "aws", acct.ID, TypeTransferHostKey, hkARN, testRegion, "{}")
+	if err := resolveTransferHostKeyParent(acct, st); err != nil {
+		t.Fatalf("resolveTransferHostKeyParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(hkID)
+	if len(rels) != 0 {
+		t.Errorf("expected no relationships, got %d", len(rels))
+	}
+}

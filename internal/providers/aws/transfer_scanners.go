@@ -17,6 +17,7 @@ func init() {
 			{Service: "transfer", DiscoType: TypeTransferAgreement},
 			{Service: "transfer", DiscoType: TypeTransferCertificate, Leaf: true},
 			{Service: "transfer", DiscoType: TypeTransferConnector, Leaf: true},
+			{Service: "transfer", DiscoType: TypeTransferHostKey},
 			{Service: "transfer", DiscoType: TypeTransferProfile, Leaf: true},
 			{Service: "transfer", DiscoType: TypeTransferServer},
 			{Service: "transfer", DiscoType: TypeTransferUser},
@@ -30,6 +31,7 @@ type transferAPI interface {
 	ListAgreements(context.Context, *transfer.ListAgreementsInput, ...func(*transfer.Options)) (*transfer.ListAgreementsOutput, error)
 	ListCertificates(context.Context, *transfer.ListCertificatesInput, ...func(*transfer.Options)) (*transfer.ListCertificatesOutput, error)
 	ListConnectors(context.Context, *transfer.ListConnectorsInput, ...func(*transfer.Options)) (*transfer.ListConnectorsOutput, error)
+	ListHostKeys(context.Context, *transfer.ListHostKeysInput, ...func(*transfer.Options)) (*transfer.ListHostKeysOutput, error)
 	ListProfiles(context.Context, *transfer.ListProfilesInput, ...func(*transfer.Options)) (*transfer.ListProfilesOutput, error)
 	ListServers(context.Context, *transfer.ListServersInput, ...func(*transfer.Options)) (*transfer.ListServersOutput, error)
 	ListUsers(context.Context, *transfer.ListUsersInput, ...func(*transfer.Options)) (*transfer.ListUsersOutput, error)
@@ -58,6 +60,13 @@ func scanTransfer(ctx context.Context, acct *account, region string, st *store.S
 		inserted += i
 
 		t, i, perr = scanTransferUsers(ctx, client, acct, region, st, scanID, sid)
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+
+		t, i, perr = scanTransferHostKeys(ctx, client, acct, region, st, scanID, sid)
 		if perr != nil {
 			return total, inserted, perr
 		}
@@ -336,4 +345,42 @@ func scanTransferWorkflows(ctx context.Context, client transferAPI, acct *accoun
 		}
 	}
 	return upsertBatch(st, batch, "transfer workflows")
+}
+
+// scanTransferHostKeys lists the SSH host keys of one server. ListHostKeys is
+// per-server (no account-wide list op) and has no SDK paginator, so it pages
+// manually via NextToken.
+func scanTransferHostKeys(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
+	sid := serverID
+	var batch []*store.Resource
+	var token *string
+	for {
+		out, perr := client.ListHostKeys(ctx, &transfer.ListHostKeysInput{ServerId: &sid, NextToken: token})
+		if perr != nil {
+			if isAccessDenied(perr) {
+				return 0, 0, skipIfAccessDenied(st, "transfer:ListHostKeys", acct.ID, region, perr)
+			}
+			return 0, 0, fmt.Errorf("transfer:ListHostKeys: %w", perr)
+		}
+		for _, h := range out.HostKeys {
+			arn := sv(h.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(h.HostKeyId)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeTransferHostKey, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || sv(out.NextToken) == "" {
+			break
+		}
+		token = out.NextToken
+	}
+	return upsertBatch(st, batch, "transfer host-keys")
 }

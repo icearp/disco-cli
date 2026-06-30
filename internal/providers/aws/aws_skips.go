@@ -1735,6 +1735,15 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::transcribe::medicaltranscriptionjob": "ephemeral: a Transcribe Medical transcription job run, not a persistent resource",
 		"AWS::transcribe::medicalscribejob":        "ephemeral: a Transcribe Medical scribe job run, not a persistent resource",
 
+		// timestream-influxdb — db-cluster / db-instance are the same physical
+		// resources disco already scans under the influx-db-* spelling (matching
+		// the CFN AWS::Timestream::InfluxDB{Cluster,Instance} twins); the
+		// canonicalizer can't bridge "influxdbcluster" ↔ "dbcluster". The third SR
+		// resource, db-parameter-group, has no CFN twin and IS scanned, as
+		// aws:timestream-influxdb:db-parameter-group (matches the SR key directly).
+		"AWS::timestream-influxdb::db-cluster":  "duplicate: scanned as aws:timestream:influx-db-cluster",
+		"AWS::timestream-influxdb::db-instance": "duplicate: scanned as aws:timestream:influx-db-instance",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are

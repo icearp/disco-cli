@@ -102,3 +102,42 @@ func TestResolveTSScheduledQueryRefs(t *testing.T) {
 	assertRelationship(t, rels, sID, tID, store.RelRoutesTo)
 	assertRelationship(t, rels, sID, bID, store.RelUses)
 }
+
+func TestResolveTSInfluxParameterGroup(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	pgID := "pg-0001"
+	pgARN := fmt.Sprintf("arn:aws:timestream-influxdb:%s:%s:db-parameter-group/%s", testRegion, acct.ID, pgID)
+	instARN := fmt.Sprintf("arn:aws:timestream-influxdb:%s:%s:db-instance/i1", testRegion, acct.ID)
+
+	pgAttrs := fmt.Sprintf(`{"Id":%q}`, pgID)
+	instAttrs := fmt.Sprintf(`{"DbParameterGroupIdentifier":%q}`, pgID)
+
+	pgRID := upsertTestResource(t, st, "aws", acct.ID, TypeTimestreamInfluxDBParameterGroup, pgARN, testRegion, pgAttrs)
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeTimestreamInfluxDBInstance, instARN, testRegion, instAttrs)
+
+	if err := resolveTSInfluxParameterGroup(acct, st); err != nil {
+		t.Fatalf("resolveTSInfluxParameterGroup: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(instID)
+	assertRelationship(t, rels, instID, pgRID, store.RelUses)
+}
+
+func TestResolveTSInfluxParameterGroup_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	pgARN := fmt.Sprintf("arn:aws:timestream-influxdb:%s:%s:db-parameter-group/pg-x", testRegion, acct.ID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeTimestreamInfluxDBParameterGroup, pgARN, testRegion, "{}")
+	instARN := fmt.Sprintf("arn:aws:timestream-influxdb:%s:%s:db-instance/i-x", testRegion, acct.ID)
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeTimestreamInfluxDBInstance, instARN, testRegion, "{}")
+
+	if err := resolveTSInfluxParameterGroup(acct, st); err != nil {
+		t.Fatalf("resolveTSInfluxParameterGroup: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(instID)
+	if len(rels) != 0 {
+		t.Errorf("expected no relationships, got %d", len(rels))
+	}
+}

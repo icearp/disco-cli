@@ -296,6 +296,12 @@ var expectedAWSServices = []string{
 	"aws:mgn",
 	"aws:migrationhub",
 	"aws:migrationhub-orchestrator",
+	"aws:textract",
+	"aws:thinclient",
+	"aws:tnb",
+	"aws:transcribe",
+	"aws:translate",
+	"aws:trustedadvisor",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

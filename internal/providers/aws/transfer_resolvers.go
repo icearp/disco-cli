@@ -27,6 +27,48 @@ func init() {
 		resolveTransferServerLoggingRole,
 		EdgeDecl{TypeTransferServer, TypeIAMRole, store.RelAssumes},
 	)
+	registerResolver(
+		resolveTransferHostKeyParent,
+		EdgeDecl{TypeTransferHostKey, TypeTransferServer, store.RelAttachedTo},
+	)
+}
+
+// resolveTransferHostKeyParent wires each host key to its parent server. The
+// host-key ARN shape is `arn:aws:transfer:r:a:host-key/{serverID}/{hostKeyID}`.
+func resolveTransferHostKeyParent(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTransferHostKey}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	srvIdx, err := transferServerIDIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		const seg = ":host-key/"
+		i := strings.Index(r.NativeID, seg)
+		if i < 0 {
+			continue
+		}
+		tail := r.NativeID[i+len(seg):]
+		end := strings.IndexByte(tail, '/')
+		if end < 0 {
+			continue
+		}
+		tgtID, ok := srvIdx[tail[:end]]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert transfer host-key→server: %w", err)
+		}
+	}
+	return nil
 }
 
 // transferServerIDIndex maps ServerID → resource ID. Server List items carry

@@ -28,6 +28,9 @@ func init() {
 			{Service: "timestream", DiscoType: TypeTimestreamScheduledQuery},
 			{Service: "timestream", DiscoType: TypeTimestreamInfluxDBCluster},
 			{Service: "timestream", DiscoType: TypeTimestreamInfluxDBInstance},
+			// db-parameter-group has no CloudFormation twin, so it carries the
+			// Service Reference's "timestream-influxdb" service segment.
+			{Service: "timestream-influxdb", DiscoType: TypeTimestreamInfluxDBParameterGroup, Leaf: true},
 		},
 	})
 }
@@ -45,6 +48,7 @@ type tsQueryAPI interface {
 type tsInfluxAPI interface {
 	ListDbClusters(context.Context, *timestreaminfluxdb.ListDbClustersInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbClustersOutput, error)
 	ListDbInstances(context.Context, *timestreaminfluxdb.ListDbInstancesInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbInstancesOutput, error)
+	ListDbParameterGroups(context.Context, *timestreaminfluxdb.ListDbParameterGroupsInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbParameterGroupsOutput, error)
 	GetDbCluster(context.Context, *timestreaminfluxdb.GetDbClusterInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbClusterOutput, error)
 	GetDbInstance(context.Context, *timestreaminfluxdb.GetDbInstanceInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbInstanceOutput, error)
 }
@@ -63,6 +67,7 @@ func scanTimestream(ctx context.Context, acct *account, region string, st *store
 		func() (int, int, error) { return scanTSScheduledQueries(ctx, qc, acct, region, st, scanID) },
 		func() (int, int, error) { return scanTSInfluxClusters(ctx, ic, acct, region, st, scanID) },
 		func() (int, int, error) { return scanTSInfluxInstances(ctx, ic, acct, region, st, scanID) },
+		func() (int, int, error) { return scanTSInfluxParameterGroups(ctx, ic, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -263,4 +268,31 @@ func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *accoun
 		}
 	}
 	return upsertBatch(st, batch, "timestream influx-db-instances")
+}
+
+func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := timestreaminfluxdb.NewListDbParameterGroupsPaginator(client, &timestreaminfluxdb.ListDbParameterGroupsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "timestream:ListDbParameterGroups", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("timestream:ListDbParameterGroups: %w", err)
+		}
+		for _, pg := range out.Items {
+			arn := sv(pg.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeTimestreamInfluxDBParameterGroup, NativeID: arn,
+				Name: pg.Name, Region: &region,
+				AttributesJSON: mustJSON(pg), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "timestream influx-db-parameter-groups")
 }

@@ -200,7 +200,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/auditmanager v1.47.1
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.67.4
 	github.com/aws/aws-sdk-go-v2/service/autoscalingplans v1.31.5
-	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.110
+	github.com/aws/aws-sdk-go-v2/service/b2bi v1.0.0-preview.111
 	github.com/aws/aws-sdk-go-v2/service/backup v1.57.6
 	github.com/aws/aws-sdk-go-v2/service/backupgateway v1.27.5
 	github.com/aws/aws-sdk-go-v2/service/batch v1.66.0
@@ -494,6 +494,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/storagegateway v1.44.4
 	github.com/aws/aws-sdk-go-v2/service/supplychain v1.18.7
 	github.com/aws/aws-sdk-go-v2/service/swf v1.35.1
+	github.com/aws/aws-sdk-go-v2/service/textract v1.41.7
+	github.com/aws/aws-sdk-go-v2/service/tnb v1.19.8
+	github.com/aws/aws-sdk-go-v2/service/transcribe v1.56.4
+	github.com/aws/aws-sdk-go-v2/service/translate v1.34.7
+	github.com/aws/aws-sdk-go-v2/service/trustedadvisor v1.15.7
 )
 
 require (

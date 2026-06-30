@@ -36,6 +36,63 @@ func init() {
 		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeSecretsManagerSecret, store.RelUses},
 		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(
+		resolveTSInfluxParameterGroup,
+		EdgeDecl{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBParameterGroup, store.RelUses},
+		EdgeDecl{TypeTimestreamInfluxDBInstance, TypeTimestreamInfluxDBParameterGroup, store.RelUses},
+	)
+}
+
+// resolveTSInfluxParameterGroup wires each Timestream-for-InfluxDB cluster +
+// instance to the DB parameter group it references (DbParameterGroupIdentifier,
+// the group's service id). Parameter groups are indexed by their Id since the
+// reference is the id, not the ARN.
+func resolveTSInfluxParameterGroup(acct *account, st *store.Store) error {
+	pgRows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeTimestreamInfluxDBParameterGroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(pgRows) == 0 {
+		return nil
+	}
+	pgByID := make(map[string]string, len(pgRows))
+	for _, pg := range pgRows {
+		var a struct {
+			ID *string `json:"Id"`
+		}
+		if err := json.Unmarshal([]byte(pg.AttributesJSON), &a); err != nil {
+			continue
+		}
+		if id := sv(a.ID); id != "" {
+			pgByID[id] = pg.ID
+		}
+	}
+	for _, ttyp := range []string{TypeTimestreamInfluxDBCluster, TypeTimestreamInfluxDBInstance} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ttyp}, Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			var attrs struct {
+				DbParameterGroupIdentifier *string `json:"DbParameterGroupIdentifier"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			tgt, ok := pgByID[sv(attrs.DbParameterGroupIdentifier)]
+			if !ok {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert ts-influx→parameter-group: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveTSInfluxRefs wires each Timestream-for-InfluxDB cluster + instance
