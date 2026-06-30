@@ -499,6 +499,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/transcribe v1.56.4
 	github.com/aws/aws-sdk-go-v2/service/translate v1.34.7
 	github.com/aws/aws-sdk-go-v2/service/trustedadvisor v1.15.7
+	github.com/aws/aws-sdk-go-v2/service/waf v1.31.6
+	github.com/aws/aws-sdk-go-v2/service/wafregional v1.31.5
 )
 
 require (

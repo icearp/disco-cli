@@ -623,9 +623,29 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeWAFv2WebACL:               "AWS::WAFv2::WebACL",
 		TypeWAFv2RuleGroup:            "AWS::WAFv2::RuleGroup",
 		TypeWAFv2IPSet:                "AWS::WAFv2::IPSet",
-		TypeACMCertificate:            "AWS::CertificateManager::Certificate",
-		TypeACMAccount:                "AWS::CertificateManager::Account",
-		TypeACMPrivateCA:              "AWS::ACMPCA::CertificateAuthority",
+		// WAF Classic v1 regional — disco's service segment "wafregional" mirrors
+		// CFN (AWS::WAFRegional::*), but the Service Reference catalog spells the
+		// service hyphenated ("waf-regional"), which the algorithmic key can't
+		// reproduce. Bridge each base type to the exact SR key; the CFN twin then
+		// collapses as a cross-catalog duplicate. (web-acl-association exists only
+		// in CFN — no SR key — so it matches via the algorithmic key, like
+		// aws:wafv2:web-acl-association.) The global aws:waf:* types need no alias:
+		// SR spells that service "waf", matching disco exactly.
+		TypeWAFRegionalWebACL:               "AWS::waf-regional::webacl",
+		TypeWAFRegionalRule:                 "AWS::waf-regional::rule",
+		TypeWAFRegionalRuleGroup:            "AWS::waf-regional::rulegroup",
+		TypeWAFRegionalRateBasedRule:        "AWS::waf-regional::ratebasedrule",
+		TypeWAFRegionalIPSet:                "AWS::waf-regional::ipset",
+		TypeWAFRegionalByteMatchSet:         "AWS::waf-regional::bytematchset",
+		TypeWAFRegionalGeoMatchSet:          "AWS::waf-regional::geomatchset",
+		TypeWAFRegionalRegexMatchSet:        "AWS::waf-regional::regexmatchset",
+		TypeWAFRegionalRegexPatternSet:      "AWS::waf-regional::regexpatternset",
+		TypeWAFRegionalSizeConstraintSet:    "AWS::waf-regional::sizeconstraintset",
+		TypeWAFRegionalSQLInjectionMatchSet: "AWS::waf-regional::sqlinjectionmatchset",
+		TypeWAFRegionalXSSMatchSet:          "AWS::waf-regional::xssmatchset",
+		TypeACMCertificate:                  "AWS::CertificateManager::Certificate",
+		TypeACMAccount:                      "AWS::CertificateManager::Account",
+		TypeACMPrivateCA:                    "AWS::ACMPCA::CertificateAuthority",
 		// IAM Access Analyzer (CFN service segment "AccessAnalyzer" mixed-case).
 		TypeAccessAnalyzerAnalyzer: "AWS::AccessAnalyzer::Analyzer",
 		// Archive rules exist only in the Service Reference catalog, under the

@@ -46,6 +46,8 @@ var expectedAWSServices = []string{
 	"aws:frauddetector",
 	"aws:efs",
 	"aws:wafv2",
+	"aws:waf",
+	"aws:wafregional",
 	"aws:events",
 	"aws:cloudtrail",
 	"aws:cognito",
