@@ -867,6 +867,124 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::honeycode::table":                 "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
 		"AWS::honeycode::workbook":              "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
 
+		// iam — the listable principals/policies/MFA devices disco scans live under
+		// dedicated aws:iam:* types (managed-policy, virtual-mfa-device, group, etc.).
+		// The remaining SR/CFN keys are session principals, ephemeral reports, CFN
+		// associations, or duplicate spellings — none are enumerable resources.
+		"AWS::IAM::UserToGroupAddition": "association: a CloudFormation construct that adds a user to a group, not an enumerable resource",
+		"AWS::iam::access-report":       "ephemeral: a service-last-accessed report (GenerateServiceLastAccessedDetails), not a persistent resource",
+		"AWS::iam::assumed-role":        "not a resource: an STS assumed-role session principal, not an enumerable resource",
+		"AWS::iam::delegation-request":  "not a resource: an IAM delegation-request action context, not an enumerable resource",
+		"AWS::iam::federated-user":      "not a resource: an STS federated-user session principal, not an enumerable resource",
+		"AWS::iam::mfa":                 "duplicate: the listable MFA device is scanned as aws:iam:virtual-mfa-device",
+		"AWS::iam::policy":              "duplicate: scanned as aws:iam:managed-policy",
+		"AWS::iam::sms-mfa":             "not a resource: the deprecated SMS-MFA channel, not an enumerable resource",
+
+		// identity-sync — IAM Identity Center sync profiles/targets; AWS publishes no
+		// aws-sdk-go-v2 module for the service.
+		"AWS::identity-sync::SyncProfileResource": "no SDK: AWS identity-sync publishes no aws-sdk-go-v2 module",
+		"AWS::identity-sync::SyncTargetResource":  "no SDK: AWS identity-sync publishes no aws-sdk-go-v2 module",
+
+		// identitystore — the All* keys are the bulk-list variants of the group /
+		// user / membership disco already scans; Identitystore is the directory
+		// singleton (the SSO instance's identity store), not an enumerable resource.
+		"AWS::identitystore::AllGroupMemberships": "duplicate: scanned as aws:identitystore:group-membership",
+		"AWS::identitystore::AllGroups":           "duplicate: scanned as aws:identitystore:group",
+		"AWS::identitystore::AllUsers":            "duplicate: scanned as aws:identitystore:user",
+		"AWS::identitystore::Identitystore":       "singleton: the SSO instance's identity store directory, not an enumerable resource",
+
+		// imagebuilder — the component / image / workflow resources disco scans carry
+		// their versions internally; the all*BuildVersions and *Version keys are
+		// version sub-resources and the *Execution keys are ephemeral runs.
+		"AWS::imagebuilder::allComponentBuildVersions": "version: build versions of the scanned aws:imagebuilder:component",
+		"AWS::imagebuilder::allImageBuildVersions":     "version: build versions of the scanned aws:imagebuilder:image",
+		"AWS::imagebuilder::allWorkflowBuildVersions":  "version: build versions of the scanned aws:imagebuilder:workflow",
+		"AWS::imagebuilder::imageVersion":              "version: a versioned view of the scanned aws:imagebuilder:image",
+		"AWS::imagebuilder::lifecycleExecution":        "ephemeral: a lifecycle-policy execution run, not a persistent resource",
+		"AWS::imagebuilder::workflowExecution":         "ephemeral: an Image Builder workflow execution run, not a persistent resource",
+		"AWS::imagebuilder::workflowStepExecution":     "ephemeral: an Image Builder workflow-step execution run, not a persistent resource",
+
+		// inspector (classic, v1) — AWS ended support for Amazon Inspector Classic;
+		// the supported scanner surface is Amazon Inspector v2 (aws:inspector2:*).
+		"AWS::Inspector::AssessmentTarget":   "deprecated: Amazon Inspector Classic (v1) is end-of-support; superseded by Amazon Inspector v2",
+		"AWS::Inspector::AssessmentTemplate": "deprecated: Amazon Inspector Classic (v1) is end-of-support; superseded by Amazon Inspector v2",
+		"AWS::Inspector::ResourceGroup":      "deprecated: Amazon Inspector Classic (v1) is end-of-support; superseded by Amazon Inspector v2",
+
+		// inspector2 — the CFN spellings (AWS::InspectorV2::*) are scanned; these are
+		// the Service Reference's space-separated twins, the connector (= a code-
+		// security integration), and the ephemeral findings.
+		"AWS::inspector2::CIS Scan Configuration":           "duplicate: scanned as aws:inspector2:cis-scan-configuration",
+		"AWS::inspector2::Code Security Integration":        "duplicate: scanned as aws:inspector2:code-security-integration",
+		"AWS::inspector2::Code Security Scan Configuration": "duplicate: scanned as aws:inspector2:code-security-scan-configuration",
+		"AWS::inspector2::Connector":                        "duplicate: an Inspector code-security connector, scanned as aws:inspector2:code-security-integration",
+		"AWS::inspector2::Filter":                           "duplicate: scanned as aws:inspector2:filter",
+		"AWS::inspector2::Finding":                          "ephemeral: an Inspector finding (scan result), not a persistent resource",
+
+		// internetmonitor — the monitor is scanned (aws:internet-monitor:monitor);
+		// HealthEvent / InternetEvent are the transient events it surfaces.
+		"AWS::internetmonitor::HealthEvent":   "ephemeral: a transient Internet Monitor health event, not a persistent resource",
+		"AWS::internetmonitor::InternetEvent": "ephemeral: a transient Internet Monitor internet event, not a persistent resource",
+
+		// invoicing — the invoice unit is scanned (aws:invoicing:invoice-unit);
+		// procurement-portal-preference is an account billing-preference singleton.
+		"AWS::invoicing::procurement-portal-preference": "singleton: an account procurement-portal billing preference, not an enumerable resource",
+
+		// iotanalytics — AWS ended support for AWS IoT Analytics (December 2025);
+		// no live resources to scan.
+		"AWS::iotanalytics::channel":   "discontinued: AWS IoT Analytics reached end of support in December 2025",
+		"AWS::iotanalytics::dataset":   "discontinued: AWS IoT Analytics reached end of support in December 2025",
+		"AWS::iotanalytics::datastore": "discontinued: AWS IoT Analytics reached end of support in December 2025",
+		"AWS::iotanalytics::pipeline":  "discontinued: AWS IoT Analytics reached end of support in December 2025",
+
+		// iotdeviceadvisor — the suite definition is scanned
+		// (aws:iot-core-device-advisor:suite-definition); a suite run is ephemeral.
+		"AWS::iotdeviceadvisor::Suitedefinition": "duplicate: scanned as aws:iot-core-device-advisor:suite-definition",
+		"AWS::iotdeviceadvisor::Suiterun":        "ephemeral: an IoT Device Advisor test-suite run, not a persistent resource",
+
+		// iotjobsdata — the IoT Jobs data-plane thing endpoint; AWS publishes no
+		// aws-sdk-go-v2 module for the iotjobsdata data plane.
+		"AWS::iotjobsdata::thing": "no SDK: the IoT Jobs data plane (iotjobsdata) publishes no aws-sdk-go-v2 module",
+
+		// iotsitewise — time-series is asset measurement data, not an enumerable
+		// resource (the assets/models that own it are scanned as aws:iotsitewise:*).
+		"AWS::iotsitewise::time-series": "data: IoT SiteWise asset time-series measurement data, not an enumerable resource",
+
+		// iotthingsgraph — AWS discontinued AWS IoT Things Graph (May 2023).
+		"AWS::IoTThingsGraph::FlowTemplate": "discontinued: AWS IoT Things Graph was discontinued in May 2023",
+
+		// iottwinmaker — the workspace/entity/component-type/scene/sync-job are
+		// scanned; metadataTransferJob is an ephemeral transfer run.
+		"AWS::iottwinmaker::metadataTransferJob": "ephemeral: an IoT TwinMaker metadata-transfer job run, not a persistent resource",
+
+		// iotwireless — the wireless device/gateway/import-task/partner-account/
+		// task-definition disco scans cover these; ImportTask / SidewalkAccount /
+		// WirelessGatewayTaskDefinition are duplicate spellings and cert / thing are
+		// IoT references scanned under aws:iot.
+		"AWS::iotwireless::ImportTask":                    "duplicate: scanned as aws:iotwireless:wireless-device-import-task",
+		"AWS::iotwireless::SidewalkAccount":               "duplicate: scanned as aws:iotwireless:partner-account (Sidewalk accounts)",
+		"AWS::iotwireless::WirelessGatewayTaskDefinition": "duplicate: scanned as aws:iotwireless:task-definition",
+		"AWS::iotwireless::cert":                          "reference: an IoT certificate scanned under aws:iot:certificate",
+		"AWS::iotwireless::thing":                         "reference: an IoT thing scanned under aws:iot:thing",
+
+		// iq / iq-permission — AWS IQ is the freelance-engagement marketplace; its
+		// buyers/sellers/experts/proposals/payments are marketplace records, not
+		// account cloud resources, and AWS publishes no aws-sdk-go-v2 module for it.
+		"AWS::iq::attachment":            "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::buyer":                 "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::call":                  "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::company":               "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::conversation":          "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::expert":                "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::listing":               "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::paymentRequest":        "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::paymentSchedule":       "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::permission":            "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::proposal":              "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::request":               "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::seller":                "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq::token":                 "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+		"AWS::iq-permission::permission": "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
