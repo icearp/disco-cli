@@ -864,6 +864,10 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:guardduty:member.
 		"AWS::GuardDuty::Master": "association: the GuardDuty administrator relationship (GetMasterAccount), not an enumerable resource",
 
+		// globalaccelerator — the SR `attachment` is the cross-account attachment
+		// disco scans under its CloudFormation spelling.
+		"AWS::globalaccelerator::attachment": "duplicate: scanned as aws:global-accelerator:cross-account-attachment (ListCrossAccountAttachments)",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
