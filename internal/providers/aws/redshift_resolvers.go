@@ -30,6 +30,121 @@ func init() {
 		EdgeDecl{TypeRedshiftIntegration, TypeRedshiftServerlessNamespace, store.RelUses},
 		EdgeDecl{TypeRedshiftIntegration, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		resolveRedshiftSnapshotRefs,
+		EdgeDecl{TypeRedshiftSnapshot, TypeRedshiftCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRedshiftUsageLimitRefs,
+		EdgeDecl{TypeRedshiftUsageLimit, TypeRedshiftCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRedshiftSnapshotCopyGrantRefs,
+		EdgeDecl{TypeRedshiftSnapshotCopyGrant, TypeKMSKey, store.RelUses},
+	)
+}
+
+// resolveRedshiftSnapshotRefs links each cluster snapshot to its source cluster
+// (FK-safe; the source cluster may be deleted).
+func resolveRedshiftSnapshotRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftSnapshot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeRedshiftCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ClusterIdentifier *string `json:"ClusterIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.ClusterIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRedshiftCluster, redshiftClusterARN(sv(r.Region), acct.ID, id))
+			if clusterSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert redshift-snapshot→cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRedshiftUsageLimitRefs links each usage limit to its cluster.
+func resolveRedshiftUsageLimitRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftUsageLimit}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeRedshiftCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ClusterIdentifier *string `json:"ClusterIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.ClusterIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRedshiftCluster, redshiftClusterARN(sv(r.Region), acct.ID, id))
+			if clusterSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert redshift-usage-limit→cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRedshiftSnapshotCopyGrantRefs links each snapshot copy grant to the
+// KMS key it grants cross-region copy access to.
+func resolveRedshiftSnapshotCopyGrantRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftSnapshotCopyGrant}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	kmsIdx, err := loadKMSResolveIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			KmsKeyID *string `json:"KmsKeyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if k := sv(attrs.KmsKeyID); k != "" {
+			if keyID, ok := kmsIdx.resolveKMSKeyID(k, sv(r.Region), acct.ID); ok {
+				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert redshift-snapshot-copy-grant→kms: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveRedshiftIntegrationRefs wires each zero-ETL integration to its

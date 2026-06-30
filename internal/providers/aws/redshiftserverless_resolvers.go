@@ -25,6 +25,115 @@ func init() {
 		EdgeDecl{TypeRedshiftServerlessSnapshot, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeRedshiftServerlessSnapshot, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		resolveRSSEndpointAccessRefs,
+		EdgeDecl{TypeRedshiftServerlessEndpointAccess, TypeRedshiftServerlessWorkgroup, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRSSRecoveryPointRefs,
+		EdgeDecl{TypeRedshiftServerlessRecoveryPoint, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
+	)
+}
+
+// resolveRSSEndpointAccessRefs links each VPC endpoint to its workgroup. The
+// workgroup ARN is GUID-based (not name-derivable), so a workgroup name→id map
+// is built from the scanned workgroups. FK-safe.
+func resolveRSSEndpointAccessRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessEndpointAccess}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	wgByName, err := buildRSSWorkgroupNameMap(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			WorkgroupName *string `json:"WorkgroupName"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if n := sv(attrs.WorkgroupName); n != "" {
+			if wgID, ok := wgByName[n]; ok {
+				if err := st.UpsertRelationship(r.ID, wgID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rss endpoint-access→workgroup: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// buildRSSWorkgroupNameMap returns a workgroup-name → resource-ID map.
+func buildRSSWorkgroupNameMap(acct *account, st *store.Store) (map[string]string, error) {
+	wgs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessWorkgroup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]string, len(wgs))
+	for _, w := range wgs {
+		var attrs struct {
+			WorkgroupName *string `json:"WorkgroupName"`
+		}
+		if err := json.Unmarshal([]byte(w.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if n := sv(attrs.WorkgroupName); n != "" {
+			m[n] = w.ID
+		}
+	}
+	return m, nil
+}
+
+// resolveRSSRecoveryPointRefs links each recovery point to its source namespace
+// via the verbatim NamespaceArn (FK-safe; source namespace may be deleted).
+func resolveRSSRecoveryPointRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRedshiftServerlessRecoveryPoint}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	nsSet, err := scannedIDSet(acct, st, TypeRedshiftServerlessNamespace)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			NamespaceArn  *string `json:"NamespaceArn"`
+			NamespaceName *string `json:"NamespaceName"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		arn := sv(attrs.NamespaceArn)
+		if arn == "" {
+			if n := sv(attrs.NamespaceName); n != "" {
+				arn = rssNamespaceARN(sv(r.Region), acct.ID, n)
+			}
+		}
+		if arn == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeRedshiftServerlessNamespace, arn)
+		if nsSet[tgt] {
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert rss recovery-point→namespace: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func rssNamespaceARN(region, acct, name string) string {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 )
 
 const (
@@ -135,4 +136,90 @@ func TestResolveRedshiftIntegrationRefs(t *testing.T) {
 	assertRelationship(t, rels, iID, rdsID, store.RelUses)
 	assertRelationship(t, rels, iID, nsID, store.RelUses)
 	assertRelationship(t, rels, iID, kID, store.RelUses)
+}
+
+// --- Service-Reference-only Redshift types ---
+
+func TestResolveRedshiftSnapshotRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
+		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
+		redshiftARN(testRegion, acct.ID, "snapshot", "my-cluster/snap-1"), testRegion,
+		mustJSON(redshifttypes.Snapshot{ClusterIdentifier: ptrStr("my-cluster")}))
+	if err := resolveRedshiftSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftSnapshotRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(snID)
+	assertRelationship(t, rels, snID, clID, store.RelAttachedTo)
+}
+
+func TestResolveRedshiftSnapshotRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
+		redshiftARN(testRegion, acct.ID, "snapshot", "gone/snap-1"), testRegion, "{}")
+	if err := resolveRedshiftSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftSnapshotRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(snID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRedshiftUsageLimitRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
+		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
+	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
+		redshiftARN(testRegion, acct.ID, "usagelimit", "ul-1"), testRegion,
+		mustJSON(redshifttypes.UsageLimit{ClusterIdentifier: ptrStr("my-cluster"), UsageLimitId: ptrStr("ul-1")}))
+	if err := resolveRedshiftUsageLimitRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftUsageLimitRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(ulID)
+	assertRelationship(t, rels, ulID, clID, store.RelAttachedTo)
+}
+
+func TestResolveRedshiftUsageLimitRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
+		redshiftARN(testRegion, acct.ID, "usagelimit", "ul-1"), testRegion, "{}")
+	if err := resolveRedshiftUsageLimitRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftUsageLimitRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(ulID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRedshiftSnapshotCopyGrantRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", testRegion, acct.ID, testRedshiftKMSKeyID)
+	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshotCopyGrant,
+		redshiftARN(testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion,
+		mustJSON(redshifttypes.SnapshotCopyGrant{SnapshotCopyGrantName: ptrStr("grant-1"), KmsKeyId: ptrStr(kARN)}))
+	if err := resolveRedshiftSnapshotCopyGrantRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftSnapshotCopyGrantRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(gID)
+	assertRelationship(t, rels, gID, kID, store.RelUses)
+}
+
+func TestResolveRedshiftSnapshotCopyGrantRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	gID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshotCopyGrant,
+		redshiftARN(testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion, "{}")
+	if err := resolveRedshiftSnapshotCopyGrantRefs(acct, st); err != nil {
+		t.Fatalf("resolveRedshiftSnapshotCopyGrantRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(gID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
 }

@@ -33,6 +33,15 @@ func init() {
 			{Service: "rds", DiscoType: TypeRDSDBProxyTargetGroup},
 			{Service: "rds", DiscoType: TypeRDSDBShardGroup},
 			{Service: "rds", DiscoType: TypeRDSCustomDBEngineVersion, Leaf: true},
+			{Service: "rds", DiscoType: TypeRDSSnapshot},
+			{Service: "rds", DiscoType: TypeRDSClusterSnapshot},
+			{Service: "rds", DiscoType: TypeRDSClusterEndpoint},
+			{Service: "rds", DiscoType: TypeRDSReservedInstance, Leaf: true},
+			{Service: "rds", DiscoType: TypeRDSAutoBackup},
+			{Service: "rds", DiscoType: TypeRDSClusterAutoBackup},
+			{Service: "rds", DiscoType: TypeRDSTenantDatabase},
+			{Service: "rds", DiscoType: TypeRDSSnapshotTenantDatabase},
+			{Service: "rds", DiscoType: TypeRDSDeployment, Leaf: true},
 		},
 	})
 }
@@ -54,6 +63,15 @@ type rdsAPI interface {
 	DescribeIntegrations(context.Context, *rds.DescribeIntegrationsInput, ...func(*rds.Options)) (*rds.DescribeIntegrationsOutput, error)
 	DescribeOptionGroups(context.Context, *rds.DescribeOptionGroupsInput, ...func(*rds.Options)) (*rds.DescribeOptionGroupsOutput, error)
 	DescribeDBEngineVersions(context.Context, *rds.DescribeDBEngineVersionsInput, ...func(*rds.Options)) (*rds.DescribeDBEngineVersionsOutput, error)
+	DescribeDBSnapshots(context.Context, *rds.DescribeDBSnapshotsInput, ...func(*rds.Options)) (*rds.DescribeDBSnapshotsOutput, error)
+	DescribeDBClusterSnapshots(context.Context, *rds.DescribeDBClusterSnapshotsInput, ...func(*rds.Options)) (*rds.DescribeDBClusterSnapshotsOutput, error)
+	DescribeDBClusterEndpoints(context.Context, *rds.DescribeDBClusterEndpointsInput, ...func(*rds.Options)) (*rds.DescribeDBClusterEndpointsOutput, error)
+	DescribeReservedDBInstances(context.Context, *rds.DescribeReservedDBInstancesInput, ...func(*rds.Options)) (*rds.DescribeReservedDBInstancesOutput, error)
+	DescribeDBInstanceAutomatedBackups(context.Context, *rds.DescribeDBInstanceAutomatedBackupsInput, ...func(*rds.Options)) (*rds.DescribeDBInstanceAutomatedBackupsOutput, error)
+	DescribeDBClusterAutomatedBackups(context.Context, *rds.DescribeDBClusterAutomatedBackupsInput, ...func(*rds.Options)) (*rds.DescribeDBClusterAutomatedBackupsOutput, error)
+	DescribeTenantDatabases(context.Context, *rds.DescribeTenantDatabasesInput, ...func(*rds.Options)) (*rds.DescribeTenantDatabasesOutput, error)
+	DescribeDBSnapshotTenantDatabases(context.Context, *rds.DescribeDBSnapshotTenantDatabasesInput, ...func(*rds.Options)) (*rds.DescribeDBSnapshotTenantDatabasesOutput, error)
+	DescribeBlueGreenDeployments(context.Context, *rds.DescribeBlueGreenDeploymentsInput, ...func(*rds.Options)) (*rds.DescribeBlueGreenDeploymentsOutput, error)
 }
 
 // rdsPager is satisfied by every AWS SDK v2 RDS paginator.
@@ -143,6 +161,33 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBSnapshots(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBClusterEndpoints(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanReservedDBInstances(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBInstanceAutomatedBackups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBClusterAutomatedBackups(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanTenantDatabases(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanDBSnapshotTenantDatabases(ctx, client, acct, region, st, scanID)
+		},
+		func(ctx context.Context) (int, int, error) {
+			return scanBlueGreenDeployments(ctx, client, acct, region, st, scanID)
 		},
 	)
 }
@@ -583,4 +628,199 @@ func scanCustomDBEngineVersions(ctx context.Context, client rdsAPI, acct *accoun
 		}
 	}
 	return
+}
+
+func scanDBSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBSnapshots", acct, region, st,
+		rds.NewDescribeDBSnapshotsPaginator(client, &rds.DescribeDBSnapshotsInput{}),
+		func(page *rds.DescribeDBSnapshotsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, s := range page.DBSnapshots {
+				name := sv(s.DBSnapshotIdentifier)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSSnapshot, NativeID: sv(s.DBSnapshotArn),
+					Name: &name, Region: &region, CreatedAt: tp(s.SnapshotCreateTime),
+					Status: s.Status, TagsJSON: awsTagsJSON(s.TagList),
+					AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBClusterSnapshots", acct, region, st,
+		rds.NewDescribeDBClusterSnapshotsPaginator(client, &rds.DescribeDBClusterSnapshotsInput{}),
+		func(page *rds.DescribeDBClusterSnapshotsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, s := range page.DBClusterSnapshots {
+				name := sv(s.DBClusterSnapshotIdentifier)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSClusterSnapshot, NativeID: sv(s.DBClusterSnapshotArn),
+					Name: &name, Region: &region, CreatedAt: tp(s.SnapshotCreateTime),
+					Status: s.Status, TagsJSON: awsTagsJSON(s.TagList),
+					AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanDBClusterEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBClusterEndpoints", acct, region, st,
+		rds.NewDescribeDBClusterEndpointsPaginator(client, &rds.DescribeDBClusterEndpointsInput{}),
+		func(page *rds.DescribeDBClusterEndpointsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, ep := range page.DBClusterEndpoints {
+				name := sv(ep.DBClusterEndpointIdentifier)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSClusterEndpoint, NativeID: sv(ep.DBClusterEndpointArn),
+					Name: &name, Region: &region, Status: ep.Status,
+					AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanReservedDBInstances discovers reserved DB instance purchases. These carry
+// no graph edges (billing artefacts) so they are leaf resources.
+func scanReservedDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeReservedDBInstances", acct, region, st,
+		rds.NewDescribeReservedDBInstancesPaginator(client, &rds.DescribeReservedDBInstancesInput{}),
+		func(page *rds.DescribeReservedDBInstancesOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, ri := range page.ReservedDBInstances {
+				name := sv(ri.ReservedDBInstanceId)
+				nativeID := sv(ri.ReservedDBInstanceArn)
+				if nativeID == "" {
+					nativeID = rdsARN(region, acct.ID, "ri", name)
+				}
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSReservedInstance, NativeID: nativeID,
+					Name: &name, Region: &region, CreatedAt: tp(ri.StartTime),
+					Status: ri.State, AttributesJSON: mustJSON(ri), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBInstanceAutomatedBackups", acct, region, st,
+		rds.NewDescribeDBInstanceAutomatedBackupsPaginator(client, &rds.DescribeDBInstanceAutomatedBackupsInput{}),
+		func(page *rds.DescribeDBInstanceAutomatedBackupsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, b := range page.DBInstanceAutomatedBackups {
+				name := sv(b.DBInstanceIdentifier)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSAutoBackup, NativeID: sv(b.DBInstanceAutomatedBackupsArn),
+					Name: &name, Region: &region, Status: b.Status,
+					AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanDBClusterAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBClusterAutomatedBackups", acct, region, st,
+		rds.NewDescribeDBClusterAutomatedBackupsPaginator(client, &rds.DescribeDBClusterAutomatedBackupsInput{}),
+		func(page *rds.DescribeDBClusterAutomatedBackupsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, b := range page.DBClusterAutomatedBackups {
+				name := sv(b.DBClusterIdentifier)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSClusterAutoBackup, NativeID: sv(b.DBClusterAutomatedBackupsArn),
+					Name: &name, Region: &region, Status: b.Status,
+					AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeTenantDatabases", acct, region, st,
+		rds.NewDescribeTenantDatabasesPaginator(client, &rds.DescribeTenantDatabasesInput{}),
+		func(page *rds.DescribeTenantDatabasesOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, td := range page.TenantDatabases {
+				name := sv(td.TenantDBName)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSTenantDatabase, NativeID: sv(td.TenantDatabaseARN),
+					Name: &name, Region: &region, Status: td.Status,
+					TagsJSON: awsTagsJSON(td.TagList), AttributesJSON: mustJSON(td),
+					DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+func scanDBSnapshotTenantDatabases(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeDBSnapshotTenantDatabases", acct, region, st,
+		rds.NewDescribeDBSnapshotTenantDatabasesPaginator(client, &rds.DescribeDBSnapshotTenantDatabasesInput{}),
+		func(page *rds.DescribeDBSnapshotTenantDatabasesOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, td := range page.DBSnapshotTenantDatabases {
+				name := sv(td.TenantDBName)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSSnapshotTenantDatabase, NativeID: sv(td.DBSnapshotTenantDatabaseARN),
+					Name: &name, Region: &region,
+					TagsJSON: awsTagsJSON(td.TagList), AttributesJSON: mustJSON(td),
+					DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
+}
+
+// scanBlueGreenDeployments discovers RDS blue/green deployment workflows. These
+// reference a source + target environment but carry no clean single parent ARN,
+// so they are leaf resources.
+func scanBlueGreenDeployments(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	return rdsPageScan(
+		ctx, "rds:DescribeBlueGreenDeployments", acct, region, st,
+		rds.NewDescribeBlueGreenDeploymentsPaginator(client, &rds.DescribeBlueGreenDeploymentsInput{}),
+		func(page *rds.DescribeBlueGreenDeploymentsOutput) []*store.Resource {
+			var out []*store.Resource
+			for _, d := range page.BlueGreenDeployments {
+				id := sv(d.BlueGreenDeploymentIdentifier)
+				name := sv(d.BlueGreenDeploymentName)
+				out = append(out, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRDSDeployment, NativeID: rdsARN(region, acct.ID, "deployment", id),
+					Name: &name, Region: &region, CreatedAt: tp(d.CreateTime),
+					Status: d.Status, TagsJSON: awsTagsJSON(d.TagList),
+					AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				})
+			}
+			return out
+		},
+	)
 }

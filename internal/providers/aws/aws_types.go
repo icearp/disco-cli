@@ -220,6 +220,17 @@ const (
 	TypeRDSGlobalCluster           = "aws:rds:global-cluster"
 	TypeRDSIntegration             = "aws:rds:integration"
 	TypeRDSOptionGroup             = "aws:rds:option-group"
+	// RDS — Service-Reference-only types (no CloudFormation twin); segments
+	// mirror the SR keys and match via the algorithmic PascalCase fold.
+	TypeRDSSnapshot               = "aws:rds:snapshot"
+	TypeRDSClusterSnapshot        = "aws:rds:cluster-snapshot"
+	TypeRDSClusterEndpoint        = "aws:rds:cluster-endpoint"
+	TypeRDSReservedInstance       = "aws:rds:ri"
+	TypeRDSAutoBackup             = "aws:rds:auto-backup"
+	TypeRDSClusterAutoBackup      = "aws:rds:cluster-auto-backup"
+	TypeRDSTenantDatabase         = "aws:rds:tenant-database"
+	TypeRDSSnapshotTenantDatabase = "aws:rds:snapshot-tenant-database"
+	TypeRDSDeployment             = "aws:rds:deployment"
 	// DynamoDB
 	TypeDynamoDBTable       = "aws:dynamodb:table"
 	TypeDynamoDBGlobalTable = "aws:dynamodb:global-table"
@@ -1560,6 +1571,16 @@ const (
 	TypeRedshiftEventSubscription     = "aws:redshift:event-subscription"
 	TypeRedshiftIntegration           = "aws:redshift:integration"
 	TypeRedshiftScheduledAction       = "aws:redshift:scheduled-action"
+	// Redshift — Service-Reference-only types (no CloudFormation twin);
+	// segments mirror the SR keys.
+	TypeRedshiftSnapshot             = "aws:redshift:snapshot"
+	TypeRedshiftSnapshotSchedule     = "aws:redshift:snapshot-schedule"
+	TypeRedshiftSnapshotCopyGrant    = "aws:redshift:snapshot-copy-grant"
+	TypeRedshiftUsageLimit           = "aws:redshift:usage-limit"
+	TypeRedshiftHsmClientCertificate = "aws:redshift:hsm-client-certificate"
+	TypeRedshiftHsmConfiguration     = "aws:redshift:hsm-configuration"
+	TypeRedshiftIdcApplication       = "aws:redshift:redshift-idc-application"
+	TypeRedshiftDatashare            = "aws:redshift:datashare"
 	// OpenSearch (opensearch_scanners.go, opensearch_resolvers.go)
 	TypeOpenSearchDomain = "aws:opensearch:domain"
 	// DocumentDB (docdb_scanners.go, docdb_resolvers.go)
@@ -1799,9 +1820,12 @@ const (
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"
 	TypeRolesAnywhereTrustAnchor = "aws:roles-anywhere:trust-anchor"
 	// RedshiftServerless (redshiftserverless_scanners.go).
-	TypeRedshiftServerlessNamespace = "aws:redshift-serverless:namespace"
-	TypeRedshiftServerlessSnapshot  = "aws:redshift-serverless:snapshot"
-	TypeRedshiftServerlessWorkgroup = "aws:redshift-serverless:workgroup"
+	TypeRedshiftServerlessNamespace        = "aws:redshift-serverless:namespace"
+	TypeRedshiftServerlessSnapshot         = "aws:redshift-serverless:snapshot"
+	TypeRedshiftServerlessWorkgroup        = "aws:redshift-serverless:workgroup"
+	TypeRedshiftServerlessEndpointAccess   = "aws:redshift-serverless:endpoint-access"
+	TypeRedshiftServerlessRecoveryPoint    = "aws:redshift-serverless:recovery-point"
+	TypeRedshiftServerlessManagedWorkgroup = "aws:redshift-serverless:managed-workgroup"
 	// Rekognition (rekognition_scanners.go).
 	TypeRekognitionCollection      = "aws:rekognition:collection"
 	TypeRekognitionProject         = "aws:rekognition:project"

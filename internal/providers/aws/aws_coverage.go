@@ -81,6 +81,21 @@ func (coverageProvider) Aliases() map[string]string {
 		// Reference catalog (no CFN PascalCase twin), spelled hyphenated, so the
 		// algorithmic key can't reproduce it; alias to the exact SR key.
 		TypeQBusinessChatResponseConfiguration: "AWS::qbusiness::chat-response-configuration",
+		// RDS — Service-Reference-only types spelled lower-cased + hyphenated
+		// (no CFN PascalCase twin), so the algorithmic key (which strips
+		// hyphens) can't reproduce them; alias to the exact SR key.
+		TypeRDSAutoBackup:             "AWS::rds::auto-backup",
+		TypeRDSClusterAutoBackup:      "AWS::rds::cluster-auto-backup",
+		TypeRDSClusterEndpoint:        "AWS::rds::cluster-endpoint",
+		TypeRDSClusterSnapshot:        "AWS::rds::cluster-snapshot",
+		TypeRDSTenantDatabase:         "AWS::rds::tenant-database",
+		TypeRDSSnapshotTenantDatabase: "AWS::rds::snapshot-tenant-database",
+		// Redshift Serverless — Service-Reference-only types; managed-workgroup
+		// is hyphenated and endpoint-access / recovery-point are camelCased in
+		// the SR catalog, none of which the algorithmic key reproduces.
+		TypeRedshiftServerlessEndpointAccess:   "AWS::redshift-serverless::endpointAccess",
+		TypeRedshiftServerlessRecoveryPoint:    "AWS::redshift-serverless::recoveryPoint",
+		TypeRedshiftServerlessManagedWorkgroup: "AWS::redshift-serverless::managed-workgroup",
 		// IAM.
 		TypeIAMUser:              "AWS::IAM::User",
 		TypeIAMGroup:             "AWS::IAM::Group",

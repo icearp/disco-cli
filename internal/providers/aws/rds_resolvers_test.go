@@ -4,7 +4,210 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
+
+const rdsTestRegion = "us-east-1"
+
+// --- Service-Reference-only RDS types (snapshots, backups, tenant DBs) ---
+
+func TestResolveRDSSnapshotRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance,
+		rdsARN(rdsTestRegion, acct.ID, "db", "my-db"), rdsTestRegion, "{}")
+	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshot,
+		rdsARN(rdsTestRegion, acct.ID, "snapshot", "snap-1"), rdsTestRegion,
+		mustJSON(rdstypes.DBSnapshot{DBInstanceIdentifier: ptrStr("my-db")}))
+	if err := resolveRDSSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSSnapshotRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(snapID)
+	assertRelationship(t, rels, snapID, instID, store.RelAttachedTo)
+}
+
+func TestResolveRDSSnapshotRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	// No source instance present; edge must not be emitted.
+	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshot,
+		rdsARN(rdsTestRegion, acct.ID, "snapshot", "snap-1"), rdsTestRegion,
+		mustJSON(rdstypes.DBSnapshot{DBInstanceIdentifier: ptrStr("gone")}))
+	if err := resolveRDSSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSSnapshotRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(snapID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSClusterSnapshotRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		rdsARN(rdsTestRegion, acct.ID, "cluster", "my-cluster"), rdsTestRegion, "{}")
+	csID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterSnapshot,
+		rdsARN(rdsTestRegion, acct.ID, "cluster-snapshot", "cs-1"), rdsTestRegion,
+		mustJSON(rdstypes.DBClusterSnapshot{DBClusterIdentifier: ptrStr("my-cluster")}))
+	if err := resolveRDSClusterSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterSnapshotRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(csID)
+	assertRelationship(t, rels, csID, clID, store.RelAttachedTo)
+}
+
+func TestResolveRDSClusterSnapshotRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	csID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterSnapshot,
+		rdsARN(rdsTestRegion, acct.ID, "cluster-snapshot", "cs-1"), rdsTestRegion, "{}")
+	if err := resolveRDSClusterSnapshotRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterSnapshotRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(csID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSClusterEndpointRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
+		rdsARN(rdsTestRegion, acct.ID, "cluster", "my-cluster"), rdsTestRegion, "{}")
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterEndpoint,
+		"arn:aws:rds:us-east-1:123456789012:cluster-endpoint:my-ep", rdsTestRegion,
+		mustJSON(rdstypes.DBClusterEndpoint{DBClusterIdentifier: ptrStr("my-cluster")}))
+	if err := resolveRDSClusterEndpointRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterEndpointRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(epID)
+	assertRelationship(t, rels, epID, clID, store.RelAttachedTo)
+}
+
+func TestResolveRDSClusterEndpointRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterEndpoint,
+		"arn:aws:rds:us-east-1:123456789012:cluster-endpoint:my-ep", rdsTestRegion, "{}")
+	if err := resolveRDSClusterEndpointRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterEndpointRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(epID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSAutoBackupRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	instARN := rdsARN(rdsTestRegion, acct.ID, "db", "my-db")
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance, instARN, rdsTestRegion, "{}")
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSAutoBackup,
+		"arn:aws:rds:us-east-1:123456789012:auto-backup:ab-1", rdsTestRegion,
+		mustJSON(rdstypes.DBInstanceAutomatedBackup{DBInstanceArn: ptrStr(instARN)}))
+	if err := resolveRDSAutoBackupRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSAutoBackupRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(abID)
+	assertRelationship(t, rels, abID, instID, store.RelAttachedTo)
+}
+
+func TestResolveRDSAutoBackupRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSAutoBackup,
+		"arn:aws:rds:us-east-1:123456789012:auto-backup:ab-1", rdsTestRegion, "{}")
+	if err := resolveRDSAutoBackupRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSAutoBackupRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(abID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSClusterAutoBackupRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	clARN := rdsARN(rdsTestRegion, acct.ID, "cluster", "my-cluster")
+	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster, clARN, rdsTestRegion, "{}")
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterAutoBackup,
+		"arn:aws:rds:us-east-1:123456789012:cluster-auto-backup:cab-1", rdsTestRegion,
+		mustJSON(rdstypes.DBClusterAutomatedBackup{DBClusterArn: ptrStr(clARN)}))
+	if err := resolveRDSClusterAutoBackupRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterAutoBackupRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(abID)
+	assertRelationship(t, rels, abID, clID, store.RelAttachedTo)
+}
+
+func TestResolveRDSClusterAutoBackupRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterAutoBackup,
+		"arn:aws:rds:us-east-1:123456789012:cluster-auto-backup:cab-1", rdsTestRegion, "{}")
+	if err := resolveRDSClusterAutoBackupRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSClusterAutoBackupRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(abID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSTenantDatabaseRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	instID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance,
+		rdsARN(rdsTestRegion, acct.ID, "db", "my-db"), rdsTestRegion, "{}")
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSTenantDatabase,
+		"arn:aws:rds:us-east-1:123456789012:tenant-database:td-1", rdsTestRegion,
+		mustJSON(rdstypes.TenantDatabase{DBInstanceIdentifier: ptrStr("my-db")}))
+	if err := resolveRDSTenantDatabaseRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSTenantDatabaseRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(tdID)
+	assertRelationship(t, rels, tdID, instID, store.RelAttachedTo)
+}
+
+func TestResolveRDSTenantDatabaseRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSTenantDatabase,
+		"arn:aws:rds:us-east-1:123456789012:tenant-database:td-1", rdsTestRegion, "{}")
+	if err := resolveRDSTenantDatabaseRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSTenantDatabaseRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(tdID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRDSSnapshotTenantDatabaseRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshot,
+		rdsARN(rdsTestRegion, acct.ID, "snapshot", "snap-1"), rdsTestRegion, "{}")
+	stdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshotTenantDatabase,
+		"arn:aws:rds:us-east-1:123456789012:snapshot-tenant-database:std-1", rdsTestRegion,
+		mustJSON(rdstypes.DBSnapshotTenantDatabase{DBSnapshotIdentifier: ptrStr("snap-1")}))
+	if err := resolveRDSSnapshotTenantDatabaseRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSSnapshotTenantDatabaseRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(stdID)
+	assertRelationship(t, rels, stdID, snapID, store.RelAttachedTo)
+}
+
+func TestResolveRDSSnapshotTenantDatabaseRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	stdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshotTenantDatabase,
+		"arn:aws:rds:us-east-1:123456789012:snapshot-tenant-database:std-1", rdsTestRegion, "{}")
+	if err := resolveRDSSnapshotTenantDatabaseRefs(acct, st); err != nil {
+		t.Fatalf("resolveRDSSnapshotTenantDatabaseRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(stdID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
 
 // --- DB Instance ---
 

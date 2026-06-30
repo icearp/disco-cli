@@ -56,6 +56,34 @@ func init() {
 		EdgeDecl{TypeRDSIntegration, TypeRedshiftServerlessNamespace, store.RelAttachedTo},
 		EdgeDecl{TypeRDSIntegration, TypeKMSKey, store.RelUses},
 	)
+	registerResolver(
+		resolveRDSSnapshotRefs,
+		EdgeDecl{TypeRDSSnapshot, TypeRDSDBInstance, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSClusterSnapshotRefs,
+		EdgeDecl{TypeRDSClusterSnapshot, TypeRDSDBCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSClusterEndpointRefs,
+		EdgeDecl{TypeRDSClusterEndpoint, TypeRDSDBCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSAutoBackupRefs,
+		EdgeDecl{TypeRDSAutoBackup, TypeRDSDBInstance, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSClusterAutoBackupRefs,
+		EdgeDecl{TypeRDSClusterAutoBackup, TypeRDSDBCluster, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSTenantDatabaseRefs,
+		EdgeDecl{TypeRDSTenantDatabase, TypeRDSDBInstance, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveRDSSnapshotTenantDatabaseRefs,
+		EdgeDecl{TypeRDSSnapshotTenantDatabase, TypeRDSSnapshot, store.RelAttachedTo},
+	)
 }
 
 // resolveRDSIntegrationRefs wires zero-ETL integrations to their source
@@ -434,6 +462,251 @@ func resolveDBShardGroupRelationships(acct *account, st *store.Store) error {
 				rdsARN(sv(r.Region), acct.ID, "cluster", *attrs.DBClusterIdentifier))
 			if err := st.UpsertRelationship(r.ID, clusterID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-shard-group→cluster relationship: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSSnapshotRefs links each DB snapshot to its source DB instance.
+// FK-safe: the source instance may be deleted, so the edge is emitted only when
+// the instance is present in the store.
+func resolveRDSSnapshotRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSSnapshot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	instSet, err := scannedIDSet(acct, st, TypeRDSDBInstance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBInstanceIdentifier *string `json:"DBInstanceIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.DBInstanceIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBInstance, rdsARN(sv(r.Region), acct.ID, "db", id))
+			if instSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-snapshot→db-instance: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSClusterSnapshotRefs links each DB cluster snapshot to its source
+// DB cluster (FK-safe; source cluster may be deleted).
+func resolveRDSClusterSnapshotRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSClusterSnapshot}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBClusterIdentifier *string `json:"DBClusterIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.DBClusterIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBCluster, rdsARN(sv(r.Region), acct.ID, "cluster", id))
+			if clusterSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-cluster-snapshot→db-cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSClusterEndpointRefs links each custom cluster endpoint to its DB cluster.
+func resolveRDSClusterEndpointRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSClusterEndpoint}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBClusterIdentifier *string `json:"DBClusterIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.DBClusterIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBCluster, rdsARN(sv(r.Region), acct.ID, "cluster", id))
+			if clusterSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-cluster-endpoint→db-cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSAutoBackupRefs links each automated instance backup to its source
+// DB instance via the verbatim DBInstanceArn. FK-safe: the instance is often
+// deleted (orphaned backups are the common case), so emit only when present.
+func resolveRDSAutoBackupRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSAutoBackup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	instSet, err := scannedIDSet(acct, st, TypeRDSDBInstance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBInstanceArn *string `json:"DBInstanceArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if arn := sv(attrs.DBInstanceArn); arn != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBInstance, arn)
+			if instSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-auto-backup→db-instance: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSClusterAutoBackupRefs links each automated cluster backup to its
+// source DB cluster via the verbatim DBClusterArn (FK-safe; often orphaned).
+func resolveRDSClusterAutoBackupRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSClusterAutoBackup}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	clusterSet, err := scannedIDSet(acct, st, TypeRDSDBCluster)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBClusterArn *string `json:"DBClusterArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if arn := sv(attrs.DBClusterArn); arn != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBCluster, arn)
+			if clusterSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-cluster-auto-backup→db-cluster: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSTenantDatabaseRefs links each tenant database to its host DB instance.
+func resolveRDSTenantDatabaseRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSTenantDatabase}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	instSet, err := scannedIDSet(acct, st, TypeRDSDBInstance)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBInstanceIdentifier *string `json:"DBInstanceIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.DBInstanceIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSDBInstance, rdsARN(sv(r.Region), acct.ID, "db", id))
+			if instSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-tenant-database→db-instance: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRDSSnapshotTenantDatabaseRefs links each snapshot tenant database to
+// its parent DB snapshot (rebuilt from DBSnapshotIdentifier). FK-safe.
+func resolveRDSSnapshotTenantDatabaseRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRDSSnapshotTenantDatabase}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	snapSet, err := scannedIDSet(acct, st, TypeRDSSnapshot)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			DBSnapshotIdentifier *string `json:"DBSnapshotIdentifier"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.DBSnapshotIdentifier); id != "" {
+			tgt := store.ResourceID("aws", acct.ID, TypeRDSSnapshot, rdsARN(sv(r.Region), acct.ID, "snapshot", id))
+			if snapSet[tgt] {
+				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert rds-snapshot-tenant-database→snapshot: %w", err)
+				}
 			}
 		}
 	}

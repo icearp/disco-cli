@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
+	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 )
 
 func TestResolveRSSNamespaceRefs(t *testing.T) {
@@ -62,4 +63,61 @@ func TestResolveRSSSnapshotRefs(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(snID)
 	assertRelationship(t, rels, snID, nsID, store.RelAttachedTo)
 	assertRelationship(t, rels, snID, kID, store.RelUses)
+}
+
+func TestResolveRSSEndpointAccessRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	wgARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:workgroup/wg-guid", testRegion, acct.ID)
+	wgID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessWorkgroup, wgARN, testRegion,
+		mustJSON(rsstypes.Workgroup{WorkgroupName: ptrStr("wg1")}))
+	epARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:managedvpcendpoint/ep-1", testRegion, acct.ID)
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessEndpointAccess, epARN, testRegion,
+		mustJSON(rsstypes.EndpointAccess{WorkgroupName: ptrStr("wg1")}))
+	if err := resolveRSSEndpointAccessRefs(acct, st); err != nil {
+		t.Fatalf("resolveRSSEndpointAccessRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(epID)
+	assertRelationship(t, rels, epID, wgID, store.RelAttachedTo)
+}
+
+func TestResolveRSSEndpointAccessRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	epARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:managedvpcendpoint/ep-1", testRegion, acct.ID)
+	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessEndpointAccess, epARN, testRegion, "{}")
+	if err := resolveRSSEndpointAccessRefs(acct, st); err != nil {
+		t.Fatalf("resolveRSSEndpointAccessRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(epID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRSSRecoveryPointRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	nsARN := rssNamespaceARN(testRegion, acct.ID, "ns1")
+	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, "{}")
+	rpARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:recovery-point/rp-1", testRegion, acct.ID)
+	rpID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessRecoveryPoint, rpARN, testRegion,
+		mustJSON(rsstypes.RecoveryPoint{NamespaceArn: ptrStr(nsARN)}))
+	if err := resolveRSSRecoveryPointRefs(acct, st); err != nil {
+		t.Fatalf("resolveRSSRecoveryPointRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(rpID)
+	assertRelationship(t, rels, rpID, nsID, store.RelAttachedTo)
+}
+
+func TestResolveRSSRecoveryPointRefs_Empty(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	rpARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:recovery-point/rp-1", testRegion, acct.ID)
+	rpID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessRecoveryPoint, rpARN, testRegion, "{}")
+	if err := resolveRSSRecoveryPointRefs(acct, st); err != nil {
+		t.Fatalf("resolveRSSRecoveryPointRefs: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(rpID); len(rels) != 0 {
+		t.Fatalf("expected 0 relationships, got %d", len(rels))
+	}
 }
