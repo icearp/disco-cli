@@ -929,6 +929,20 @@ func (coverageProvider) Skips() map[string]string {
 		// procurement-portal-preference is an account billing-preference singleton.
 		"AWS::invoicing::procurement-portal-preference": "singleton: an account procurement-portal billing preference, not an enumerable resource",
 
+		// iot — keys that duplicate types disco already scans, MQTT pub/sub
+		// concepts that aren't enumerable resources, or a separate data-plane API.
+		"AWS::iot::cacert":            "duplicate: scanned as aws:iot:ca-certificate",
+		"AWS::iot::cert":              "duplicate: scanned as aws:iot:certificate",
+		"AWS::iot::client":            "not a resource: an MQTT client connection, not an enumerable resource",
+		"AWS::iot::destination":       "duplicate: scanned as aws:iot:topic-rule-destination",
+		"AWS::iot::dynamicthinggroup": "duplicate: dynamic thing groups are returned by ListThingGroups, scanned as aws:iot:thing-group",
+		"AWS::iot::package":           "duplicate: scanned as aws:iot:software-package",
+		"AWS::iot::packageversion":    "duplicate: scanned as aws:iot:software-package-version",
+		"AWS::iot::rule":              "duplicate: scanned as aws:iot:topic-rule",
+		"AWS::iot::topic":             "not a resource: an MQTT topic, not an enumerable resource",
+		"AWS::iot::topicfilter":       "not a resource: an MQTT topic filter, not an enumerable resource",
+		"AWS::iot::tunnel":            "separate API: IoT Secure Tunneling tunnels live in the iotsecuretunneling data-plane SDK, not the iot control plane",
+
 		// iotanalytics — AWS ended support for AWS IoT Analytics (December 2025);
 		// no live resources to scan.
 		"AWS::iotanalytics::channel":   "discontinued: AWS IoT Analytics reached end of support in December 2025",
@@ -984,6 +998,10 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::iq::seller":                "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
 		"AWS::iq::token":                 "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
 		"AWS::iq-permission::permission": "no SDK: AWS IQ (freelance marketplace) publishes no aws-sdk-go-v2 module",
+
+		// ivs — Composition lives in the separate ivs-realtime SDK and is a
+		// transient live-session artifact, not a persistent resource.
+		"AWS::ivs::Composition": "ephemeral: an IVS real-time stage composition (ivs-realtime), a transient live-session artifact",
 
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an

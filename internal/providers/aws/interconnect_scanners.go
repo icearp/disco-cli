@@ -18,6 +18,7 @@ func init() {
 		fn:   scanInterconnect,
 		emits: []coverage.TypeDecl{
 			{Service: "interconnect", DiscoType: TypeInterconnectConnection, Leaf: true},
+			{Service: "interconnect", DiscoType: TypeInterconnectEnvironment, Leaf: true},
 		},
 	})
 }
@@ -72,5 +73,46 @@ func scanInterconnect(ctx context.Context, acct *account, region string, st *sto
 		}
 		nextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "interconnect connections")
+	ct, ci, cerr := upsertBatch(st, batch, "interconnect connections")
+	if cerr != nil {
+		return ct, ci, cerr
+	}
+
+	et, ei, eerr := scanInterconnectEnvironments(ctx, client, acct, region, st, scanID)
+	return ct + et, ci + ei, eerr
+}
+
+// scanInterconnectEnvironments enumerates the connection environments available
+// to the account. The Environment shape carries no AWS-issued ARN, so the
+// NativeID is synthesized from EnvironmentId.
+func scanInterconnectEnvironments(ctx context.Context, client *interconnect.Client, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := interconnect.NewListEnvironmentsPaginator(client, &interconnect.ListEnvironmentsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isInterconnectClosedToAccount(perr) {
+				return 0, 0, nil
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "interconnect:ListEnvironments", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("interconnect:ListEnvironments: %w", perr)
+		}
+		for _, e := range out.Environments {
+			id := sv(e.EnvironmentId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:interconnect:%s:%s:environment/%s", region, acct.ID, id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeInterconnectEnvironment, NativeID: arn,
+				Name: &id, Region: &region,
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "interconnect environments")
 }

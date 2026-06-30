@@ -15,6 +15,7 @@ func init() {
 		name: "aws:ivs",
 		fn:   scanIVS,
 		emits: []coverage.TypeDecl{
+			{Service: "ivs", DiscoType: TypeIVSAdConfiguration, Leaf: true},
 			{Service: "ivs", DiscoType: TypeIVSChannel},
 			{Service: "ivs", DiscoType: TypeIVSEncoderConfiguration, Leaf: true},
 			{Service: "ivs", DiscoType: TypeIVSIngestConfiguration},
@@ -30,6 +31,7 @@ func init() {
 }
 
 type ivsAPI interface {
+	ListAdConfigurations(context.Context, *ivs.ListAdConfigurationsInput, ...func(*ivs.Options)) (*ivs.ListAdConfigurationsOutput, error)
 	ListChannels(context.Context, *ivs.ListChannelsInput, ...func(*ivs.Options)) (*ivs.ListChannelsOutput, error)
 	ListPlaybackKeyPairs(context.Context, *ivs.ListPlaybackKeyPairsInput, ...func(*ivs.Options)) (*ivs.ListPlaybackKeyPairsOutput, error)
 	ListPlaybackRestrictionPolicies(context.Context, *ivs.ListPlaybackRestrictionPoliciesInput, ...func(*ivs.Options)) (*ivs.ListPlaybackRestrictionPoliciesOutput, error)
@@ -67,6 +69,7 @@ func scanIVS(ctx context.Context, acct *account, region string, st *store.Store,
 	}
 
 	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanIVSAdConfigurations(ctx, c1, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIVSPlaybackKeyPairs(ctx, c1, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIVSPlaybackRestrictionPolicies(ctx, c1, acct, region, st, scanID) },
 		func() (int, int, error) { return scanIVSRecordingConfigurations(ctx, c1, acct, region, st, scanID) },
@@ -84,6 +87,37 @@ func scanIVS(ctx context.Context, acct *account, region string, st *store.Store,
 		inserted += i
 	}
 	return total, inserted, nil
+}
+
+func scanIVSAdConfigurations(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ivs.NewListAdConfigurationsPaginator(client, &ivs.ListAdConfigurationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "ivs:ListAdConfigurations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("ivs:ListAdConfigurations: %w", perr)
+		}
+		for _, a := range out.AdConfigurations {
+			arn := sv(a.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.Name)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeIVSAdConfiguration, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "ivs ad-configurations")
 }
 
 func scanIVSChannels(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {

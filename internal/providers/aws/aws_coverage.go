@@ -699,6 +699,10 @@ func (coverageProvider) Aliases() map[string]string {
 		// KinesisVideo — disco "kinesis-video" segment vs CFN "KinesisVideo".
 		TypeKinesisVideoStream:           "AWS::KinesisVideo::Stream",
 		TypeKinesisVideoSignalingChannel: "AWS::KinesisVideo::SignalingChannel",
+		// IVS — the Service Reference spells this resource with an internal hyphen
+		// (Ad-Configuration), which the algorithmic key collapses to AdConfiguration;
+		// bridge the exact catalog spelling so the direct match holds.
+		TypeIVSAdConfiguration: "AWS::ivs::Ad-Configuration",
 		// IVSChat — disco "ivs-chat" segment vs CFN "IVSChat".
 		TypeIVSChatRoom:                 "AWS::IVSChat::Room",
 		TypeIVSChatLoggingConfiguration: "AWS::IVSChat::LoggingConfiguration",

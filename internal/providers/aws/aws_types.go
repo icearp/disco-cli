@@ -156,6 +156,10 @@ const (
 	TypeIoTJobTemplate          = "aws:iot:job-template"
 	TypeIoTFleetMetric          = "aws:iot:fleet-metric"
 	TypeIoTProvisioningTemplate = "aws:iot:provisioning-template"
+	TypeIoTIndex                = "aws:iot:index"
+	TypeIoTJob                  = "aws:iot:job"
+	TypeIoTOTAUpdate            = "aws:iot:ota-update"
+	TypeIoTStream               = "aws:iot:stream"
 	// IoT — Software (iot_software_scanners.go)
 	TypeIoTSoftwarePackage        = "aws:iot:software-package"
 	TypeIoTSoftwarePackageVersion = "aws:iot:software-package-version"
@@ -827,6 +831,7 @@ const (
 	TypeWSWUserAccessLoggingSettings = "aws:workspaces-web:user-access-logging-settings"
 	TypeWSWUserSettings              = "aws:workspaces-web:user-settings"
 	// IVS (ivs_scanners.go)
+	TypeIVSAdConfiguration           = "aws:ivs:ad-configuration"
 	TypeIVSChannel                   = "aws:ivs:channel"
 	TypeIVSEncoderConfiguration      = "aws:ivs:encoder-configuration"
 	TypeIVSIngestConfiguration       = "aws:ivs:ingest-configuration"
@@ -1095,7 +1100,8 @@ const (
 	// InternetMonitor (internetmonitor_scanners.go)
 	TypeInternetMonitorMonitor = "aws:internet-monitor:monitor"
 	// Interconnect (interconnect_scanners.go)
-	TypeInterconnectConnection = "aws:interconnect:connection"
+	TypeInterconnectConnection  = "aws:interconnect:connection"
+	TypeInterconnectEnvironment = "aws:interconnect:environment"
 	// IdentityStore extras
 	TypeIdentityStoreGroupMembership = "aws:identitystore:group-membership"
 	// HealthLake (healthlake_scanners.go)
