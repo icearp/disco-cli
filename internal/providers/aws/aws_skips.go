@@ -849,6 +849,24 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::forecast::predictorBacktestExportJob": "ephemeral: a predictor backtest export job run, not a persistent resource",
 		"AWS::forecast::whatIfForecastExport":       "ephemeral: a what-if forecast export job run, not a persistent resource",
 
+		// health — DescribeEvents returns account incident/notification events
+		// (Business+ support plan), not enumerable resources. health-agent has no
+		// aws-sdk-go-v2 module (the service publishes no Go SDK). healthlake::datastore
+		// is the SR spelling of the FHIR datastore disco scans. honeycode was shut
+		// down by AWS in February 2024 — no live resources to scan.
+		"AWS::health::event":                    "ephemeral: an AWS Health incident/notification event (DescribeEvents), not an enumerable resource",
+		"AWS::health-agent::Agent":              "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::health-agent::Domain":             "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::health-agent::Integration":        "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::health-agent::PatientInsightsJob": "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::health-agent::Session":            "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::health-agent::Subscription":       "no SDK: AWS health-agent publishes no aws-sdk-go-v2 module",
+		"AWS::healthlake::datastore":            "duplicate: scanned as aws:health-lake:fhir-datastore (ListFHIRDatastores)",
+		"AWS::honeycode::screen":                "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
+		"AWS::honeycode::screen-automation":     "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
+		"AWS::honeycode::table":                 "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
+		"AWS::honeycode::workbook":              "discontinued: Amazon Honeycode was shut down by AWS in February 2024",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
