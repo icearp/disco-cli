@@ -1770,9 +1770,14 @@ const (
 	TypeKafkaConnectCustomPlugin        = "aws:kafka-connect:custom-plugin"
 	TypeKafkaConnectWorkerConfiguration = "aws:kafka-connect:worker-configuration"
 	// Kendra (kendra_scanners.go).
-	TypeKendraDataSource = "aws:kendra:data-source"
-	TypeKendraFaq        = "aws:kendra:faq"
-	TypeKendraIndex      = "aws:kendra:index"
+	TypeKendraAccessControlConfiguration = "aws:kendra:access-control-configuration"
+	TypeKendraDataSource                 = "aws:kendra:data-source"
+	TypeKendraExperience                 = "aws:kendra:experience"
+	TypeKendraFaq                        = "aws:kendra:faq"
+	TypeKendraFeaturedResultsSet         = "aws:kendra:featured-results-set"
+	TypeKendraIndex                      = "aws:kendra:index"
+	TypeKendraQuerySuggestionsBlockList  = "aws:kendra:query-suggestions-block-list"
+	TypeKendraThesaurus                  = "aws:kendra:thesaurus"
 	// KinesisAnalyticsV2 (kinesisanalyticsv2_scanners.go).
 	TypeKAV2Application                 = "aws:kinesis-analytics-v2:application"
 	TypeKAV2ApplicationCloudWatchLogOpt = "aws:kinesis-analytics-v2:application-cloud-watch-logging-option"

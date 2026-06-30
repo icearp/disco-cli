@@ -747,6 +747,13 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeLaunchWizardDeployment: "AWS::LaunchWizard::Deployment",
 		// KendraRanking — disco "kendra-ranking" segment vs CFN "KendraRanking".
 		TypeKendraRankingExecutionPlan: "AWS::KendraRanking::ExecutionPlan",
+		// Kendra — these per-index children are Service-Reference-only (no CFN
+		// twin) and SR spells them hyphenated, which the PascalCase
+		// AlgorithmicKey (AccessControlConfiguration) can't match lowercase-exact.
+		// (experience/thesaurus are single-word and match algorithmically.)
+		TypeKendraAccessControlConfiguration: "AWS::kendra::access-control-configuration",
+		TypeKendraFeaturedResultsSet:         "AWS::kendra::featured-results-set",
+		TypeKendraQuerySuggestionsBlockList:  "AWS::kendra::query-suggestions-block-list",
 		// IoTCoreDeviceAdvisor — disco "iot-core-device-advisor" segment vs CFN "IoTCoreDeviceAdvisor".
 		TypeIoTDeviceAdvisorSuiteDefinition: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition",
 		// IoTManagedIntegrations — the Service Reference catalog spells these
