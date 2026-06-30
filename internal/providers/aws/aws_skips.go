@@ -1059,6 +1059,55 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:kms:key.
 		"AWS::KMS::ReplicaKey": "duplicate: multi-region replica keys are returned by ListKeys, scanned as aws:kms:key",
 
+		// lakeformation — Permissions is the principal grant scanned as
+		// aws:lakeformation:principal-permissions; TagAssociation is the LF-tag↔
+		// resource binding (an association edge), not a standalone resource.
+		"AWS::LakeFormation::Permissions":    "duplicate: scanned as aws:lakeformation:principal-permissions",
+		"AWS::LakeFormation::TagAssociation": "association: the LF-tag↔resource binding, not an enumerable resource",
+
+		// lambda — code-signing config / function alias / function version / layer
+		// are scanned under their dedicated aws:lambda:* types; durable execution is
+		// an ephemeral invocation run; microvmImage / networkConnector are internal
+		// Service-Reference action groupings with no SDK list op.
+		"AWS::lambda::code signing config": "duplicate: scanned as aws:lambda:code-signing-config",
+		"AWS::lambda::function alias":      "duplicate: scanned as aws:lambda:alias",
+		"AWS::lambda::function version":    "duplicate: scanned as aws:lambda:version",
+		"AWS::lambda::layer":               "duplicate: Lambda layers are enumerated by version as aws:lambda:layer-version",
+		"AWS::lambda::durable execution":   "ephemeral: a Lambda durable-execution invocation run, not a persistent resource",
+		"AWS::lambda::microvmImage":        "not a resource: an internal Lambda microVM image, no SDK list op",
+		"AWS::lambda::networkConnector":    "not a resource: an internal Lambda network connector, no SDK list op",
+
+		// lex — bot alias / bot version are scanned (aws:lex:bot-alias / bot-version);
+		// channel / intent version / slottype version are Lex V1 (classic) sub-
+		// resources superseded by the Lex V2 surface disco scans.
+		"AWS::lex::bot alias":        "duplicate: scanned as aws:lex:bot-alias",
+		"AWS::lex::bot version":      "duplicate: scanned as aws:lex:bot-version",
+		"AWS::lex::channel":          "deprecated: a Lex V1 (classic) bot channel association, superseded by Lex V2",
+		"AWS::lex::intent version":   "deprecated: a Lex V1 (classic) intent version, superseded by Lex V2",
+		"AWS::lex::slottype version": "deprecated: a Lex V1 (classic) slot-type version, superseded by Lex V2",
+
+		// lightsail — container service / relational database / its snapshot are
+		// scanned (aws:lightsail:container / database / database-snapshot); the
+		// CloudFormation-stack and export-snapshot records are ephemeral migration
+		// records.
+		"AWS::lightsail::ContainerService":           "duplicate: scanned as aws:lightsail:container",
+		"AWS::lightsail::RelationalDatabase":         "duplicate: scanned as aws:lightsail:database",
+		"AWS::lightsail::RelationalDatabaseSnapshot": "duplicate: scanned as aws:lightsail:database-snapshot",
+		"AWS::lightsail::CloudFormationStackRecord":  "ephemeral: a Lightsail→CloudFormation export record, not a persistent resource",
+		"AWS::lightsail::ExportSnapshotRecord":       "ephemeral: a Lightsail snapshot-export record, not a persistent resource",
+
+		// logs — the anomaly detector is scanned as aws:logs:log-anomaly-detector.
+		"AWS::logs::anomaly-detector": "duplicate: scanned as aws:logs:log-anomaly-detector",
+
+		// lookoutmetrics / lookoutvision — AWS ended support for Amazon Lookout for
+		// Metrics (October 2025) and the aws-sdk-go-v2 lookoutvision client marks the
+		// service deprecated ("no longer available for use"). No live resources.
+		"AWS::lookoutmetrics::Alert":           "discontinued: Amazon Lookout for Metrics reached end of support in October 2025",
+		"AWS::lookoutmetrics::AnomalyDetector": "discontinued: Amazon Lookout for Metrics reached end of support in October 2025",
+		"AWS::lookoutmetrics::MetricSet":       "discontinued: Amazon Lookout for Metrics reached end of support in October 2025",
+		"AWS::lookoutvision::model":            "discontinued: Amazon Lookout for Vision is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::lookoutvision::project":          "discontinued: Amazon Lookout for Vision is deprecated and no longer available for use (SDK service marked deprecated)",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
