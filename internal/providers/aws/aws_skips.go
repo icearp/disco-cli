@@ -1433,6 +1433,104 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::quicksight::ingestion":                  "ephemeral: a QuickSight dataset ingestion run, not a persistent resource",
 		"AWS::quicksight::limitsProfile":              "no SDK list op: QuickSight limits profiles are not enumerable",
 
+		// ram — customer-managed permissions are the customer subset of ListPermissions
+		// (scanned as aws:ram:permission); invitations are ephemeral.
+		"AWS::ram::customer-managed-permission": "duplicate: returned by ListPermissions, scanned as aws:ram:permission",
+		"AWS::ram::resource-share-invitation":   "ephemeral: a RAM resource-share invitation, not a persistent resource",
+
+		// rds — the SR abbreviations are duplicates of the covered aws:rds:* types;
+		// DBSecurityGroupIngress is an embedded rule on a security group.
+		"AWS::rds::cev":                    "duplicate: scanned as aws:rds:custom-db-engine-version",
+		"AWS::rds::cluster":                "duplicate: scanned as aws:rds:db-cluster",
+		"AWS::rds::cluster-pg":             "duplicate: scanned as aws:rds:db-cluster-parameter-group",
+		"AWS::rds::db":                     "duplicate: scanned as aws:rds:db-instance",
+		"AWS::rds::es":                     "duplicate: scanned as aws:rds:event-subscription",
+		"AWS::rds::og":                     "duplicate: scanned as aws:rds:option-group",
+		"AWS::rds::pg":                     "duplicate: scanned as aws:rds:db-parameter-group",
+		"AWS::rds::proxy":                  "duplicate: scanned as aws:rds:db-proxy",
+		"AWS::rds::proxy-endpoint":         "duplicate: scanned as aws:rds:db-proxy-endpoint",
+		"AWS::rds::secgrp":                 "duplicate: scanned as aws:rds:db-security-group",
+		"AWS::rds::shardgrp":               "duplicate: scanned as aws:rds:db-shard-group",
+		"AWS::rds::subgrp":                 "duplicate: scanned as aws:rds:db-subnet-group",
+		"AWS::rds::target-group":           "duplicate: scanned as aws:rds:db-proxy-target-group",
+		"AWS::RDS::DBSecurityGroupIngress": "embedded: an ingress rule on a DB security group, not a standalone resource",
+
+		// rds-data / rds-db — Data API and IAM DB-auth are query-only data-plane.
+		"AWS::rds-data::cluster": "data-plane: the RDS Data API endpoint, not a control-plane resource",
+		"AWS::rds-db::db-user":   "data-plane: an IAM DB-auth user (rds-db:connect), not a control-plane resource",
+
+		// redshift — parameter/subnet group SR spellings are dups; the EC2-Classic
+		// cluster security groups are retired; db users/groups/names are data-plane;
+		// namespace has no list op (register/deregister only); qev2 IDC application is
+		// the Q flavor of the scanned redshift-idc-application.
+		"AWS::redshift::parametergroup":                        "duplicate: scanned as aws:redshift:cluster-parameter-group",
+		"AWS::redshift::subnetgroup":                           "duplicate: scanned as aws:redshift:cluster-subnet-group",
+		"AWS::Redshift::ClusterSecurityGroup":                  "retired: EC2-Classic cluster security groups (EC2-Classic is decommissioned)",
+		"AWS::redshift::securitygroup":                         "retired: EC2-Classic cluster security groups (EC2-Classic is decommissioned)",
+		"AWS::Redshift::ClusterSecurityGroupIngress":           "embedded: an EC2-Classic security-group ingress rule, not a standalone resource",
+		"AWS::redshift::securitygroupingress-cidr":             "embedded: an EC2-Classic security-group ingress rule, not a standalone resource",
+		"AWS::redshift::securitygroupingress-ec2securitygroup": "embedded: an EC2-Classic security-group ingress rule, not a standalone resource",
+		"AWS::redshift::dbgroup":                               "data-plane: a Redshift database group, not a control-plane resource",
+		"AWS::redshift::dbname":                                "data-plane: a Redshift database name, not a control-plane resource",
+		"AWS::redshift::dbuser":                                "data-plane: a Redshift database user, not a control-plane resource",
+		"AWS::redshift::namespace":                             "no SDK list op: a provisioned-cluster namespace is registered, not enumerable",
+		"AWS::redshift::qev2idcapplication":                    "duplicate: the Q flavor of aws:redshift:redshift-idc-application (DescribeRedshiftIdcApplications)",
+
+		// redshift-data — the Data API is query-only data-plane.
+		"AWS::redshift-data::cluster":           "data-plane: the Redshift Data API, not a control-plane resource",
+		"AWS::redshift-data::managed-workgroup": "data-plane: the Redshift Data API, not a control-plane resource",
+		"AWS::redshift-data::workgroup":         "data-plane: the Redshift Data API, not a control-plane resource",
+
+		// resiliencehub — application/policy are dups of the covered app/resiliency-
+		// policy; service/system have no list op. resiliencehubv2 has no SDK module.
+		"AWS::resiliencehub::application":       "duplicate: scanned as aws:resilience-hub:app",
+		"AWS::resiliencehub::policy":            "duplicate: scanned as aws:resilience-hub:resiliency-policy",
+		"AWS::resiliencehub::service":           "no SDK list op: Resilience Hub services are not enumerable",
+		"AWS::resiliencehub::system":            "no SDK list op: Resilience Hub systems are not enumerable",
+		"AWS::ResilienceHubV2::Policy":          "no SDK: no aws-sdk-go-v2 module for resiliencehubv2 (resiliencehub is the SDK)",
+		"AWS::ResilienceHubV2::Service":         "no SDK: no aws-sdk-go-v2 module for resiliencehubv2 (resiliencehub is the SDK)",
+		"AWS::ResilienceHubV2::ServiceFunction": "no SDK: no aws-sdk-go-v2 module for resiliencehubv2 (resiliencehub is the SDK)",
+		"AWS::ResilienceHubV2::System":          "no SDK: no aws-sdk-go-v2 module for resiliencehubv2 (resiliencehub is the SDK)",
+		"AWS::ResilienceHubV2::UserJourney":     "no SDK: no aws-sdk-go-v2 module for resiliencehubv2 (resiliencehub is the SDK)",
+
+		// robomaker — AWS RoboMaker reached end of life; the aws-sdk-go-v2 robomaker
+		// client marks the service "no longer available for use".
+		"AWS::robomaker::deploymentFleet":              "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::deploymentJob":                "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::RoboMaker::Fleet":                        "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::robot":                        "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::robotApplication":             "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::RoboMaker::RobotApplicationVersion":      "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::simulationApplication":        "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::RoboMaker::SimulationApplicationVersion": "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::simulationJob":                "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::simulationJobBatch":           "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::world":                        "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::worldExportJob":               "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::worldGenerationJob":           "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+		"AWS::robomaker::worldTemplate":                "discontinued: AWS RoboMaker reached end of life (SDK service marked deprecated)",
+
+		// route53 — RecordSetGroup is a batch of the scanned record-set; a change is
+		// an ephemeral ChangeInfo; vpc is an embedded private-hosted-zone association.
+		"AWS::Route53::RecordSetGroup": "duplicate: a batch of aws:route53:record-set rows",
+		"AWS::route53::change":         "ephemeral: a Route53 ChangeInfo, not a persistent resource",
+		"AWS::route53::vpc":            "embedded: a private-hosted-zone VPC association, not a standalone resource",
+
+		// route53-recovery-cluster — routing-control state is a query-only data-plane
+		// API (the routing controls are scanned under route53-recovery-control).
+		"AWS::route53-recovery-cluster::routingcontrol": "data-plane: routing-control state is a query-only API, not an enumerable resource",
+
+		// route53resolver — autodefined rules are AWS-managed with no list op;
+		// resolver-query-log-config is the SR spelling of the covered
+		// resolver-query-logging-config.
+		"AWS::route53resolver::autodefined-rule":          "no SDK list op: AWS-managed autodefined resolver rules are not separately enumerable",
+		"AWS::route53resolver::resolver-query-log-config": "duplicate: scanned as aws:route53resolver:resolver-query-logging-config",
+
+		// rtbfabric — external links have no list op (facets of ListLinks); the link
+		// routing rules are scanned.
+		"AWS::rtbfabric::InboundExternalLink":  "no SDK list op: external links are facets of ListLinks (scanned as aws:rtbfabric:link)",
+		"AWS::rtbfabric::OutboundExternalLink": "no SDK list op: external links are facets of ListLinks (scanned as aws:rtbfabric:link)",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are

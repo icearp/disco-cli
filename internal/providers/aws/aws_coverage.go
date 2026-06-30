@@ -970,24 +970,25 @@ func canonResource(s string) string {
 // Extend as the A→Z buildout surfaces more genuine renames — the canonicalizer
 // handles every other case.
 var serviceRenames = map[string]string{
-	"airflow":           "mwaa",                 // SR airflow ↔ CFN MWAA
-	"airflowserverless": "mwaaserverless",       // SR airflow-serverless ↔ CFN MWAAServerless
-	"acm":               "certificatemanager",   // SR acm ↔ CFN CertificateManager
-	"devopsagent":       "aidevops",             // CFN DevOpsAgent ↔ SR aidevops
-	"aoss":              "opensearchserverless", // SR aoss ↔ CFN OpenSearchServerless
-	"codeconnections":   "codestarconnections",  // SR codeconnections ↔ scanned aws:codestar-connections (AWS renamed the service)
-	"cognitoidentity":   "cognito",              // SR cognito-identity (identity pools) ↔ unified CFN/scanned Cognito
-	"cognitoidp":        "cognito",              // SR cognito-idp (user pools) ↔ unified CFN/scanned Cognito
-	"elasticfilesystem": "efs",                  // SR elasticfilesystem ↔ CFN EFS / scanned aws:efs
-	"elasticmapreduce":  "emr",                  // SR elasticmapreduce ↔ CFN EMR / scanned aws:emr
-	"firehose":          "kinesisfirehose",      // SR firehose ↔ CFN KinesisFirehose / scanned aws:firehose
-	"geo":               "location",             // SR geo ↔ CFN Location / scanned aws:location
-	"kafka":             "msk",                  // SR kafka ↔ CFN MSK / scanned aws:kafka
-	"medicalimaging":    "healthimaging",        // SR medical-imaging ↔ CFN HealthImaging / scanned aws:health-imaging
-	"mgh":               "migrationhub",         // SR mgh ↔ scanned aws:migrationhub (SDK service migrationhub)
-	"opensearch":        "opensearchservice",    // SR opensearch ↔ CFN OpenSearchService / scanned aws:opensearchservice
-	"es":                "opensearchservice",    // legacy Elasticsearch IAM prefix ↔ CFN OpenSearchService
-	"profile":           "customerprofiles",     // SR profile ↔ CFN CustomerProfiles / scanned aws:customer-profiles
+	"airflow":                      "mwaa",                   // SR airflow ↔ CFN MWAA
+	"airflowserverless":            "mwaaserverless",         // SR airflow-serverless ↔ CFN MWAAServerless
+	"acm":                          "certificatemanager",     // SR acm ↔ CFN CertificateManager
+	"devopsagent":                  "aidevops",               // CFN DevOpsAgent ↔ SR aidevops
+	"aoss":                         "opensearchserverless",   // SR aoss ↔ CFN OpenSearchServerless
+	"codeconnections":              "codestarconnections",    // SR codeconnections ↔ scanned aws:codestar-connections (AWS renamed the service)
+	"cognitoidentity":              "cognito",                // SR cognito-identity (identity pools) ↔ unified CFN/scanned Cognito
+	"cognitoidp":                   "cognito",                // SR cognito-idp (user pools) ↔ unified CFN/scanned Cognito
+	"elasticfilesystem":            "efs",                    // SR elasticfilesystem ↔ CFN EFS / scanned aws:efs
+	"elasticmapreduce":             "emr",                    // SR elasticmapreduce ↔ CFN EMR / scanned aws:emr
+	"firehose":                     "kinesisfirehose",        // SR firehose ↔ CFN KinesisFirehose / scanned aws:firehose
+	"geo":                          "location",               // SR geo ↔ CFN Location / scanned aws:location
+	"kafka":                        "msk",                    // SR kafka ↔ CFN MSK / scanned aws:kafka
+	"medicalimaging":               "healthimaging",          // SR medical-imaging ↔ CFN HealthImaging / scanned aws:health-imaging
+	"mgh":                          "migrationhub",           // SR mgh ↔ scanned aws:migrationhub (SDK service migrationhub)
+	"opensearch":                   "opensearchservice",      // SR opensearch ↔ CFN OpenSearchService / scanned aws:opensearchservice
+	"es":                           "opensearchservice",      // legacy Elasticsearch IAM prefix ↔ CFN OpenSearchService
+	"profile":                      "customerprofiles",       // SR profile ↔ CFN CustomerProfiles / scanned aws:customer-profiles
+	"route53recoverycontrolconfig": "route53recoverycontrol", // SR config API ↔ scanned aws:route53-recovery-control
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
