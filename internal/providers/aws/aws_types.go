@@ -1018,6 +1018,13 @@ const (
 	TypeLicenseManagerReportGenerator      = "aws:license-manager:report-generator"
 	TypeLicenseManagerLicenseAssetGroup    = "aws:license-manager:license-asset-group"
 	TypeLicenseManagerLicenseAssetRuleset  = "aws:license-manager:license-asset-ruleset"
+	// LicenseManagerLinuxSubscriptions (licensemanagerlinuxsubscriptions_scanners.go)
+	TypeLicenseManagerLinuxSubscriptionsSubscriptionProvider = "aws:license-manager-linux-subscriptions:subscription-provider"
+	// LicenseManagerUserSubscriptions (licensemanagerusersubscriptions_scanners.go)
+	TypeLicenseManagerUserSubscriptionsIdentityProvider      = "aws:license-manager-user-subscriptions:identity-provider"
+	TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint = "aws:license-manager-user-subscriptions:license-server-endpoint"
+	TypeLicenseManagerUserSubscriptionsProductSubscription   = "aws:license-manager-user-subscriptions:product-subscription"
+	TypeLicenseManagerUserSubscriptionsInstanceUser          = "aws:license-manager-user-subscriptions:instance-user"
 	// Lambda extras (lambda_extended_scanners.go)
 	TypeLambdaPermission             = "aws:lambda:permission"
 	TypeLambdaLayerVersionPermission = "aws:lambda:layer-version-permission"

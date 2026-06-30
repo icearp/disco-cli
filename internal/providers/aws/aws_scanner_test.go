@@ -112,6 +112,8 @@ var expectedAWSServices = []string{
 	"aws:oam",
 	"aws:mpa",
 	"aws:license-manager",
+	"aws:license-manager-linux-subscriptions",
+	"aws:license-manager-user-subscriptions",
 	"aws:kinesis-video",
 	"aws:ivs-chat",
 	"aws:greengrass-v2",

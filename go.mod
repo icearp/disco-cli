@@ -474,6 +474,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/gameliftstreams v1.11.13
 	github.com/aws/aws-sdk-go-v2/service/glacier v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/iotmanagedintegrations v1.10.8
+	github.com/aws/aws-sdk-go-v2/service/licensemanagerlinuxsubscriptions v1.21.8
+	github.com/aws/aws-sdk-go-v2/service/licensemanagerusersubscriptions v1.22.8
 )
 
 require (

@@ -708,6 +708,15 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeLicenseManagerReportGenerator:      "AWS::license-manager::report-generator",
 		TypeLicenseManagerLicenseAssetGroup:    "AWS::license-manager::license-asset-group",
 		TypeLicenseManagerLicenseAssetRuleset:  "AWS::license-manager::license-asset-ruleset",
+		// LicenseManagerLinuxSubscriptions / LicenseManagerUserSubscriptions are
+		// Service-Reference-only; SR spells both the service and resource segments
+		// lowercase-hyphenated, which the PascalCase AlgorithmicKey can't match —
+		// bridge to the exact SR keys.
+		TypeLicenseManagerLinuxSubscriptionsSubscriptionProvider: "AWS::license-manager-linux-subscriptions::subscription-provider",
+		TypeLicenseManagerUserSubscriptionsIdentityProvider:      "AWS::license-manager-user-subscriptions::identity-provider",
+		TypeLicenseManagerUserSubscriptionsLicenseServerEndpoint: "AWS::license-manager-user-subscriptions::license-server-endpoint",
+		TypeLicenseManagerUserSubscriptionsProductSubscription:   "AWS::license-manager-user-subscriptions::product-subscription",
+		TypeLicenseManagerUserSubscriptionsInstanceUser:          "AWS::license-manager-user-subscriptions::instance-user",
 		// KinesisVideo — disco "kinesis-video" segment vs CFN "KinesisVideo".
 		TypeKinesisVideoStream:           "AWS::KinesisVideo::Stream",
 		TypeKinesisVideoSignalingChannel: "AWS::KinesisVideo::SignalingChannel",
