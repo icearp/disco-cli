@@ -278,6 +278,9 @@ var expectedAWSServices = []string{
 	"aws:kendra",
 	"aws:kafka-connect",
 	"aws:fms",
+	"aws:mgn",
+	"aws:migrationhub",
+	"aws:migrationhub-orchestrator",
 }
 
 // TestRegisteredServices_NoDuplicates verifies that no two services share the

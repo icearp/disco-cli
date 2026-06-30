@@ -21,8 +21,17 @@ import (
 // comparison ignores separator placement — cosmetic, not a semantic rename —
 // while still catching abbreviation and de-stuttering.
 func TestAWSResourceMirrorsUpstream(t *testing.T) {
+	// strip removes cosmetic separators and, mirroring canonResource in
+	// aws_coverage.go, a trailing "resource" — the Service Reference suffixes
+	// every resource in some services (mgn's SourceServerResource) where disco
+	// drops the suffix per the type-naming rule. Guard against reducing a
+	// segment to empty (AWS::ApiGateway::Resource stays "resource").
 	strip := func(s string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(s, "-", ""), " ", "")
+		s = strings.ReplaceAll(strings.ReplaceAll(strings.ToLower(s), "-", ""), " ", "")
+		if stem := strings.TrimSuffix(s, "resource"); stem != "" && stem != s {
+			s = stem
+		}
+		return s
 	}
 	for disco, upstream := range (coverageProvider{}).Aliases() {
 		dp := strings.SplitN(disco, ":", 3)

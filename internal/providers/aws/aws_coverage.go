@@ -838,6 +838,26 @@ func (coverageProvider) Aliases() map[string]string {
 		// resource "stream group" (with a space), which no algorithmic key can
 		// produce; alias it directly.
 		TypeGameLiftStreamsStreamGroup: "AWS::gameliftstreams::stream group",
+		// MGN (Application Migration Service) — Service-Reference-only (no CFN
+		// twin). The SR keys carry a "Resource" suffix (SourceServerResource) and
+		// a lowercase service segment that no algorithmic key can produce, so alias
+		// each scanned type to the exact SR key. The mirror test strips a trailing
+		// "Resource" (mirroring canonResource) so disco's suffix-less type matches.
+		TypeMGNSourceServer:                     "AWS::mgn::SourceServerResource",
+		TypeMGNApplication:                      "AWS::mgn::ApplicationResource",
+		TypeMGNWave:                             "AWS::mgn::WaveResource",
+		TypeMGNConnector:                        "AWS::mgn::ConnectorResource",
+		TypeMGNLaunchConfigurationTemplate:      "AWS::mgn::LaunchConfigurationTemplateResource",
+		TypeMGNReplicationConfigurationTemplate: "AWS::mgn::ReplicationConfigurationTemplateResource",
+		TypeMGNVcenterClient:                    "AWS::mgn::VcenterClientResource",
+		TypeMGNNetworkMigrationDefinition:       "AWS::mgn::NetworkMigrationDefinitionResource",
+		// Migration Hub — disco "migrationhub" segment vs SR "mgh"; the SR key is
+		// lowercase-exact, which no algorithmic key can produce.
+		TypeMigrationHubProgressUpdateStream: "AWS::mgh::progressUpdateStream",
+		// Migration Hub Orchestrator — SR spells the service hyphenated and the
+		// resources lowercase, which the PascalCase algorithmic key can't match.
+		TypeMigrationHubOrchestratorWorkflow: "AWS::migrationhub-orchestrator::workflow",
+		TypeMigrationHubOrchestratorTemplate: "AWS::migrationhub-orchestrator::template",
 	}
 }
 
@@ -931,6 +951,7 @@ var serviceRenames = map[string]string{
 	"geo":               "location",             // SR geo ↔ CFN Location / scanned aws:location
 	"kafka":             "msk",                  // SR kafka ↔ CFN MSK / scanned aws:kafka
 	"medicalimaging":    "healthimaging",        // SR medical-imaging ↔ CFN HealthImaging / scanned aws:health-imaging
+	"mgh":               "migrationhub",         // SR mgh ↔ scanned aws:migrationhub (SDK service migrationhub)
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

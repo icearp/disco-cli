@@ -1383,8 +1383,27 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::apigateway::PrivateDomainName":       apigatewayNoSDK,
 		"AWS::apigateway::PrivateBasePathMapping":  apigatewayNoSDK,
 		"AWS::apigateway::PrivateBasePathMappings": apigatewayNoSDK,
+
+		// mgn (Application Migration Service) — the migration pipeline resources
+		// are scanned (aws:mgn:*). Job/Export/Import are transient task-run
+		// records, not persistent resources.
+		"AWS::mgn::JobResource":    "ephemeral: a migration job-run record (DescribeJobs), not a persistent resource",
+		"AWS::mgn::ExportResource": "ephemeral: a ListExports export task-run record, not a persistent resource",
+		"AWS::mgn::ImportResource": "ephemeral: a ListImports import task-run record, not a persistent resource",
+
+		// mgh (Migration Hub) — progress-update-streams are scanned
+		// (aws:migrationhub:progress-update-stream). migrationTask is ephemeral
+		// migration state; the Automation*/Connection resources are not in the
+		// aws-sdk-go-v2/service/migrationhub client (separate Migration Hub
+		// sub-services).
+		"AWS::mgh::migrationTask":          "ephemeral: per-stream migration task status (ListMigrationTasks), not a persistent resource",
+		"AWS::mgh::AutomationRunResource":  mghNotInSDK,
+		"AWS::mgh::AutomationUnitResource": mghNotInSDK,
+		"AWS::mgh::ConnectionResource":     mghNotInSDK,
 	}
 }
+
+const mghNotInSDK = "no SDK list op: not modeled in aws-sdk-go-v2/service/migrationhub (separate Migration Hub sub-service)"
 
 const apigatewayV2Dup = "duplicate: API Gateway v2 resource scanned as aws:apigatewayv2:* (the SR lists v1 and v2 under the shared apigateway IAM prefix)"
 

@@ -476,6 +476,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iotmanagedintegrations v1.10.8
 	github.com/aws/aws-sdk-go-v2/service/licensemanagerlinuxsubscriptions v1.21.8
 	github.com/aws/aws-sdk-go-v2/service/licensemanagerusersubscriptions v1.22.8
+	github.com/aws/aws-sdk-go-v2/service/mgn v1.46.1
+	github.com/aws/aws-sdk-go-v2/service/migrationhub v1.32.4
+	github.com/aws/aws-sdk-go-v2/service/migrationhuborchestrator v1.19.7
 )
 
 require (

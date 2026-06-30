@@ -2005,4 +2005,24 @@ const (
 	// AWS Auto Scaling (a.k.a. AutoScalingPlans). Disco service segment
 	// "autoscaling-plans"; CFN segment "AutoScalingPlans".
 	TypeAutoScalingPlansScalingPlan = "aws:autoscaling-plans:scaling-plan"
+
+	// Application Migration Service (mgn_scanners.go). Service Reference spells
+	// each resource with a "Resource" suffix (SourceServerResource); disco drops
+	// it per the type-naming rule (canonResource collapses the SR twin).
+	TypeMGNSourceServer                     = "aws:mgn:source-server"
+	TypeMGNApplication                      = "aws:mgn:application"
+	TypeMGNWave                             = "aws:mgn:wave"
+	TypeMGNConnector                        = "aws:mgn:connector"
+	TypeMGNLaunchConfigurationTemplate      = "aws:mgn:launch-configuration-template"
+	TypeMGNReplicationConfigurationTemplate = "aws:mgn:replication-configuration-template"
+	TypeMGNVcenterClient                    = "aws:mgn:vcenter-client"
+	TypeMGNNetworkMigrationDefinition       = "aws:mgn:network-migration-definition"
+
+	// Migration Hub (migrationhub_scanners.go). SDK service "migrationhub",
+	// Service Reference service "mgh".
+	TypeMigrationHubProgressUpdateStream = "aws:migrationhub:progress-update-stream"
+
+	// Migration Hub Orchestrator (migrationhuborchestrator_scanners.go).
+	TypeMigrationHubOrchestratorWorkflow = "aws:migrationhub-orchestrator:workflow"
+	TypeMigrationHubOrchestratorTemplate = "aws:migrationhub-orchestrator:template"
 )
