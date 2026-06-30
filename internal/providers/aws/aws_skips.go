@@ -1261,6 +1261,48 @@ func (coverageProvider) Skips() map[string]string {
 		// aws:nova-act:workflow-definition.
 		"AWS::nova-act::workflow-run": "ephemeral: a Nova Act workflow run, not a persistent resource",
 
+		// omics — read sets are high-cardinality genomic data objects (per
+		// sequence-store, like S3 objects); runs/run-batches/run-tasks are ephemeral
+		// workflow executions. The stores, references, annotation-store versions and
+		// run-caches are scanned.
+		"AWS::omics::readSet":      "high-cardinality data: genomic read-set objects within a sequence-store, not control-plane resources",
+		"AWS::omics::run":          "ephemeral: an Omics workflow run, not a persistent resource",
+		"AWS::omics::runBatch":     "ephemeral: an Omics workflow run batch, not a persistent resource",
+		"AWS::omics::TaskResource": "ephemeral: a task within an Omics run, not a persistent resource",
+
+		// one (Amazon One Enterprise) — no aws-sdk-go-v2 client module exists for
+		// the palm-recognition identity service.
+		"AWS::one::configuration":                 "no SDK: no aws-sdk-go-v2 module for Amazon One Enterprise",
+		"AWS::one::device-configuration-template": "no SDK: no aws-sdk-go-v2 module for Amazon One Enterprise",
+		"AWS::one::device-instance":               "no SDK: no aws-sdk-go-v2 module for Amazon One Enterprise",
+		"AWS::one::site":                          "no SDK: no aws-sdk-go-v2 module for Amazon One Enterprise",
+		"AWS::one::user":                          "no SDK: no aws-sdk-go-v2 module for Amazon One Enterprise",
+
+		// opensearchserverless — indices are data-plane objects created via the
+		// OpenSearch data-plane API, not the AWS control plane (the collections,
+		// policies and VPC endpoints are scanned).
+		"AWS::OpenSearchServerless::CollectionIndex": "data-plane: an index inside a serverless collection, created via the OpenSearch data-plane API",
+		"AWS::OpenSearchServerless::Index":           "data-plane: an index inside a serverless collection, created via the OpenSearch data-plane API",
+
+		// opsworks / opsworks-cm — AWS OpsWorks Stacks and OpsWorks for Chef
+		// Automate/Puppet reached end of life; the aws-sdk-go-v2 clients mark both
+		// services "no longer available for use". Do not carry the dead deps.
+		"AWS::OpsWorks::App":                           "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::OpsWorks::ElasticLoadBalancerAttachment": "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::OpsWorks::Instance":                      "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::OpsWorks::Layer":                         "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::OpsWorks::UserProfile":                   "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::OpsWorks::Volume":                        "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::opsworks::stack":                         "discontinued: AWS OpsWorks Stacks reached end of life (SDK service marked deprecated)",
+		"AWS::opsworks-cm::backup":                     "discontinued: AWS OpsWorks CM reached end of life (SDK service marked deprecated)",
+		"AWS::opsworks-cm::server":                     "discontinued: AWS OpsWorks CM reached end of life (SDK service marked deprecated)",
+
+		// organizations — handshakes are ephemeral invitations; awspolicy is the
+		// AWS-managed subset of policies already returned by ListPolicies (scanned as
+		// aws:organizations:policy).
+		"AWS::organizations::handshake": "ephemeral: an organizations handshake (invitation), not a persistent resource",
+		"AWS::organizations::awspolicy": "duplicate: AWS-managed policies are returned by ListPolicies, scanned as aws:organizations:policy",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are

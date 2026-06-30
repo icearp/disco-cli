@@ -957,6 +957,8 @@ var serviceRenames = map[string]string{
 	"kafka":             "msk",                  // SR kafka ↔ CFN MSK / scanned aws:kafka
 	"medicalimaging":    "healthimaging",        // SR medical-imaging ↔ CFN HealthImaging / scanned aws:health-imaging
 	"mgh":               "migrationhub",         // SR mgh ↔ scanned aws:migrationhub (SDK service migrationhub)
+	"opensearch":        "opensearchservice",    // SR opensearch ↔ CFN OpenSearchService / scanned aws:opensearchservice
+	"es":                "opensearchservice",    // legacy Elasticsearch IAM prefix ↔ CFN OpenSearchService
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
