@@ -18,6 +18,7 @@ func init() {
 			{Service: "lex", DiscoType: TypeLexBotAlias},
 			{Service: "lex", DiscoType: TypeLexBotVersion},
 			{Service: "lex", DiscoType: TypeLexResourcePolicy},
+			{Service: "lex", DiscoType: TypeLexTestSet, Leaf: true},
 		},
 	})
 }
@@ -28,6 +29,7 @@ type lexAPI interface {
 	ListBotAliases(context.Context, *lexmodelsv2.ListBotAliasesInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListBotAliasesOutput, error)
 	ListBotVersions(context.Context, *lexmodelsv2.ListBotVersionsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListBotVersionsOutput, error)
 	DescribeResourcePolicy(context.Context, *lexmodelsv2.DescribeResourcePolicyInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.DescribeResourcePolicyOutput, error)
+	ListTestSets(context.Context, *lexmodelsv2.ListTestSetsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListTestSetsOutput, error)
 }
 
 // scanLex discovers Lex V2 bots, aliases, versions, and per-bot resource
@@ -64,7 +66,45 @@ func scanLex(ctx context.Context, acct *account, region string, st *store.Store,
 		total += t
 		inserted += i
 	}
+
+	t, i, ferr = scanLexTestSets(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanLexTestSets discovers Lex V2 test sets. TestSetSummary carries only
+// TestSetId (no ARN), so the NativeID is synthesized per AWS Lex shape.
+func scanLexTestSets(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := lexmodelsv2.NewListTestSetsPaginator(client, &lexmodelsv2.ListTestSetsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "lexmodelsv2:ListTestSets", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("lexmodelsv2:ListTestSets: %w", err)
+		}
+		for _, ts := range out.TestSets {
+			id := sv(ts.TestSetId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:lex:%s:%s:test-set/%s", region, acct.ID, id)
+			status := string(ts.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLexTestSet, NativeID: arn,
+				Name: ts.TestSetName, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(ts), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "lex test-sets")
 }
 
 type lexBot struct{ id, arn string }

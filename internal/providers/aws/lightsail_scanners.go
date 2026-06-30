@@ -29,6 +29,8 @@ func init() {
 			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancer},
 			{Service: "lightsail", DiscoType: TypeLightsailLoadBalancerTLSCertificate},
 			{Service: "lightsail", DiscoType: TypeLightsailStaticIP},
+			{Service: "lightsail", DiscoType: TypeLightsailKeyPair, Leaf: true},
+			{Service: "lightsail", DiscoType: TypeLightsailContactMethod, Leaf: true},
 		},
 	})
 }
@@ -51,6 +53,8 @@ type lightsailAPI interface {
 	GetLoadBalancers(context.Context, *lightsail.GetLoadBalancersInput, ...func(*lightsail.Options)) (*lightsail.GetLoadBalancersOutput, error)
 	GetLoadBalancerTlsCertificates(context.Context, *lightsail.GetLoadBalancerTlsCertificatesInput, ...func(*lightsail.Options)) (*lightsail.GetLoadBalancerTlsCertificatesOutput, error)
 	GetStaticIps(context.Context, *lightsail.GetStaticIpsInput, ...func(*lightsail.Options)) (*lightsail.GetStaticIpsOutput, error)
+	GetKeyPairs(context.Context, *lightsail.GetKeyPairsInput, ...func(*lightsail.Options)) (*lightsail.GetKeyPairsOutput, error)
+	GetContactMethods(context.Context, *lightsail.GetContactMethodsInput, ...func(*lightsail.Options)) (*lightsail.GetContactMethodsOutput, error)
 }
 
 // scanLightsail discovers Lightsail instances, relational databases, and

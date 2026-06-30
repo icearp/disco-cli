@@ -33,6 +33,8 @@ func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *accou
 			return scanLSLBTlsCertificates(ctx, client, acct, region, st, scanID, lbNames)
 		},
 		func() (int, int, error) { return scanLSStaticIps(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanLSKeyPairs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanLSContactMethods(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -432,6 +434,70 @@ func scanLSLBTlsCertificates(ctx context.Context, client lightsailAPI, acct *acc
 		}
 	}
 	return upsertBatch(st, batch, "lightsail load-balancer-tls-certificates")
+}
+
+func scanLSKeyPairs(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var token *string
+	for {
+		out, err := client.GetKeyPairs(ctx, &lightsail.GetKeyPairsInput{PageToken: token})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "lightsail:GetKeyPairs", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("lightsail:GetKeyPairs: %w", err)
+		}
+		for _, kp := range out.KeyPairs {
+			arn := sv(kp.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(kp.Name)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLightsailKeyPair, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(kp), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextPageToken == nil || *out.NextPageToken == "" {
+			break
+		}
+		token = out.NextPageToken
+	}
+	return upsertBatch(st, batch, "lightsail key-pairs")
+}
+
+// scanLSContactMethods discovers the account's alarm-notification contact
+// methods. GetContactMethods takes no input and is not paginated.
+func scanLSContactMethods(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	out, err := client.GetContactMethods(ctx, &lightsail.GetContactMethodsInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "lightsail:GetContactMethods", acct.ID, region, err)
+		}
+		return 0, 0, fmt.Errorf("lightsail:GetContactMethods: %w", err)
+	}
+	var batch []*store.Resource
+	for _, cm := range out.ContactMethods {
+		arn := sv(cm.Arn)
+		if arn == "" {
+			continue
+		}
+		label := sv(cm.Name)
+		if label == "" {
+			label = sv(cm.ContactEndpoint)
+		}
+		status := string(cm.Status)
+		batch = append(batch, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeLightsailContactMethod, NativeID: arn,
+			Name: &label, Region: &region, Status: &status, AttributesJSON: mustJSON(cm), DiscoveredBy: scanID,
+		})
+	}
+	return upsertBatch(st, batch, "lightsail contact-methods")
 }
 
 func scanLSStaticIps(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

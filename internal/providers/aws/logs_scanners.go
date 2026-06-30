@@ -37,6 +37,7 @@ func init() {
 			{Service: "logs", DiscoType: TypeLogsLogAnomalyDetector},
 			{Service: "logs", DiscoType: TypeLogsTransformer},
 			{Service: "logs", DiscoType: TypeLogsIntegration, Leaf: true},
+			{Service: "logs", DiscoType: TypeLogsLookupTable, Leaf: true},
 		},
 	})
 }
@@ -60,6 +61,7 @@ type cwlogsAPI interface {
 	GetIntegration(context.Context, *cwlogs.GetIntegrationInput, ...func(*cwlogs.Options)) (*cwlogs.GetIntegrationOutput, error)
 	ListScheduledQueries(context.Context, *cwlogs.ListScheduledQueriesInput, ...func(*cwlogs.Options)) (*cwlogs.ListScheduledQueriesOutput, error)
 	GetTransformer(context.Context, *cwlogs.GetTransformerInput, ...func(*cwlogs.Options)) (*cwlogs.GetTransformerOutput, error)
+	DescribeLookupTables(context.Context, *cwlogs.DescribeLookupTablesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeLookupTablesOutput, error)
 }
 
 // scanLogs discovers all CloudWatch Logs resources in one region.
@@ -84,6 +86,7 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 		scanLogsQueryDefinitions,
 		scanLogsResourcePolicies,
 		scanLogsScheduledQueries,
+		scanLogsLookupTables,
 	}
 	for _, fn := range phase1 {
 		t, i, e := fn(ctx, client, acct, region, st, scanID)
@@ -635,6 +638,53 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 			n, err := st.UpsertResources(batch)
 			if err != nil {
 				return total, inserted, fmt.Errorf("upsert resource policies: %w", err)
+			}
+			total += len(batch)
+			inserted += n
+		}
+		nextToken = out.NextToken
+		if nextToken == nil {
+			break
+		}
+	}
+	return
+}
+
+// scanLogsLookupTables discovers all CloudWatch Logs lookup tables in the
+// region. DescribeLookupTables is not paginated by the SDK; use a manual
+// NextToken loop.
+func scanLogsLookupTables(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var nextToken *string
+	for {
+		out, err := client.DescribeLookupTables(ctx, &cwlogs.DescribeLookupTablesInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return total, inserted, skipIfAccessDenied(st, "logs:DescribeLookupTables", acct.ID, region, err)
+			}
+			return total, inserted, fmt.Errorf("logs:DescribeLookupTables: %w", err)
+		}
+		var batch []*store.Resource
+		for _, lt := range out.LookupTables {
+			arn := sv(lt.LookupTableArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeLogsLookupTable,
+				NativeID:       arn,
+				Name:           lt.LookupTableName,
+				Region:         &region,
+				AttributesJSON: mustJSON(lt),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if len(batch) > 0 {
+			n, err := st.UpsertResources(batch)
+			if err != nil {
+				return total, inserted, fmt.Errorf("upsert lookup tables: %w", err)
 			}
 			total += len(batch)
 			inserted += n

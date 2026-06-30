@@ -280,10 +280,14 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeLogsLogAnomalyDetector:    "AWS::Logs::LogAnomalyDetector",
 		TypeLogsTransformer:           "AWS::Logs::Transformer",
 		TypeLogsIntegration:           "AWS::Logs::Integration",
-		TypeEventsEventBus:            "AWS::Events::EventBus",
-		TypeEventsRule:                "AWS::Events::Rule",
-		TypeEventsConnection:          "AWS::Events::Connection",
-		TypeEventsAPIDestination:      "AWS::Events::ApiDestination",
+		// lookup-table is Service-Reference-only (no CFN twin); SR spells the
+		// service lower-cased and the resource hyphenated, which the PascalCase
+		// AlgorithmicKey can't match — bridge to the exact SR key.
+		TypeLogsLookupTable:      "AWS::logs::lookup-table",
+		TypeEventsEventBus:       "AWS::Events::EventBus",
+		TypeEventsRule:           "AWS::Events::Rule",
+		TypeEventsConnection:     "AWS::Events::Connection",
+		TypeEventsAPIDestination: "AWS::Events::ApiDestination",
 		// Step Functions.
 		TypeSFNStateMachine: "AWS::StepFunctions::StateMachine",
 		TypeSFNActivity:     "AWS::StepFunctions::Activity",
@@ -696,6 +700,14 @@ func (coverageProvider) Aliases() map[string]string {
 		// LicenseManager — disco "license-manager" segment vs CFN "LicenseManager".
 		TypeLicenseManagerLicense: "AWS::LicenseManager::License",
 		TypeLicenseManagerGrant:   "AWS::LicenseManager::Grant",
+		// license-configuration / report-generator / license-asset-group /
+		// license-asset-ruleset are Service-Reference-only (no CFN twin); SR
+		// spells the service hyphenated, which the PascalCase AlgorithmicKey
+		// (LicenseManager) can't match — bridge to the exact SR keys.
+		TypeLicenseManagerLicenseConfiguration: "AWS::license-manager::license-configuration",
+		TypeLicenseManagerReportGenerator:      "AWS::license-manager::report-generator",
+		TypeLicenseManagerLicenseAssetGroup:    "AWS::license-manager::license-asset-group",
+		TypeLicenseManagerLicenseAssetRuleset:  "AWS::license-manager::license-asset-ruleset",
 		// KinesisVideo — disco "kinesis-video" segment vs CFN "KinesisVideo".
 		TypeKinesisVideoStream:           "AWS::KinesisVideo::Stream",
 		TypeKinesisVideoSignalingChannel: "AWS::KinesisVideo::SignalingChannel",
@@ -743,6 +755,15 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeMWAAServerlessWorkflow: "AWS::MWAAServerless::Workflow",
 		// LookoutEquipment — disco "lookout-equipment" segment vs CFN "LookoutEquipment".
 		TypeLookoutEquipmentInferenceScheduler: "AWS::LookoutEquipment::InferenceScheduler",
+		// dataset / model match the SR keys algorithmically (single-word); the
+		// hyphenated label-group / model-version are Service-Reference-only and
+		// need the exact SR key (lower-cased service, hyphenated resource).
+		TypeLookoutEquipmentLabelGroup:   "AWS::lookoutequipment::label-group",
+		TypeLookoutEquipmentModelVersion: "AWS::lookoutequipment::model-version",
+		// Lex test-set is Service-Reference-only (no CFN twin) and SR spells it
+		// lower-cased + space-separated ("test set"), which the PascalCase
+		// AlgorithmicKey can't match — bridge to the exact SR key.
+		TypeLexTestSet: "AWS::lex::test set",
 		// LaunchWizard — disco "launch-wizard" segment vs CFN "LaunchWizard".
 		TypeLaunchWizardDeployment: "AWS::LaunchWizard::Deployment",
 		// KendraRanking — disco "kendra-ranking" segment vs CFN "KendraRanking".

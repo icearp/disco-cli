@@ -15,6 +15,50 @@ func init() {
 		EdgeDecl{TypeLookoutEquipmentInferenceScheduler, TypeKMSKey, store.RelUses},
 		EdgeDecl{TypeLookoutEquipmentInferenceScheduler, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(
+		resolveLookoutEquipmentModelVersionRefs,
+		EdgeDecl{TypeLookoutEquipmentModelVersion, TypeLookoutEquipmentModel, store.RelAttachedTo},
+	)
+}
+
+// resolveLookoutEquipmentModelVersionRefs wires each model version to its
+// parent model via the ModelArn carried on the version summary. The version's
+// own NativeID is synthesized {modelArn}/version/{n}, but the ModelArn field is
+// authoritative for the parent lookup.
+func resolveLookoutEquipmentModelVersionRefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeLookoutEquipmentModelVersion}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	modelSet, err := scannedIDSet(acct, st, TypeLookoutEquipmentModel)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ModelArn *string `json:"ModelArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		marn := sv(attrs.ModelArn)
+		if marn == "" {
+			continue
+		}
+		tgt := store.ResourceID("aws", acct.ID, TypeLookoutEquipmentModel, marn)
+		if !modelSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert le model-version→model: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveLookoutEquipmentSchedulerRefs wires each inference scheduler to its

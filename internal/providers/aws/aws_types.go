@@ -486,6 +486,7 @@ const (
 	TypeLogsScheduledQuery     = "aws:logs:scheduled-query"
 	TypeLogsSubscriptionFilter = "aws:logs:subscription-filter"
 	TypeLogsTransformer        = "aws:logs:transformer"
+	TypeLogsLookupTable        = "aws:logs:lookup-table"
 
 	// KMS (kms_scanners.go)
 	TypeKMSKey   = "aws:kms:key"
@@ -1011,8 +1012,12 @@ const (
 	// Macie extras (macie_extended_scanners.go)
 	TypeMacieFindingsFilter = "aws:macie:findings-filter"
 	// LicenseManager (licensemanager_scanners.go)
-	TypeLicenseManagerLicense = "aws:license-manager:license"
-	TypeLicenseManagerGrant   = "aws:license-manager:grant"
+	TypeLicenseManagerLicense              = "aws:license-manager:license"
+	TypeLicenseManagerGrant                = "aws:license-manager:grant"
+	TypeLicenseManagerLicenseConfiguration = "aws:license-manager:license-configuration"
+	TypeLicenseManagerReportGenerator      = "aws:license-manager:report-generator"
+	TypeLicenseManagerLicenseAssetGroup    = "aws:license-manager:license-asset-group"
+	TypeLicenseManagerLicenseAssetRuleset  = "aws:license-manager:license-asset-ruleset"
 	// Lambda extras (lambda_extended_scanners.go)
 	TypeLambdaPermission             = "aws:lambda:permission"
 	TypeLambdaLayerVersionPermission = "aws:lambda:layer-version-permission"
@@ -1089,6 +1094,10 @@ const (
 	TypeMWAAEnvironment = "aws:mwaa:environment"
 	// LookoutEquipment (lookoutequipment_scanners.go)
 	TypeLookoutEquipmentInferenceScheduler = "aws:lookout-equipment:inference-scheduler"
+	TypeLookoutEquipmentDataset            = "aws:lookout-equipment:dataset"
+	TypeLookoutEquipmentLabelGroup         = "aws:lookout-equipment:label-group"
+	TypeLookoutEquipmentModel              = "aws:lookout-equipment:model"
+	TypeLookoutEquipmentModelVersion       = "aws:lookout-equipment:model-version"
 	// LaunchWizard (launchwizard_scanners.go)
 	TypeLaunchWizardDeployment = "aws:launch-wizard:deployment"
 	// KendraRanking (kendraranking_scanners.go)
@@ -1604,6 +1613,8 @@ const (
 	TypeLightsailLoadBalancer               = "aws:lightsail:load-balancer"
 	TypeLightsailLoadBalancerTLSCertificate = "aws:lightsail:load-balancer-tls-certificate"
 	TypeLightsailStaticIP                   = "aws:lightsail:static-ip"
+	TypeLightsailKeyPair                    = "aws:lightsail:key-pair"
+	TypeLightsailContactMethod              = "aws:lightsail:contact-method"
 	// Elastic Beanstalk (elasticbeanstalk_scanners.go, elasticbeanstalk_resolvers.go)
 	TypeBeanstalkApplication        = "aws:elasticbeanstalk:application"
 	TypeBeanstalkEnvironment        = "aws:elasticbeanstalk:environment"
@@ -1788,6 +1799,7 @@ const (
 	TypeLexBotAlias       = "aws:lex:bot-alias"
 	TypeLexBotVersion     = "aws:lex:bot-version"
 	TypeLexResourcePolicy = "aws:lex:resource-policy"
+	TypeLexTestSet        = "aws:lex:test-set"
 	// Personalize (personalize_scanners.go).
 	TypePersonalizeDataset      = "aws:personalize:dataset"
 	TypePersonalizeDatasetGroup = "aws:personalize:dataset-group"

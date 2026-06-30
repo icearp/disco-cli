@@ -38,3 +38,40 @@ func TestResolveLookoutEquipmentSchedulerRefs(t *testing.T) {
 	assertRelationship(t, rels, sID, bIn, store.RelUses)
 	assertRelationship(t, rels, sID, bOut, store.RelUses)
 }
+
+func TestResolveLookoutEquipmentModelVersionRefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	modelARN := fmt.Sprintf("arn:aws:lookoutequipment:%s:%s:model/m1", testRegion, acct.ID)
+	mvNativeID := modelARN + "/version/3"
+	attrs := fmt.Sprintf(`{"ModelArn":%q,"ModelName":"m1","ModelVersion":3}`, modelARN)
+
+	mvID := upsertTestResource(t, st, "aws", acct.ID, TypeLookoutEquipmentModelVersion, mvNativeID, testRegion, attrs)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeLookoutEquipmentModel, modelARN, testRegion, "{}")
+
+	if err := resolveLookoutEquipmentModelVersionRefs(acct, st); err != nil {
+		t.Fatalf("resolveLookoutEquipmentModelVersionRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mvID)
+	assertRelationship(t, rels, mvID, mID, store.RelAttachedTo)
+}
+
+// TestResolveLookoutEquipmentModelVersionRefs_NoAttrs guards the nil/empty
+// attributes path — a model version with no ModelArn emits no edge and panics
+// nowhere.
+func TestResolveLookoutEquipmentModelVersionRefs_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	mvNativeID := fmt.Sprintf("arn:aws:lookoutequipment:%s:%s:model/m1/version/1", testRegion, acct.ID)
+	mvID := upsertTestResource(t, st, "aws", acct.ID, TypeLookoutEquipmentModelVersion, mvNativeID, testRegion, "{}")
+
+	if err := resolveLookoutEquipmentModelVersionRefs(acct, st); err != nil {
+		t.Fatalf("resolveLookoutEquipmentModelVersionRefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mvID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no relationships, got %d", len(rels))
+	}
+}
