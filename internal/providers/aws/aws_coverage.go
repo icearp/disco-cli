@@ -623,6 +623,11 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeWAFv2WebACL:               "AWS::WAFv2::WebACL",
 		TypeWAFv2RuleGroup:            "AWS::WAFv2::RuleGroup",
 		TypeWAFv2IPSet:                "AWS::WAFv2::IPSet",
+		// WellArchitected review-template: the Service Reference spells it
+		// hyphenated (no CFN twin in the SR leg); the algorithmic key strips the
+		// hyphen, so alias to the exact SR key. (workload/lens/profile match
+		// algorithmically.)
+		TypeWellArchitectedReviewTemplate: "AWS::wellarchitected::review-template",
 		// WAF Classic v1 regional — disco's service segment "wafregional" mirrors
 		// CFN (AWS::WAFRegional::*), but the Service Reference catalog spells the
 		// service hyphenated ("waf-regional"), which the algorithmic key can't

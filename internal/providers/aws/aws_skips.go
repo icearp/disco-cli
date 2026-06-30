@@ -1765,9 +1765,23 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::workmailmessageflow::RawMessage": "data-plane: raw email message content, not a control-plane resource",
 
 		// workspaces — the *id rows are dups of the scanned workspace / pool types.
-		"AWS::workspaces::workspaceid":                   "duplicate: scanned as aws:workspaces:workspace",
-		"AWS::workspaces::workspacespoolid":              "duplicate: scanned as aws:workspaces:workspaces-pool",
+		"AWS::workspaces::workspaceid":      "duplicate: scanned as aws:workspaces:workspace",
+		"AWS::workspaces::workspacespoolid": "duplicate: scanned as aws:workspaces:workspaces-pool",
+		// certificateid: WorkSpaces certificate-based-auth client certificates are
+		// per-directory facets (ImportClientBranding/DescribeClientProperties-style
+		// config), not an account-wide enumerable resource collection.
+		"AWS::workspaces::certificateid":                 "no SDK list op: client certificates are per-directory facets, not enumerable account-wide",
 		"AWS::workspaces-instances::WorkspaceInstanceId": "duplicate: scanned as aws:workspacesinstances:workspace-instance",
+		// VolumeId: the workspacesinstances SDK exposes only Create/Delete/Associate/
+		// Disassociate/Get for volumes — no ListVolumes op, so they are not
+		// enumerable account-wide (the underlying disks are EC2 EBS volumes).
+		"AWS::workspaces-instances::VolumeId":         "no SDK list op: workspacesinstances exposes only Create/Delete/Associate/Disassociate volume ops, none enumerable account-wide (underlying disks are EC2 EBS volumes)",
+		"AWS::workspacesinstances::Volume":            "no SDK list op: workspacesinstances exposes only Create/Delete/Associate/Disassociate volume ops, none enumerable account-wide (underlying disks are EC2 EBS volumes)",
+		"AWS::workspacesinstances::VolumeAssociation": "no SDK list op: volume associations are created/torn down via Associate/Disassociate, with no enumerate op",
+
+		// wisdom (Amazon Q in Connect) — a Session is an ephemeral end-user
+		// assistant session, not a persistent resource.
+		"AWS::wisdom::Session": "ephemeral: a Q-in-Connect assistant session, not a persistent resource",
 
 		// wafv2 — these SR rows are the resource TYPES a web ACL can be associated
 		// with (ListResourcesForWebACL targets), not wafv2 resources themselves.

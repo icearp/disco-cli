@@ -18,6 +18,7 @@ func init() {
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicy},
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyTemplate},
 			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsIdentitySource},
+			{Service: "verifiedpermissions", DiscoType: TypeVerifiedPermissionsPolicyStoreAlias},
 		},
 	})
 }
@@ -27,6 +28,7 @@ type verifiedPermissionsAPI interface {
 	ListPolicies(context.Context, *verifiedpermissions.ListPoliciesInput, ...func(*verifiedpermissions.Options)) (*verifiedpermissions.ListPoliciesOutput, error)
 	ListPolicyTemplates(context.Context, *verifiedpermissions.ListPolicyTemplatesInput, ...func(*verifiedpermissions.Options)) (*verifiedpermissions.ListPolicyTemplatesOutput, error)
 	ListIdentitySources(context.Context, *verifiedpermissions.ListIdentitySourcesInput, ...func(*verifiedpermissions.Options)) (*verifiedpermissions.ListIdentitySourcesOutput, error)
+	ListPolicyStoreAliases(context.Context, *verifiedpermissions.ListPolicyStoreAliasesInput, ...func(*verifiedpermissions.Options)) (*verifiedpermissions.ListPolicyStoreAliasesOutput, error)
 }
 
 // scanVerifiedPermissions discovers Verified Permissions policy stores and
@@ -56,7 +58,48 @@ func scanVerifiedPermissions(ctx context.Context, acct *account, region string, 
 			inserted += i
 		}
 	}
+
+	t, i, ferr = scanVPPolicyStoreAliases(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanVPPolicyStoreAliases lists policy store aliases account-wide (the API
+// takes only an optional filter, no parent id). NativeID = AliasArn.
+func scanVPPolicyStoreAliases(ctx context.Context, client verifiedPermissionsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := verifiedpermissions.NewListPolicyStoreAliasesPaginator(client, &verifiedpermissions.ListPolicyStoreAliasesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "verifiedpermissions:ListPolicyStoreAliases", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("verifiedpermissions:ListPolicyStoreAliases: %w", err)
+		}
+		for _, a := range out.PolicyStoreAliases {
+			arn := sv(a.AliasArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.AliasName)
+			if label == "" {
+				label = arn
+			}
+			status := string(a.State)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeVerifiedPermissionsPolicyStoreAlias, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "verifiedpermissions policy-store-aliases")
 }
 
 type vpStore struct {

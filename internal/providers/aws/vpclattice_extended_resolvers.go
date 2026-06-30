@@ -18,6 +18,49 @@ func init() {
 		EdgeDecl{TypeVpcLatticeAccessLogSubscription, TypeS3Bucket, store.RelUses},
 		EdgeDecl{TypeVpcLatticeAccessLogSubscription, TypeFirehoseDeliveryStream, store.RelUses},
 	)
+	registerResolver(
+		resolveVpcLatticeREARefs,
+		EdgeDecl{TypeVpcLatticeResourceEndpointAssociation, TypeVpcLatticeResourceConfiguration, store.RelAttachedTo},
+	)
+}
+
+// resolveVpcLatticeREARefs wires each resource-endpoint-association to its
+// parent resource-configuration via the ResourceConfigurationArn attr.
+func resolveVpcLatticeREARefs(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeVpcLatticeResourceEndpointAssociation}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	rcSet, err := scannedIDSet(acct, st, TypeVpcLatticeResourceConfiguration)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			ResourceConfigurationArn *string `json:"ResourceConfigurationArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		rcARN := sv(attrs.ResourceConfigurationArn)
+		if rcARN == "" {
+			continue
+		}
+		tgtID := store.ResourceID("aws", acct.ID, TypeVpcLatticeResourceConfiguration, rcARN)
+		if !rcSet[tgtID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert vpcl rea→rc: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveVpcLatticeALSRefs wires each access-log-subscription to its source

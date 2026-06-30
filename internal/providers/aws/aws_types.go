@@ -247,6 +247,7 @@ const (
 	TypeWAFv2LoggingConfiguration = "aws:wafv2:logging-configuration"
 	TypeWAFv2RegexPatternSet      = "aws:wafv2:regex-pattern-set"
 	TypeWAFv2WebACLAssociation    = "aws:wafv2:web-acl-association"
+	TypeWAFv2ManagedRuleSet       = "aws:wafv2:managed-rule-set"
 	// WAF Classic v1 — global/CloudFront scope (waf_scanners.go)
 	TypeWAFWebACL               = "aws:waf:web-acl"
 	TypeWAFRule                 = "aws:waf:rule"
@@ -341,6 +342,8 @@ const (
 	TypeWisdomMessageTemplate        = "aws:wisdom:message-template"
 	TypeWisdomMessageTemplateVersion = "aws:wisdom:message-template-version"
 	TypeWisdomQuickResponse          = "aws:wisdom:quick-response"
+	TypeWisdomContent                = "aws:wisdom:content"
+	TypeWisdomContentAssociation     = "aws:wisdom:content-association"
 	// EKS
 	TypeEKSCluster                = "aws:eks:cluster"
 	TypeEKSAccessEntry            = "aws:eks:access-entry"
@@ -1550,6 +1553,7 @@ const (
 	TypeVpcLatticeServiceNetworkResourceAssociation = "aws:vpclattice:service-network-resource-association"
 	TypeVpcLatticeServiceNetworkServiceAssociation  = "aws:vpclattice:service-network-service-association"
 	TypeVpcLatticeServiceNetworkVpcAssociation      = "aws:vpclattice:service-network-vpc-association"
+	TypeVpcLatticeResourceEndpointAssociation       = "aws:vpclattice:resource-endpoint-association"
 	// Inspector v2 (inspector_scanners.go, inspector_resolvers.go)
 	TypeInspector2Filter                        = "aws:inspector2:filter"
 	TypeInspector2Member                        = "aws:inspector2:member"
@@ -1827,6 +1831,14 @@ const (
 	TypeWorkSpacesConnectionAlias = "aws:work-spaces:connection-alias"
 	TypeWorkSpacesWorkspace       = "aws:work-spaces:workspace"
 	TypeWorkSpacesWorkspacesPool  = "aws:work-spaces:workspaces-pool"
+	// directory-id mirrors the Service Reference resource key "directoryid"
+	// (a registered WorkSpaces directory); the kebab form's algorithmic key
+	// concatenates back to it, so no alias is needed.
+	TypeWorkSpacesDirectory            = "aws:work-spaces:directory-id"
+	TypeWorkSpacesWorkspaceBundle      = "aws:work-spaces:workspace-bundle"
+	TypeWorkSpacesWorkspaceImage       = "aws:work-spaces:workspace-image"
+	TypeWorkSpacesWorkspaceIPGroup     = "aws:work-spaces:workspace-ip-group"
+	TypeWorkSpacesWorkspaceApplication = "aws:work-spaces:workspace-application"
 	// S3Vectors (s3vectors_scanners.go).
 	TypeS3VectorsIndex              = "aws:s3vectors:index"
 	TypeS3VectorsVectorBucket       = "aws:s3vectors:vector-bucket"
@@ -2018,14 +2030,23 @@ const (
 	TypeSSMContactsPlan           = "aws:ssm-contacts:plan"
 	TypeSSMContactsRotation       = "aws:ssm-contacts:rotation"
 	// VerifiedPermissions (verifiedpermissions_scanners.go).
-	TypeVerifiedPermissionsIdentitySource = "aws:verifiedpermissions:identity-source"
-	TypeVerifiedPermissionsPolicy         = "aws:verifiedpermissions:policy"
-	TypeVerifiedPermissionsPolicyStore    = "aws:verifiedpermissions:policy-store"
-	TypeVerifiedPermissionsPolicyTemplate = "aws:verifiedpermissions:policy-template"
+	TypeVerifiedPermissionsIdentitySource   = "aws:verifiedpermissions:identity-source"
+	TypeVerifiedPermissionsPolicy           = "aws:verifiedpermissions:policy"
+	TypeVerifiedPermissionsPolicyStore      = "aws:verifiedpermissions:policy-store"
+	TypeVerifiedPermissionsPolicyTemplate   = "aws:verifiedpermissions:policy-template"
+	TypeVerifiedPermissionsPolicyStoreAlias = "aws:verifiedpermissions:policy-store-alias"
 	// XRay (xray_scanners.go).
-	TypeXRayGroup          = "aws:xray:group"
-	TypeXRayResourcePolicy = "aws:xray:resource-policy"
-	TypeXRaySamplingRule   = "aws:xray:sampling-rule"
+	TypeXRayGroup                   = "aws:xray:group"
+	TypeXRayResourcePolicy          = "aws:xray:resource-policy"
+	TypeXRaySamplingRule            = "aws:xray:sampling-rule"
+	TypeXRayTransactionSearchConfig = "aws:xray:transaction-search-config"
+	// WellArchitected (wellarchitected_scanners.go).
+	TypeWellArchitectedWorkload       = "aws:wellarchitected:workload"
+	TypeWellArchitectedLens           = "aws:wellarchitected:lens"
+	TypeWellArchitectedProfile        = "aws:wellarchitected:profile"
+	TypeWellArchitectedReviewTemplate = "aws:wellarchitected:review-template"
+	// WorkMail (workmail_scanners.go).
+	TypeWorkMailOrganization = "aws:workmail:organization"
 	// Cases (Connect Cases) (cases_scanners.go); SDK module is connectcases,
 	// CFN segment is "Cases".
 	TypeCasesCaseRule = "aws:cases:case-rule"

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -15,6 +16,62 @@ func init() {
 		EdgeDecl{TypeVerifiedPermissionsPolicyTemplate, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},
 		EdgeDecl{TypeVerifiedPermissionsIdentitySource, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveVPPolicyStoreAliasParent,
+		EdgeDecl{TypeVerifiedPermissionsPolicyStoreAlias, TypeVerifiedPermissionsPolicyStore, store.RelAttachedTo},
+	)
+}
+
+// resolveVPPolicyStoreAliasParent wires each policy-store-alias to its policy
+// store via the alias's PolicyStoreId attr, mapped to the scanned policy-store
+// row's NativeID (the store ARN). Aliases have no parent ARN in their NativeID,
+// so the link is rebuilt from the PolicyStoreId index.
+func resolveVPPolicyStoreAliasParent(acct *account, st *store.Store) error {
+	aliases, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeVerifiedPermissionsPolicyStoreAlias}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(aliases) == 0 {
+		return nil
+	}
+	stores, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeVerifiedPermissionsPolicyStore}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	byPolicyStoreID := make(map[string]string, len(stores))
+	for _, s := range stores {
+		var attrs struct {
+			PolicyStoreID *string `json:"PolicyStoreId"`
+		}
+		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if id := sv(attrs.PolicyStoreID); id != "" {
+			byPolicyStoreID[id] = s.ID
+		}
+	}
+	for _, a := range aliases {
+		var attrs struct {
+			PolicyStoreID *string `json:"PolicyStoreId"`
+		}
+		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		tgtID, ok := byPolicyStoreID[sv(attrs.PolicyStoreID)]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(a.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert vp policy-store-alias→policy-store: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveVPChildToPolicyStore wires policy/policy-template/identity-source to

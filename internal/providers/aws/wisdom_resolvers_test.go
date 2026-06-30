@@ -80,6 +80,64 @@ func TestResolveWisdomKnowledgeBaseChildren(t *testing.T) {
 	assertRelationship(t, rels, mtID, kbID, store.RelAttachedTo)
 }
 
+func TestResolveWisdomContentToKnowledgeBase(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
+	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomKnowledgeBase, kbARN, testRegion, "{}")
+	cARN := kbARN + "/content/c-1"
+	attrs := fmt.Sprintf(`{"KnowledgeBaseArn":%q}`, kbARN)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomContent, cARN, testRegion, attrs)
+	if err := resolveWisdomKnowledgeBaseChildren(acct, st); err != nil {
+		t.Fatalf("resolveWisdomKnowledgeBaseChildren: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	assertRelationship(t, rels, cID, kbID, store.RelAttachedTo)
+}
+
+func TestResolveWisdomContentToKnowledgeBase_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1", testRegion, acct.ID)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomContent, cARN, testRegion, "{}")
+	if err := resolveWisdomKnowledgeBaseChildren(acct, st); err != nil {
+		t.Fatalf("resolveWisdomKnowledgeBaseChildren: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no edges for content with no attrs, got %d", len(rels))
+	}
+}
+
+func TestResolveWisdomContentAssociationParent(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1", testRegion, acct.ID)
+	cID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomContent, cARN, testRegion, "{}")
+	caARN := cARN + "/association/ca-1"
+	attrs := fmt.Sprintf(`{"ContentArn":%q}`, cARN)
+	caID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomContentAssociation, caARN, testRegion, attrs)
+	if err := resolveWisdomContentAssociationParent(acct, st); err != nil {
+		t.Fatalf("resolveWisdomContentAssociationParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(caID)
+	assertRelationship(t, rels, caID, cID, store.RelAttachedTo)
+}
+
+func TestResolveWisdomContentAssociationParent_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	caARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1/association/ca-1", testRegion, acct.ID)
+	caID := upsertTestResource(t, st, "aws", acct.ID, TypeWisdomContentAssociation, caARN, testRegion, "{}")
+	if err := resolveWisdomContentAssociationParent(acct, st); err != nil {
+		t.Fatalf("resolveWisdomContentAssociationParent: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(caID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no edges for content-association with no attrs, got %d", len(rels))
+	}
+}
+
 func TestResolveWisdomKMSRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

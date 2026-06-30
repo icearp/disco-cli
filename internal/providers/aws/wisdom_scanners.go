@@ -26,6 +26,8 @@ func init() {
 			{Service: "wisdom", DiscoType: TypeWisdomMessageTemplate},
 			{Service: "wisdom", DiscoType: TypeWisdomMessageTemplateVersion},
 			{Service: "wisdom", DiscoType: TypeWisdomQuickResponse},
+			{Service: "wisdom", DiscoType: TypeWisdomContent},
+			{Service: "wisdom", DiscoType: TypeWisdomContentAssociation},
 		},
 	})
 }
@@ -46,6 +48,8 @@ type wisdomAPI interface {
 	ListMessageTemplates(context.Context, *qconnect.ListMessageTemplatesInput, ...func(*qconnect.Options)) (*qconnect.ListMessageTemplatesOutput, error)
 	ListMessageTemplateVersions(context.Context, *qconnect.ListMessageTemplateVersionsInput, ...func(*qconnect.Options)) (*qconnect.ListMessageTemplateVersionsOutput, error)
 	ListQuickResponses(context.Context, *qconnect.ListQuickResponsesInput, ...func(*qconnect.Options)) (*qconnect.ListQuickResponsesOutput, error)
+	ListContents(context.Context, *qconnect.ListContentsInput, ...func(*qconnect.Options)) (*qconnect.ListContentsOutput, error)
+	ListContentAssociations(context.Context, *qconnect.ListContentAssociationsInput, ...func(*qconnect.Options)) (*qconnect.ListContentAssociationsOutput, error)
 }
 
 // wisdomChild keys per-(parent, id) for version fan-out.
@@ -99,7 +103,17 @@ func scanWisdom(ctx context.Context, acct *account, region string, st *store.Sto
 	total += t
 	inserted += i
 
+	contentKeys, t, i, ferr := scanWisdomContents(ctx, client, acct, region, st, scanID, kbIDs)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanWisdomContentAssociations(ctx, client, acct, region, st, scanID, contentKeys)
+		},
 		func() (int, int, error) {
 			return scanWisdomAssistantAssocs(ctx, client, acct, region, st, scanID, assistantIDs)
 		},
@@ -590,4 +604,80 @@ func scanWisdomQuickResponses(ctx context.Context, client wisdomAPI, acct *accou
 		}
 	}
 	return upsertBatch(st, batch, "wisdom quick-responses")
+}
+
+// scanWisdomContents fans out ListContents per knowledge base and returns
+// (knowledgeBaseId, contentId) keys for the content-association fan-out.
+func scanWisdomContents(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, kbIDs []string) ([]wisdomChild, int, int, error) {
+	if len(kbIDs) == 0 {
+		return nil, 0, 0, nil
+	}
+	var keys []wisdomChild
+	var batch []*store.Resource
+	for _, kbID := range kbIDs {
+		id := kbID
+		pager := qconnect.NewListContentsPaginator(client, &qconnect.ListContentsInput{KnowledgeBaseId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return nil, 0, 0, fmt.Errorf("qconnect:ListContents %s: %w", kbID, perr)
+			}
+			for _, c := range out.ContentSummaries {
+				arn := sv(c.ContentArn)
+				if arn == "" {
+					continue
+				}
+				cid := sv(c.ContentId)
+				keys = append(keys, wisdomChild{parent: kbID, id: cid})
+				label := sv(c.Name)
+				if label == "" {
+					label = cid
+				}
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeWisdomContent, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	t, i, err := upsertBatch(st, batch, "wisdom contents")
+	return keys, t, i, err
+}
+
+func scanWisdomContentAssociations(ctx context.Context, client wisdomAPI, acct *account, region string, st *store.Store, scanID string, keys []wisdomChild) (int, int, error) {
+	if len(keys) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, k := range keys {
+		kbID := k.parent
+		cID := k.id
+		pager := qconnect.NewListContentAssociationsPaginator(client, &qconnect.ListContentAssociationsInput{KnowledgeBaseId: &kbID, ContentId: &cID})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("qconnect:ListContentAssociations %s/%s: %w", k.parent, k.id, perr)
+			}
+			for _, a := range out.ContentAssociationSummaries {
+				arn := sv(a.ContentAssociationArn)
+				if arn == "" {
+					continue
+				}
+				label := sv(a.ContentAssociationId)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeWisdomContentAssociation, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "wisdom content-associations")
 }

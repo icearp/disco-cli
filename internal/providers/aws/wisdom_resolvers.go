@@ -21,6 +21,11 @@ func init() {
 		resolveWisdomKnowledgeBaseChildren,
 		EdgeDecl{TypeWisdomMessageTemplate, TypeWisdomKnowledgeBase, store.RelAttachedTo},
 		EdgeDecl{TypeWisdomQuickResponse, TypeWisdomKnowledgeBase, store.RelAttachedTo},
+		EdgeDecl{TypeWisdomContent, TypeWisdomKnowledgeBase, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveWisdomContentAssociationParent,
+		EdgeDecl{TypeWisdomContentAssociation, TypeWisdomContent, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveWisdomVersionParent,
@@ -138,12 +143,18 @@ func resolveWisdomAssistantChildren(acct *account, st *store.Store) error {
 // resolveWisdomKnowledgeBaseChildren wires message-template + quick-response
 // → knowledge-base via KnowledgeBaseArn attr.
 func resolveWisdomKnowledgeBaseChildren(acct *account, st *store.Store) error {
-	for _, ctype := range []string{TypeWisdomMessageTemplate, TypeWisdomQuickResponse} {
+	for _, ctype := range []string{TypeWisdomMessageTemplate, TypeWisdomQuickResponse, TypeWisdomContent} {
 		if err := resolveWisdomChildToParentByArnField(acct, st, ctype, TypeWisdomKnowledgeBase, "KnowledgeBaseArn", strings.TrimPrefix(ctype, "aws:wisdom:")); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// resolveWisdomContentAssociationParent wires each content-association to its
+// parent content via the ContentArn attr.
+func resolveWisdomContentAssociationParent(acct *account, st *store.Store) error {
+	return resolveWisdomChildToParentByArnField(acct, st, TypeWisdomContentAssociation, TypeWisdomContent, "ContentArn", "content-association")
 }
 
 // wisdomVersionParentARN strips a `:NN` numeric version suffix from a Wisdom

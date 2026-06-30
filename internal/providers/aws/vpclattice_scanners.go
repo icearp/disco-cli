@@ -28,6 +28,7 @@ func init() {
 			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkResourceAssociation},
 			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkServiceAssociation},
 			{Service: "vpclattice", DiscoType: TypeVpcLatticeServiceNetworkVpcAssociation},
+			{Service: "vpclattice", DiscoType: TypeVpcLatticeResourceEndpointAssociation},
 		},
 	})
 }
@@ -48,6 +49,7 @@ type vpcLatticeAPI interface {
 	ListServiceNetworkResourceAssociations(context.Context, *vpclattice.ListServiceNetworkResourceAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkResourceAssociationsOutput, error)
 	ListServiceNetworkServiceAssociations(context.Context, *vpclattice.ListServiceNetworkServiceAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkServiceAssociationsOutput, error)
 	ListServiceNetworkVpcAssociations(context.Context, *vpclattice.ListServiceNetworkVpcAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkVpcAssociationsOutput, error)
+	ListResourceEndpointAssociations(context.Context, *vpclattice.ListResourceEndpointAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListResourceEndpointAssociationsOutput, error)
 }
 
 func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -74,6 +76,13 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 	total += t
 	inserted += i
 
+	rcARNs, t, i, ferr := scanVLResourceConfigs(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanVLRules(ctx, client, acct, region, st, scanID, listenerKeys) },
 		func() (int, int, error) { return scanVLTargetGroups(ctx, client, acct, region, st, scanID) },
@@ -87,8 +96,10 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 			return scanVLResourcePolicies(ctx, client, acct, region, st, scanID, svcARNs, netARNs)
 		},
 		func() (int, int, error) { return scanVLDomainVerifications(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanVLResourceConfigs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanVLResourceGateways(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanVLResourceEndpointAssocs(ctx, client, acct, region, st, scanID, rcARNs)
+		},
 		func() (int, int, error) { return scanVLSNRA(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanVLSNSA(ctx, client, acct, region, st, scanID, netARNs) },
 		func() (int, int, error) { return scanVLSNVA(ctx, client, acct, region, st, scanID, netARNs) },
@@ -398,23 +409,25 @@ func scanVLDomainVerifications(ctx context.Context, client vpcLatticeAPI, acct *
 	return upsertBatch(st, batch, "vpclattice domain-verifications")
 }
 
-func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := vpclattice.NewListResourceConfigurationsPaginator(client, &vpclattice.ListResourceConfigurationsInput{})
+	var arns []string
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "vpclattice:ListResourceConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("vpclattice:ListResourceConfigurations: %w", perr)
+			return nil, 0, 0, fmt.Errorf("vpclattice:ListResourceConfigurations: %w", perr)
 		}
 		for _, c := range out.Items {
 			arn := sv(c.Arn)
 			if arn == "" {
 				continue
 			}
+			arns = append(arns, arn)
 			label := sv(c.Name)
 			if label == "" {
 				label = sv(c.Id)
@@ -426,7 +439,44 @@ func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *acco
 			})
 		}
 	}
-	return upsertBatch(st, batch, "vpclattice resource-configurations")
+	t, i, err := upsertBatch(st, batch, "vpclattice resource-configurations")
+	return arns, t, i, err
+}
+
+// scanVLResourceEndpointAssocs fans out ListResourceEndpointAssociations per
+// resource-configuration (the op requires ResourceConfigurationIdentifier).
+// NativeID = the VPC endpoint association ARN.
+func scanVLResourceEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, rcARNs []string) (int, int, error) {
+	if len(rcARNs) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, rcARN := range rcARNs {
+		id := rcARN
+		pager := vpclattice.NewListResourceEndpointAssociationsPaginator(client, &vpclattice.ListResourceEndpointAssociationsInput{ResourceConfigurationIdentifier: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("vpclattice:ListResourceEndpointAssociations %s: %w", rcARN, perr)
+			}
+			for _, a := range out.Items {
+				arn := sv(a.Arn)
+				if arn == "" {
+					continue
+				}
+				label := sv(a.Id)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeVpcLatticeResourceEndpointAssociation, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "vpclattice resource-endpoint-associations")
 }
 
 func scanVLResourceGateways(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

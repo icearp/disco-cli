@@ -23,6 +23,7 @@ func init() {
 			{Service: "wafv2", DiscoType: TypeWAFv2LoggingConfiguration},
 			{Service: "wafv2", DiscoType: TypeWAFv2RegexPatternSet, Leaf: true},
 			{Service: "wafv2", DiscoType: TypeWAFv2WebACLAssociation},
+			{Service: "wafv2", DiscoType: TypeWAFv2ManagedRuleSet, Leaf: true},
 		},
 	})
 }
@@ -36,6 +37,7 @@ type wafv2API interface {
 	ListLoggingConfigurations(context.Context, *wafv2.ListLoggingConfigurationsInput, ...func(*wafv2.Options)) (*wafv2.ListLoggingConfigurationsOutput, error)
 	ListRegexPatternSets(context.Context, *wafv2.ListRegexPatternSetsInput, ...func(*wafv2.Options)) (*wafv2.ListRegexPatternSetsOutput, error)
 	ListResourcesForWebACL(context.Context, *wafv2.ListResourcesForWebACLInput, ...func(*wafv2.Options)) (*wafv2.ListResourcesForWebACLOutput, error)
+	ListManagedRuleSets(context.Context, *wafv2.ListManagedRuleSetsInput, ...func(*wafv2.Options)) (*wafv2.ListManagedRuleSetsOutput, error)
 }
 
 // scanWAFv2 discovers WAFv2 web ACLs, rule groups, and IP sets in one region.

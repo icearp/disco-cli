@@ -42,3 +42,32 @@ func TestResolveVpcLatticeALSRefs_ServiceNetwork_S3(t *testing.T) {
 	assertRelationship(t, rels, alsID, snID, store.RelAttachedTo)
 	assertRelationship(t, rels, alsID, bktID, store.RelUses)
 }
+
+func TestResolveVpcLatticeREARefs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	rcARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:resourceconfiguration/rc-1", testRegion, acct.ID)
+	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceConfiguration, rcARN, testRegion, "{}")
+	reaARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:resourceendpointassociation/rea-1", testRegion, acct.ID)
+	attrs := fmt.Sprintf(`{"ResourceConfigurationArn":"%s"}`, rcARN)
+	reaID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceEndpointAssociation, reaARN, testRegion, attrs)
+	if err := resolveVpcLatticeREARefs(acct, st); err != nil {
+		t.Fatalf("resolveVpcLatticeREARefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(reaID)
+	assertRelationship(t, rels, reaID, rcID, store.RelAttachedTo)
+}
+
+func TestResolveVpcLatticeREARefs_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	reaARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:resourceendpointassociation/rea-1", testRegion, acct.ID)
+	reaID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceEndpointAssociation, reaARN, testRegion, "{}")
+	if err := resolveVpcLatticeREARefs(acct, st); err != nil {
+		t.Fatalf("resolveVpcLatticeREARefs: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(reaID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no edges for REA with no attrs, got %d", len(rels))
+	}
+}

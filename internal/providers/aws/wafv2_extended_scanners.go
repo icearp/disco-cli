@@ -30,6 +30,14 @@ func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account,
 		total += t
 		inserted += i
 	}
+	{
+		t, i, ferr := scanWAFv2ManagedRuleSets(ctx, client, acct, region, scope, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
 	// Web-ACL associations only meaningful for REGIONAL scope (CloudFront
 	// distributions associate via dedicated APIs, not ListResourcesForWebACL).
 	if scope == types.ScopeRegional {
@@ -106,6 +114,40 @@ func scanWAFv2RegexPatternSets(ctx context.Context, client wafv2API, acct *accou
 		nextMarker = out.NextMarker
 	}
 	return upsertBatch(st, batch, "wafv2 regex-pattern-sets")
+}
+
+// scanWAFv2ManagedRuleSets lists the managed rule sets owned by the account
+// (relevant only to AWS Marketplace managed-rule-group sellers). Per-scope;
+// AccessDenied is tolerated since most accounts are not sellers.
+func scanWAFv2ManagedRuleSets(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextMarker *string
+	for {
+		out, err := client.ListManagedRuleSets(ctx, &wafv2.ListManagedRuleSetsInput{Scope: scope, NextMarker: nextMarker})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "wafv2:ListManagedRuleSets", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("wafv2:ListManagedRuleSets scope=%s: %w", scope, err)
+		}
+		for _, m := range out.ManagedRuleSets {
+			arn := sv(m.ARN)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeWAFv2ManagedRuleSet, NativeID: arn,
+				Name: m.Name, Region: &region,
+				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextMarker == nil {
+			break
+		}
+		nextMarker = out.NextMarker
+	}
+	return upsertBatch(st, batch, "wafv2 managed-rule-sets")
 }
 
 // scanWAFv2WebACLAssociations enumerates resources associated with each

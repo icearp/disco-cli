@@ -17,6 +17,7 @@ func init() {
 			{Service: "xray", DiscoType: TypeXRayGroup, Leaf: true},
 			{Service: "xray", DiscoType: TypeXRayResourcePolicy, Leaf: true},
 			{Service: "xray", DiscoType: TypeXRaySamplingRule, Leaf: true},
+			{Service: "xray", DiscoType: TypeXRayTransactionSearchConfig, Leaf: true},
 		},
 	})
 }
@@ -25,13 +26,16 @@ type xrayAPI interface {
 	GetGroups(context.Context, *xray.GetGroupsInput, ...func(*xray.Options)) (*xray.GetGroupsOutput, error)
 	ListResourcePolicies(context.Context, *xray.ListResourcePoliciesInput, ...func(*xray.Options)) (*xray.ListResourcePoliciesOutput, error)
 	GetSamplingRules(context.Context, *xray.GetSamplingRulesInput, ...func(*xray.Options)) (*xray.GetSamplingRulesOutput, error)
+	GetTraceSegmentDestination(context.Context, *xray.GetTraceSegmentDestinationInput, ...func(*xray.Options)) (*xray.GetTraceSegmentDestinationOutput, error)
 }
 
-// scanXRay discovers X-Ray groups, resource policies, and sampling rules.
+// scanXRay discovers X-Ray groups, resource policies, sampling rules, and the
+// per-(account,region) Transaction Search configuration.
 //
-// AWS::XRay::TransactionSearchConfig is skip-logged: the SDK does not expose
-// a list endpoint; it surfaces only via UpdateTransactionSearchConfig and
-// per-config Get* operations.
+// AWS::XRay::TransactionSearchConfig has no list endpoint and no dedicated
+// Get*; the trace-segment-destination config (GetTraceSegmentDestination) is
+// the singleton that backs it (it controls whether segments are indexed to
+// CloudWatch Logs for Transaction Search).
 func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := xray.NewFromConfig(acct.cfg, func(o *xray.Options) { o.Region = region })
 
@@ -39,6 +43,9 @@ func scanXRay(ctx context.Context, acct *account, region string, st *store.Store
 		func() (int, int, error) { return scanXRayGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanXRayResourcePolicies(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanXRaySamplingRules(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanXRayTransactionSearchConfig(ctx, client, acct, region, st, scanID)
+		},
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -140,4 +147,30 @@ func scanXRaySamplingRules(ctx context.Context, client xrayAPI, acct *account, r
 		}
 	}
 	return upsertBatch(st, batch, "xray sampling-rules")
+}
+
+// scanXRayTransactionSearchConfig captures the per-(account,region) trace
+// segment destination singleton (the config backing X-Ray Transaction Search).
+// It has no ARN — synthesize one. Flagged ManagedByProvider as account/region
+// config, not a user-created resource.
+func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	out, err := client.GetTraceSegmentDestination(ctx, &xray.GetTraceSegmentDestinationInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return 0, 0, skipIfAccessDenied(st, "xray:GetTraceSegmentDestination", acct.ID, region, err)
+		}
+		if isAPIErrorCode(err, "ResourceNotFoundException") {
+			return 0, 0, nil
+		}
+		return 0, 0, fmt.Errorf("xray:GetTraceSegmentDestination: %w", err)
+	}
+	arn := fmt.Sprintf("arn:aws:xray:%s:%s:transaction-search-config", region, acct.ID)
+	label := "transaction-search-config"
+	status := string(out.Status)
+	return upsertBatch(st, []*store.Resource{{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeXRayTransactionSearchConfig, NativeID: arn,
+		Name: &label, Region: &region, Status: &status,
+		AttributesJSON: mustJSON(out), DiscoveredBy: scanID, ManagedByProvider: true,
+	}}, "xray transaction-search-config")
 }

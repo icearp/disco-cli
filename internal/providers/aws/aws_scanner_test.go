@@ -275,6 +275,8 @@ var expectedAWSServices = []string{
 	"aws:b2bi",
 	"aws:workspaces-instances",
 	"aws:work-spaces",
+	"aws:wellarchitected",
+	"aws:workmail",
 	"aws:support-app",
 	"aws:s3vectors",
 	"aws:s3express",
