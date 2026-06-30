@@ -17,7 +17,9 @@ func init() {
 			{Service: "event-schemas", DiscoType: TypeEventSchemasDiscoverer, Leaf: true},
 			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistry, Leaf: true},
 			{Service: "event-schemas", DiscoType: TypeEventSchemasRegistryPolicy, Leaf: true},
-			{Service: "event-schemas", DiscoType: TypeEventSchemasSchema, Leaf: true},
+			// schema wires an outbound attached-to edge to its registry (see
+			// eventschemas_resolvers.go).
+			{Service: "event-schemas", DiscoType: TypeEventSchemasSchema},
 		},
 	})
 }

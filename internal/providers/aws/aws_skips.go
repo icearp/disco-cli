@@ -1654,6 +1654,10 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ssm::windowtarget":               "duplicate: scanned as aws:ssm:maintenance-window-target",
 		"AWS::ssm::windowtask":                 "duplicate: scanned as aws:ssm:maintenance-window-task",
 
+		// storagegateway — the iSCSI target ARN is a facet of a storagegateway
+		// volume (scanned as aws:storagegateway:volume), not a standalone resource.
+		"AWS::storagegateway::target": "embedded: the iSCSI target ARN is a facet of a storagegateway volume (scanned as aws:storagegateway:volume)",
+
 		// ssm-contacts / ssm-incidents — engagements/pages/incident-records are
 		// ephemeral operational events.
 		"AWS::ssm-contacts::engagement":       "ephemeral: an SSM Contacts engagement (paging event), not a persistent resource",

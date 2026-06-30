@@ -906,6 +906,8 @@ github.com/aws/aws-sdk-go-v2/service/sagemaker v1.256.0 h1:tunqU6XaIXMB/qozmjxOy
 github.com/aws/aws-sdk-go-v2/service/sagemaker v1.256.0/go.mod h1:AyCRrgn6Qm1nKR2grD+o8iFlKx5c7jF2h72YkkjEaoQ=
 github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial v1.20.8 h1:WGCFXmL0FPxEMUURp8QJVOdMzcOK64MxGx3aQ+/kAq0=
 github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial v1.20.8/go.mod h1:nmxM4ULJ6mxzatqY77MPfwvHcsqpy/cEWuAbnhJ/3DU=
+github.com/aws/aws-sdk-go-v2/service/savingsplans v1.33.8 h1:y9l5GA4veAwiB9L/q54ek7VEeZHCdjOZPX1JXSKsIBs=
+github.com/aws/aws-sdk-go-v2/service/savingsplans v1.33.8/go.mod h1:qR9TdPlV5sIb783MC1Zyj5iUSHZUnlb9AJvzsRIhnsA=
 github.com/aws/aws-sdk-go-v2/service/scheduler v1.18.7 h1:lzyNgsb0Y9l5t1pScZgSfrWi5J0N3XcVsSJb8Wgjs1c=
 github.com/aws/aws-sdk-go-v2/service/scheduler v1.18.7/go.mod h1:Z6XrFAHEJAyZCbSY6naL6cylzYJunhoazrtk7qHpfdA=
 github.com/aws/aws-sdk-go-v2/service/schemas v1.35.6 h1:oxV7nttFx6gGgsl+YkSsLT8fI9uM2noW93BBERj5RgA=
@@ -918,6 +920,8 @@ github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.7 h1:7H0Y7DA+SLT9U0ssRSIP
 github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.7/go.mod h1:SS/9UFk3PQyMZyKumEF7C8Z//TkUEd1AShPnzUbAKqQ=
 github.com/aws/aws-sdk-go-v2/service/securitylake v1.26.2 h1:4KcgclzPz5qNARD8bHNUDo+AJwnq1SIuqnN7O8BIE9A=
 github.com/aws/aws-sdk-go-v2/service/securitylake v1.26.2/go.mod h1:RrOLslx0CP7YCNPkULvlIN+nEzktrsU6RPiLIHcVdUE=
+github.com/aws/aws-sdk-go-v2/service/serverlessapplicationrepository v1.31.7 h1:VtYiposoRQNY518sQZYJgAFIJyeDju84qffNQ00QCcc=
+github.com/aws/aws-sdk-go-v2/service/serverlessapplicationrepository v1.31.7/go.mod h1:hzbr2oTrgx346NfBfZIrs/IYbWVTtLet8qoZ6gkHEF0=
 github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.40.4 h1:sPN+5sCOI+9atEK/+d4B56qNB4U0QQMIryiFZP/Ys2c=
 github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.40.4/go.mod h1:53zak1XHl8EqtLsLhNFnFUtOjtEtS6ZWDvAEYWooMEc=
 github.com/aws/aws-sdk-go-v2/service/servicecatalogappregistry v1.36.6 h1:gcSbEMJRdrWNnx4wic2/qRn6anipg7xGsR84Cf6NnNs=
@@ -960,10 +964,16 @@ github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.7 h1:mrO5uCQoSRdCrGF7kR8MjXB
 github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.7/go.mod h1:a3cHGErW/VUAingYUS6uyL8/NmnuNkyyAH8/JvBwGJY=
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6 h1:yLr03zQE/5Eu5l3QU0Si+xMbLMbSDF2YXsigqXngs6g=
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.36.6/go.mod h1:Q5N6icH+KJZDLh+ESNwzdv6cZ6vLFF/egy3IOxWhmz4=
+github.com/aws/aws-sdk-go-v2/service/storagegateway v1.44.4 h1:3kX7PMC8wp/t15MVRKN23X++OtfpOveTFZF3NAsVY8U=
+github.com/aws/aws-sdk-go-v2/service/storagegateway v1.44.4/go.mod h1:N+vEdNSV9fa48/Zt3949j9bWqfaPwhzBk+QV1Xt+3zw=
 github.com/aws/aws-sdk-go-v2/service/sts v1.43.3 h1:VrIhKRCSK1umelSgB9RghvA9RTUYeQffyAS5ApXehNI=
 github.com/aws/aws-sdk-go-v2/service/sts v1.43.3/go.mod h1:r8wkDOuLaaMFqFiYAb8dGY2A3gJCOujMc6CFOVC4Zhc=
+github.com/aws/aws-sdk-go-v2/service/supplychain v1.18.7 h1:AHW6y+RHn0vB/s1slcp/rV79Xr85mJJmbYobTsXdw2Q=
+github.com/aws/aws-sdk-go-v2/service/supplychain v1.18.7/go.mod h1:OClaDVS6sn5bderMf1lcbF4PVaUx9LoVca8fwDNEN5I=
 github.com/aws/aws-sdk-go-v2/service/supportapp v1.19.7 h1:EwMJlBG7qGHgSs95mfLcRiYDwNuT5FrSWH60ZlhwXdI=
 github.com/aws/aws-sdk-go-v2/service/supportapp v1.19.7/go.mod h1:rAsuw0TAT+kmyOijACS2QntGsX0mqJTBiZkOCiRG1t0=
+github.com/aws/aws-sdk-go-v2/service/swf v1.35.1 h1:e9/Sg5j5IhNn4I14LVwDfmv2NxOgmnTFJK3eYm7ba3M=
+github.com/aws/aws-sdk-go-v2/service/swf v1.35.1/go.mod h1:z/+imOd6+yAjsZEX5srweZfl7X4GCJBUD+YGR4x7LjI=
 github.com/aws/aws-sdk-go-v2/service/synthetics v1.44.0 h1:0S42drX3/Y59Synj1pzAiR3zaYPcIcEETIr31uQmleo=
 github.com/aws/aws-sdk-go-v2/service/synthetics v1.44.0/go.mod h1:3ivY8t1exDIb2taRhXFbeeIcwJrGgIY8s5rxomv5QmM=
 github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb v1.20.6 h1:Cjn8vN7HcVipJfird4eW9mTTtZ0FGbK3U49XNlJRmeo=

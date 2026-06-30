@@ -2148,4 +2148,33 @@ const (
 	// Migration Hub Orchestrator (migrationhuborchestrator_scanners.go).
 	TypeMigrationHubOrchestratorWorkflow = "aws:migrationhub-orchestrator:workflow"
 	TypeMigrationHubOrchestratorTemplate = "aws:migrationhub-orchestrator:template"
+
+	// Storage Gateway (storagegateway_scanners.go, storagegateway_resolvers.go).
+	TypeStorageGatewayGateway       = "aws:storagegateway:gateway"
+	TypeStorageGatewayVolume        = "aws:storagegateway:volume"
+	TypeStorageGatewayShare         = "aws:storagegateway:share"
+	TypeStorageGatewayTape          = "aws:storagegateway:tape"
+	TypeStorageGatewayTapePool      = "aws:storagegateway:tapepool"
+	TypeStorageGatewayFsAssociation = "aws:storagegateway:fs-association"
+	TypeStorageGatewayCacheReport   = "aws:storagegateway:cache-report"
+	TypeStorageGatewayDevice        = "aws:storagegateway:device"
+
+	// Savings Plans (savingsplans_scanners.go). Global service.
+	TypeSavingsPlansSavingsPlan = "aws:savingsplans:savingsplan"
+
+	// Simple Workflow Service (swf_scanners.go).
+	TypeSWFDomain = "aws:swf:domain"
+
+	// Serverless Application Repository (serverlessrepo_scanners.go). The Service
+	// Reference key is plural (AWS::serverlessrepo::applications), so the disco
+	// resource segment mirrors it as plural.
+	TypeServerlessRepoApplication = "aws:serverlessrepo:applications"
+
+	// AWS Supply Chain (supplychain_scanners.go, supplychain_resolvers.go). The
+	// disco service segment "scn" mirrors the IAM/Service-Reference service key;
+	// the SDK module is "supplychain".
+	TypeSupplyChainInstance            = "aws:scn:instance"
+	TypeSupplyChainDataIntegrationFlow = "aws:scn:data-integration-flow"
+	TypeSupplyChainDataset             = "aws:scn:dataset"
+	TypeSupplyChainNamespace           = "aws:scn:namespace"
 )

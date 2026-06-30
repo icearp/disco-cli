@@ -1,0 +1,108 @@
+package aws
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"codeberg.org/icearp/disco/internal/util"
+	"codeberg.org/icearp/disco/store"
+)
+
+func init() {
+	registerResolver(
+		resolveStorageGatewayChildren,
+		EdgeDecl{TypeStorageGatewayVolume, TypeStorageGatewayGateway, store.RelAttachedTo},
+		EdgeDecl{TypeStorageGatewayShare, TypeStorageGatewayGateway, store.RelAttachedTo},
+		EdgeDecl{TypeStorageGatewayTape, TypeStorageGatewayGateway, store.RelAttachedTo},
+		EdgeDecl{TypeStorageGatewayFsAssociation, TypeStorageGatewayGateway, store.RelAttachedTo},
+	)
+	registerResolver(
+		resolveStorageGatewayDevices,
+		EdgeDecl{TypeStorageGatewayDevice, TypeStorageGatewayGateway, store.RelAttachedTo},
+	)
+}
+
+// resolveStorageGatewayChildren wires volumes, file shares, tapes, and file
+// system associations to their parent gateway via the GatewayARN field each
+// carries in its attributes. FK-safe: the edge is emitted only when the
+// gateway was scanned (archived tapes carry an empty GatewayARN — skipped).
+func resolveStorageGatewayChildren(acct *account, st *store.Store) error {
+	gwSet, err := scannedIDSet(acct, st, TypeStorageGatewayGateway)
+	if err != nil {
+		return err
+	}
+	if len(gwSet) == 0 {
+		return nil
+	}
+	for _, ctype := range []string{
+		TypeStorageGatewayVolume,
+		TypeStorageGatewayShare,
+		TypeStorageGatewayTape,
+		TypeStorageGatewayFsAssociation,
+	} {
+		rows, lerr := st.ListResources(store.ResourceFilter{
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype},
+			Limit: util.AllResources,
+		})
+		if lerr != nil {
+			return lerr
+		}
+		for _, r := range rows {
+			var attrs struct {
+				GatewayARN *string `json:"GatewayARN"`
+			}
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				continue
+			}
+			gwARN := sv(attrs.GatewayARN)
+			if gwARN == "" {
+				continue
+			}
+			tgt := store.ResourceID("aws", acct.ID, TypeStorageGatewayGateway, gwARN)
+			if !gwSet[tgt] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert storagegateway %s→gateway: %w", ctype, err)
+			}
+		}
+	}
+	return nil
+}
+
+// resolveStorageGatewayDevices wires each VTL device to its gateway. The
+// VTLDeviceARN embeds the gateway ARN as its prefix
+// (`{gatewayARN}/device/{deviceId}`), so the parent is recovered from the
+// NativeID rather than an attribute.
+func resolveStorageGatewayDevices(acct *account, st *store.Store) error {
+	gwSet, err := scannedIDSet(acct, st, TypeStorageGatewayGateway)
+	if err != nil {
+		return err
+	}
+	if len(gwSet) == 0 {
+		return nil
+	}
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeStorageGatewayDevice},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		i := strings.Index(r.NativeID, "/device/")
+		if i < 0 {
+			continue
+		}
+		gwARN := r.NativeID[:i]
+		tgt := store.ResourceID("aws", acct.ID, TypeStorageGatewayGateway, gwARN)
+		if !gwSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert storagegateway device→gateway: %w", err)
+		}
+	}
+	return nil
+}

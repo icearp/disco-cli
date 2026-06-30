@@ -936,6 +936,18 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCustomerProfilesDomainObjectTypes:  "AWS::profile::domain-object-types",
 		TypeCustomerProfilesRecommenderFilters: "AWS::profile::recommender-filters",
 		TypeCustomerProfilesRecommenderSchemas: "AWS::profile::recommender-schemas",
+		// Storage Gateway — the hyphenated SR resource keys can't be reproduced by
+		// the PascalCase algorithmic key (single-word gateway/volume/share/tape/
+		// tapepool/device match algorithmically and need no alias).
+		TypeStorageGatewayFsAssociation: "AWS::storagegateway::fs-association",
+		TypeStorageGatewayCacheReport:   "AWS::storagegateway::cache-report",
+		// AWS Supply Chain — disco service segment "scn" mirrors the SR key; the
+		// hyphenated data-integration-flow resource needs an explicit alias (the
+		// single-word instance/dataset/namespace kinds match algorithmically).
+		TypeSupplyChainDataIntegrationFlow: "AWS::scn::data-integration-flow",
+		// Serverless Application Repository — the SR resource key is plural
+		// (applications); disco mirrors the plural, aliased to the exact SR key.
+		TypeServerlessRepoApplication: "AWS::serverlessrepo::applications",
 	}
 }
 
@@ -1034,6 +1046,7 @@ var serviceRenames = map[string]string{
 	"es":                           "opensearchservice",      // legacy Elasticsearch IAM prefix ↔ CFN OpenSearchService
 	"profile":                      "customerprofiles",       // SR profile ↔ CFN CustomerProfiles / scanned aws:customer-profiles
 	"route53recoverycontrolconfig": "route53recoverycontrol", // SR config API ↔ scanned aws:route53-recovery-control
+	"schemas":                      "eventschemas",           // SR schemas (EventBridge Schemas) ↔ CFN EventSchemas / scanned aws:event-schemas
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic
