@@ -1715,6 +1715,26 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::sts::root-user":        "data-plane: an STS root-user session concept, not an enumerable resource",
 		"AWS::sts::self-session":     "data-plane: an STS self session concept, not an enumerable resource",
 
+		// transform / transform-custom / ts — no aws-sdk-go-v2 client module.
+		"AWS::transform::connector":             "no SDK: no aws-sdk-go-v2 module for the transform service",
+		"AWS::transform::profile":               "no SDK: no aws-sdk-go-v2 module for the transform service",
+		"AWS::transform-custom::analysis":       "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::campaign":       "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::finding":        "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::knowledge-item": "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::package":        "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::remediation":    "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::repository":     "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::transform-custom::source":         "no SDK: no aws-sdk-go-v2 module for the transform-custom service",
+		"AWS::ts::execution":                    "no SDK: no aws-sdk-go-v2 module for the ts service",
+		"AWS::ts::tool":                         "no SDK: no aws-sdk-go-v2 module for the ts service",
+
+		// transcribe — transcription/analytics/scribe jobs are ephemeral run records.
+		"AWS::transcribe::transcriptionjob":        "ephemeral: a Transcribe transcription job run, not a persistent resource",
+		"AWS::transcribe::callanalyticsjob":        "ephemeral: a Transcribe Call Analytics job run, not a persistent resource",
+		"AWS::transcribe::medicaltranscriptionjob": "ephemeral: a Transcribe Medical transcription job run, not a persistent resource",
+		"AWS::transcribe::medicalscribejob":        "ephemeral: a Transcribe Medical scribe job run, not a persistent resource",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
