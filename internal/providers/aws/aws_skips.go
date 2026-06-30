@@ -1392,6 +1392,47 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::proton::service-template-major-version":     "duplicate: a template version (major.minor) is scanned as aws:proton:service-template-version",
 		"AWS::proton::service-template-minor-version":     "duplicate: a template version (major.minor) is scanned as aws:proton:service-template-version",
 
+		// q (Amazon Q Developer) — no aws-sdk-go-v2 module for the standalone q
+		// service (Q functionality lives in qbusiness / qconnect / qapps clients).
+		"AWS::q::plugin":  "no SDK: no aws-sdk-go-v2 module for the standalone Amazon Q service",
+		"AWS::q::profile": "no SDK: no aws-sdk-go-v2 module for the standalone Amazon Q service",
+
+		// qapps — sessions are ephemeral conversational state; the application is the
+		// parent Q Business app (scanned as aws:qbusiness:application), not a qapps
+		// resource with its own list op.
+		"AWS::qapps::application":  "no SDK list op: the parent is the scanned aws:qbusiness:application",
+		"AWS::qapps::qapp-session": "ephemeral: a Q App conversational session, not a persistent resource",
+
+		// qbusiness — integrations have no list op; a permission is a resource-based
+		// policy (data-plane), not an enumerable resource.
+		"AWS::qbusiness::integration": "no SDK list op: qbusiness integrations are not enumerable",
+		"AWS::QBusiness::Permission":  "data-plane: a qbusiness resource-based permission policy, not an enumerable resource",
+
+		// qdeveloper — code transformations are ephemeral job runs.
+		"AWS::qdeveloper::codeTransformation": "ephemeral: a Q Developer code transformation job, not a persistent resource",
+
+		// qldb — Amazon QLDB reached end of life; the aws-sdk-go-v2 qldb client marks
+		// the service "no longer available for use".
+		"AWS::qldb::catalog": "discontinued: Amazon QLDB reached end of life (SDK service marked deprecated)",
+		"AWS::qldb::ledger":  "discontinued: Amazon QLDB reached end of life (SDK service marked deprecated)",
+		"AWS::qldb::stream":  "discontinued: Amazon QLDB reached end of life (SDK service marked deprecated)",
+		"AWS::qldb::table":   "discontinued: Amazon QLDB reached end of life (SDK service marked deprecated)",
+
+		// quicksight — approval-policy / automation* / email-customization-template /
+		// extension-access / limits-profile have no list op; the *Job and ingestion
+		// rows are ephemeral executions. The dashboards/users/groups/etc. are scanned.
+		"AWS::quicksight::approvalPolicy":             "no SDK list op: QuickSight approval policies are not enumerable",
+		"AWS::quicksight::automation":                 "no SDK list op: QuickSight automations are not enumerable",
+		"AWS::quicksight::automationGroup":            "no SDK list op: QuickSight automation groups are not enumerable",
+		"AWS::quicksight::automationJob":              "ephemeral: a QuickSight automation job run, not a persistent resource",
+		"AWS::quicksight::assetBundleExportJob":       "ephemeral: a QuickSight asset-bundle export job run, not a persistent resource",
+		"AWS::quicksight::assetBundleImportJob":       "ephemeral: a QuickSight asset-bundle import job run, not a persistent resource",
+		"AWS::quicksight::dashboardSnapshotJob":       "ephemeral: a QuickSight dashboard snapshot job run, not a persistent resource",
+		"AWS::quicksight::emailCustomizationTemplate": "no SDK list op: QuickSight email customization templates are not enumerable",
+		"AWS::quicksight::extensionaccess":            "no SDK list op: QuickSight extension access is not enumerable",
+		"AWS::quicksight::ingestion":                  "ephemeral: a QuickSight dataset ingestion run, not a persistent resource",
+		"AWS::quicksight::limitsProfile":              "no SDK list op: QuickSight limits profiles are not enumerable",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
