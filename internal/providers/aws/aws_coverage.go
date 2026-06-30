@@ -887,6 +887,7 @@ var serviceRenames = map[string]string{
 	"elasticmapreduce":  "emr",                  // SR elasticmapreduce ↔ CFN EMR / scanned aws:emr
 	"firehose":          "kinesisfirehose",      // SR firehose ↔ CFN KinesisFirehose / scanned aws:firehose
 	"geo":               "location",             // SR geo ↔ CFN Location / scanned aws:location
+	"kafka":             "msk",                  // SR kafka ↔ CFN MSK / scanned aws:kafka
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

@@ -1017,6 +1017,48 @@ func (coverageProvider) Skips() map[string]string {
 		// transient live-session artifact, not a persistent resource.
 		"AWS::ivs::Composition": "ephemeral: an IVS real-time stage composition (ivs-realtime), a transient live-session artifact",
 
+		// kafka (MSK) — the control-plane cluster/configuration/replicator/
+		// vpc-connection collapse onto the scanned aws:kafka:* (CFN MSK) twins via
+		// the kafka→msk serviceRename. The remaining kafka / kafka-cluster keys are
+		// data-plane authorization resource-types (consumer groups, topics,
+		// transactional ids, cluster-connect), not control-plane resources.
+		"AWS::kafka::group":                    "data-plane: a Kafka consumer group (runtime), not a control-plane resource",
+		"AWS::kafka::topic":                    "data-plane: a Kafka topic (runtime), not a control-plane resource",
+		"AWS::kafka::transactional-id":         "data-plane: a Kafka transactional id (runtime), not a control-plane resource",
+		"AWS::kafka-cluster::cluster":          "data-plane: the kafka-cluster IAM-auth view of the scanned aws:kafka:cluster",
+		"AWS::kafka-cluster::group":            "data-plane: a Kafka consumer group (runtime), not a control-plane resource",
+		"AWS::kafka-cluster::topic":            "data-plane: a Kafka topic (runtime), not a control-plane resource",
+		"AWS::kafka-cluster::transactional-id": "data-plane: a Kafka transactional id (runtime), not a control-plane resource",
+
+		// kafkaconnect — the custom plugin / worker configuration are scanned
+		// (aws:kafka-connect:*); a connector operation is an ephemeral async run.
+		"AWS::kafkaconnect::custom plugin":        "duplicate: scanned as aws:kafka-connect:custom-plugin",
+		"AWS::kafkaconnect::worker configuration": "duplicate: scanned as aws:kafka-connect:worker-configuration",
+		"AWS::kafkaconnect::connector operation":  "ephemeral: an MSK Connect connector async operation, not a persistent resource",
+
+		// kendra-ranking — the rescore execution plan is scanned as
+		// aws:kendra-ranking:execution-plan.
+		"AWS::kendra-ranking::rescore-execution-plan": "duplicate: scanned as aws:kendra-ranking:execution-plan",
+
+		// kinesis — the registered consumer is scanned as aws:kinesis:stream-consumer;
+		// kmsKey is the KMS key a stream references, scanned as aws:kms:key.
+		"AWS::kinesis::consumer": "duplicate: scanned as aws:kinesis:stream-consumer",
+		"AWS::kinesis::kmsKey":   "not a resource: the KMS key a Kinesis stream references, scanned as aws:kms:key",
+
+		// kinesisanalytics — the V1 CloudFormation spellings of the resources disco
+		// scans via the Kinesis Data Analytics v2 API (aws:kinesis-analytics-v2:*).
+		"AWS::KinesisAnalytics::ApplicationOutput":              "duplicate: scanned as aws:kinesis-analytics-v2:application-output",
+		"AWS::KinesisAnalytics::ApplicationReferenceDataSource": "duplicate: scanned as aws:kinesis-analytics-v2:application-reference-data-source",
+		"AWS::kinesisanalytics::application":                    "duplicate: scanned as aws:kinesis-analytics-v2:application",
+
+		// kinesisvideo — the signaling channel is scanned as
+		// aws:kinesis-video:signaling-channel.
+		"AWS::kinesisvideo::channel": "duplicate: scanned as aws:kinesis-video:signaling-channel",
+
+		// kms — a multi-region replica key is returned by ListKeys, scanned as
+		// aws:kms:key.
+		"AWS::KMS::ReplicaKey": "duplicate: multi-region replica keys are returned by ListKeys, scanned as aws:kms:key",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
