@@ -849,6 +849,21 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::forecast::predictorBacktestExportJob": "ephemeral: a predictor backtest export job run, not a persistent resource",
 		"AWS::forecast::whatIfForecastExport":       "ephemeral: a what-if forecast export job run, not a persistent resource",
 
+		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
+		// collapse onto aws:location:* via the geo→location serviceRename; job is an
+		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
+		// synchronous query endpoints (the "provider" is the Esri/HERE data source
+		// you query, not an account resource).
+		"AWS::geo::job":             "ephemeral: an Amazon Location batch job run, not a persistent resource",
+		"AWS::geo-maps::provider":   "not a resource: the GeoMaps data provider queried at request time, not an enumerable resource",
+		"AWS::geo-places::provider": "not a resource: the GeoPlaces data provider queried at request time, not an enumerable resource",
+		"AWS::geo-routes::provider": "not a resource: the GeoRoutes data provider queried at request time, not an enumerable resource",
+
+		// guardduty — Master is the legacy administrator-relationship designation
+		// (GetMasterAccount returns this account's admin); members are scanned as
+		// aws:guardduty:member.
+		"AWS::GuardDuty::Master": "association: the GuardDuty administrator relationship (GetMasterAccount), not an enumerable resource",
+
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical
 		// resources disco already scans under their CloudFormation spellings. The
