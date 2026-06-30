@@ -1587,6 +1587,14 @@ func (coverageProvider) Skips() map[string]string {
 		// secret to an RDS/Redshift resource, not a standalone SDK resource.
 		"AWS::SecretsManager::SecretTargetAttachment": "embedded: a CloudFormation-only secret↔target wiring, not an SDK resource",
 
+		// securityhub — connector is the v1 third-party connector, superseded by
+		// and scanned as aws:securityhub:connector-v2 (ListConnectorsV2); product is
+		// AWS's published catalog of all integratable findings products
+		// (DescribeProducts), not an account resource — the account's *enabled*
+		// product subscriptions are scanned as aws:securityhub:product-subscription.
+		"AWS::securityhub::connector": "duplicate: the v1 connector superseded by aws:securityhub:connector-v2 (ListConnectorsV2)",
+		"AWS::securityhub::product":   "AWS-managed catalog: DescribeProducts lists all integratable findings products; the account's enabled subscriptions are scanned as aws:securityhub:product-subscription",
+
 		// securitylake — subscriber notification is per-subscriber config, not a
 		// standalone resource (the subscribers are scanned).
 		"AWS::SecurityLake::SubscriberNotification": "facet: per-subscriber notification config, not a standalone resource",
@@ -1607,6 +1615,7 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ses::export-job":                 "ephemeral: an SES export job run, not a persistent resource",
 		"AWS::ses::import-job":                 "ephemeral: an SES import job run, not a persistent resource",
 		"AWS::ses::reputation-policy":          "config: account-level reputation config, not an enumerable resource",
+		"AWS::ses::mailmanager-smtp-relay":     "duplicate: a Mail Manager SMTP relay is the relay scanned as aws:ses:mailmanager-relay (mailmanager:ListRelays)",
 
 		// shield / signer — attack records and signing jobs are ephemeral histories.
 		"AWS::shield::attack":      "ephemeral: a Shield DDoS attack record, not a persistent resource",
@@ -1664,12 +1673,26 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::ssm-contacts::page":             "ephemeral: an SSM Contacts page, not a persistent resource",
 		"AWS::ssm-incidents::incident-record": "ephemeral: an incident record (occurrence), not a persistent resource",
 
-		// ssm-sap — application is the SR dup of the scanned systems-manager-sap app.
-		"AWS::ssm-sap::application": "duplicate: scanned as aws:systems-manager-sap:application",
+		// sso — an SSO Account is an AWS Organizations account that IAM Identity
+		// Center provisions access to; it is scanned as aws:organizations:account.
+		// There is no SSO-specific account list op (ListAccountsForProvisioned-
+		// PermissionSet requires a permission set and returns org account IDs).
+		"AWS::sso::Account": "duplicate: SSO-provisioned accounts are AWS Organizations accounts, scanned as aws:organizations:account",
 
 		// sso-oauth — the OAuth Application is the data-plane view of the scanned
 		// aws:sso:application.
 		"AWS::sso-oauth::Application": "duplicate: scanned as aws:sso:application",
+
+		// simspaceweaver — AWS has deprecated SimSpace Weaver; the aws-sdk-go-v2
+		// client is marked "no longer available for use", so its single resource
+		// type cannot be scanned. The dependency is intentionally not added.
+		"AWS::simspaceweaver::Simulation": "service deprecated: AWS SimSpace Weaver is no longer available (SDK client marked deprecated); not scannable",
+
+		// ssmquicksetup — a LifecycleAutomation is a sub-resource of a
+		// ConfigurationManager (scanned as aws:ssm-quick-setup:configuration-manager)
+		// with no list endpoint in the ssmquicksetup SDK.
+		"AWS::ssmquicksetup::LifecycleAutomation": "no SDK list op: a sub-resource of aws:ssm-quick-setup:configuration-manager, not independently enumerable",
+		"AWS::SSMQuickSetup::LifecycleAutomation": "no SDK list op: a sub-resource of aws:ssm-quick-setup:configuration-manager, not independently enumerable",
 
 		// states (Step Functions) — statemachine/activity/alias/version are dups of
 		// the scanned aws:sfn:* / aws:stepfunctions:* types; executions/map-runs are

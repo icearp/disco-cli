@@ -13,6 +13,17 @@ import (
 // assignments, and the per-instance access-control attribute configuration
 // (singleton). All three CFN types live under aws:sso:*.
 func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+	// Application providers are account-wide (not per-instance) — the AWS-managed
+	// catalog of federation providers available to the account.
+	{
+		t, i, ferr := scanSSOApplicationProviders(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
 	for _, inst := range instances {
 		instArn := sv(inst.InstanceArn)
 		if instArn == "" {
@@ -40,8 +51,94 @@ func scanSSOExtended(ctx context.Context, client ssoadminAPI, acct *account, reg
 		}
 		total += t
 		inserted += i
+
+		t, i, ferr = scanSSOTrustedTokenIssuers(ctx, client, acct, region, st, scanID, instArn)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
 	}
 	return total, inserted, nil
+}
+
+// scanSSOApplicationProviders captures the AWS-managed catalog of application
+// providers (federation providers). Flagged ManagedByProvider — these are
+// AWS-owned catalog entries, not user-created resources.
+func scanSSOApplicationProviders(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ssoadmin.NewListApplicationProvidersPaginator(client, &ssoadmin.ListApplicationProvidersInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssoadmin:ListApplicationProviders", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssoadmin:ListApplicationProviders: %w", err)
+		}
+		for _, p := range out.ApplicationProviders {
+			arn := sv(p.ApplicationProviderArn)
+			if arn == "" {
+				continue
+			}
+			var name *string
+			if p.DisplayData != nil {
+				name = p.DisplayData.DisplayName
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSOApplicationProvider, NativeID: arn,
+				Name: name, Region: &region, ManagedByProvider: true,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sso application-providers")
+}
+
+// scanSSOTrustedTokenIssuers captures per-instance trusted token issuers.
+// The resolver wires each to its parent instance (RelAttachedTo); the parent
+// instance ARN is embedded as InstanceArn since the issuer metadata carries no
+// back-reference.
+func scanSSOTrustedTokenIssuers(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instanceARN string) (int, int, error) {
+	ia := instanceARN
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListTrustedTokenIssuers(ctx, &ssoadmin.ListTrustedTokenIssuersInput{InstanceArn: &ia, NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssoadmin:ListTrustedTokenIssuers", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssoadmin:ListTrustedTokenIssuers: %w", err)
+		}
+		for _, t := range out.TrustedTokenIssuers {
+			arn := sv(t.TrustedTokenIssuerArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSOTrustedTokenIssuer, NativeID: arn,
+				Name: t.Name, Region: &region,
+				AttributesJSON: mustJSON(ssoTrustedTokenIssuerAttrs{TrustedTokenIssuerMetadata: t, InstanceArn: ia}),
+				DiscoveredBy:   scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "sso trusted-token-issuers")
+}
+
+// ssoTrustedTokenIssuerAttrs embeds the SDK issuer metadata and adds the parent
+// instance ARN, which the metadata does not carry. The resolver reads
+// InstanceArn to wire the attached-to edge.
+type ssoTrustedTokenIssuerAttrs struct {
+	ssotypes.TrustedTokenIssuerMetadata
+	InstanceArn string `json:"InstanceArn,omitempty"`
 }
 
 func scanSSOApplications(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, instanceARN string) ([]string, int, int, error) {

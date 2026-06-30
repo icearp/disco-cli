@@ -487,7 +487,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/repostspace v1.15.8
 	github.com/aws/aws-sdk-go-v2/service/sagemakergeospatial v1.20.8
 	github.com/aws/aws-sdk-go-v2/service/savingsplans v1.33.8
+	github.com/aws/aws-sdk-go-v2/service/securityir v1.11.8
 	github.com/aws/aws-sdk-go-v2/service/serverlessapplicationrepository v1.31.7
+	github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.26.3
+	github.com/aws/aws-sdk-go-v2/service/socialmessaging v1.11.4
 	github.com/aws/aws-sdk-go-v2/service/storagegateway v1.44.4
 	github.com/aws/aws-sdk-go-v2/service/supplychain v1.18.7
 	github.com/aws/aws-sdk-go-v2/service/swf v1.35.1

@@ -23,6 +23,8 @@ func init() {
 			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTarget},
 			{Service: "ssm", DiscoType: TypeSSMMaintenanceWindowTask},
 			{Service: "ssm", DiscoType: TypeSSMResourceDataSync},
+			{Service: "ssm", DiscoType: TypeSSMManagedInstance, Leaf: true},
+			{Service: "ssm", DiscoType: TypeSSMOpsMetadata, Leaf: true},
 		},
 	})
 }
@@ -38,6 +40,8 @@ type ssmAPI interface {
 	DescribeMaintenanceWindowTargets(context.Context, *ssm.DescribeMaintenanceWindowTargetsInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowTargetsOutput, error)
 	DescribeMaintenanceWindowTasks(context.Context, *ssm.DescribeMaintenanceWindowTasksInput, ...func(*ssm.Options)) (*ssm.DescribeMaintenanceWindowTasksOutput, error)
 	ListResourceDataSync(context.Context, *ssm.ListResourceDataSyncInput, ...func(*ssm.Options)) (*ssm.ListResourceDataSyncOutput, error)
+	DescribeInstanceInformation(context.Context, *ssm.DescribeInstanceInformationInput, ...func(*ssm.Options)) (*ssm.DescribeInstanceInformationOutput, error)
+	ListOpsMetadata(context.Context, *ssm.ListOpsMetadataInput, ...func(*ssm.Options)) (*ssm.ListOpsMetadataOutput, error)
 }
 
 // scanSSM discovers SSM parameters (metadata only — never values), customer-

@@ -30,6 +30,11 @@ func init() {
 			{Service: "sso", DiscoType: TypeSSOApplication},
 			{Service: "sso", DiscoType: TypeSSOApplicationAssignment},
 			{Service: "sso", DiscoType: TypeSSOInstanceAccessControlAttributeConfiguration},
+			// Application providers are the AWS-managed catalog of federation
+			// providers (ManagedByProvider); trusted-token-issuers wire to their
+			// parent instance via a resolver, so they are not Leaf.
+			{Service: "sso", DiscoType: TypeSSOApplicationProvider, Leaf: true},
+			{Service: "sso", DiscoType: TypeSSOTrustedTokenIssuer},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreUser, Leaf: true},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreGroup, Leaf: true},
 			{Service: "identitystore", DiscoType: TypeIdentityStoreGroupMembership},
@@ -48,6 +53,8 @@ type ssoadminAPI interface {
 	ListApplications(context.Context, *ssoadmin.ListApplicationsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationsOutput, error)
 	ListApplicationAssignments(context.Context, *ssoadmin.ListApplicationAssignmentsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationAssignmentsOutput, error)
 	DescribeInstanceAccessControlAttributeConfiguration(context.Context, *ssoadmin.DescribeInstanceAccessControlAttributeConfigurationInput, ...func(*ssoadmin.Options)) (*ssoadmin.DescribeInstanceAccessControlAttributeConfigurationOutput, error)
+	ListApplicationProviders(context.Context, *ssoadmin.ListApplicationProvidersInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListApplicationProvidersOutput, error)
+	ListTrustedTokenIssuers(context.Context, *ssoadmin.ListTrustedTokenIssuersInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListTrustedTokenIssuersOutput, error)
 }
 
 // identitystoreAPI is the narrow set of Identity Store operations called by

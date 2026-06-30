@@ -52,7 +52,86 @@ func scanSSMExtended(ctx context.Context, client ssmAPI, acct *account, region s
 	}
 	total += t
 	inserted += i
+
+	t, i, ferr = scanSSMManagedInstances(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanSSMOpsMetadata(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+// scanSSMManagedInstances discovers SSM-managed nodes (DescribeInstanceInformation).
+// The API returns no ARN, so the NativeID is synthesized from the instance ID:
+// arn:aws:ssm:{region}:{acct}:managed-instance/{InstanceId}.
+func scanSSMManagedInstances(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ssm.NewDescribeInstanceInformationPaginator(client, &ssm.DescribeInstanceInformationInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeInstanceInformation", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssm:DescribeInstanceInformation: %w", err)
+		}
+		for _, in := range out.InstanceInformationList {
+			id := sv(in.InstanceId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:managed-instance/%s", region, acct.ID, id)
+			label := id
+			if cn := sv(in.ComputerName); cn != "" {
+				label = cn
+			}
+			status := string(in.PingStatus)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSMManagedInstance, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(in), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "ssm managed-instances")
+}
+
+// scanSSMOpsMetadata discovers Application Manager OpsMetadata objects.
+func scanSSMOpsMetadata(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := ssm.NewListOpsMetadataPaginator(client, &ssm.ListOpsMetadataInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "ssm:ListOpsMetadata", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("ssm:ListOpsMetadata: %w", err)
+		}
+		for _, o := range out.OpsMetadataList {
+			arn := sv(o.OpsMetadataArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(o.ResourceId)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSMOpsMetadata, NativeID: arn,
+				Name: &label, Region: &region,
+				AttributesJSON: mustJSON(o), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "ssm opsmetadata")
 }
 
 func scanSSMAssociations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

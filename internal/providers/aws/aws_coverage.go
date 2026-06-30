@@ -334,6 +334,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSSMDocument:      "AWS::SSM::Document",
 		TypeSSMParameter:     "AWS::SSM::Parameter",
 		TypeSSMPatchBaseline: "AWS::SSM::PatchBaseline",
+		// managed-instance is Service-Reference-only, spelled hyphenated, which the
+		// algorithmic key (hyphens stripped → "managedinstance") can't reproduce;
+		// alias to the exact SR key. (opsmetadata matches algorithmically.)
+		TypeSSMManagedInstance: "AWS::ssm::managed-instance",
 		// SSO / IdentityStore.
 		TypeSSOInstance:          "AWS::SSO::Instance",
 		TypeSSOPermissionSet:     "AWS::SSO::PermissionSet",
@@ -948,6 +952,27 @@ func (coverageProvider) Aliases() map[string]string {
 		// Serverless Application Repository — the SR resource key is plural
 		// (applications); disco mirrors the plural, aliased to the exact SR key.
 		TypeServerlessRepoApplication: "AWS::serverlessrepo::applications",
+		// Systems Manager for SAP — application resolves via its CloudFormation
+		// twin (the ssmsap→systemsmanagersap serviceRename collapses the SR
+		// duplicate onto it). component/database are Service-Reference-only and the
+		// SR spells the service hyphenated ("ssm-sap"), which the algorithmic key
+		// can't reproduce, so alias each to the exact SR key.
+		TypeSystemsManagerSAPComponent: "AWS::ssm-sap::component",
+		TypeSystemsManagerSAPDatabase:  "AWS::ssm-sap::database",
+		// Security Incident Response — the SR service segment is hyphenated
+		// ("security-ir"), which the algorithmic key (hyphens stripped →
+		// "securityir") can't reproduce, so alias each to the exact SR key.
+		TypeSecurityIRCase:       "AWS::security-ir::case",
+		TypeSecurityIRMembership: "AWS::security-ir::membership",
+		// Snow Device Management — the SR service segment is hyphenated, which the
+		// algorithmic key can't reproduce; alias both to the exact SR key.
+		TypeSnowDeviceManagementManagedDevice: "AWS::snow-device-management::managed-device",
+		TypeSnowDeviceManagementTask:          "AWS::snow-device-management::task",
+		// End User Messaging Social — the SR service segment is hyphenated
+		// ("social-messaging") and the phone-number-id resource is hyphenated;
+		// alias both to the exact SR keys.
+		TypeSocialMessagingWaba:          "AWS::social-messaging::waba",
+		TypeSocialMessagingPhoneNumberID: "AWS::social-messaging::phone-number-id",
 	}
 }
 
@@ -1047,6 +1072,7 @@ var serviceRenames = map[string]string{
 	"profile":                      "customerprofiles",       // SR profile ↔ CFN CustomerProfiles / scanned aws:customer-profiles
 	"route53recoverycontrolconfig": "route53recoverycontrol", // SR config API ↔ scanned aws:route53-recovery-control
 	"schemas":                      "eventschemas",           // SR schemas (EventBridge Schemas) ↔ CFN EventSchemas / scanned aws:event-schemas
+	"ssmsap":                       "systemsmanagersap",      // SR ssm-sap ↔ scanned aws:systems-manager-sap (CFN SystemsManagerSAP)
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

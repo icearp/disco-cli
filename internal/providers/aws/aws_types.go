@@ -544,6 +544,8 @@ const (
 	TypeSSMMaintenanceWindowTarget = "aws:ssm:maintenance-window-target"
 	TypeSSMMaintenanceWindowTask   = "aws:ssm:maintenance-window-task"
 	TypeSSMResourceDataSync        = "aws:ssm:resource-data-sync"
+	TypeSSMManagedInstance         = "aws:ssm:managed-instance"
+	TypeSSMOpsMetadata             = "aws:ssm:opsmetadata"
 	// GuardDuty (guardduty_scanners.go)
 	TypeGuardDutyDetector              = "aws:guardduty:detector"
 	TypeGuardDutyFilter                = "aws:guardduty:filter"
@@ -618,6 +620,8 @@ const (
 	TypeSSOApplication                                 = "aws:sso:application"
 	TypeSSOApplicationAssignment                       = "aws:sso:application-assignment"
 	TypeSSOInstanceAccessControlAttributeConfiguration = "aws:sso:instance-access-control-attribute-configuration"
+	TypeSSOApplicationProvider                         = "aws:sso:application-provider"
+	TypeSSOTrustedTokenIssuer                          = "aws:sso:trusted-token-issuer"
 	TypeIdentityStoreUser                              = "aws:identitystore:user"
 	TypeIdentityStoreGroup                             = "aws:identitystore:group"
 	// Macie (macie_scanners.go, macie_resolvers.go)
@@ -1138,8 +1142,10 @@ const (
 	TypeVoiceIDDomain = "aws:voice-id:domain"
 	// UXC (uxc_scanners.go)
 	TypeUXCAccountCustomization = "aws:uxc:account-customization"
-	// SystemsManagerSAP (ssmsap_scanners.go)
-	TypeSSMSAPApplication = "aws:systems-manager-sap:application"
+	// SystemsManagerSAP (ssmsap_scanners.go, ssmsap_resolvers.go)
+	TypeSSMSAPApplication          = "aws:systems-manager-sap:application"
+	TypeSystemsManagerSAPComponent = "aws:systems-manager-sap:component"
+	TypeSystemsManagerSAPDatabase  = "aws:systems-manager-sap:database"
 	// SSMGuiConnect (ssmguiconnect_scanners.go)
 	TypeSSMGuiConnectPreferences = "aws:ssm-gui-connect:preferences"
 	// RUM (rum_scanners.go)
@@ -1962,10 +1968,13 @@ const (
 	TypeS3OutpostsAccessPoint  = "aws:s3outposts:access-point"
 	TypeS3OutpostsBucketPolicy = "aws:s3outposts:bucket-policy"
 	// SecurityAgent (securityagent_scanners.go).
-	TypeSecurityAgentAgentSpace   = "aws:security-agent:agent-space"
-	TypeSecurityAgentApplication  = "aws:security-agent:application"
-	TypeSecurityAgentPentest      = "aws:security-agent:pentest"
-	TypeSecurityAgentTargetDomain = "aws:security-agent:target-domain"
+	TypeSecurityAgentAgentSpace              = "aws:security-agent:agent-space"
+	TypeSecurityAgentApplication             = "aws:security-agent:application"
+	TypeSecurityAgentPentest                 = "aws:security-agent:pentest"
+	TypeSecurityAgentTargetDomain            = "aws:security-agent:target-domain"
+	TypeSecurityAgentIntegration             = "aws:security-agent:integration"
+	TypeSecurityAgentPrivateConnection       = "aws:security-agent:private-connection"
+	TypeSecurityAgentSecurityRequirementPack = "aws:security-agent:security-requirement-pack"
 	// SecurityLake (securitylake_scanners.go).
 	TypeSecurityLakeAwsLogSource = "aws:security-lake:aws-log-source"
 	TypeSecurityLakeDataLake     = "aws:security-lake:data-lake"
@@ -2177,4 +2186,20 @@ const (
 	TypeSupplyChainDataIntegrationFlow = "aws:scn:data-integration-flow"
 	TypeSupplyChainDataset             = "aws:scn:dataset"
 	TypeSupplyChainNamespace           = "aws:scn:namespace"
+
+	// Security Incident Response (securityir_scanners.go). The disco service
+	// segment mirrors the hyphenated Service Reference key "security-ir".
+	TypeSecurityIRCase       = "aws:security-ir:case"
+	TypeSecurityIRMembership = "aws:security-ir:membership"
+
+	// Snow Device Management (snowdevicemanagement_scanners.go). The disco
+	// service segment mirrors the hyphenated Service Reference key.
+	TypeSnowDeviceManagementManagedDevice = "aws:snow-device-management:managed-device"
+	TypeSnowDeviceManagementTask          = "aws:snow-device-management:task"
+
+	// End User Messaging Social / WhatsApp (socialmessaging_scanners.go,
+	// socialmessaging_resolvers.go). The disco service segment mirrors the
+	// hyphenated Service Reference key "social-messaging".
+	TypeSocialMessagingWaba          = "aws:social-messaging:waba"
+	TypeSocialMessagingPhoneNumberID = "aws:social-messaging:phone-number-id"
 )

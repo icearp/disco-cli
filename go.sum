@@ -918,6 +918,8 @@ github.com/aws/aws-sdk-go-v2/service/securityagent v1.5.0 h1:Wuo9EgV8yhPE6nZhXan
 github.com/aws/aws-sdk-go-v2/service/securityagent v1.5.0/go.mod h1:IXOEW2Zu33lLdOZKyQZLe6iaDq9EWNFppBBEc/3cpW4=
 github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.7 h1:7H0Y7DA+SLT9U0ssRSIPo7+dMY5p6kXMU63ncCx8ayI=
 github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.7/go.mod h1:SS/9UFk3PQyMZyKumEF7C8Z//TkUEd1AShPnzUbAKqQ=
+github.com/aws/aws-sdk-go-v2/service/securityir v1.11.8 h1:I3DK4z8QzsouAICdnnNov5+C5jEJQ3ImP8BoC4fvlgY=
+github.com/aws/aws-sdk-go-v2/service/securityir v1.11.8/go.mod h1:OJvUik0+HUgMNLjFWAodm2AOXsoWeR5XYsmnG4iAyKM=
 github.com/aws/aws-sdk-go-v2/service/securitylake v1.26.2 h1:4KcgclzPz5qNARD8bHNUDo+AJwnq1SIuqnN7O8BIE9A=
 github.com/aws/aws-sdk-go-v2/service/securitylake v1.26.2/go.mod h1:RrOLslx0CP7YCNPkULvlIN+nEzktrsU6RPiLIHcVdUE=
 github.com/aws/aws-sdk-go-v2/service/serverlessapplicationrepository v1.31.7 h1:VtYiposoRQNY518sQZYJgAFIJyeDju84qffNQ00QCcc=
@@ -942,8 +944,12 @@ github.com/aws/aws-sdk-go-v2/service/signer v1.33.6 h1:HG/62/MVP3IqaDSgj89Q3IBCN
 github.com/aws/aws-sdk-go-v2/service/signer v1.33.6/go.mod h1:yKRJ8X7rtKfDtkBgnfG2xzHW2m2FrVLZiucgKhHLR2A=
 github.com/aws/aws-sdk-go-v2/service/signin v1.2.0 h1:3nXpRcFwRCW8n7HgO2QGy0Dc20eQNfBuUemGQhpF8m8=
 github.com/aws/aws-sdk-go-v2/service/signin v1.2.0/go.mod h1:LxYujSTLPRlp2vTtcUO/+1ilrew8ytt6SvQyOgejzFQ=
+github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.26.3 h1:9ylERFiWhRP1S2eGbyQLLlEdNL1NZi5MDzlqVWEiL2w=
+github.com/aws/aws-sdk-go-v2/service/snowdevicemanagement v1.26.3/go.mod h1:g2iQO7oTutJ7bJT9DSDEHN7SVuhOLNnbL6w4qYpyrVw=
 github.com/aws/aws-sdk-go-v2/service/sns v1.40.1 h1:DLrOlgom0+OYnNaSiVxAXtR6obPjVlbmD+7w5wim9sc=
 github.com/aws/aws-sdk-go-v2/service/sns v1.40.1/go.mod h1:V9szvM64GdG5VJUeDRstvLmt/ozgWiSNg3gYnp3mSkk=
+github.com/aws/aws-sdk-go-v2/service/socialmessaging v1.11.4 h1:jdFBG1mdY+S8PLzEZ5+wC3fu0cp7X311gJd0dtVN/wE=
+github.com/aws/aws-sdk-go-v2/service/socialmessaging v1.11.4/go.mod h1:61lCT5iAfi38+dORrhojF0PV4xYD61XAjEZm+OMFz8U=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.44.0 h1:6DQ95Zq5xPUSYm6KWcrar7zvreqAMFmyynYCcmzv6yc=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.44.0/go.mod h1:d7eKytKiwDFJeNAP4VWo47VCiNM9z539tkoCGJ6PjXw=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.69.3 h1:58LjP8cp8UEHA1LG/JZ4fG9SobHE82kLYe46mogbSI4=

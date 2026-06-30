@@ -35,6 +35,10 @@ func init() {
 		resolveSSOAttrConfigInstance,
 		EdgeDecl{TypeSSOInstanceAccessControlAttributeConfiguration, TypeSSOInstance, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveSSOTrustedTokenIssuerInstance,
+		EdgeDecl{TypeSSOTrustedTokenIssuer, TypeSSOInstance, store.RelAttachedTo},
+	)
 }
 
 // ssoInstanceIndex pre-loads scanned instances keyed by InstanceArn so the
@@ -391,6 +395,42 @@ func resolveSSOAttrConfigInstance(acct *account, st *store.Store) error {
 		}
 		if err := st.UpsertRelationship(c.ID, insID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert sso attr-config→instance: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveSSOTrustedTokenIssuerInstance wires each trusted token issuer to its
+// parent Identity Center instance. The instance ARN is embedded as InstanceArn
+// at scan time (the issuer metadata carries no back-reference).
+func resolveSSOTrustedTokenIssuerInstance(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeSSOTrustedTokenIssuer}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	idx, err := loadSSOInstanceIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			InstanceArn string `json:"InstanceArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		insID, ok := idx.idByArn[attrs.InstanceArn]
+		if !ok {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, insID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert sso trusted-token-issuer→instance: %w", err)
 		}
 	}
 	return nil

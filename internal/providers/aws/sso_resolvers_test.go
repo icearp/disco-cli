@@ -215,3 +215,34 @@ func TestResolveSSOAttrConfigInstance(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(cfgID)
 	assertRelationship(t, rels, cfgID, insID, store.RelAttachedTo)
 }
+
+func TestResolveSSOTrustedTokenIssuerInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	insID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, ssoInstanceARN(), testRegion, ssoInstanceAttrs())
+	ttiARN := "arn:aws:sso::" + acct.ID + ":trustedTokenIssuer/" + testSSOInsID + "/tti-1"
+	ttiID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOTrustedTokenIssuer, ttiARN, testRegion,
+		fmt.Sprintf(`{"TrustedTokenIssuerArn":%q,"Name":"issuer1","InstanceArn":%q}`, ttiARN, ssoInstanceARN()))
+
+	if err := resolveSSOTrustedTokenIssuerInstance(acct, st); err != nil {
+		t.Fatalf("resolveSSOTrustedTokenIssuerInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(ttiID)
+	assertRelationship(t, rels, ttiID, insID, store.RelAttachedTo)
+}
+
+func TestResolveSSOTrustedTokenIssuerInstance_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	ttiARN := "arn:aws:sso::" + acct.ID + ":trustedTokenIssuer/" + testSSOInsID + "/tti-1"
+	ttiID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOTrustedTokenIssuer, ttiARN, testRegion, `{}`)
+
+	if err := resolveSSOTrustedTokenIssuerInstance(acct, st); err != nil {
+		t.Fatalf("resolveSSOTrustedTokenIssuerInstance (no attrs): %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(ttiID)
+	if len(rels) != 0 {
+		t.Errorf("expected no edges for trusted-token-issuer with no InstanceArn, got %d", len(rels))
+	}
+}
