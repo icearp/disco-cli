@@ -1381,6 +1381,12 @@ const (
 	TypeNetworkManagerConnectPeer                        = "aws:networkmanager:connect-peer"
 	TypeNetworkManagerCoreNetworkPrefixListAssociation   = "aws:networkmanager:core-network-prefix-list-association"
 	TypeNetworkManagerConnection                         = "aws:networkmanager:connection"
+	// Network Flow Monitor (networkflowmonitor_scanners.go)
+	TypeNetworkFlowMonitorMonitor = "aws:networkflowmonitor:monitor"
+	TypeNetworkFlowMonitorScope   = "aws:networkflowmonitor:scope"
+	// CloudWatch Network Monitor (networkmonitor_scanners.go)
+	TypeNetworkMonitorMonitor = "aws:networkmonitor:monitor"
+	TypeNetworkMonitorProbe   = "aws:networkmonitor:probe"
 	// Greengrass v1 (greengrass_scanners.go) — deprecated by AWS but still has CFN types
 	TypeGreengrassConnectorDefinition           = "aws:greengrass:connector-definition"
 	TypeGreengrassConnectorDefinitionVersion    = "aws:greengrass:connector-definition-version"
