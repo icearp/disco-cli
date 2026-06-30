@@ -22,6 +22,8 @@ func init() {
 		EdgeDecl{TypeQBusinessRetriever, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessWebExperience, TypeQBusinessApplication, store.RelAttachedTo},
 		EdgeDecl{TypeQBusinessDataSource, TypeQBusinessApplication, store.RelAttachedTo},
+		EdgeDecl{TypeQBusinessChatResponseConfiguration, TypeQBusinessApplication, store.RelAttachedTo},
+		EdgeDecl{TypeQBusinessSubscription, TypeQBusinessApplication, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveQBusinessDataSourceToIndex,
@@ -57,6 +59,8 @@ func resolveQBusinessChildrenToApp(acct *account, st *store.Store) error {
 		TypeQBusinessRetriever,
 		TypeQBusinessWebExperience,
 		TypeQBusinessDataSource,
+		TypeQBusinessChatResponseConfiguration,
+		TypeQBusinessSubscription,
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{

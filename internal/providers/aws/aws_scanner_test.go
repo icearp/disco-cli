@@ -201,6 +201,7 @@ var expectedAWSServices = []string{
 	"aws:networkmanager",
 	"aws:networkmonitor",
 	"aws:pinpoint",
+	"aws:qapps",
 	"aws:qbusiness",
 	"aws:quicksight",
 	"aws:route53globalresolver",

@@ -77,6 +77,10 @@ func (coverageProvider) ResolverEdgeSources() []string {
 // the algorithmic form (`AWS::<Service>::<Pascal>`) or need an entry here.
 func (coverageProvider) Aliases() map[string]string {
 	return map[string]string{
+		// QBusiness — chat-response-configuration appears only in the Service
+		// Reference catalog (no CFN PascalCase twin), spelled hyphenated, so the
+		// algorithmic key can't reproduce it; alias to the exact SR key.
+		TypeQBusinessChatResponseConfiguration: "AWS::qbusiness::chat-response-configuration",
 		// IAM.
 		TypeIAMUser:              "AWS::IAM::User",
 		TypeIAMGroup:             "AWS::IAM::Group",

@@ -15,11 +15,13 @@ func init() {
 		fn:   scanQBusiness,
 		emits: []coverage.TypeDecl{
 			{Service: "qbusiness", DiscoType: TypeQBusinessApplication, Leaf: true},
+			{Service: "qbusiness", DiscoType: TypeQBusinessChatResponseConfiguration},
 			{Service: "qbusiness", DiscoType: TypeQBusinessDataAccessor},
 			{Service: "qbusiness", DiscoType: TypeQBusinessDataSource},
 			{Service: "qbusiness", DiscoType: TypeQBusinessIndex},
 			{Service: "qbusiness", DiscoType: TypeQBusinessPlugin},
 			{Service: "qbusiness", DiscoType: TypeQBusinessRetriever},
+			{Service: "qbusiness", DiscoType: TypeQBusinessSubscription},
 			{Service: "qbusiness", DiscoType: TypeQBusinessWebExperience},
 		},
 	})
@@ -27,6 +29,8 @@ func init() {
 
 type qbusinessAPI interface {
 	ListApplications(context.Context, *qbusiness.ListApplicationsInput, ...func(*qbusiness.Options)) (*qbusiness.ListApplicationsOutput, error)
+	ListChatResponseConfigurations(context.Context, *qbusiness.ListChatResponseConfigurationsInput, ...func(*qbusiness.Options)) (*qbusiness.ListChatResponseConfigurationsOutput, error)
+	ListSubscriptions(context.Context, *qbusiness.ListSubscriptionsInput, ...func(*qbusiness.Options)) (*qbusiness.ListSubscriptionsOutput, error)
 	ListDataAccessors(context.Context, *qbusiness.ListDataAccessorsInput, ...func(*qbusiness.Options)) (*qbusiness.ListDataAccessorsOutput, error)
 	ListDataSources(context.Context, *qbusiness.ListDataSourcesInput, ...func(*qbusiness.Options)) (*qbusiness.ListDataSourcesOutput, error)
 	ListIndices(context.Context, *qbusiness.ListIndicesInput, ...func(*qbusiness.Options)) (*qbusiness.ListIndicesOutput, error)
@@ -113,6 +117,12 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 			},
 			func() (int, int, error) {
 				return scanQBWebExperiences(ctx, client, acct, region, st, scanID, app.id, app.arn)
+			},
+			func() (int, int, error) {
+				return scanQBChatResponseConfigurations(ctx, client, acct, region, st, scanID, app.id, app.arn)
+			},
+			func() (int, int, error) {
+				return scanQBSubscriptions(ctx, client, acct, region, st, scanID, app.id, app.arn)
 			},
 		} {
 			t, i, perr := phase()
@@ -331,4 +341,69 @@ func scanQBDataSources(ctx context.Context, client qbusinessAPI, acct *account, 
 		}
 	}
 	return upsertBatch(st, batch, "qbusiness data-sources")
+}
+
+func scanQBChatResponseConfigurations(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID, appID, appARN string) (int, int, error) {
+	id := appID
+	pager := qbusiness.NewListChatResponseConfigurationsPaginator(client, &qbusiness.ListChatResponseConfigurationsInput{ApplicationId: &id})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "qbusiness:ListChatResponseConfigurations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("qbusiness:ListChatResponseConfigurations: %w", perr)
+		}
+		for _, c := range out.ChatResponseConfigurations {
+			cid := sv(c.ChatResponseConfigurationId)
+			if cid == "" {
+				continue
+			}
+			// Synthetic off appARN so resolveQBusinessChildrenToApp can strip
+			// back to the parent application ARN.
+			arn := fmt.Sprintf("%s/chat-response-configuration/%s", appARN, cid)
+			label := sv(c.DisplayName)
+			if label == "" {
+				label = cid
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQBusinessChatResponseConfiguration, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "qbusiness chat-response-configurations")
+}
+
+func scanQBSubscriptions(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID, appID, appARN string) (int, int, error) {
+	id := appID
+	pager := qbusiness.NewListSubscriptionsPaginator(client, &qbusiness.ListSubscriptionsInput{ApplicationId: &id})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "qbusiness:ListSubscriptions", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("qbusiness:ListSubscriptions: %w", perr)
+		}
+		for _, s := range out.Subscriptions {
+			sid := sv(s.SubscriptionId)
+			if sid == "" {
+				continue
+			}
+			arn := fmt.Sprintf("%s/subscription/%s", appARN, sid)
+			label := sid
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeQBusinessSubscription, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "qbusiness subscriptions")
 }

@@ -21,6 +21,65 @@ func init() {
 		resolveQuickSightRefreshScheduleParent,
 		EdgeDecl{TypeQuickSightRefreshSchedule, TypeQuickSightDataSet, store.RelAttachedTo},
 	)
+	registerResolver(
+		resolveQuickSightNamespaceMembers,
+		EdgeDecl{TypeQuickSightGroup, TypeQuickSightNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightUser, TypeQuickSightNamespace, store.RelAttachedTo},
+		EdgeDecl{TypeQuickSightAssignment, TypeQuickSightNamespace, store.RelAttachedTo},
+	)
+}
+
+// quicksightNamespaceARNFromMember recovers the parent namespace ARN from a
+// QuickSight group/user/assignment NativeID. Group/user ARNs embed the
+// namespace name (`…:group/{ns}/{name}`, `…:user/{ns}/{name}`); assignments
+// carry the synthetic `{namespaceARN}/assignment/{name}` shape.
+func quicksightNamespaceARNFromMember(nativeID string) string {
+	if i := strings.Index(nativeID, "/assignment/"); i >= 0 {
+		return nativeID[:i]
+	}
+	for _, seg := range []string{":group/", ":user/"} {
+		i := strings.Index(nativeID, seg)
+		if i < 0 {
+			continue
+		}
+		ns, _, ok := strings.Cut(nativeID[i+len(seg):], "/")
+		if !ok || ns == "" {
+			return ""
+		}
+		return nativeID[:i] + ":namespace/" + ns
+	}
+	return ""
+}
+
+// resolveQuickSightNamespaceMembers wires each group / user / assignment to its
+// parent namespace. FK-safe via the scanned namespace id set.
+func resolveQuickSightNamespaceMembers(acct *account, st *store.Store) error {
+	nsSet, err := scannedIDSet(acct, st, TypeQuickSightNamespace)
+	if err != nil {
+		return err
+	}
+	for _, mtype := range []string{TypeQuickSightGroup, TypeQuickSightUser, TypeQuickSightAssignment} {
+		rows, err := st.ListResources(store.ResourceFilter{
+			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{mtype}, Limit: util.AllResources,
+		})
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			nsARN := quicksightNamespaceARNFromMember(r.NativeID)
+			if nsARN == "" {
+				continue
+			}
+			tgtID := store.ResourceID("aws", acct.ID, TypeQuickSightNamespace, nsARN)
+			if !nsSet[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert qs %s→namespace: %w", mtype, err)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveQuickSightVPCConnectionRefs wires VPC connection → vpc + subnets

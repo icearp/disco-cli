@@ -844,6 +844,8 @@ github.com/aws/aws-sdk-go-v2/service/polly v1.58.4 h1:NiftvzkKfIOlAqZLtw8vFqUfYe
 github.com/aws/aws-sdk-go-v2/service/polly v1.58.4/go.mod h1:DxnWRtJpoYFatUzw1tbrO1SjVlFdufnWA+0FThqmcSU=
 github.com/aws/aws-sdk-go-v2/service/proton v1.40.4 h1:SCt5soAtaCz7xv4nPBFK7X9gkDySt4BogqijkDZR+lY=
 github.com/aws/aws-sdk-go-v2/service/proton v1.40.4/go.mod h1:ivp8js2WAlHTd67RIyTGqLWf1P1WwZEfkjarCQYbO4c=
+github.com/aws/aws-sdk-go-v2/service/qapps v1.12.8 h1:/wpZz6/LrZ9XDcEtsy6HmeJLourtdgndoYk6RARilkU=
+github.com/aws/aws-sdk-go-v2/service/qapps v1.12.8/go.mod h1:iJ2S98avUDWsAGvKMbij2fhZpgYqKM0u9TevgDr29VI=
 github.com/aws/aws-sdk-go-v2/service/qbusiness v1.35.5 h1:AsS0SiRXWHRK6MPKUE3DED2si7xXTCVerSVjKvUvfS4=
 github.com/aws/aws-sdk-go-v2/service/qbusiness v1.35.5/go.mod h1:Q5eXdnpxAQ/JWMkhRu9mboglb/rcYPIF53pXm3frA+c=
 github.com/aws/aws-sdk-go-v2/service/qconnect v1.32.8 h1:xazTqhLy61A+W8Dm14pXi4d1sG7Gd1hO9DOcOrXBo/k=

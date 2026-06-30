@@ -65,3 +65,36 @@ func TestResolveQSDataSourceRefs(t *testing.T) {
 	assertRelationship(t, rels, dID, sID, store.RelUses)
 	assertRelationship(t, rels, dID, vID, store.RelAttachedTo)
 }
+
+func TestResolveQuickSightNamespaceMembers(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	nsARN := fmt.Sprintf("arn:aws:quicksight:%s:%s:namespace/default", testRegion, acct.ID)
+	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightNamespace, nsARN, testRegion, "{}")
+
+	grpARN := fmt.Sprintf("arn:aws:quicksight:%s:%s:group/default/analysts", testRegion, acct.ID)
+	grpID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightGroup, grpARN, testRegion, "{}")
+	usrARN := fmt.Sprintf("arn:aws:quicksight:%s:%s:user/default/alice", testRegion, acct.ID)
+	usrID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightUser, usrARN, testRegion, "{}")
+	asgARN := nsARN + "/assignment/policy1"
+	asgID := upsertTestResource(t, st, "aws", acct.ID, TypeQuickSightAssignment, asgARN, testRegion, "{}")
+
+	if err := resolveQuickSightNamespaceMembers(acct, st); err != nil {
+		t.Fatalf("resolveQuickSightNamespaceMembers: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(grpID)
+	assertRelationship(t, rels, grpID, nsID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(usrID)
+	assertRelationship(t, rels, usrID, nsID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(asgID)
+	assertRelationship(t, rels, asgID, nsID, store.RelAttachedTo)
+}
+
+// TestResolveQuickSightNamespaceMembers_NoRows guards the empty/no-attrs case.
+func TestResolveQuickSightNamespaceMembers_NoRows(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	if err := resolveQuickSightNamespaceMembers(acct, st); err != nil {
+		t.Fatalf("resolveQuickSightNamespaceMembers empty: %v", err)
+	}
+}

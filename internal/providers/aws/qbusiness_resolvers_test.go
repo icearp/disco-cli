@@ -16,6 +16,10 @@ func TestResolveQBusinessChildrenToApp(t *testing.T) {
 	idxID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessIndex, idxARN, testRegion, "{}")
 	dsARN := appARN + "/index/i1/data-source/d1"
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessDataSource, dsARN, testRegion, "{}")
+	crcARN := appARN + "/chat-response-configuration/c1"
+	crcID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessChatResponseConfiguration, crcARN, testRegion, "{}")
+	subARN := appARN + "/subscription/s1"
+	subID := upsertTestResource(t, st, "aws", acct.ID, TypeQBusinessSubscription, subARN, testRegion, "{}")
 	if err := resolveQBusinessChildrenToApp(acct, st); err != nil {
 		t.Fatalf("resolveQBusinessChildrenToApp: %v", err)
 	}
@@ -23,6 +27,20 @@ func TestResolveQBusinessChildrenToApp(t *testing.T) {
 	assertRelationship(t, rels, idxID, appID, store.RelAttachedTo)
 	rels, _ = st.RelationshipsFrom(dsID)
 	assertRelationship(t, rels, dsID, appID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(crcID)
+	assertRelationship(t, rels, crcID, appID, store.RelAttachedTo)
+	rels, _ = st.RelationshipsFrom(subID)
+	assertRelationship(t, rels, subID, appID, store.RelAttachedTo)
+}
+
+// TestResolveQBusinessChildrenToApp_NoRows guards the empty case — no children,
+// no application: the resolver must return nil without emitting edges.
+func TestResolveQBusinessChildrenToApp_NoRows(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	if err := resolveQBusinessChildrenToApp(acct, st); err != nil {
+		t.Fatalf("resolveQBusinessChildrenToApp empty: %v", err)
+	}
 }
 
 func TestResolveQBusinessDataSourceToIndex(t *testing.T) {
