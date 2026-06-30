@@ -1759,9 +1759,17 @@ const (
 	TypePanoramaApplicationInstance = "aws:panorama:application-instance"
 	TypePanoramaPackage             = "aws:panorama:package"
 	// Proton (proton_scanners.go).
+	TypeProtonComponent                    = "aws:proton:component"
+	TypeProtonDeployment                   = "aws:proton:deployment"
+	TypeProtonEnvironment                  = "aws:proton:environment"
 	TypeProtonEnvironmentAccountConnection = "aws:proton:environment-account-connection"
 	TypeProtonEnvironmentTemplate          = "aws:proton:environment-template"
+	TypeProtonEnvironmentTemplateVersion   = "aws:proton:environment-template-version"
+	TypeProtonRepository                   = "aws:proton:repository"
+	TypeProtonService                      = "aws:proton:service"
+	TypeProtonServiceInstance              = "aws:proton:service-instance"
 	TypeProtonServiceTemplate              = "aws:proton:service-template"
+	TypeProtonServiceTemplateVersion       = "aws:proton:service-template-version"
 	// RolesAnywhere (rolesanywhere_scanners.go).
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"

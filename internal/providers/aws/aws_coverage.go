@@ -871,6 +871,14 @@ func (coverageProvider) Aliases() map[string]string {
 		// resources lowercase, which the PascalCase algorithmic key can't match.
 		TypeMigrationHubOrchestratorWorkflow: "AWS::migrationhub-orchestrator::workflow",
 		TypeMigrationHubOrchestratorTemplate: "AWS::migrationhub-orchestrator::template",
+		// Proton — Service-Reference-only (no CFN twin) multi-word resources. The
+		// SR keys spell the service lowercase and the resource hyphenated, which
+		// the PascalCase algorithmic key can't match (single-word proton kinds
+		// like component/deployment/environment/repository/service collapse to the
+		// SR spelling on their own, so only these three need an alias).
+		TypeProtonEnvironmentTemplateVersion: "AWS::proton::environment-template-version",
+		TypeProtonServiceInstance:            "AWS::proton::service-instance",
+		TypeProtonServiceTemplateVersion:     "AWS::proton::service-template-version",
 	}
 }
 
