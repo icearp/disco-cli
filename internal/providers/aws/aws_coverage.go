@@ -546,11 +546,16 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeNetworkFirewallFirewall:       "AWS::NetworkFirewall::Firewall",
 		TypeNetworkFirewallFirewallPolicy: "AWS::NetworkFirewall::FirewallPolicy",
 		TypeNetworkFirewallRuleGroup:      "AWS::NetworkFirewall::RuleGroup",
-		TypeOpenSearchDomain:              "AWS::OpenSearchService::Domain",
-		TypeOrganization:                  "AWS::Organizations::Organization",
-		TypeOrganizationsAccount:          "AWS::Organizations::Account",
-		TypeOrganizationsOU:               "AWS::Organizations::OrganizationalUnit",
-		TypeOrganizationsSCP:              "AWS::Organizations::Policy",
+		// Proxy types exist only in the Service Reference catalog (no CFN
+		// type yet), which spells the service hyphenated/lower-cased — the
+		// algorithmic key folds to "NetworkFirewall", so pin the SR spelling.
+		TypeNetworkFirewallProxyConfiguration: "AWS::network-firewall::ProxyConfiguration",
+		TypeNetworkFirewallProxyRuleGroup:     "AWS::network-firewall::ProxyRuleGroup",
+		TypeOpenSearchDomain:                  "AWS::OpenSearchService::Domain",
+		TypeOrganization:                      "AWS::Organizations::Organization",
+		TypeOrganizationsAccount:              "AWS::Organizations::Account",
+		TypeOrganizationsOU:                   "AWS::Organizations::OrganizationalUnit",
+		TypeOrganizationsSCP:                  "AWS::Organizations::Policy",
 		// AppRunner / SES / Service Catalog / SecurityHub / Shield / SNS / SQS.
 		TypeAppRunnerService:               "AWS::AppRunner::Service",
 		TypeAppRunnerVPCConnector:          "AWS::AppRunner::VpcConnector",

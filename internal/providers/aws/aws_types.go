@@ -243,6 +243,8 @@ const (
 	TypeNetworkFirewallLoggingConfiguration       = "aws:network-firewall:logging-configuration"
 	TypeNetworkFirewallTLSInspectionConfiguration = "aws:network-firewall:tls-inspection-configuration"
 	TypeNetworkFirewallVpcEndpointAssociation     = "aws:network-firewall:vpc-endpoint-association"
+	TypeNetworkFirewallProxyConfiguration         = "aws:network-firewall:proxy-configuration"
+	TypeNetworkFirewallProxyRuleGroup             = "aws:network-firewall:proxy-rule-group"
 	// EventBridge (eventbridge_scanners.go, eventbridge_resolvers.go)
 	TypeEventsEventBus       = "aws:events:event-bus"
 	TypeEventsRule           = "aws:events:rule"
@@ -1236,6 +1238,7 @@ const (
 	TypeNotificationsNotificationConfiguration                 = "aws:notifications:notification-configuration"
 	TypeNotificationsNotificationHub                           = "aws:notifications:notification-hub"
 	TypeNotificationsOrganizationalUnitAssociation             = "aws:notifications:organizational-unit-association"
+	TypeNotificationsManagedNotificationConfiguration          = "aws:notifications:managed-notification-configuration"
 	// Location (location_scanners.go)
 	TypeLocationAPIKey             = "aws:location:api-key"
 	TypeLocationGeofenceCollection = "aws:location:geofence-collection"
@@ -1377,6 +1380,7 @@ const (
 	TypeNetworkManagerTransitGatewayPeering              = "aws:networkmanager:transit-gateway-peering"
 	TypeNetworkManagerConnectPeer                        = "aws:networkmanager:connect-peer"
 	TypeNetworkManagerCoreNetworkPrefixListAssociation   = "aws:networkmanager:core-network-prefix-list-association"
+	TypeNetworkManagerConnection                         = "aws:networkmanager:connection"
 	// Greengrass v1 (greengrass_scanners.go) — deprecated by AWS but still has CFN types
 	TypeGreengrassConnectorDefinition           = "aws:greengrass:connector-definition"
 	TypeGreengrassConnectorDefinitionVersion    = "aws:greengrass:connector-definition-version"
@@ -1536,6 +1540,7 @@ const (
 	TypeNeptuneDBParameterGroup        = "aws:neptune:db-parameter-group"
 	TypeNeptuneDBSubnetGroup           = "aws:neptune:db-subnet-group"
 	TypeNeptuneEventSubscription       = "aws:neptune:event-subscription"
+	TypeNeptuneGlobalCluster           = "aws:neptune:global-cluster"
 	// Service Catalog (servicecatalog_scanners.go, servicecatalog_resolvers.go)
 	TypeServiceCatalogPortfolio = "aws:servicecatalog:portfolio"
 	TypeServiceCatalogProduct   = "aws:servicecatalog:cloud-formation-product"

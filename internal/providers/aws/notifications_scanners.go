@@ -21,6 +21,7 @@ func init() {
 			{Service: "notifications", DiscoType: TypeNotificationsNotificationConfiguration, Leaf: true},
 			{Service: "notifications", DiscoType: TypeNotificationsNotificationHub, Leaf: true},
 			{Service: "notifications", DiscoType: TypeNotificationsOrganizationalUnitAssociation},
+			{Service: "notifications", DiscoType: TypeNotificationsManagedNotificationConfiguration, Leaf: true},
 		},
 	})
 }
@@ -239,11 +240,12 @@ func scanNotifOUAssocs(ctx context.Context, client notifsAPI, acct *account, reg
 }
 
 func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	// ManagedNotificationConfigurations are AWS-managed (not user-created). They surface
-	// here only as parent context for ManagedNotificationAdditionalChannelAssociation; we don't
-	// upsert them as resources (no CFN registry type maps here).
+	// ManagedNotificationConfigurations are AWS-managed (not user-created) — flagged
+	// ManagedByProvider. They double as parent context for the
+	// ManagedNotificationAdditionalChannelAssociation child fan-out.
 	pager := notifications.NewListManagedNotificationConfigurationsPaginator(client, &notifications.ListManagedNotificationConfigurationsInput{})
 	var arns []string
+	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -254,12 +256,25 @@ func scanNotifManagedConfigs(ctx context.Context, client notifsAPI, acct *accoun
 			return nil, 0, 0, fmt.Errorf("notifications:ListManagedNotificationConfigurations: %w", perr)
 		}
 		for _, c := range out.ManagedNotificationConfigurations {
-			if arn := sv(c.Arn); arn != "" {
-				arns = append(arns, arn)
+			arn := sv(c.Arn)
+			if arn == "" {
+				continue
 			}
+			arns = append(arns, arn)
+			label := sv(c.Name)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNotificationsManagedNotificationConfiguration, NativeID: arn,
+				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				ManagedByProvider: true,
+			})
 		}
 	}
-	return arns, 0, 0, nil
+	t, i, err := upsertBatch(st, batch, "notifications managed-notification-configurations")
+	return arns, t, i, err
 }
 
 func scanNotifManagedChannelAssocs(ctx context.Context, client notifsAPI, acct *account, region string, st *store.Store, scanID, mcARN string) (int, int, error) {

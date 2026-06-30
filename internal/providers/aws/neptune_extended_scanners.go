@@ -17,6 +17,7 @@ func scanNeptuneExtended(ctx context.Context, client neptuneAPI, acct *account, 
 		func() (int, int, error) { return scanNeptuneDBPGs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNeptuneDBSubnetGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNeptuneEventSubs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanNeptuneGlobalClusters(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -108,6 +109,40 @@ func scanNeptuneDBSubnetGroups(ctx context.Context, client neptuneAPI, acct *acc
 		}
 	}
 	return upsertBatch(st, batch, "neptune db-subnet-groups")
+}
+
+// scanNeptuneGlobalClusters discovers Neptune global database clusters via the
+// dedicated neptune SDK (distinct from RDS Aurora global clusters). Global
+// clusters are not region-scoped; this runs per-region but UpsertResources
+// dedupes by NativeID (GlobalClusterArn carries no region), so Region is left
+// unset to avoid version churn across regions.
+func scanNeptuneGlobalClusters(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := neptune.NewDescribeGlobalClustersPaginator(client, &neptune.DescribeGlobalClustersInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "neptune:DescribeGlobalClusters", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("neptune:DescribeGlobalClusters: %w", err)
+		}
+		for _, g := range out.GlobalClusters {
+			arn := sv(g.GlobalClusterArn)
+			if arn == "" {
+				continue
+			}
+			name := sv(g.GlobalClusterIdentifier)
+			status := sv(g.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNeptuneGlobalCluster, NativeID: arn,
+				Name: &name, Status: &status,
+				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "neptune global-clusters")
 }
 
 func scanNeptuneEventSubs(ctx context.Context, client neptuneAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

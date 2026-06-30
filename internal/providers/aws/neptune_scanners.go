@@ -20,6 +20,7 @@ func init() {
 			{Service: "neptune", DiscoType: TypeNeptuneDBParameterGroup, Leaf: true},
 			{Service: "neptune", DiscoType: TypeNeptuneDBSubnetGroup, Leaf: true},
 			{Service: "neptune", DiscoType: TypeNeptuneEventSubscription, Leaf: true},
+			{Service: "neptune", DiscoType: TypeNeptuneGlobalCluster, Leaf: true},
 		},
 	})
 }
@@ -33,6 +34,7 @@ type neptuneAPI interface {
 	DescribeDBParameterGroups(context.Context, *neptune.DescribeDBParameterGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBParameterGroupsOutput, error)
 	DescribeDBSubnetGroups(context.Context, *neptune.DescribeDBSubnetGroupsInput, ...func(*neptune.Options)) (*neptune.DescribeDBSubnetGroupsOutput, error)
 	DescribeEventSubscriptions(context.Context, *neptune.DescribeEventSubscriptionsInput, ...func(*neptune.Options)) (*neptune.DescribeEventSubscriptionsOutput, error)
+	DescribeGlobalClusters(context.Context, *neptune.DescribeGlobalClustersInput, ...func(*neptune.Options)) (*neptune.DescribeGlobalClustersOutput, error)
 }
 
 // scanNeptune discovers Amazon Neptune clusters and instances in one

@@ -23,6 +23,8 @@ func init() {
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallLoggingConfiguration},
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallTLSInspectionConfiguration},
 			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallVpcEndpointAssociation},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallProxyConfiguration, Leaf: true},
+			{Service: "networkfirewall", DiscoType: TypeNetworkFirewallProxyRuleGroup, Leaf: true},
 		},
 	})
 }
@@ -40,6 +42,8 @@ type networkfirewallAPI interface {
 	ListTLSInspectionConfigurations(context.Context, *networkfirewall.ListTLSInspectionConfigurationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListTLSInspectionConfigurationsOutput, error)
 	DescribeTLSInspectionConfiguration(context.Context, *networkfirewall.DescribeTLSInspectionConfigurationInput, ...func(*networkfirewall.Options)) (*networkfirewall.DescribeTLSInspectionConfigurationOutput, error)
 	ListVpcEndpointAssociations(context.Context, *networkfirewall.ListVpcEndpointAssociationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListVpcEndpointAssociationsOutput, error)
+	ListProxyConfigurations(context.Context, *networkfirewall.ListProxyConfigurationsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListProxyConfigurationsOutput, error)
+	ListProxyRuleGroups(context.Context, *networkfirewall.ListProxyRuleGroupsInput, ...func(*networkfirewall.Options)) (*networkfirewall.ListProxyRuleGroupsOutput, error)
 }
 
 // scanNetworkFirewall discovers Network Firewall firewalls, firewall policies,

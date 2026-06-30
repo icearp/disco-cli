@@ -31,7 +31,75 @@ func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI,
 	}
 	total += t
 	inserted += i
+
+	t, i, ferr = scanNFProxyConfigurations(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanNFProxyRuleGroups(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
+}
+
+func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := networkfirewall.NewListProxyConfigurationsPaginator(client, &networkfirewall.ListProxyConfigurationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyConfigurations", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("networkfirewall:ListProxyConfigurations: %w", err)
+		}
+		for _, c := range out.ProxyConfigurations {
+			arn := sv(c.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNetworkFirewallProxyConfiguration, NativeID: arn,
+				Name: c.Name, Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "networkfirewall proxy-configurations")
+}
+
+func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := networkfirewall.NewListProxyRuleGroupsPaginator(client, &networkfirewall.ListProxyRuleGroupsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyRuleGroups", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("networkfirewall:ListProxyRuleGroups: %w", err)
+		}
+		for _, g := range out.ProxyRuleGroups {
+			arn := sv(g.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeNetworkFirewallProxyRuleGroup, NativeID: arn,
+				Name: g.Name, Region: &region,
+				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "networkfirewall proxy-rule-groups")
 }
 
 // scanNFLoggingConfigurations walks ListFirewalls and calls

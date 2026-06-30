@@ -32,6 +32,7 @@ func init() {
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerTransitGatewayPeering},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerConnectPeer},
 			{Service: "networkmanager", DiscoType: TypeNetworkManagerCoreNetworkPrefixListAssociation},
+			{Service: "networkmanager", DiscoType: TypeNetworkManagerConnection, Leaf: true},
 		},
 	})
 }
@@ -46,6 +47,7 @@ type networkManagerAPI interface {
 	GetLinkAssociations(context.Context, *networkmanager.GetLinkAssociationsInput, ...func(*networkmanager.Options)) (*networkmanager.GetLinkAssociationsOutput, error)
 	GetCustomerGatewayAssociations(context.Context, *networkmanager.GetCustomerGatewayAssociationsInput, ...func(*networkmanager.Options)) (*networkmanager.GetCustomerGatewayAssociationsOutput, error)
 	GetTransitGatewayRegistrations(context.Context, *networkmanager.GetTransitGatewayRegistrationsInput, ...func(*networkmanager.Options)) (*networkmanager.GetTransitGatewayRegistrationsOutput, error)
+	GetConnections(context.Context, *networkmanager.GetConnectionsInput, ...func(*networkmanager.Options)) (*networkmanager.GetConnectionsOutput, error)
 	ListAttachments(context.Context, *networkmanager.ListAttachmentsInput, ...func(*networkmanager.Options)) (*networkmanager.ListAttachmentsOutput, error)
 	ListPeerings(context.Context, *networkmanager.ListPeeringsInput, ...func(*networkmanager.Options)) (*networkmanager.ListPeeringsOutput, error)
 	ListConnectPeers(context.Context, *networkmanager.ListConnectPeersInput, ...func(*networkmanager.Options)) (*networkmanager.ListConnectPeersOutput, error)
@@ -86,6 +88,7 @@ func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.
 		func() (int, int, error) {
 			return scanNMTGWRegistrations(ctx, client, acct, region, st, scanID, globalIDs)
 		},
+		func() (int, int, error) { return scanNMConnections(ctx, client, acct, region, st, scanID, globalIDs) },
 		func() (int, int, error) { return scanNMAttachments(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNMPeerings(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanNMConnectPeers(ctx, client, acct, region, st, scanID) },
@@ -355,6 +358,39 @@ func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct 
 		}
 	}
 	return upsertBatch(st, batch, "networkmanager tgw-registrations")
+}
+
+// scanNMConnections enumerates device-to-device connections per global
+// network (GetConnections requires GlobalNetworkId). Connections carry a
+// native ConnectionArn.
+func scanNMConnections(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
+	var batch []*store.Resource
+	for _, gid := range globalIDs {
+		id := gid
+		pager := networkmanager.NewGetConnectionsPaginator(client, &networkmanager.GetConnectionsInput{GlobalNetworkId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("networkmanager:GetConnections %s: %w", gid, perr)
+			}
+			for _, c := range out.Connections {
+				arn := sv(c.ConnectionArn)
+				if arn == "" {
+					continue
+				}
+				label := sv(c.ConnectionId)
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeNetworkManagerConnection, NativeID: arn,
+					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "networkmanager connections")
 }
 
 // scanNMAttachments enumerates all attachments (single ListAttachments
