@@ -1531,6 +1531,163 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::rtbfabric::InboundExternalLink":  "no SDK list op: external links are facets of ListLinks (scanned as aws:rtbfabric:link)",
 		"AWS::rtbfabric::OutboundExternalLink": "no SDK list op: external links are facets of ListLinks (scanned as aws:rtbfabric:link)",
 
+		// s3 — objects are high-cardinality data-plane; the access-point/storage-lens/
+		// batch-job rows are dups of the scanned s3 / s3-object-lambda types or async
+		// request handles.
+		"AWS::s3::object":                                "data-plane: high-cardinality S3 objects, not control-plane resources",
+		"AWS::s3::accesspointobject":                     "data-plane: high-cardinality access-point objects, not control-plane resources",
+		"AWS::s3::job":                                   "ephemeral: an S3 Batch Operations job run, not a persistent resource",
+		"AWS::s3::multiregionaccesspointrequestarn":      "ephemeral: an async multi-region access-point request handle, not a resource",
+		"AWS::s3::objectlambdaaccesspoint":               "duplicate: scanned as aws:s3-object-lambda:access-point",
+		"AWS::s3::storagelensconfiguration":              "duplicate: scanned as aws:s3:storage-lens",
+		"AWS::s3-object-lambda::objectlambdaaccesspoint": "duplicate: scanned as aws:s3-object-lambda:access-point",
+		"AWS::s3-outposts::object":                       "data-plane: high-cardinality S3 on Outposts objects, not control-plane resources",
+		"AWS::s3express::bucket":                         "duplicate: scanned as aws:s3express:directory-bucket",
+
+		// sagemaker — *Job/execution/human-loop rows are ephemeral runs; artifact and
+		// experiment-trial-component are high-cardinality ML-tracking metadata;
+		// reserved-capacity is a facet of training-plan; sagemaker-catalog/shared-model*
+		// have no list op. The durable resources (experiments, hubs, algorithms,
+		// lineage, configs, workforce, training-plan, etc.) are scanned.
+		"AWS::SageMaker::ModelCardExportJob":             "ephemeral: a SageMaker model-card export job run, not a persistent resource",
+		"AWS::sagemaker::model-card-export-job":          "ephemeral: a SageMaker model-card export job run, not a persistent resource",
+		"AWS::sagemaker::ai-benchmark-job":               "ephemeral: a SageMaker AI benchmark job run, not a persistent resource",
+		"AWS::sagemaker::ai-recommendation-job":          "ephemeral: a SageMaker AI recommendation job run, not a persistent resource",
+		"AWS::sagemaker::automl-job":                     "ephemeral: a SageMaker AutoML job run, not a persistent resource",
+		"AWS::sagemaker::compilation-job":                "ephemeral: a SageMaker compilation job run, not a persistent resource",
+		"AWS::sagemaker::edge-packaging-job":             "ephemeral: a SageMaker edge packaging job run, not a persistent resource",
+		"AWS::sagemaker::hyper-parameter-tuning-job":     "ephemeral: a SageMaker hyperparameter tuning job run, not a persistent resource",
+		"AWS::sagemaker::inference-recommendations-job":  "ephemeral: a SageMaker inference recommendations job run, not a persistent resource",
+		"AWS::sagemaker::job":                            "ephemeral: a generic SageMaker job run, not a persistent resource",
+		"AWS::sagemaker::labeling-job":                   "ephemeral: a SageMaker Ground Truth labeling job run, not a persistent resource",
+		"AWS::sagemaker::optimization-job":               "ephemeral: a SageMaker optimization job run, not a persistent resource",
+		"AWS::sagemaker::pipeline-execution":             "ephemeral: a SageMaker pipeline execution, not a persistent resource",
+		"AWS::sagemaker::training-job":                   "ephemeral: a SageMaker training job run, not a persistent resource",
+		"AWS::sagemaker::transform-job":                  "ephemeral: a SageMaker transform job run, not a persistent resource",
+		"AWS::sagemaker::human-loop":                     "ephemeral: an A2I human loop (runtime data-plane), not a persistent resource",
+		"AWS::sagemaker::artifact":                       "high-cardinality: SageMaker lineage artifacts (one per dataset/model version), ML-tracking metadata",
+		"AWS::sagemaker::experiment-trial-component":     "high-cardinality: SageMaker trial components (one per training/processing run), ML-tracking metadata",
+		"AWS::sagemaker::reserved-capacity":              "facet: reserved capacity is a field of a training-plan, not a standalone resource",
+		"AWS::sagemaker::monitoring-schedule-alert":      "facet: an alert on a monitoring-schedule, not a standalone resource",
+		"AWS::sagemaker::sagemaker-catalog":              "no SDK list op: SageMaker catalog is not enumerable",
+		"AWS::sagemaker::shared-model":                   "no SDK list op: SageMaker shared models are not enumerable",
+		"AWS::sagemaker::shared-model-event":             "ephemeral: a shared-model event, not a persistent resource",
+		"AWS::sagemaker-geospatial::EarthObservationJob": "ephemeral: a SageMaker geospatial Earth-observation job run, not a persistent resource",
+		"AWS::sagemaker-geospatial::VectorEnrichmentJob": "ephemeral: a SageMaker geospatial vector-enrichment job run, not a persistent resource",
+		"AWS::sagemaker-mlflow::mlflow-tracking-server":  "duplicate: scanned as aws:sagemaker:mlflow-tracking-server",
+
+		// scn (AWS Supply Chain) — the BOM import is an ephemeral job.
+		"AWS::scn::bill-of-materials-import-job": "ephemeral: a Supply Chain bill-of-materials import job run, not a persistent resource",
+
+		// sdb (Amazon SimpleDB) — no aws-sdk-go-v2 client module (legacy service).
+		"AWS::sdb::domain": "no SDK: no aws-sdk-go-v2 module for Amazon SimpleDB",
+		"AWS::sdb::export": "no SDK: no aws-sdk-go-v2 module for Amazon SimpleDB",
+
+		// secretsmanager — a target attachment is a CFN-only construct that wires a
+		// secret to an RDS/Redshift resource, not a standalone SDK resource.
+		"AWS::SecretsManager::SecretTargetAttachment": "embedded: a CloudFormation-only secret↔target wiring, not an SDK resource",
+
+		// securitylake — subscriber notification is per-subscriber config, not a
+		// standalone resource (the subscribers are scanned).
+		"AWS::SecurityLake::SubscriberNotification": "facet: per-subscriber notification config, not a standalone resource",
+
+		// servicecatalog / servicediscovery — dups of the scanned app-registry /
+		// servicecatalog product and the specific servicediscovery namespace types.
+		"AWS::servicecatalog::Application":    "duplicate: scanned as aws:service-catalog-app-registry:application",
+		"AWS::servicecatalog::AttributeGroup": "duplicate: scanned as aws:service-catalog-app-registry:attribute-group",
+		"AWS::servicecatalog::Product":        "duplicate: scanned as aws:servicecatalog:cloud-formation-product",
+		"AWS::servicediscovery::namespace":    "duplicate: the generic namespace union, scanned as the specific aws:servicediscovery:*-namespace types",
+
+		// ses — addon/identity rows are dups of the scanned aws:ses:* types; the
+		// reports/jobs are ephemeral; reputation-policy is account config.
+		"AWS::ses::addon-instance":             "duplicate: scanned as aws:ses:mailmanager-addon-instance",
+		"AWS::ses::addon-subscription":         "duplicate: scanned as aws:ses:mailmanager-addon-subscription",
+		"AWS::ses::identity":                   "duplicate: scanned as aws:ses:email-identity",
+		"AWS::ses::deliverability-test-report": "ephemeral: a deliverability test report, not a persistent resource",
+		"AWS::ses::export-job":                 "ephemeral: an SES export job run, not a persistent resource",
+		"AWS::ses::import-job":                 "ephemeral: an SES import job run, not a persistent resource",
+		"AWS::ses::reputation-policy":          "config: account-level reputation config, not an enumerable resource",
+
+		// shield / signer — attack records and signing jobs are ephemeral histories.
+		"AWS::shield::attack":      "ephemeral: a Shield DDoS attack record, not a persistent resource",
+		"AWS::signer::signing-job": "ephemeral: a Signer signing job run, not a persistent resource",
+
+		// signin — console/oauth public-client sign-in concepts are data-plane, not
+		// enumerable resources.
+		"AWS::signin::console":                        "data-plane: an AWS sign-in console concept, not an enumerable resource",
+		"AWS::signin::oauth2-public-client-localhost": "data-plane: an OAuth2 public-client sign-in concept, not an enumerable resource",
+		"AWS::signin::oauth2-public-client-remote":    "data-plane: an OAuth2 public-client sign-in concept, not an enumerable resource",
+
+		// sms-voice / smsvoice — a Message is an ephemeral send; ResourcePolicy is a
+		// resource-based policy (data-plane).
+		"AWS::sms-voice::Message":       "ephemeral: a sent SMS/voice message, not a persistent resource",
+		"AWS::SMSVOICE::ResourcePolicy": "data-plane: a resource-based policy, not an enumerable resource",
+
+		// sns / sqs — inline/attribute policies are embedded on the topic/queue.
+		"AWS::SNS::TopicInlinePolicy": "duplicate: scanned as aws:sns:topic-policy",
+		"AWS::SQS::QueueInlinePolicy": "embedded: the CloudFormation inline queue policy, scanned via the queue's Policy attribute",
+		"AWS::SQS::QueuePolicy":       "embedded: the queue's Policy attribute, not a standalone resource",
+
+		// sqlworkbench — Redshift query-editor personal artifacts (charts/notebooks/
+		// queries/connections), not account infrastructure.
+		"AWS::sqlworkbench::chart":      "data-plane: a Redshift query-editor chart, not cloud infrastructure",
+		"AWS::sqlworkbench::connection": "data-plane: a Redshift query-editor connection, not cloud infrastructure",
+		"AWS::sqlworkbench::notebook":   "data-plane: a Redshift query-editor notebook, not cloud infrastructure",
+		"AWS::sqlworkbench::query":      "data-plane: a Redshift query-editor query, not cloud infrastructure",
+
+		// ssm — automation/session/task/window* SR rows are dups of the scanned
+		// document/maintenance-window types or ephemeral executions; opsitem/inventory/
+		// service-setting/iam-role/bucket/cloud-connector are operational/config/data.
+		"AWS::SSM::ResourcePolicy":             "data-plane: an SSM resource-based policy, not an enumerable resource",
+		"AWS::ssm::automation-definition":      "duplicate: an automation document, scanned as aws:ssm:document",
+		"AWS::ssm::automation-execution":       "ephemeral: an SSM automation execution, not a persistent resource",
+		"AWS::ssm::session":                    "ephemeral: an SSM Session Manager session, not a persistent resource",
+		"AWS::ssm::task":                       "ephemeral: an SSM task execution, not a persistent resource",
+		"AWS::ssm::instance":                   "duplicate: scanned as aws:ssm:managed-instance",
+		"AWS::ssm::managed-instance-inventory": "data-plane: SSM inventory data, not a control-plane resource",
+		"AWS::ssm::opsitem":                    "ephemeral: an OpsCenter operational item, not a persistent infrastructure resource",
+		"AWS::ssm::opsitemgroup":               "ephemeral: an OpsCenter item group, not a persistent infrastructure resource",
+		"AWS::ssm::servicesetting":             "config: a per-setting account service-setting, not an enumerable resource",
+		"AWS::ssm::iam-role":                   "config: the SSM service IAM role reference, not an SSM resource",
+		"AWS::ssm::bucket":                     "config: an SSM-referenced S3 bucket, not an SSM resource",
+		"AWS::ssm::cloud-connector":            "no SDK list op: SSM cloud connectors are not enumerable",
+		"AWS::ssm::windowtarget":               "duplicate: scanned as aws:ssm:maintenance-window-target",
+		"AWS::ssm::windowtask":                 "duplicate: scanned as aws:ssm:maintenance-window-task",
+
+		// ssm-contacts / ssm-incidents — engagements/pages/incident-records are
+		// ephemeral operational events.
+		"AWS::ssm-contacts::engagement":       "ephemeral: an SSM Contacts engagement (paging event), not a persistent resource",
+		"AWS::ssm-contacts::page":             "ephemeral: an SSM Contacts page, not a persistent resource",
+		"AWS::ssm-incidents::incident-record": "ephemeral: an incident record (occurrence), not a persistent resource",
+
+		// ssm-sap — application is the SR dup of the scanned systems-manager-sap app.
+		"AWS::ssm-sap::application": "duplicate: scanned as aws:systems-manager-sap:application",
+
+		// sso-oauth — the OAuth Application is the data-plane view of the scanned
+		// aws:sso:application.
+		"AWS::sso-oauth::Application": "duplicate: scanned as aws:sso:application",
+
+		// states (Step Functions) — statemachine/activity/alias/version are dups of
+		// the scanned aws:sfn:* / aws:stepfunctions:* types; executions/map-runs are
+		// ephemeral.
+		"AWS::states::statemachine":        "duplicate: scanned as aws:sfn:state-machine",
+		"AWS::states::activity":            "duplicate: scanned as aws:sfn:activity",
+		"AWS::states::statemachinealias":   "duplicate: scanned as aws:stepfunctions:state-machine-alias",
+		"AWS::states::statemachineversion": "duplicate: scanned as aws:stepfunctions:state-machine-version",
+		"AWS::states::execution":           "ephemeral: a Step Functions execution, not a persistent resource",
+		"AWS::states::express":             "ephemeral: an express execution, not a persistent resource",
+		"AWS::states::labelled execution":  "ephemeral: a labelled execution, not a persistent resource",
+		"AWS::states::labelled express":    "ephemeral: a labelled express execution, not a persistent resource",
+		"AWS::states::maprun":              "ephemeral: a Step Functions map run, not a persistent resource",
+
+		// sts — federated identities and role-session concepts are data-plane, not
+		// enumerable resources.
+		"AWS::sts::context-provider": "data-plane: an STS context provider, not an enumerable resource",
+		"AWS::sts::federated-user":   "data-plane: an STS federated user session, not an enumerable resource",
+		"AWS::sts::role":             "data-plane: an STS assumed-role session, not an enumerable resource (the IAM role is scanned)",
+		"AWS::sts::root-user":        "data-plane: an STS root-user session concept, not an enumerable resource",
+		"AWS::sts::self-session":     "data-plane: an STS self session concept, not an enumerable resource",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
