@@ -955,6 +955,20 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::iotdeviceadvisor::Suitedefinition": "duplicate: scanned as aws:iot-core-device-advisor:suite-definition",
 		"AWS::iotdeviceadvisor::Suiterun":        "ephemeral: an IoT Device Advisor test-suite run, not a persistent resource",
 
+		// iotevents — AWS deprecated AWS IoT Events; the aws-sdk-go-v2 iotevents
+		// client marks the whole service "no longer available for use" (every
+		// field/op is Deprecated), past end of support. No live resources to scan;
+		// do not carry the dead dependency (same posture as iotanalytics / a4b).
+		"AWS::iotevents::alarmModel":    "discontinued: AWS IoT Events is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::iotevents::detectorModel": "discontinued: AWS IoT Events is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::iotevents::input":         "discontinued: AWS IoT Events is deprecated and no longer available for use (SDK service marked deprecated)",
+
+		// iotfleethub — AWS deprecated AWS IoT Fleet Hub; the aws-sdk-go-v2
+		// iotfleethub client marks the whole service "no longer available for use"
+		// (every field/op is Deprecated). No live resources to scan; do not carry
+		// the dead dependency.
+		"AWS::iotfleethub::application": "discontinued: AWS IoT Fleet Hub is deprecated and no longer available for use (SDK service marked deprecated)",
+
 		// iotjobsdata — the IoT Jobs data-plane thing endpoint; AWS publishes no
 		// aws-sdk-go-v2 module for the iotjobsdata data plane.
 		"AWS::iotjobsdata::thing": "no SDK: the IoT Jobs data plane (iotjobsdata) publishes no aws-sdk-go-v2 module",

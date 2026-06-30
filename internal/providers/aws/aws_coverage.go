@@ -749,6 +749,14 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeKendraRankingExecutionPlan: "AWS::KendraRanking::ExecutionPlan",
 		// IoTCoreDeviceAdvisor — disco "iot-core-device-advisor" segment vs CFN "IoTCoreDeviceAdvisor".
 		TypeIoTDeviceAdvisorSuiteDefinition: "AWS::IoTCoreDeviceAdvisor::SuiteDefinition",
+		// IoTManagedIntegrations — the Service Reference catalog spells these
+		// resources hyphenated (account-association, …), which the PascalCase
+		// AlgorithmicKey (AccountAssociation) cannot match lowercase-exact.
+		TypeIoTManagedIntegrationsAccountAssociation:  "AWS::iotmanagedintegrations::account-association",
+		TypeIoTManagedIntegrationsCredentialLocker:    "AWS::iotmanagedintegrations::credential-locker",
+		TypeIoTManagedIntegrationsManagedThing:        "AWS::iotmanagedintegrations::managed-thing",
+		TypeIoTManagedIntegrationsOtaTask:             "AWS::iotmanagedintegrations::ota-task",
+		TypeIoTManagedIntegrationsProvisioningProfile: "AWS::iotmanagedintegrations::provisioning-profile",
 		// InternetMonitor — disco "internet-monitor" segment vs CFN "InternetMonitor".
 		TypeInternetMonitorMonitor: "AWS::InternetMonitor::Monitor",
 		// HealthLake — disco "health-lake" segment vs CFN "HealthLake".

@@ -692,6 +692,8 @@ github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.37.7 h1:BHXyfB1Dh8I65rB
 github.com/aws/aws-sdk-go-v2/service/iotdeviceadvisor v1.37.7/go.mod h1:HeBPqwsBJ/Rf5OUbVC8nG/17d5d1ZnaGWFqiKYAJDTo=
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.32.6 h1:/fRGmro2DOxOyqAd9BrNpf7EKNvnV8fNfJeEUNrDo+0=
 github.com/aws/aws-sdk-go-v2/service/iotfleetwise v1.32.6/go.mod h1:xXZnQ7Ea2b2FzzVAfZEbA1tHGelNuxKCVrHxguCEyJY=
+github.com/aws/aws-sdk-go-v2/service/iotmanagedintegrations v1.10.8 h1:DSnPfj2cOeNFmw7ehqiQ+bRQ1OFWl8tNG+WgcPqahj4=
+github.com/aws/aws-sdk-go-v2/service/iotmanagedintegrations v1.10.8/go.mod h1:HgwLDXTrms1SLpnVFr6rhnVvrCdjSguLBzeBVZLohTg=
 github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.53.0 h1:O3bpb1dO0+nh6fiSWGMUjMpIJCH5wRrLJtWSxBAyOTc=
 github.com/aws/aws-sdk-go-v2/service/iotsitewise v1.53.0/go.mod h1:DSJTHwoZWCqPgdKIOPztAcnW7Z3I3lHpM48kMzgCPuk=
 github.com/aws/aws-sdk-go-v2/service/iottwinmaker v1.30.5 h1:m8/edRA7BbjfldysqR34TGVMt7UT77rtB36sf8VRgVU=

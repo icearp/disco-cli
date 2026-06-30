@@ -209,6 +209,7 @@ var expectedAWSServices = []string{
 	"aws:glacier",
 	"aws:iot",
 	"aws:iotfleetwise",
+	"aws:iotmanagedintegrations",
 	"aws:iotsitewise",
 	"aws:iotwireless",
 	"aws:ivs",

@@ -1242,6 +1242,12 @@ const (
 	TypeIoTFWSignalCatalog   = "aws:iotfleetwise:signal-catalog"
 	TypeIoTFWStateTemplate   = "aws:iotfleetwise:state-template"
 	TypeIoTFWVehicle         = "aws:iotfleetwise:vehicle"
+	// IoTManagedIntegrations (iotmanagedintegrations_scanners.go)
+	TypeIoTManagedIntegrationsAccountAssociation  = "aws:iotmanagedintegrations:account-association"
+	TypeIoTManagedIntegrationsCredentialLocker    = "aws:iotmanagedintegrations:credential-locker"
+	TypeIoTManagedIntegrationsManagedThing        = "aws:iotmanagedintegrations:managed-thing"
+	TypeIoTManagedIntegrationsOtaTask             = "aws:iotmanagedintegrations:ota-task"
+	TypeIoTManagedIntegrationsProvisioningProfile = "aws:iotmanagedintegrations:provisioning-profile"
 	// FraudDetector (frauddetector_scanners.go)
 	TypeFraudDetectorDetector      = "aws:frauddetector:detector"
 	TypeFraudDetectorEntityType    = "aws:frauddetector:entity-type"
