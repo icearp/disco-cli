@@ -1099,6 +1099,14 @@ const (
 	TypeGrafanaWorkspace = "aws:grafana:workspace"
 	// FinSpace (finspace_scanners.go)
 	TypeFinSpaceEnvironment = "aws:fin-space:environment"
+	// FinSpace Managed kdb (finspace_kx_scanners.go)
+	TypeFinspaceKxEnvironment  = "aws:finspace:kx-environment"
+	TypeFinspaceKxCluster      = "aws:finspace:kx-cluster"
+	TypeFinspaceKxDatabase     = "aws:finspace:kx-database"
+	TypeFinspaceKxDataview     = "aws:finspace:kx-dataview"
+	TypeFinspaceKxScalingGroup = "aws:finspace:kx-scaling-group"
+	TypeFinspaceKxUser         = "aws:finspace:kx-user"
+	TypeFinspaceKxVolume       = "aws:finspace:kx-volume"
 	// EVS (evs_scanners.go)
 	TypeEVSEnvironment = "aws:evs:environment"
 	// EMRServerless (emrserverless_scanners.go)

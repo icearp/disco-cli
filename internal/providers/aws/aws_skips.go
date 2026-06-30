@@ -817,8 +817,12 @@ func (coverageProvider) Skips() map[string]string {
 
 		// finspace-api / freertos — not a resource / no SDK.
 		"AWS::finspace-api::credential": "not a resource: a FinSpace API credential, not an enumerable resource",
-		"AWS::freertos::configuration":  "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
-		"AWS::freertos::subscription":   "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
+		// Classic FinSpace user management lived in the finspace-data service,
+		// which AWS discontinued; the surviving aws-sdk-go-v2/service/finspace
+		// module (Managed kdb + classic Environment) exposes no ListUsers op.
+		"AWS::finspace::user":          "no SDK op: classic FinSpace user lived in the discontinued finspace-data API; the current finspace SDK has no ListUsers",
+		"AWS::freertos::configuration": "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
+		"AWS::freertos::subscription":  "no SDK: the FreeRTOS console has no aws-sdk-go-v2 module (OTA lives under IoT)",
 
 		// fsx — backup + file-cache are scanned; association is the SR spelling of
 		// the data-repository-association disco scans; task is an ephemeral
