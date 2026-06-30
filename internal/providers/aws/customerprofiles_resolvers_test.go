@@ -34,6 +34,35 @@ func TestResolveCustomerProfilesChildrenToDomain(t *testing.T) {
 	assertRelationship(t, rels, otID, dID, store.RelAttachedTo)
 }
 
+func TestResolveCustomerProfilesPluralChildrenToDomain(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	dARN := fmt.Sprintf("arn:aws:profile:%s:%s:domains/d1", testRegion, acct.ID)
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCPDomain, dARN, testRegion, "{}")
+
+	cases := []struct {
+		rtype, kind string
+	}{
+		{TypeCustomerProfilesLayouts, "layout"},
+		{TypeCustomerProfilesDomainObjectTypes, "object-type"},
+		{TypeCustomerProfilesRecommenderFilters, "recommender-filter"},
+		{TypeCustomerProfilesRecommenderSchemas, "recommender-schema"},
+	}
+	childIDs := make([]string, len(cases))
+	for i, c := range cases {
+		arn := dARN + "/" + c.kind + "/x1"
+		childIDs[i] = upsertTestResource(t, st, "aws", acct.ID, c.rtype, arn, testRegion, "{}")
+	}
+
+	if err := resolveCustomerProfilesChildrenToDomain(acct, st); err != nil {
+		t.Fatalf("resolveCustomerProfilesChildrenToDomain: %v", err)
+	}
+	for i := range cases {
+		rels, _ := st.RelationshipsFrom(childIDs[i])
+		assertRelationship(t, rels, childIDs[i], dID, store.RelAttachedTo)
+	}
+}
+
 func TestResolveCPDomainRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

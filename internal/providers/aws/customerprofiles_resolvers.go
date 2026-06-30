@@ -19,6 +19,10 @@ func init() {
 		EdgeDecl{TypeCPObjectType, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPRecommender, TypeCPDomain, store.RelAttachedTo},
 		EdgeDecl{TypeCPSegmentDefinition, TypeCPDomain, store.RelAttachedTo},
+		EdgeDecl{TypeCustomerProfilesLayouts, TypeCPDomain, store.RelAttachedTo},
+		EdgeDecl{TypeCustomerProfilesDomainObjectTypes, TypeCPDomain, store.RelAttachedTo},
+		EdgeDecl{TypeCustomerProfilesRecommenderFilters, TypeCPDomain, store.RelAttachedTo},
+		EdgeDecl{TypeCustomerProfilesRecommenderSchemas, TypeCPDomain, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveCPDomainRefs,
@@ -105,6 +109,10 @@ func resolveCustomerProfilesChildrenToDomain(acct *account, st *store.Store) err
 		TypeCPObjectType,
 		TypeCPRecommender,
 		TypeCPSegmentDefinition,
+		TypeCustomerProfilesLayouts,
+		TypeCustomerProfilesDomainObjectTypes,
+		TypeCustomerProfilesRecommenderFilters,
+		TypeCustomerProfilesRecommenderSchemas,
 	}
 	for _, ctype := range childTypes {
 		rows, err := st.ListResources(store.ResourceFilter{

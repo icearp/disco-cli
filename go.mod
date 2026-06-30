@@ -482,6 +482,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/networkflowmonitor v1.12.6
 	github.com/aws/aws-sdk-go-v2/service/networkmonitor v1.14.7
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.62.1
+	github.com/aws/aws-sdk-go-v2/service/polly v1.58.4
 )
 
 require (

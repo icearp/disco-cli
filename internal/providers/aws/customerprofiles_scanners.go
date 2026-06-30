@@ -22,6 +22,10 @@ func init() {
 			{Service: "customer-profiles", DiscoType: TypeCPObjectType},
 			{Service: "customer-profiles", DiscoType: TypeCPRecommender},
 			{Service: "customer-profiles", DiscoType: TypeCPSegmentDefinition},
+			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesLayouts},
+			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesDomainObjectTypes},
+			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesRecommenderFilters},
+			{Service: "customer-profiles", DiscoType: TypeCustomerProfilesRecommenderSchemas},
 		},
 	})
 }
@@ -36,6 +40,10 @@ type cpAPI interface {
 	ListIntegrations(context.Context, *customerprofiles.ListIntegrationsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListIntegrationsOutput, error)
 	ListProfileObjectTypes(context.Context, *customerprofiles.ListProfileObjectTypesInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListProfileObjectTypesOutput, error)
 	ListSegmentDefinitions(context.Context, *customerprofiles.ListSegmentDefinitionsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListSegmentDefinitionsOutput, error)
+	ListDomainLayouts(context.Context, *customerprofiles.ListDomainLayoutsInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListDomainLayoutsOutput, error)
+	ListDomainObjectTypes(context.Context, *customerprofiles.ListDomainObjectTypesInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListDomainObjectTypesOutput, error)
+	ListRecommenderFilters(context.Context, *customerprofiles.ListRecommenderFiltersInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListRecommenderFiltersOutput, error)
+	ListRecommenderSchemas(context.Context, *customerprofiles.ListRecommenderSchemasInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListRecommenderSchemasOutput, error)
 }
 
 func cpARN(region, acct string, segs ...string) string {
@@ -67,6 +75,10 @@ func scanCustomerProfiles(ctx context.Context, acct *account, region string, st 
 			func() (int, int, error) { return scanCPObjectTypes(ctx, client, acct, region, st, scanID, name) },
 			func() (int, int, error) { return scanCPSegmentDefinitions(ctx, client, acct, region, st, scanID, name) },
 			func() (int, int, error) { return scanCPRecommenders(ctx, client, acct, region, st, scanID, name) },
+			func() (int, int, error) { return scanCPLayouts(ctx, client, acct, region, st, scanID, name) },
+			func() (int, int, error) { return scanCPDomainObjectTypes(ctx, client, acct, region, st, scanID, name) },
+			func() (int, int, error) { return scanCPRecommenderFilters(ctx, client, acct, region, st, scanID, name) },
+			func() (int, int, error) { return scanCPRecommenderSchemas(ctx, client, acct, region, st, scanID, name) },
 		} {
 			t, i, perr := phase()
 			if perr != nil {
@@ -344,4 +356,124 @@ func scanCPRecommenders(ctx context.Context, client cpAPI, acct *account, region
 		}
 	}
 	return upsertBatch(st, batch, "customer-profiles recommenders")
+}
+
+func scanCPLayouts(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID, domainName string) (int, int, error) {
+	dn := domainName
+	pager := customerprofiles.NewListDomainLayoutsPaginator(client, &customerprofiles.ListDomainLayoutsInput{DomainName: &dn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "profile:ListDomainLayouts", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("profile:ListDomainLayouts: %w", perr)
+		}
+		for _, l := range out.Items {
+			name := sv(l.LayoutDefinitionName)
+			if name == "" {
+				continue
+			}
+			arn := cpARN(region, acct.ID, domainName, "layout", name)
+			label := name
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCustomerProfilesLayouts, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "customer-profiles layouts")
+}
+
+func scanCPDomainObjectTypes(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID, domainName string) (int, int, error) {
+	dn := domainName
+	pager := customerprofiles.NewListDomainObjectTypesPaginator(client, &customerprofiles.ListDomainObjectTypesInput{DomainName: &dn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "profile:ListDomainObjectTypes", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("profile:ListDomainObjectTypes: %w", perr)
+		}
+		for _, ot := range out.Items {
+			name := sv(ot.ObjectTypeName)
+			if name == "" {
+				continue
+			}
+			arn := cpARN(region, acct.ID, domainName, "object-type", name)
+			label := name
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCustomerProfilesDomainObjectTypes, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(ot), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "customer-profiles domain-object-types")
+}
+
+func scanCPRecommenderFilters(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID, domainName string) (int, int, error) {
+	dn := domainName
+	pager := customerprofiles.NewListRecommenderFiltersPaginator(client, &customerprofiles.ListRecommenderFiltersInput{DomainName: &dn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "profile:ListRecommenderFilters", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("profile:ListRecommenderFilters: %w", perr)
+		}
+		for _, f := range out.RecommenderFilters {
+			name := sv(f.RecommenderFilterName)
+			if name == "" {
+				continue
+			}
+			arn := cpARN(region, acct.ID, domainName, "recommender-filter", name)
+			label := name
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCustomerProfilesRecommenderFilters, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "customer-profiles recommender-filters")
+}
+
+func scanCPRecommenderSchemas(ctx context.Context, client cpAPI, acct *account, region string, st *store.Store, scanID, domainName string) (int, int, error) {
+	dn := domainName
+	pager := customerprofiles.NewListRecommenderSchemasPaginator(client, &customerprofiles.ListRecommenderSchemasInput{DomainName: &dn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "profile:ListRecommenderSchemas", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("profile:ListRecommenderSchemas: %w", perr)
+		}
+		for _, s := range out.RecommenderSchemas {
+			name := sv(s.RecommenderSchemaName)
+			if name == "" {
+				continue
+			}
+			arn := cpARN(region, acct.ID, domainName, "recommender-schema", name)
+			label := name
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCustomerProfilesRecommenderSchemas, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "customer-profiles recommender-schemas")
 }

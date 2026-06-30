@@ -1194,6 +1194,13 @@ const (
 	TypeCPObjectType                    = "aws:customer-profiles:object-type"
 	TypeCPRecommender                   = "aws:customer-profiles:recommender"
 	TypeCPSegmentDefinition             = "aws:customer-profiles:segment-definition"
+	// Per-domain children that exist only in the Service Reference catalog
+	// (no CloudFormation twin), spelled plural — disco mirrors the plural per
+	// the type-naming rule; aliased to the exact SR keys in aws_coverage.go.
+	TypeCustomerProfilesLayouts            = "aws:customer-profiles:layouts"
+	TypeCustomerProfilesDomainObjectTypes  = "aws:customer-profiles:domain-object-types"
+	TypeCustomerProfilesRecommenderFilters = "aws:customer-profiles:recommender-filters"
+	TypeCustomerProfilesRecommenderSchemas = "aws:customer-profiles:recommender-schemas"
 	// CleanRooms (cleanrooms_scanners.go)
 	TypeCleanRoomsAnalysisTemplate                   = "aws:cleanrooms:analysis-template"
 	TypeCleanRoomsCollaboration                      = "aws:cleanrooms:collaboration"
@@ -1758,6 +1765,7 @@ const (
 	// Panorama (panorama_scanners.go).
 	TypePanoramaApplicationInstance = "aws:panorama:application-instance"
 	TypePanoramaPackage             = "aws:panorama:package"
+	TypePanoramaDevice              = "aws:panorama:device"
 	// Proton (proton_scanners.go).
 	TypeProtonComponent                    = "aws:proton:component"
 	TypeProtonDeployment                   = "aws:proton:deployment"
@@ -1841,10 +1849,18 @@ const (
 	TypeLexResourcePolicy = "aws:lex:resource-policy"
 	TypeLexTestSet        = "aws:lex:test-set"
 	// Personalize (personalize_scanners.go).
-	TypePersonalizeDataset      = "aws:personalize:dataset"
-	TypePersonalizeDatasetGroup = "aws:personalize:dataset-group"
-	TypePersonalizeSchema       = "aws:personalize:schema"
-	TypePersonalizeSolution     = "aws:personalize:solution"
+	TypePersonalizeDataset           = "aws:personalize:dataset"
+	TypePersonalizeDatasetGroup      = "aws:personalize:dataset-group"
+	TypePersonalizeSchema            = "aws:personalize:schema"
+	TypePersonalizeSolution          = "aws:personalize:solution"
+	TypePersonalizeCampaign          = "aws:personalize:campaign"
+	TypePersonalizeEventTracker      = "aws:personalize:event-tracker"
+	TypePersonalizeFilter            = "aws:personalize:filter"
+	TypePersonalizeMetricAttribution = "aws:personalize:metric-attribution"
+	TypePersonalizeRecommender       = "aws:personalize:recommender"
+	TypePersonalizeRecipe            = "aws:personalize:recipe"
+	// Polly (polly_scanners.go).
+	TypePollyLexicon = "aws:polly:lexicon"
 	// RefactorSpaces (refactorspaces_scanners.go); SDK module is
 	// migrationhubrefactorspaces, CFN segment is "RefactorSpaces".
 	TypeRefactorSpacesApplication = "aws:refactor-spaces:application"

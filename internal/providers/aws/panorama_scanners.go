@@ -16,6 +16,7 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "panorama", DiscoType: TypePanoramaApplicationInstance, Leaf: true},
 			{Service: "panorama", DiscoType: TypePanoramaPackage, Leaf: true},
+			{Service: "panorama", DiscoType: TypePanoramaDevice, Leaf: true},
 		},
 	})
 }
@@ -23,6 +24,7 @@ func init() {
 type panoramaAPI interface {
 	ListApplicationInstances(context.Context, *panorama.ListApplicationInstancesInput, ...func(*panorama.Options)) (*panorama.ListApplicationInstancesOutput, error)
 	ListPackages(context.Context, *panorama.ListPackagesInput, ...func(*panorama.Options)) (*panorama.ListPackagesOutput, error)
+	ListDevices(context.Context, *panorama.ListDevicesInput, ...func(*panorama.Options)) (*panorama.ListDevicesOutput, error)
 }
 
 // scanPanorama discovers Panorama application instances and packages.
@@ -34,6 +36,7 @@ func scanPanorama(ctx context.Context, acct *account, region string, st *store.S
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanPanoramaAppInstances(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanPanoramaPackages(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanPanoramaDevices(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -98,4 +101,36 @@ func scanPanoramaPackages(ctx context.Context, client panoramaAPI, acct *account
 		}
 	}
 	return upsertBatch(st, batch, "panorama packages")
+}
+
+// scanPanoramaDevices discovers Panorama appliance devices. The Device list
+// shape carries no ARN, so the NativeID is synthesized from DeviceId in the
+// canonical panorama device ARN shape.
+func scanPanoramaDevices(ctx context.Context, client panoramaAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := panorama.NewListDevicesPaginator(client, &panorama.ListDevicesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "panorama:ListDevices", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("panorama:ListDevices: %w", err)
+		}
+		for _, d := range out.Devices {
+			id := sv(d.DeviceId)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:panorama:%s:%s:device/%s", region, acct.ID, id)
+			status := string(d.ProvisioningStatus)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypePanoramaDevice, NativeID: arn,
+				Name: d.Name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "panorama devices")
 }

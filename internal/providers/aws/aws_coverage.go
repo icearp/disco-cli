@@ -879,6 +879,14 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeProtonEnvironmentTemplateVersion: "AWS::proton::environment-template-version",
 		TypeProtonServiceInstance:            "AWS::proton::service-instance",
 		TypeProtonServiceTemplateVersion:     "AWS::proton::service-template-version",
+		// Customer Profiles per-domain children exist only in the Service
+		// Reference catalog (no CFN twin), under the "profile" service segment
+		// and spelled plural; disco's segment is "customer-profiles", which the
+		// algorithmic key can't bridge — pin the exact SR keys.
+		TypeCustomerProfilesLayouts:            "AWS::profile::layouts",
+		TypeCustomerProfilesDomainObjectTypes:  "AWS::profile::domain-object-types",
+		TypeCustomerProfilesRecommenderFilters: "AWS::profile::recommender-filters",
+		TypeCustomerProfilesRecommenderSchemas: "AWS::profile::recommender-schemas",
 	}
 }
 
