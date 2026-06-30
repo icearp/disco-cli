@@ -471,6 +471,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/datapipeline v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/devicefarm v1.39.6
 	github.com/aws/aws-sdk-go-v2/service/drs v1.39.5
+	github.com/aws/aws-sdk-go-v2/service/gameliftstreams v1.11.13
+	github.com/aws/aws-sdk-go-v2/service/glacier v1.33.5
 )
 
 require (

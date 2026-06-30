@@ -13,20 +13,24 @@ import (
 // that de-stutters, renames, or abbreviates its resource relative to upstream
 // (e.g. backup:vault for BackupVault, docdb:cluster for DBCluster) fails here.
 //
-// Hyphens are stripped on BOTH sides: CloudFormation resource names are
-// PascalCase with no hyphens (InvestigationGroup), but the Service Reference
-// catalog spells the same resources lower-cased and hyphenated
-// (investigation-group, private-connection). Both are valid alias targets, so
-// the comparison ignores hyphen placement — cosmetic separation, not a semantic
-// rename — while still catching abbreviation and de-stuttering.
+// Hyphens (and spaces) are stripped on BOTH sides: CloudFormation resource
+// names are PascalCase with no separators (InvestigationGroup), but the Service
+// Reference catalog spells the same resources lower-cased and hyphenated
+// (investigation-group, private-connection) or even space-separated
+// (gameliftstreams "stream group"). All are valid alias targets, so the
+// comparison ignores separator placement — cosmetic, not a semantic rename —
+// while still catching abbreviation and de-stuttering.
 func TestAWSResourceMirrorsUpstream(t *testing.T) {
+	strip := func(s string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(s, "-", ""), " ", "")
+	}
 	for disco, upstream := range (coverageProvider{}).Aliases() {
 		dp := strings.SplitN(disco, ":", 3)
 		up := strings.SplitN(upstream, "::", 3)
 		if len(dp) != 3 || len(up) != 3 {
 			continue
 		}
-		if strings.ReplaceAll(dp[2], "-", "") != strings.ReplaceAll(strings.ToLower(up[2]), "-", "") {
+		if strip(dp[2]) != strip(strings.ToLower(up[2])) {
 			t.Errorf("disco %q resource %q does not mirror upstream %q resource %q",
 				disco, dp[2], upstream, up[2])
 		}

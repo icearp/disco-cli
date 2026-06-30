@@ -774,6 +774,10 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeCodeGuruReviewerRepositoryAssociation: "AWS::CodeGuruReviewer::RepositoryAssociation",
 		// CodeGuruProfiler — disco "code-guru-profiler" segment vs CFN "CodeGuruProfiler".
 		TypeCodeGuruProfilerProfilingGroup: "AWS::CodeGuruProfiler::ProfilingGroup",
+		// GameLift Streams stream-group — the Service Reference key spells the
+		// resource "stream group" (with a space), which no algorithmic key can
+		// produce; alias it directly.
+		TypeGameLiftStreamsStreamGroup: "AWS::gameliftstreams::stream group",
 	}
 }
 

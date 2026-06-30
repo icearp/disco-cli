@@ -784,6 +784,11 @@ const (
 	TypeGameLiftMatchmakingConfiguration = "aws:gamelift:matchmaking-configuration"
 	TypeGameLiftMatchmakingRuleSet       = "aws:gamelift:matchmaking-rule-set"
 	TypeGameLiftScript                   = "aws:gamelift:script"
+	// GameLift Streams (gameliftstreams_scanners.go)
+	TypeGameLiftStreamsApplication = "aws:gameliftstreams:application"
+	TypeGameLiftStreamsStreamGroup = "aws:gameliftstreams:stream-group"
+	// Glacier (glacier_scanners.go)
+	TypeGlacierVault = "aws:glacier:vault"
 	// DMS (dms_scanners.go)
 	TypeDMSCertificate            = "aws:dms:certificate"
 	TypeDMSDataMigration          = "aws:dms:data-migration"
