@@ -18,7 +18,10 @@ func init() {
 			{Service: "memorydb", DiscoType: TypeMemoryDBACL},
 			{Service: "memorydb", DiscoType: TypeMemoryDBCluster},
 			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionCluster, Leaf: true},
+			{Service: "memorydb", DiscoType: TypeMemoryDBMultiRegionParameterGroup, Leaf: true},
 			{Service: "memorydb", DiscoType: TypeMemoryDBParameterGroup, Leaf: true},
+			{Service: "memorydb", DiscoType: TypeMemoryDBReservedNode, Leaf: true},
+			{Service: "memorydb", DiscoType: TypeMemoryDBSnapshot, Leaf: true},
 			{Service: "memorydb", DiscoType: TypeMemoryDBSubnetGroup},
 			{Service: "memorydb", DiscoType: TypeMemoryDBUser, Leaf: true},
 		},
@@ -29,7 +32,10 @@ type memorydbAPI interface {
 	DescribeACLs(context.Context, *memorydb.DescribeACLsInput, ...func(*memorydb.Options)) (*memorydb.DescribeACLsOutput, error)
 	DescribeClusters(context.Context, *memorydb.DescribeClustersInput, ...func(*memorydb.Options)) (*memorydb.DescribeClustersOutput, error)
 	DescribeMultiRegionClusters(context.Context, *memorydb.DescribeMultiRegionClustersInput, ...func(*memorydb.Options)) (*memorydb.DescribeMultiRegionClustersOutput, error)
+	DescribeMultiRegionParameterGroups(context.Context, *memorydb.DescribeMultiRegionParameterGroupsInput, ...func(*memorydb.Options)) (*memorydb.DescribeMultiRegionParameterGroupsOutput, error)
 	DescribeParameterGroups(context.Context, *memorydb.DescribeParameterGroupsInput, ...func(*memorydb.Options)) (*memorydb.DescribeParameterGroupsOutput, error)
+	DescribeReservedNodes(context.Context, *memorydb.DescribeReservedNodesInput, ...func(*memorydb.Options)) (*memorydb.DescribeReservedNodesOutput, error)
+	DescribeSnapshots(context.Context, *memorydb.DescribeSnapshotsInput, ...func(*memorydb.Options)) (*memorydb.DescribeSnapshotsOutput, error)
 	DescribeSubnetGroups(context.Context, *memorydb.DescribeSubnetGroupsInput, ...func(*memorydb.Options)) (*memorydb.DescribeSubnetGroupsOutput, error)
 	DescribeUsers(context.Context, *memorydb.DescribeUsersInput, ...func(*memorydb.Options)) (*memorydb.DescribeUsersOutput, error)
 }
@@ -43,7 +49,12 @@ func scanMemoryDB(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) { return scanMemDBACLs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMemDBClusters(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMemDBMultiRegionClusters(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanMemDBMultiRegionParameterGroups(ctx, client, acct, region, st, scanID)
+		},
 		func() (int, int, error) { return scanMemDBParameterGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMemDBReservedNodes(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMemDBSnapshots(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMemDBSubnetGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMemDBUsers(ctx, client, acct, region, st, scanID) },
 	} {
@@ -175,6 +186,98 @@ func scanMemDBParameterGroups(ctx context.Context, client memorydbAPI, acct *acc
 		}
 	}
 	return upsertBatch(st, batch, "memorydb parameter-groups")
+}
+
+func scanMemDBSnapshots(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := memorydb.NewDescribeSnapshotsPaginator(client, &memorydb.DescribeSnapshotsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "memorydb:DescribeSnapshots", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("memorydb:DescribeSnapshots: %w", err)
+		}
+		for _, s := range out.Snapshots {
+			arn := sv(s.ARN)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMemoryDBSnapshot, NativeID: arn,
+				Name: s.Name, Region: &region, Status: s.Status,
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "memorydb snapshots")
+}
+
+func scanMemDBReservedNodes(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := memorydb.NewDescribeReservedNodesPaginator(client, &memorydb.DescribeReservedNodesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "memorydb:DescribeReservedNodes", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("memorydb:DescribeReservedNodes: %w", err)
+		}
+		for _, n := range out.ReservedNodes {
+			arn := sv(n.ARN)
+			if arn == "" {
+				continue
+			}
+			label := sv(n.ReservationId)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMemoryDBReservedNode, NativeID: arn,
+				Name: &label, Region: &region, Status: n.State,
+				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "memorydb reserved-nodes")
+}
+
+// scanMemDBMultiRegionParameterGroups uses a manual NextToken loop —
+// DescribeMultiRegionParameterGroups has no SDK paginator. Regions without
+// multi-region support reject it the same way as multi-region clusters.
+func scanMemDBMultiRegionParameterGroups(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var token *string
+	for {
+		out, err := client.DescribeMultiRegionParameterGroups(ctx, &memorydb.DescribeMultiRegionParameterGroupsInput{NextToken: token})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "memorydb:DescribeMultiRegionParameterGroups", acct.ID, region, err)
+			}
+			if isAPIErrorWithMessage(err, "InvalidParameterValueException", "currently unavailable") {
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("memorydb:DescribeMultiRegionParameterGroups: %w", err)
+		}
+		for _, p := range out.MultiRegionParameterGroups {
+			arn := sv(p.ARN)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMemoryDBMultiRegionParameterGroup, NativeID: arn,
+				Name: p.Name, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		token = out.NextToken
+	}
+	return upsertBatch(st, batch, "memorydb multi-region-parameter-groups")
 }
 
 func scanMemDBSubnetGroups(ctx context.Context, client memorydbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

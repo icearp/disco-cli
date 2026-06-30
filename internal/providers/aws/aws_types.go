@@ -605,6 +605,7 @@ const (
 	TypeMacieClassificationJob    = "aws:macie:classification-job"
 	TypeMacieCustomDataIdentifier = "aws:macie:custom-data-identifier"
 	TypeMacieAllowList            = "aws:macie:allow-list"
+	TypeMacieMember               = "aws:macie:member"
 	// SageMaker — Studio (sagemaker_scanners.go)
 	TypeSageMakerDomain                = "aws:sagemaker:domain"
 	TypeSageMakerUserProfile           = "aws:sagemaker:user-profile"
@@ -724,6 +725,7 @@ const (
 	TypeMediaConnectRouterInput            = "aws:mediaconnect:router-input"
 	TypeMediaConnectRouterNetworkInterface = "aws:mediaconnect:router-network-interface"
 	TypeMediaConnectRouterOutput           = "aws:mediaconnect:router-output"
+	TypeMediaConnectReservation            = "aws:mediaconnect:reservation"
 	// AppSync (appsync_scanners.go)
 	TypeAppSyncAPI                      = "aws:appsync:api"
 	TypeAppSyncAPICache                 = "aws:appsync:api-cache"
@@ -1561,7 +1563,10 @@ const (
 	TypeMediaLiveEventBridgeRuleTemplate      = "aws:medialive:eventbridge-rule-template"
 	TypeMediaLiveEventBridgeRuleTemplateGroup = "aws:medialive:eventbridge-rule-template-group"
 	TypeMediaLiveInput                        = "aws:medialive:input"
+	TypeMediaLiveInputDevice                  = "aws:medialive:input-device"
 	TypeMediaLiveInputSecurityGroup           = "aws:medialive:input-security-group"
+	TypeMediaLiveNode                         = "aws:medialive:node"
+	TypeMediaLiveReservation                  = "aws:medialive:reservation"
 	TypeMediaLiveMultiplex                    = "aws:medialive:multiplex"
 	TypeMediaLiveMultiplexProgram             = "aws:medialive:multiplexprogram"
 	TypeMediaLiveNetwork                      = "aws:medialive:network"
@@ -1721,7 +1726,9 @@ const (
 	// ManagedBlockchain (managedblockchain_scanners.go).
 	TypeManagedBlockchainAccessor = "aws:managed-blockchain:accessor"
 	TypeManagedBlockchainMember   = "aws:managed-blockchain:member"
+	TypeManagedBlockchainNetwork  = "aws:managed-blockchain:network"
 	TypeManagedBlockchainNode     = "aws:managed-blockchain:node"
+	TypeManagedBlockchainProposal = "aws:managed-blockchain:proposal"
 	// MediaConvert (mediaconvert_scanners.go).
 	TypeMediaConvertJobTemplate = "aws:media-convert:job-template"
 	TypeMediaConvertPreset      = "aws:media-convert:preset"
@@ -1959,15 +1966,20 @@ const (
 	TypeMediaTailorChannelPolicy         = "aws:mediatailor:channel-policy"
 	TypeMediaTailorLiveSource            = "aws:mediatailor:live-source"
 	TypeMediaTailorPlaybackConfiguration = "aws:mediatailor:playback-configuration"
+	TypeMediaTailorPrefetchSchedule      = "aws:mediatailor:prefetch-schedule"
+	TypeMediaTailorProgram               = "aws:mediatailor:program"
 	TypeMediaTailorSourceLocation        = "aws:mediatailor:source-location"
 	TypeMediaTailorVodSource             = "aws:mediatailor:vod-source"
 	// MemoryDB (memorydb_scanners.go).
-	TypeMemoryDBACL                = "aws:memorydb:acl"
-	TypeMemoryDBCluster            = "aws:memorydb:cluster"
-	TypeMemoryDBMultiRegionCluster = "aws:memorydb:multi-region-cluster"
-	TypeMemoryDBParameterGroup     = "aws:memorydb:parameter-group"
-	TypeMemoryDBSubnetGroup        = "aws:memorydb:subnet-group"
-	TypeMemoryDBUser               = "aws:memorydb:user"
+	TypeMemoryDBACL                       = "aws:memorydb:acl"
+	TypeMemoryDBCluster                   = "aws:memorydb:cluster"
+	TypeMemoryDBMultiRegionCluster        = "aws:memorydb:multi-region-cluster"
+	TypeMemoryDBMultiRegionParameterGroup = "aws:memorydb:multi-region-parameter-group"
+	TypeMemoryDBParameterGroup            = "aws:memorydb:parameter-group"
+	TypeMemoryDBReservedNode              = "aws:memorydb:reserved-node"
+	TypeMemoryDBSnapshot                  = "aws:memorydb:snapshot"
+	TypeMemoryDBSubnetGroup               = "aws:memorydb:subnet-group"
+	TypeMemoryDBUser                      = "aws:memorydb:user"
 	// ObservabilityAdmin (observabilityadmin_scanners.go). Disco service segment
 	// "observabilityadmin"; CFN segment "ObservabilityAdmin".
 	TypeObservabilityAdminOrganizationCentralizationRule = "aws:observabilityadmin:organization-centralization-rule"

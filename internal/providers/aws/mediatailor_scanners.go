@@ -18,6 +18,8 @@ func init() {
 			{Service: "mediatailor", DiscoType: TypeMediaTailorChannelPolicy},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorLiveSource},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorPlaybackConfiguration, Leaf: true},
+			{Service: "mediatailor", DiscoType: TypeMediaTailorPrefetchSchedule, Leaf: true},
+			{Service: "mediatailor", DiscoType: TypeMediaTailorProgram, Leaf: true},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorSourceLocation, Leaf: true},
 			{Service: "mediatailor", DiscoType: TypeMediaTailorVodSource},
 		},
@@ -27,6 +29,8 @@ func init() {
 type mediatailorAPI interface {
 	ListChannels(context.Context, *mediatailor.ListChannelsInput, ...func(*mediatailor.Options)) (*mediatailor.ListChannelsOutput, error)
 	GetChannelPolicy(context.Context, *mediatailor.GetChannelPolicyInput, ...func(*mediatailor.Options)) (*mediatailor.GetChannelPolicyOutput, error)
+	GetChannelSchedule(context.Context, *mediatailor.GetChannelScheduleInput, ...func(*mediatailor.Options)) (*mediatailor.GetChannelScheduleOutput, error)
+	ListPrefetchSchedules(context.Context, *mediatailor.ListPrefetchSchedulesInput, ...func(*mediatailor.Options)) (*mediatailor.ListPrefetchSchedulesOutput, error)
 	ListSourceLocations(context.Context, *mediatailor.ListSourceLocationsInput, ...func(*mediatailor.Options)) (*mediatailor.ListSourceLocationsOutput, error)
 	ListLiveSources(context.Context, *mediatailor.ListLiveSourcesInput, ...func(*mediatailor.Options)) (*mediatailor.ListLiveSourcesOutput, error)
 	ListVodSources(context.Context, *mediatailor.ListVodSourcesInput, ...func(*mediatailor.Options)) (*mediatailor.ListVodSourcesOutput, error)
@@ -48,6 +52,13 @@ func scanMediaTailor(ctx context.Context, acct *account, region string, st *stor
 
 	for _, cn := range channelNames {
 		t, i, ferr = scanMTChannelPolicy(ctx, client, acct, region, st, scanID, cn)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+
+		t, i, ferr = scanMTPrograms(ctx, client, acct, region, st, scanID, cn)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -78,12 +89,21 @@ func scanMediaTailor(ctx context.Context, acct *account, region string, st *stor
 		inserted += i
 	}
 
-	t, i, ferr = scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
+	pcNames, t, i, ferr := scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
 	total += t
 	inserted += i
+
+	for _, pcn := range pcNames {
+		t, i, ferr = scanMTPrefetchSchedules(ctx, client, acct, region, st, scanID, pcn)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
 	return total, inserted, nil
 }
 
@@ -234,21 +254,25 @@ func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account,
 	return upsertBatch(st, batch, "mediatailor vod-sources")
 }
 
-func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := mediatailor.NewListPlaybackConfigurationsPaginator(client, &mediatailor.ListPlaybackConfigurationsInput{})
 	var batch []*store.Resource
+	var names []string
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mediatailor:ListPlaybackConfigurations", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "mediatailor:ListPlaybackConfigurations", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("mediatailor:ListPlaybackConfigurations: %w", err)
+			return nil, 0, 0, fmt.Errorf("mediatailor:ListPlaybackConfigurations: %w", err)
 		}
 		for _, p := range out.Items {
 			arn := sv(p.PlaybackConfigurationArn)
 			if arn == "" {
 				continue
+			}
+			if n := sv(p.Name); n != "" {
+				names = append(names, n)
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -258,5 +282,68 @@ func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, ac
 			})
 		}
 	}
-	return upsertBatch(st, batch, "mediatailor playback-configurations")
+	t, i, err := upsertBatch(st, batch, "mediatailor playback-configurations")
+	return names, t, i, err
+}
+
+// scanMTPrefetchSchedules — ListPrefetchSchedules requires a
+// PlaybackConfigurationName, so fan out over the scanned playback
+// configurations. PrefetchSchedule carries a real distinct ARN (Leaf).
+func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, pcName string) (int, int, error) {
+	pcn := pcName
+	pager := mediatailor.NewListPrefetchSchedulesPaginator(client, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &pcn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "mediatailor:ListPrefetchSchedules", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("mediatailor:ListPrefetchSchedules: %w", err)
+		}
+		for _, p := range out.Items {
+			arn := sv(p.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaTailorPrefetchSchedule, NativeID: arn,
+				Name: p.Name, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "mediatailor prefetch-schedules")
+}
+
+// scanMTPrograms — GetChannelSchedule requires a ChannelName, so fan out over
+// the scanned channels. Each ScheduleEntry is a program carrying a real
+// distinct ARN (Leaf).
+func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
+	cn := channelName
+	pager := mediatailor.NewGetChannelSchedulePaginator(client, &mediatailor.GetChannelScheduleInput{ChannelName: &cn})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "NotFoundException", "BadRequestException") {
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("mediatailor:GetChannelSchedule: %w", err)
+		}
+		for _, p := range out.Items {
+			arn := sv(p.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaTailorProgram, NativeID: arn,
+				Name: p.ProgramName, Region: &region,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "mediatailor programs")
 }

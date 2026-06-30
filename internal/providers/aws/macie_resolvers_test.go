@@ -60,6 +60,42 @@ func TestResolveMacieAllowListBucket(t *testing.T) {
 	assertRelationship(t, rels, lID, bID, store.RelUses)
 }
 
+func TestResolveMacieMemberOrgAccount(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	memberAcctID := "111122223333"
+	memberARN := fmt.Sprintf("arn:aws:macie2:%s:%s:member/%s", testRegion, acct.ID, memberAcctID)
+	memberAttrs := fmt.Sprintf(`{"AccountId":"%s","RelationshipStatus":"Enabled"}`, memberAcctID)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeMacieMember, memberARN, testRegion, memberAttrs)
+
+	orgAcctARN := fmt.Sprintf("arn:aws:organizations::%s:account/o-test/%s", acct.ID, memberAcctID)
+	orgAttrs := fmt.Sprintf(`{"Id":"%s","Arn":"%s"}`, memberAcctID, orgAcctARN)
+	orgID := upsertTestResource(t, st, "aws", acct.ID, TypeOrganizationsAccount, orgAcctARN, "", orgAttrs)
+
+	if err := resolveMacieMemberOrgAccount(acct, st); err != nil {
+		t.Fatalf("resolveMacieMemberOrgAccount: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mID)
+	assertRelationship(t, rels, mID, orgID, store.RelAttachedTo)
+}
+
+func TestResolveMacieMemberOrgAccount_NoOrgTree(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	memberARN := fmt.Sprintf("arn:aws:macie2:%s:%s:member/444455556666", testRegion, acct.ID)
+	mID := upsertTestResource(t, st, "aws", acct.ID, TypeMacieMember, memberARN, testRegion, `{"AccountId":"444455556666"}`)
+
+	if err := resolveMacieMemberOrgAccount(acct, st); err != nil {
+		t.Fatalf("resolve no-org: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(mID)
+	if len(rels) != 0 {
+		t.Errorf("expected 0 edges without org tree, got %d", len(rels))
+	}
+}
+
 func TestResolveMacieAllowListBucket_RegexOnly(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

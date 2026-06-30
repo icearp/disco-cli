@@ -38,6 +38,10 @@ func init() {
 			{Service: "macie", DiscoType: TypeMacieAllowList},
 			{Service: "macie", DiscoType: TypeMacieCustomDataIdentifier, Leaf: true},
 			{Service: "macie", DiscoType: TypeMacieFindingsFilter, Leaf: true},
+			// Member rows carry an outbound edge to their org account (resolver),
+			// so not Leaf. CFN models no member type; the Service Reference
+			// catalog lists macie2/Member (aliased — disco's segment is "macie").
+			{Service: "macie", DiscoType: TypeMacieMember},
 		},
 	})
 }
@@ -53,6 +57,7 @@ type macie2API interface {
 	ListAllowLists(context.Context, *macie2.ListAllowListsInput, ...func(*macie2.Options)) (*macie2.ListAllowListsOutput, error)
 	GetAllowList(context.Context, *macie2.GetAllowListInput, ...func(*macie2.Options)) (*macie2.GetAllowListOutput, error)
 	ListFindingsFilters(context.Context, *macie2.ListFindingsFiltersInput, ...func(*macie2.Options)) (*macie2.ListFindingsFiltersOutput, error)
+	ListMembers(context.Context, *macie2.ListMembersInput, ...func(*macie2.Options)) (*macie2.ListMembersOutput, error)
 }
 
 // scanMacie discovers Macie session config, classification jobs, custom data
@@ -119,7 +124,58 @@ func scanMacie(ctx context.Context, acct *account, region string, st *store.Stor
 		inserted += i
 	}
 
+	// Phase 6: member accounts (admin account only).
+	{
+		t, i, ferr := scanMacieMembers(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
 	return total, inserted, nil
+}
+
+// scanMacieMembers lists the member accounts associated with a Macie
+// administrator account in this region. Member rows resolve to their org
+// account (macie_resolvers.go). Member.Arn is preferred; when absent the
+// NativeID is synthesized from the member account id.
+func scanMacieMembers(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := macie2.NewListMembersPaginator(client, &macie2.ListMembersInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "macie2:ListMembers", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("macie2:ListMembers: %w", perr)
+		}
+		for _, m := range out.Members {
+			memberAcct := sv(m.AccountId)
+			arn := sv(m.Arn)
+			if arn == "" {
+				if memberAcct == "" {
+					continue
+				}
+				arn = fmt.Sprintf("arn:aws:macie2:%s:%s:member/%s", region, acct.ID, memberAcct)
+			}
+			status := string(m.RelationshipStatus)
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMacieMember, NativeID: arn,
+				Name: &memberAcct, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			}
+			if len(m.Tags) > 0 {
+				r.TagsJSON = mapTagsJSON(m.Tags)
+			}
+			batch = append(batch, r)
+		}
+	}
+	return upsertBatch(st, batch, "macie members")
 }
 
 func scanMacieSession(ctx context.Context, client macie2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, present bool, err error) {

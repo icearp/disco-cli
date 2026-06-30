@@ -536,6 +536,11 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeMacieAllowList:            "AWS::Macie::AllowList",
 		TypeMacieCustomDataIdentifier: "AWS::Macie::CustomDataIdentifier",
 		TypeMacieClassificationJob:    "AWS::macie2::ClassificationJob",
+		TypeMacieMember:               "AWS::macie2::Member",
+		// MediaLive input-device: the Service Reference catalog spells it
+		// hyphenated (input-device); the algorithmic Pascal form folds the
+		// hyphen away (InputDevice), so it needs an explicit alias.
+		TypeMediaLiveInputDevice: "AWS::medialive::input-device",
 		// LakeFormation / NetworkFirewall / OpenSearch / Organizations.
 		TypeLakeFormationResource:         "AWS::LakeFormation::Resource",
 		TypeNetworkFirewallFirewall:       "AWS::NetworkFirewall::Firewall",
@@ -925,6 +930,7 @@ var serviceRenames = map[string]string{
 	"firehose":          "kinesisfirehose",      // SR firehose ↔ CFN KinesisFirehose / scanned aws:firehose
 	"geo":               "location",             // SR geo ↔ CFN Location / scanned aws:location
 	"kafka":             "msk",                  // SR kafka ↔ CFN MSK / scanned aws:kafka
+	"medicalimaging":    "healthimaging",        // SR medical-imaging ↔ CFN HealthImaging / scanned aws:health-imaging
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

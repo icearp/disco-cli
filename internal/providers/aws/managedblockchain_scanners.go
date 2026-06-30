@@ -16,7 +16,10 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainAccessor, Leaf: true},
 			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainMember, Leaf: true},
+			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNetwork, Leaf: true},
 			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainNode, Leaf: true},
+			// Proposal rows resolve to their parent network (resolver), not Leaf.
+			{Service: "managed-blockchain", DiscoType: TypeManagedBlockchainProposal},
 		},
 	})
 }
@@ -26,6 +29,14 @@ type managedBlockchainAPI interface {
 	ListNetworks(context.Context, *managedblockchain.ListNetworksInput, ...func(*managedblockchain.Options)) (*managedblockchain.ListNetworksOutput, error)
 	ListMembers(context.Context, *managedblockchain.ListMembersInput, ...func(*managedblockchain.Options)) (*managedblockchain.ListMembersOutput, error)
 	ListNodes(context.Context, *managedblockchain.ListNodesInput, ...func(*managedblockchain.Options)) (*managedblockchain.ListNodesOutput, error)
+	ListProposals(context.Context, *managedblockchain.ListProposalsInput, ...func(*managedblockchain.Options)) (*managedblockchain.ListProposalsOutput, error)
+}
+
+// mbNetworkRef pairs a network's id (needed as the required input for member /
+// node / proposal list ops) with its ARN (the network row's NativeID, used to
+// synthesize child proposal NativeIDs so a resolver can recover the parent).
+type mbNetworkRef struct {
+	id, arn string
 }
 
 // scanManagedBlockchain discovers ManagedBlockchain accessors plus per-network
@@ -40,19 +51,29 @@ func scanManagedBlockchain(ctx context.Context, acct *account, region string, st
 	total += t
 	inserted += i
 
-	netIDs, ferr := scanMBNetworkIDs(ctx, client, acct, region, st)
+	nets, t, i, ferr := scanMBNetworks(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
-	for _, nid := range netIDs {
-		t, i, ferr = scanMBMembers(ctx, client, acct, region, st, scanID, nid)
+	total += t
+	inserted += i
+
+	for _, n := range nets {
+		t, i, ferr = scanMBMembers(ctx, client, acct, region, st, scanID, n.id)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
 		total += t
 		inserted += i
 
-		t, i, ferr = scanMBNodes(ctx, client, acct, region, st, scanID, nid)
+		t, i, ferr = scanMBNodes(ctx, client, acct, region, st, scanID, n.id)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+
+		t, i, ferr = scanMBProposals(ctx, client, acct, region, st, scanID, n)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -91,25 +112,80 @@ func scanMBAccessors(ctx context.Context, client managedBlockchainAPI, acct *acc
 	return upsertBatch(st, batch, "managedblockchain accessors")
 }
 
-func scanMBNetworkIDs(ctx context.Context, client managedBlockchainAPI, acct *account, region string, st *store.Store) ([]string, error) {
+// scanMBNetworks lists the blockchain networks the account belongs to,
+// upserts a row per network, and returns id+ARN refs for the per-network
+// member / node / proposal fan-out.
+func scanMBNetworks(ctx context.Context, client managedBlockchainAPI, acct *account, region string, st *store.Store, scanID string) ([]mbNetworkRef, int, int, error) {
 	pager := managedblockchain.NewListNetworksPaginator(client, &managedblockchain.ListNetworksInput{})
-	var ids []string
+	var refs []mbNetworkRef
+	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "managedblockchain:ListNetworks", acct.ID, region, err)
-				return nil, nil
+				return nil, 0, 0, nil
 			}
-			return nil, fmt.Errorf("managedblockchain:ListNetworks: %w", err)
+			return nil, 0, 0, fmt.Errorf("managedblockchain:ListNetworks: %w", err)
 		}
 		for _, n := range out.Networks {
-			if id := sv(n.Id); id != "" {
-				ids = append(ids, id)
+			id := sv(n.Id)
+			if id == "" {
+				continue
 			}
+			arn := sv(n.Arn)
+			refs = append(refs, mbNetworkRef{id: id, arn: arn})
+			if arn == "" {
+				continue
+			}
+			status := string(n.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeManagedBlockchainNetwork, NativeID: arn,
+				Name: n.Name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
+			})
 		}
 	}
-	return ids, nil
+	t, i, err := upsertBatch(st, batch, "managedblockchain networks")
+	return refs, t, i, err
+}
+
+// scanMBProposals lists governance proposals on a network. ProposalSummary
+// carries its own ARN, but the NativeID is synthesized as
+// {networkARN}/proposal/{ProposalId} so the resolver can recover the parent
+// network. Networks without an ARN (skipped above) can't carry proposals.
+func scanMBProposals(ctx context.Context, client managedBlockchainAPI, acct *account, region string, st *store.Store, scanID string, net mbNetworkRef) (int, int, error) {
+	if net.arn == "" {
+		return 0, 0, nil
+	}
+	pager := managedblockchain.NewListProposalsPaginator(client, &managedblockchain.ListProposalsInput{NetworkId: &net.id})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "managedblockchain:ListProposals", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("managedblockchain:ListProposals: %w", err)
+		}
+		for _, p := range out.Proposals {
+			pid := sv(p.ProposalId)
+			if pid == "" {
+				continue
+			}
+			nativeID := net.arn + "/proposal/" + pid
+			label := pid
+			status := string(p.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeManagedBlockchainProposal, NativeID: nativeID,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "managedblockchain proposals")
 }
 
 func scanMBMembers(ctx context.Context, client managedBlockchainAPI, acct *account, region string, st *store.Store, scanID string, networkID string) (int, int, error) {

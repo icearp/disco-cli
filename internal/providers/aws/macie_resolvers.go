@@ -17,6 +17,62 @@ func init() {
 		resolveMacieAllowListBucket,
 		EdgeDecl{TypeMacieAllowList, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(
+		resolveMacieMemberOrgAccount,
+		EdgeDecl{TypeMacieMember, TypeOrganizationsAccount, store.RelAttachedTo},
+	)
+}
+
+// macieMemberAttrs mirrors the verbatim Member fields used by the resolver.
+// PascalCase tags match mustJSON of the macie2 SDK v2 struct (AccountId).
+type macieMemberAttrs struct {
+	AccountID *string `json:"AccountId"`
+}
+
+// resolveMacieMemberOrgAccount emits an `attached-to` edge from each Macie
+// member row to its corresponding AWS Organizations account, when the org
+// tree is also scanned. FK-safe via loadOrgTargetIndex; partial-coverage
+// scans (no Org tree) skip silently. Mirrors the GuardDuty + Inspector v2
+// member → org-account precedent.
+func resolveMacieMemberOrgAccount(acct *account, st *store.Store) error {
+	members, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeMacieMember},
+		Limit:     util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(members) == 0 {
+		return nil
+	}
+	orgArnByID, _, err := loadOrgTargetIndex(acct, st)
+	if err != nil {
+		return err
+	}
+	if len(orgArnByID) == 0 {
+		return nil
+	}
+	for _, m := range members {
+		var attrs macieMemberAttrs
+		if err := json.Unmarshal([]byte(m.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		accountID := sv(attrs.AccountID)
+		if accountID == "" {
+			continue
+		}
+		orgARN, ok := orgArnByID[accountID]
+		if !ok {
+			continue
+		}
+		orgID := store.ResourceID("aws", acct.ID, TypeOrganizationsAccount, orgARN)
+		if err := st.UpsertRelationship(m.ID, orgID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert macie member→org account: %w", err)
+		}
+	}
+	return nil
 }
 
 // macieJobAttrs mirrors the verbatim DescribeClassificationJob output stored

@@ -23,7 +23,10 @@ func init() {
 			{Service: "medialive", DiscoType: TypeMediaLiveEventBridgeRuleTemplate},
 			{Service: "medialive", DiscoType: TypeMediaLiveEventBridgeRuleTemplateGroup, Leaf: true},
 			{Service: "medialive", DiscoType: TypeMediaLiveInput},
+			{Service: "medialive", DiscoType: TypeMediaLiveInputDevice, Leaf: true},
 			{Service: "medialive", DiscoType: TypeMediaLiveInputSecurityGroup},
+			{Service: "medialive", DiscoType: TypeMediaLiveNode, Leaf: true},
+			{Service: "medialive", DiscoType: TypeMediaLiveReservation, Leaf: true},
 			{Service: "medialive", DiscoType: TypeMediaLiveMultiplex, Leaf: true},
 			{Service: "medialive", DiscoType: TypeMediaLiveMultiplexProgram},
 			{Service: "medialive", DiscoType: TypeMediaLiveNetwork},
@@ -42,7 +45,10 @@ type mediaLiveAPI interface {
 	ListEventBridgeRuleTemplates(context.Context, *medialive.ListEventBridgeRuleTemplatesInput, ...func(*medialive.Options)) (*medialive.ListEventBridgeRuleTemplatesOutput, error)
 	ListEventBridgeRuleTemplateGroups(context.Context, *medialive.ListEventBridgeRuleTemplateGroupsInput, ...func(*medialive.Options)) (*medialive.ListEventBridgeRuleTemplateGroupsOutput, error)
 	ListInputs(context.Context, *medialive.ListInputsInput, ...func(*medialive.Options)) (*medialive.ListInputsOutput, error)
+	ListInputDevices(context.Context, *medialive.ListInputDevicesInput, ...func(*medialive.Options)) (*medialive.ListInputDevicesOutput, error)
 	ListInputSecurityGroups(context.Context, *medialive.ListInputSecurityGroupsInput, ...func(*medialive.Options)) (*medialive.ListInputSecurityGroupsOutput, error)
+	ListNodes(context.Context, *medialive.ListNodesInput, ...func(*medialive.Options)) (*medialive.ListNodesOutput, error)
+	ListReservations(context.Context, *medialive.ListReservationsInput, ...func(*medialive.Options)) (*medialive.ListReservationsOutput, error)
 	ListMultiplexes(context.Context, *medialive.ListMultiplexesInput, ...func(*medialive.Options)) (*medialive.ListMultiplexesOutput, error)
 	ListMultiplexPrograms(context.Context, *medialive.ListMultiplexProgramsInput, ...func(*medialive.Options)) (*medialive.ListMultiplexProgramsOutput, error)
 	ListNetworks(context.Context, *medialive.ListNetworksInput, ...func(*medialive.Options)) (*medialive.ListNetworksOutput, error)
@@ -77,7 +83,10 @@ func scanMediaLive(ctx context.Context, acct *account, region string, st *store.
 		func() (int, int, error) { return scanMLEBTemplates(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMLEBTemplateGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMLInputs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMLInputDevices(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMLInputSecurityGroups(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMLNodes(ctx, client, acct, region, st, scanID, clusterIDs) },
+		func() (int, int, error) { return scanMLReservations(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) {
 			return scanMLMultiplexPrograms(ctx, client, acct, region, st, scanID, multiplexIDs)
 		},
@@ -365,6 +374,109 @@ func scanMLInputs(ctx context.Context, client mediaLiveAPI, acct *account, regio
 		}
 	}
 	return upsertBatch(st, batch, "medialive inputs")
+}
+
+func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := medialive.NewListInputDevicesPaginator(client, &medialive.ListInputDevicesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "medialive:ListInputDevices", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("medialive:ListInputDevices: %w", perr)
+		}
+		for _, d := range out.InputDevices {
+			arn := sv(d.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(d.Name)
+			if label == "" {
+				label = sv(d.Id)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaLiveInputDevice, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "medialive input-devices")
+}
+
+// scanMLNodes — ListNodes requires a ClusterId, so fan out over the clusters
+// discovered by scanMLClusters. DescribeNodeSummary carries a real distinct
+// node ARN, used directly as the NativeID (Leaf).
+func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
+	if len(clusterIDs) == 0 {
+		return 0, 0, nil
+	}
+	var batch []*store.Resource
+	for _, cid := range clusterIDs {
+		id := cid
+		pager := medialive.NewListNodesPaginator(client, &medialive.ListNodesInput{ClusterId: &id})
+		for pager.HasMorePages() {
+			out, perr := pager.NextPage(ctx)
+			if perr != nil {
+				if isAccessDenied(perr) {
+					break
+				}
+				return 0, 0, fmt.Errorf("medialive:ListNodes %s: %w", cid, perr)
+			}
+			for _, n := range out.Nodes {
+				arn := sv(n.Arn)
+				if arn == "" {
+					continue
+				}
+				label := sv(n.Name)
+				if label == "" {
+					label = sv(n.Id)
+				}
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeMediaLiveNode, NativeID: arn,
+					Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
+				})
+			}
+		}
+	}
+	return upsertBatch(st, batch, "medialive nodes")
+}
+
+func scanMLReservations(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := medialive.NewListReservationsPaginator(client, &medialive.ListReservationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "medialive:ListReservations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("medialive:ListReservations: %w", perr)
+		}
+		for _, r := range out.Reservations {
+			arn := sv(r.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(r.Name)
+			if label == "" {
+				label = arn
+			}
+			status := string(r.State)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaLiveReservation, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "medialive reservations")
 }
 
 func scanMLInputSecurityGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -26,6 +26,7 @@ func init() {
 			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterInput, Leaf: true},
 			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterNetworkInterface, Leaf: true},
 			{Service: "mediaconnect", DiscoType: TypeMediaConnectRouterOutput, Leaf: true},
+			{Service: "mediaconnect", DiscoType: TypeMediaConnectReservation, Leaf: true},
 		},
 	})
 }
@@ -39,6 +40,7 @@ type mediaConnectAPI interface {
 	ListRouterInputs(context.Context, *mediaconnect.ListRouterInputsInput, ...func(*mediaconnect.Options)) (*mediaconnect.ListRouterInputsOutput, error)
 	ListRouterNetworkInterfaces(context.Context, *mediaconnect.ListRouterNetworkInterfacesInput, ...func(*mediaconnect.Options)) (*mediaconnect.ListRouterNetworkInterfacesOutput, error)
 	ListRouterOutputs(context.Context, *mediaconnect.ListRouterOutputsInput, ...func(*mediaconnect.Options)) (*mediaconnect.ListRouterOutputsOutput, error)
+	ListReservations(context.Context, *mediaconnect.ListReservationsInput, ...func(*mediaconnect.Options)) (*mediaconnect.ListReservationsOutput, error)
 }
 
 func scanMediaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -67,6 +69,7 @@ func scanMediaConnect(ctx context.Context, acct *account, region string, st *sto
 		func() (int, int, error) { return scanMCRouterInputs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMCRouterNetworkInterfaces(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanMCRouterOutputs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanMCReservations(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -383,6 +386,39 @@ func scanMCRouterNetworkInterfaces(ctx context.Context, client mediaConnectAPI, 
 		token = out.NextToken
 	}
 	return upsertBatch(st, batch, "mediaconnect router-network-interfaces")
+}
+
+func scanMCReservations(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := mediaconnect.NewListReservationsPaginator(client, &mediaconnect.ListReservationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "mediaconnect:ListReservations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("mediaconnect:ListReservations: %w", perr)
+		}
+		for _, r := range out.Reservations {
+			arn := sv(r.ReservationArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(r.ReservationName)
+			if label == "" {
+				label = arn
+			}
+			status := string(r.ReservationState)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeMediaConnectReservation, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "mediaconnect reservations")
 }
 
 func scanMCRouterOutputs(ctx context.Context, client mediaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
