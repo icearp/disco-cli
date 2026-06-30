@@ -33,6 +33,51 @@ func init() {
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeLogsLogGroup, store.RelRoutesTo},
 		EdgeDecl{TypeRoute53ResolverResolverQueryLoggingConfig, TypeFirehoseDeliveryStream, store.RelRoutesTo},
 	)
+	registerResolver(
+		resolveR53RFirewallConfigVPC,
+		EdgeDecl{TypeRoute53ResolverFirewallConfig, TypeEC2VPC, store.RelAttachedTo},
+	)
+}
+
+// resolveR53RFirewallConfigVPC links each DNS Firewall config to the VPC it
+// protects. FirewallConfig has no native ARN; the scanner stores `ResourceId`
+// (the VPC ID) so we rebuild the canonical EC2 VPC ARN here.
+func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
+	cfgs, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeRoute53ResolverFirewallConfig},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(cfgs) == 0 {
+		return nil
+	}
+	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
+	if err != nil {
+		return err
+	}
+	for _, r := range cfgs {
+		var attrs struct {
+			ResourceID *string `json:"ResourceId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if attrs.ResourceID == nil || *attrs.ResourceID == "" {
+			continue
+		}
+		vpcID := store.ResourceID("aws", acct.ID, TypeEC2VPC,
+			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
+		if !vpcSet[vpcID] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert firewall-config→vpc: %w", err)
+		}
+	}
+	return nil
 }
 
 // resolveR53RResolverConfigVPC links each ResolverConfig to the VPC it

@@ -16,6 +16,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "resilience-hub", DiscoType: TypeResilienceHubApp, Leaf: true},
 			{Service: "resilience-hub", DiscoType: TypeResilienceHubResiliencyPolicy, Leaf: true},
+			{Service: "resilience-hub", DiscoType: TypeResilienceHubAppAssessment},
+			{Service: "resilience-hub", DiscoType: TypeResilienceHubRecommendationTemplate, Leaf: true},
 		},
 	})
 }
@@ -23,6 +25,8 @@ func init() {
 type resilienceHubAPI interface {
 	ListApps(context.Context, *resiliencehub.ListAppsInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListAppsOutput, error)
 	ListResiliencyPolicies(context.Context, *resiliencehub.ListResiliencyPoliciesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListResiliencyPoliciesOutput, error)
+	ListAppAssessments(context.Context, *resiliencehub.ListAppAssessmentsInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListAppAssessmentsOutput, error)
+	ListRecommendationTemplates(context.Context, *resiliencehub.ListRecommendationTemplatesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListRecommendationTemplatesOutput, error)
 }
 
 // scanResilienceHub discovers Resilience Hub applications and resiliency
@@ -38,6 +42,20 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 	inserted += i
 
 	t, i, ferr = scanRHResiliencyPolicies(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanRHAppAssessments(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -107,4 +125,59 @@ func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct
 		nextToken = out.NextToken
 	}
 	return upsertBatch(st, batch, "resilience-hub resiliency-policies")
+}
+
+func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := resiliencehub.NewListAppAssessmentsPaginator(client, &resiliencehub.ListAppAssessmentsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "resiliencehub:ListAppAssessments", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("resiliencehub:ListAppAssessments: %w", err)
+		}
+		for _, a := range out.AssessmentSummaries {
+			arn := sv(a.AssessmentArn)
+			if arn == "" {
+				continue
+			}
+			status := string(a.AssessmentStatus)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeResilienceHubAppAssessment, NativeID: arn,
+				Name: a.AssessmentName, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "resilience-hub app-assessments")
+}
+
+func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := resiliencehub.NewListRecommendationTemplatesPaginator(client, &resiliencehub.ListRecommendationTemplatesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "resiliencehub:ListRecommendationTemplates", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("resiliencehub:ListRecommendationTemplates: %w", err)
+		}
+		for _, rt := range out.RecommendationTemplates {
+			arn := sv(rt.RecommendationTemplateArn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeResilienceHubRecommendationTemplate, NativeID: arn,
+				Name: rt.Name, Region: &region,
+				AttributesJSON: mustJSON(rt), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "resilience-hub recommendation-templates")
 }

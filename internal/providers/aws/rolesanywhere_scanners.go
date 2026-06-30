@@ -17,6 +17,7 @@ func init() {
 			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereCRL},
 			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereProfile},
 			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereTrustAnchor, Leaf: true},
+			{Service: "roles-anywhere", DiscoType: TypeRolesAnywhereSubject, Leaf: true},
 		},
 	})
 }
@@ -25,6 +26,7 @@ type rolesAnywhereAPI interface {
 	ListCrls(context.Context, *rolesanywhere.ListCrlsInput, ...func(*rolesanywhere.Options)) (*rolesanywhere.ListCrlsOutput, error)
 	ListProfiles(context.Context, *rolesanywhere.ListProfilesInput, ...func(*rolesanywhere.Options)) (*rolesanywhere.ListProfilesOutput, error)
 	ListTrustAnchors(context.Context, *rolesanywhere.ListTrustAnchorsInput, ...func(*rolesanywhere.Options)) (*rolesanywhere.ListTrustAnchorsOutput, error)
+	ListSubjects(context.Context, *rolesanywhere.ListSubjectsInput, ...func(*rolesanywhere.Options)) (*rolesanywhere.ListSubjectsOutput, error)
 }
 
 // scanRolesAnywhere discovers IAM Roles Anywhere CRLs, profiles, and trust
@@ -36,6 +38,7 @@ func scanRolesAnywhere(ctx context.Context, acct *account, region string, st *st
 		func() (int, int, error) { return scanRACRLs(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRAProfiles(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRATrustAnchors(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanRASubjects(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -126,4 +129,35 @@ func scanRATrustAnchors(ctx context.Context, client rolesAnywhereAPI, acct *acco
 		}
 	}
 	return upsertBatch(st, batch, "rolesanywhere trust-anchors")
+}
+
+func scanRASubjects(ctx context.Context, client rolesAnywhereAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := rolesanywhere.NewListSubjectsPaginator(client, &rolesanywhere.ListSubjectsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "rolesanywhere:ListSubjects", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("rolesanywhere:ListSubjects: %w", err)
+		}
+		for _, s := range out.Subjects {
+			arn := sv(s.SubjectArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(s.SubjectId)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRolesAnywhereSubject, NativeID: arn,
+				Name: &label, Region: &region,
+				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "rolesanywhere subjects")
 }

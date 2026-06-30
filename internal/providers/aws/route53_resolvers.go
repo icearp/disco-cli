@@ -40,6 +40,116 @@ func init() {
 		EdgeDecl{TypeRoute53RecordSet, TypeAPIGatewayDomainNameV2, store.RelUses},
 		EdgeDecl{TypeRoute53RecordSet, TypeS3Bucket, store.RelUses},
 	)
+	registerResolver(
+		resolveRoute53QueryLoggingConfig,
+		EdgeDecl{TypeRoute53QueryLoggingConfig, TypeRoute53HostedZone, store.RelAttachedTo},
+		EdgeDecl{TypeRoute53QueryLoggingConfig, TypeLogsLogGroup, store.RelRoutesTo},
+	)
+	registerResolver(
+		resolveRoute53TrafficPolicyInstance,
+		EdgeDecl{TypeRoute53TrafficPolicyInstance, TypeRoute53HostedZone, store.RelAttachedTo},
+		EdgeDecl{TypeRoute53TrafficPolicyInstance, TypeRoute53TrafficPolicy, store.RelUses},
+	)
+}
+
+// resolveRoute53QueryLoggingConfig wires each query-logging config to the hosted
+// zone it logs (HostedZoneId) and the CloudWatch Logs log group it writes to
+// (CloudWatchLogsLogGroupArn, with the SDK's trailing ":*" stripped).
+func resolveRoute53QueryLoggingConfig(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeRoute53QueryLoggingConfig}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	zoneSet, err := scannedIDSet(acct, st, TypeRoute53HostedZone)
+	if err != nil {
+		return err
+	}
+	lgSet, err := scannedIDSet(acct, st, TypeLogsLogGroup)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			HostedZoneID              *string `json:"HostedZoneId"`
+			CloudWatchLogsLogGroupArn *string `json:"CloudWatchLogsLogGroupArn"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if z := sv(attrs.HostedZoneID); z != "" {
+			zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			if zoneSet[zoneID] {
+				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert query-logging-config→zone: %w", err)
+				}
+			}
+		}
+		if lg := strings.TrimSuffix(sv(attrs.CloudWatchLogsLogGroupArn), ":*"); lg != "" {
+			lgID := store.ResourceID("aws", acct.ID, TypeLogsLogGroup, lg)
+			if lgSet[lgID] {
+				if err := st.UpsertRelationship(r.ID, lgID, store.RelRoutesTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert query-logging-config→log-group: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// resolveRoute53TrafficPolicyInstance wires each traffic-policy instance to the
+// hosted zone it lives in (HostedZoneId) and the traffic policy it instantiates
+// (TrafficPolicyId).
+func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID,
+		Types: []string{TypeRoute53TrafficPolicyInstance}, Limit: util.AllResources,
+	})
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	zoneSet, err := scannedIDSet(acct, st, TypeRoute53HostedZone)
+	if err != nil {
+		return err
+	}
+	tpSet, err := scannedIDSet(acct, st, TypeRoute53TrafficPolicy)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		var attrs struct {
+			HostedZoneID    *string `json:"HostedZoneId"`
+			TrafficPolicyID *string `json:"TrafficPolicyId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			continue
+		}
+		if z := sv(attrs.HostedZoneID); z != "" {
+			zoneID := store.ResourceID("aws", acct.ID, TypeRoute53HostedZone, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			if zoneSet[zoneID] {
+				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
+					return fmt.Errorf("upsert traffic-policy-instance→zone: %w", err)
+				}
+			}
+		}
+		if tp := sv(attrs.TrafficPolicyID); tp != "" {
+			tpID := store.ResourceID("aws", acct.ID, TypeRoute53TrafficPolicy, fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", tp))
+			if tpSet[tpID] {
+				if err := st.UpsertRelationship(r.ID, tpID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert traffic-policy-instance→policy: %w", err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // resolveRoute53AliasRelationships links record sets with AliasTarget.DNSName

@@ -271,6 +271,7 @@ var expectedAWSServices = []string{
 	"aws:roles-anywhere",
 	"aws:resource-explorer-2",
 	"aws:rekognition",
+	"aws:repostspace",
 	"aws:redshift-serverless",
 	"aws:proton",
 	"aws:pcs",

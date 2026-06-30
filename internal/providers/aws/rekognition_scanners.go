@@ -3,10 +3,14 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"codeberg.org/icearp/disco/internal/coverage"
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/rekognition"
+	rekognitiontypes "github.com/aws/aws-sdk-go-v2/service/rekognition/types"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -17,6 +21,8 @@ func init() {
 			{Service: "rekognition", DiscoType: TypeRekognitionCollection, Leaf: true},
 			{Service: "rekognition", DiscoType: TypeRekognitionProject, Leaf: true},
 			{Service: "rekognition", DiscoType: TypeRekognitionStreamProcessor, Leaf: true},
+			{Service: "rekognition", DiscoType: TypeRekognitionProjectVersion},
+			{Service: "rekognition", DiscoType: TypeRekognitionDataset},
 		},
 	})
 }
@@ -25,6 +31,22 @@ type rekognitionAPI interface {
 	ListCollections(context.Context, *rekognition.ListCollectionsInput, ...func(*rekognition.Options)) (*rekognition.ListCollectionsOutput, error)
 	DescribeProjects(context.Context, *rekognition.DescribeProjectsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectsOutput, error)
 	ListStreamProcessors(context.Context, *rekognition.ListStreamProcessorsInput, ...func(*rekognition.Options)) (*rekognition.ListStreamProcessorsOutput, error)
+	DescribeProjectVersions(context.Context, *rekognition.DescribeProjectVersionsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectVersionsOutput, error)
+}
+
+// rekDatasetAttrs embeds the SDK DatasetMetadata and carries the parent
+// ProjectArn so the dataset→project resolver has an FK-safe target (the
+// DatasetArn itself does not cleanly encode the parent project ARN).
+type rekDatasetAttrs struct {
+	rekognitiontypes.DatasetMetadata
+	ProjectArn string `json:"ProjectArn"`
+}
+
+// rekProjectVersionAttrs embeds the SDK ProjectVersionDescription and carries
+// the parent ProjectArn (the description exposes only ProjectVersionArn).
+type rekProjectVersionAttrs struct {
+	rekognitiontypes.ProjectVersionDescription
+	ProjectArn string `json:"ProjectArn"`
 }
 
 // scanRekognition discovers Rekognition collections, custom-labels projects,
@@ -34,18 +56,33 @@ type rekognitionAPI interface {
 func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rekognition.NewFromConfig(acct.cfg, func(o *rekognition.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanRekCollections(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRekProjects(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRekStreamProcessors(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
+	t, i, perr := scanRekCollections(ctx, client, acct, region, st, scanID)
+	if perr != nil {
+		return total, inserted, perr
 	}
+	total += t
+	inserted += i
+
+	projectARNs, t, i, perr := scanRekProjects(ctx, client, acct, region, st, scanID)
+	if perr != nil {
+		return total, inserted, perr
+	}
+	total += t
+	inserted += i
+
+	t, i, perr = scanRekProjectVersions(ctx, client, acct, region, st, scanID, projectARNs)
+	if perr != nil {
+		return total, inserted, perr
+	}
+	total += t
+	inserted += i
+
+	t, i, perr = scanRekStreamProcessors(ctx, client, acct, region, st, scanID)
+	if perr != nil {
+		return total, inserted, perr
+	}
+	total += t
+	inserted += i
 	return total, inserted, nil
 }
 
@@ -77,25 +114,30 @@ func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *accoun
 	return upsertBatch(st, batch, "rekognition collections")
 }
 
-func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanRekProjects upserts projects and the datasets embedded in each project's
+// DescribeProjects response (Datasets []DatasetMetadata — no separate list op).
+// Returns the project ARNs for the project-version fan-out.
+func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := rekognition.NewDescribeProjectsPaginator(client, &rekognition.DescribeProjectsInput{})
-	var batch []*store.Resource
+	var batch, datasetBatch []*store.Resource
+	var projectARNs []string
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "rekognition:DescribeProjects", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "rekognition:DescribeProjects", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("rekognition:DescribeProjects: %w", err)
+			return nil, 0, 0, fmt.Errorf("rekognition:DescribeProjects: %w", err)
 		}
 		for _, p := range out.ProjectDescriptions {
 			arn := sv(p.ProjectArn)
 			if arn == "" {
 				continue
 			}
+			projectARNs = append(projectARNs, arn)
 			label := arn
 			status := string(p.Status)
 			batch = append(batch, &store.Resource{
@@ -104,9 +146,82 @@ func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, 
 				Name: &label, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
+			for _, ds := range p.Datasets {
+				dsARN := sv(ds.DatasetArn)
+				if dsARN == "" {
+					continue
+				}
+				dsLabel := dsARN
+				dsStatus := string(ds.Status)
+				datasetBatch = append(datasetBatch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeRekognitionDataset, NativeID: dsARN,
+					Name: &dsLabel, Region: &region, Status: &dsStatus,
+					AttributesJSON: mustJSON(rekDatasetAttrs{DatasetMetadata: ds, ProjectArn: arn}), DiscoveredBy: scanID,
+				})
+			}
 		}
 	}
-	return upsertBatch(st, batch, "rekognition projects")
+	t, i, err := upsertBatch(st, batch, "rekognition projects")
+	if err != nil {
+		return nil, t, i, err
+	}
+	dt, di, derr := upsertBatch(st, datasetBatch, "rekognition datasets")
+	return projectARNs, t + dt, i + di, derr
+}
+
+// scanRekProjectVersions fans out DescribeProjectVersions (requires ProjectArn)
+// across the projects discovered by scanRekProjects.
+func scanRekProjectVersions(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
+	if len(projectARNs) == 0 {
+		return 0, 0, nil
+	}
+	sem := semaphore.NewWeighted(fanoutMed)
+	var (
+		mu    sync.Mutex
+		batch []*store.Resource
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	for _, projARN := range projectARNs {
+		if err := sem.Acquire(gctx, 1); err != nil {
+			return 0, 0, err
+		}
+		g.Go(func() error {
+			defer sem.Release(1)
+			pager := rekognition.NewDescribeProjectVersionsPaginator(client, &rekognition.DescribeProjectVersionsInput{ProjectArn: &projARN})
+			for pager.HasMorePages() {
+				out, derr := pager.NextPage(gctx)
+				if derr != nil {
+					if isAccessDenied(derr) {
+						return nil
+					}
+					return fmt.Errorf("rekognition:DescribeProjectVersions %s: %w", projARN, derr)
+				}
+				for _, pv := range out.ProjectVersionDescriptions {
+					arn := sv(pv.ProjectVersionArn)
+					if arn == "" {
+						continue
+					}
+					label := arn
+					status := string(pv.Status)
+					r := &store.Resource{
+						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+						Type: TypeRekognitionProjectVersion, NativeID: arn,
+						Name: &label, Region: &region, Status: &status,
+						AttributesJSON: mustJSON(rekProjectVersionAttrs{ProjectVersionDescription: pv, ProjectArn: projARN}), DiscoveredBy: scanID,
+					}
+					mu.Lock()
+					batch = append(batch, r)
+					mu.Unlock()
+				}
+			}
+			return nil
+		})
+	}
+	if werr := g.Wait(); werr != nil {
+		return 0, 0, werr
+	}
+	return upsertBatch(st, batch, "rekognition project-versions")
 }
 
 func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

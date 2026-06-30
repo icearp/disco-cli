@@ -151,3 +151,30 @@ func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
 		t.Fatalf("resolveR53RQueryLogConfigDestination: %v", err)
 	}
 }
+
+func TestResolveR53RFirewallConfigVPC(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cfgARN := r53rARN(testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallConfig, cfgARN, testRegion, `{"Id":"rslvr-fc-001","ResourceId":"vpc-001"}`)
+	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
+	if err := resolveR53RFirewallConfigVPC(acct, st); err != nil {
+		t.Fatalf("resolveR53RFirewallConfigVPC: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cfgID)
+	assertRelationship(t, rels, cfgID, vpcID, store.RelAttachedTo)
+}
+
+func TestResolveR53RFirewallConfigVPC_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cfgARN := r53rARN(testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
+	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallConfig, cfgARN, testRegion, "{}")
+	if err := resolveR53RFirewallConfigVPC(acct, st); err != nil {
+		t.Fatalf("resolveR53RFirewallConfigVPC (no attrs): %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(cfgID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no relationships, got %d", len(rels))
+	}
+}

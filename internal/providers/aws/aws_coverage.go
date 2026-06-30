@@ -714,6 +714,18 @@ func (coverageProvider) Aliases() map[string]string {
 		// ResilienceHub — disco "resilience-hub" segment vs CFN "ResilienceHub".
 		TypeResilienceHubApp:              "AWS::ResilienceHub::App",
 		TypeResilienceHubResiliencyPolicy: "AWS::ResilienceHub::ResiliencyPolicy",
+		// app-assessment / recommendation-template are Service-Reference-only (no
+		// CFN twin); SR spells the service "resiliencehub" and hyphenates the
+		// resource, which the PascalCase AlgorithmicKey can't match — bridge to
+		// the exact SR keys.
+		TypeResilienceHubAppAssessment:          "AWS::resiliencehub::app-assessment",
+		TypeResilienceHubRecommendationTemplate: "AWS::resiliencehub::recommendation-template",
+		// resource-explorer-2 managed-view is Service-Reference-only; SR spells
+		// both segments lowercase-hyphenated — bridge to the exact SR key.
+		TypeResourceExplorer2ManagedView: "AWS::resource-explorer-2::managed-view",
+		// route53resolver firewall-config is Service-Reference-only; SR hyphenates
+		// the resource segment — bridge to the exact SR key.
+		TypeRoute53ResolverFirewallConfig: "AWS::route53resolver::firewall-config",
 		// RAM — disco "ram" segment vs CFN "RAM".
 		TypeRAMResourceShare: "AWS::RAM::ResourceShare",
 		TypeRAMPermission:    "AWS::RAM::Permission",

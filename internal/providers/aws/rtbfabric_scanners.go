@@ -17,6 +17,7 @@ func init() {
 			{Service: "rtbfabric", DiscoType: TypeRTBFabricRequesterGateway, Leaf: true},
 			{Service: "rtbfabric", DiscoType: TypeRTBFabricResponderGateway, Leaf: true},
 			{Service: "rtbfabric", DiscoType: TypeRTBFabricLink, Leaf: true},
+			{Service: "rtbfabric", DiscoType: TypeRTBFabricLinkRoutingRule},
 		},
 	})
 }
@@ -25,6 +26,7 @@ type rtbfabricAPI interface {
 	ListRequesterGateways(context.Context, *rtbfabric.ListRequesterGatewaysInput, ...func(*rtbfabric.Options)) (*rtbfabric.ListRequesterGatewaysOutput, error)
 	ListResponderGateways(context.Context, *rtbfabric.ListResponderGatewaysInput, ...func(*rtbfabric.Options)) (*rtbfabric.ListResponderGatewaysOutput, error)
 	ListLinks(context.Context, *rtbfabric.ListLinksInput, ...func(*rtbfabric.Options)) (*rtbfabric.ListLinksOutput, error)
+	ListLinkRoutingRules(context.Context, *rtbfabric.ListLinkRoutingRulesInput, ...func(*rtbfabric.Options)) (*rtbfabric.ListLinkRoutingRulesOutput, error)
 }
 
 // scanRTBFabric discovers RTBFabric (real-time bidding fabric) requester and
@@ -54,12 +56,22 @@ func scanRTBFabric(ctx context.Context, acct *account, region string, st *store.
 
 	gatewayIDs := append(append([]string{}, reqIDs...), respIDs...)
 	for _, gid := range gatewayIDs {
-		t, i, ferr = scanRTBLinks(ctx, client, acct, region, st, scanID, gid)
+		linkIDs, t, i, ferr := scanRTBLinks(ctx, client, acct, region, st, scanID, gid)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
 		total += t
 		inserted += i
+		// ListLinkRoutingRules requires both GatewayId and LinkId — fan out
+		// per discovered link.
+		for _, lid := range linkIDs {
+			t, i, ferr = scanRTBLinkRoutingRules(ctx, client, acct, region, st, scanID, gid, lid)
+			if ferr != nil {
+				return total, inserted, ferr
+			}
+			total += t
+			inserted += i
+		}
 	}
 	return total, inserted, nil
 }
@@ -126,24 +138,26 @@ func scanRTBResponderGateways(ctx context.Context, client rtbfabricAPI, acct *ac
 	return ids, t, i, err
 }
 
-func scanRTBLinks(ctx context.Context, client rtbfabricAPI, acct *account, region string, st *store.Store, scanID string, gatewayID string) (int, int, error) {
+func scanRTBLinks(ctx context.Context, client rtbfabricAPI, acct *account, region string, st *store.Store, scanID string, gatewayID string) ([]string, int, int, error) {
 	gid := gatewayID
 	pager := rtbfabric.NewListLinksPaginator(client, &rtbfabric.ListLinksInput{GatewayId: &gid})
 	var batch []*store.Resource
+	var linkIDs []string
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "rtbfabric:ListLinks", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "rtbfabric:ListLinks", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("rtbfabric:ListLinks: %w", err)
+			return nil, 0, 0, fmt.Errorf("rtbfabric:ListLinks: %w", err)
 		}
 		for _, l := range out.Links {
 			lid := sv(l.LinkId)
 			if lid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:rtbfabric:%s:%s:gateway/%s/link/%s", region, acct.ID, gid, lid)
+			linkIDs = append(linkIDs, lid)
+			arn := rtbLinkARN(region, acct.ID, gid, lid)
 			label := lid
 			status := string(l.Status)
 			batch = append(batch, &store.Resource{
@@ -154,5 +168,45 @@ func scanRTBLinks(ctx context.Context, client rtbfabricAPI, acct *account, regio
 			})
 		}
 	}
-	return upsertBatch(st, batch, "rtbfabric links")
+	t, i, err := upsertBatch(st, batch, "rtbfabric links")
+	return linkIDs, t, i, err
+}
+
+func rtbLinkARN(region, acctID, gatewayID, linkID string) string {
+	return fmt.Sprintf("arn:aws:rtbfabric:%s:%s:gateway/%s/link/%s", region, acctID, gatewayID, linkID)
+}
+
+// scanRTBLinkRoutingRules lists routing rules for one link. ListLinkRoutingRules
+// requires both GatewayId and LinkId. Rules carry no ARN — synth from the link
+// ARN + RuleId.
+func scanRTBLinkRoutingRules(ctx context.Context, client rtbfabricAPI, acct *account, region string, st *store.Store, scanID, gatewayID, linkID string) (int, int, error) {
+	gid, lid := gatewayID, linkID
+	linkARN := rtbLinkARN(region, acct.ID, gid, lid)
+	pager := rtbfabric.NewListLinkRoutingRulesPaginator(client, &rtbfabric.ListLinkRoutingRulesInput{GatewayId: &gid, LinkId: &lid})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "rtbfabric:ListLinkRoutingRules", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("rtbfabric:ListLinkRoutingRules: %w", err)
+		}
+		for _, r := range out.Rules {
+			rid := sv(r.RuleId)
+			if rid == "" {
+				continue
+			}
+			arn := fmt.Sprintf("%s/routing-rule/%s", linkARN, rid)
+			label := rid
+			status := string(r.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRTBFabricLinkRoutingRule, NativeID: arn,
+				Name: &label, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "rtbfabric link-routing-rules")
 }

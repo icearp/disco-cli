@@ -488,3 +488,67 @@ func TestResolveRoute53Alias_NoAliasTarget(t *testing.T) {
 		t.Errorf("expected 0 relationships, got %d", len(rels))
 	}
 }
+
+func TestResolveRoute53QueryLoggingConfig(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	zoneARN := "arn:aws:route53:::hostedzone/Z123"
+	zoneID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53HostedZone, zoneARN, "", "{}")
+	lgARN := logGroupNativeIDFromName(acct.ID, testRegion, "/aws/route53/example.com")
+	lgID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, lgARN, testRegion, "{}")
+	qlcARN := "arn:aws:route53:::queryloggingconfig/qlc-1"
+	qlcID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53QueryLoggingConfig, qlcARN, "",
+		fmt.Sprintf(`{"HostedZoneId":"Z123","CloudWatchLogsLogGroupArn":"%s:*"}`, lgARN))
+	if err := resolveRoute53QueryLoggingConfig(acct, st); err != nil {
+		t.Fatalf("resolveRoute53QueryLoggingConfig: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(qlcID)
+	assertRelationship(t, rels, qlcID, zoneID, store.RelAttachedTo)
+	assertRelationship(t, rels, qlcID, lgID, store.RelRoutesTo)
+}
+
+func TestResolveRoute53QueryLoggingConfig_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	qlcARN := "arn:aws:route53:::queryloggingconfig/qlc-1"
+	qlcID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53QueryLoggingConfig, qlcARN, "", "{}")
+	if err := resolveRoute53QueryLoggingConfig(acct, st); err != nil {
+		t.Fatalf("resolveRoute53QueryLoggingConfig (no attrs): %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(qlcID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no relationships, got %d", len(rels))
+	}
+}
+
+func TestResolveRoute53TrafficPolicyInstance(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	zoneARN := "arn:aws:route53:::hostedzone/Z123"
+	zoneID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53HostedZone, zoneARN, "", "{}")
+	tpARN := "arn:aws:route53:::trafficpolicy/tp-1"
+	tpID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53TrafficPolicy, tpARN, "", "{}")
+	tiARN := "arn:aws:route53:::trafficpolicyinstance/ti-1"
+	tiID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53TrafficPolicyInstance, tiARN, "",
+		`{"HostedZoneId":"Z123","TrafficPolicyId":"tp-1"}`)
+	if err := resolveRoute53TrafficPolicyInstance(acct, st); err != nil {
+		t.Fatalf("resolveRoute53TrafficPolicyInstance: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(tiID)
+	assertRelationship(t, rels, tiID, zoneID, store.RelAttachedTo)
+	assertRelationship(t, rels, tiID, tpID, store.RelUses)
+}
+
+func TestResolveRoute53TrafficPolicyInstance_NoAttrs(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	tiARN := "arn:aws:route53:::trafficpolicyinstance/ti-1"
+	tiID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53TrafficPolicyInstance, tiARN, "", "{}")
+	if err := resolveRoute53TrafficPolicyInstance(acct, st); err != nil {
+		t.Fatalf("resolveRoute53TrafficPolicyInstance (no attrs): %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(tiID)
+	if len(rels) != 0 {
+		t.Fatalf("expected no relationships, got %d", len(rels))
+	}
+}

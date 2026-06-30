@@ -17,6 +17,7 @@ func init() {
 			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2Index, Leaf: true},
 			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2View, Leaf: true},
 			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2DefaultViewAssociation, Leaf: true},
+			{Service: "resource-explorer-2", DiscoType: TypeResourceExplorer2ManagedView, Leaf: true},
 		},
 	})
 }
@@ -25,6 +26,7 @@ type resourceExplorer2API interface {
 	ListIndexes(context.Context, *resourceexplorer2.ListIndexesInput, ...func(*resourceexplorer2.Options)) (*resourceexplorer2.ListIndexesOutput, error)
 	ListViews(context.Context, *resourceexplorer2.ListViewsInput, ...func(*resourceexplorer2.Options)) (*resourceexplorer2.ListViewsOutput, error)
 	GetDefaultView(context.Context, *resourceexplorer2.GetDefaultViewInput, ...func(*resourceexplorer2.Options)) (*resourceexplorer2.GetDefaultViewOutput, error)
+	ListManagedViews(context.Context, *resourceexplorer2.ListManagedViewsInput, ...func(*resourceexplorer2.Options)) (*resourceexplorer2.ListManagedViewsOutput, error)
 }
 
 // scanResourceExplorer2 discovers ResourceExplorer2 indexes, views, and the
@@ -36,6 +38,7 @@ func scanResourceExplorer2(ctx context.Context, acct *account, region string, st
 		func() (int, int, error) { return scanRE2Indexes(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRE2Views(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanRE2DefaultView(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanRE2ManagedViews(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -125,4 +128,35 @@ func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "resource-explorer-2 default-view-association")
+}
+
+// scanRE2ManagedViews lists AWS-managed views (ListManagedViews returns ARNs).
+// These are managed by AWS services, so ManagedByProvider is set.
+func scanRE2ManagedViews(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := resourceexplorer2.NewListManagedViewsPaginator(client, &resourceexplorer2.ListManagedViewsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "resourceexplorer2:ListManagedViews", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("resourceexplorer2:ListManagedViews: %w", err)
+		}
+		for _, viewArn := range out.ManagedViews {
+			if viewArn == "" {
+				continue
+			}
+			label := viewArn
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeResourceExplorer2ManagedView, NativeID: viewArn,
+				Name: &label, Region: &region,
+				AttributesJSON:    mustJSON(map[string]string{"ManagedViewArn": viewArn}),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: true,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "resource-explorer-2 managed-views")
 }

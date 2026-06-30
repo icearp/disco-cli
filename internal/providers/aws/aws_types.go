@@ -419,6 +419,11 @@ const (
 	TypeRoute53DNSSEC         = "aws:route53:dnssec"
 	TypeRoute53HealthCheck    = "aws:route53:health-check"
 	TypeRoute53KeySigningKey  = "aws:route53:key-signing-key"
+
+	TypeRoute53DelegationSet         = "aws:route53:delegation-set"
+	TypeRoute53QueryLoggingConfig    = "aws:route53:query-logging-config"
+	TypeRoute53TrafficPolicy         = "aws:route53:traffic-policy"
+	TypeRoute53TrafficPolicyInstance = "aws:route53:traffic-policy-instance"
 	// API Gateway v1 (apigateway_scanners.go, apigateway_resolvers.go)
 	TypeAPIGatewayRestAPI               = "aws:apigateway:rest-api"
 	TypeAPIGatewayAccount               = "aws:apigateway:account"
@@ -794,6 +799,7 @@ const (
 	TypeRoute53ResolverResolverQueryLoggingConfigAssociation = "aws:route53resolver:resolver-query-logging-config-association"
 	TypeRoute53ResolverResolverRule                          = "aws:route53resolver:resolver-rule"
 	TypeRoute53ResolverResolverRuleAssociation               = "aws:route53resolver:resolver-rule-association"
+	TypeRoute53ResolverFirewallConfig                        = "aws:route53resolver:firewall-config"
 	// IoTWireless (iotwireless_scanners.go)
 	TypeIoTWirelessDestination                  = "aws:iotwireless:destination"
 	TypeIoTWirelessDeviceProfile                = "aws:iotwireless:device-profile"
@@ -1028,8 +1034,10 @@ const (
 	TypeResourceGroupsGroup       = "aws:resource-groups:group"
 	TypeResourceGroupsTagSyncTask = "aws:resource-groups:tag-sync-task"
 	// ResilienceHub (resiliencehub_scanners.go)
-	TypeResilienceHubApp              = "aws:resilience-hub:app"
-	TypeResilienceHubResiliencyPolicy = "aws:resilience-hub:resiliency-policy"
+	TypeResilienceHubApp                    = "aws:resilience-hub:app"
+	TypeResilienceHubResiliencyPolicy       = "aws:resilience-hub:resiliency-policy"
+	TypeResilienceHubAppAssessment          = "aws:resilience-hub:app-assessment"
+	TypeResilienceHubRecommendationTemplate = "aws:resilience-hub:recommendation-template"
 	// RAM (ram_scanners.go)
 	TypeRAMResourceShare = "aws:ram:resource-share"
 	TypeRAMPermission    = "aws:ram:permission"
@@ -1777,6 +1785,7 @@ const (
 	TypeResourceExplorer2DefaultViewAssociation = "aws:resource-explorer-2:default-view-association"
 	TypeResourceExplorer2Index                  = "aws:resource-explorer-2:index"
 	TypeResourceExplorer2View                   = "aws:resource-explorer-2:view"
+	TypeResourceExplorer2ManagedView            = "aws:resource-explorer-2:managed-view"
 	// PCS (pcs_scanners.go). AWS Parallel Computing Service.
 	TypePCSCluster          = "aws:pcs:cluster"
 	TypePCSComputeNodeGroup = "aws:pcs:compute-node-group"
@@ -1819,6 +1828,7 @@ const (
 	TypeRolesAnywhereCRL         = "aws:roles-anywhere:crl"
 	TypeRolesAnywhereProfile     = "aws:roles-anywhere:profile"
 	TypeRolesAnywhereTrustAnchor = "aws:roles-anywhere:trust-anchor"
+	TypeRolesAnywhereSubject     = "aws:roles-anywhere:subject"
 	// RedshiftServerless (redshiftserverless_scanners.go).
 	TypeRedshiftServerlessNamespace        = "aws:redshift-serverless:namespace"
 	TypeRedshiftServerlessSnapshot         = "aws:redshift-serverless:snapshot"
@@ -1830,6 +1840,10 @@ const (
 	TypeRekognitionCollection      = "aws:rekognition:collection"
 	TypeRekognitionProject         = "aws:rekognition:project"
 	TypeRekognitionStreamProcessor = "aws:rekognition:stream-processor"
+	TypeRekognitionProjectVersion  = "aws:rekognition:project-version"
+	TypeRekognitionDataset         = "aws:rekognition:dataset"
+	// Repostspace (repostspace_scanners.go). AWS re:Post Private.
+	TypeRepostspaceSpace = "aws:repostspace:space"
 	// Route53Profiles (route53profiles_scanners.go).
 	TypeRoute53ProfilesProfile                    = "aws:route53-profiles:profile"
 	TypeRoute53ProfilesProfileAssociation         = "aws:route53-profiles:profile-association"
@@ -2009,6 +2023,7 @@ const (
 	TypeRTBFabricLink             = "aws:rtbfabric:link"
 	TypeRTBFabricRequesterGateway = "aws:rtbfabric:requester-gateway"
 	TypeRTBFabricResponderGateway = "aws:rtbfabric:responder-gateway"
+	TypeRTBFabricLinkRoutingRule  = "aws:rtbfabric:link-routing-rule"
 	// S3Tables (s3tables_scanners.go).
 	TypeS3TablesNamespace         = "aws:s3tables:namespace"
 	TypeS3TablesTable             = "aws:s3tables:table"

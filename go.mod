@@ -484,6 +484,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.62.1
 	github.com/aws/aws-sdk-go-v2/service/polly v1.58.4
 	github.com/aws/aws-sdk-go-v2/service/qapps v1.12.8
+	github.com/aws/aws-sdk-go-v2/service/repostspace v1.15.8
 )
 
 require (

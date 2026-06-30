@@ -20,6 +20,10 @@ type route53API interface {
 	ListCidrCollections(context.Context, *route53.ListCidrCollectionsInput, ...func(*route53.Options)) (*route53.ListCidrCollectionsOutput, error)
 	ListHealthChecks(context.Context, *route53.ListHealthChecksInput, ...func(*route53.Options)) (*route53.ListHealthChecksOutput, error)
 	ListTagsForResources(context.Context, *route53.ListTagsForResourcesInput, ...func(*route53.Options)) (*route53.ListTagsForResourcesOutput, error)
+	ListReusableDelegationSets(context.Context, *route53.ListReusableDelegationSetsInput, ...func(*route53.Options)) (*route53.ListReusableDelegationSetsOutput, error)
+	ListQueryLoggingConfigs(context.Context, *route53.ListQueryLoggingConfigsInput, ...func(*route53.Options)) (*route53.ListQueryLoggingConfigsOutput, error)
+	ListTrafficPolicies(context.Context, *route53.ListTrafficPoliciesInput, ...func(*route53.Options)) (*route53.ListTrafficPoliciesOutput, error)
+	ListTrafficPolicyInstances(context.Context, *route53.ListTrafficPolicyInstancesInput, ...func(*route53.Options)) (*route53.ListTrafficPolicyInstancesOutput, error)
 }
 
 func init() {
@@ -36,6 +40,10 @@ func init() {
 			{Service: "route53", DiscoType: TypeRoute53DNSSEC},
 			{Service: "route53", DiscoType: TypeRoute53KeySigningKey},
 			{Service: "route53", DiscoType: TypeRoute53CIDRCollection, Leaf: true},
+			{Service: "route53", DiscoType: TypeRoute53DelegationSet, Leaf: true},
+			{Service: "route53", DiscoType: TypeRoute53QueryLoggingConfig},
+			{Service: "route53", DiscoType: TypeRoute53TrafficPolicy, Leaf: true},
+			{Service: "route53", DiscoType: TypeRoute53TrafficPolicyInstance},
 		},
 	})
 }
@@ -155,7 +163,165 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 	t, n, err = scanRoute53HealthChecks(ctx, client, acct, st, scanID)
 	total += t
 	inserted += n
-	return total, inserted, err
+	if err != nil {
+		return total, inserted, err
+	}
+
+	// Account-level: reusable delegation sets, query-logging configs, traffic
+	// policies and traffic-policy instances.
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) { return scanRoute53DelegationSets(ctx, client, acct, st, scanID) },
+		func() (int, int, error) { return scanRoute53QueryLoggingConfigs(ctx, client, acct, st, scanID) },
+		func() (int, int, error) { return scanRoute53TrafficPolicies(ctx, client, acct, st, scanID) },
+		func() (int, int, error) { return scanRoute53TrafficPolicyInstances(ctx, client, acct, st, scanID) },
+	} {
+		t, n, perr := phase()
+		total += t
+		inserted += n
+		if perr != nil {
+			return total, inserted, perr
+		}
+	}
+	return total, inserted, nil
+}
+
+// scanRoute53DelegationSets lists reusable delegation sets (no paginator; manual
+// Marker pagination). NativeID is synthesized — Route53 ids are bare.
+func scanRoute53DelegationSets(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	var batch []*store.Resource
+	var marker *string
+	for {
+		out, err := client.ListReusableDelegationSets(ctx, &route53.ListReusableDelegationSetsInput{Marker: marker})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "route53:ListReusableDelegationSets", acct.ID, "global", err)
+			}
+			return 0, 0, fmt.Errorf("route53:ListReusableDelegationSets: %w", err)
+		}
+		for i := range out.DelegationSets {
+			d := &out.DelegationSets[i]
+			id := strings.TrimPrefix(sv(d.Id), "/delegationset/")
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:route53:::delegationset/%s", id)
+			label := id
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeRoute53DelegationSet, NativeID: arn,
+				Name: &label, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}
+		if !out.IsTruncated || out.NextMarker == nil {
+			break
+		}
+		marker = out.NextMarker
+	}
+	return upsertBatch(st, batch, "route53 delegation-sets")
+}
+
+// scanRoute53QueryLoggingConfigs lists query-logging configs (paginator).
+// NativeID synthesized from the bare config Id.
+func scanRoute53QueryLoggingConfigs(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	pager := route53.NewListQueryLoggingConfigsPaginator(client, &route53.ListQueryLoggingConfigsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "route53:ListQueryLoggingConfigs", acct.ID, "global", err)
+			}
+			return 0, 0, fmt.Errorf("route53:ListQueryLoggingConfigs: %w", err)
+		}
+		for i := range page.QueryLoggingConfigs {
+			c := &page.QueryLoggingConfigs[i]
+			id := sv(c.Id)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:route53:::queryloggingconfig/%s", id)
+			label := id
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeRoute53QueryLoggingConfig, NativeID: arn,
+				Name: &label, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "route53 query-logging-configs")
+}
+
+// scanRoute53TrafficPolicies lists traffic policies (no paginator; manual
+// TrafficPolicyIdMarker pagination).
+func scanRoute53TrafficPolicies(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	var batch []*store.Resource
+	var marker *string
+	for {
+		out, err := client.ListTrafficPolicies(ctx, &route53.ListTrafficPoliciesInput{TrafficPolicyIdMarker: marker})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "route53:ListTrafficPolicies", acct.ID, "global", err)
+			}
+			return 0, 0, fmt.Errorf("route53:ListTrafficPolicies: %w", err)
+		}
+		for i := range out.TrafficPolicySummaries {
+			p := &out.TrafficPolicySummaries[i]
+			id := sv(p.Id)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeRoute53TrafficPolicy, NativeID: arn,
+				Name: p.Name, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			})
+		}
+		if !out.IsTruncated || out.TrafficPolicyIdMarker == nil {
+			break
+		}
+		marker = out.TrafficPolicyIdMarker
+	}
+	return upsertBatch(st, batch, "route53 traffic-policies")
+}
+
+// scanRoute53TrafficPolicyInstances lists traffic-policy instances (no
+// paginator; manual three-marker pagination).
+func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
+	var batch []*store.Resource
+	var zoneMarker, nameMarker *string
+	var typeMarker route53types.RRType
+	for {
+		out, err := client.ListTrafficPolicyInstances(ctx, &route53.ListTrafficPolicyInstancesInput{
+			HostedZoneIdMarker:              zoneMarker,
+			TrafficPolicyInstanceNameMarker: nameMarker,
+			TrafficPolicyInstanceTypeMarker: typeMarker,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "route53:ListTrafficPolicyInstances", acct.ID, "global", err)
+			}
+			return 0, 0, fmt.Errorf("route53:ListTrafficPolicyInstances: %w", err)
+		}
+		for i := range out.TrafficPolicyInstances {
+			ti := &out.TrafficPolicyInstances[i]
+			id := sv(ti.Id)
+			if id == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:route53:::trafficpolicyinstance/%s", id)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeRoute53TrafficPolicyInstance, NativeID: arn,
+				Name: ti.Name, AttributesJSON: mustJSON(ti), DiscoveredBy: scanID,
+			})
+		}
+		if !out.IsTruncated {
+			break
+		}
+		zoneMarker, nameMarker, typeMarker = out.HostedZoneIdMarker, out.TrafficPolicyInstanceNameMarker, out.TrafficPolicyInstanceTypeMarker
+	}
+	return upsertBatch(st, batch, "route53 traffic-policy-instances")
 }
 
 // scanRoute53RecordSets pages through all record sets in one hosted zone and

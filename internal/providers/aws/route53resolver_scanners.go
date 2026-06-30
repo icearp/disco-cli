@@ -26,6 +26,7 @@ func init() {
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverQueryLoggingConfigAssociation},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverRule},
 			{Service: "route53resolver", DiscoType: TypeRoute53ResolverResolverRuleAssociation},
+			{Service: "route53resolver", DiscoType: TypeRoute53ResolverFirewallConfig},
 		},
 	})
 }
@@ -42,6 +43,7 @@ type route53ResolverAPI interface {
 	ListResolverQueryLogConfigAssociations(context.Context, *route53resolver.ListResolverQueryLogConfigAssociationsInput, ...func(*route53resolver.Options)) (*route53resolver.ListResolverQueryLogConfigAssociationsOutput, error)
 	ListResolverRules(context.Context, *route53resolver.ListResolverRulesInput, ...func(*route53resolver.Options)) (*route53resolver.ListResolverRulesOutput, error)
 	ListResolverRuleAssociations(context.Context, *route53resolver.ListResolverRuleAssociationsInput, ...func(*route53resolver.Options)) (*route53resolver.ListResolverRuleAssociationsOutput, error)
+	ListFirewallConfigs(context.Context, *route53resolver.ListFirewallConfigsInput, ...func(*route53resolver.Options)) (*route53resolver.ListFirewallConfigsOutput, error)
 }
 
 func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -65,6 +67,7 @@ func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *
 		},
 		func() (int, int, error) { return scanR53RResolverRules(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanR53RResolverRuleAssocs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanR53RFirewallConfigs(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, ferr := phase()
 		if ferr != nil {
@@ -426,4 +429,37 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 		}
 	}
 	return upsertBatch(st, batch, "route53resolver resolver-rule-associations")
+}
+
+// scanR53RFirewallConfigs — per-VPC DNS Firewall config state. No native ARN;
+// synth from (region, acct, Id). AWS-managed per-VPC config row.
+func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := route53resolver.NewListFirewallConfigsPaginator(client, &route53resolver.ListFirewallConfigsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "route53resolver:ListFirewallConfigs", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("route53resolver:ListFirewallConfigs: %w", perr)
+		}
+		for _, c := range out.FirewallConfigs {
+			id := sv(c.Id)
+			if id == "" {
+				continue
+			}
+			arn := r53rARN(region, acct.ID, "firewall-config", id)
+			label := id
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRoute53ResolverFirewallConfig, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+				// Per-VPC AWS-managed config row, one per VPC by default.
+				ManagedByProvider: true,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "route53resolver firewall-configs")
 }
