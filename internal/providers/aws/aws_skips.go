@@ -1216,6 +1216,51 @@ func (coverageProvider) Skips() map[string]string {
 		// type (provisioned + serverless flavors on one resource).
 		"AWS::MSK::ServerlessCluster": "duplicate: serverless MSK is scanned under the unified aws:kafka:cluster type",
 
+		// neptune-db — the data-plane (IAM neptune-db:*) database used for graph
+		// queries, not a control-plane resource (the cluster/instance are scanned).
+		"AWS::neptune-db::database": "data-plane: the neptune-db query endpoint, not a control-plane resource",
+
+		// neptune-graph — export/import tasks are ephemeral job runs (the graphs and
+		// snapshots are scanned).
+		"AWS::neptune-graph::export-task": "ephemeral: a Neptune Analytics export task run, not a persistent resource",
+		"AWS::neptune-graph::import-task": "ephemeral: a Neptune Analytics import task run, not a persistent resource",
+
+		// network-firewall — stateful/stateless rule groups are both returned by
+		// ListRuleGroups (scanned as aws:network-firewall:rule-group); a proxy has no
+		// separate list op (it is configured via the scanned proxy-configuration).
+		"AWS::network-firewall::Proxy":              "no SDK list op: a Network Firewall proxy is configured via the scanned aws:network-firewall:proxy-configuration",
+		"AWS::network-firewall::StatefulRuleGroup":  "duplicate: returned by ListRuleGroups, scanned as aws:network-firewall:rule-group",
+		"AWS::network-firewall::StatelessRuleGroup": "duplicate: returned by ListRuleGroups, scanned as aws:network-firewall:rule-group",
+
+		// networkmanager — the generic attachment / peering keys are the union of the
+		// specific attachment + transit-gateway-peering types disco already scans.
+		"AWS::networkmanager::attachment": "duplicate: the generic attachment union, scanned as the specific aws:networkmanager:*-attachment types",
+		"AWS::networkmanager::peering":    "duplicate: scanned as aws:networkmanager:transit-gateway-peering",
+
+		// nimble — AWS deprecated Amazon Nimble Studio; the aws-sdk-go-v2 nimble
+		// client marks the whole service "no longer available for use". No live
+		// resources; do not carry the dead dependency.
+		"AWS::nimble::eula":                     "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::eula-acceptance":          "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::launch-profile":           "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::streaming-image":          "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::streaming-session":        "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::streaming-session-backup": "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::studio":                   "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::nimble::studio-component":         "discontinued: Amazon Nimble Studio is deprecated and no longer available for use (SDK service marked deprecated)",
+
+		// notifications — managed/notification events are ephemeral; the managed
+		// account-contact association is a binding, not a standalone resource (the
+		// managed-notification-configuration is scanned).
+		"AWS::Notifications::ManagedNotificationAccountContactAssociation": "association: a managed-notification↔contact binding, not an enumerable resource",
+		"AWS::notifications::ManagedNotificationChildEvent":                "ephemeral: a managed-notification child event, not a persistent resource",
+		"AWS::notifications::ManagedNotificationEvent":                     "ephemeral: a managed-notification event, not a persistent resource",
+		"AWS::notifications::NotificationEvent":                            "ephemeral: a notification event, not a persistent resource",
+
+		// nova-act — a workflow run is an ephemeral execution of the scanned
+		// aws:nova-act:workflow-definition.
+		"AWS::nova-act::workflow-run": "ephemeral: a Nova Act workflow run, not a persistent resource",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
