@@ -21,6 +21,8 @@ func init() {
 			{Service: "glue", DiscoType: TypeGlueTable},
 			{Service: "glue", DiscoType: TypeGluePartition},
 			{Service: "glue", DiscoType: TypeGlueTableOptimizer},
+			{Service: "glue", DiscoType: TypeGlueBlueprint, Leaf: true},
+			{Service: "glue", DiscoType: TypeGlueUserDefinedFunction},
 		},
 	})
 }
@@ -58,6 +60,8 @@ type glueAPI interface {
 	ListIntegrationResourceProperties(context.Context, *glue.ListIntegrationResourcePropertiesInput, ...func(*glue.Options)) (*glue.ListIntegrationResourcePropertiesOutput, error)
 	GetSecurityConfigurations(context.Context, *glue.GetSecurityConfigurationsInput, ...func(*glue.Options)) (*glue.GetSecurityConfigurationsOutput, error)
 	ListUsageProfiles(context.Context, *glue.ListUsageProfilesInput, ...func(*glue.Options)) (*glue.ListUsageProfilesOutput, error)
+	ListBlueprints(context.Context, *glue.ListBlueprintsInput, ...func(*glue.Options)) (*glue.ListBlueprintsOutput, error)
+	GetUserDefinedFunctions(context.Context, *glue.GetUserDefinedFunctionsInput, ...func(*glue.Options)) (*glue.GetUserDefinedFunctionsOutput, error)
 }
 
 // scanGlue discovers Glue Data Catalog databases and tables in one region.
@@ -137,6 +141,24 @@ func scanGlue(ctx context.Context, acct *account, region string, st *store.Store
 
 	{
 		t, i, ferr := scanGlueCatalog(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	{
+		t, i, ferr := scanGlueBlueprints(ctx, client, acct, region, st, scanID)
+		if ferr != nil {
+			return total, inserted, ferr
+		}
+		total += t
+		inserted += i
+	}
+
+	if len(dbNames) > 0 {
+		t, i, ferr := scanGlueUserDefinedFunctions(ctx, client, acct, region, st, scanID, dbNames)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

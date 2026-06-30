@@ -1461,6 +1461,8 @@ const (
 	TypeGlueIntegrationResourceProperty   = "aws:glue:integration-resource-property"
 	TypeGlueSecurityConfiguration         = "aws:glue:security-configuration"
 	TypeGlueUsageProfile                  = "aws:glue:usage-profile"
+	TypeGlueBlueprint                     = "aws:glue:blueprint"
+	TypeGlueUserDefinedFunction           = "aws:glue:user-defined-function"
 	// Glue — Jobs family (glue_jobs_scanners.go)
 	TypeGlueJob         = "aws:glue:job"
 	TypeGlueTrigger     = "aws:glue:trigger"

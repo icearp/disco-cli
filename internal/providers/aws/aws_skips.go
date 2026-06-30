@@ -859,6 +859,17 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::geo-places::provider": "not a resource: the GeoPlaces data provider queried at request time, not an enumerable resource",
 		"AWS::geo-routes::provider": "not a resource: the GeoRoutes data provider queried at request time, not an enumerable resource",
 
+		// glue — blueprint + user-defined-function are scanned. completion is not a
+		// resource (an IAM-action context); connectionType is an AWS catalog of
+		// available connector types; rootcatalog is the account's implicit root Data
+		// Catalog (sub-catalogs are scanned as aws:glue:catalog); session is an
+		// ephemeral interactive session; tableversion is a table-version sub-resource.
+		"AWS::glue::completion":     "not a resource: an IAM-action context, not an enumerable resource",
+		"AWS::glue::connectionType": "catalog: AWS's read-only list of available Glue connector types, not an account resource",
+		"AWS::glue::rootcatalog":    "singleton: the account's implicit root Data Catalog; sub-catalogs are scanned as aws:glue:catalog",
+		"AWS::glue::session":        "ephemeral: a Glue interactive session, not a persistent resource",
+		"AWS::glue::tableversion":   "version: a table-version sub-resource of the scanned aws:glue:table",
+
 		// guardduty — Master is the legacy administrator-relationship designation
 		// (GetMasterAccount returns this account's admin); members are scanned as
 		// aws:guardduty:member.
