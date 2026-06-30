@@ -22,6 +22,9 @@ func init() {
 			{Service: "omics", DiscoType: TypeOmicsVariantStore},
 			{Service: "omics", DiscoType: TypeOmicsWorkflow, Leaf: true},
 			{Service: "omics", DiscoType: TypeOmicsWorkflowVersion},
+			{Service: "omics", DiscoType: TypeOmicsAnnotationStoreVersion},
+			{Service: "omics", DiscoType: TypeOmicsReference},
+			{Service: "omics", DiscoType: TypeOmicsRunCache, Leaf: true},
 		},
 	})
 }
@@ -35,20 +38,54 @@ type omicsAPI interface {
 	ListVariantStores(context.Context, *omics.ListVariantStoresInput, ...func(*omics.Options)) (*omics.ListVariantStoresOutput, error)
 	ListWorkflows(context.Context, *omics.ListWorkflowsInput, ...func(*omics.Options)) (*omics.ListWorkflowsOutput, error)
 	ListWorkflowVersions(context.Context, *omics.ListWorkflowVersionsInput, ...func(*omics.Options)) (*omics.ListWorkflowVersionsOutput, error)
+	ListAnnotationStoreVersions(context.Context, *omics.ListAnnotationStoreVersionsInput, ...func(*omics.Options)) (*omics.ListAnnotationStoreVersionsOutput, error)
+	ListReferences(context.Context, *omics.ListReferencesInput, ...func(*omics.Options)) (*omics.ListReferencesOutput, error)
+	ListRunCaches(context.Context, *omics.ListRunCachesInput, ...func(*omics.Options)) (*omics.ListRunCachesOutput, error)
 }
 
 func scanOmics(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := omics.NewFromConfig(acct.cfg, func(o *omics.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanOmicsAnnotationStores(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanOmicsConfigurations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanOmicsReferenceStores(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanOmicsRunGroups(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanOmicsSequenceStores(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanOmicsVariantStores(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanOmicsRunCaches(ctx, client, acct, region, st, scanID) },
 	} {
 		t, i, perr := phase()
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Annotation stores + per-store versions (ListAnnotationStoreVersions requires the store name).
+	asNames, t, i, ferr := scanOmicsAnnotationStores(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	for _, name := range asNames {
+		t, i, perr := scanOmicsAnnotationStoreVersions(ctx, client, acct, region, st, scanID, name)
+		if perr != nil {
+			return total, inserted, perr
+		}
+		total += t
+		inserted += i
+	}
+
+	// Reference stores + per-store references (ListReferences requires the store id).
+	rsIDs, t, i, ferr := scanOmicsReferenceStores(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+	for _, id := range rsIDs {
+		t, i, perr := scanOmicsReferences(ctx, client, acct, region, st, scanID, id)
 		if perr != nil {
 			return total, inserted, perr
 		}
@@ -74,20 +111,21 @@ func scanOmics(ctx context.Context, acct *account, region string, st *store.Stor
 	return total, inserted, nil
 }
 
-func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := omics.NewListAnnotationStoresPaginator(client, &omics.ListAnnotationStoresInput{})
 	var batch []*store.Resource
+	var names []string
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isServiceNotAvailableInRegion(perr) {
-				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+				return nil, 0, 0, markServiceUnavailable(perr) // whole service absent in this region
 			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListAnnotationStores", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("omics:ListAnnotationStores: %w", perr)
+			return nil, 0, 0, fmt.Errorf("omics:ListAnnotationStores: %w", perr)
 		}
 		for _, s := range out.AnnotationStores {
 			arn := sv(s.StoreArn)
@@ -98,6 +136,9 @@ func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *accou
 			if label == "" {
 				label = sv(s.Id)
 			}
+			if n := sv(s.Name); n != "" {
+				names = append(names, n)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeOmicsAnnotationStore, NativeID: arn,
@@ -105,7 +146,46 @@ func scanOmicsAnnotationStores(ctx context.Context, client omicsAPI, acct *accou
 			})
 		}
 	}
-	return upsertBatch(st, batch, "omics annotation-stores")
+	t, i, err := upsertBatch(st, batch, "omics annotation-stores")
+	return names, t, i, err
+}
+
+// scanOmicsAnnotationStoreVersions lists versions for one annotation store
+// (ListAnnotationStoreVersions requires the store Name). NativeID = the version
+// ARN; the resolver wires version→annotation-store via the StoreId attribute.
+func scanOmicsAnnotationStoreVersions(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID, storeName string) (int, int, error) {
+	name := storeName
+	pager := omics.NewListAnnotationStoreVersionsPaginator(client, &omics.ListAnnotationStoreVersionsInput{Name: &name})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr)
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "omics:ListAnnotationStoreVersions", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("omics:ListAnnotationStoreVersions: %w", perr)
+		}
+		for _, v := range out.AnnotationStoreVersions {
+			arn := sv(v.VersionArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(v.VersionName)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeOmicsAnnotationStoreVersion, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "omics annotation-store-versions")
 }
 
 func scanOmicsConfigurations(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -142,20 +222,21 @@ func scanOmicsConfigurations(ctx context.Context, client omicsAPI, acct *account
 	return upsertBatch(st, batch, "omics configurations")
 }
 
-func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := omics.NewListReferenceStoresPaginator(client, &omics.ListReferenceStoresInput{})
 	var batch []*store.Resource
+	var ids []string
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isServiceNotAvailableInRegion(perr) {
-				return 0, 0, markServiceUnavailable(perr) // whole service absent in this region
+				return nil, 0, 0, markServiceUnavailable(perr) // whole service absent in this region
 			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "omics:ListReferenceStores", acct.ID, region, perr)
-				return 0, 0, nil
+				return nil, 0, 0, nil
 			}
-			return 0, 0, fmt.Errorf("omics:ListReferenceStores: %w", perr)
+			return nil, 0, 0, fmt.Errorf("omics:ListReferenceStores: %w", perr)
 		}
 		for _, r := range out.ReferenceStores {
 			arn := sv(r.Arn)
@@ -166,6 +247,9 @@ func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *accoun
 			if label == "" {
 				label = sv(r.Id)
 			}
+			if id := sv(r.Id); id != "" {
+				ids = append(ids, id)
+			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeOmicsReferenceStore, NativeID: arn,
@@ -173,7 +257,81 @@ func scanOmicsReferenceStores(ctx context.Context, client omicsAPI, acct *accoun
 			})
 		}
 	}
-	return upsertBatch(st, batch, "omics reference-stores")
+	t, i, err := upsertBatch(st, batch, "omics reference-stores")
+	return ids, t, i, err
+}
+
+// scanOmicsReferences lists references for one reference store (ListReferences
+// requires ReferenceStoreId). NativeID = the reference ARN; the resolver wires
+// reference→reference-store via the ReferenceStoreId attribute.
+func scanOmicsReferences(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID, refStoreID string) (int, int, error) {
+	rsid := refStoreID
+	pager := omics.NewListReferencesPaginator(client, &omics.ListReferencesInput{ReferenceStoreId: &rsid})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr)
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "omics:ListReferences", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("omics:ListReferences: %w", perr)
+		}
+		for _, ref := range out.References {
+			arn := sv(ref.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(ref.Name)
+			if label == "" {
+				label = sv(ref.Id)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeOmicsReference, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(ref), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "omics references")
+}
+
+// scanOmicsRunCaches lists run caches account-wide. Leaf — no outbound edges.
+func scanOmicsRunCaches(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := omics.NewListRunCachesPaginator(client, &omics.ListRunCachesInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, markServiceUnavailable(perr)
+			}
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "omics:ListRunCaches", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("omics:ListRunCaches: %w", perr)
+		}
+		for _, c := range out.Items {
+			arn := sv(c.Arn)
+			if arn == "" {
+				continue
+			}
+			label := sv(c.Name)
+			if label == "" {
+				label = sv(c.Id)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeOmicsRunCache, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "omics run-caches")
 }
 
 func scanOmicsRunGroups(ctx context.Context, client omicsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

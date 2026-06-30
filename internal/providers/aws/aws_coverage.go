@@ -764,8 +764,16 @@ func (coverageProvider) Aliases() map[string]string {
 		TypeSSMGuiConnectPreferences: "AWS::SSMGuiConnect::Preferences",
 		// RUM — disco "rum" segment vs CFN "RUM".
 		TypeRUMAppMonitor: "AWS::RUM::AppMonitor",
-		// OSIS — disco "osis" segment vs CFN "OSIS".
-		TypeOSISPipeline: "AWS::OSIS::Pipeline",
+		// OSIS — disco "osis" segment vs CFN "OSIS". The Service Reference lists
+		// the blueprint/endpoint with hyphenated lowercase keys the algorithmic
+		// PascalCase fold can't reach.
+		TypeOSISPipeline:          "AWS::OSIS::Pipeline",
+		TypeOSISPipelineBlueprint: "AWS::osis::pipeline-blueprint",
+		TypeOSISPipelineEndpoint:  "AWS::osis::pipeline-endpoint",
+		// ODB — Service Reference uses hyphenated lowercase resource keys.
+		TypeODBAutonomousDatabase:       "AWS::odb::autonomous-database",
+		TypeODBAutonomousDatabaseBackup: "AWS::odb::autonomous-database-backup",
+		TypeODBDbNode:                   "AWS::odb::db-node",
 		// NovaAct — disco "nova-act" segment vs CFN "NovaAct".
 		TypeNovaActWorkflowDefinition: "AWS::NovaAct::WorkflowDefinition",
 		// NotificationsContacts — disco "notifications-contacts" segment vs CFN "NotificationsContacts".

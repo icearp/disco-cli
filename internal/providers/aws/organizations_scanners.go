@@ -23,6 +23,8 @@ func init() {
 			{Service: "organizations", DiscoType: TypeOrganizationsOU, Leaf: true},
 			{Service: "organizations", DiscoType: TypeOrganizationsSCP},
 			{Service: "organizations", DiscoType: TypeOrganizationsResourcePolicy, Leaf: true},
+			{Service: "organizations", DiscoType: TypeOrganizationsRoot, Leaf: true},
+			{Service: "organizations", DiscoType: TypeOrganizationsResponsibilityTransfer, Leaf: true},
 		},
 	})
 }
@@ -38,6 +40,8 @@ type organizationsAPI interface {
 	DescribePolicy(context.Context, *organizations.DescribePolicyInput, ...func(*organizations.Options)) (*organizations.DescribePolicyOutput, error)
 	ListParents(context.Context, *organizations.ListParentsInput, ...func(*organizations.Options)) (*organizations.ListParentsOutput, error)
 	DescribeResourcePolicy(context.Context, *organizations.DescribeResourcePolicyInput, ...func(*organizations.Options)) (*organizations.DescribeResourcePolicyOutput, error)
+	ListInboundResponsibilityTransfers(context.Context, *organizations.ListInboundResponsibilityTransfersInput, ...func(*organizations.Options)) (*organizations.ListInboundResponsibilityTransfersOutput, error)
+	ListOutboundResponsibilityTransfers(context.Context, *organizations.ListOutboundResponsibilityTransfersInput, ...func(*organizations.Options)) (*organizations.ListOutboundResponsibilityTransfersOutput, error)
 }
 
 // scanOrganizations discovers the AWS Organizations structure — organization,
@@ -90,7 +94,120 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	t, i, ferr = scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID)
 	total += t
 	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	// Management-only resources — safe here, past the member-account short-circuit.
+	t, i, ferr = scanOrgRootResources(ctx, client, acct, st, scanID)
+	total += t
+	inserted += i
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	t, i, ferr = scanOrgResponsibilityTransfers(ctx, client, acct, st, scanID)
+	total += t
+	inserted += i
 	return total, inserted, ferr
+}
+
+// scanOrgRootResources lists the organization roots as standalone
+// aws:organizations:root resources. The root is auto-created with the org and
+// cannot be deleted while the org exists, so it is provider-managed. (The org
+// hierarchy walk also records roots as OU containers; this phase exists to
+// surface the dedicated root type for coverage.)
+func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	pager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "organizations:ListRoots", acct.ID, "", err)
+			}
+			return 0, 0, fmt.Errorf("organizations:ListRoots: %w", err)
+		}
+		for _, root := range page.Roots {
+			arn := sv(root.Arn)
+			if arn == "" {
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeOrganizationsRoot, NativeID: arn,
+				Name: root.Name, AttributesJSON: mustJSON(root), DiscoveredBy: scanID,
+				ManagedByProvider: true,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "organizations roots")
+}
+
+// scanOrgResponsibilityTransfers captures billing responsibility transfers from
+// both the inbound and outbound lists (a transfer can appear in both), deduped
+// by ARN/id. Currently only the BILLING transfer type is supported by the API.
+func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	seen := map[string]bool{}
+	var batch []*store.Resource
+	add := func(transfers []types.ResponsibilityTransfer) {
+		for _, tr := range transfers {
+			arn := sv(tr.Arn)
+			if arn == "" {
+				if id := sv(tr.Id); id != "" {
+					arn = fmt.Sprintf("arn:aws:organizations::%s:responsibilitytransfer/%s", acct.ID, id)
+				}
+			}
+			if arn == "" || seen[arn] {
+				continue
+			}
+			seen[arn] = true
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Region: regionGlobal, Type: TypeOrganizationsResponsibilityTransfer, NativeID: arn,
+				Name: tr.Name, AttributesJSON: mustJSON(tr), DiscoveredBy: scanID,
+			})
+		}
+	}
+
+	// Inbound.
+	var inToken *string
+	for {
+		out, err := client.ListInboundResponsibilityTransfers(ctx, &organizations.ListInboundResponsibilityTransfersInput{
+			Type: types.ResponsibilityTransferTypeBilling, NextToken: inToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "organizations:ListInboundResponsibilityTransfers", acct.ID, "", err)
+				break
+			}
+			return 0, 0, fmt.Errorf("organizations:ListInboundResponsibilityTransfers: %w", err)
+		}
+		add(out.ResponsibilityTransfers)
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		inToken = out.NextToken
+	}
+
+	// Outbound.
+	var outToken *string
+	for {
+		out, err := client.ListOutboundResponsibilityTransfers(ctx, &organizations.ListOutboundResponsibilityTransfersInput{
+			Type: types.ResponsibilityTransferTypeBilling, NextToken: outToken,
+		})
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "organizations:ListOutboundResponsibilityTransfers", acct.ID, "", err)
+				break
+			}
+			return 0, 0, fmt.Errorf("organizations:ListOutboundResponsibilityTransfers: %w", err)
+		}
+		add(out.ResponsibilityTransfers)
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		outToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "organizations responsibility-transfers")
 }
 
 // scanOrgRoot describes the organization itself, upserts the org resource,

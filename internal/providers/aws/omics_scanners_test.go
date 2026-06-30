@@ -45,6 +45,18 @@ func (stubOmics) ListWorkflowVersions(context.Context, *omics.ListWorkflowVersio
 	return &omics.ListWorkflowVersionsOutput{}, nil
 }
 
+func (stubOmics) ListAnnotationStoreVersions(context.Context, *omics.ListAnnotationStoreVersionsInput, ...func(*omics.Options)) (*omics.ListAnnotationStoreVersionsOutput, error) {
+	return &omics.ListAnnotationStoreVersionsOutput{}, nil
+}
+
+func (stubOmics) ListReferences(context.Context, *omics.ListReferencesInput, ...func(*omics.Options)) (*omics.ListReferencesOutput, error) {
+	return &omics.ListReferencesOutput{}, nil
+}
+
+func (stubOmics) ListRunCaches(context.Context, *omics.ListRunCachesInput, ...func(*omics.Options)) (*omics.ListRunCachesOutput, error) {
+	return &omics.ListRunCachesOutput{}, nil
+}
+
 // In a region where HealthOmics isn't offered the endpoint answers
 // "Unable to determine service/operation name" — the whole service is absent,
 // so the phase returns the errServiceUnavailable sentinel (the dispatcher
@@ -56,7 +68,7 @@ func TestScanOmicsAnnotationStores_ReturnsUnavailableSentinel(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	client := stubOmics{annErr: apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")}
 
-	total, inserted, err := scanOmicsAnnotationStores(context.Background(), client, acct, "us-east-2", st, testScanID)
+	_, total, inserted, err := scanOmicsAnnotationStores(context.Background(), client, acct, "us-east-2", st, testScanID)
 	if !errors.Is(err, errServiceUnavailable) {
 		t.Fatalf("want errServiceUnavailable, got %v", err)
 	}

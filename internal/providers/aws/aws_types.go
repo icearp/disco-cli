@@ -506,10 +506,12 @@ const (
 	TypeSecretsManagerResourcePolicy   = "aws:secretsmanager:resource-policy"
 	TypeSecretsManagerRotationSchedule = "aws:secretsmanager:rotation-schedule"
 	// Organizations (organizations_scanners.go)
-	TypeOrganization         = "aws:organizations:organization"
-	TypeOrganizationsAccount = "aws:organizations:account"
-	TypeOrganizationsOU      = "aws:organizations:organizational-unit"
-	TypeOrganizationsSCP     = "aws:organizations:policy"
+	TypeOrganization                        = "aws:organizations:organization"
+	TypeOrganizationsAccount                = "aws:organizations:account"
+	TypeOrganizationsOU                     = "aws:organizations:organizational-unit"
+	TypeOrganizationsSCP                    = "aws:organizations:policy"
+	TypeOrganizationsRoot                   = "aws:organizations:root"
+	TypeOrganizationsResponsibilityTransfer = "aws:organizations:responsibility-transfer"
 	// ACM (acm_scanners.go)
 	TypeACMCertificate = "aws:acm:certificate"
 	TypeACMPrivateCA   = "aws:acm-pca:certificate-authority"
@@ -873,14 +875,17 @@ const (
 	TypeOSSSecurityPolicy  = "aws:opensearchserverless:security-policy"
 	TypeOSSVpcEndpoint     = "aws:opensearchserverless:vpc-endpoint"
 	// Omics (omics_scanners.go)
-	TypeOmicsAnnotationStore = "aws:omics:annotation-store"
-	TypeOmicsConfiguration   = "aws:omics:configuration"
-	TypeOmicsReferenceStore  = "aws:omics:reference-store"
-	TypeOmicsRunGroup        = "aws:omics:run-group"
-	TypeOmicsSequenceStore   = "aws:omics:sequence-store"
-	TypeOmicsVariantStore    = "aws:omics:variant-store"
-	TypeOmicsWorkflow        = "aws:omics:workflow"
-	TypeOmicsWorkflowVersion = "aws:omics:workflow-version"
+	TypeOmicsAnnotationStore        = "aws:omics:annotation-store"
+	TypeOmicsConfiguration          = "aws:omics:configuration"
+	TypeOmicsReferenceStore         = "aws:omics:reference-store"
+	TypeOmicsRunGroup               = "aws:omics:run-group"
+	TypeOmicsSequenceStore          = "aws:omics:sequence-store"
+	TypeOmicsVariantStore           = "aws:omics:variant-store"
+	TypeOmicsWorkflow               = "aws:omics:workflow"
+	TypeOmicsWorkflowVersion        = "aws:omics:workflow-version"
+	TypeOmicsAnnotationStoreVersion = "aws:omics:annotation-store-version"
+	TypeOmicsReference              = "aws:omics:reference"
+	TypeOmicsRunCache               = "aws:omics:run-cache"
 	// Image Builder (imagebuilder_scanners.go)
 	TypeImageBuilderComponent                 = "aws:imagebuilder:component"
 	TypeImageBuilderContainerRecipe           = "aws:imagebuilder:container-recipe"
@@ -1089,7 +1094,9 @@ const (
 	// Pipes (pipes_scanners.go)
 	TypePipesPipe = "aws:pipes:pipe"
 	// OSIS (osis_scanners.go)
-	TypeOSISPipeline = "aws:osis:pipeline"
+	TypeOSISPipeline          = "aws:osis:pipeline"
+	TypeOSISPipelineBlueprint = "aws:osis:pipeline-blueprint"
+	TypeOSISPipelineEndpoint  = "aws:osis:pipeline-endpoint"
 	// Organizations extras (organizations_extended_scanners.go)
 	TypeOrganizationsResourcePolicy = "aws:organizations:resource-policy"
 	// OpenSearch extras (opensearch_extended_scanners.go)
@@ -1922,6 +1929,12 @@ const (
 	TypeODBCloudVMCluster             = "aws:odb:cloud-vm-cluster"
 	TypeODBOdbNetwork                 = "aws:odb:odb-network"
 	TypeODBOdbPeeringConnection       = "aws:odb:odb-peering-connection"
+	TypeODBAutonomousDatabase         = "aws:odb:autonomous-database"
+	TypeODBAutonomousDatabaseBackup   = "aws:odb:autonomous-database-backup"
+	TypeODBDbNode                     = "aws:odb:db-node"
+	// Outposts (outposts_scanners.go). AWS Outposts.
+	TypeOutpostsSite    = "aws:outposts:site"
+	TypeOutpostsOutpost = "aws:outposts:outpost"
 	// PCAConnectorAD (pcaconnectorad_scanners.go).
 	TypePCAConnectorADConnector             = "aws:pca-connector-ad:connector"
 	TypePCAConnectorADDirectoryRegistration = "aws:pca-connector-ad:directory-registration"

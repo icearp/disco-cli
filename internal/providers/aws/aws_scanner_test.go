@@ -235,6 +235,7 @@ var expectedAWSServices = []string{
 	"aws:rtbfabric",
 	"aws:pca-connector-ad",
 	"aws:odb",
+	"aws:outposts",
 	"aws:mediapackagev2",
 	"aws:mediapackage",
 	"aws:iottwinmaker",
