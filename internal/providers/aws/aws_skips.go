@@ -870,6 +870,18 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::glue::session":        "ephemeral: a Glue interactive session, not a persistent resource",
 		"AWS::glue::tableversion":   "version: a table-version sub-resource of the scanned aws:glue:table",
 
+		// greengrass — the v1 *-definition* types are scanned (aws:greengrass:*);
+		// the remaining SR keys are GreengrassV2 reals scanned under
+		// aws:greengrass-v2:* (component/coreDevice via aliases; componentVersion/
+		// deployment via CFN), v1 sub-resources, or IoT cross-references.
+		"AWS::greengrass::componentVersion":     "duplicate: scanned as aws:greengrass-v2:component-version (CloudFormation GreengrassV2::ComponentVersion)",
+		"AWS::greengrass::deployment":           "duplicate: scanned as aws:greengrass-v2:deployment (CloudFormation GreengrassV2::Deployment)",
+		"AWS::greengrass::bulkDeployment":       "ephemeral: a Greengrass v1 bulk-deployment job run, not a persistent resource",
+		"AWS::greengrass::certificateAuthority": "sub-resource: a Greengrass v1 per-group certificate authority (ListGroupCertificateAuthorities), not a top-level resource",
+		"AWS::greengrass::connectivityInfo":     "sub-resource: Greengrass v1 per-thing connectivity info (GetConnectivityInfo), not a top-level resource",
+		"AWS::greengrass::thing":                "reference: an IoT thing scanned under aws:iot, not a Greengrass resource",
+		"AWS::greengrass::thingRuntimeConfig":   "sub-resource: Greengrass v2 per-core-device runtime configuration (GetRuntimeConfiguration), not a top-level resource",
+
 		// guardduty — Master is the legacy administrator-relationship designation
 		// (GetMasterAccount returns this account's admin); members are scanned as
 		// aws:guardduty:member.
@@ -878,6 +890,16 @@ func (coverageProvider) Skips() map[string]string {
 		// globalaccelerator — the SR `attachment` is the cross-account attachment
 		// disco scans under its CloudFormation spelling.
 		"AWS::globalaccelerator::attachment": "duplicate: scanned as aws:global-accelerator:cross-account-attachment (ListCrossAccountAttachments)",
+
+		// groundstation — config, dataflow-endpoint-group, and mission-profile are
+		// scanned (aws:ground-station:*). The rest are AWS catalogs, ephemeral
+		// bookings, agent registrations with no list API, or a CFN duplicate.
+		"AWS::groundstation::EphemerisItem":           "requires per-satellite fan-out over the AWS satellite catalog (ListSatellites); customer ephemerides are uploaded per reserved satellite — revisit if needed",
+		"AWS::groundstation::Satellite":               "catalog: AWS-provided satellites you have reserved access to (ListSatellites), not an account resource",
+		"AWS::groundstation::GroundStationResource":   "catalog: AWS's physical ground-station locations (ListGroundStations), not an account resource",
+		"AWS::groundstation::Contact":                 "ephemeral: a scheduled/reserved satellite contact, a transient booking",
+		"AWS::groundstation::Agent":                   "no SDK list op: the Ground Station agent runs on customer compute and is only registered (RegisterAgent), not enumerable",
+		"AWS::GroundStation::DataflowEndpointGroupV2": "duplicate: the V2 CloudFormation variant of aws:ground-station:dataflow-endpoint-group",
 
 		// directconnect — the Service Reference uses the IAM-ARN resource-type
 		// abbreviations (dxcon / dxlag / dxvif / dx-gateway) for the same physical

@@ -16,6 +16,8 @@ func init() {
 		emits: []coverage.TypeDecl{
 			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2ComponentVersion, Leaf: true},
 			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2Deployment},
+			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2Component, Leaf: true},
+			{Service: "greengrass-v2", DiscoType: TypeGreengrassV2CoreDevice, Leaf: true},
 		},
 	})
 }
@@ -23,6 +25,7 @@ func init() {
 type greengrassV2API interface {
 	ListComponents(context.Context, *greengrassv2.ListComponentsInput, ...func(*greengrassv2.Options)) (*greengrassv2.ListComponentsOutput, error)
 	ListComponentVersions(context.Context, *greengrassv2.ListComponentVersionsInput, ...func(*greengrassv2.Options)) (*greengrassv2.ListComponentVersionsOutput, error)
+	ListCoreDevices(context.Context, *greengrassv2.ListCoreDevicesInput, ...func(*greengrassv2.Options)) (*greengrassv2.ListCoreDevicesOutput, error)
 	ListDeployments(context.Context, *greengrassv2.ListDeploymentsInput, ...func(*greengrassv2.Options)) (*greengrassv2.ListDeploymentsOutput, error)
 }
 
@@ -44,15 +47,31 @@ var greengrassV2Regions = map[string]bool{
 	"us-gov-east-1": true, "us-gov-west-1": true,
 }
 
-// scanGreengrassV2 discovers Greengrass v2 component versions (per
-// component) and deployments.
+// scanGreengrassV2 discovers Greengrass v2 components (catalog artifacts),
+// their component versions, core devices, and deployments.
 func scanGreengrassV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	if !greengrassV2Regions[region] {
 		return 0, 0, nil
 	}
 	client := greengrassv2.NewFromConfig(acct.cfg, func(o *greengrassv2.Options) { o.Region = region })
 
-	t, i, ferr := scanGGV2ComponentVersions(ctx, client, acct, region, st, scanID)
+	// ListComponents drives both the component rows and the per-component
+	// version fan-out — list once, reuse the ARN set.
+	compArns, t, i, ferr := scanGGV2Components(ctx, client, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanGGV2ComponentVersions(ctx, client, compArns, acct, region, st, scanID)
+	if ferr != nil {
+		return total, inserted, ferr
+	}
+	total += t
+	inserted += i
+
+	t, i, ferr = scanGGV2CoreDevices(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -68,28 +87,43 @@ func scanGreengrassV2(ctx context.Context, acct *account, region string, st *sto
 	return total, inserted, nil
 }
 
-func scanGGV2ComponentVersions(ctx context.Context, client greengrassV2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanGGV2Components upserts a component row per component and returns the
+// component ARN set for the version fan-out.
+func scanGGV2Components(ctx context.Context, client greengrassV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	var compArns []string
+	var batch []*store.Resource
 	var nextToken *string
 	for {
 		out, err := client.ListComponents(ctx, &greengrassv2.ListComponentsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "greengrass-v2:ListComponents", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "greengrass-v2:ListComponents", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("greengrass-v2:ListComponents: %w", err)
+			return nil, 0, 0, fmt.Errorf("greengrass-v2:ListComponents: %w", err)
 		}
 		for _, c := range out.Components {
-			if a := sv(c.Arn); a != "" {
-				compArns = append(compArns, a)
+			arn := sv(c.Arn)
+			if arn == "" {
+				continue
 			}
+			compArns = append(compArns, arn)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeGreengrassV2Component, NativeID: arn,
+				Name: c.ComponentName, Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
+	t, i, err := upsertBatch(st, batch, "greengrass-v2 components")
+	return compArns, t, i, err
+}
 
+func scanGGV2ComponentVersions(ctx context.Context, client greengrassV2API, compArns []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, c := range compArns {
 		compArn := c
@@ -126,6 +160,43 @@ func scanGGV2ComponentVersions(ctx context.Context, client greengrassV2API, acct
 		}
 	}
 	return upsertBatch(st, batch, "greengrass-v2 component-versions")
+}
+
+// scanGGV2CoreDevices discovers Greengrass v2 core devices. ListCoreDevices
+// summaries carry the IoT thing name and status but no ARN, so synthesize the
+// canonical coreDevices ARN from the thing name.
+func scanGGV2CoreDevices(ctx context.Context, client greengrassV2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var batch []*store.Resource
+	var nextToken *string
+	for {
+		out, err := client.ListCoreDevices(ctx, &greengrassv2.ListCoreDevicesInput{NextToken: nextToken})
+		if err != nil {
+			if isAccessDenied(err) {
+				return 0, 0, skipIfAccessDenied(st, "greengrass-v2:ListCoreDevices", acct.ID, region, err)
+			}
+			return 0, 0, fmt.Errorf("greengrass-v2:ListCoreDevices: %w", err)
+		}
+		for _, d := range out.CoreDevices {
+			thing := sv(d.CoreDeviceThingName)
+			if thing == "" {
+				continue
+			}
+			arn := fmt.Sprintf("arn:aws:greengrass:%s:%s:coreDevices:%s", region, acct.ID, thing)
+			name := thing
+			status := string(d.Status)
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeGreengrassV2CoreDevice, NativeID: arn,
+				Name: &name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}
+		if out.NextToken == nil || *out.NextToken == "" {
+			break
+		}
+		nextToken = out.NextToken
+	}
+	return upsertBatch(st, batch, "greengrass-v2 core-devices")
 }
 
 func scanGGV2Deployments(ctx context.Context, client greengrassV2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

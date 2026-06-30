@@ -705,6 +705,12 @@ func (coverageProvider) Aliases() map[string]string {
 		// GreengrassV2 — disco "greengrass-v2" segment vs CFN "GreengrassV2".
 		TypeGreengrassV2ComponentVersion: "AWS::GreengrassV2::ComponentVersion",
 		TypeGreengrassV2Deployment:       "AWS::GreengrassV2::Deployment",
+		// component + core-device are scanned via GreengrassV2 but the Service
+		// Reference catalogs them under the legacy "greengrass" service (no CFN
+		// twin), so the algorithmic AWS::GreengrassV2::* key won't match — bridge
+		// explicitly to the SR keys.
+		TypeGreengrassV2Component:  "AWS::greengrass::component",
+		TypeGreengrassV2CoreDevice: "AWS::greengrass::coreDevice",
 		// EMR — disco "emr:instance-fleet" vs CFN "InstanceFleetConfig"; "instance-group" vs "InstanceGroupConfig".
 		TypeEMRInstanceFleet: "AWS::EMR::InstanceFleetConfig",
 		TypeEMRInstanceGroup: "AWS::EMR::InstanceGroupConfig",

@@ -1023,6 +1023,8 @@ const (
 	// GreengrassV2 (greengrassv2_scanners.go)
 	TypeGreengrassV2ComponentVersion = "aws:greengrass-v2:component-version"
 	TypeGreengrassV2Deployment       = "aws:greengrass-v2:deployment"
+	TypeGreengrassV2Component        = "aws:greengrass-v2:component"
+	TypeGreengrassV2CoreDevice       = "aws:greengrass-v2:core-device"
 	// Forecast (forecast_scanners.go)
 	TypeForecastDataset        = "aws:forecast:dataset"
 	TypeForecastDatasetGroup   = "aws:forecast:dataset-group"
