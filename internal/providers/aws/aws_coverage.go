@@ -967,6 +967,7 @@ var serviceRenames = map[string]string{
 	"mgh":               "migrationhub",         // SR mgh ↔ scanned aws:migrationhub (SDK service migrationhub)
 	"opensearch":        "opensearchservice",    // SR opensearch ↔ CFN OpenSearchService / scanned aws:opensearchservice
 	"es":                "opensearchservice",    // legacy Elasticsearch IAM prefix ↔ CFN OpenSearchService
+	"profile":           "customerprofiles",     // SR profile ↔ CFN CustomerProfiles / scanned aws:customer-profiles
 }
 
 // CanonicalKey normalizes an "AWS::svc::res" upstream key to a catalog-agnostic

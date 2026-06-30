@@ -1303,6 +1303,95 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::organizations::handshake": "ephemeral: an organizations handshake (invitation), not a persistent resource",
 		"AWS::organizations::awspolicy": "duplicate: AWS-managed policies are returned by ListPolicies, scanned as aws:organizations:policy",
 
+		// panorama — package versions have no list op (fetched per-package via
+		// DescribePackageVersion); the packages themselves are scanned.
+		"AWS::Panorama::PackageVersion": "no SDK list op: package versions are fetched per-package via DescribePackageVersion",
+
+		// partnercentral (AWS Partner Central Selling) — APN co-sell pipeline CRM
+		// (opportunities, engagements, benefits, revenue), not cloud infrastructure
+		// resources in the scanned account. Out of disco's discovery scope.
+		"AWS::partnercentral::Benefit":                                 "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::BenefitAllocation":                       "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::BenefitApplication":                      "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ChannelHandshake":                        "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::Connection":                              "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ConnectionInvitation":                    "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ConnectionPreferences":                   "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::Dashboard":                               "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::Engagement":                              "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::engagement-by-accepting-invitation-task": "ephemeral: an async Partner Central engagement task, not a persistent resource",
+		"AWS::partnercentral::engagement-from-opportunity-task":        "ephemeral: an async Partner Central engagement task, not a persistent resource",
+		"AWS::partnercentral::engagement-invitation":                   "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::MarketplaceRevenueShare":                 "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::Opportunity":                             "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::OpportunityFromEngagementTask":           "ephemeral: an async Partner Central engagement task, not a persistent resource",
+		"AWS::partnercentral::Partner":                                 "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ProgramManagementAccount":                "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ProspectingFromEngagementTask":           "ephemeral: an async Partner Central engagement task, not a persistent resource",
+		"AWS::partnercentral::Relationship":                            "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::ResourceSnapshot":                        "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::resource-snapshot-job":                   "ephemeral: an async Partner Central snapshot job, not a persistent resource",
+		"AWS::partnercentral::RevenueAttribution":                      "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+		"AWS::partnercentral::Solution":                                "out-of-scope: AWS Partner Central co-sell CRM, not cloud infrastructure",
+
+		// payment-cryptography — no list op for approval teams in the SDK (the keys
+		// and aliases are scanned).
+		"AWS::payment-cryptography::approval-team": "no SDK list op: approval teams are not enumerable via the paymentcryptography SDK",
+
+		// payments / pricingplanmanager / purchase-orders — billing constructs with
+		// no aws-sdk-go-v2 client module.
+		"AWS::payments::payment-instrument":     "no SDK: no aws-sdk-go-v2 module for the payments service",
+		"AWS::pricingplanmanager::subscription": "no SDK: no aws-sdk-go-v2 module for the pricing-plan-manager service",
+		"AWS::purchase-orders::purchase-order":  "no SDK: no aws-sdk-go-v2 module for the purchase-orders service",
+
+		// personalize — algorithm/feature-transformation have no list op (legacy
+		// internal concepts); the *Job rows are ephemeral async executions. The
+		// campaigns/event-trackers/filters/metric-attributions/recommenders/recipes
+		// are scanned.
+		"AWS::personalize::algorithm":             "no SDK list op: Personalize algorithms are not enumerable",
+		"AWS::personalize::featureTransformation": "no SDK list op: Personalize feature transformations are not enumerable",
+		"AWS::personalize::batchInferenceJob":     "ephemeral: a Personalize batch inference job run, not a persistent resource",
+		"AWS::personalize::batchSegmentJob":       "ephemeral: a Personalize batch segment job run, not a persistent resource",
+		"AWS::personalize::dataDeletionJob":       "ephemeral: a Personalize data deletion job run, not a persistent resource",
+		"AWS::personalize::dataInsightsJob":       "ephemeral: a Personalize data insights job run, not a persistent resource",
+		"AWS::personalize::datasetExportJob":      "ephemeral: a Personalize dataset export job run, not a persistent resource",
+		"AWS::personalize::datasetImportJob":      "ephemeral: a Personalize dataset import job run, not a persistent resource",
+
+		// pi (Performance Insights) — metric/report endpoints are query-only
+		// data-plane APIs, not enumerable resources.
+		"AWS::pi::metric-resource":       "data-plane: Performance Insights is a query-only metrics API, not enumerable resources",
+		"AWS::pi::perf-reports-resource": "data-plane: Performance Insights is a query-only metrics API, not enumerable resources",
+
+		// pinpointemail — the Pinpoint Email API is superseded by SES v2; these
+		// resources are scanned under aws:ses:*.
+		"AWS::PinpointEmail::ConfigurationSet":                 "duplicate: superseded by SES v2, scanned as aws:ses:configuration-set",
+		"AWS::PinpointEmail::ConfigurationSetEventDestination": "duplicate: superseded by SES v2, scanned as aws:ses:configuration-set-event-destination",
+		"AWS::PinpointEmail::DedicatedIpPool":                  "duplicate: superseded by SES v2, scanned as aws:ses:dedicated-ip-pool",
+		"AWS::PinpointEmail::Identity":                         "duplicate: superseded by SES v2, scanned as aws:ses:email-identity",
+
+		// private-networks (AWS Private 5G) — discontinued; the aws-sdk-go-v2
+		// privatenetworks client marks the service "no longer available for use".
+		"AWS::private-networks::device-identifier": "discontinued: AWS Private 5G is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::private-networks::network":           "discontinued: AWS Private 5G is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::private-networks::network-resource":  "discontinued: AWS Private 5G is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::private-networks::network-site":      "discontinued: AWS Private 5G is deprecated and no longer available for use (SDK service marked deprecated)",
+		"AWS::private-networks::order":             "discontinued: AWS Private 5G is deprecated and no longer available for use (SDK service marked deprecated)",
+
+		// profile (Customer Profiles) — calculated-attributes is the SR spelling of
+		// the covered CalculatedAttributeDefinition (the canonical name carries a
+		// "Definition" suffix the rename can't fold). The other plural SR twins
+		// collapse onto aws:customer-profiles:* via the profile→customerprofiles
+		// serviceRename.
+		"AWS::profile::calculated-attributes": "duplicate of AWS::CustomerProfiles::CalculatedAttributeDefinition",
+
+		// proton — a template version is identified by major.minor and listed once
+		// (scanned as aws:proton:{environment,service}-template-version); the
+		// major/minor SR keys are facets of that same version.
+		"AWS::proton::environment-template-major-version": "duplicate: a template version (major.minor) is scanned as aws:proton:environment-template-version",
+		"AWS::proton::environment-template-minor-version": "duplicate: a template version (major.minor) is scanned as aws:proton:environment-template-version",
+		"AWS::proton::service-template-major-version":     "duplicate: a template version (major.minor) is scanned as aws:proton:service-template-version",
+		"AWS::proton::service-template-minor-version":     "duplicate: a template version (major.minor) is scanned as aws:proton:service-template-version",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
