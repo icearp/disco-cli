@@ -88,5 +88,8 @@ func scanSageMaker(ctx context.Context, acct *account, region string, st *store.
 		func(ctx context.Context) (int, int, error) {
 			return scanSageMakerMisc(ctx, client, acct, region, st, scanID)
 		},
+		func(ctx context.Context) (int, int, error) {
+			return scanSageMakerGovernance(ctx, client, acct, region, st, scanID)
+		},
 	)
 }

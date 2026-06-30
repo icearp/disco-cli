@@ -219,6 +219,7 @@ var expectedAWSServices = []string{
 	"aws:iotwireless",
 	"aws:ivs",
 	"aws:sagemaker",
+	"aws:sagemaker-geospatial",
 	"aws:vpclattice",
 	"aws:transfer",
 	"aws:wisdom",

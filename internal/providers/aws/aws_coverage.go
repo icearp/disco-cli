@@ -81,6 +81,24 @@ func (coverageProvider) Aliases() map[string]string {
 		// Reference catalog (no CFN PascalCase twin), spelled hyphenated, so the
 		// algorithmic key can't reproduce it; alias to the exact SR key.
 		TypeQBusinessChatResponseConfiguration: "AWS::qbusiness::chat-response-configuration",
+		// SageMaker — these resources appear only in the Service Reference catalog
+		// (no CFN PascalCase twin), spelled lower-cased + hyphenated, so the
+		// algorithmic key (which strips hyphens into PascalCase) can't reproduce
+		// them and there's no covered twin to collapse the SR row as a duplicate;
+		// alias each to the exact SR key.
+		TypeSageMakerAIWorkloadConfig:       "AWS::sagemaker::ai-workload-config",
+		TypeSageMakerClusterSchedulerConfig: "AWS::sagemaker::cluster-scheduler-config",
+		TypeSageMakerComputeQuota:           "AWS::sagemaker::compute-quota",
+		TypeSageMakerEdgeDeploymentPlan:     "AWS::sagemaker::edge-deployment-plan",
+		TypeSageMakerExperimentTrial:        "AWS::sagemaker::experiment-trial",
+		TypeSageMakerFlowDefinition:         "AWS::sagemaker::flow-definition",
+		TypeSageMakerHubContent:             "AWS::sagemaker::hub-content",
+		TypeSageMakerHumanTaskUI:            "AWS::sagemaker::human-task-ui",
+		TypeSageMakerLineageGroup:           "AWS::sagemaker::lineage-group",
+		TypeSageMakerTrainingPlan:           "AWS::sagemaker::training-plan",
+		// SageMaker Geospatial — disco's hyphenated service segment can't be
+		// reproduced by the PascalCase algorithmic key; alias to the exact SR key.
+		TypeSageMakerGeospatialRasterDataCollection: "AWS::sagemaker-geospatial::RasterDataCollection",
 		// RDS — Service-Reference-only types spelled lower-cased + hyphenated
 		// (no CFN PascalCase twin), so the algorithmic key (which strips
 		// hyphens) can't reproduce them; alias to the exact SR key.

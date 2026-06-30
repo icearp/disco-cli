@@ -668,6 +668,26 @@ const (
 	// SageMaker — Misc (sagemaker_misc_scanners.go)
 	TypeSageMakerCluster  = "aws:sagemaker:cluster"
 	TypeSageMakerWorkteam = "aws:sagemaker:workteam"
+	// SageMaker — Governance / lineage / hub (sagemaker_governance_scanners.go)
+	TypeSageMakerAction                 = "aws:sagemaker:action"
+	TypeSageMakerContext                = "aws:sagemaker:context"
+	TypeSageMakerExperiment             = "aws:sagemaker:experiment"
+	TypeSageMakerExperimentTrial        = "aws:sagemaker:experiment-trial"
+	TypeSageMakerHub                    = "aws:sagemaker:hub"
+	TypeSageMakerHubContent             = "aws:sagemaker:hub-content"
+	TypeSageMakerHumanTaskUI            = "aws:sagemaker:human-task-ui"
+	TypeSageMakerFlowDefinition         = "aws:sagemaker:flow-definition"
+	TypeSageMakerLineageGroup           = "aws:sagemaker:lineage-group"
+	TypeSageMakerAlgorithm              = "aws:sagemaker:algorithm"
+	TypeSageMakerWorkforce              = "aws:sagemaker:workforce"
+	TypeSageMakerComputeQuota           = "aws:sagemaker:compute-quota"
+	TypeSageMakerClusterSchedulerConfig = "aws:sagemaker:cluster-scheduler-config"
+	TypeSageMakerEdgeDeploymentPlan     = "aws:sagemaker:edge-deployment-plan"
+	TypeSageMakerAIWorkloadConfig       = "aws:sagemaker:ai-workload-config"
+	TypeSageMakerMlflowApp              = "aws:sagemaker:mlflow-app"
+	TypeSageMakerTrainingPlan           = "aws:sagemaker:training-plan"
+	// SageMaker Geospatial (sagemaker_geospatial_scanners.go)
+	TypeSageMakerGeospatialRasterDataCollection = "aws:sagemaker-geospatial:raster-data-collection"
 	// Connect — Core (connect_core_scanners.go)
 	TypeConnectInstance                 = "aws:connect:instance"
 	TypeConnectTrafficDistributionGroup = "aws:connect:traffic-distribution-group"
