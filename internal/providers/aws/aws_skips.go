@@ -1744,6 +1744,43 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::timestream-influxdb::db-cluster":  "duplicate: scanned as aws:timestream:influx-db-cluster",
 		"AWS::timestream-influxdb::db-instance": "duplicate: scanned as aws:timestream:influx-db-instance",
 
+		// vendor-insights / wickr — no aws-sdk-go-v2 client module.
+		"AWS::vendor-insights::DataSource":      "no SDK: no aws-sdk-go-v2 module for AWS Marketplace Vendor Insights",
+		"AWS::vendor-insights::SecurityProfile": "no SDK: no aws-sdk-go-v2 module for AWS Marketplace Vendor Insights",
+		"AWS::wickr::network":                   "no SDK: no aws-sdk-go-v2 module for AWS Wickr (admin is console/API-key only)",
+
+		// worklink / workdocs — discontinued / end-of-support services.
+		"AWS::worklink::fleet":        "service discontinued: Amazon WorkLink reached end of life; no enumerable fleets",
+		"AWS::workdocs::organization": "no SDK list op: WorkDocs admin requires per-organization auth tokens (service end-of-support)",
+
+		// vpce — PrivateLink endpoints/services are scanned under ec2.
+		"AWS::vpce::vpc-endpoint":         "duplicate: scanned as aws:ec2:vpc-endpoint",
+		"AWS::vpce::vpc-endpoint-service": "duplicate: scanned as aws:ec2:vpc-endpoint-service",
+
+		// vpc-lattice-svcs — the IAM-prefix spelling of VPC Lattice services.
+		"AWS::vpc-lattice-svcs::Service":     "duplicate: scanned as aws:vpclattice:service",
+		"AWS::vpc-lattice-svcs::TCP Service": "data-plane: an SR catalog artifact (per-listener TCP service), not a standalone resource",
+
+		// workmailmessageflow — raw email content is data-plane.
+		"AWS::workmailmessageflow::RawMessage": "data-plane: raw email message content, not a control-plane resource",
+
+		// workspaces — the *id rows are dups of the scanned workspace / pool types.
+		"AWS::workspaces::workspaceid":                   "duplicate: scanned as aws:workspaces:workspace",
+		"AWS::workspaces::workspacespoolid":              "duplicate: scanned as aws:workspaces:workspaces-pool",
+		"AWS::workspaces-instances::WorkspaceInstanceId": "duplicate: scanned as aws:workspacesinstances:workspace-instance",
+
+		// wafv2 — these SR rows are the resource TYPES a web ACL can be associated
+		// with (ListResourcesForWebACL targets), not wafv2 resources themselves.
+		"AWS::wafv2::agentcore-gateway":        "association target: a resource type a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::amplify-app":              "association target: a resource type a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::apigateway":               "association target: a resource type a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::apprunner":                "association target: a resource type a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::appsync":                  "association target: a resource type a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::loadbalancer/app/":        "association target: an ALB a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::userpool":                 "association target: a Cognito user pool a web ACL attaches to, not a wafv2 resource",
+		"AWS::wafv2::verified-access-instance": "association target: a Verified Access instance a web ACL attaches to, not a wafv2 resource",
+		"AWS::waf-regional::loadbalancer/app/": "association target: an ALB a web ACL attaches to, not a waf resource",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
