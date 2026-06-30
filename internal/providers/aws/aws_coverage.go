@@ -77,6 +77,18 @@ func (coverageProvider) ResolverEdgeSources() []string {
 // the algorithmic form (`AWS::<Service>::<Pascal>`) or need an entry here.
 func (coverageProvider) Aliases() map[string]string {
 	return map[string]string{
+		// VpcLattice — resource-endpoint-association appears only in the Service
+		// Reference catalog under the hyphenated service spelling "vpc-lattice"
+		// (no CFN twin), so neither the algorithmic key (disco service is the
+		// unhyphenated "vpclattice") nor a covered-twin collapse can reach it.
+		TypeVpcLatticeResourceEndpointAssociation: "AWS::vpc-lattice::ResourceEndpointAssociation",
+		// SMS-Voice — registration/attachment/verified-destination-number appear only
+		// in the Service Reference catalog under the hyphenated "sms-voice" service
+		// (no CFN twin; CFN models the others as AWS::SMSVOICE::*), so the algorithmic
+		// key (disco's unhyphenated "smsvoice") can't reach the SR key.
+		TypeSMSVoiceRegistration:              "AWS::sms-voice::Registration",
+		TypeSMSVoiceRegistrationAttachment:    "AWS::sms-voice::RegistrationAttachment",
+		TypeSMSVoiceVerifiedDestinationNumber: "AWS::sms-voice::VerifiedDestinationNumber",
 		// QBusiness — chat-response-configuration appears only in the Service
 		// Reference catalog (no CFN PascalCase twin), spelled hyphenated, so the
 		// algorithmic key can't reproduce it; alias to the exact SR key.

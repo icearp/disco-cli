@@ -20,6 +20,9 @@ func init() {
 			{Service: "sms-voice", DiscoType: TypeSMSVoicePool, Leaf: true},
 			{Service: "sms-voice", DiscoType: TypeSMSVoiceProtectConfiguration, Leaf: true},
 			{Service: "sms-voice", DiscoType: TypeSMSVoiceSenderID, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceRegistration, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceRegistrationAttachment, Leaf: true},
+			{Service: "sms-voice", DiscoType: TypeSMSVoiceVerifiedDestinationNumber, Leaf: true},
 		},
 	})
 }
@@ -31,6 +34,9 @@ type smsVoiceAPI interface {
 	DescribePools(context.Context, *pinpointsmsvoicev2.DescribePoolsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribePoolsOutput, error)
 	DescribeProtectConfigurations(context.Context, *pinpointsmsvoicev2.DescribeProtectConfigurationsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeProtectConfigurationsOutput, error)
 	DescribeSenderIds(context.Context, *pinpointsmsvoicev2.DescribeSenderIdsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeSenderIdsOutput, error)
+	DescribeRegistrations(context.Context, *pinpointsmsvoicev2.DescribeRegistrationsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRegistrationsOutput, error)
+	DescribeRegistrationAttachments(context.Context, *pinpointsmsvoicev2.DescribeRegistrationAttachmentsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRegistrationAttachmentsOutput, error)
+	DescribeVerifiedDestinationNumbers(context.Context, *pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersOutput, error)
 }
 
 func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -43,6 +49,11 @@ func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.S
 		func() (int, int, error) { return scanSVPools(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanSVProtectConfigurations(ctx, client, acct, region, st, scanID) },
 		func() (int, int, error) { return scanSVSenderIDs(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanSVRegistrations(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) { return scanSVRegistrationAttachments(ctx, client, acct, region, st, scanID) },
+		func() (int, int, error) {
+			return scanSVVerifiedDestinationNumbers(ctx, client, acct, region, st, scanID)
+		},
 	} {
 		t, i, perr := phase()
 		if perr != nil {
@@ -241,4 +252,97 @@ func scanSVSenderIDs(ctx context.Context, client smsVoiceAPI, acct *account, reg
 		}
 	}
 	return upsertBatch(st, batch, "sms-voice sender-ids")
+}
+
+func scanSVRegistrations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := pinpointsmsvoicev2.NewDescribeRegistrationsPaginator(client, &pinpointsmsvoicev2.DescribeRegistrationsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "sms-voice:DescribeRegistrations", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("sms-voice:DescribeRegistrations: %w", perr)
+		}
+		for _, r := range out.Registrations {
+			arn := sv(r.RegistrationArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(r.RegistrationId)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSMSVoiceRegistration, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sms-voice registrations")
+}
+
+func scanSVRegistrationAttachments(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := pinpointsmsvoicev2.NewDescribeRegistrationAttachmentsPaginator(client, &pinpointsmsvoicev2.DescribeRegistrationAttachmentsInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "sms-voice:DescribeRegistrationAttachments", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("sms-voice:DescribeRegistrationAttachments: %w", perr)
+		}
+		for _, a := range out.RegistrationAttachments {
+			arn := sv(a.RegistrationAttachmentArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(a.RegistrationAttachmentId)
+			if label == "" {
+				label = arn
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSMSVoiceRegistrationAttachment, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sms-voice registration-attachments")
+}
+
+func scanSVVerifiedDestinationNumbers(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pager := pinpointsmsvoicev2.NewDescribeVerifiedDestinationNumbersPaginator(client, &pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput{})
+	var batch []*store.Resource
+	for pager.HasMorePages() {
+		out, perr := pager.NextPage(ctx)
+		if perr != nil {
+			if isAccessDenied(perr) {
+				_ = skipIfAccessDenied(st, "sms-voice:DescribeVerifiedDestinationNumbers", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			return 0, 0, fmt.Errorf("sms-voice:DescribeVerifiedDestinationNumbers: %w", perr)
+		}
+		for _, n := range out.VerifiedDestinationNumbers {
+			arn := sv(n.VerifiedDestinationNumberArn)
+			if arn == "" {
+				continue
+			}
+			label := sv(n.DestinationPhoneNumber)
+			if label == "" {
+				label = sv(n.VerifiedDestinationNumberId)
+			}
+			batch = append(batch, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSMSVoiceVerifiedDestinationNumber, NativeID: arn,
+				Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
+			})
+		}
+	}
+	return upsertBatch(st, batch, "sms-voice verified-destination-numbers")
 }

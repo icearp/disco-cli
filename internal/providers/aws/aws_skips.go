@@ -1744,6 +1744,11 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::timestream-influxdb::db-cluster":  "duplicate: scanned as aws:timestream:influx-db-cluster",
 		"AWS::timestream-influxdb::db-instance": "duplicate: scanned as aws:timestream:influx-db-instance",
 
+		// securityhub — the delegated administrator is an org-level pointer (one
+		// account ID per org, set via EnableOrganizationAdminAccount), not a
+		// standalone discoverable resource.
+		"AWS::SecurityHub::DelegatedAdmin": "config: the org-level Security Hub delegated-admin account pointer, not a standalone resource",
+
 		// vendor-insights / wickr — no aws-sdk-go-v2 client module.
 		"AWS::vendor-insights::DataSource":      "no SDK: no aws-sdk-go-v2 module for AWS Marketplace Vendor Insights",
 		"AWS::vendor-insights::SecurityProfile": "no SDK: no aws-sdk-go-v2 module for AWS Marketplace Vendor Insights",
