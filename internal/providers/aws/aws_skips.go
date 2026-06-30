@@ -1108,6 +1108,114 @@ func (coverageProvider) Skips() map[string]string {
 		"AWS::lookoutvision::model":            "discontinued: Amazon Lookout for Vision is deprecated and no longer available for use (SDK service marked deprecated)",
 		"AWS::lookoutvision::project":          "discontinued: Amazon Lookout for Vision is deprecated and no longer available for use (SDK service marked deprecated)",
 
+		// machinelearning — Amazon Machine Learning (classic) has been closed to new
+		// users since 2018 and is effectively discontinued.
+		"AWS::machinelearning::batchprediction": "discontinued: Amazon Machine Learning (classic) is closed to new users and effectively retired",
+		"AWS::machinelearning::datasource":      "discontinued: Amazon Machine Learning (classic) is closed to new users and effectively retired",
+		"AWS::machinelearning::evaluation":      "discontinued: Amazon Machine Learning (classic) is closed to new users and effectively retired",
+		"AWS::machinelearning::mlmodel":         "discontinued: Amazon Machine Learning (classic) is closed to new users and effectively retired",
+
+		// macie2 — the Service Reference's macie2 spellings of the allow-list /
+		// custom-data-identifier / findings-filter disco scans under the CFN Macie
+		// spelling (aws:macie:*).
+		"AWS::macie2::AllowList":            "duplicate: scanned as aws:macie:allow-list",
+		"AWS::macie2::CustomDataIdentifier": "duplicate: scanned as aws:macie:custom-data-identifier",
+		"AWS::macie2::FindingsFilter":       "duplicate: scanned as aws:macie:findings-filter",
+
+		// managedblockchain — an invitation is a pending network-join request.
+		"AWS::managedblockchain::invitation": "ephemeral: a pending Managed Blockchain network invitation, not a persistent resource",
+
+		// mapcredits — the MAP (Migration Acceleration Program) credit agreement is a
+		// billing-program record with no aws-sdk-go-v2 module.
+		"AWS::mapcredits::agreement": "no SDK: a MAP credit agreement (billing program record), no aws-sdk-go-v2 module",
+
+		// mediaconnect — entitlement / output / source / vpc-interface are scanned as
+		// aws:mediaconnect:flow-*; media-stream is embedded in the flow; a gateway
+		// instance is a sub-resource of the scanned gateway; an offering is the AWS
+		// reservation-offerings catalog.
+		"AWS::mediaconnect::Entitlement":     "duplicate: scanned as aws:mediaconnect:flow-entitlement",
+		"AWS::mediaconnect::Output":          "duplicate: scanned as aws:mediaconnect:flow-output",
+		"AWS::mediaconnect::Source":          "duplicate: scanned as aws:mediaconnect:flow-source",
+		"AWS::mediaconnect::VpcInterface":    "duplicate: scanned as aws:mediaconnect:flow-vpc-interface",
+		"AWS::mediaconnect::MediaStream":     "sub-resource: a media stream embedded in the scanned aws:mediaconnect:flow",
+		"AWS::mediaconnect::GatewayInstance": "sub-resource: a gateway instance under the scanned aws:mediaconnect:gateway",
+		"AWS::mediaconnect::Offering":        "catalog: AWS MediaConnect reservation offerings, not an account resource",
+
+		// mediaconvert — a job is an ephemeral transcoding run; a certificate
+		// association is an ACM-cert binding, not a standalone resource.
+		"AWS::mediaconvert::Job":                    "ephemeral: a MediaConvert transcoding job run, not a persistent resource",
+		"AWS::mediaconvert::CertificateAssociation": "association: an ACM-certificate binding, not an enumerable resource",
+
+		// medialive — an offering is the AWS reservation-offerings catalog.
+		"AWS::medialive::offering": "catalog: AWS MediaLive reservation offerings, not an account resource",
+
+		// mediapackage / mediapackagev2 — harvest jobs are ephemeral VOD-harvest runs.
+		"AWS::mediapackage::harvest_jobs": "ephemeral: a MediaPackage VOD harvest job run, not a persistent resource",
+		"AWS::mediapackagev2::HarvestJob": "ephemeral: a MediaPackage v2 harvest job run, not a persistent resource",
+
+		// mediapackage-vod — the assets / packaging configurations / packaging groups
+		// disco scans under the aws:mediapackage:* segment.
+		"AWS::mediapackage-vod::assets":                   "duplicate: scanned as aws:mediapackage:asset",
+		"AWS::mediapackage-vod::packaging-configurations": "duplicate: scanned as aws:mediapackage:packaging-configuration",
+		"AWS::mediapackage-vod::packaging-groups":         "duplicate: scanned as aws:mediapackage:packaging-group",
+
+		// mediastore — AWS ended support for AWS Elemental MediaStore (November 2025).
+		"AWS::mediastore::container": "discontinued: AWS Elemental MediaStore reached end of support in November 2025",
+		"AWS::mediastore::folder":    "discontinued: AWS Elemental MediaStore reached end of support in November 2025",
+		"AWS::mediastore::object":    "discontinued: AWS Elemental MediaStore reached end of support in November 2025",
+
+		// medical-imaging — an image set is the high-cardinality image data inside a
+		// datastore (the datastore is scanned), not control-plane inventory.
+		"AWS::medical-imaging::imageset": "data: high-cardinality DICOM image-set data inside a datastore, not control-plane inventory",
+
+		// mobiletargeting (Amazon Pinpoint) — AWS marked Pinpoint end-of-support
+		// (the aws-sdk-go-v2 pinpoint client is service-deprecated); its apps /
+		// campaigns / journeys / segments / endpoints / metrics / messaging surfaces
+		// are not scanned.
+		"AWS::mobiletargeting::app":                                "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::application-metrics":                "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::apps":                               "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::attribute":                          "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::campaign":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::campaign-metrics":                   "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::channel":                            "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::channels":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::endpoint":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::events":                             "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::event-stream":                       "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::export-job":                         "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::import-job":                         "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::journey":                            "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::journey-execution-activity-metrics": "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::journey-execution-metrics":          "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::journey-metrics":                    "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::journeys":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::messages":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::otp":                                "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::phone-number-validate":              "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::recommender":                        "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::recommenders":                       "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::reports":                            "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::segment":                            "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::template":                           "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::templates":                          "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::user":                               "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+		"AWS::mobiletargeting::verify-otp":                         "discontinued: Amazon Pinpoint is deprecated (SDK service marked deprecated; end of support announced)",
+
+		// monitron — AWS ended support for Amazon Monitron; no aws-sdk-go-v2 module.
+		"AWS::monitron::project": "discontinued: Amazon Monitron reached end of support and publishes no aws-sdk-go-v2 module",
+
+		// mpa — a session is an ephemeral multi-party-approval request.
+		"AWS::mpa::session": "ephemeral: a multi-party-approval session, not a persistent resource",
+
+		// mq — the plural broker / configuration spellings of the scanned aws:mq:*.
+		"AWS::mq::brokers":        "duplicate: scanned as aws:mq:broker",
+		"AWS::mq::configurations": "duplicate: scanned as aws:mq:configuration",
+
+		// msk — a serverless cluster is scanned under the unified aws:kafka:cluster
+		// type (provisioned + serverless flavors on one resource).
+		"AWS::MSK::ServerlessCluster": "duplicate: serverless MSK is scanned under the unified aws:kafka:cluster type",
+
 		// geo (Amazon Location Service) — the api-key / map / tracker / etc. rows
 		// collapse onto aws:location:* via the geo→location serviceRename; job is an
 		// ephemeral batch run. The geo-maps / geo-places / geo-routes v2 APIs are
