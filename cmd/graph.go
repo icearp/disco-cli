@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"text/template"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/spf13/cobra"
@@ -508,8 +507,26 @@ func renderGraphBlastTable(g *store.GraphResult) error {
 	return w.Flush()
 }
 
-// nodeLabel renders a node's display label. If --label-template is set, the
-// template is applied; otherwise the default "type\nname" shape is used.
+// nodeLabel renders a node's display label. If --label-template is set, each
+// {{.Field}} placeholder is substituted; otherwise the default "type\nname"
+// shape is used.
+//
+// Deliberately a plain string substitution, NOT text/template, and that choice
+// is load-bearing for binary size. text/template's field evaluator
+// (text/template.(*state).evalField) calls reflect.Value.MethodByName with a
+// non-constant name. The Go linker treats any reachable non-constant
+// MethodByName as a signal to disable per-method dead-code elimination for the
+// ENTIRE binary (cmd/link/internal/ld/deadcode.go: the whole-link-unit
+// reflectSeen flag), which retains the full AWS SDK v2 method surface (~600MB).
+// This func is reachable from the always-compiled graph command; before this
+// change it was one of two reachable text/template call sites. Six flat string
+// fields don't need a template engine, so keep it out of the reachable graph.
+//
+// NOTE: removing this alone does not shrink the binary — the other call site is
+// OPA's gojsonschema (ast.Compiler.Compile → Compiler.init → loadSchema →
+// gojsonschema.formatErrorDescription), reachable via policy.NewEngine. Both
+// must be eliminated for DCE to re-engage. See CLAUDE.md "text/template defeats
+// linker DCE".
 func nodeLabel(r store.Resource) (string, error) {
 	if graphLabelTemplate == "" {
 		label := r.Type
@@ -518,23 +535,14 @@ func nodeLabel(r store.Resource) (string, error) {
 		}
 		return label, nil
 	}
-	tpl, err := template.New("label").Parse(graphLabelTemplate)
-	if err != nil {
-		return "", fmt.Errorf("parse --label-template: %w", err)
-	}
-	ctx := map[string]string{
-		"Name":     ptrOrEmpty(r.Name),
-		"Type":     r.Type,
-		"Provider": r.Provider,
-		"Account":  r.AccountID,
-		"Region":   ptrOrEmpty(r.Region),
-		"NativeID": r.NativeID,
-	}
-	var b strings.Builder
-	if err := tpl.Execute(&b, ctx); err != nil {
-		return "", fmt.Errorf("execute --label-template: %w", err)
-	}
-	return b.String(), nil
+	return strings.NewReplacer(
+		"{{.Name}}", ptrOrEmpty(r.Name),
+		"{{.Type}}", r.Type,
+		"{{.Provider}}", r.Provider,
+		"{{.Account}}", r.AccountID,
+		"{{.Region}}", ptrOrEmpty(r.Region),
+		"{{.NativeID}}", r.NativeID,
+	).Replace(graphLabelTemplate), nil
 }
 
 // ptrOrEmpty mirrors ptrOrDash but returns "" instead of "-" — required for
@@ -741,7 +749,7 @@ func init() {
 	graphCmd.PersistentFlags().IntVar(&graphMaxEdges, "max-edges", 0, "Cap edges (0 = unlimited)")
 	graphCmd.PersistentFlags().StringVar(&graphCluster, "cluster", "", "Cluster nodes in dot/mermaid output by: provider, region, account")
 	_ = graphCmd.RegisterFlagCompletionFunc("cluster", staticCompletion("provider", "region", "account"))
-	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "text/template for dot/mermaid labels; fields: Name, Type, Provider, Account, Region, NativeID")
+	graphCmd.PersistentFlags().StringVar(&graphLabelTemplate, "label-template", "", "dot/mermaid label with {{.Field}} placeholders; fields: Name, Type, Provider, Account, Region, NativeID")
 	graphCmd.PersistentFlags().StringVar(&graphDotTheme, "dot-theme", "light", "DOT styling theme: "+strings.Join(dotThemeNames(), ", "))
 	_ = graphCmd.RegisterFlagCompletionFunc("dot-theme", staticCompletion(dotThemeNames()...))
 	graphCmd.PersistentFlags().StringVar(&graphRankdir, "rankdir", "LR", "DOT layout direction: LR, RL, TB, BT (RL inverts horizontally — handy when edges flow child→parent)")

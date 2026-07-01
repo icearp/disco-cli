@@ -52,6 +52,33 @@ Version stamp: `make build` injects `git describe --tags --always --dirty=+dirty
 
 Storage: `modernc.org/sqlite` — pure-Go SQLite transpile. Cross-platform single-binary, no C toolchain. **Never swap for `mattn/go-sqlite3` or any CGO dep.**
 
+### text/template defeats linker DCE (binary-size landmine)
+
+`text/template` (and `html/template`) execution calls `reflect.Value.MethodByName` with a
+non-constant name inside `text/template.(*state).evalField`. The Go linker treats any
+**reachable** non-constant `MethodByName` as a signal to disable per-method dead-code
+elimination for the **entire binary** — one whole-link-unit `reflectSeen` flag in
+`cmd/link/internal/ld/deadcode.go`. Once tripped, the full AWS SDK v2 method surface is
+retained: the `-tags "slim aws"` build balloons from ~199MB to ~780MB (default build worse).
+This is per-link-invocation, so it is a property of *this* binary's reachable graph.
+
+Rule: **never make `text/template`/`html/template` reachable from disco's own code.** For any
+label/format templating over a fixed field set, use `strings.NewReplacer` / `fmt.Sprintf`
+instead (precedent: `cmd/graph.go:nodeLabel`, `--label-template`).
+
+Two known reachable call sites existed:
+1. `cmd/graph.go:nodeLabel` (`--label-template`) — **fixed** (plain substitution).
+2. OPA's vendored `internal/gojsonschema.formatErrorDescription`, reachable via
+   `policy.NewEngine → ast.Compiler.Compile → Compiler.init → loadSchema` — **outstanding**.
+   Not fixable from disco (no OPA API removes the static edge; `WithCapabilities`/`WithSchemas`
+   don't cut it). Requires a minimal OPA delta-fork of the schema-error formatter (paired with
+   an upstream PR to opa#7903) or link-unit isolation (companion binary). Until then, removing
+   #1 alone does **not** shrink the binary — both sites must go for DCE to re-engage.
+
+Guard when investigating: `go build -ldflags=-dumpdep 2>deps.txt` then
+`grep ' -> text/template.(*Template).execute$' deps.txt` lists the reachable callers;
+`go tool nm <binary> | grep -c evalField` is 0 only when DCE is healthy.
+
 ### Data flow
 
 ```
