@@ -126,7 +126,7 @@ func runOrgServices(ctx context.Context, scopes []orgScope, filter []string, st 
 		if err != nil {
 			// API-not-enabled at the org scope (accesscontextmanager,
 			// org-policy, etc.) returns the errServiceDisabled sentinel —
-			// mirror scanProject and surface "(service disabled)" instead
+			// mirror scanProject and surface "(project: disabled)" instead
 			// of an error.
 			if errors.Is(err, errServiceDisabled) {
 				st.ReportService(svc.name, "org", 0, 0, 0, 0, store.ServiceDisabled)

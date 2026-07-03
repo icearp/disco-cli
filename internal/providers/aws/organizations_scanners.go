@@ -218,7 +218,7 @@ func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *accoun
 	descOrg, err := client.DescribeOrganization(ctx, &organizations.DescribeOrganizationInput{})
 	if err != nil {
 		// Standalone account — never joined an Organization. Default state,
-		// not a fault. Surface "(service disabled)" with no warning.
+		// not a fault. Surface "(account: disabled)" with no warning.
 		if isAPIErrorCode(err, "AWSOrganizationsNotInUseException") {
 			return nil, 0, 0, markServiceDisabled(err)
 		}

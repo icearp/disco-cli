@@ -64,14 +64,18 @@ func bcmPricingCalculatorNativeID(acct, kind, id string) string {
 }
 
 // bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
-// value a phase should return: the markServiceDisabled sentinel for account-
-// level not-enabled / payer-only states (halts the scanner), nil for the
-// migration-required IAM deny and the soft access-denied skip (the orchestrator
-// continues to the next phase), or a wrapped fatal error otherwise.
+// value a phase should return: the markServiceDisabled sentinel when the
+// account hasn't enabled Cost Explorer (self-enableable → (account: disabled)),
+// the markServiceNotEntitled sentinel for the payer-only topology gate (a
+// member account can't self-enable → (account: not entitled)), nil for
+// the migration-required IAM deny and the soft access-denied skip (the
+// orchestrator continues to the next phase), or a wrapped fatal error otherwise.
 func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error {
 	switch {
-	case isCostExplorerNotEnabled(perr), isPayerAccountOnly(perr):
+	case isCostExplorerNotEnabled(perr):
 		return markServiceDisabled(perr)
+	case isPayerAccountOnly(perr):
+		return markServiceNotEntitled(perr)
 	case isMigrationRequiredIAMDeny(perr):
 		return nil
 	case isAccessDenied(perr):

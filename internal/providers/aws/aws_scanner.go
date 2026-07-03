@@ -205,6 +205,10 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceDisabled)
 					return
 				}
+				if errors.Is(err, errServiceNotEntitled) {
+					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceNotEntitled)
+					return
+				}
 				// NXDOMAIN or a scanner-returned unavailable sentinel = service
 				// not deployed in this scope. Silent-skip (no warning) —
 				// distinct from a transient DNS outage.
@@ -348,6 +352,10 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
 					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceDisabled)
+					return
+				}
+				if errors.Is(err, errServiceNotEntitled) {
+					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceNotEntitled)
 					return
 				}
 				// NXDOMAIN or a scanner-returned unavailable sentinel = service

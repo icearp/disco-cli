@@ -32,7 +32,7 @@ func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store
 		out, err := client.ListInvoiceUnits(ctx, &invoicing.ListInvoiceUnitsInput{NextToken: nextToken})
 		if err != nil {
 			if isPayerAccountOnly(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "invoicing:ListInvoiceUnits", acct.ID, region, err)

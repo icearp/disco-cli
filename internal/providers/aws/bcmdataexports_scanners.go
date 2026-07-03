@@ -39,7 +39,7 @@ func scanBCMDataExportsExports(ctx context.Context, client bcmDataExportsAPI, ac
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isPayerAccountOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
+				return total, inserted, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "bcmdataexports:ListExports", acct.ID, region, perr)

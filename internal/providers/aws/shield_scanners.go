@@ -102,7 +102,7 @@ func isShieldNotSubscribed(err error) bool {
 // gateShieldSubscription detects whether the account has an active Shield
 // Advanced subscription. Accounts without one surface ResourceNotFoundException
 // — returned wrapped via markServiceDisabled so the dispatcher renders
-// "(service disabled)" rather than an error. The subscription itself is
+// "(account: disabled)" rather than an error. The subscription itself is
 // account-wide config, not an ARN'd resource, so no row is upserted.
 func gateShieldSubscription(ctx context.Context, client shieldAPI, acct *account, st *store.Store) error {
 	if _, derr := client.DescribeSubscription(ctx, &shield.DescribeSubscriptionInput{}); derr != nil {

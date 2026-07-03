@@ -36,7 +36,7 @@ func scanVoiceID(ctx context.Context, acct *account, region string, st *store.St
 		out, err := client.ListDomains(ctx, &voiceid.ListDomainsInput{NextToken: nextToken})
 		if err != nil {
 			if isVoiceIDNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "voice-id:ListDomains", acct.ID, region, err)

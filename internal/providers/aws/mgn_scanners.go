@@ -57,6 +57,9 @@ func scanMGN(ctx context.Context, acct *account, region string, st *store.Store,
 		total += t
 		inserted += i
 		if ferr != nil {
+			if isAccountNotInitialized(ferr) {
+				return 0, 0, markServiceDisabled(ferr)
+			}
 			return total, inserted, ferr
 		}
 	}

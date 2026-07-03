@@ -38,6 +38,11 @@ func scanLicenseManagerLinuxSubscriptionsEntities(ctx context.Context, client li
 	for p.HasMorePages() {
 		out, err := p.NextPage(ctx)
 		if err != nil {
+			// Account not onboarded to Linux subscriptions (discovery disabled) —
+			// the whole service is inert, so mark it disabled instead of erroring.
+			if isAPIErrorWithMessage(err, "ValidationException", "onboarded to Linux subscriptions") {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "license-manager-linux-subscriptions:ListRegisteredSubscriptionProviders", acct.ID, region, err)
 			}

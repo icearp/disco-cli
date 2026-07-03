@@ -76,6 +76,13 @@ func scanLMUSIdentityProviders(ctx context.Context, client licenseManagerUserSub
 	for p.HasMorePages() {
 		out, err := p.NextPage(ctx)
 		if err != nil {
+			// Missing service-linked role = the account never activated User
+			// Subscriptions; every op fails the same way. Self-enableable
+			// (register an identity provider), so (account: disabled). Returning
+			// the sentinel halts the sibling phases that would each re-warn.
+			if isAccessDeniedWithMessage(err, "Service Linked role is not present") {
+				return nil, 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return nil, 0, 0, skipIfAccessDenied(st, "license-manager-user-subscriptions:ListIdentityProviders", acct.ID, region, err)
 			}

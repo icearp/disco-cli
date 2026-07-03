@@ -70,15 +70,16 @@ func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *sto
 }
 
 // gateIoTFleetWise probes the cheapest list op once. If it returns the
-// closed-to-new-customers shape (empty-message AccessDeniedException),
-// short-circuit the whole scanner via markServiceDisabled so the dispatcher
-// renders `(service disabled)` once instead of N per-phase warnings. Any
-// other error or success returns nil and the phase loop runs.
+// closed-to-new-customers shape (empty-message AccessDeniedException), the
+// account can't self-enable the service — short-circuit via
+// markServiceNotEntitled so the dispatcher renders `(not available to this
+// account)` once instead of N per-phase warnings. Any other error or success
+// returns nil and the phase loop runs.
 func gateIoTFleetWise(ctx context.Context, client iotFWAPI) error {
 	mr := int32(1)
 	_, err := client.ListCampaigns(ctx, &iotfleetwise.ListCampaignsInput{MaxResults: &mr})
 	if err != nil && isClosedToNewCustomers(err) {
-		return markServiceDisabled(err)
+		return markServiceNotEntitled(err)
 	}
 	return nil
 }

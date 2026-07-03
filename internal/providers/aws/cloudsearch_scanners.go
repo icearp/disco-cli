@@ -35,6 +35,12 @@ func scanCloudSearch(ctx context.Context, acct *account, region string, st *stor
 func scanCloudSearchWithClient(ctx context.Context, client cloudSearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	names, err := client.ListDomainNames(ctx, &cloudsearch.ListDomainNamesInput{})
 	if err != nil {
+		// Accounts AWS hasn't made eligible for CloudSearch get NotAuthorized
+		// "New domain creation not supported on this account" — not self-
+		// enableable (requires AWS Support), so (account: not entitled).
+		if isAPIErrorWithMessage(err, "NotAuthorized", "not supported on this account") {
+			return 0, 0, markServiceNotEntitled(err)
+		}
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "cloudsearch:ListDomainNames", acct.ID, region, err)
 		}

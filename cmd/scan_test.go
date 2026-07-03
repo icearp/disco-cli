@@ -81,20 +81,26 @@ func TestRunScan_QuietGatesBanners(t *testing.T) {
 func TestServiceStatusSuffix(t *testing.T) {
 	cases := []struct {
 		name     string
+		service  string
 		status   store.ServiceStatus
 		errCount int
 		want     string
 	}{
-		{"ok", store.ServiceOK, 0, ""},
-		{"unavailable", store.ServiceUnavailable, 0, "  (service unavailable)"},
-		{"disabled", store.ServiceDisabled, 0, "  (service disabled)"},
-		{"errors", store.ServiceOK, 3, "  (with errors)"},
-		{"unavailable beats errors", store.ServiceUnavailable, 3, "  (service unavailable)"},
+		{"ok", "aws:ec2", store.ServiceOK, 0, ""},
+		{"unavailable", "aws:omics", store.ServiceUnavailable, 0, "  (region: unavailable)"},
+		// ServiceDisabled is shared across providers; the scope noun tracks the
+		// provider prefix (account / project / subscription).
+		{"aws disabled", "aws:macie", store.ServiceDisabled, 0, "  (account: disabled)"},
+		{"gcp disabled", "gcp:compute", store.ServiceDisabled, 0, "  (project: disabled)"},
+		{"azure disabled", "azure:microsoft.compute", store.ServiceDisabled, 0, "  (subscription: disabled)"},
+		{"not entitled", "aws:kendra", store.ServiceNotEntitled, 0, "  (account: not entitled)"},
+		{"errors", "aws:s3", store.ServiceOK, 3, "  (with errors)"},
+		{"unavailable beats errors", "aws:omics", store.ServiceUnavailable, 3, "  (region: unavailable)"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := serviceStatusSuffix(c.status, c.errCount); got != c.want {
-				t.Errorf("serviceStatusSuffix(%v, %d) = %q; want %q", c.status, c.errCount, got, c.want)
+			if got := serviceStatusSuffix(c.service, c.status, c.errCount); got != c.want {
+				t.Errorf("serviceStatusSuffix(%q, %v, %d) = %q; want %q", c.service, c.status, c.errCount, got, c.want)
 			}
 		})
 	}

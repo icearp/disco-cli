@@ -48,7 +48,7 @@ func scanInterconnect(ctx context.Context, acct *account, region string, st *sto
 		out, err := client.ListConnections(ctx, &interconnect.ListConnectionsInput{NextToken: nextToken})
 		if err != nil {
 			if isInterconnectClosedToAccount(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "interconnect:ListConnections", acct.ID, region, err)

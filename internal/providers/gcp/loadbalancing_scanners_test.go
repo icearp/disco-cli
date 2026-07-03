@@ -83,7 +83,7 @@ func TestScanForwardingRules_PermissionDenied(t *testing.T) {
 // TestScanForwardingRules_APINotEnabled verifies an API-not-enabled 403 is
 // translated into the errServiceDisabled sentinel by skipIfDenied →
 // markServiceDisabled. The dispatch loop in scanProject (untested here)
-// detects the sentinel via errors.Is and renders "(service disabled)".
+// detects the sentinel via errors.Is and renders "(project: disabled)".
 func TestScanForwardingRules_APINotEnabled(t *testing.T) {
 	st := newTestStore(t)
 	p := newTestProject("my-project")

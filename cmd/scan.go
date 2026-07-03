@@ -238,7 +238,7 @@ func runScan(cmd *cobra.Command, scanners []providers.Scanner) error {
 		if quiet {
 			return
 		}
-		suffix := serviceStatusSuffix(status, errCount)
+		suffix := serviceStatusSuffix(service, status, errCount)
 		p.line(fmt.Sprintf("  %s %-*s  %-*s  (%d total, %d new, %d changed)%s",
 			elapsedField(time.Since(start)), nameWidth, service, scopeWidth, scope, total, newCount, changed, suffix))
 	}
@@ -325,16 +325,39 @@ func elapsedField(d time.Duration) string {
 	return fmt.Sprintf("%-8s", "["+d.Round(time.Second).String()+"]")
 }
 
+// tenantNoun returns the account-scope word for the provider that owns service
+// (an "aws:ec2" / "gcp:compute" / "azure:x" style name). Used to render the
+// scope half of a "(<scope>: <state>)" status suffix so a shared status like
+// ServiceDisabled reads correctly across providers (AWS account, GCP project,
+// Azure subscription) even though one render path serves all three.
+func tenantNoun(service string) string {
+	provider, _, _ := strings.Cut(service, ":")
+	switch provider {
+	case "gcp":
+		return "project"
+	case "azure":
+		return "subscription"
+	default: // aws, and any future provider until it earns its own noun
+		return "account"
+	}
+}
+
 // serviceStatusSuffix renders the trailing annotation on a per-service scan
-// progress line. ServiceUnavailable (not deployed in this AWS region) and
-// ServiceDisabled (account hasn't enabled it) are mutually exclusive with the
-// error suffix, since a skipped service produces no errors.
-func serviceStatusSuffix(status store.ServiceStatus, errCount int) string {
+// progress line as a uniform "(<scope>: <state>)": ServiceUnavailable →
+// "(region: unavailable)" (service not deployed in this AWS region),
+// ServiceDisabled → "(<tenant>: disabled)" (the account/project/subscription
+// hasn't enabled it but could), ServiceNotEntitled → "(<tenant>: not entitled)"
+// (exists but the tenant can't self-enable it). All three are mutually exclusive
+// with the error suffix, since a skipped service produces no errors. The tenant
+// noun is derived from service's provider prefix via tenantNoun.
+func serviceStatusSuffix(service string, status store.ServiceStatus, errCount int) string {
 	switch {
 	case status == store.ServiceUnavailable:
-		return "  (service unavailable)"
+		return "  (region: unavailable)"
 	case status == store.ServiceDisabled:
-		return "  (service disabled)"
+		return fmt.Sprintf("  (%s: disabled)", tenantNoun(service))
+	case status == store.ServiceNotEntitled:
+		return fmt.Sprintf("  (%s: not entitled)", tenantNoun(service))
 	case errCount > 0:
 		return "  (with errors)"
 	}

@@ -48,14 +48,14 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 	total += t
 	inserted += i
 
-	t, i, ferr = scanRHAppAssessments(ctx, client, acct, region, st, scanID)
+	assessmentARNs, t, i, ferr := scanRHAppAssessments(ctx, client, acct, region, st, scanID)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
 	total += t
 	inserted += i
 
-	t, i, ferr = scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID)
+	t, i, ferr = scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID, assessmentARNs)
 	if ferr != nil {
 		return total, inserted, ferr
 	}
@@ -127,22 +127,27 @@ func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct
 	return upsertBatch(st, batch, "resilience-hub resiliency-policies")
 }
 
-func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanRHAppAssessments upserts app-assessments and returns their ARNs — the
+// fan-out driver for scanRHRecommendationTemplates, whose ListRecommendationTemplates
+// op requires an assessmentArn (server-required; the SDK v2 validator omits it).
+func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
 	pager := resiliencehub.NewListAppAssessmentsPaginator(client, &resiliencehub.ListAppAssessmentsInput{})
 	var batch []*store.Resource
+	var assessmentARNs []string
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resiliencehub:ListAppAssessments", acct.ID, region, err)
+				return nil, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListAppAssessments", acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("resiliencehub:ListAppAssessments: %w", err)
+			return nil, 0, 0, fmt.Errorf("resiliencehub:ListAppAssessments: %w", err)
 		}
 		for _, a := range out.AssessmentSummaries {
 			arn := sv(a.AssessmentArn)
 			if arn == "" {
 				continue
 			}
+			assessmentARNs = append(assessmentARNs, arn)
 			status := string(a.AssessmentStatus)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -152,31 +157,40 @@ func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *ac
 			})
 		}
 	}
-	return upsertBatch(st, batch, "resilience-hub app-assessments")
+	t, i, err := upsertBatch(st, batch, "resilience-hub app-assessments")
+	return assessmentARNs, t, i, err
 }
 
-func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := resiliencehub.NewListRecommendationTemplatesPaginator(client, &resiliencehub.ListRecommendationTemplatesInput{})
+// scanRHRecommendationTemplates fans out per assessment ARN: ListRecommendationTemplates
+// requires an assessmentArn server-side (the SDK v2 validator doesn't enforce it),
+// so an empty-input call fails with a garbled "explicit deny on resource: *".
+// Empty assessmentARNs → zero API calls.
+func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessmentARNs []string) (int, int, error) {
 	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resiliencehub:ListRecommendationTemplates", acct.ID, region, err)
+	for _, assessmentARN := range assessmentARNs {
+		pager := resiliencehub.NewListRecommendationTemplatesPaginator(client, &resiliencehub.ListRecommendationTemplatesInput{AssessmentArn: &assessmentARN})
+		for pager.HasMorePages() {
+			out, err := pager.NextPage(ctx)
+			if err != nil {
+				// Tolerate a per-assessment denial; keep scanning siblings.
+				if isAccessDenied(err) {
+					_ = skipIfAccessDenied(st, "resiliencehub:ListRecommendationTemplates", acct.ID, region, err)
+					break
+				}
+				return 0, 0, fmt.Errorf("resiliencehub:ListRecommendationTemplates: %w", err)
 			}
-			return 0, 0, fmt.Errorf("resiliencehub:ListRecommendationTemplates: %w", err)
-		}
-		for _, rt := range out.RecommendationTemplates {
-			arn := sv(rt.RecommendationTemplateArn)
-			if arn == "" {
-				continue
+			for _, rt := range out.RecommendationTemplates {
+				arn := sv(rt.RecommendationTemplateArn)
+				if arn == "" {
+					continue
+				}
+				batch = append(batch, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeResilienceHubRecommendationTemplate, NativeID: arn,
+					Name: rt.Name, Region: &region,
+					AttributesJSON: mustJSON(rt), DiscoveredBy: scanID,
+				})
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeResilienceHubRecommendationTemplate, NativeID: arn,
-				Name: rt.Name, Region: &region,
-				AttributesJSON: mustJSON(rt), DiscoveredBy: scanID,
-			})
 		}
 	}
 	return upsertBatch(st, batch, "resilience-hub recommendation-templates")

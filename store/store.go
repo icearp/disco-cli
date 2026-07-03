@@ -60,15 +60,23 @@ const (
 )
 
 // ServiceStatus is the terminal state of a per-service scan, surfaced as a
-// suffix on the progress line. ServiceDisabled = the account/subscription/project
-// has not enabled the service (the user could turn it on). ServiceUnavailable =
-// the service is not deployed in this AWS region (nothing the user can do).
+// uniform "(<scope>: <state>)" suffix on the progress line (see
+// cmd/scan.go::serviceStatusSuffix). ServiceDisabled = the
+// account/subscription/project has not enabled the service but could turn it on
+// → "(<tenant>: disabled)". ServiceUnavailable = the service is not deployed in
+// this AWS region (nothing the user can do) → "(region: unavailable)".
+// ServiceNotEntitled = the service exists but the tenant is not entitled to it
+// and cannot self-enable it — a paid support-tier gate (Trusted Advisor API), a
+// service closed to new customers (Migration Hub), or an account AWS has not made
+// eligible (CloudSearch) → "(<tenant>: not entitled)". Distinct from
+// ServiceDisabled precisely because there is no toggle the user controls.
 type ServiceStatus uint8
 
 const (
 	ServiceOK ServiceStatus = iota
 	ServiceDisabled
 	ServiceUnavailable
+	ServiceNotEntitled
 )
 
 type Store struct {
@@ -77,7 +85,7 @@ type Store struct {
 	driver            driver
 	readOnly          bool                                                                                      // true iff opened via OpenReadOnly; gates the Close-time WAL checkpoint+cleanup off a RO DB.
 	path              string                                                                                    // SQLite file path; set by Open. Names the DB in the WAL-cleanup-deferred diagnostic.
-	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(service disabled)" / "(service unavailable)"
+	OnServiceComplete func(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) // after each service scan; scope = AWS region (or "global"), Azure subscription ID, GCP project ID; errCount>0 surfaces "(with errors)", status surfaces "(<tenant>: disabled)" / "(region: unavailable)" / "(<tenant>: not entitled)"
 	OnResolveStart    func(provider string)                                                                     // just before phase-2 resolvers run
 	OnResolveComplete func(provider string, edges int)                                                          // after all resolvers finish
 	OnWarn            func(ScanWarning)                                                                         // skip-worthy error handled (transient, access-denied)
@@ -97,8 +105,10 @@ type Store struct {
 // or tags changed this scan (a version split), errCount = number of errors
 // encountered while scanning this service (>0 surfaces as a "(with errors)"
 // suffix on the progress line). status = ServiceDisabled (not enabled in this
-// account) or ServiceUnavailable (not deployed in this AWS region); either
-// surfaces as a suffix and is mutually exclusive with errCount>0 since a
+// account/project/subscription), ServiceNotEntitled (exists but the tenant can't
+// self-enable it), or ServiceUnavailable (not deployed in this AWS region); each
+// surfaces as a "(<scope>: <state>)" suffix and is mutually exclusive with
+// errCount>0 since a
 // skipped service emits no errors.
 func (s *Store) ReportService(service, scope string, total, newCount, changed, errCount int, status ServiceStatus) {
 	if s.OnServiceComplete != nil {

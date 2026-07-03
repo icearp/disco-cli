@@ -46,18 +46,19 @@ func (s *stubIoTFW) ListVehicles(_ context.Context, _ *iotfleetwise.ListVehicles
 
 // TestGateIoTFleetWiseClosedToAccount verifies the empty-message
 // AccessDeniedException — the closed-to-new-customers signal — yields a
-// disabled-service sentinel so the dispatcher renders `(service disabled)`
-// instead of N per-phase warnings.
+// not-entitled sentinel (the account can't self-enable IoT FleetWise) so the
+// dispatcher renders `(account: not entitled)` instead of N per-phase
+// warnings.
 func TestGateIoTFleetWiseClosedToAccount(t *testing.T) {
 	stub := &stubIoTFW{
 		listCampaignsErr: &smithy.GenericAPIError{Code: "AccessDeniedException", Message: ""},
 	}
 	err := gateIoTFleetWise(context.Background(), stub)
 	if err == nil {
-		t.Fatal("expected disabled sentinel; got nil")
+		t.Fatal("expected not-entitled sentinel; got nil")
 	}
-	if !errors.Is(err, errServiceDisabled) {
-		t.Fatalf("expected errServiceDisabled; got %v", err)
+	if !errors.Is(err, errServiceNotEntitled) {
+		t.Fatalf("expected errServiceNotEntitled; got %v", err)
 	}
 }
 

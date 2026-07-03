@@ -45,6 +45,12 @@ func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, a
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
+			// Migration Hub closed to new customers (Nov 2025); the whole service
+			// is inert for this account and can't be enabled. The sentinel halts
+			// the sibling templates phase too.
+			if isAccessDeniedWithMessage(err, "no longer open to new customers") {
+				return 0, 0, markServiceNotEntitled(err)
+			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListWorkflows", acct.ID, region, err)
 				break

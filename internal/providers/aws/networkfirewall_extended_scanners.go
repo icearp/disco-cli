@@ -48,12 +48,25 @@ func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI,
 	return total, inserted, nil
 }
 
+// isProxyPreviewRegionGap matches the InvalidRequestException that AWS Network
+// Firewall's proxy ops (public preview, us-east-2 only as of 2026-07) return
+// from any region where the preview isn't served ("The API being called does
+// not exist"). Per-region silent-skip — the rest of NetworkFirewall scans, and
+// these ops start returning data automatically wherever the preview reaches,
+// with no code change (self-healing, vs a hardcoded region gate).
+func isProxyPreviewRegionGap(err error) bool {
+	return isAPIErrorWithMessage(err, "InvalidRequestException", "does not exist")
+}
+
 func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := networkfirewall.NewListProxyConfigurationsPaginator(client, &networkfirewall.ListProxyConfigurationsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isProxyPreviewRegionGap(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyConfigurations", acct.ID, region, err)
 			}
@@ -81,6 +94,9 @@ func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct 
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			if isProxyPreviewRegionGap(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyRuleGroups", acct.ID, region, err)
 			}

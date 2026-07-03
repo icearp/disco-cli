@@ -118,28 +118,47 @@ func TestBcmPCListErr(t *testing.T) {
 		return &smithy.GenericAPIError{Code: code, Message: msg}
 	}
 	tests := []struct {
-		name        string
-		err         error
-		wantDisable bool // errors.Is(got, errServiceDisabled)
-		wantNil     bool
+		name            string
+		err             error
+		wantDisable     bool // errors.Is(got, errServiceDisabled)
+		wantNotEntitled bool // errors.Is(got, errServiceNotEntitled)
+		wantNil         bool
 	}{
-		{"cost-explorer-not-enabled", apiErr("AccessDeniedException", "User not enabled for cost explorer access"), true, false},
-		{"payer-only", apiErr("ValidationException", "Operation not permitted for member accounts. This API is only allowed for regular or payer accounts."), true, false},
-		{"migration-required", apiErr("AccessDeniedException", "Migrate the policies in your account to use the new IAM actions"), false, true},
-		{"generic-access-denied", apiErr("AccessDeniedException", "is not authorized to perform: bcmpricingcalculator:ListBillEstimates"), false, true},
-		{"other-fatal", apiErr("InternalServerException", "boom"), false, false},
+		// Cost Explorer not enabled is self-enableable → disabled. Payer-only is
+		// account topology a member can't change → not-entitled. The split guards
+		// that these two never collapse back to one sentinel.
+		{name: "cost-explorer-not-enabled", err: apiErr("AccessDeniedException", "User not enabled for cost explorer access"), wantDisable: true},
+		{name: "payer-only", err: apiErr("ValidationException", "Operation not permitted for member accounts. This API is only allowed for regular or payer accounts."), wantNotEntitled: true},
+		{name: "migration-required", err: apiErr("AccessDeniedException", "Migrate the policies in your account to use the new IAM actions"), wantNil: true},
+		{name: "generic-access-denied", err: apiErr("AccessDeniedException", "is not authorized to perform: bcmpricingcalculator:ListBillEstimates"), wantNil: true},
+		{name: "other-fatal", err: apiErr("InternalServerException", "boom")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := bcmPCListErr(st, "bcmpricingcalculator:ListBillEstimates", testAccountID, testRegion, tc.err)
-			if tc.wantDisable && !errors.Is(got, errServiceDisabled) {
-				t.Errorf("got %v; want errServiceDisabled", got)
-			}
-			if tc.wantNil && got != nil {
-				t.Errorf("got %v; want nil", got)
-			}
-			if !tc.wantDisable && !tc.wantNil && (got == nil || errors.Is(got, errServiceDisabled)) {
-				t.Errorf("got %v; want a non-disabled fatal error", got)
+			switch {
+			case tc.wantDisable:
+				if !errors.Is(got, errServiceDisabled) {
+					t.Errorf("got %v; want errServiceDisabled", got)
+				}
+				if errors.Is(got, errServiceNotEntitled) {
+					t.Errorf("got %v; must not also be errServiceNotEntitled", got)
+				}
+			case tc.wantNotEntitled:
+				if !errors.Is(got, errServiceNotEntitled) {
+					t.Errorf("got %v; want errServiceNotEntitled", got)
+				}
+				if errors.Is(got, errServiceDisabled) {
+					t.Errorf("got %v; must not also be errServiceDisabled", got)
+				}
+			case tc.wantNil:
+				if got != nil {
+					t.Errorf("got %v; want nil", got)
+				}
+			default: // fatal, non-sentinel
+				if got == nil || errors.Is(got, errServiceDisabled) || errors.Is(got, errServiceNotEntitled) {
+					t.Errorf("got %v; want a non-sentinel fatal error", got)
+				}
 			}
 		})
 	}

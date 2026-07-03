@@ -38,7 +38,7 @@ func init() {
 //     admin.directory.user.readonly) → 403 with reason `insufficientPermissions`,
 //     same warning path.
 //   - API not enabled in the consumer project (rare for these tenant APIs) →
-//     `errServiceDisabled` sentinel, scan continues with `(service disabled)`.
+//     `errServiceDisabled` sentinel, scan continues with `(project: disabled)`.
 func scanCloudIdentity(ctx context.Context, _ []orgScope, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 

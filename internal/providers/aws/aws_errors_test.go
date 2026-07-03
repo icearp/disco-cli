@@ -17,6 +17,51 @@ func apiErr(code, msg string) error {
 	return &smithy.GenericAPIError{Code: code, Message: msg}
 }
 
+func TestIsAccountNotInitialized(t *testing.T) {
+	// DRS + MGN return this before the account is onboarded; it must route
+	// through markServiceDisabled (errServiceDisabled sentinel), not a scan error.
+	uninit := apiErr("UninitializedAccountException", "Account not initialized")
+	if !isAccountNotInitialized(uninit) {
+		t.Error("UninitializedAccountException should match")
+	}
+	if isAccountNotInitialized(apiErr("AccessDenied", "denied")) {
+		t.Error("AccessDenied must not match")
+	}
+	if isAccountNotInitialized(errors.New("plain")) {
+		t.Error("plain error must not match")
+	}
+	if !errors.Is(markServiceDisabled(uninit), errServiceDisabled) {
+		t.Error("markServiceDisabled(uninit) should satisfy errors.Is(errServiceDisabled)")
+	}
+}
+
+func TestMarkServiceNotEntitled(t *testing.T) {
+	// Distinct sentinel from errServiceDisabled — the dispatch loop switches on
+	// each separately to pick the right progress-line suffix.
+	wrapped := markServiceNotEntitled(apiErr("AccessDeniedException", "Access denied due to support level"))
+	if !errors.Is(wrapped, errServiceNotEntitled) {
+		t.Error("markServiceNotEntitled should satisfy errors.Is(errServiceNotEntitled)")
+	}
+	if errors.Is(wrapped, errServiceDisabled) {
+		t.Error("errServiceNotEntitled must not collide with errServiceDisabled")
+	}
+}
+
+func TestIsProxyPreviewRegionGap(t *testing.T) {
+	// NetworkFirewall proxy ops (public preview, us-east-2 only) return this from
+	// any region where the preview isn't served — silent per-region skip.
+	if !isProxyPreviewRegionGap(apiErr("InvalidRequestException", "The API being called does not exist.")) {
+		t.Error("InvalidRequestException 'does not exist' should match")
+	}
+	// A real InvalidRequestException with a different message must not be swallowed.
+	if isProxyPreviewRegionGap(apiErr("InvalidRequestException", "malformed input")) {
+		t.Error("unrelated InvalidRequestException must not match")
+	}
+	if isProxyPreviewRegionGap(apiErr("AccessDenied", "does not exist")) {
+		t.Error("wrong code must not match even with matching message")
+	}
+}
+
 func TestIsAPIErrorCode(t *testing.T) {
 	if !isAPIErrorCode(apiErr("AccessDenied", ""), "AccessDenied") {
 		t.Error("expected match")

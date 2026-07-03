@@ -54,11 +54,11 @@ Member matching: only `serviceAccount:{email}` members FK-safe today. Email pars
 
 ## API-not-enabled → service-disabled sentinel
 
-When API not enabled, scanners propagate sentinel error; dispatch loop renders `(service disabled)` on per-service progress line — no warning. Mechanism:
+When API not enabled, scanners propagate sentinel error; dispatch loop renders `(project: disabled)` on per-service progress line — no warning. Mechanism:
 
 - `isAPINotEnabled(err)` (in `gcp_errors.go`) matches three known shapes: 403 message `"has not been used in project"`, 400 message `"has not enabled"` (BigQuery), `googleapi.Error.Errors[].Reason == "accessNotConfigured"`. Extend this predicate (not `isPermissionDenied`) when adding scanners surfacing API-not-enabled differently.
 - `skipIfDenied` returns `markServiceDisabled(err)` when `isAPINotEnabled` matches, else records `ScanWarning`, returns nil. Existing call sites (`if isPermissionDenied(err) { return ..., skipIfDenied(...) }`) bubble sentinel up — no per-scanner-file edits needed.
-- `scanProject` detects sentinel via `errors.Is(err, errServiceDisabled)`, calls `st.ReportService(name, scope, 0, 0, 0, 0, store.ServiceDisabled)` so `cmd/scan.go` renders `(service disabled)` suffix. Mirrors AWS pattern (`aws/aws.go` `errServiceDisabled` + `markServiceDisabled`). The non-disabled paths bind `st.WithUpsertCounters(&newC, &changedC)` around `svc.fn` and report `(total, new, changed)` — same as AWS.
+- `scanProject` detects sentinel via `errors.Is(err, errServiceDisabled)`, calls `st.ReportService(name, scope, 0, 0, 0, 0, store.ServiceDisabled)` so `cmd/scan.go` renders `(project: disabled)` suffix. Mirrors AWS pattern (`aws/aws.go` `errServiceDisabled` + `markServiceDisabled`). The non-disabled paths bind `st.WithUpsertCounters(&newC, &changedC)` around `svc.fn` and report `(total, new, changed)` — same as AWS.
 
 Real IAM 403 (rare; caller lacks permission but API enabled) still goes to warnings via `skipIfDenied`'s second branch. Spanner billing-disabled (`"has billing disabled"`) intentionally out of scope — billing precondition, not API enablement; surfaces as warning.
 

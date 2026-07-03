@@ -245,6 +245,12 @@ func scanDeviceFarmVPCEConfigurations(ctx context.Context, client deviceFarmAPI,
 	for {
 		out, perr := client.ListVPCEConfigurations(ctx, &devicefarm.ListVPCEConfigurationsInput{NextToken: token})
 		if perr != nil {
+			// VPCE configs are an allowlist opt-in; accounts not allowlisted get
+			// ServiceAccountException. Expected state, not a resource — silent
+			// skip so the rest of devicefarm still scans.
+			if isAPIErrorWithMessage(perr, "ServiceAccountException", "not allowlisted") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "devicefarm:ListVPCEConfigurations", acct.ID, region, perr)
 			}

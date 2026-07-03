@@ -51,6 +51,12 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if err != nil {
+			// Account not signed up for AWS Security Incident Response — the
+			// whole service is inert, so mark it disabled (progress line reads
+			// "(account: disabled)") rather than surfacing a scan error.
+			if isAPIErrorCode(err, "SecurityIncidentResponseNotActiveException") {
+				return 0, 0, markServiceDisabled(err)
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "security-ir:ListCases", acct.ID, region, err)
 			}

@@ -99,7 +99,7 @@ func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, reg
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isKendraClosedToAccount(err) {
-				return nil, 0, 0, markServiceDisabled(err)
+				return nil, 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return nil, 0, 0, skipIfAccessDenied(st, "kendra:ListIndices", acct.ID, region, err)

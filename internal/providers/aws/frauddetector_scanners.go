@@ -71,14 +71,15 @@ func scanFraudDetector(ctx context.Context, acct *account, region string, st *st
 }
 
 // gateFraudDetector probes the cheapest list op once. If it returns the
-// closed-to-new-customers shape (empty-message AccessDeniedException),
-// short-circuit the whole scanner via markServiceDisabled so the dispatcher
-// renders `(service disabled)` once instead of N per-phase warnings.
+// closed-to-new-customers shape (empty-message AccessDeniedException), the
+// account can't self-enable the service — short-circuit via
+// markServiceNotEntitled so the dispatcher renders `(not available to this
+// account)` once instead of N per-phase warnings.
 func gateFraudDetector(ctx context.Context, client fraudDetectorAPI) error {
 	mr := int32(1)
 	_, err := client.GetDetectors(ctx, &frauddetector.GetDetectorsInput{MaxResults: &mr})
 	if err != nil && isClosedToNewCustomers(err) {
-		return markServiceDisabled(err)
+		return markServiceNotEntitled(err)
 	}
 	return nil
 }

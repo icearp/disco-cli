@@ -11,7 +11,8 @@ import (
 )
 
 // isBillingConductorPayerOnly disambiguates the "Only payer account is
-// authorized" state from a real IAM denial.
+// authorized" state from a real IAM denial. A member account can't self-enable
+// Billing Conductor (only the payer can), so callers mark it not-entitled.
 func isBillingConductorPayerOnly(err error) bool {
 	return isAccessDeniedWithMessage(err, "Only payer account is authorized")
 }
@@ -85,7 +86,7 @@ func scanBillingConductorBillingGroups(ctx context.Context, client billingConduc
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isBillingConductorPayerOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
+				return total, inserted, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListBillingGroups", acct.ID, region, perr)
@@ -131,7 +132,7 @@ func scanBillingConductorCustomLineItems(ctx context.Context, client billingCond
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isBillingConductorPayerOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
+				return total, inserted, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListCustomLineItems", acct.ID, region, perr)
@@ -177,7 +178,7 @@ func scanBillingConductorPricingPlans(ctx context.Context, client billingConduct
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isBillingConductorPayerOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
+				return total, inserted, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListPricingPlans", acct.ID, region, perr)
@@ -223,7 +224,7 @@ func scanBillingConductorPricingRules(ctx context.Context, client billingConduct
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isBillingConductorPayerOnly(perr) {
-				return total, inserted, markServiceDisabled(perr)
+				return total, inserted, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return total, inserted, skipIfAccessDenied(st, "billingconductor:ListPricingRules", acct.ID, region, perr)

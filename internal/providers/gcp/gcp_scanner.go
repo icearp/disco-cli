@@ -173,7 +173,7 @@ func scanProject(ctx context.Context, p *project, services []string, st *store.S
 			if err != nil {
 				if errors.Is(err, errServiceDisabled) {
 					// GCP API not enabled in this project — surface as
-					// "(service disabled)" suffix instead of a warning.
+					// "(project: disabled)" suffix instead of a warning.
 					st.ReportService(svc.name, p.ID, 0, 0, 0, 0, store.ServiceDisabled)
 					return nil
 				}

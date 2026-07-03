@@ -12,7 +12,7 @@ import (
 
 // errServiceDisabled is a sentinel returned by per-service scanners when
 // the GCP API itself is not enabled in the calling project. The scanProject
-// dispatch loop detects it via errors.Is and surfaces "(service disabled)"
+// dispatch loop detects it via errors.Is and surfaces "(project: disabled)"
 // on the per-service progress line — no warning, no error report. Wrap
 // upstream errors via markServiceDisabled so the original message is
 // preserved for debugging if anyone unwraps. Mirrors the AWS pattern in

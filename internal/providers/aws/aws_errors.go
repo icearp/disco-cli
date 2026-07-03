@@ -87,12 +87,23 @@ func isServiceNotAvailableInRegion(err error) bool {
 // Exports, Invoicing) is called from an organisation member account. It
 // surfaces as a ValidationException whose body reads "Operation not permitted
 // for member accounts. This API is only allowed for regular or payer accounts."
-// This reflects account topology, not a scanner misconfig, so callers
-// silent-skip via markServiceDisabled. Distinct from isBillingConductorPayerOnly,
-// which matches the AccessDeniedException variant Billing Conductor returns.
+// This reflects account topology (a member account can't self-enable the API —
+// only the payer can), not a scanner misconfig, so callers mark it
+// not-entitled via markServiceNotEntitled → (account: not entitled).
+// Distinct from isBillingConductorPayerOnly, which matches the
+// AccessDeniedException variant Billing Conductor returns.
 func isPayerAccountOnly(err error) bool {
 	return isAPIErrorWithMessage(err, "ValidationException", "only allowed for regular or payer accounts") ||
 		isAPIErrorWithMessage(err, "ValidationException", "not permitted for member accounts")
+}
+
+// isAccountNotInitialized reports the account-level "service never initialized"
+// state DRS and MGN return before first use (UninitializedAccountException) —
+// the account has not been onboarded to Elastic Disaster Recovery / Application
+// Migration Service. Callers route it through markServiceDisabled so the
+// progress line reads (account: disabled) instead of surfacing a scan error.
+func isAccountNotInitialized(err error) bool {
+	return isAPIErrorCode(err, "UninitializedAccountException")
 }
 
 // errServiceDisabled is a sentinel returned by per-service scanners when they
@@ -100,7 +111,7 @@ func isPayerAccountOnly(err error) bool {
 // (Macie not enabled, Shield Advanced not subscribed, Security Hub hub not
 // present, etc) — an account-level state the user could turn on. The
 // scanRegion / scanAccount dispatch loop detects it via errors.Is and surfaces
-// "(service disabled)" on the progress line — no warning, no error report.
+// "(account: disabled)" on the progress line — no warning, no error report.
 // Wrap upstream errors via markServiceDisabled so the original message is
 // preserved for debugging if anyone unwraps. Distinct from errServiceUnavailable
 // (service not deployed in this region).
@@ -115,11 +126,27 @@ func markServiceDisabled(err error) error {
 	return fmt.Errorf("%w: %s", errServiceDisabled, err.Error())
 }
 
+// errServiceNotEntitled is a sentinel returned by per-service scanners when the
+// service exists but the calling account is not entitled to it and the user
+// cannot self-enable it — a paid support-tier gate (Trusted Advisor API needs
+// Business+), a service closed to new customers (Migration Hub), or an account
+// AWS has not made eligible (CloudSearch, "contact AWS Support"). The dispatch
+// loop detects it via errors.Is and surfaces "(account: not entitled)"
+// on the progress line — no warning, no error report. Distinct from
+// errServiceDisabled, which the user COULD turn on.
+var errServiceNotEntitled = errors.New("aws service: account not entitled")
+
+// markServiceNotEntitled wraps the upstream not-entitled error so the dispatch
+// loop can identify it via errors.Is(err, errServiceNotEntitled).
+func markServiceNotEntitled(err error) error {
+	return fmt.Errorf("%w: %s", errServiceNotEntitled, err.Error())
+}
+
 // errServiceUnavailable is a sentinel returned by per-service scanners when the
 // WHOLE service is not deployed in the scanned region — the regional endpoint
 // resolves but every op fails (e.g. HealthOmics outside its supported regions,
 // where the gateway answers "Unable to determine service/operation name"). The
-// dispatch loop detects it via errors.Is and surfaces "(service unavailable)"
+// dispatch loop detects it via errors.Is and surfaces "(region: unavailable)"
 // on the progress line — no warning. Use only when the entire service is absent;
 // a per-op / sub-feature region gap (the parent service is present) keeps its
 // own silent per-phase skip instead. Distinct from errServiceDisabled

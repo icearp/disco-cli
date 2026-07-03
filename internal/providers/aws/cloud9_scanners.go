@@ -36,13 +36,13 @@ func scanCloud9(ctx context.Context, acct *account, region string, st *store.Sto
 			// never onboarded surface the closed state two ways: an
 			// empty-message AccessDeniedException, or one with the explicit
 			// body "This account does not have access to the Cloud9 service".
-			// Both are environment state, not a misconfig — silent-skip
-			// rather than warn. Existing tenants with real IAM gaps still
-			// carry an action-identifying message and surface via
-			// skipIfAccessDenied below.
+			// The account can't self-enable it — mark not-entitled so the
+			// dispatcher renders (account: not entitled). Existing
+			// tenants with real IAM gaps still carry an action-identifying
+			// message and surface via skipIfAccessDenied below.
 			if isClosedToNewCustomers(err) ||
 				isAccessDeniedWithMessage(err, "does not have access to the Cloud9 service") {
-				return 0, 0, nil
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "cloud9:ListEnvironments", acct.ID, region, err)

@@ -23,7 +23,8 @@ type dataPipelineAPI interface {
 }
 
 // scanDataPipeline discovers AWS Data Pipeline pipelines. The service is closed
-// to new customers (2024); accounts that never onboarded silent-skip.
+// to new customers (2024); accounts that never onboarded can't self-enable it,
+// so the scanner marks it not-entitled → (account: not entitled).
 func scanDataPipeline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := datapipeline.NewFromConfig(acct.cfg, func(o *datapipeline.Options) { o.Region = region })
 	return scanDataPipelinePipelines(ctx, client, acct, region, st, scanID)
@@ -36,7 +37,7 @@ func scanDataPipelinePipelines(ctx context.Context, client dataPipelineAPI, acct
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isClosedToNewCustomers(perr) {
-				return 0, 0, nil
+				return 0, 0, markServiceNotEntitled(perr)
 			}
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "datapipeline:ListPipelines", acct.ID, region, perr)

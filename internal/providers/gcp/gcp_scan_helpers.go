@@ -30,7 +30,7 @@ type pager[P any] interface {
 // final error via isPermissionDenied / skipIfDenied. Behavior:
 //
 //   - API-not-enabled (`isAPINotEnabled`) → returns the wrapped errServiceDisabled
-//     sentinel so the dispatch loop renders "(service disabled)".
+//     sentinel so the dispatch loop renders "(project: disabled)".
 //   - Real permission denial → records a ScanWarning, returns nil.
 //   - Other errors → propagated unwrapped.
 //

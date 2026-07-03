@@ -72,9 +72,13 @@ type quickSightAPI interface {
 // qsSoftSkip — QuickSight returns AccessDenied or
 // UnsupportedUserEditionException when the account is not subscribed
 // or the edition lacks the feature; ResourceNotFoundException when
-// a region/feature is not supported. All treated as soft-skips.
+// a region/feature is not supported; PreconditionNotMetException when
+// the account has no QuickSight subscription at all (e.g. ListAgents);
+// UnauthorizedException (401) for edition-gated newer ops (e.g. ListFlows).
+// All treated as soft-skips. QuickSight-scoped, so a real credential failure
+// still surfaces on every other service.
 func qsSoftSkip(err error) bool {
-	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException")
+	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException", "PreconditionNotMetException", "UnauthorizedException")
 }
 
 func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

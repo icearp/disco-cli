@@ -86,7 +86,7 @@ func scanTSDatabases(ctx context.Context, client tsWriteAPI, acct *account, regi
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListDatabases", acct.ID, region, err)
@@ -116,7 +116,7 @@ func scanTSTables(ctx context.Context, client tsWriteAPI, acct *account, region 
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListTables", acct.ID, region, err)
@@ -147,7 +147,7 @@ func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *accoun
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceDisabled(err)
+				return 0, 0, markServiceNotEntitled(err)
 			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "timestream:ListScheduledQueries", acct.ID, region, err)

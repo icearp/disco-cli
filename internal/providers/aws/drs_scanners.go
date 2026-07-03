@@ -49,6 +49,9 @@ func scanDRS(ctx context.Context, acct *account, region string, st *store.Store,
 	} {
 		t, i, perr := phase()
 		if perr != nil {
+			if isAccountNotInitialized(perr) {
+				return 0, 0, markServiceDisabled(perr)
+			}
 			return total, inserted, perr
 		}
 		total += t
