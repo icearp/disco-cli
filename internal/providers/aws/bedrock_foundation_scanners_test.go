@@ -14,6 +14,7 @@ import (
 type stubBedrockCatalog struct {
 	profiles []bedrocktypes.InferenceProfileSummary
 	models   []bedrocktypes.FoundationModelSummary
+	arpErr   error // returned by ListAutomatedReasoningPolicies when set
 }
 
 func (s *stubBedrockCatalog) ListGuardrails(_ context.Context, _ *bedrock.ListGuardrailsInput, _ ...func(*bedrock.Options)) (*bedrock.ListGuardrailsOutput, error) {
@@ -21,6 +22,9 @@ func (s *stubBedrockCatalog) ListGuardrails(_ context.Context, _ *bedrock.ListGu
 }
 
 func (s *stubBedrockCatalog) ListAutomatedReasoningPolicies(_ context.Context, _ *bedrock.ListAutomatedReasoningPoliciesInput, _ ...func(*bedrock.Options)) (*bedrock.ListAutomatedReasoningPoliciesOutput, error) {
+	if s.arpErr != nil {
+		return nil, s.arpErr
+	}
 	return &bedrock.ListAutomatedReasoningPoliciesOutput{}, nil
 }
 
@@ -107,5 +111,27 @@ func TestScanBedrockFoundationModels_Empty(t *testing.T) {
 	}
 	if total != 0 {
 		t.Errorf("total=%d want 0", total)
+	}
+}
+
+// AR Policies is region/account-gated; an empty-body AccessDeniedException is the
+// region-gap signal and must silent-skip (no rows, no propagated error, no
+// warning) rather than surface as a spurious scan warning.
+func TestScanBedrockARPolicies_RegionGapSilent(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+	acct := newTestAccount(testAccountID)
+
+	stub := &stubBedrockCatalog{arpErr: apiErr("AccessDeniedException", "")}
+	arns, total, inserted, err := scanBedrockARPolicies(context.Background(), stub, acct, testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("region gap: returned %v, want nil", err)
+	}
+	if warned {
+		t.Error("empty-body region gap must not record a warning")
+	}
+	if len(arns) != 0 || total != 0 || inserted != 0 {
+		t.Errorf("arns=%d total=%d inserted=%d; want all 0", len(arns), total, inserted)
 	}
 }

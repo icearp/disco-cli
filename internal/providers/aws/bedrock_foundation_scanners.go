@@ -166,6 +166,12 @@ func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account
 			if isAccessDeniedWithMessage(perr, "not authorized to invoke this API operation") {
 				return nil, 0, 0, nil
 			}
+			// Empty-body AccessDeniedException is the region-gap variant of the
+			// same feature gate — AR Policies simply isn't offered in this region
+			// (a real per-action IAM deny always names the action in the message).
+			if isClosedToNewCustomers(perr) {
+				return nil, 0, 0, nil
+			}
 			if isSCPExplicitDeny(perr) {
 				return nil, 0, 0, nil
 			}
