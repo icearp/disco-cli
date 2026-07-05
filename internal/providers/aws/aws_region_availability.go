@@ -66,7 +66,7 @@ func serviceAvailableInRegion(availByCode map[string]map[string]bool, code, regi
 // loadServiceRegionAvailability resolves, for each distinct service code, the set
 // of regions where AWS offers it, by paging the SSM global-infrastructure tree
 // at /aws/service/global-infrastructure/services/<code>/regions. Lookups run
-// concurrently (bounded by fanoutMed) and fail open per code: a code whose lookup
+// concurrently (bounded by fanoutScope) and fail open per code: a code whose lookup
 // errors or returns no parameters is omitted from the result (→ scanned
 // everywhere). The returned error is the first access-denied seen — the caller
 // uses it only to warn that the optimisation is off; it is never fatal.
@@ -77,7 +77,7 @@ func loadServiceRegionAvailability(ctx context.Context, client ssmRegionAvailabi
 		denyErr error
 		g, gctx = errgroup.WithContext(ctx)
 	)
-	g.SetLimit(fanoutMed)
+	g.SetLimit(fanoutScope)
 	for _, code := range codes {
 		g.Go(func() error {
 			path := "/aws/service/global-infrastructure/services/" + code + "/regions"

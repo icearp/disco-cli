@@ -21,4 +21,11 @@ const (
 	fanoutHigh = 20
 	fanoutMed  = 10
 	fanoutLow  = 2
+
+	// fanoutScope bounds the region-scoping preflight
+	// (loadServiceRegionAvailability). The SSM global-infrastructure parameters
+	// are cheap, AWS-cached, read-only public reads with a generous throttle
+	// budget, so a wider fan-out than fanoutHigh is safe here; throttles are
+	// absorbed by SDK retry and the loader's per-code fail-open.
+	fanoutScope = 32
 )

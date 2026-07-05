@@ -28,8 +28,18 @@ const (
 	// maxConcurrentRegions caps how many regions are scanned in parallel for a
 	// single account. Each region multiplies the in-flight service goroutines
 	// (= maxConcurrentServices × maxConcurrentRegions) and the SQLite write
-	// queue depth, so keep this low.
-	maxConcurrentRegions = 4
+	// queue depth, so keep this low. The region axis is throttle-independent
+	// (AWS buckets regional services per-region-per-service, and the per-region
+	// maxConcurrentServices cap already protects each bucket), so the binding
+	// constraints here are peak memory (each scanner buffers its service's rows
+	// before a batch upsert) and the single SQLite writer (SetMaxOpenConns(1) —
+	// more regions deepen the write queue without adding throughput). 5 keeps the
+	// adaptive retryer's per-account client-side token bucket comfortable in
+	// high-latency regions (at 6, a burst of dial failures in distant regions —
+	// Seoul/Osaka — drained the bucket into "retry quota exceeded"); going higher
+	// wants a global scanner semaphore + streaming upserts to decouple memory from
+	// region count first.
+	maxConcurrentRegions = 5
 	// serviceTimeout is the per-service hard deadline. A misbehaving API endpoint
 	// won't stall the entire scan beyond this duration.
 	serviceTimeout = 5 * time.Minute
@@ -237,6 +247,12 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 	// Pre-scope per-service regions from the SSM global-infrastructure catalog so
 	// services AWS doesn't offer in a region are never dispatched there. Fail-open
 	// + skipped entirely for single-region scans (nothing to scope).
+	//
+	// Runs on this goroutine while the global scanners launched above are still
+	// in flight (they're on wg, no wait between) — the preflight overlaps them for
+	// free. The regional loop below reads acct.availByCode via
+	// serviceAvailableInRegion, a genuine data dependency, so it must join here
+	// before dispatching; that join is the only necessary serial point.
 	buildRegionAvailability(ctx, acct, services, st, kept)
 	for _, region := range kept {
 		wg.Go(func() {
