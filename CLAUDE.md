@@ -20,7 +20,7 @@ CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -o dist/disco-darwin-arm64 .
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -o dist/disco-windows-amd64.exe .
 
 # Live scan flags differ by provider:
-#   AWS: --regions us-east-1,us-west-2
+#   AWS: --regions us-east-1,us-west-2  (or --regions all for every opted-in region)
 #   Azure / GCP: no --regions flag (Azure scopes per subscription/RG; GCP per project)
 
 # Run tests

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -408,7 +409,11 @@ func buildScanScope(cmd *cobra.Command, names []string, scanners []providers.Sca
 	provScope := map[string]any{}
 	if _, ok := s.(providers.RegionOverrider); ok {
 		regions, _ := cmd.Flags().GetStringSlice("regions")
-		if len(regions) > 0 {
+		// The "all" sentinel and the no-flag default both mean "every region";
+		// record the compact string form for either so scans.scope is consistent.
+		if len(regions) > 0 && !slices.ContainsFunc(regions, func(r string) bool {
+			return strings.EqualFold(strings.TrimSpace(r), "all")
+		}) {
 			provScope["regions"] = regions
 		} else {
 			provScope["regions"] = "all"
@@ -649,7 +654,7 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.RegionOverrider); ok {
 		subcmd.Flags().StringSlice("regions", nil,
-			"Regions to scan, comma-separated (overrides config; e.g. us-west-2,eu-west-1)")
+			"Regions to scan, comma-separated, or 'all' for every region (overrides config; e.g. us-west-2,eu-west-1)")
 	}
 	if _, ok := s.(providers.ProfileOverrider); ok {
 		subcmd.Flags().String("profile", "",

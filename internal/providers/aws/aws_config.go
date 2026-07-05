@@ -121,7 +121,7 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		}
 		return []account{{
 			ID:      acctID,
-			Regions: regions,
+			Regions: expandAllRegions(regions),
 			cfg:     acctCfg,
 		}}, nil
 	}
@@ -174,7 +174,7 @@ func loadAccounts(ctx context.Context, profile string, regionOverride []string, 
 		accounts = append(accounts, account{
 			ID:      a.ID,
 			Name:    a.Name,
-			Regions: regions,
+			Regions: expandAllRegions(regions),
 			cfg:     acctCfg,
 		})
 	}

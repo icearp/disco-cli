@@ -421,6 +421,18 @@ When AWS retires a service to new customers (existing customers keep access), li
 
 Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second is an ON CONFLICT update. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue` (commit 14cbee2).
 
+## `--regions all` sentinel expands to the full region list
+
+`loadAccounts` (`aws_config.go`) wraps every finalized region slice
+(`--regions` override, per-account `regions`, or `aws.default_regions`) through
+`expandAllRegions` (`aws_regions.go`): the case-insensitive `all` token expands
+to a clone of `awsregions.Regions` (the full static list). Expansion happens
+*before* `scanAccount` → `enabledScanRegions`, so the opted-in filter below then
+trims it to what the account can actually reach. `disco scan aws --regions all`
+and `aws.default_regions: [all]` are equivalent. cmd stays provider-agnostic —
+it doesn't expand the sentinel, only records it as the compact string `"all"` in
+`scans.scope` (matching the no-`--regions` default representation).
+
 ## Account-disabled regions filtered before fan-out (not at dispatcher)
 
 `scanAccount` (`aws_scanner.go`) calls `enabledScanRegions` once per account before the

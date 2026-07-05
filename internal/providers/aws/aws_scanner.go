@@ -61,7 +61,8 @@ func (s *Scanner) LongDescription() string {
 Account scope comes from the ambient AWS identity (env vars, instance
 profile, ~/.aws/config) or, if config.yaml lists explicit accounts, the
 declared role-chain per entry. Use --profile to pick a named profile and
---regions to override the configured region list. --skip-globals omits
+--regions to override the configured region list; --regions all scans every
+region (trimmed to those your account has opted into). --skip-globals omits
 account-wide services (IAM, Route53, CloudFront, etc.) when running a
 per-region audit.
 
@@ -71,6 +72,7 @@ Add it with --include-service-quotas, or run it on its own with
 
 Examples:
   disco scan aws
+  disco scan aws --regions all
   disco scan aws --regions us-west-2,eu-west-1
   disco scan aws --services aws:ec2,aws:s3 --profile prod
   disco scan aws --skip-globals --regions us-east-1
