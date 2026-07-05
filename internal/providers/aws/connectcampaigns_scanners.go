@@ -19,6 +19,16 @@ func init() {
 	})
 }
 
+// connectCampaignsNotProvisioned reports the denials Connect Campaigns (v1 and
+// v2) return when no Amazon Connect instance backs the account/region: a
+// null-action AccessDenied ("not authorized to perform: null") or a bare
+// ForbiddenException ("Forbidden"). Environmental state, not a real IAM denial —
+// callers silent-skip.
+func connectCampaignsNotProvisioned(err error) bool {
+	return isAccessDeniedWithMessage(err, "not authorized to perform: null") ||
+		isAPIErrorWithMessage(err, "ForbiddenException", "Forbidden")
+}
+
 // scanConnectCampaigns discovers Connect Campaigns v1 campaigns.
 func scanConnectCampaigns(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := connectcampaigns.NewFromConfig(acct.cfg, func(o *connectcampaigns.Options) { o.Region = region })
@@ -28,6 +38,9 @@ func scanConnectCampaigns(ctx context.Context, acct *account, region string, st 
 	for {
 		out, err := client.ListCampaigns(ctx, &connectcampaigns.ListCampaignsInput{NextToken: nextToken})
 		if err != nil {
+			if connectCampaignsNotProvisioned(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "connect-campaigns:ListCampaigns", acct.ID, region, err)
 			}

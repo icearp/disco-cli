@@ -232,6 +232,12 @@ func scanRedshiftHsmClientCertificates(ctx context.Context, client redshiftAPI, 
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "redshift:DescribeHsmClientCertificates", acct.ID, region, perr)
 			}
+			// HSM encryption is being retired region-by-region (newer regions
+			// first); where it's gone the op returns UnsupportedOperation. Region
+			// gap — silent-skip. Self-heals as the deprecation rolls out.
+			if isAPIErrorCode(perr, "UnsupportedOperation") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("redshift:DescribeHsmClientCertificates: %w", perr)
 		}
 		for _, c := range out.HsmClientCertificates {
@@ -254,6 +260,11 @@ func scanRedshiftHsmConfigurations(ctx context.Context, client redshiftAPI, acct
 		if perr != nil {
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "redshift:DescribeHsmConfigurations", acct.ID, region, perr)
+			}
+			// See scanRedshiftHsmClientCertificates — HSM encryption is being
+			// retired region-by-region; UnsupportedOperation is a region gap.
+			if isAPIErrorCode(perr, "UnsupportedOperation") {
+				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("redshift:DescribeHsmConfigurations: %w", perr)
 		}

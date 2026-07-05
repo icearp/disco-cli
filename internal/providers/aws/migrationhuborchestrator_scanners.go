@@ -37,6 +37,23 @@ func scanMigrationHubOrchestrator(ctx context.Context, acct *account, region str
 	return w + t, wi + ti, terr
 }
 
+// mhoListErr classifies the two non-fatal shapes both Migration Hub Orchestrator
+// list phases share: the Nov-2025 closed-to-new-customers gate (not-entitled —
+// the whole service is inert for this account and can't be enabled) and the
+// per-region "Unauthorized access denied" that fires outside the account's MHO
+// home region (region gap). Returns (handled, out): out is the not-entitled
+// sentinel for the former, nil for the latter; (false, nil) leaves err for the
+// caller to treat as a real error.
+func mhoListErr(err error) (handled bool, out error) {
+	switch {
+	case isAccessDeniedWithMessage(err, "no longer open to new customers"):
+		return true, markServiceNotEntitled(err)
+	case isAPIErrorWithMessage(err, "ValidationException", "Unauthorized access denied"):
+		return true, nil
+	}
+	return false, nil
+}
+
 func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	p := migrationhuborchestrator.NewListWorkflowsPaginator(client, &migrationhuborchestrator.ListWorkflowsInput{}, func(o *migrationhuborchestrator.ListWorkflowsPaginatorOptions) {
@@ -45,11 +62,8 @@ func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, a
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
-			// Migration Hub closed to new customers (Nov 2025); the whole service
-			// is inert for this account and can't be enabled. The sentinel halts
-			// the sibling templates phase too.
-			if isAccessDeniedWithMessage(err, "no longer open to new customers") {
-				return 0, 0, markServiceNotEntitled(err)
+			if handled, out := mhoListErr(err); handled {
+				return 0, 0, out
 			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListWorkflows", acct.ID, region, err)
@@ -82,6 +96,9 @@ func scanMHOTemplates(ctx context.Context, client migrationHubOrchestratorAPI, a
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
+			if handled, out := mhoListErr(err); handled {
+				return 0, 0, out
+			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub-orchestrator:ListTemplates", acct.ID, region, err)
 				break

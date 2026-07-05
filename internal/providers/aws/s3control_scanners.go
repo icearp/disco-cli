@@ -460,6 +460,12 @@ func scanStorageLensGroups(ctx context.Context, acct *account, region string, cl
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
+			// Storage Lens groups live only in the account's supported home
+			// Region; other regions reject with this message. Region gap, not a
+			// denial — silent-skip.
+			if isAccessDeniedWithMessage(apiErr, "supported home Region") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(apiErr) {
 				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensGroups", acct.ID, region, apiErr)
 			}

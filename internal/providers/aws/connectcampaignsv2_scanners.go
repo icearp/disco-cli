@@ -28,6 +28,9 @@ func scanConnectCampaignsV2(ctx context.Context, acct *account, region string, s
 	for {
 		out, err := client.ListCampaigns(ctx, &connectcampaignsv2.ListCampaignsInput{NextToken: nextToken})
 		if err != nil {
+			if connectCampaignsNotProvisioned(err) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(err) {
 				return 0, 0, skipIfAccessDenied(st, "connect-campaigns-v2:ListCampaigns", acct.ID, region, err)
 			}

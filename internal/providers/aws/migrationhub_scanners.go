@@ -38,6 +38,13 @@ func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migration
 	for p.HasMorePages() {
 		page, err := p.NextPage(ctx)
 		if err != nil {
+			// Migration Hub uses a per-account "home region" model; calls from a
+			// non-home region are refused with an empty-body AccessDenied. Not
+			// configured/available here — silent-skip. Real per-action denials
+			// carry an action-identifying message and still warn below.
+			if isClosedToNewCustomers(err) {
+				break
+			}
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "migrationhub:ListProgressUpdateStreams", acct.ID, region, err)
 				break

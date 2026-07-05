@@ -78,6 +78,12 @@ type quickSightAPI interface {
 // All treated as soft-skips. QuickSight-scoped, so a real credential failure
 // still surfaces on every other service.
 func qsSoftSkip(err error) bool {
+	// Newer QuickSight (Q) ops like ListAgents 404 with an HTML body in regions
+	// where the feature isn't deployed — the SDK can't map it to a typed code
+	// (deserialization fails on '<'), so fall back to the HTTP status.
+	if isHTTP404(err) {
+		return true
+	}
 	return isAccessDenied(err) || isAPIErrorCode(err, "UnsupportedUserEditionException", "ResourceNotFoundException", "QuickSightUserNotFoundException", "InvalidParameterValueException", "PreconditionNotMetException", "UnauthorizedException")
 }
 

@@ -126,10 +126,11 @@ func ec2PageScan[P any](
 			}
 			// Per-region op-availability gap: EC2 Describe* ops for features not
 			// deployed in a region return UnsupportedOperation (e.g. VPC block
-			// public access) or InvalidAction (e.g. Verified Access in regions
-			// where it isn't offered). Both are permanent region facts, not
+			// public access), InvalidAction (e.g. Verified Access in regions
+			// where it isn't offered), or the bare Unsupported code
+			// (DescribeCapacityBlocks). All are permanent region facts, not
 			// failures — silent-skip.
-			if isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction") {
+			if isAPIErrorCode(err, "UnsupportedOperation", "InvalidAction", "Unsupported") {
 				return total, inserted, nil
 			}
 			return total, inserted, fmt.Errorf("%s: %w", iamAction, err)

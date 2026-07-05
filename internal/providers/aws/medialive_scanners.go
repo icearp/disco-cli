@@ -588,6 +588,12 @@ func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, reg
 				_ = skipIfAccessDenied(st, "medialive:ListNetworks", acct.ID, region, perr)
 				return 0, 0, nil
 			}
+			// MediaLive Anywhere (networks) isn't offered in every MediaLive
+			// region; the gateway 404s with "Unable to determine service/operation
+			// name". Region gap — silent-skip.
+			if isServiceNotAvailableInRegion(perr) {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("medialive:ListNetworks: %w", perr)
 		}
 		for _, n := range out.Networks {

@@ -264,5 +264,11 @@ func bacListSkip(st *store.Store, batch []*store.Resource, op, label, acctID, re
 		_ = skipIfAccessDenied(st, op, acctID, region, perr)
 		return upsertBatch(st, batch, "bedrockagentcore "+label)
 	}
+	// Newer AgentCore ops (payment-credential providers) aren't deployed in every
+	// region and 404 with UnknownOperationException. Region gap — keep the rows
+	// already accumulated and move on.
+	if isAPIErrorCode(perr, "UnknownOperationException") {
+		return upsertBatch(st, batch, "bedrockagentcore "+label)
+	}
 	return 0, 0, fmt.Errorf("%s: %w", op, perr)
 }

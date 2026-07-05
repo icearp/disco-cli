@@ -58,6 +58,18 @@ func bedrockDAListErr(st *store.Store, op, acctID, region string, perr error) er
 	case isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized"),
 		isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation"):
 		return nil
+	// The blueprint "library" sub-feature isn't deployed in every region; AWS
+	// rejects with an AccessDenied whose body says so while the rest of Data
+	// Automation works. Per-op sub-feature gap — silent-skip, siblings continue.
+	case isAccessDeniedWithMessage(perr, "not supported in this region"):
+		return nil
+	// Empty-body AccessDenied fires uniformly on every Data Automation op in
+	// regions where the whole service isn't offered (it's a newer, regionally
+	// limited service). Whole-service-absent → markServiceUnavailable so the
+	// caller short-circuits to a single (region: unavailable) suffix rather than
+	// silently reporting zero rows with no status.
+	case isClosedToNewCustomers(perr):
+		return markServiceUnavailable(perr)
 	case isAccessDenied(perr):
 		return skipIfAccessDenied(st, op, acctID, region, perr)
 	default:

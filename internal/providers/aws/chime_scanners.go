@@ -72,9 +72,19 @@ func scanChime(ctx context.Context, acct *account, region string, st *store.Stor
 // sub-SDK, so endpoint/region-absent errors are expected noise the dispatcher's
 // transient handling already covers. Callers break the affected loop after this.
 func chimeListErr(st *store.Store, op, acctID, region string, err error) {
-	if isAccessDenied(err) {
-		_ = skipIfAccessDenied(st, op, acctID, region, err)
+	if !isAccessDenied(err) {
+		return
 	}
+	// Chime sub-SDKs have independent regional/account availability; where one
+	// isn't offered the gateway answers ForbiddenException ("This feature is not
+	// available" / "AWS account is not enabled" / empty body). Availability noise,
+	// not a real IAM denial — silent-skip. Message-bearing denials still warn.
+	if isAccessDeniedWithMessage(err, "feature is not available") ||
+		isAccessDeniedWithMessage(err, "account is not enabled") ||
+		isClosedToNewCustomers(err) {
+		return
+	}
+	_ = skipIfAccessDenied(st, op, acctID, region, err)
 }
 
 func chimeAppInstances(ctx context.Context, client *ci.Client, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) []string {

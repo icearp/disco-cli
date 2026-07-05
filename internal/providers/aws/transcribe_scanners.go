@@ -37,6 +37,32 @@ func transcribeNativeID(region, acct, kind, name string) string {
 	return fmt.Sprintf("arn:aws:transcribe:%s:%s:%s/%s", region, acct, kind, name)
 }
 
+// transcribeRegionErr classifies Transcribe's two BadRequestException
+// availability rejections, which have different SCOPE and so different handling:
+//
+//   - "isn't supported in this region": a sub-feature (Call Analytics) absent in
+//     a region where Transcribe otherwise works — a per-op gap, so skip this
+//     phase only (returns nil, siblings continue).
+//   - "isn't authorized to call this operation": Transcribe itself isn't offered
+//     to the account in this region. The SSM global-infra catalog over-reports
+//     Transcribe here (it lists eu-north-1 among 24 regions, but every op is
+//     rejected), so the region-scoping preflight can't exclude it — the scanner
+//     is the backstop. The whole service is absent, so mark it unavailable,
+//     which halts the remaining phases with a single (region: unavailable)
+//     marker instead of a per-op skip cascade.
+//
+// Neither is an IAM denial (those are AccessDenied, warned separately).
+// Returns (handled, out): handled=false leaves err for the caller.
+func transcribeRegionErr(err error) (handled bool, out error) {
+	switch {
+	case isAPIErrorWithMessage(err, "BadRequestException", "isn't supported in this region"):
+		return true, nil
+	case isAPIErrorWithMessage(err, "BadRequestException", "isn't authorized to call this operation"):
+		return true, markServiceUnavailable(err)
+	}
+	return false, nil
+}
+
 func scanTranscribe(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := transcribe.NewFromConfig(acct.cfg, func(o *transcribe.Options) { o.Region = region })
 
@@ -72,6 +98,9 @@ func scanTranscribeCallAnalyticsCategories(ctx context.Context, client transcrib
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "transcribe:ListCallAnalyticsCategories", acct.ID, region, perr)
 			}
+			if handled, out := transcribeRegionErr(perr); handled {
+				return 0, 0, out
+			}
 			return 0, 0, fmt.Errorf("transcribe:ListCallAnalyticsCategories: %w", perr)
 		}
 		for _, c := range out.Categories {
@@ -99,6 +128,9 @@ func scanTranscribeLanguageModels(ctx context.Context, client transcribeAPI, acc
 		if perr != nil {
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "transcribe:ListLanguageModels", acct.ID, region, perr)
+			}
+			if handled, out := transcribeRegionErr(perr); handled {
+				return 0, 0, out
 			}
 			return 0, 0, fmt.Errorf("transcribe:ListLanguageModels: %w", perr)
 		}
@@ -129,6 +161,9 @@ func scanTranscribeVocabularies(ctx context.Context, client transcribeAPI, acct 
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "transcribe:ListVocabularies", acct.ID, region, perr)
 			}
+			if handled, out := transcribeRegionErr(perr); handled {
+				return 0, 0, out
+			}
 			return 0, 0, fmt.Errorf("transcribe:ListVocabularies: %w", perr)
 		}
 		for _, v := range out.Vocabularies {
@@ -158,6 +193,9 @@ func scanTranscribeVocabularyFilters(ctx context.Context, client transcribeAPI, 
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "transcribe:ListVocabularyFilters", acct.ID, region, perr)
 			}
+			if handled, out := transcribeRegionErr(perr); handled {
+				return 0, 0, out
+			}
 			return 0, 0, fmt.Errorf("transcribe:ListVocabularyFilters: %w", perr)
 		}
 		for _, f := range out.VocabularyFilters {
@@ -185,6 +223,9 @@ func scanTranscribeMedicalVocabularies(ctx context.Context, client transcribeAPI
 		if perr != nil {
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "transcribe:ListMedicalVocabularies", acct.ID, region, perr)
+			}
+			if handled, out := transcribeRegionErr(perr); handled {
+				return 0, 0, out
 			}
 			return 0, 0, fmt.Errorf("transcribe:ListMedicalVocabularies: %w", perr)
 		}

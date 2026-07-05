@@ -115,6 +115,13 @@ func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCor
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			// Global-Resiliency traffic distribution needs a provisioned Connect
+			// instance; without one AWS blocks the op via a resource-based-policy
+			// explicit deny. Expected environmental state — silent-skip. (Distinct
+			// from isSCPExplicitDeny, which matches "service control policy".)
+			if isAccessDeniedWithMessage(perr, "explicit deny in a resource-based policy") {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "connect:ListTrafficDistributionGroups", acct.ID, region, perr)
 				return 0, 0, nil

@@ -2,11 +2,13 @@ package aws
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"codeberg.org/icearp/disco/store"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 type stubBedrockModels struct {
@@ -73,6 +75,45 @@ func TestScanBedrockModels(t *testing.T) {
 		if _, err := st.GetResource(store.ResourceID("aws", acct.ID, tc.rtype, tc.arn)); err != nil {
 			t.Errorf("%s missing: %v", tc.rtype, err)
 		}
+	}
+}
+
+// TestBedrockModelsListErr covers the region-gap classification: newer model
+// ops (ListCustomModels / ListCustomModelDeployments) that aren't deployed in a
+// region reject with UnknownOperationException or a ValidationException whose
+// body reads "Unknown operation" (casing varies) — all silent-skipped — while
+// an unrelated error still propagates.
+func TestBedrockModelsListErr(t *testing.T) {
+	st := newTestStore(t)
+	cases := []struct {
+		name    string
+		err     error
+		wantNil bool
+	}{
+		{"UnknownOperationException code", apiErr("UnknownOperationException", "Unknown Operation"), true},
+		{"ValidationException lower-case", apiErr("ValidationException", "Unknown operation"), true},
+		{"ValidationException upper-case", apiErr("ValidationException", "Unknown Operation"), true},
+		{"account not enrolled in model sub-feature", apiErr("AccessDeniedException", "Your account is not authorized to invoke this API operation."), true},
+		{"HTML 404 body (deserialize fail)", &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: 404}},
+			Err:      apiErr("UnknownError", "invalid character '<'"),
+		}, true},
+		{"unrelated ValidationException propagates", apiErr("ValidationException", "malformed request"), false},
+		{"unrelated code propagates", apiErr("ThrottlingException", "slow down"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stop, err := bedrockModelsListErr(st, "bedrock:ListCustomModels", testAccountID, testRegion, tc.err)
+			if !stop {
+				t.Error("bedrockModelsListErr must always signal stop=true")
+			}
+			if tc.wantNil && err != nil {
+				t.Errorf("err = %v; want nil (region gap swallowed)", err)
+			}
+			if !tc.wantNil && err == nil {
+				t.Error("err = nil; want propagated")
+			}
+		})
 	}
 }
 

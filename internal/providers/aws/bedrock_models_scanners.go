@@ -69,6 +69,23 @@ func bedrockModelsListErr(st *store.Store, op, acctID, region string, perr error
 	case isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized"),
 		isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation"):
 		return true, nil
+	// Some regions reject a not-yet-deployed model op outright — a 400/404
+	// UnknownOperationException, or a ValidationException whose body reads
+	// "Unknown operation" (casing varies by region). Region gap, not a failure.
+	case isAPIErrorCode(perr, "UnknownOperationException"),
+		isAPIErrorWithMessage(perr, "ValidationException", "Unknown operation"),
+		isAPIErrorWithMessage(perr, "ValidationException", "Unknown Operation"):
+		return true, nil
+	// Some regions return an HTML 404 page for a not-deployed model op (the SDK
+	// fails to JSON-decode it: "invalid character '<'") instead of a typed code.
+	case isHTTP404(perr):
+		return true, nil
+	// Some model ops (ListImportedModels, ListMarketplaceModelEndpoints) are
+	// account-opt-in sub-features of Bedrock; an un-enrolled account is refused
+	// with this message while the rest of Bedrock works. Sub-feature gap, not a
+	// real IAM denial — silent-skip so the working surface still scans.
+	case isAPIErrorWithMessage(perr, "AccessDeniedException", "not authorized to invoke this API operation"):
+		return true, nil
 	case isAccessDenied(perr):
 		return true, skipIfAccessDenied(st, op, acctID, region, perr)
 	default:

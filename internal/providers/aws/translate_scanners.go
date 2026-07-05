@@ -25,6 +25,16 @@ type translateAPI interface {
 	ListTerminologies(context.Context, *translate.ListTerminologiesInput, ...func(*translate.Options)) (*translate.ListTerminologiesOutput, error)
 }
 
+// translateBlockListed reports the NotAuthorizedException AWS returns when an
+// account is block-listed from Active Custom Translation (the customization
+// feature ListParallelData powers) — a fraud/abuse gate distinct from account
+// entitlement. The account still uses Translate normally, so this is a
+// sub-feature gap: callers silent-skip the phase (letting sibling phases run)
+// rather than marking the whole service disabled/not-entitled.
+func translateBlockListed(err error) bool {
+	return isAPIErrorWithMessage(err, "NotAuthorizedException", "block-listed")
+}
+
 func scanTranslate(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := translate.NewFromConfig(acct.cfg, func(o *translate.Options) { o.Region = region })
 
@@ -48,6 +58,9 @@ func scanTranslateParallelData(ctx context.Context, client translateAPI, acct *a
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if translateBlockListed(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "translate:ListParallelData", acct.ID, region, perr)
 			}
@@ -76,6 +89,9 @@ func scanTranslateTerminologies(ctx context.Context, client translateAPI, acct *
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
+			if translateBlockListed(perr) {
+				return 0, 0, nil
+			}
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "translate:ListTerminologies", acct.ID, region, perr)
 			}

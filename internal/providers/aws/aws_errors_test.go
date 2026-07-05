@@ -166,6 +166,14 @@ func TestIsServiceNotAvailableInRegion(t *testing.T) {
 	if isServiceNotAvailableInRegion(apiErr("ValidationException", "Unable to determine service/operation name")) {
 		t.Error("non-access-denied code with hint must not match")
 	}
+	// MediaLive Anywhere carries the same gateway hint under NotFoundException in
+	// regions where it isn't offered — must classify as a region gap.
+	if !isServiceNotAvailableInRegion(apiErr("NotFoundException", "Unable to determine service/operation name to be authorized")) {
+		t.Error("NotFoundException carrier of the region-gap hint should match")
+	}
+	if isServiceNotAvailableInRegion(apiErr("NotFoundException", "resource xyz not found")) {
+		t.Error("unrelated NotFoundException must not match")
+	}
 	if isServiceNotAvailableInRegion(nil) {
 		t.Error("nil error must not match")
 	}
@@ -316,6 +324,7 @@ func TestIsTransientNetworkError(t *testing.T) {
 	svcUnavail := &smithy.GenericAPIError{Code: "ServiceUnavailable", Message: "service unavailable"}
 	internal := &smithy.GenericAPIError{Code: "InternalFailure", Message: "internal failure"}
 	internalSvcExc := &smithy.GenericAPIError{Code: "InternalServerException", Message: "internal server exception"}
+	authConfig := &smithy.GenericAPIError{Code: "AuthorizerConfigurationException", Message: "Internal server error"}
 	tooManyReqs := &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "too many requests"}
 	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
 	validation := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad input"}
@@ -335,6 +344,7 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"smithy ServiceUnavailable", svcUnavail, true},
 		{"smithy InternalFailure", internal, true},
 		{"smithy InternalServerException", internalSvcExc, true},
+		{"smithy AuthorizerConfigurationException 500", authConfig, true},
 		{"smithy TooManyRequestsException", tooManyReqs, true},
 		{"smithy AccessDenied not transient", accessDenied, false},
 		{"smithy ValidationException not transient", validation, false},
@@ -372,6 +382,71 @@ func TestHTTPStatusCode(t *testing.T) {
 	}
 }
 
+func TestIsHTTP404(t *testing.T) {
+	resp := func(code int) error {
+		return &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
+			Err:      apiErr("UnknownError", ""),
+		}
+	}
+	if !isHTTP404(resp(404)) {
+		t.Error("404 response should match")
+	}
+	if !isHTTP404(fmt.Errorf("wrapped: %w", resp(404))) {
+		t.Error("wrapped 404 should match")
+	}
+	if isHTTP404(resp(403)) {
+		t.Error("403 must not match")
+	}
+	if isHTTP404(apiErr("AccessDenied", "denied")) {
+		t.Error("bare APIError (no transport status) must not match")
+	}
+	if isHTTP404(nil) {
+		t.Error("nil must not match")
+	}
+}
+
+func TestTranscribeRegionErr(t *testing.T) {
+	// Call Analytics sub-feature gap → per-op skip (nil), Transcribe still works.
+	handled, out := transcribeRegionErr(apiErr("BadRequestException", "Call Analytics isn't supported in this region."))
+	if !handled || out != nil {
+		t.Errorf("sub-feature gap: handled=%v out=%v; want true + nil", handled, out)
+	}
+	// Whole service absent in region (catalog over-reports) → mark unavailable so
+	// the sibling phases short-circuit with one (region: unavailable) marker.
+	handled, out = transcribeRegionErr(apiErr("BadRequestException", "Your account isn't authorized to call this operation."))
+	if !handled || !errors.Is(out, errServiceUnavailable) {
+		t.Errorf("service absent: handled=%v out=%v; want true + errServiceUnavailable", handled, out)
+	}
+	if errors.Is(out, errServiceDisabled) || errors.Is(out, errServiceNotEntitled) {
+		t.Error("service-absent must be unavailable, not disabled/not-entitled")
+	}
+	// Unclassified shapes propagate.
+	if handled, _ := transcribeRegionErr(apiErr("BadRequestException", "malformed input")); handled {
+		t.Error("unrelated BadRequestException must not be handled")
+	}
+	if handled, _ := transcribeRegionErr(apiErr("AccessDeniedException", "isn't supported in this region")); handled {
+		t.Error("wrong code must not be handled even with matching message")
+	}
+}
+
+func TestMHOListErr(t *testing.T) {
+	// Closed-to-new-customers → not-entitled sentinel (halts the whole service).
+	handled, out := mhoListErr(apiErr("AccessDeniedException", "This service is no longer open to new customers"))
+	if !handled || !errors.Is(out, errServiceNotEntitled) {
+		t.Errorf("closed-to-new-customers: handled=%v out=%v; want true + errServiceNotEntitled", handled, out)
+	}
+	// Non-home-region rejection → region gap, swallowed to nil.
+	handled, out = mhoListErr(apiErr("ValidationException", "Unauthorized access denied"))
+	if !handled || out != nil {
+		t.Errorf("home-region gap: handled=%v out=%v; want true + nil", handled, out)
+	}
+	// Anything else is unclassified — caller treats it as a real error.
+	if handled, _ := mhoListErr(apiErr("ThrottlingException", "slow down")); handled {
+		t.Error("unrelated error must not be handled")
+	}
+}
+
 // timeoutError satisfies net.Error with Timeout()==true. Used to assert the
 // net.Error+Timeout branch of the classifier independent of DNSError/OpError.
 type timeoutError struct{}
@@ -379,3 +454,100 @@ type timeoutError struct{}
 func (timeoutError) Error() string   { return "i/o timeout" }
 func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return true }
+
+// A "Unable to determine service/operation name" denial is a region-routing gap,
+// not a real IAM deny: skipIfAccessDenied returns nil AND records NO warning.
+func TestSkipIfAccessDenied_RegionGapSilent(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+
+	err := skipIfAccessDenied(st, "bedrockagentcore", "123456789012", "eu-west-1",
+		apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized"))
+	if err != nil {
+		t.Errorf("region gap: returned %v, want nil", err)
+	}
+	if warned {
+		t.Error("region gap must not record a warning")
+	}
+	// A genuine denial still warns.
+	warned = false
+	_ = skipIfAccessDenied(st, "iam", "123456789012", "us-east-1", apiErr("AccessDenied", "denied"))
+	if !warned {
+		t.Error("real denial must still warn")
+	}
+}
+
+func TestTranslateBlockListed(t *testing.T) {
+	if !translateBlockListed(apiErr("NotAuthorizedException",
+		"Your account has been block-listed for access to Amazon Translate. Please contact AWS Support")) {
+		t.Error("block-listed message must match")
+	}
+	if translateBlockListed(apiErr("NotAuthorizedException", "some other reason")) {
+		t.Error("unrelated NotAuthorized message must not match")
+	}
+	if translateBlockListed(apiErr("AccessDenied", "block-listed")) {
+		t.Error("only NotAuthorizedException carries the block-list; other codes must not match")
+	}
+}
+
+func TestConnectCampaignsNotProvisioned(t *testing.T) {
+	if !connectCampaignsNotProvisioned(apiErr("AccessDeniedException",
+		"User: arn:aws:sts::1:assumed-role/r is not authorized to perform: null")) {
+		t.Error("null-action denial (no Connect instance) must match")
+	}
+	if !connectCampaignsNotProvisioned(apiErr("ForbiddenException", "Forbidden")) {
+		t.Error("bare ForbiddenException:Forbidden must match")
+	}
+	if connectCampaignsNotProvisioned(apiErr("AccessDeniedException",
+		"is not authorized to perform: connect-campaigns:ListCampaigns")) {
+		t.Error("a real action-identifying denial must NOT be silenced")
+	}
+}
+
+func TestChimeListErr_AvailabilityNoiseSilent(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+
+	for _, msg := range []string{"This feature is not available", "AWS account is not enabled", ""} {
+		warned = false
+		chimeListErr(st, "chime:ListVoiceProfileDomains", "1", "eu-west-1", apiErr("ForbiddenException", msg))
+		if warned {
+			t.Errorf("ForbiddenException %q is availability noise; must not warn", msg)
+		}
+	}
+	// A message-bearing IAM denial still warns.
+	warned = false
+	chimeListErr(st, "chime:ListVoiceProfileDomains", "1", "eu-west-1",
+		apiErr("AccessDeniedException", "User: arn:... is not authorized to perform: chime:ListVoiceProfileDomains"))
+	if !warned {
+		t.Error("real IAM denial must warn")
+	}
+}
+
+func TestBedrockDAListErr(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+
+	// Region feature gap → silent nil.
+	if err := bedrockDAListErr(st, "op", "1", "us-east-2", apiErr("AccessDeniedException", "library feature is not supported in this region")); err != nil || warned {
+		t.Errorf("region gap: err=%v warned=%v; want nil + no warn", err, warned)
+	}
+	// Empty-body denial = whole service absent in region → unavailable sentinel
+	// (short-circuits to one (region: unavailable) suffix), no warning.
+	warned = false
+	if err := bedrockDAListErr(st, "op", "1", "sa-east-1", apiErr("AccessDeniedException", "")); !errors.Is(err, errServiceUnavailable) || warned {
+		t.Errorf("empty-body: err=%v warned=%v; want errServiceUnavailable + no warn", err, warned)
+	}
+	// A message-bearing denial still warns (nil, but recorded).
+	warned = false
+	if err := bedrockDAListErr(st, "op", "1", "us-east-1", apiErr("AccessDeniedException", "User: arn is not authorized to perform: bedrock:ListBlueprints")); err != nil || !warned {
+		t.Errorf("real denial: err=%v warned=%v; want nil + warn", err, warned)
+	}
+	// Unrelated error propagates.
+	if err := bedrockDAListErr(st, "op", "1", "us-east-1", apiErr("ThrottlingException", "slow down")); err == nil {
+		t.Error("unrelated error must propagate")
+	}
+}

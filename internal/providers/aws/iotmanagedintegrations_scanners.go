@@ -153,6 +153,13 @@ func scanIMIOtaTasks(ctx context.Context, client iotManagedIntegrationsAPI, acct
 			if isAccessDenied(perr) {
 				return 0, 0, skipIfAccessDenied(st, "iotmanagedintegrations:ListOtaTasks", acct.ID, region, perr)
 			}
+			// OTA tasks require a registered custom endpoint + onboarded managed
+			// thing; without that setup AWS 403s with "Please register the custom
+			// endpoint and onboard the managed thing". Unconfigured for this op —
+			// silent per-op skip (sibling IMI phases still scan).
+			if isAPIErrorWithMessage(perr, "UnknownError", "register the custom endpoint") {
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("iotmanagedintegrations:ListOtaTasks: %w", perr)
 		}
 		for _, t := range out.Tasks {

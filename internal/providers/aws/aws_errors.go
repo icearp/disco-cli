@@ -79,7 +79,8 @@ func isAccessDeniedWithMessage(err error, needle string) bool {
 // regions, Lambda capacity-providers, Bedrock AgentCore). A per-region feature
 // gap, not an IAM denial: silent-skip the call.
 func isServiceNotAvailableInRegion(err error) bool {
-	return isAccessDeniedWithMessage(err, "Unable to determine service/operation name")
+	return isAccessDeniedWithMessage(err, "Unable to determine service/operation name") ||
+		isAPIErrorWithMessage(err, "NotFoundException", "Unable to determine service/operation name")
 }
 
 // isPayerAccountOnly reports whether err is the restriction AWS returns when a
@@ -193,6 +194,12 @@ func isClosedToNewCustomers(err error) bool {
 // the aligned progress output. The caller must already have verified the
 // error is an access-denied shape via isAccessDenied.
 func skipIfAccessDenied(st *store.Store, service, accountID, region string, err error) error {
+	// "Unable to determine service/operation name" is the gateway's signal that
+	// the op isn't routed in this region — a region gap, never a real IAM denial.
+	// The caller already gated on isAccessDenied; silent-skip without a warning.
+	if isServiceNotAvailableInRegion(err) {
+		return nil
+	}
 	scope := accountID
 	if region != "" && region != "global" {
 		scope = accountID + "/" + region
@@ -251,6 +258,11 @@ func isTransientNetworkError(err error) bool {
 		"RequestTimeout", "RequestTimeoutException", "RequestCanceled",
 		"ServiceUnavailable", "ServiceUnavailableException",
 		"InternalServerError", "InternalServerException", "InternalFailure", "InternalServerErrorException",
+		// Bedrock AgentCore gateway returns a 500 AuthorizerConfigurationException
+		// when its authorizer backend is momentarily unhealthy; the SDK already
+		// burned its retry budget by the time it reaches us. Server-side 5xx →
+		// warn+continue, don't count it as a scan error.
+		"AuthorizerConfigurationException",
 		// Post-retry throttling exhaust: SDK retryer already burned its budget,
 		// the error reaching us is a momentary TPS pressure spike. Treat as
 		// transient so siblings continue rather than aborting the region.
@@ -269,6 +281,16 @@ func httpStatusCode(err error) (int, bool) {
 		return re.HTTPStatusCode(), true
 	}
 	return 0, false
+}
+
+// isHTTP404 reports whether err carries an HTTP 404. Several services signal a
+// per-region operation gap this way — an untyped body the SDK can't map to a
+// typed exception (IoT data-plane "No method found matching route"; Bedrock
+// model ops returning an HTML 404 page that fails JSON decode) where only the
+// transport status is reliable.
+func isHTTP404(err error) bool {
+	c, ok := httpStatusCode(err)
+	return ok && c == 404
 }
 
 // skipIfTransient mirrors skipIfAccessDenied for transient network/service

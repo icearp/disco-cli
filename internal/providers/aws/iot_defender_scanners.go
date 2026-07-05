@@ -70,7 +70,7 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		// Regions without IoT Device Defender route the request to nothing and
 		// return HTTP 404 ("No method found matching route") under the generic
 		// UnknownError code. Per-region availability gap — silent-skip.
-		if c, ok := httpStatusCode(err); ok && c == 404 {
+		if isHTTP404(err) {
 			return 0, 0, nil
 		}
 		return 0, 0, fmt.Errorf("iot:DescribeAccountAuditConfiguration: %w", err)
@@ -105,6 +105,12 @@ func scanIoTScheduledAudits(ctx context.Context, client iotDefenderAPI, acct *ac
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iot:ListScheduledAudits", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			// Device Defender isn't routed in every IoT region; the data-plane
+			// 404s with "No method found matching route" (untyped, only the HTTP
+			// status is reliable). Region gap — silent-skip.
+			if isHTTP404(perr) {
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("iot:ListScheduledAudits: %w", perr)
@@ -152,6 +158,9 @@ func scanIoTMitigationActions(ctx context.Context, client iotDefenderAPI, acct *
 				_ = skipIfAccessDenied(st, "iot:ListMitigationActions", acct.ID, region, perr)
 				return 0, 0, nil
 			}
+			if isHTTP404(perr) { // Device Defender not routed in this region
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("iot:ListMitigationActions: %w", perr)
 		}
 		for _, m := range out.ActionIdentifiers {
@@ -195,6 +204,9 @@ func scanIoTSecurityProfiles(ctx context.Context, client iotDefenderAPI, acct *a
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iot:ListSecurityProfiles", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			if isHTTP404(perr) { // Device Defender not routed in this region
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("iot:ListSecurityProfiles: %w", perr)
@@ -242,6 +254,9 @@ func scanIoTCustomMetrics(ctx context.Context, client iotDefenderAPI, acct *acco
 				_ = skipIfAccessDenied(st, "iot:ListCustomMetrics", acct.ID, region, perr)
 				return 0, 0, nil
 			}
+			if isHTTP404(perr) { // Device Defender not routed in this region
+				return 0, 0, nil
+			}
 			return 0, 0, fmt.Errorf("iot:ListCustomMetrics: %w", perr)
 		}
 		names = append(names, out.MetricNames...)
@@ -281,6 +296,9 @@ func scanIoTDimensions(ctx context.Context, client iotDefenderAPI, acct *account
 		if perr != nil {
 			if isAccessDenied(perr) {
 				_ = skipIfAccessDenied(st, "iot:ListDimensions", acct.ID, region, perr)
+				return 0, 0, nil
+			}
+			if isHTTP404(perr) { // Device Defender not routed in this region
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("iot:ListDimensions: %w", perr)
