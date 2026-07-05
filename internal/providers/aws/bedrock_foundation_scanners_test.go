@@ -135,3 +135,21 @@ func TestScanBedrockARPolicies_RegionGapSilent(t *testing.T) {
 		t.Errorf("arns=%d total=%d inserted=%d; want all 0", len(arns), total, inserted)
 	}
 }
+
+// A message-bearing denial (a real per-action IAM deny) must still warn — the
+// silent-skip is scoped to the empty-body region-gap variant, not every 403.
+func TestScanBedrockARPolicies_RealDenialWarns(t *testing.T) {
+	st := newTestStore(t)
+	warned := false
+	st.OnWarn = func(store.ScanWarning) { warned = true }
+	acct := newTestAccount(testAccountID)
+
+	stub := &stubBedrockCatalog{arpErr: apiErr("AccessDenied",
+		"User: arn:aws:iam::1:user/u is not authorized to perform: bedrock:ListAutomatedReasoningPolicies")}
+	if _, _, _, err := scanBedrockARPolicies(context.Background(), stub, acct, testRegion, st, testScanID); err != nil {
+		t.Fatalf("real denial: returned %v, want nil (skipIfAccessDenied swallows)", err)
+	}
+	if !warned {
+		t.Error("a real message-bearing denial must record a warning")
+	}
+}
