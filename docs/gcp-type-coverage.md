@@ -114,12 +114,12 @@ zone/region enumeration.
 | InterconnectGroup | `InterconnectGroupsService.List(project)` | global |
 | InterconnectAttachmentGroup | `InterconnectAttachmentGroupsService.List(project)` | global |
 
-### Load balancing / health checks / SSL-TLS (24) — Wave 6
+### Load balancing / health checks / SSL-TLS (24) — Wave 6, implemented
 | Type | Method | Scope |
 |---|---|---|
 | GlobalForwardingRule | `GlobalForwardingRulesService.List(project)` | global |
 | HealthCheck | `HealthChecksService.AggregatedList` | global |
-| RegionHealthCheck | `RegionHealthChecksService.List(project, region)` | regional |
+| RegionHealthCheck | `HealthChecksService.AggregatedList` (dual-type split w/ HealthCheck) | regional |
 | RegionCompositeHealthCheck | `RegionCompositeHealthChecksService.AggregatedList` | regional |
 | RegionHealthAggregationPolicy | `RegionHealthAggregationPoliciesService.AggregatedList` | regional |
 | RegionHealthCheckService | `RegionHealthCheckServicesService.AggregatedList` | regional |
@@ -128,18 +128,18 @@ zone/region enumeration.
 | HttpHealthCheck | `HttpHealthChecksService.List(project)` | global (legacy, distinct resource) |
 | HttpsHealthCheck | `HttpsHealthChecksService.List(project)` | global |
 | SslCertificate | `SslCertificatesService.AggregatedList` | global |
-| RegionSslCertificate | `RegionSslCertificatesService.List(project, region)` | regional |
+| RegionSslCertificate | `SslCertificatesService.AggregatedList` (dual-type split w/ SslCertificate) | regional |
 | SslPolicy | `SslPoliciesService.AggregatedList` | global |
-| RegionSslPolicy | `RegionSslPoliciesService.List(project, region)` | regional |
+| RegionSslPolicy | `SslPoliciesService.AggregatedList` (dual-type split w/ SslPolicy) | regional |
 | TargetSslProxy | `TargetSslProxiesService.List(project)` | global |
 | TargetTcpProxy | `TargetTcpProxiesService.AggregatedList` | global |
-| RegionTargetTcpProxy | `RegionTargetTcpProxiesService.List(project, region)` | regional |
+| RegionTargetTcpProxy | `TargetTcpProxiesService.AggregatedList` (dual-type split w/ TargetTcpProxy) | regional |
 | TargetGrpcProxy | `TargetGrpcProxiesService.List(project)` | global |
 | RegionTargetHttpProxy | `RegionTargetHttpProxiesService.List(project, region)` | regional |
 | RegionTargetHttpsProxy | `RegionTargetHttpsProxiesService.List(project, region)` | regional |
 | RegionUrlMap | `RegionUrlMapsService.List(project, region)` | regional |
 | RegionBackendBucket | `RegionBackendBucketsService.List(project, region)` | regional |
-| RegionBackendService | `RegionBackendServicesService.List(project, region)` | regional |
+| RegionBackendService | `BackendServicesService.AggregatedList` (dual-type split w/ BackendService) | regional |
 | TargetInstance | `TargetInstancesService.AggregatedList` | zonal |
 | TargetPool | `TargetPoolsService.AggregatedList` | regional |
 

@@ -100,3 +100,47 @@ func TestScanForwardingRules_APINotEnabled(t *testing.T) {
 		t.Errorf("expected service-disabled sentinel, got %v", err)
 	}
 }
+
+// TestScanBackendServices_Fake covers the dual-type split added for Wave 6:
+// global-scope rows land as TypeComputeBackendService with Region nil,
+// regional-scope rows land as TypeComputeRegionBackendService with Region
+// set — guards the pre-existing strp("")-vs-nil bug fixed alongside the split.
+func TestScanBackendServices_Fake(t *testing.T) {
+	st := newTestStore(t)
+	p := newTestProject("my-project")
+
+	globalLink := "https://www.googleapis.com/compute/v1/projects/my-project/global/backendServices/bs-g"
+	regionLink := "https://www.googleapis.com/compute/v1/projects/my-project/regions/us-central1/backendServices/bs-r"
+	page := compute.BackendServiceAggregatedList{
+		Items: map[string]compute.BackendServicesScopedList{
+			"global":              {BackendServices: []*compute.BackendService{{Name: "bs-g", SelfLink: globalLink}}},
+			"regions/us-central1": {BackendServices: []*compute.BackendService{{Name: "bs-r", SelfLink: regionLink}}},
+		},
+	}
+	srv := fakeGCPServer(t, map[string]string{
+		"/projects/my-project/aggregated/backendServices": marshalAttrs(t, page),
+	})
+	svc := fakeComputeService(t, srv)
+
+	total, inserted, err := scanBackendServices(t.Context(), svc, p, st, testScanID)
+	if err != nil {
+		t.Fatalf("scanBackendServices: %v", err)
+	}
+	if total != 2 || inserted != 2 {
+		t.Fatalf("counts: got total=%d inserted=%d, want 2/2", total, inserted)
+	}
+	g, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeBackendService, globalLink))
+	if err != nil {
+		t.Fatalf("GetResource(global): %v", err)
+	}
+	if g.Region != nil {
+		t.Errorf("global backend service region: got %q, want nil", *g.Region)
+	}
+	r, err := st.GetResource(store.ResourceID("gcp", p.ID, TypeComputeRegionBackendService, regionLink))
+	if err != nil {
+		t.Fatalf("GetResource(region): %v", err)
+	}
+	if r.Region == nil || *r.Region != "us-central1" {
+		t.Errorf("region backend service region: got %v, want us-central1", r.Region)
+	}
+}

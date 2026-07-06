@@ -19,31 +19,26 @@ func init() {
 			{Service: "compute", DiscoType: TypeComputeTargetHTTPSProxy},
 			{Service: "compute", DiscoType: TypeComputeURLMap},
 			{Service: "compute", DiscoType: TypeComputeBackendService},
+			{Service: "compute", DiscoType: TypeComputeRegionBackendService},
 			{Service: "compute", DiscoType: TypeComputeBackendBucket},
 		},
 	})
 }
 
 // scanLoadBalancing discovers the global GCP load-balancer hot path:
-// forwarding rules (global + every region via AggregatedList), the four
-// target-proxy variants currently resolved (HTTP, HTTPS), URL maps, backend
-// services (global + regional via AggregatedList), and backend buckets.
+// forwarding rules (global + every region via AggregatedList), the HTTP(S)
+// target-proxy variants + URL maps + backend buckets (global-only List),
+// and backend services (global + regional via AggregatedList).
 //
-// Scope decisions:
-//   - TargetTcp/Ssl/GrpcProxies + regional UrlMaps deferred — proxy variants
-//     repeat the same scanner shape and the global HTTP(S) path covers the
-//     vast majority of L7 LBs; regional UrlMaps land with regional Internal
-//     HTTP(S) LB support in a follow-up.
-//   - InstanceGroups + NetworkEndpointGroups intentionally NOT scanned here —
-//     have their own R4 follow-up; the resolver below skips edges that would
-//     FK-violate against absent rows.
-//   - SslCertificates + SslPolicies + HealthChecks deferred — narrow security
-//     value vs. node count; HealthChecks especially produce hundreds of rows
-//     in busy projects with no edges of their own.
+// TargetTcp/Ssl/GrpcProxies, regional UrlMaps/TargetHTTP(S)Proxies/
+// BackendBuckets, SslCertificates/SslPolicies, HealthChecks and friends, and
+// InstanceGroups/NetworkEndpointGroups are scanned as separate phases of
+// scanCompute (compute_scanners.go) — see compute_lb_ext_scanners.go (Wave 6)
+// and compute_instance_group_scanners.go / compute_networking_scanners.go.
 //
 // All `*.List` calls here are global-scope; `AggregatedList` covers global +
 // every region in one paginated walk, so no per-region fan-out tier is
-// needed yet.
+// needed here.
 func scanLoadBalancing(ctx context.Context, p *project, st *store.Store, scanID string) (total, inserted int, err error) {
 	opts := clientOptions(ctx, providerCfg{})
 	svc, err := compute.NewService(ctx, opts...)
@@ -196,23 +191,35 @@ func scanURLMaps(ctx context.Context, svc *compute.Service, p *project, st *stor
 		})
 }
 
+// scanBackendServices splits its combined-scope AggregatedList result into
+// TypeComputeBackendService (global) and TypeComputeRegionBackendService
+// (regional) — same dual-type split pattern as scanComputeInstanceTemplates
+// (compute_instance_group_scanners.go) and scanComputeNetworkFirewallPolicies
+// (compute_networking_scanners.go), so the upstream RegionBackendService
+// Discovery key gets its own disco type instead of collapsing into the
+// global one.
 func scanBackendServices(ctx context.Context, svc *compute.Service, p *project, st *store.Store, scanID string) (int, int, error) {
 	return runPaginated(ctx, st, p, "compute:backendServices.aggregatedList",
 		svc.BackendServices.AggregatedList(p.ID),
 		func(page *compute.BackendServiceAggregatedList) (int, int, error) {
 			var batch []*store.Resource
 			for scope, items := range page.Items {
-				region := scopedListRegion(scope)
+				discoType := TypeComputeBackendService
+				var region *string
+				if region0 := scopedListRegion(scope); region0 != "" {
+					discoType = TypeComputeRegionBackendService
+					region = &region0
+				}
 				for _, bs := range items.BackendServices {
 					name := bs.Name
 					batch = append(batch, &store.Resource{
 						Provider:       "gcp",
 						AccountID:      p.ID,
 						AccountName:    &p.Name,
-						Type:           TypeComputeBackendService,
+						Type:           discoType,
 						NativeID:       bs.SelfLink,
 						Name:           &name,
-						Region:         strp(region),
+						Region:         region,
 						CreatedAt:      strp(bs.CreationTimestamp),
 						AttributesJSON: mustJSON(bs),
 						DiscoveredBy:   scanID,

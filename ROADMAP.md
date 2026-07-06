@@ -72,12 +72,14 @@ family), Wave 2 (Compute instance groups & templates: InstanceGroup\*, InstanceT
 InstanceGroupManager\* incl. nested ResizeRequest), Wave 3 (Compute addressing: Address,
 GlobalAddress, \*Prefix), and Wave 4 (Compute networking core: Route, Router, VpnGateway family,
 NEG family, NetworkFirewallPolicy family, NodeGroup/Template, PacketMirroring,
-ServiceAttachment, NetworkEdgeSecurityService, CrossSiteNetwork/WireGroup), and Wave 5 (Compute
+ServiceAttachment, NetworkEdgeSecurityService, CrossSiteNetwork/WireGroup), Wave 5 (Compute
 Interconnect: Interconnect, InterconnectAttachment, InterconnectGroup,
-InterconnectAttachmentGroup) landed; remaining waves tracked here, implement independently in
-any order:
+InterconnectAttachmentGroup), and Wave 6 (Compute LB/health-check/SSL-TLS: GlobalForwardingRule,
+HealthCheck family, HttpHealthCheck/HttpsHealthCheck, SslCertificate/SslPolicy families,
+TargetSslProxy/TargetTcpProxy/TargetGrpcProxy, regional TargetHTTP(S)Proxy/UrlMap/BackendBucket,
+BackendService dual-type split, TargetInstance, TargetPool) landed; remaining waves tracked
+here, implement independently in any order:
 
-- **Wave 6** — Compute LB/health-check/SSL-TLS (~24 types).
 - **Wave 7** — Compute autoscaling + reservations (~10 types).
 - **Wave 8** — Security-critical secondary services: cloudkms, cloudresourcemanager Tags, accesscontextmanager `AccessLevel`, sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
