@@ -143,15 +143,15 @@ zone/region enumeration.
 | TargetInstance | `TargetInstancesService.AggregatedList` | zonal |
 | TargetPool | `TargetPoolsService.AggregatedList` | regional |
 
-### Autoscaling & reservations (10) — Wave 7
+### Autoscaling & reservations (10) — Wave 7, implemented (9/10; ReservationSlot deferred)
 | Type | Method | Scope |
 |---|---|---|
-| Autoscaler | `AutoscalersService.AggregatedList` | zonal |
-| RegionAutoscaler | `RegionAutoscalersService.List(project, region)` | regional |
+| Autoscaler | `AutoscalersService.AggregatedList` (dual-type split w/ RegionAutoscaler, on Zone-field presence) | zonal |
+| RegionAutoscaler | `AutoscalersService.AggregatedList` (dual-type split w/ Autoscaler) | regional |
 | Reservation | `ReservationsService.AggregatedList` | zonal |
 | ReservationBlock | `ReservationBlocksService.List(project, zone, reservation)` | nested under Reservation |
-| ReservationSlot | `ReservationSlotsService.List(project, zone, parentName)` | nested under ReservationBlock |
-| ReservationSubBlock | `ReservationSubBlocksService.List(project, zone, parentName)` | nested under Reservation |
+| ReservationSubBlock | `ReservationSubBlocksService.List(project, zone, parentName)` | nested under ReservationBlock |
+| ReservationSlot | `ReservationSlotsService.List(project, zone, parentName)` | **DEFER** — 4th nesting level under ReservationSubBlock; no edges of its own and unbounded per-subblock cardinality (large ML/TPU reservations can run into the thousands of slots) |
 | FutureReservation | `FutureReservationsService.AggregatedList` | zonal |
 | RegionCommitment | `RegionCommitmentsService.AggregatedList` | regional |
 | ResourcePolicy | `ResourcePoliciesService.AggregatedList` | regional |

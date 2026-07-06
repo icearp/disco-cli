@@ -77,10 +77,13 @@ Interconnect: Interconnect, InterconnectAttachment, InterconnectGroup,
 InterconnectAttachmentGroup), and Wave 6 (Compute LB/health-check/SSL-TLS: GlobalForwardingRule,
 HealthCheck family, HttpHealthCheck/HttpsHealthCheck, SslCertificate/SslPolicy families,
 TargetSslProxy/TargetTcpProxy/TargetGrpcProxy, regional TargetHTTP(S)Proxy/UrlMap/BackendBucket,
-BackendService dual-type split, TargetInstance, TargetPool) landed; remaining waves tracked
+BackendService dual-type split, TargetInstance, TargetPool), and Wave 7 (Compute autoscaling +
+reservations: Autoscaler/RegionAutoscaler, Reservation → ReservationBlock →
+ReservationSubBlock 3-level nested fan-out, FutureReservation, RegionCommitment,
+ResourcePolicy, RegionSecurityPolicy — ReservationSlot, a 4th nesting level with unbounded
+per-subblock cardinality and no edges of its own, deferred) landed; remaining waves tracked
 here, implement independently in any order:
 
-- **Wave 7** — Compute autoscaling + reservations (~10 types).
 - **Wave 8** — Security-critical secondary services: cloudkms, cloudresourcemanager Tags, accesscontextmanager `AccessLevel`, sqladmin, dns, cloudidentity (Device/SSO/Membership/Policy), iam (closes R4.23 + adjacent Namespace/OauthClient/custom-Role).
 - **Wave 9** — Observability: logging (Bucket/Exclusion/Metric/View/LogScope), monitoring (Dashboard/NotificationChannel/Service/SLO/Snooze/UptimeCheckConfig).
 - **Wave 10** — Data services secondary resources: spanner, bigtableadmin, firestore (Backup/BackupSchedule/UserCred only — Field/Indexes stay DEFER), bigquery, dataproc.

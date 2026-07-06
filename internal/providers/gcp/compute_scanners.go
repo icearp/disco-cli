@@ -100,6 +100,12 @@ func scanCompute(ctx context.Context, p *project, st *store.Store, scanID string
 		func() (int, int, error) { return scanComputeRegionBackendBuckets(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeTargetInstances(ctx, svc, p, st, scanID) },
 		func() (int, int, error) { return scanComputeTargetPools(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeAutoscalers(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeReservations(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeFutureReservations(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionCommitments(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeResourcePolicies(ctx, svc, p, st, scanID) },
+		func() (int, int, error) { return scanComputeRegionSecurityPolicies(ctx, svc, p, st, scanID) },
 	} {
 		t, n, err := sub()
 		if err != nil {

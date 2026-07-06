@@ -99,6 +99,16 @@ const (
 	TypeComputeRegionBackendService          = "gcp:compute:region-backend-service"
 	TypeComputeTargetInstance                = "gcp:compute:target-instance"
 	TypeComputeTargetPool                    = "gcp:compute:target-pool"
+	// Compute Engine — autoscaling / reservations (Wave 7 of the type-coverage buildout)
+	TypeComputeAutoscaler           = "gcp:compute:autoscaler"
+	TypeComputeRegionAutoscaler     = "gcp:compute:region-autoscaler"
+	TypeComputeReservation          = "gcp:compute:reservation"
+	TypeComputeReservationBlock     = "gcp:compute:reservation-block"
+	TypeComputeReservationSubBlock  = "gcp:compute:reservation-sub-block"
+	TypeComputeFutureReservation    = "gcp:compute:future-reservation"
+	TypeComputeRegionCommitment     = "gcp:compute:region-commitment"
+	TypeComputeResourcePolicy       = "gcp:compute:resource-policy"
+	TypeComputeRegionSecurityPolicy = "gcp:compute:region-security-policy"
 	// Certificate Manager
 	TypeCertManagerCertificate = "gcp:certificatemanager:certificate"
 	TypeCertManagerMap         = "gcp:certificatemanager:certificate-map"
