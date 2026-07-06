@@ -246,6 +246,16 @@ Grouped by service; every client package is already vendored in the same
 `google.golang.org/api` module except two noted new sub-package imports.
 
 ### Security-critical secondary services — Wave 8 priority
+Wave 8 is split into API-scoped sub-waves (8a-8g) rather than one commit,
+matching the size of prior waves. Sub-wave status noted inline below.
+
+**8a — cloudkms, implemented.** Inlined into the existing `scanCloudKMS`
+nested loops (per-location siblings of KeyRings.List; per-keyring sibling of
+CryptoKeys.List; per-crypto-key nested under CryptoKeys.List) rather than
+separate scanners, since the parent location/keyring/crypto-key context was
+already being walked. `scanCloudKMS` split into a thin outer wrapper + a
+testable `scanCloudKMSWithClient` core (test-seam pattern, `internal/providers/CLAUDE.md`).
+
 | Type | Package.Client | List method | Scope |
 |---|---|---|---|
 | cloudkms CryptoKeyVersion | cloudkms/v1 CryptoKeysCryptoKeyVersionsService | List(parent) | fan-out per CryptoKey |

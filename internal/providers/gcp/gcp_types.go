@@ -155,8 +155,13 @@ const (
 	TypeIAMPolicy         = "gcp:iam:policy"
 	TypeIAMSAKey          = "gcp:iam:key"
 	// Cloud KMS
-	TypeKMSKeyRing   = "gcp:cloudkms:key-ring"
-	TypeKMSCryptoKey = "gcp:cloudkms:crypto-key"
+	TypeKMSKeyRing                 = "gcp:cloudkms:key-ring"
+	TypeKMSCryptoKey               = "gcp:cloudkms:crypto-key"
+	TypeKMSCryptoKeyVersion        = "gcp:cloudkms:crypto-key-version"
+	TypeKMSEkmConnection           = "gcp:cloudkms:ekm-connection"
+	TypeKMSImportJob               = "gcp:cloudkms:import-job"
+	TypeKMSKeyHandle               = "gcp:cloudkms:key-handle"
+	TypeKMSSingleTenantHsmInstance = "gcp:cloudkms:single-tenant-hsm-instance"
 	// Secret Manager
 	TypeSecret = "gcp:secretmanager:secret"
 	// Cloud Storage
