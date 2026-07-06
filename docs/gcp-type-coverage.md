@@ -82,7 +82,7 @@ zone/region enumeration.
 | PublicDelegatedPrefix | `PublicDelegatedPrefixesService.AggregatedList` | regional |
 | GlobalPublicDelegatedPrefix | `GlobalPublicDelegatedPrefixesService.List(project)` | global |
 
-### Networking core (20) — Wave 4
+### Networking core (20) — Wave 4, implemented
 | Type | Method | Scope |
 |---|---|---|
 | Route | `RoutesService.List(project)` | global |

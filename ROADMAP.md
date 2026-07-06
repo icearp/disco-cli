@@ -69,11 +69,12 @@ was stale.) Outstanding:
 56 GCP resource types scanned against ~228 real, listable, currently-unscanned types across
 Compute Engine + 26 other services. Wave 1 (Compute storage domain: Disk, Image, Snapshot
 family), Wave 2 (Compute instance groups & templates: InstanceGroup\*, InstanceTemplate\*,
-InstanceGroupManager\* incl. nested ResizeRequest), and Wave 3 (Compute addressing: Address,
-GlobalAddress, \*Prefix) landed; remaining waves tracked here, implement independently in any
-order:
+InstanceGroupManager\* incl. nested ResizeRequest), Wave 3 (Compute addressing: Address,
+GlobalAddress, \*Prefix), and Wave 4 (Compute networking core: Route, Router, VpnGateway family,
+NEG family, NetworkFirewallPolicy family, NodeGroup/Template, PacketMirroring,
+ServiceAttachment, NetworkEdgeSecurityService, CrossSiteNetwork/WireGroup) landed; remaining
+waves tracked here, implement independently in any order:
 
-- **Wave 4** — Compute networking core (~20 types: Route, Router, VpnGateway family, NEG family, NodeGroup/Template, etc).
 - **Wave 5** — Compute Interconnect (4 types).
 - **Wave 6** — Compute LB/health-check/SSL-TLS (~24 types).
 - **Wave 7** — Compute autoscaling + reservations (~10 types).
